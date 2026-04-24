@@ -412,6 +412,55 @@ describe("useGlobalSSE", () => {
       expect(matcher("student-detail-99")).toBe(false);
     });
 
+    it("student_updated invalidates student list, detail, and dashboard caches", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_updated",
+        active_group_id: "",
+        data: { source: "manual" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const studentListCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("my-tenant:ogs-students-1")
+        );
+      });
+      expect(studentListCall).toBeDefined();
+
+      const studentListMatcher = studentListCall![0] as (
+        key: string,
+      ) => boolean;
+      expect(studentListMatcher("my-tenant:search-students--")).toBe(true);
+      expect(studentListMatcher("my-tenant:database-students-list")).toBe(true);
+
+      const studentDetailCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("my-tenant:student-detail-42")
+        );
+      });
+      expect(studentDetailCall).toBeDefined();
+
+      const dashboardCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("ogs-dashboard")
+        );
+      });
+      expect(dashboardCall).toBeDefined();
+    });
+
     it("student_checkout without active_group_id does NOT invalidate supervision-visits", () => {
       renderHook(() => useGlobalSSE());
 

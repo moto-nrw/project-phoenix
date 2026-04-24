@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -56,6 +57,7 @@ type Resource struct {
 	AttendanceRepo         active.AttendanceRepository
 	VisitRepo              active.VisitRepository
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
+	Broadcaster            realtime.Broadcaster
 	Logger                 *slog.Logger
 	db                     *bun.DB
 }
@@ -77,6 +79,7 @@ type ResourceConfig struct {
 	AttendanceRepo         active.AttendanceRepository
 	VisitRepo              active.VisitRepository
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
+	Broadcaster            realtime.Broadcaster
 	Logger                 *slog.Logger
 	DB                     *bun.DB
 }
@@ -98,6 +101,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		AttendanceRepo:         cfg.AttendanceRepo,
 		VisitRepo:              cfg.VisitRepo,
 		DataAccessLogRepo:      cfg.DataAccessLogRepo,
+		Broadcaster:            cfg.Broadcaster,
 		Logger:                 cfg.Logger,
 		db:                     cfg.DB,
 	}
@@ -352,14 +356,14 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 
 	// Optionally enrich the paginated slice with today's effective pickup times (single bulk query).
 	// Only query for students the caller has full access to (GDPR — skip redacted students).
-	if params.includePickupTimes {
-		fullAccessIDs := make([]int64, 0, len(responses))
-		for i := range responses {
-			if responses[i].HasFullAccess {
-				fullAccessIDs = append(fullAccessIDs, responses[i].ID)
-			}
+	if params.includePickupTimes || params.includeArrivalTimes {
+		fullAccessIDs := collectFullAccessStudentIDs(responses)
+		if params.includePickupTimes {
+			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, time.Now())
 		}
-		rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, time.Now())
+		if params.includeArrivalTimes {
+			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, time.Now())
+		}
 	}
 
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
@@ -792,6 +796,25 @@ func checkSickExcusedConflict(req *UpdateStudentRequest, student *users.Student)
 	return nil
 }
 
+func (rs *Resource) broadcastStudentUpdated(studentID int64) {
+	if rs.Broadcaster == nil {
+		return
+	}
+
+	source := "manual"
+	event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{
+		Source: &source,
+	})
+
+	if err := rs.Broadcaster.BroadcastToAll(event); err != nil && rs.Logger != nil {
+		rs.Logger.Warn(
+			"failed to broadcast student update",
+			"student_id", studentID,
+			"error", err.Error(),
+		)
+	}
+}
+
 // updateStudent handles updating an existing student
 func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID and get student
@@ -870,6 +893,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Admin users and group supervisors can see full data including detailed location
 	// Explicitly verify access level based on the checks performed above
 	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
+	rs.broadcastStudentUpdated(updatedStudent.ID)
 
 	// Return the updated student with person data
 	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{

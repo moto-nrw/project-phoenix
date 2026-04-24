@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -16,6 +16,7 @@ import {
   useStudentData,
   type ExtendedStudent,
 } from "~/lib/hooks/use-student-data";
+import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   StudentDetailHeader,
@@ -33,8 +34,6 @@ import {
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
 import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "StudentDetailPage" });
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
 import { ArrivalScheduleManager } from "~/components/students/arrival-schedule-manager";
@@ -45,6 +44,15 @@ import {
   getDayData as getArrivalDayData,
   formatArrivalTime,
 } from "~/lib/arrival-schedule-helpers";
+
+type TodayArrival = {
+  time?: string;
+  note?: string;
+  isException?: boolean;
+  isAbsent?: boolean;
+};
+
+const logger = createLogger({ component: "StudentDetailPage" });
 
 // =============================================================================
 // MAIN COMPONENT
@@ -141,13 +149,11 @@ export default function StudentDetailPage() {
     isException?: boolean;
   }>({});
 
-  // Today's arrival info (for header display)
-  const [todayArrival, setTodayArrival] = useState<{
-    time?: string;
-    note?: string;
-    isException?: boolean;
-    isAbsent?: boolean;
-  }>({});
+  const { data: arrivalData } = useSWRAuth(
+    hasFullAccess && studentId ? `arrival-data-${studentId}` : null,
+    async () => fetchArrivalData(studentId),
+    { revalidateOnFocus: false },
+  );
 
   // Load active groups when check-in modal opens
   useEffect(() => {
@@ -216,50 +222,35 @@ export default function StudentDetailPage() {
     void loadTodayPickup();
   }, [hasFullAccess, studentId, student?.sick, student?.excused]);
 
-  // Load today's arrival time for header (requires read access to student data)
-  useEffect(() => {
-    if (!hasFullAccess || !studentId) {
-      setTodayArrival({});
-      return;
+  const todayArrival = useMemo<TodayArrival>(() => {
+    if (!hasFullAccess || !arrivalData) return {};
+
+    const dayData = getArrivalDayData(
+      new Date(),
+      arrivalData.schedules,
+      arrivalData.exceptions,
+      arrivalData.notes,
+      student?.sick ?? false,
+      student?.excused ?? false,
+    );
+
+    if (dayData.isAbsent) {
+      return {
+        note: dayData.effectiveReason,
+        isException: dayData.isException,
+        isAbsent: true,
+      };
     }
-
-    const loadTodayArrival = async () => {
-      try {
-        const data = await fetchArrivalData(studentId);
-        const today = new Date();
-
-        const dayData = getArrivalDayData(
-          today,
-          data.schedules,
-          data.exceptions,
-          data.notes,
-          student?.sick ?? false,
-          student?.excused ?? false,
-        );
-
-        if (dayData.isAbsent) {
-          setTodayArrival({
-            note: dayData.effectiveReason,
-            isException: dayData.isException,
-            isAbsent: true,
-          });
-        } else if (dayData.effectiveTime) {
-          setTodayArrival({
-            time: formatArrivalTime(dayData.effectiveTime),
-            note: dayData.effectiveReason,
-            isException: dayData.isException,
-            isAbsent: false,
-          });
-        } else {
-          setTodayArrival({});
-        }
-      } catch {
-        setTodayArrival({});
-      }
-    };
-
-    void loadTodayArrival();
-  }, [hasFullAccess, studentId, student?.sick, student?.excused]);
+    if (dayData.effectiveTime) {
+      return {
+        time: formatArrivalTime(dayData.effectiveTime),
+        note: dayData.effectiveReason,
+        isException: dayData.isException,
+        isAbsent: false,
+      };
+    }
+    return {};
+  }, [arrivalData, hasFullAccess, student?.excused, student?.sick]);
 
   // Show loading state
   if (loading) {

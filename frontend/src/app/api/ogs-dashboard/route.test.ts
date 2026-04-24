@@ -135,7 +135,7 @@ describe("GET /api/ogs-dashboard", () => {
     );
     expect(mockApiGet).toHaveBeenNthCalledWith(
       2,
-      "/api/students?group_id=12",
+      "/api/students?group_id=12&include_arrival_times=true",
       "test-token",
     );
     expect(mockApiGet).toHaveBeenNthCalledWith(
@@ -224,7 +224,7 @@ describe("GET /api/ogs-dashboard", () => {
     // After sorting, "Adler" (id=10) should be first
     expect(mockApiGet).toHaveBeenNthCalledWith(
       2,
-      "/api/students?group_id=10",
+      "/api/students?group_id=10&include_arrival_times=true",
       "test-token",
     );
 

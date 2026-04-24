@@ -111,7 +111,11 @@ export default function StudentsPage() {
     isLoading: loading,
     error: studentsError,
   } = useSWRAuth("database-students-list", async () => {
-    const data = await service.getList({ page: 1, pageSize: 1000 });
+    const data = await service.getList({
+      page: 1,
+      pageSize: 1000,
+      include_arrival_times: true,
+    });
     return Array.isArray(data.data) ? data.data : [];
   });
 
@@ -312,7 +316,8 @@ export default function StudentsPage() {
 
   const handleArrivalChanged = useCallback(() => {
     setArrivalRevision((prev) => prev + 1);
-  }, []);
+    void tenantMutate("database-students-list");
+  }, [tenantMutate]);
 
   const studentsWithArrival = useMemo(
     () => new Set(filteredStudents.map((s) => String(s.id))),
@@ -323,7 +328,17 @@ export default function StudentsPage() {
     [filteredStudents, arrivalRevision],
   );
 
-  const arrivalSummaryById = useMemo(() => new Map<string, string>(), []);
+  const arrivalSummaryById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const student of filteredStudents) {
+      if (student.arrival_is_exception && !student.arrival_time) {
+        map.set(String(student.id), "Kommt heute nicht");
+      } else if (student.arrival_time) {
+        map.set(String(student.id), `Ankunft ${student.arrival_time} Uhr`);
+      }
+    }
+    return map;
+  }, [filteredStudents]);
 
   const canShowDetail = !loading && filteredStudents.length > 0;
 

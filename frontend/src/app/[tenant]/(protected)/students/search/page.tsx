@@ -23,7 +23,7 @@ import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   getSchoolYear,
 } from "~/lib/student-helpers";
-import { useMinuteClock, combinePickupNotes } from "~/lib/pickup-helpers";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   StudentCard,
   SchoolClassIcon,
@@ -32,8 +32,6 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
 } from "~/components/students/student-card";
-import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
-import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { activeService } from "~/lib/active-api";
@@ -143,6 +141,7 @@ function SearchPageContent() {
         search: debouncedSearchTerm,
         groupId: selectedGroup,
         includePickupTimes: true,
+        includeArrivalTimes: true,
       });
     },
     {
@@ -165,18 +164,6 @@ function SearchPageContent() {
     async () => activeService.getTrackingIndicators(trackingStudentIds),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
-
-  // Arrival times: fetch when student list changes
-  const { data: arrivalTimesRaw } = useSWRAuth<Map<string, BulkArrivalTime>>(
-    trackingStudentIds.length > 0
-      ? `arrival-search-${debouncedSearchTerm}-${selectedGroup}`
-      : null,
-    async () => fetchBulkArrivalTimes(trackingStudentIds.map(String)),
-    { keepPreviousData: true, revalidateOnFocus: false },
-  );
-  // Defensive: SWR test mocks may return non-Map values
-  const arrivalTimesData: Map<string, BulkArrivalTime> | undefined =
-    arrivalTimesRaw instanceof Map ? arrivalTimesRaw : undefined;
 
   // Reset tracking filter if labels vanish or the selected label index becomes stale.
   // Without this, the active-filter chip (guarded by trackingData.labels) can hide
@@ -500,8 +487,8 @@ function SearchPageContent() {
       if (!aHome && bHome) return 1;
       if (aHome && !bHome) return -1;
 
-      const timeA = arrivalTimesData?.get(a.id.toString())?.expectedArrival;
-      const timeB = arrivalTimesData?.get(b.id.toString())?.expectedArrival;
+      const timeA = a.arrival_time;
+      const timeB = b.arrival_time;
       const urgencyA = getArrivalUrgency(timeA, now, aHome);
       const urgencyB = getArrivalUrgency(timeB, now, bHome);
       const rankA = urgencyRank[urgencyA] ?? 3;
@@ -516,7 +503,7 @@ function SearchPageContent() {
 
       return compareByName(a, b);
     });
-  }, [filteredStudents, sortMode, arrivalTimesData, now]);
+  }, [filteredStudents, sortMode, now]);
 
   // Fix P2: Show loading during initialization (prevents empty state flash)
   // Note: With required: true, unauthenticated users are auto-redirected to login
@@ -641,9 +628,6 @@ function SearchPageContent() {
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {sortedStudents.map((student) => {
-                const studentArrival = arrivalTimesData?.get(
-                  student.id.toString(),
-                );
                 const isHome = isHomeLocation(student.current_location);
 
                 return (
@@ -662,9 +646,9 @@ function SearchPageContent() {
                         student={{
                           ...student,
                           not_arrival_today:
-                            (studentArrival?.isException ?? false) &&
-                            !studentArrival?.expectedArrival,
-                          not_arrival_reason: studentArrival?.notes ?? null,
+                            (student.arrival_is_exception ?? false) &&
+                            !student.arrival_time,
+                          not_arrival_reason: student.arrival_notes ?? null,
                         }}
                         displayMode="contextAware"
                         userGroups={myGroups}
@@ -687,20 +671,15 @@ function SearchPageContent() {
                         {student.has_full_access !== false && (
                           <>
                             <ArrivalTimeRow
-                              arrivalTime={studentArrival?.expectedArrival}
-                              isException={studentArrival?.isException ?? false}
+                              arrivalTime={student.arrival_time}
+                              isException={
+                                student.arrival_is_exception ?? false
+                              }
                               isAbsent={
-                                (studentArrival?.isException ?? false) &&
-                                !studentArrival?.expectedArrival
+                                (student.arrival_is_exception ?? false) &&
+                                !student.arrival_time
                               }
-                              notes={
-                                studentArrival
-                                  ? combinePickupNotes(
-                                      studentArrival.notes,
-                                      studentArrival.dayNotes,
-                                    )
-                                  : undefined
-                              }
+                              notes={student.arrival_notes}
                               isHome={isHome}
                               now={now}
                             />

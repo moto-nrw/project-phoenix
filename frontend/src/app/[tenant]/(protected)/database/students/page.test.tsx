@@ -724,7 +724,11 @@ describe("StudentsPage", () => {
       expect(result).toEqual([
         { id: "1", first_name: "Test", second_name: "Student" },
       ]);
-      expect(mockGetList).toHaveBeenCalledWith({ page: 1, pageSize: 1000 });
+      expect(mockGetList).toHaveBeenCalledWith({
+        page: 1,
+        pageSize: 1000,
+        include_arrival_times: true,
+      });
     });
 
     it("handles non-array response from getList", async () => {

@@ -54,8 +54,6 @@ import {
 } from "~/components/students/student-card";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
-import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
-import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
@@ -93,6 +91,9 @@ interface BackendStudentFromBFF {
   location_since?: string;
   group_id?: number;
   group_name?: string;
+  arrival_time?: string;
+  arrival_is_exception?: boolean;
+  arrival_notes?: string;
 }
 
 // BFF response type for dashboard data
@@ -182,11 +183,6 @@ function OGSGroupPageContent() {
   const [pickupTimes, setPickupTimes] = useState<Map<string, BulkPickupTime>>(
     new Map(),
   );
-
-  // State for arrival times (bulk fetched for all students)
-  const [arrivalTimes, setArrivalTimes] = useState<
-    Map<string, BulkArrivalTime>
-  >(new Map());
 
   // Sort mode for student list
   const [sortMode, setSortMode] = useState<"default" | "pickup" | "arrival">(
@@ -316,6 +312,9 @@ function OGSGroupPageContent() {
         location_since: s.location_since,
         group_id: s.group_id?.toString(),
         group_name: s.group_name,
+        arrival_time: s.arrival_time,
+        arrival_is_exception: s.arrival_is_exception,
+        arrival_notes: s.arrival_notes,
       }));
       setStudents(mappedStudents);
 
@@ -452,7 +451,6 @@ function OGSGroupPageContent() {
       }
     >;
     pickupTimes?: Map<string, BulkPickupTime>;
-    arrivalTimes?: Map<string, BulkArrivalTime>;
     trackingIndicators?: TrackingIndicatorsResponse;
   }>(
     hasAccess && currentGroupId ? `ogs-students-${currentGroupId}` : null,
@@ -461,6 +459,7 @@ function OGSGroupPageContent() {
       const [studentsResponse, roomStatusResponse] = await Promise.all([
         studentService.getStudents({
           groupId: currentGroupId!,
+          includeArrivalTimes: true,
           token: session?.user?.token,
         }),
         // Fetch room status inline (don't use callback that sets state)
@@ -493,32 +492,25 @@ function OGSGroupPageContent() {
 
       const students = studentsResponse.students || [];
 
-      // Fetch pickup/arrival times and tracking indicators in parallel (prevents loading flash)
+      // Fetch pickup times and tracking indicators in parallel (prevents loading flash).
+      // Arrival data is part of the student list response, so ogs-students-* invalidation is enough.
       let pickupTimesMap = new Map<string, BulkPickupTime>();
-      let arrivalTimesMap = new Map<string, BulkArrivalTime>();
       let trackingIndicators: TrackingIndicatorsResponse = {
         labels: [],
         results: {},
       };
       if (students.length > 0) {
         const studentIds = students.map((s) => s.id.toString());
-        const [pickupResult, arrivalResult, trackingResult] = await Promise.all(
-          [
-            fetchBulkPickupTimes(studentIds).catch(() => {
-              logger.error("failed to fetch pickup times in SWR");
-              return new Map<string, BulkPickupTime>();
-            }),
-            fetchBulkArrivalTimes(studentIds).catch(() => {
-              logger.error("failed to fetch arrival times in SWR");
-              return new Map<string, BulkArrivalTime>();
-            }),
-            activeService.getTrackingIndicators(studentIds).catch(() => {
-              return { labels: [], results: {} } as TrackingIndicatorsResponse;
-            }),
-          ],
-        );
+        const [pickupResult, trackingResult] = await Promise.all([
+          fetchBulkPickupTimes(studentIds).catch(() => {
+            logger.error("failed to fetch pickup times in SWR");
+            return new Map<string, BulkPickupTime>();
+          }),
+          activeService.getTrackingIndicators(studentIds).catch(() => {
+            return { labels: [], results: {} } as TrackingIndicatorsResponse;
+          }),
+        ]);
         pickupTimesMap = pickupResult;
-        arrivalTimesMap = arrivalResult;
         trackingIndicators = trackingResult;
       }
 
@@ -526,7 +518,6 @@ function OGSGroupPageContent() {
         students,
         roomStatus: roomStatusResponse ?? undefined,
         pickupTimes: pickupTimesMap,
-        arrivalTimes: arrivalTimesMap,
         trackingIndicators,
       };
     },
@@ -549,9 +540,6 @@ function OGSGroupPageContent() {
     // but test mocks may return the wrong type)
     if (swrStudentsData?.pickupTimes instanceof Map) {
       setPickupTimes(swrStudentsData.pickupTimes);
-    }
-    if (swrStudentsData?.arrivalTimes instanceof Map) {
-      setArrivalTimes(swrStudentsData.arrivalTimes);
     }
   }, [swrStudentsData]);
 
@@ -864,8 +852,8 @@ function OGSGroupPageContent() {
         if (aHome && !bHome) return -1;
 
         // Beide zu Hause: nach Ankunfts-Urgency sortieren
-        const timeA = arrivalTimes.get(a.id.toString())?.expectedArrival;
-        const timeB = arrivalTimes.get(b.id.toString())?.expectedArrival;
+        const timeA = a.arrival_time;
+        const timeB = b.arrival_time;
         const urgencyA = getArrivalUrgency(timeA, now, aHome);
         const urgencyB = getArrivalUrgency(timeB, now, bHome);
         const rankA = urgencyRank[urgencyA] ?? 3;
@@ -884,7 +872,7 @@ function OGSGroupPageContent() {
 
     // Alphabetisch (Standard): Nachname, dann Vorname
     return sorted.sort(compareByName);
-  }, [filteredStudents, sortMode, pickupTimes, arrivalTimes, now]);
+  }, [filteredStudents, sortMode, pickupTimes, now]);
 
   const getCardGradient = useCallback(
     (student: Student) => {
@@ -1203,7 +1191,6 @@ function OGSGroupPageContent() {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
-              const studentArrival = arrivalTimes.get(student.id.toString());
               const isHome = isHomeLocation(student.current_location);
 
               return (
@@ -1221,9 +1208,9 @@ function OGSGroupPageContent() {
                       student={{
                         ...student,
                         not_arrival_today:
-                          (studentArrival?.isException ?? false) &&
-                          !studentArrival?.expectedArrival,
-                        not_arrival_reason: studentArrival?.notes ?? null,
+                          (student.arrival_is_exception ?? false) &&
+                          !student.arrival_time,
+                        not_arrival_reason: student.arrival_notes ?? null,
                       }}
                       displayMode="roomName"
                       isGroupRoom={inGroupRoom}
@@ -1234,20 +1221,13 @@ function OGSGroupPageContent() {
                   extraContent={
                     <>
                       <ArrivalTimeRow
-                        arrivalTime={studentArrival?.expectedArrival}
-                        isException={studentArrival?.isException ?? false}
+                        arrivalTime={student.arrival_time}
+                        isException={student.arrival_is_exception ?? false}
                         isAbsent={
-                          (studentArrival?.isException ?? false) &&
-                          !studentArrival?.expectedArrival
+                          (student.arrival_is_exception ?? false) &&
+                          !student.arrival_time
                         }
-                        notes={
-                          studentArrival
-                            ? combinePickupNotes(
-                                studentArrival.notes,
-                                studentArrival.dayNotes,
-                              )
-                            : undefined
-                        }
+                        notes={student.arrival_notes}
                         isHome={isHome}
                         now={now}
                       />

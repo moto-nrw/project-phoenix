@@ -289,6 +289,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AttendanceRepo:         repoFactory.Attendance,
 		VisitRepo:              repoFactory.ActiveVisit,
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
+		Broadcaster:            api.Services.RealtimeHub,
 		Logger:                 logger.With("handler", "students"),
 		DB:                     db,
 	})

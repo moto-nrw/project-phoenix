@@ -176,6 +176,7 @@ function buildStudentQueryParams(filters?: {
   page?: number;
   pageSize?: number;
   includePickupTimes?: boolean;
+  includeArrivalTimes?: boolean;
 }): URLSearchParams {
   const params = new URLSearchParams();
   if (filters?.search) params.append("search", filters.search);
@@ -187,6 +188,8 @@ function buildStudentQueryParams(filters?: {
     params.append("page_size", filters.pageSize.toString());
   if (filters?.includePickupTimes)
     params.append("include_pickup_times", "true");
+  if (filters?.includeArrivalTimes)
+    params.append("include_arrival_times", "true");
   return params;
 }
 
@@ -744,6 +747,7 @@ export const studentService = {
     page?: number;
     pageSize?: number;
     includePickupTimes?: boolean;
+    includeArrivalTimes?: boolean;
     token?: string; // Optional: pass token to skip getSession()
   }): Promise<StudentsResult> => {
     const params = buildStudentQueryParams(filters);

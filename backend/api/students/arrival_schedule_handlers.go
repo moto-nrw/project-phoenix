@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -320,6 +321,27 @@ func buildArrivalDataResponse(data *scheduleService.StudentArrivalData) ArrivalD
 	return response
 }
 
+func (rs *Resource) broadcastArrivalScheduleChanged(studentID int64) {
+	if rs.Broadcaster == nil {
+		return
+	}
+
+	source := "manual"
+	data := realtime.EventData{Source: &source}
+	event := realtime.NewEvent(
+		realtime.EventArrivalScheduleChanged,
+		"",
+		data,
+	)
+	if err := rs.Broadcaster.BroadcastToAll(event); err != nil && rs.Logger != nil {
+		rs.Logger.Warn(
+			"failed to broadcast arrival schedule change",
+			"student_id", studentID,
+			"error", err.Error(),
+		)
+	}
+}
+
 // updateStudentArrivalSchedules handles PUT /students/{id}/arrival-schedules
 func (rs *Resource) updateStudentArrivalSchedules(w http.ResponseWriter, r *http.Request) {
 	student := rs.requireArrivalWriteAccess(w, r, "update arrival schedules")
@@ -365,6 +387,7 @@ func (rs *Resource) updateStudentArrivalSchedules(w http.ResponseWriter, r *http
 		return
 	}
 
+	rs.broadcastArrivalScheduleChanged(student.ID)
 	response := buildArrivalDataResponse(data)
 	common.Respond(w, r, http.StatusOK, response, "Arrival schedules updated successfully")
 }
@@ -409,6 +432,7 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
+	rs.broadcastArrivalScheduleChanged(student.ID)
 	common.Respond(w, r, http.StatusCreated, mapArrivalExceptionToResponse(exception), "Arrival exception created successfully")
 }
 
@@ -463,6 +487,7 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
+	rs.broadcastArrivalScheduleChanged(student.ID)
 	common.Respond(w, r, http.StatusOK, mapArrivalExceptionToResponse(exception), "Arrival exception updated successfully")
 }
 
@@ -490,6 +515,7 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
+	rs.broadcastArrivalScheduleChanged(student.ID)
 	common.Respond(w, r, http.StatusOK, nil, "Arrival exception deleted successfully")
 }
 
@@ -528,6 +554,7 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	rs.broadcastArrivalScheduleChanged(student.ID)
 	common.Respond(w, r, http.StatusCreated, mapArrivalNoteToResponse(note), "Arrival note created successfully")
 }
 
@@ -573,6 +600,7 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	rs.broadcastArrivalScheduleChanged(student.ID)
 	common.Respond(w, r, http.StatusOK, mapArrivalNoteToResponse(note), "Arrival note updated successfully")
 }
 
@@ -601,6 +629,7 @@ func (rs *Resource) deleteStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	rs.broadcastArrivalScheduleChanged(student.ID)
 	common.Respond(w, r, http.StatusOK, nil, "Arrival note deleted successfully")
 }
 
@@ -624,6 +653,7 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	rs.broadcastArrivalScheduleChanged(0)
 	common.Respond(w, r, http.StatusOK, result, "Bulk arrival schedules upserted successfully")
 }
 
