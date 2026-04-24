@@ -214,6 +214,7 @@ export function StudentsMasterDetail({
         detail={detailNode}
         selectedId={selectedId}
         onDeselect={() => onSelect(null)}
+        unselectedBehavior="expand"
         mobileDrawerTitle={
           selectedStudent
             ? `${selectedStudent.second_name ?? ""} ${selectedStudent.first_name ?? ""}`.trim() ||

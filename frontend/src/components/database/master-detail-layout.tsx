@@ -20,6 +20,12 @@ interface MasterDetailLayoutProps {
   className?: string;
   /** Breathing room below the split view (e.g. to clear surrounding padding). */
   bottomOffset?: number;
+  /**
+   * How the desktop layout behaves when nothing is selected.
+   * - `"placeholder"` (default): list keeps `listWidth`, detail renders the passed node (typically an empty state).
+   * - `"expand"`: list takes the full width and the detail pane is not rendered.
+   */
+  unselectedBehavior?: "placeholder" | "expand";
 }
 
 export function MasterDetailLayout({
@@ -31,6 +37,7 @@ export function MasterDetailLayout({
   mobileDrawerTitle = "Details",
   className,
   bottomOffset = 32,
+  unselectedBehavior = "placeholder",
 }: MasterDetailLayoutProps) {
   const isMobile = useIsMobile();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,6 +88,9 @@ export function MasterDetailLayout({
     );
   }
 
+  const showDetail =
+    unselectedBehavior === "placeholder" || selectedId !== null;
+
   return (
     <div
       ref={containerRef}
@@ -88,14 +98,19 @@ export function MasterDetailLayout({
       className={cn("flex w-full gap-4", className)}
     >
       <div
-        className="shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white"
-        style={{ width: listWidth }}
+        className={cn(
+          "overflow-hidden rounded-xl border border-gray-200 bg-white",
+          showDetail ? "shrink-0" : "flex-1",
+        )}
+        style={showDetail ? { width: listWidth } : undefined}
       >
         <div className="flex h-full flex-col">{list}</div>
       </div>
-      <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="flex h-full flex-col">{detail}</div>
-      </div>
+      {showDetail ? (
+        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="flex h-full flex-col">{detail}</div>
+        </div>
+      ) : null}
     </div>
   );
 }
