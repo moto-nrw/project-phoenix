@@ -73,7 +73,7 @@ export default function StudentMensaHistoryPage() {
           first_name: "Emma",
           second_name: "Müller",
           name: "Emma Müller",
-          school_class: "3b",
+          school_class: "Klasse 3b",
           group_id: "g3",
           group_name: "Eulen",
           bus: false,

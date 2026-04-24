@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentsPage from "./page";
 
@@ -10,12 +11,25 @@ vi.mock("next-auth/react", () => ({
   })),
 }));
 
-// Mock next/navigation
+// Stateful URL search params mock. Tests mutate `currentSearch` via
+// `setSelectedStudent(id)` before `render()` for scenarios that need
+// the detail panel to show, and assert on `mockReplace` for click-driven
+// navigations (which in the real page flow would update the URL).
+let currentSearch: URLSearchParams = new URLSearchParams();
+const mockReplace = vi.fn((url: string) => {
+  const q = url.includes("?") ? (url.split("?")[1] ?? "") : "";
+  currentSearch = new URLSearchParams(q);
+});
+const setSelectedStudent = (id: string | null) => {
+  currentSearch = new URLSearchParams();
+  if (id) currentSearch.set("student", id);
+};
+
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
-  useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
+  useRouter: vi.fn(() => ({ push: vi.fn(), replace: mockReplace })),
   usePathname: vi.fn(() => "/tenant/database/students"),
-  useSearchParams: vi.fn(() => new URLSearchParams()),
+  useSearchParams: () => currentSearch,
 }));
 
 // Mock SWR hooks
@@ -45,14 +59,10 @@ vi.mock("~/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
-vi.mock("~/hooks/useDeleteConfirmation", () => ({
-  useDeleteConfirmation: vi.fn(() => ({
-    showConfirmModal: false,
-    handleDeleteClick: vi.fn(),
-    handleDeleteCancel: vi.fn(),
-    confirmDelete: vi.fn(),
-  })),
-}));
+// Use the real `useDeleteConfirmation` hook so the delete path is actually
+// exercised end-to-end (click "Löschen" → ConfirmationModal opens → click
+// "confirm-delete" button → handleDeleteStudent runs). The ConfirmationModal
+// mock below surfaces a `confirm-delete` button wired to `onConfirm`.
 
 const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
@@ -119,66 +129,78 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("@/components/students/student-detail-modal", () => ({
-  StudentDetailModal: ({
-    isOpen,
-    student,
-    onClose,
-    onEdit,
-    onDelete,
+// Test double for the master-detail layout. Exposes:
+// - a clickable row per student (fires `onSelect(id)`)
+// - guardian/group chips visible in the DOM for filter/display assertions
+// - a "detail-panel" that renders when `selectedId` is set, with the
+//   page-supplied `detailActions` plugged in AND a synthetic "trigger-update"
+//   button that invokes the inline save path (formerly the edit modal).
+vi.mock("@/components/students/students-master-detail", () => ({
+  StudentsMasterDetail: ({
+    students,
+    selectedId,
+    onSelect,
+    onUpdateStudent,
+    detailActions,
   }: {
-    isOpen: boolean;
-    student: { first_name: string; second_name: string } | null;
-    onClose: () => void;
-    onEdit: () => void;
-    onDelete: () => void;
-  }) =>
-    isOpen && student ? (
-      <div data-testid="student-detail-modal">
-        <span data-testid="detail-student-name">
-          {student.first_name} {student.second_name}
-        </span>
-        <button data-testid="edit-button" onClick={onEdit}>
-          Edit
-        </button>
-        <button data-testid="delete-button" onClick={onDelete}>
-          Delete
-        </button>
-        <button data-testid="close-detail-modal" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
-}));
-
-vi.mock("@/components/students/student-edit-modal", () => ({
-  StudentEditModal: ({
-    isOpen,
-    onClose,
-    onSave,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: {
+    students: Array<{
+      id: string;
       first_name: string;
       second_name: string;
-    }) => Promise<void>;
-  }) =>
-    isOpen ? (
-      <div data-testid="student-edit-modal">
-        <button
-          data-testid="submit-edit"
-          onClick={() =>
-            void onSave({ first_name: "Updated", second_name: "Student" })
-          }
-        >
-          Save
-        </button>
-        <button data-testid="close-edit-modal" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
+      name_lg?: string | null;
+      group_name?: string | null;
+    }>;
+    selectedId: string | null;
+    onSelect: (id: string | null) => void;
+    onUpdateStudent: (
+      id: string,
+      data: { first_name: string; second_name: string },
+    ) => Promise<void>;
+    detailActions?: ReactNode;
+  }) => (
+    <div data-testid="students-master-detail">
+      {students.map((s) => (
+        <div key={s.id} data-testid={`student-entry-${s.id}`}>
+          <button
+            data-testid={`student-row-${s.id}`}
+            onClick={() => onSelect(String(s.id))}
+          >
+            {s.first_name} {s.second_name}
+          </button>
+          {s.name_lg ? (
+            <span data-testid={`guardian-${s.id}`}>{s.name_lg}</span>
+          ) : null}
+          {s.group_name ? (
+            <span data-testid={`group-${s.id}`}>{s.group_name}</span>
+          ) : null}
+        </div>
+      ))}
+      {selectedId ? (
+        <div data-testid="student-detail-panel">
+          <span data-testid="detail-selected-id">{selectedId}</span>
+          <button
+            data-testid="trigger-update"
+            onClick={() =>
+              void onUpdateStudent(selectedId, {
+                first_name: "Updated",
+                second_name: "Student",
+              })
+            }
+          >
+            Save
+          </button>
+          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+            Close
+          </button>
+          <div data-testid="detail-actions">{detailActions}</div>
+        </div>
+      ) : null}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/students/students-grouping-toggle", () => ({
+  StudentsGroupingToggle: () => <div data-testid="grouping-toggle" />,
 }));
 
 vi.mock("@/components/students/student-create-modal", () => ({
@@ -212,7 +234,25 @@ vi.mock("@/components/students/student-create-modal", () => ({
 }));
 
 vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: () => <div data-testid="confirmation-modal" />,
+  ConfirmationModal: ({
+    isOpen,
+    onConfirm,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <button data-testid="confirm-delete" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button data-testid="cancel-delete" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    ) : null,
 }));
 
 // Import mocked modules
@@ -242,6 +282,7 @@ const mockStudents = [
 describe("StudentsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setSelectedStudent(null);
 
     // Default SWR mock - returns students data
     vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
@@ -437,47 +478,46 @@ describe("StudentsPage", () => {
     });
   });
 
-  it("opens detail modal when student row is clicked", async () => {
+  it("navigates to the selected student when a row is clicked", async () => {
     render(<StudentsPage />);
 
     await waitFor(() => {
       expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
     });
 
-    const studentRow = screen.getByText("Max Mustermann").closest("button");
-    if (studentRow) {
-      fireEvent.click(studentRow);
-    }
+    fireEvent.click(screen.getByTestId("student-row-1"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
-      expect(screen.getByTestId("detail-student-name")).toHaveTextContent(
-        "Max Mustermann",
-      );
+      expect(mockReplace).toHaveBeenCalled();
     });
+    const lastCallArg = mockReplace.mock.calls.at(-1)?.[0] ?? "";
+    expect(lastCallArg).toContain("student=1");
   });
 
-  it("opens edit modal when edit button is clicked in detail modal", async () => {
+  it("clears the selection when the detail close action is triggered", async () => {
+    setSelectedStudent("1");
     render(<StudentsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
     });
 
-    const studentRow = screen.getByText("Max Mustermann").closest("button");
-    if (studentRow) {
-      fireEvent.click(studentRow);
-    }
+    fireEvent.click(screen.getByTestId("trigger-deselect"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+      expect(mockReplace).toHaveBeenCalled();
     });
+    const lastCallArg = mockReplace.mock.calls.at(-1)?.[0] ?? "";
+    expect(lastCallArg).not.toContain("student=");
+  });
 
-    const editButton = screen.getByTestId("edit-button");
-    fireEvent.click(editButton);
+  it("renders the detail panel when a student is selected via URL", async () => {
+    setSelectedStudent("1");
+    render(<StudentsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("student-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
     });
   });
 
@@ -507,152 +547,73 @@ describe("StudentsPage", () => {
     });
   });
 
-  it("calls update service when saving edit form", async () => {
+  it("calls update service when the detail panel saves Stammdaten", async () => {
     mockUpdate.mockResolvedValueOnce({
       id: "1",
       first_name: "Updated",
       second_name: "Student",
     });
 
+    setSelectedStudent("1");
     render(<StudentsPage />);
 
-    // Select a student to open detail modal
     await waitFor(() => {
-      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
     });
 
-    const studentRow = screen.getByText("Max Mustermann").closest("button");
-    if (studentRow) {
-      fireEvent.click(studentRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
-    });
-
-    // Click edit button
-    const editButton = screen.getByTestId("edit-button");
-    fireEvent.click(editButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-edit-modal")).toBeInTheDocument();
-    });
-
-    // Submit edit form
-    const submitButton = screen.getByTestId("submit-edit");
-    fireEvent.click(submitButton);
+    fireEvent.click(screen.getByTestId("trigger-update"));
 
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalled();
     });
+    expect(mockUpdate.mock.calls[0]?.[0]).toBe("1");
   });
 
-  it("calls delete service when deleting a student", async () => {
+  it("calls delete service when deleting the selected student", async () => {
     mockDelete.mockResolvedValueOnce(null);
 
+    setSelectedStudent("1");
     render(<StudentsPage />);
 
-    // Select a student to open detail modal
     await waitFor(() => {
-      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
     });
 
-    const studentRow = screen.getByText("Max Mustermann").closest("button");
-    if (studentRow) {
-      fireEvent.click(studentRow);
-    }
+    // The Löschen button lives inside the page-supplied `detailActions`.
+    // Clicking it opens the ConfirmationModal; then the user confirms.
+    fireEvent.click(screen.getByRole("button", { name: /Löschen/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
     });
-
-    // Click delete button
-    const deleteButton = screen.getByTestId("delete-button");
-    fireEvent.click(deleteButton);
+    fireEvent.click(screen.getByTestId("confirm-delete"));
 
     await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalled();
+      expect(mockDelete).toHaveBeenCalledWith("1");
     });
   });
 
   it("shows error toast when delete returns error", async () => {
     mockDelete.mockResolvedValueOnce("Schüler/in kann nicht gelöscht werden");
 
+    setSelectedStudent("1");
     render(<StudentsPage />);
+
     await waitFor(() => {
-      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.getByTestId("student-detail-panel")).toBeInTheDocument();
     });
 
-    const row = screen.getByText("Max Mustermann").closest("button");
-    if (row) fireEvent.click(row);
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
-    });
+    fireEvent.click(screen.getByRole("button", { name: /Löschen/i }));
 
-    fireEvent.click(screen.getByTestId("delete-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("confirm-delete"));
+
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
         "Schüler/in kann nicht gelöscht werden",
       );
-    });
-  });
-
-  it("closes detail modal when close button is clicked", async () => {
-    render(<StudentsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
-    });
-
-    const studentRow = screen.getByText("Max Mustermann").closest("button");
-    if (studentRow) {
-      fireEvent.click(studentRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
-    });
-
-    const closeButton = screen.getByTestId("close-detail-modal");
-    fireEvent.click(closeButton);
-
-    await waitFor(() => {
-      expect(
-        screen.queryByTestId("student-detail-modal"),
-      ).not.toBeInTheDocument();
-    });
-  });
-
-  it("closes edit modal when close button is clicked", async () => {
-    render(<StudentsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
-    });
-
-    const studentRow = screen.getByText("Max Mustermann").closest("button");
-    if (studentRow) {
-      fireEvent.click(studentRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-detail-modal")).toBeInTheDocument();
-    });
-
-    const editButton = screen.getByTestId("edit-button");
-    fireEvent.click(editButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("student-edit-modal")).toBeInTheDocument();
-    });
-
-    const closeButton = screen.getByTestId("close-edit-modal");
-    fireEvent.click(closeButton);
-
-    await waitFor(() => {
-      expect(
-        screen.queryByTestId("student-edit-modal"),
-      ).not.toBeInTheDocument();
     });
   });
 

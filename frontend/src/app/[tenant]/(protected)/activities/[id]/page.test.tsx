@@ -67,7 +67,7 @@ const mockStudents = [
     id: "student-1",
     student_id: "s-1",
     name: "Peter Müller",
-    school_class: "3a",
+    school_class: "Klasse 3a",
     activity_id: "1",
     current_location: "Raum 101",
     created_at: new Date("2024-01-01"),
@@ -77,7 +77,7 @@ const mockStudents = [
     id: "student-2",
     student_id: "s-2",
     name: "Lisa Schmidt",
-    school_class: "3b",
+    school_class: "Klasse 3b",
     activity_id: "1",
     current_location: "Raum 101",
     created_at: new Date("2024-01-01"),
@@ -181,7 +181,7 @@ describe("ActivityDetailPage", () => {
       expect(screen.getByText("Teilnehmende Schüler")).toBeInTheDocument();
       expect(screen.getByText("Peter Müller")).toBeInTheDocument();
       expect(screen.getByText("Lisa Schmidt")).toBeInTheDocument();
-      expect(screen.getByText("Klasse: 3a")).toBeInTheDocument();
+      expect(screen.getByText("Klasse 3a")).toBeInTheDocument();
     });
   });
 
