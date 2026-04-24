@@ -154,21 +154,35 @@ function OperatorDevicesPageContent() {
     ],
   );
 
+  const actionButton = (
+    <button
+      type="button"
+      onClick={() => setCreateDeviceOpen(true)}
+      className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+    >
+      Neues Gerät
+    </button>
+  );
+
+  const mobileActionButton = (
+    <button
+      type="button"
+      onClick={() => setCreateDeviceOpen(true)}
+      className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
+      aria-label="Neues Gerät"
+    >
+      <PlusIcon />
+    </button>
+  );
+
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Geräte" tabs={tabs} />
-
-      <div className="mb-4 flex items-center justify-between">
-        <div />
-        <button
-          type="button"
-          onClick={() => setCreateDeviceOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-        >
-          <PlusIcon />
-          Neues Gerät
-        </button>
-      </div>
+      <PageHeaderWithSearch
+        title="Geräte"
+        tabs={tabs}
+        actionButton={actionButton}
+        mobileActionButton={mobileActionButton}
+      />
 
       <OrgSchoolFilter
         idPrefix="device"
