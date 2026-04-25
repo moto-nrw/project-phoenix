@@ -1225,3 +1225,124 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 		assert.Empty(t, records)
 	})
 }
+
+// TestAttendanceRepository_CreateIfNoOpenForToday exercises the conflict-safe
+// insert that backs performCheckIn. Three scenarios cover the contract:
+//  1. First insert: returns inserted=true and assigns an ID.
+//  2. Race / double-tap: a second open insert for the same (student, date)
+//     returns inserted=false (the partial unique index swallows the row),
+//     but does NOT error.
+//  3. Re-entry: once the existing row is closed (CheckOutTime set), a new
+//     open insert succeeds — the partial unique index only counts rows
+//     where check_out_time IS NULL.
+func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Attendance
+	ctx := testpkg.TenantContext(1)
+	data := createAttendanceTestData(t, db)
+	defer cleanupAttendanceTestData(t, db, data)
+
+	var createdIDs []int64
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
+
+	t.Run("nil attendance returns error", func(t *testing.T) {
+		inserted, err := repo.CreateIfNoOpenForToday(ctx, nil)
+		assert.False(t, inserted)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("first open insert succeeds and assigns ID", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Conflict", "First", "1z")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		now := time.Now()
+		att := &active.Attendance{
+			StudentID:   student.ID,
+			Date:        timezone.TodayUTC(),
+			CheckInTime: now,
+			CheckedInBy: data.Staff1.ID,
+			DeviceID:    data.Device1.ID,
+		}
+
+		inserted, err := repo.CreateIfNoOpenForToday(ctx, att)
+		require.NoError(t, err)
+		assert.True(t, inserted, "first insert should succeed")
+		assert.NotZero(t, att.ID, "row id should be populated")
+		createdIDs = append(createdIDs, att.ID)
+	})
+
+	t.Run("conflicting open insert returns inserted=false without error", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Conflict", "Race", "1y")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		now := time.Now()
+		date := timezone.TodayUTC()
+		first := &active.Attendance{
+			StudentID:   student.ID,
+			Date:        date,
+			CheckInTime: now,
+			CheckedInBy: data.Staff1.ID,
+			DeviceID:    data.Device1.ID,
+		}
+		ok1, err1 := repo.CreateIfNoOpenForToday(ctx, first)
+		require.NoError(t, err1)
+		require.True(t, ok1)
+		createdIDs = append(createdIDs, first.ID)
+
+		second := &active.Attendance{
+			StudentID:   student.ID,
+			Date:        date,
+			CheckInTime: now.Add(1 * time.Minute),
+			CheckedInBy: data.Staff1.ID,
+			DeviceID:    data.Device1.ID,
+		}
+		ok2, err2 := repo.CreateIfNoOpenForToday(ctx, second)
+		require.NoError(t, err2, "ON CONFLICT must swallow the duplicate, not raise")
+		assert.False(t, ok2, "second concurrent open row must report inserted=false")
+	})
+
+	t.Run("re-entry after checkout succeeds", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Conflict", "Reentry", "1x")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		now := time.Now()
+		date := timezone.TodayUTC()
+		closedBy := data.Staff1.ID
+		closeTime := now.Add(30 * time.Minute)
+
+		closed := &active.Attendance{
+			StudentID:    student.ID,
+			Date:         date,
+			CheckInTime:  now,
+			CheckOutTime: &closeTime,
+			CheckedInBy:  data.Staff1.ID,
+			CheckedOutBy: &closedBy,
+			DeviceID:     data.Device1.ID,
+		}
+		ok1, err1 := repo.CreateIfNoOpenForToday(ctx, closed)
+		require.NoError(t, err1)
+		require.True(t, ok1)
+		createdIDs = append(createdIDs, closed.ID)
+
+		// Closed row doesn't occupy the partial index — a new open row is
+		// fine on the same calendar day.
+		reentry := &active.Attendance{
+			StudentID:   student.ID,
+			Date:        date,
+			CheckInTime: now.Add(1 * time.Hour),
+			CheckedInBy: data.Staff1.ID,
+			DeviceID:    data.Device1.ID,
+		}
+		ok2, err2 := repo.CreateIfNoOpenForToday(ctx, reentry)
+		require.NoError(t, err2)
+		assert.True(t, ok2, "open insert after a closed row must succeed")
+		createdIDs = append(createdIDs, reentry.ID)
+	})
+}
