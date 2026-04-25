@@ -3,10 +3,12 @@
 export type SSEEventType =
   | "student_checkin"
   | "student_checkout"
+  | "student_updated"
   | "activity_start"
   | "activity_end"
   | "activity_update"
-  | "dashboard_counts_changed";
+  | "dashboard_counts_changed"
+  | "arrival_schedule_changed";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";

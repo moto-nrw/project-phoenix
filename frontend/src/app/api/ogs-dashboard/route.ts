@@ -31,6 +31,9 @@ interface BackendStudent {
   excused?: boolean;
   excused_since?: string;
   location_since?: string;
+  arrival_time?: string;
+  arrival_is_exception?: boolean;
+  arrival_notes?: string;
 }
 
 interface BackendRoomStatus {
@@ -135,7 +138,7 @@ export const GET = createGetHandler<OGSDashboardResponse>(
       await Promise.all([
         // Fetch students for first group
         apiGet<{ data: BackendStudent[] }>(
-          `/api/students?group_id=${firstGroupId}`,
+          `/api/students?group_id=${firstGroupId}&include_arrival_times=true`,
           token,
         ).catch(() => ({ data: [] as BackendStudent[] })),
 

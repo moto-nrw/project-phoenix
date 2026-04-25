@@ -59,6 +59,7 @@ type Factory struct {
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
 	Materialization          schedule.MaterializationService
+	TimetableCleanup         schedule.TimetableCleanupService
 	Instance                 schedule.InstanceService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
@@ -359,6 +360,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "materialization"),
 	)
 
+	// Initialize timetable GDPR cleanup service (WP-B14). Deletes
+	// schedule.activity_instances (CASCADE → instance_staff + instance_students)
+	// and schedule.activity_exceptions older than the tenant's retention window.
+	// Per-student audit rows via DataDeletion; exceptions slog-only.
+	timetableCleanupService := schedule.NewTimetableCleanupService(
+		db,
+		repos.DataDeletion,
+		settingsService,
+		logger.With("service", "timetable-cleanup"),
+	)
+
 	// Initialize instance lifecycle service (WP-B9). Drives the state machine
 	// on schedule.activity_instances and its bridge to active.groups. Takes
 	// the active service as a dependency (for EndActivitySession) — when the
@@ -612,6 +624,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
+		TimetableCleanup:         timetableCleanupService,
 		Instance:                 instanceService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,

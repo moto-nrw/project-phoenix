@@ -151,6 +151,14 @@ type InstanceStudentRepository interface {
 	// FindByInstanceID returns all attendance rows for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStudent, error)
 
+	// FindExpectedByInstanceIDs returns every instance_students row with
+	// status='expected' for any of the given instance IDs, tenant-scoped.
+	// Returns an empty slice (not nil) when instanceIDs is empty. Used by
+	// the WP-B13 exception-conflict endpoint to resolve which students are
+	// still flagged as expected on instances that have a cancellation or
+	// modification exception attached.
+	FindExpectedByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*InstanceStudent, error)
+
 	// FindByStudentAndDateRange returns attendance rows for a student across
 	// all instances whose date falls in the inclusive range. Used by the
 	// per-student day view (aggregation layer).
@@ -174,4 +182,24 @@ type InstanceStudentRepository interface {
 	// Callers (the PATCH handler) must validate cross-field invariants
 	// BEFORE invoking — the repo does not re-check them.
 	UpdateAttendanceFields(ctx context.Context, id int64, patch AttendanceFieldPatch) error
+
+	// BulkUpdateStatus flips every attendance row for the given instance whose
+	// current status equals fromStatus to toStatus, and returns the number of
+	// rows changed. Tenant-scoped via the caller's transaction context.
+	//
+	// Used by Complete() to mark remaining 'expected' students as 'absent'
+	// when an instance ends (WP-B10 plan §6.2). Intentionally NOT used by
+	// Cancel(): a cancelled instance never ran, so "absent" would be a
+	// semantic misclaim.
+	BulkUpdateStatus(ctx context.Context, instanceID int64, fromStatus, toStatus string) (int, error)
+
+	// FindInstancesWithAttendanceByStudentAndDateRange returns one row per
+	// (instance_students, activity_instance) pair for the student across the
+	// inclusive date range, sorted by date then start time. Tenant-scoped via
+	// the caller's context. Single query — no N+1.
+	//
+	// Instances the student has no attendance row for (e.g. a spontaneous
+	// instance they dropped into without being enrolled) are NOT included;
+	// the handler layer enriches those via the visits-side lookup.
+	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*ScheduledInstanceRow, error)
 }

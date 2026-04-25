@@ -395,7 +395,7 @@ function ActivityDetailContent() {
                         <div className="font-medium">{student.name}</div>
                         {student.school_class && (
                           <div className="text-sm text-gray-600">
-                            Klasse: {student.school_class}
+                            {student.school_class}
                           </div>
                         )}
                       </button>

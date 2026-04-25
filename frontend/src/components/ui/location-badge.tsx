@@ -1,5 +1,3 @@
-import * as React from "react";
-
 import type {
   DisplayMode,
   LocationStyle,
@@ -75,6 +73,22 @@ function getExcusedDisplayMode(
   return "additional";
 }
 
+/**
+ * Determines how to display "kommt heute nicht" (arrival-schedule exception with null time).
+ * Same replace/additional pattern as sick/excused.
+ */
+function getNotArrivalDisplayMode(
+  student: StudentLocationContext,
+): "replace" | "additional" | "none" {
+  if (!student.not_arrival_today) return "none";
+
+  if (isHomeLocation(student.current_location)) {
+    return "replace";
+  }
+
+  return "additional";
+}
+
 interface LocationBadgeProps {
   readonly student: StudentLocationContext;
   readonly displayMode: DisplayMode;
@@ -134,12 +148,15 @@ export function LocationBadge({
     supervisedRooms,
   );
 
-  // Check sick / excused status display modes.
-  // Sick takes precedence when both are set — the backend enforces mutual
-  // exclusion, so this is defensive. Only one replace-mode applies at a time.
+  // Check sick / excused / notArrival status display modes.
+  // Priority: sick > excused > notArrival. Only one replace-mode applies at a time.
   const sickMode = getSickDisplayMode(student);
   const excusedMode =
     sickMode === "none" ? getExcusedDisplayMode(student) : "none";
+  const notArrivalMode =
+    sickMode === "none" && excusedMode === "none"
+      ? getNotArrivalDisplayMode(student)
+      : "none";
 
   // Determine color based on display mode and permissions
   let color: string;
@@ -171,18 +188,24 @@ export function LocationBadge({
     color = getLocationColor(student.current_location, isGroupRoom, groupRooms);
   }
 
-  // Override for sick students at home: show "Krank" instead of "Zuhause"
+  // Override for sick/excused/notArrival students at home: replace the base label
   if (sickMode === "replace") {
     color = LOCATION_COLORS.SICK;
     label = LOCATION_STATUSES.SICK;
   } else if (excusedMode === "replace") {
     color = LOCATION_COLORS.EXCUSED;
     label = LOCATION_STATUSES.EXCUSED;
+  } else if (notArrivalMode === "replace") {
+    color = LOCATION_COLORS.NOT_ARRIVAL;
+    label = LOCATION_STATUSES.NOT_ARRIVAL;
   }
 
   const glowEffect = getLocationGlowEffect(color);
   const sickGlowEffect = getLocationGlowEffect(LOCATION_COLORS.SICK);
   const excusedGlowEffect = getLocationGlowEffect(LOCATION_COLORS.EXCUSED);
+  const notArrivalGlowEffect = getLocationGlowEffect(
+    LOCATION_COLORS.NOT_ARRIVAL,
+  );
 
   const locationStyle: LocationStyle = {
     color,
@@ -195,13 +218,15 @@ export function LocationBadge({
 
   // Determine if we should show "seit XX:XX" for this status.
   // For sick/excused at home, prefer the dedicated *_since timestamp but fall
-  // back to location_since if missing.
+  // back to location_since if missing. notArrival has no dedicated timestamp.
   const replaceTimeSource =
     sickMode === "replace"
       ? (student.sick_since ?? student.location_since)
       : excusedMode === "replace"
         ? (student.excused_since ?? student.location_since)
-        : null;
+        : notArrivalMode === "replace"
+          ? student.location_since
+          : null;
   const timeSource = replaceTimeSource ?? student.location_since;
   const formattedTime = formatLocationSince(timeSource);
   const showSinceTime =
@@ -248,6 +273,24 @@ export function LocationBadge({
     </span>
   );
 
+  // "Kommt heute nicht" indicator for "additional" mode (planned absence but present).
+  const NotArrivalIndicator = () => (
+    <span
+      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
+      style={{
+        backgroundColor: LOCATION_COLORS.NOT_ARRIVAL,
+        boxShadow: notArrivalGlowEffect,
+      }}
+      data-not-arrival-indicator="true"
+      title={student.not_arrival_reason ?? undefined}
+    >
+      <span
+        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+      />
+      {LOCATION_STATUSES.NOT_ARRIVAL}
+    </span>
+  );
+
   if (variant === "simple") {
     return (
       <div className="flex flex-col items-center">
@@ -258,6 +301,11 @@ export function LocationBadge({
             color: "#fff",
           }}
           data-location-status={parsed.status}
+          title={
+            notArrivalMode === "replace"
+              ? (student.not_arrival_reason ?? undefined)
+              : undefined
+          }
         >
           {locationStyle.label}
         </span>
@@ -268,6 +316,7 @@ export function LocationBadge({
         )}
         {sickMode === "additional" && <SickIndicator />}
         {excusedMode === "additional" && <ExcusedIndicator />}
+        {notArrivalMode === "additional" && <NotArrivalIndicator />}
       </div>
     );
   }
@@ -281,6 +330,11 @@ export function LocationBadge({
           boxShadow: locationStyle.glowEffect,
         }}
         data-location-status={parsed.status}
+        title={
+          notArrivalMode === "replace"
+            ? (student.not_arrival_reason ?? undefined)
+            : undefined
+        }
       >
         <span
           className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
@@ -294,6 +348,7 @@ export function LocationBadge({
       )}
       {sickMode === "additional" && <SickIndicator />}
       {excusedMode === "additional" && <ExcusedIndicator />}
+      {notArrivalMode === "additional" && <NotArrivalIndicator />}
     </div>
   );
 }

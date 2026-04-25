@@ -9,6 +9,7 @@ import {
   ExceptionIcon,
   PickupTimeRow,
   renderPickupIcon,
+  ArrivalTimeRow,
 } from "./student-card";
 
 describe("StudentCard", () => {
@@ -281,6 +282,95 @@ describe("renderPickupIcon", () => {
   it("renders gray PickupTimeIcon for none", () => {
     const { container } = render(<>{renderPickupIcon("none")}</>);
     expect(container.querySelector("svg.text-gray-400")).toBeInTheDocument();
+  });
+});
+
+describe("ArrivalTimeRow", () => {
+  const now = new Date("2025-01-15T08:00:00");
+
+  it("shows absence message with reason when isAbsent", () => {
+    render(
+      <ArrivalTimeRow
+        isException={false}
+        isAbsent={true}
+        notes="Arzttermin"
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(
+      screen.getByText("Kommt heute nicht (Arzttermin)"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows default absence message when isAbsent without notes", () => {
+    render(
+      <ArrivalTimeRow
+        isException={false}
+        isAbsent={true}
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
+  });
+
+  it("shows arrival time when arrivalTime provided", () => {
+    render(
+      <ArrivalTimeRow
+        arrivalTime="08:00"
+        isException={false}
+        isAbsent={false}
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText(/08:00 Uhr/)).toBeInTheDocument();
+  });
+
+  it("shows notes next to arrival time", () => {
+    render(
+      <ArrivalTimeRow
+        arrivalTime="08:00"
+        isException={false}
+        isAbsent={false}
+        notes="Testnote"
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText("(Testnote)")).toBeInTheDocument();
+  });
+
+  it("uses exception icon when isException and has arrivalTime", () => {
+    const { container } = render(
+      <ArrivalTimeRow
+        arrivalTime="08:15"
+        isException={true}
+        isAbsent={false}
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(container.querySelector("svg.text-orange-500")).toBeInTheDocument();
+  });
+
+  it("falls back to dash when no arrival info", () => {
+    render(
+      <ArrivalTimeRow
+        isException={false}
+        isAbsent={false}
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText("Ankunftszeit: —")).toBeInTheDocument();
   });
 });
 

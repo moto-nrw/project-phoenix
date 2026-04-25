@@ -30,6 +30,7 @@ import {
   GroupIcon,
   StudentInfoRow,
   PickupTimeRow,
+  ArrivalTimeRow,
 } from "~/components/students/student-card";
 import {
   SchoolCheckinToggle,
@@ -40,11 +41,18 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
+import {
+  matchesTrackingFilter,
+  resolveTrackingFilterAfterLabelChange,
+  trackingFilterChipLabel,
+  type TrackingFilter,
+} from "./tracking-filter";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 
@@ -82,6 +90,8 @@ function SearchPageContent() {
     initialAttendanceFilter,
   );
   const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
+  const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>("all");
+  const [sortMode, setSortMode] = useState<"default" | "arrival">("default");
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -150,6 +160,7 @@ function SearchPageContent() {
         search: debouncedSearchTerm,
         groupId: selectedGroup,
         includePickupTimes: true,
+        includeArrivalTimes: true,
       });
     },
     {
@@ -172,6 +183,18 @@ function SearchPageContent() {
     async () => activeService.getTrackingIndicators(trackingStudentIds),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
+
+  // Reset tracking filter if labels vanish or the selected label index becomes stale.
+  // Without this, the active-filter chip (guarded by trackingData.labels) can hide
+  // while trackingFilter remains set, leaving an invisible filter applied.
+  const trackingLabels = trackingData?.labels;
+  useEffect(() => {
+    const next = resolveTrackingFilterAfterLabelChange(
+      trackingFilter,
+      trackingData,
+    );
+    if (next !== trackingFilter) setTrackingFilter(next);
+  }, [trackingData, trackingFilter]);
 
   // Error type for proper heading display (Fix P3: substring matching on transformed string)
   type ErrorType = "permission" | "session" | "generic" | null;
@@ -237,6 +260,17 @@ function SearchPageContent() {
         ],
       },
       {
+        id: "sort",
+        label: "Sortierung",
+        type: "buttons",
+        value: sortMode,
+        onChange: (value) => setSortMode(value as "default" | "arrival"),
+        options: [
+          { value: "default", label: "Alphabetisch" },
+          { value: "arrival", label: "Nächste Ankunft" },
+        ],
+      },
+      {
         id: "attendance",
         label: "Anwesenheit",
         type: "dropdown",
@@ -270,14 +304,37 @@ function SearchPageContent() {
           { value: "none", label: "Keine Abholzeit" },
         ],
       },
+      ...(trackingLabels && trackingLabels.length > 0
+        ? [
+            {
+              id: "tracking",
+              label: "Aktivitäten heute",
+              type: "dropdown" as const,
+              value: trackingFilter,
+              onChange: (value: string | string[]) =>
+                setTrackingFilter(value as TrackingFilter),
+              options: [
+                { value: "all", label: "Alle Aktivitäten heute" },
+                ...trackingLabels.map((lbl, idx) => ({
+                  value: `missing:${idx}`,
+                  label: `Noch nicht in ${lbl}`,
+                })),
+                { value: "none_visited", label: "Noch nichts erledigt" },
+              ],
+            },
+          ]
+        : []),
     ],
     [
       selectedYear,
       selectedGroup,
       attendanceFilter,
       pickupTimeFilter,
+      trackingFilter,
+      trackingLabels,
       groups,
       studentsData,
+      sortMode,
     ],
   );
 
@@ -336,6 +393,17 @@ function SearchPageContent() {
       });
     }
 
+    if (trackingLabels) {
+      const chipLabel = trackingFilterChipLabel(trackingFilter, trackingLabels);
+      if (chipLabel !== null) {
+        filters.push({
+          id: "tracking",
+          label: chipLabel,
+          onRemove: () => setTrackingFilter("all"),
+        });
+      }
+    }
+
     return filters;
   }, [
     searchTerm,
@@ -343,11 +411,13 @@ function SearchPageContent() {
     selectedGroup,
     attendanceFilter,
     pickupTimeFilter,
+    trackingFilter,
+    trackingLabels,
     groups,
   ]);
 
   // Apply additional client-side filtering for attendance statuses and year
-  const filteredStudents = students.filter((student) => {
+  const filteredStudents: Student[] = students.filter((student) => {
     // Apply attendance filter
     if (attendanceFilter !== "all") {
       const isOnSite =
@@ -402,8 +472,57 @@ function SearchPageContent() {
       }
     }
 
+    if (!matchesTrackingFilter(student, trackingFilter, trackingData)) {
+      return false;
+    }
+
     return true;
   });
+
+  // Apply sort mode (default = backend order; arrival = by arrival urgency + time)
+  const sortedStudents = useMemo(() => {
+    if (sortMode !== "arrival") return filteredStudents;
+
+    const urgencyRank: Record<string, number> = {
+      overdue: 0,
+      soon: 1,
+      normal: 2,
+      none: 3,
+    };
+
+    const compareByName = (a: Student, b: Student) => {
+      const lastCmp = (a.second_name ?? "").localeCompare(
+        b.second_name ?? "",
+        "de",
+      );
+      if (lastCmp !== 0) return lastCmp;
+      return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
+    };
+
+    return [...filteredStudents].sort((a, b) => {
+      const aHome = isHomeLocation(a.current_location);
+      const bHome = isHomeLocation(b.current_location);
+
+      if (!aHome && bHome) return 1;
+      if (aHome && !bHome) return -1;
+
+      const timeA = a.arrival_time;
+      const timeB = b.arrival_time;
+      const urgencyA = getArrivalUrgency(timeA, now, aHome);
+      const urgencyB = getArrivalUrgency(timeB, now, bHome);
+      const rankA = urgencyRank[urgencyA] ?? 3;
+      const rankB = urgencyRank[urgencyB] ?? 3;
+
+      if (rankA !== rankB) return rankA - rankB;
+
+      if (timeA && timeB) {
+        const timeCmp = timeA.localeCompare(timeB);
+        if (timeCmp !== 0) return timeCmp;
+      }
+
+      return compareByName(a, b);
+    });
+  }, [filteredStudents, sortMode, now]);
 
   // Fix P2: Show loading during initialization (prevents empty state flash)
   // Note: With required: true, unauthenticated users are auto-redirected to login
@@ -465,6 +584,7 @@ function SearchPageContent() {
           setSelectedYear("all");
           setAttendanceFilter("all");
           setPickupTimeFilter("all");
+          setTrackingFilter("all");
         }}
       />
 
@@ -544,7 +664,8 @@ function SearchPageContent() {
         return (
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStudents.map((student) => {
+              {sortedStudents.map((student) => {
+                const isHome = isHomeLocation(student.current_location);
                 const checkinState = deriveCheckinState(
                   student.current_location,
                 );
@@ -570,7 +691,13 @@ function SearchPageContent() {
                     }
                     locationBadge={
                       <StudentPresenceBadge
-                        student={student}
+                        student={{
+                          ...student,
+                          not_arrival_today:
+                            (student.arrival_is_exception ?? false) &&
+                            !student.arrival_time,
+                          not_arrival_reason: student.arrival_notes ?? null,
+                        }}
                         displayMode="contextAware"
                         userGroups={myGroups}
                         groupRooms={myGroupRooms}
@@ -582,7 +709,7 @@ function SearchPageContent() {
                     extraContent={
                       <>
                         <StudentInfoRow icon={<SchoolClassIcon />}>
-                          Klasse {student.school_class}
+                          {student.school_class}
                         </StudentInfoRow>
                         {student.group_name && (
                           <StudentInfoRow icon={<GroupIcon />}>
@@ -590,13 +717,28 @@ function SearchPageContent() {
                           </StudentInfoRow>
                         )}
                         {student.has_full_access !== false && (
-                          <PickupTimeRow
-                            pickupTime={student.pickup_time ?? undefined}
-                            isException={student.pickup_is_exception ?? false}
-                            notes={student.pickup_notes}
-                            isHome={isHomeLocation(student.current_location)}
-                            now={now}
-                          />
+                          <>
+                            <ArrivalTimeRow
+                              arrivalTime={student.arrival_time}
+                              isException={
+                                student.arrival_is_exception ?? false
+                              }
+                              isAbsent={
+                                (student.arrival_is_exception ?? false) &&
+                                !student.arrival_time
+                              }
+                              notes={student.arrival_notes}
+                              isHome={isHome}
+                              now={now}
+                            />
+                            <PickupTimeRow
+                              pickupTime={student.pickup_time ?? undefined}
+                              isException={student.pickup_is_exception ?? false}
+                              notes={student.pickup_notes}
+                              isHome={isHome}
+                              now={now}
+                            />
+                          </>
                         )}
                       </>
                     }

@@ -237,7 +237,7 @@ func TestStartInstance_Success(t *testing.T) {
 	}
 	mock.startResult.Instance.ID = int64(7)
 
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
 
 	w := doPost(t, router, "/instances/7/start", nil)
@@ -271,7 +271,7 @@ func TestStartInstance_WithWarnings(t *testing.T) {
 	}
 	mock.startResult.Instance.ID = int64(3)
 
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
 
 	w := doPost(t, router, "/instances/3/start", nil)
@@ -285,7 +285,7 @@ func TestStartInstance_WithWarnings(t *testing.T) {
 }
 
 func TestStartInstance_InvalidID(t *testing.T) {
-	rs := NewResource(nil, nil, &mockInstanceService{}, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
 	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
 
 	w := doPost(t, router, "/instances/not-a-number/start", nil)
@@ -294,7 +294,7 @@ func TestStartInstance_InvalidID(t *testing.T) {
 }
 
 func TestStartInstance_NilService(t *testing.T) {
-	rs := NewResource(nil, nil, nil, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{})
 	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
 
 	w := doPost(t, router, "/instances/1/start", nil)
@@ -304,7 +304,7 @@ func TestStartInstance_NilService(t *testing.T) {
 
 func TestStartInstance_NotFound(t *testing.T) {
 	mock := &mockInstanceService{startErr: scheduleSvc.ErrInstanceNotFound}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
 
 	w := doPost(t, router, "/instances/99/start", nil)
@@ -316,7 +316,7 @@ func TestStartInstance_InvalidTransition(t *testing.T) {
 	mock := &mockInstanceService{startErr: errors.New("wrap: " + scheduleSvc.ErrInvalidInstanceTransition.Error())}
 	// Use an error that errors.Is matches via wrapping.
 	mock.startErr = &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
 
 	w := doPost(t, router, "/instances/1/start", nil)
@@ -327,7 +327,7 @@ func TestStartInstance_InvalidTransition(t *testing.T) {
 
 func TestStartInstance_InternalError(t *testing.T) {
 	mock := &mockInstanceService{startErr: errors.New("db connection lost")}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
 
 	w := doPost(t, router, "/instances/1/start", nil)
@@ -355,7 +355,7 @@ func TestCompleteInstance_Success(t *testing.T) {
 	instance.ID = int64(5)
 
 	mock := &mockInstanceService{completeRes: instance}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
 	w := doPost(t, router, "/instances/5/complete", nil)
@@ -376,7 +376,7 @@ func TestCompleteInstance_NoCompletedAt(t *testing.T) {
 	instance.ID = int64(5)
 
 	mock := &mockInstanceService{completeRes: instance}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
 	w := doPost(t, router, "/instances/5/complete", nil)
@@ -386,7 +386,7 @@ func TestCompleteInstance_NoCompletedAt(t *testing.T) {
 }
 
 func TestCompleteInstance_InvalidID(t *testing.T) {
-	rs := NewResource(nil, nil, &mockInstanceService{}, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
 	w := doPost(t, router, "/instances/bad/complete", nil)
@@ -395,7 +395,7 @@ func TestCompleteInstance_InvalidID(t *testing.T) {
 }
 
 func TestCompleteInstance_NilService(t *testing.T) {
-	rs := NewResource(nil, nil, nil, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
 	w := doPost(t, router, "/instances/1/complete", nil)
@@ -405,7 +405,7 @@ func TestCompleteInstance_NilService(t *testing.T) {
 
 func TestCompleteInstance_NotFound(t *testing.T) {
 	mock := &mockInstanceService{completeErr: scheduleSvc.ErrInstanceNotFound}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
 	w := doPost(t, router, "/instances/1/complete", nil)
@@ -415,7 +415,7 @@ func TestCompleteInstance_NotFound(t *testing.T) {
 
 func TestCompleteInstance_InvalidTransition(t *testing.T) {
 	mock := &mockInstanceService{completeErr: &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
 	w := doPost(t, router, "/instances/1/complete", nil)
@@ -426,7 +426,7 @@ func TestCompleteInstance_InvalidTransition(t *testing.T) {
 
 func TestCompleteInstance_InternalError(t *testing.T) {
 	mock := &mockInstanceService{completeErr: errors.New("db error")}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
 	w := doPost(t, router, "/instances/1/complete", nil)
@@ -447,7 +447,7 @@ func TestCancelInstance_Success(t *testing.T) {
 	instance.ID = int64(11)
 
 	mock := &mockInstanceService{cancelRes: instance}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
 	w := doPost(t, router, "/instances/11/cancel", nil)
@@ -465,7 +465,7 @@ func TestCancelInstance_NoCompletedAt(t *testing.T) {
 	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusCancelled}
 	instance.ID = int64(12)
 	mock := &mockInstanceService{cancelRes: instance}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
 	w := doPost(t, router, "/instances/12/cancel", nil)
@@ -473,7 +473,7 @@ func TestCancelInstance_NoCompletedAt(t *testing.T) {
 }
 
 func TestCancelInstance_InvalidID(t *testing.T) {
-	rs := NewResource(nil, nil, &mockInstanceService{}, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
 	w := doPost(t, router, "/instances/nope/cancel", nil)
@@ -481,7 +481,7 @@ func TestCancelInstance_InvalidID(t *testing.T) {
 }
 
 func TestCancelInstance_NilService(t *testing.T) {
-	rs := NewResource(nil, nil, nil, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{})
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
 	w := doPost(t, router, "/instances/1/cancel", nil)
@@ -490,7 +490,7 @@ func TestCancelInstance_NilService(t *testing.T) {
 
 func TestCancelInstance_NotFound(t *testing.T) {
 	mock := &mockInstanceService{cancelErr: scheduleSvc.ErrInstanceNotFound}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
 	w := doPost(t, router, "/instances/1/cancel", nil)
@@ -499,7 +499,7 @@ func TestCancelInstance_NotFound(t *testing.T) {
 
 func TestCancelInstance_InvalidTransition(t *testing.T) {
 	mock := &mockInstanceService{cancelErr: &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
 	w := doPost(t, router, "/instances/1/cancel", nil)
@@ -508,7 +508,7 @@ func TestCancelInstance_InvalidTransition(t *testing.T) {
 
 func TestCancelInstance_InternalError(t *testing.T) {
 	mock := &mockInstanceService{cancelErr: errors.New("db failure")}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
 	w := doPost(t, router, "/instances/1/cancel", nil)
@@ -521,13 +521,13 @@ func TestCancelInstance_InternalError(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestResolveStartedByStaffID_NilPersonService(t *testing.T) {
-	rs := NewResource(nil, nil, &mockInstanceService{}, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
 	staffID := rs.resolveStartedByStaffID(context.Background())
 	assert.Equal(t, int64(0), staffID)
 }
 
 func TestResolveStartedByStaffID_NoClaimsInContext(t *testing.T) {
-	rs := NewResource(nil, nil, &mockInstanceService{}, &instMockPersonService{}, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: &instMockPersonService{}})
 	staffID := rs.resolveStartedByStaffID(context.Background())
 	assert.Equal(t, int64(0), staffID)
 }
@@ -538,7 +538,7 @@ func TestResolveStartedByStaffID_PersonNotFound(t *testing.T) {
 			return nil, errors.New("person not found")
 		},
 	}
-	rs := NewResource(nil, nil, &mockInstanceService{}, ps, nil, slog.Default(), nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
 
@@ -552,7 +552,7 @@ func TestResolveStartedByStaffID_PersonIsNil(t *testing.T) {
 			return nil, nil
 		},
 	}
-	rs := NewResource(nil, nil, &mockInstanceService{}, ps, nil, slog.Default(), nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
 
@@ -569,7 +569,7 @@ func TestResolveStartedByStaffID_StaffRepoNil(t *testing.T) {
 		},
 		staffRepo: nil, // returns nil from StaffRepository()
 	}
-	rs := NewResource(nil, nil, &mockInstanceService{}, ps, nil, slog.Default(), nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
 
@@ -591,7 +591,7 @@ func TestResolveStartedByStaffID_StaffNotFound(t *testing.T) {
 		},
 		staffRepo: staffRepo,
 	}
-	rs := NewResource(nil, nil, &mockInstanceService{}, ps, nil, slog.Default(), nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
 
@@ -613,7 +613,7 @@ func TestResolveStartedByStaffID_StaffIsNil(t *testing.T) {
 		},
 		staffRepo: staffRepo,
 	}
-	rs := NewResource(nil, nil, &mockInstanceService{}, ps, nil, slog.Default(), nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
 
@@ -639,7 +639,7 @@ func TestResolveStartedByStaffID_Success(t *testing.T) {
 		},
 		staffRepo: staffRepo,
 	}
-	rs := NewResource(nil, nil, &mockInstanceService{}, ps, nil, slog.Default(), nil)
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
 
@@ -674,7 +674,7 @@ func TestStartInstance_PassesStartedByFromJWT(t *testing.T) {
 			ActiveGroupID: 1,
 		},
 	}
-	rs := NewResource(nil, nil, mock, ps, nil, slog.Default(), nil)
+	rs := NewResource(Dependencies{InstanceService: mock, PersonService: ps, Logger: slog.Default()})
 
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -701,12 +701,12 @@ func TestStartInstance_PassesStartedByFromJWT(t *testing.T) {
 func TestResource_getLogger(t *testing.T) {
 	t.Run("returns injected logger", func(t *testing.T) {
 		custom := slog.Default()
-		rs := NewResource(nil, nil, nil, nil, nil, custom, nil)
+		rs := NewResource(Dependencies{Logger: custom})
 		assert.NotNil(t, rs.getLogger())
 	})
 
 	t.Run("falls back to slog.Default when nil", func(t *testing.T) {
-		rs := NewResource(nil, nil, nil, nil, nil, nil, nil)
+		rs := NewResource(Dependencies{})
 		assert.NotNil(t, rs.getLogger(), "must never return nil")
 	})
 }
@@ -722,7 +722,7 @@ func TestReplanWeekRequest_Bind_NoOp(t *testing.T) {
 }
 
 func TestReplanWeek_NilService(t *testing.T) {
-	rs := NewResource(nil, nil, nil, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{})
 	router := setupLifecycleRouter(rs, "/instances/re-plan-week", rs.replanWeek)
 
 	w := doPost(t, router, "/instances/re-plan-week", nil)
@@ -744,7 +744,7 @@ func TestReplanWeek_NoBody_DefaultsToNextWeek(t *testing.T) {
 			},
 		},
 	}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/re-plan-week", rs.replanWeek)
 
 	w := doPost(t, router, "/instances/re-plan-week", nil)
@@ -771,7 +771,7 @@ func TestReplanWeek_ValidBody(t *testing.T) {
 			Materialization:  &scheduleSvc.MaterializationResult{InstancesCreated: 3},
 		},
 	}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/re-plan-week", rs.replanWeek)
 
 	body := map[string]string{
@@ -796,7 +796,7 @@ func TestReplanWeek_NilMaterialization(t *testing.T) {
 			Materialization:  nil,
 		},
 	}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/re-plan-week", rs.replanWeek)
 
 	w := doPost(t, router, "/instances/re-plan-week", nil)
@@ -809,7 +809,7 @@ func TestReplanWeek_NilMaterialization(t *testing.T) {
 
 func TestReplanWeek_InvalidWindow(t *testing.T) {
 	mock := &mockInstanceService{}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/re-plan-week", rs.replanWeek)
 
 	body := map[string]string{
@@ -823,7 +823,7 @@ func TestReplanWeek_InvalidWindow(t *testing.T) {
 
 func TestReplanWeek_InvalidJSON(t *testing.T) {
 	mock := &mockInstanceService{}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/re-plan-week", rs.replanWeek)
 
 	req := httptest.NewRequest(http.MethodPost, "/instances/re-plan-week", bytes.NewReader([]byte("{not json")))
@@ -837,7 +837,7 @@ func TestReplanWeek_InvalidJSON(t *testing.T) {
 
 func TestReplanWeek_ServiceError(t *testing.T) {
 	mock := &mockInstanceService{replanErr: errors.New("db exploded")}
-	rs := NewResource(nil, nil, mock, nil, nil, nil, nil)
+	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/re-plan-week", rs.replanWeek)
 
 	w := doPost(t, router, "/instances/re-plan-week", nil)

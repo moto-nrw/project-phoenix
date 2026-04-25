@@ -47,7 +47,11 @@ import { useUserContext } from "~/lib/hooks/use-user-context";
 import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
-import { StudentCard, PickupTimeRow } from "~/components/students/student-card";
+import {
+  StudentCard,
+  PickupTimeRow,
+  ArrivalTimeRow,
+} from "~/components/students/student-card";
 import {
   SchoolCheckinToggle,
   SchoolCheckinToggleMobile,
@@ -59,6 +63,7 @@ import {
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
+import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -95,6 +100,9 @@ interface BackendStudentFromBFF {
   location_since?: string;
   group_id?: number;
   group_name?: string;
+  arrival_time?: string;
+  arrival_is_exception?: boolean;
+  arrival_notes?: string;
 }
 
 // BFF response type for dashboard data
@@ -199,7 +207,9 @@ function OGSGroupPageContent() {
   );
 
   // Sort mode for student list
-  const [sortMode, setSortMode] = useState<"default" | "pickup">("default");
+  const [sortMode, setSortMode] = useState<"default" | "pickup" | "arrival">(
+    "default",
+  );
 
   // Current time for urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -324,6 +334,9 @@ function OGSGroupPageContent() {
         location_since: s.location_since,
         group_id: s.group_id?.toString(),
         group_name: s.group_name,
+        arrival_time: s.arrival_time,
+        arrival_is_exception: s.arrival_is_exception,
+        arrival_notes: s.arrival_notes,
       }));
       setStudents(mappedStudents);
 
@@ -468,6 +481,7 @@ function OGSGroupPageContent() {
       const [studentsResponse, roomStatusResponse] = await Promise.all([
         studentService.getStudents({
           groupId: currentGroupId!,
+          includeArrivalTimes: true,
           token: session?.user?.token,
         }),
         // Fetch room status inline (don't use callback that sets state)
@@ -500,7 +514,8 @@ function OGSGroupPageContent() {
 
       const students = studentsResponse.students || [];
 
-      // Fetch pickup times and tracking indicators for all students (prevents loading flash)
+      // Fetch pickup times and tracking indicators in parallel (prevents loading flash).
+      // Arrival data is part of the student list response, so ogs-students-* invalidation is enough.
       let pickupTimesMap = new Map<string, BulkPickupTime>();
       let trackingIndicators: TrackingIndicatorsResponse = {
         labels: [],
@@ -841,6 +856,42 @@ function OGSGroupPageContent() {
       });
     }
 
+    if (sortMode === "arrival") {
+      // Urgency rank for arrival: verspätet (0) → bald (1) → normal (2) → none/angekommen (3)
+      const urgencyRank: Record<string, number> = {
+        overdue: 0,
+        soon: 1,
+        normal: 2,
+        none: 3,
+      };
+
+      return sorted.sort((a, b) => {
+        const aHome = isHomeLocation(a.current_location);
+        const bHome = isHomeLocation(b.current_location);
+
+        // Angekommene Schüler (nicht zu Hause) immer unten
+        if (!aHome && bHome) return 1;
+        if (aHome && !bHome) return -1;
+
+        // Beide zu Hause: nach Ankunfts-Urgency sortieren
+        const timeA = a.arrival_time;
+        const timeB = b.arrival_time;
+        const urgencyA = getArrivalUrgency(timeA, now, aHome);
+        const urgencyB = getArrivalUrgency(timeB, now, bHome);
+        const rankA = urgencyRank[urgencyA] ?? 3;
+        const rankB = urgencyRank[urgencyB] ?? 3;
+
+        if (rankA !== rankB) return rankA - rankB;
+
+        if (timeA && timeB) {
+          const timeCmp = timeA.localeCompare(timeB);
+          if (timeCmp !== 0) return timeCmp;
+        }
+
+        return compareByName(a, b);
+      });
+    }
+
     // Alphabetisch (Standard): Nachname, dann Vorname
     return sorted.sort(compareByName);
   }, [filteredStudents, sortMode, pickupTimes, now]);
@@ -884,9 +935,11 @@ function OGSGroupPageContent() {
         label: "Sortierung",
         type: "buttons",
         value: sortMode,
-        onChange: (value) => setSortMode(value as "default" | "pickup"),
+        onChange: (value) =>
+          setSortMode(value as "default" | "pickup" | "arrival"),
         options: [
           { value: "default", label: "Alphabetisch" },
+          { value: "arrival", label: "Nächste Ankunft" },
           { value: "pickup", label: "Nächste Abholung" },
         ],
       },
@@ -1190,6 +1243,7 @@ function OGSGroupPageContent() {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
+              const isHome = isHomeLocation(student.current_location);
 
               const checkinState = deriveCheckinState(student.current_location);
               const studentIdStr = student.id.toString();
@@ -1211,7 +1265,13 @@ function OGSGroupPageContent() {
                   }
                   locationBadge={
                     <StudentPresenceBadge
-                      student={student}
+                      student={{
+                        ...student,
+                        not_arrival_today:
+                          (student.arrival_is_exception ?? false) &&
+                          !student.arrival_time,
+                        not_arrival_reason: student.arrival_notes ?? null,
+                      }}
                       displayMode="roomName"
                       isGroupRoom={inGroupRoom}
                       variant="modern"
@@ -1219,20 +1279,33 @@ function OGSGroupPageContent() {
                     />
                   }
                   extraContent={
-                    <PickupTimeRow
-                      pickupTime={studentPickup?.pickupTime}
-                      isException={studentPickup?.isException ?? false}
-                      notes={
-                        studentPickup
-                          ? combinePickupNotes(
-                              studentPickup.notes,
-                              studentPickup.dayNotes,
-                            )
-                          : undefined
-                      }
-                      isHome={isHomeLocation(student.current_location)}
-                      now={now}
-                    />
+                    <>
+                      <ArrivalTimeRow
+                        arrivalTime={student.arrival_time}
+                        isException={student.arrival_is_exception ?? false}
+                        isAbsent={
+                          (student.arrival_is_exception ?? false) &&
+                          !student.arrival_time
+                        }
+                        notes={student.arrival_notes}
+                        isHome={isHome}
+                        now={now}
+                      />
+                      <PickupTimeRow
+                        pickupTime={studentPickup?.pickupTime}
+                        isException={studentPickup?.isException ?? false}
+                        notes={
+                          studentPickup
+                            ? combinePickupNotes(
+                                studentPickup.notes,
+                                studentPickup.dayNotes,
+                              )
+                            : undefined
+                        }
+                        isHome={isHome}
+                        now={now}
+                      />
+                    </>
                   }
                   trackingIndicators={
                     swrStudentsData?.trackingIndicators?.labels.length ? (

@@ -22,7 +22,19 @@ type mockPickupScheduleService struct {
 	calledWithIDs                         []int64
 }
 
+type mockArrivalScheduleService struct {
+	scheduleService.ArrivalScheduleService // embed interface to satisfy compiler for unused methods
+	bulkResult                             map[int64]*scheduleService.EffectiveArrivalTime
+	bulkErr                                error
+	calledWithIDs                          []int64
+}
+
 func (m *mockPickupScheduleService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, _ time.Time) (map[int64]*scheduleService.EffectivePickupTime, error) {
+	m.calledWithIDs = studentIDs
+	return m.bulkResult, m.bulkErr
+}
+
+func (m *mockArrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, _ time.Time) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
 	m.calledWithIDs = studentIDs
 	return m.bulkResult, m.bulkErr
 }
@@ -269,4 +281,75 @@ func TestEnrichWithPickupTimes_ServiceError(t *testing.T) {
 	// No pickup times should be set when the service returns an error
 	assert.Nil(t, responses[0].PickupTime, "should be nil when service returns error")
 	assert.Nil(t, responses[1].PickupTime, "should be nil when service returns error")
+}
+
+func TestEnrichWithArrivalTimes_FullAccessGating(t *testing.T) {
+	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
+	arrivalAt := time.Date(2026, 4, 14, 8, 15, 0, 0, time.UTC)
+
+	mock := &mockArrivalScheduleService{
+		bulkResult: map[int64]*scheduleService.EffectiveArrivalTime{
+			100: {ArrivalTime: &arrivalAt},
+			200: {ArrivalTime: &arrivalAt},
+			300: {ArrivalTime: &arrivalAt},
+		},
+	}
+
+	rs := &Resource{
+		ArrivalScheduleService: mock,
+		Logger:                 slog.Default(),
+	}
+
+	responses := []StudentResponse{
+		{ID: 100, HasFullAccess: true},
+		{ID: 200, HasFullAccess: false},
+		{ID: 300, HasFullAccess: true},
+	}
+
+	rs.enrichWithArrivalTimes(context.Background(), responses, []int64{100, 300}, now)
+
+	assert.NotNil(t, responses[0].ArrivalTime)
+	assert.Equal(t, "08:15", *responses[0].ArrivalTime)
+	assert.Nil(t, responses[1].ArrivalTime, "non-full-access student must not have arrival time")
+	assert.NotNil(t, responses[2].ArrivalTime)
+	assert.Equal(t, "08:15", *responses[2].ArrivalTime)
+	assert.Equal(t, []int64{100, 300}, mock.calledWithIDs)
+}
+
+func TestEnrichWithArrivalTimes_ExceptionWithoutArrivalTime(t *testing.T) {
+	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC)
+
+	mock := &mockArrivalScheduleService{
+		bulkResult: map[int64]*scheduleService.EffectiveArrivalTime{
+			100: {
+				ArrivalTime: nil,
+				IsException: true,
+				Notes:       "Kommt heute nicht",
+			},
+		},
+	}
+
+	rs := &Resource{
+		ArrivalScheduleService: mock,
+		Logger:                 slog.Default(),
+	}
+
+	responses := []StudentResponse{{ID: 100, HasFullAccess: true}}
+	rs.enrichWithArrivalTimes(context.Background(), responses, []int64{100}, now)
+
+	assert.Nil(t, responses[0].ArrivalTime)
+	assert.True(t, responses[0].ArrivalIsException)
+	assert.Equal(t, "Kommt heute nicht", responses[0].ArrivalNotes)
+}
+
+func TestBuildArrivalNotes(t *testing.T) {
+	eat := &scheduleService.EffectiveArrivalTime{
+		Notes: "Später",
+		DayNotes: []scheduleService.ArrivalNoteData{
+			{ID: 11, Content: "Bitte anrufen"},
+			{ID: 12, Content: ""},
+		},
+	}
+
+	assert.Equal(t, "Später, Bitte anrufen", buildArrivalNotes(eat))
 }

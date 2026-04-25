@@ -10,6 +10,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// FindByStudentAndActiveGroupIDs returns only the student's visits whose
+// active_group_id matches one of the given IDs. Empty slice must short-circuit.
+func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	now := time.Now()
+	v1 := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, now.Add(-2*time.Hour), nil)
+	v2 := testpkg.CreateTestVisit(t, db, data.Student2.ID, data.ActiveGroup.ID, now.Add(-1*time.Hour), nil)
+
+	defer func() {
+		for _, id := range []int64{v1.ID, v2.ID} {
+			testpkg.CleanupTableRecords(t, db, "active.visits", id)
+		}
+	}()
+
+	t.Run("empty id slice short-circuits", func(t *testing.T) {
+		results, err := repo.FindByStudentAndActiveGroupIDs(ctx, data.Student1.ID, nil)
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+
+	t.Run("returns only matching student's visits", func(t *testing.T) {
+		results, err := repo.FindByStudentAndActiveGroupIDs(ctx, data.Student1.ID, []int64{data.ActiveGroup.ID})
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, v1.ID, results[0].ID,
+			"must not include student2's visit in the same group")
+	})
+
+	t.Run("non-matching active group id returns empty", func(t *testing.T) {
+		results, err := repo.FindByStudentAndActiveGroupIDs(ctx, data.Student1.ID, []int64{data.ActiveGroup.ID + 9999})
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+
+	t.Run("different tenant context returns empty", func(t *testing.T) {
+		ctxT2 := testpkg.TenantContext(2)
+		results, err := repo.FindByStudentAndActiveGroupIDs(ctxT2, data.Student1.ID, []int64{data.ActiveGroup.ID})
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+}
+
 func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

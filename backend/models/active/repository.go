@@ -85,6 +85,12 @@ type VisitRepository interface {
 	// student whose entry_time falls within [start, end], ordered by entry_time desc.
 	FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*Visit, error)
 
+	// FindByStudentAndActiveGroupIDs returns visits for the student whose
+	// active_group_id is in the given list. Used by the timetable per-student
+	// day view to detect unplanned attendance in a single batch query.
+	// Returns an empty slice (no DB call) when the id list is empty.
+	FindByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*Visit, error)
+
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
 
@@ -161,6 +167,14 @@ type GroupSupervisorRepository interface {
 	// EndAllActiveByStaffID ends all active supervisions for a staff member (sets end_date = CURRENT_DATE)
 	// Returns the number of supervisions that were ended
 	EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error)
+
+	// EndByActiveGroupAndStaffID ends active supervisions for a specific
+	// (active_group_id, staff_id) pair. Sets end_date=now() on all matching
+	// rows with end_date IS NULL. Used by the substitute flow to remove the
+	// absent staff's active supervisorship for a single active group without
+	// touching their supervisions elsewhere. Idempotent: zero rows matched
+	// is not an error (staff already ended or never supervised this group).
+	EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error)
 
 	// CreateBulk inserts multiple supervisors in a single query.
 	// All supervisors must have valid fields and tenant IDs set before calling.

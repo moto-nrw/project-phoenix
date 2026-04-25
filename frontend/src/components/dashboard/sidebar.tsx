@@ -19,6 +19,7 @@ import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
+import { navigationIcons } from "~/lib/navigation-icons";
 
 // Type für Navigation Items
 interface NavItem {
@@ -141,45 +142,103 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-// Operator navigation items (flat, no accordions)
-const OPERATOR_NAV_ITEMS: NavItem[] = [
+// Shared accent for all Verwaltung items. Source of truth:
+// LOCATION_COLORS.OTHER_ROOM in ~/lib/location-helper (#5080D8). Tailwind's
+// JIT scans for literal class strings, so the hex is inlined here rather
+// than interpolated at runtime. If LOCATION_COLORS.OTHER_ROOM ever changes,
+// update this literal to match.
+const OPERATOR_VERWALTUNG_ACTIVE_COLOR = "text-[#5080D8]";
+
+interface OperatorNavSection {
+  readonly label: string;
+  readonly items: readonly NavItem[];
+}
+
+// Operator navigation — grouped into static labeled sections. Icons sourced
+// from ~/lib/navigation-icons so the desktop sidebar and the mobile bottom
+// nav/overflow drawer stay visually consistent per page.
+const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
   {
-    href: "/operator/suggestions",
-    label: "Feedback",
-    icon: "M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46",
-    activeColor: "text-teal-500",
-    alwaysShow: true,
+    label: "VERWALTUNG",
+    items: [
+      {
+        href: "/operator/organizations",
+        label: "Träger",
+        icon: navigationIcons.rooms,
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
+      {
+        href: "/operator/schools",
+        label: "Schulen",
+        icon: navigationIcons.buildingOffice,
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
+      {
+        href: "/operator/accounts",
+        label: "Konten",
+        icon: navigationIcons.profile,
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
+      {
+        href: "/operator/devices",
+        label: "Geräte",
+        icon: navigationIcons.device,
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
+      {
+        href: "/operator/persons",
+        label: "Personen",
+        icon: navigationIcons.userSingle,
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
+    ],
   },
   {
-    href: "/operator/announcements",
-    label: "Ankündigungen",
-    icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
-    activeColor: "text-amber-500",
-    alwaysShow: true,
+    label: "KOMMUNIKATION",
+    items: [
+      {
+        href: "/operator/suggestions",
+        label: "Feedback",
+        icon: navigationIcons.feedback,
+        activeColor: "text-teal-500",
+        alwaysShow: true,
+      },
+      {
+        href: "/operator/announcements",
+        label: "Ankündigungen",
+        icon: navigationIcons.bell,
+        activeColor: "text-amber-500",
+        alwaysShow: true,
+      },
+    ],
   },
   {
-    href: "/operator/provisioning",
-    label: "Schulverwaltung",
-    icon: "M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21",
-    activeColor: "text-indigo-500",
-    alwaysShow: true,
-  },
-  {
-    href: "/operator/operators",
-    label: "Operatoren",
-    icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
-    activeColor: "text-violet-500",
-    alwaysShow: true,
-  },
-  {
-    href: "/operator/settings",
-    label: "Einstellungen",
-    icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
-    activeColor: "text-gray-500",
-    bottomPinned: true,
-    alwaysShow: true,
+    label: "TEAM",
+    items: [
+      {
+        href: "/operator/operators",
+        label: "Operatoren",
+        icon: navigationIcons.group,
+        activeColor: "text-violet-500",
+        alwaysShow: true,
+      },
+    ],
   },
 ];
+
+const OPERATOR_BOTTOM_ITEM: NavItem = {
+  href: "/operator/settings",
+  label: "Einstellungen",
+  icon: navigationIcons.settings,
+  activeColor: "text-gray-500",
+  bottomPinned: true,
+  alwaysShow: true,
+};
 
 // Static sub-pages for Datenverwaltung accordion
 const DATABASE_SUB_PAGES = [
@@ -540,12 +599,22 @@ function SidebarContent({ className = "" }: SidebarProps) {
     userIsCaregiver || (userIsAdmin && adminOverviewEnabled);
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
-  const resolvedOperatorItems = useMemo(
+  const resolvedOperatorSections = useMemo(
     () =>
-      OPERATOR_NAV_ITEMS.map((item) => ({
-        ...item,
-        href: operatorPath(item.href),
+      OPERATOR_NAV_SECTIONS.map((section) => ({
+        label: section.label,
+        items: section.items.map((item) => ({
+          ...item,
+          href: operatorPath(item.href),
+        })),
       })),
+    [],
+  );
+  const resolvedOperatorBottomItem = useMemo(
+    () => ({
+      ...OPERATOR_BOTTOM_ITEM,
+      href: operatorPath(OPERATOR_BOTTOM_ITEM.href),
+    }),
     [],
   );
   const operatorSuggestionsHref = useMemo(
@@ -553,15 +622,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [],
   );
 
-  // Operator mode: simple flat navigation (no accordions, no teacher features)
+  // Operator mode: sectioned navigation (static labels, no accordions)
   if (mode === "operator") {
-    const operatorMainItems = resolvedOperatorItems.filter(
-      (item) => !item.bottomPinned,
-    );
-    const operatorBottomItems = resolvedOperatorItems.filter(
-      (item) => item.bottomPinned,
-    );
-
     const renderOperatorItem = (item: NavItem) => (
       <Link
         key={item.href}
@@ -597,15 +659,25 @@ function SidebarContent({ className = "" }: SidebarProps) {
         className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
       >
         <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-          <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
-            {operatorMainItems.map(renderOperatorItem)}
+          <nav className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
+            {resolvedOperatorSections.map((section, index) => (
+              <div
+                key={section.label}
+                className={index > 0 ? "mt-5" : undefined}
+              >
+                <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
+                  {section.label}
+                </p>
+                <div className="space-y-1">
+                  {section.items.map(renderOperatorItem)}
+                </div>
+              </div>
+            ))}
           </nav>
 
-          {operatorBottomItems.length > 0 && (
-            <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-              {operatorBottomItems.map(renderOperatorItem)}
-            </nav>
-          )}
+          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
+            {renderOperatorItem(resolvedOperatorBottomItem)}
+          </nav>
         </div>
       </aside>
     );

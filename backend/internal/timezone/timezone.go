@@ -87,3 +87,25 @@ func EndOfDay(t time.Time) time.Time {
 		23, 59, 59, 0, Berlin,
 	)
 }
+
+// WallClock returns a new time.Time at year 0001-01-01 UTC with t's own
+// wall-clock Hour/Minute/Second/Nanosecond preserved in t's existing
+// Location.
+//
+// This is the bridge between timezone-aware timestamps coming out of bun
+// (e.g. schedule.timeframes.start_time as TIMESTAMPTZ) or TIME columns
+// whose year-anchor the driver picks arbitrarily (0000 vs 2000), and
+// downstream consumers that need to compare or format the wall-clock
+// portion regardless of the original Location or year. Dropping all of
+// date/Location preserves the value the admin saw ("08:00") rather than
+// the UTC instant ("06:00 UTC") or a year-driven .After() mismatch.
+//
+// Used by the materialization service when normalising timeframe rows for
+// insertion into activity_instances.start_time (TIME), by the activities
+// schedule repo when reading the same timeframe back for the WP-B13
+// conflict endpoint, and by the conflict handler itself when comparing
+// the exception's modified start_time against the student's resolved
+// arrival.
+func WallClock(t time.Time) time.Time {
+	return time.Date(1, 1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
+}

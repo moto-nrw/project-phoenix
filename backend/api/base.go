@@ -290,6 +290,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AttendanceRepo:         repoFactory.Attendance,
 		VisitRepo:              repoFactory.ActiveVisit,
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
+		Broadcaster:            api.Services.RealtimeHub,
 		Logger:                 logger.With("handler", "students"),
 		DB:                     db,
 	})
@@ -349,15 +350,30 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, db)
-	api.Timetable = timetableAPI.NewResource(
-		api.Services.CalendarPeriod,
-		api.Services.Materialization,
-		api.Services.Instance,
-		api.Services.Users,
-		repoFactory.InstanceStudent,
-		logger.With("handler", "timetable"),
-		db,
-	)
+	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
+		CalendarPeriodService:  api.Services.CalendarPeriod,
+		MaterializationService: api.Services.Materialization,
+		InstanceService:        api.Services.Instance,
+		PersonService:          api.Services.Users,
+		InstanceStudentRepo:    repoFactory.InstanceStudent,
+		ActivityInstanceRepo:   repoFactory.ActivityInstance,
+		ActivityExceptionRepo:  repoFactory.ActivityException,
+		ActivityScheduleRepo:   repoFactory.ActivitySchedule,
+		InstanceStaffRepo:      repoFactory.InstanceStaff,
+		SupervisorRepo:         repoFactory.GroupSupervisor,
+		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
+		ArrivalExceptionRepo:   repoFactory.StudentArrivalException,
+		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
+		PickupExceptionRepo:    repoFactory.StudentPickupException,
+		VisitRepo:              repoFactory.ActiveVisit,
+		StudentRepo:            repoFactory.Student,
+		StaffRepo:              repoFactory.Staff,
+		UserContextService:     api.Services.UserContext,
+		SettingsService:        api.Services.Settings,
+		Broadcaster:            api.Services.RealtimeHub,
+		Logger:                 logger.With("handler", "timetable"),
+		DB:                     db,
+	})
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{

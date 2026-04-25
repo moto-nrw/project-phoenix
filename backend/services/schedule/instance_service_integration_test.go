@@ -524,6 +524,105 @@ func instanceExists(t *testing.T, s *lifecycleSetup, id int64) bool {
 	return count > 0
 }
 
+// --- B10 follow-up: Complete marks remaining expected as absent -------------
+
+// fetchAttendance loads an instance_student row by (instance_id, student_id).
+// The tests below use it to assert status after lifecycle transitions.
+func fetchAttendance(t *testing.T, s *lifecycleSetup, instanceID, studentID int64) *scheduleModels.InstanceStudent {
+	t.Helper()
+	var row scheduleModels.InstanceStudent
+	err := s.db.NewSelect().
+		Model(&row).
+		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Where(`"instance_student".instance_id = ?`, instanceID).
+		Where(`"instance_student".student_id = ?`, studentID).
+		Where(`"instance_student".tenant_id = ?`, 1).
+		Scan(s.ctx)
+	require.NoError(t, err)
+	return &row
+}
+
+// Complete must flip every remaining 'expected' row to 'absent' inside the
+// same tenant tx. Present rows stay untouched.
+func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
+	s := buildLifecycle(t)
+
+	ai := seedInstance(t, s, true, true) // both students expected
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+
+	// Simulate a live check-in for student1 via the monotonic mirror path.
+	repoFactory := repositories.NewFactory(s.db)
+	updated, err := repoFactory.InstanceStudent.UpdateAttendanceFromCheckin(
+		s.ctx, ai.ID, s.student1, time.Now(),
+	)
+	require.NoError(t, err)
+	require.True(t, updated)
+
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	got1 := fetchAttendance(t, s, ai.ID, s.student1)
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, got1.Status,
+		"checked-in student must stay present after Complete")
+
+	got2 := fetchAttendance(t, s, ai.ID, s.student2)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got2.Status,
+		"expected student must be flipped to absent at Complete")
+}
+
+// Cancel must NOT flip expected → absent. A cancelled instance never ran,
+// so "absent" would falsely imply the student failed to show up to an event
+// that happened. The cancelled status on the instance itself is the signal.
+func TestInstance_Cancel_FromPlanned_DoesNotTouchAttendance(t *testing.T) {
+	s := buildLifecycle(t)
+
+	ai := seedInstance(t, s, false, true)
+
+	cancelled, err := s.svc.Cancel(s.ctx, ai.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
+
+	got1 := fetchAttendance(t, s, ai.ID, s.student1)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got1.Status,
+		"Cancel(planned) must not flip attendance to absent")
+	got2 := fetchAttendance(t, s, ai.ID, s.student2)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got2.Status)
+}
+
+// Same rule for Cancel from active. Even the fire-alarm scenario: students
+// who were present when the instance was aborted keep their present status,
+// and students who hadn't arrived stay 'expected' (no event → no absence).
+func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
+	s := buildLifecycle(t)
+
+	ai := seedInstance(t, s, true, true)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+
+	repoFactory := repositories.NewFactory(s.db)
+	_, err = repoFactory.InstanceStudent.UpdateAttendanceFromCheckin(
+		s.ctx, ai.ID, s.student1, time.Now(),
+	)
+	require.NoError(t, err)
+
+	_, err = s.svc.Cancel(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	got1 := fetchAttendance(t, s, ai.ID, s.student1)
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, got1.Status,
+		"Cancel(active) must preserve present rows — they were actually there")
+	got2 := fetchAttendance(t, s, ai.ID, s.student2)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got2.Status,
+		"Cancel(active) must not flip expected → absent")
+}
+
 // --- Conflict-detection pure unit (nil-safe + empty happy path) ------------
 
 func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {

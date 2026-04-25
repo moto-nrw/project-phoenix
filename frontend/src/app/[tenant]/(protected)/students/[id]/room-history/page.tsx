@@ -690,7 +690,7 @@ function StudentRoomHistoryPageContent() {
             {displayName}
           </h1>
           <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-            <span>Klasse {student.school_class}</span>
+            <span>{student.school_class}</span>
             {student.group_name && (
               <>
                 <span className="text-gray-300">·</span>

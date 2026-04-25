@@ -280,6 +280,33 @@ vi.mock("~/components/students/student-card", () => ({
       </div>
     );
   },
+  ArrivalTimeRow: ({
+    arrivalTime,
+    isException,
+    isAbsent,
+    notes,
+    isHome,
+  }: {
+    arrivalTime?: string;
+    isException: boolean;
+    isAbsent: boolean;
+    notes?: string;
+    isHome: boolean;
+    now: Date;
+  }) => (
+    <div
+      data-testid="arrival-time-row"
+      data-arrival-time={arrivalTime ?? ""}
+      data-is-exception={String(isException)}
+      data-is-absent={String(isAbsent)}
+      data-is-home={String(isHome)}
+    >
+      {isAbsent && <>Kommt heute nicht</>}
+      {!isAbsent && arrivalTime && <>Ankunftszeit: {arrivalTime} Uhr</>}
+      {!isAbsent && !arrivalTime && <>Ankunftszeit: —</>}
+      {notes && <span>({notes})</span>}
+    </div>
+  ),
 }));
 
 // Mock pickup schedule API
@@ -299,6 +326,10 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
   fetchBulkPickupTimes: (
     ...args: Parameters<typeof mockFetchBulkPickupTimes>
   ) => mockFetchBulkPickupTimes(...args),
+}));
+
+vi.mock("~/lib/student-arrival-api", () => ({
+  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
 }));
 
 // Mock lucide-react icons
@@ -3174,6 +3205,27 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(cards[0]?.textContent).toContain("Max Zeller"); // 14:00
       expect(cards[1]?.textContent).toContain("Anna Becker"); // 16:00
       expect(cards[2]?.textContent).toContain("Lena Mueller"); // at home, no time
+    });
+  });
+
+  it("renders the arrival sort option and sorts when activated", async () => {
+    setupWithStudentsAndPickupTimes(new Map(), {
+      isHome: (loc) => loc === "Zuhause",
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-sort")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Nächste Ankunft")).toBeInTheDocument();
+    const arrivalBtn = screen.getByTestId("filter-sort-arrival");
+    arrivalBtn.click();
+
+    await waitFor(() => {
+      // All three students still rendered after sort switch
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
   });
 
