@@ -185,3 +185,44 @@ export interface CreateInstanceBody {
   activity_group_id?: number;
   staff_ids?: number[];
 }
+
+/**
+ * Body for POST /api/timetable/templates. weekdays use ISO 8601
+ * (Mo=1 … Fr=5). week_pattern: 0=every week, 1=A, 2=B.
+ *
+ * materialize_from / materialize_to are optional — when present the
+ * backend triggers a materialization run for that window after the
+ * template lands so fresh instances appear on the grid immediately.
+ */
+export interface CreateTemplateBody {
+  name: string;
+  type: ActivityType;
+  weekdays: number[];
+  start_time: string; // HH:MM
+  end_time: string; // HH:MM
+  room_id: number;
+  category_id: number;
+  max_participants?: number;
+  week_pattern?: number;
+  calendar_period_id?: number;
+  materialize_from?: string;
+  materialize_to?: string;
+}
+
+export interface CreateTemplateResult {
+  templateId: string;
+  timeframeId: string;
+  scheduleIds: string[];
+  instancesCreated?: number;
+  materializedFrom?: string;
+  materializedTo?: string;
+}
+
+export interface BackendCreateTemplateResult {
+  template_id: number;
+  timeframe_id: number;
+  schedule_ids: number[];
+  instances_created?: number;
+  materialized_from?: string;
+  materialized_to?: string;
+}

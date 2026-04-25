@@ -10,11 +10,13 @@
 import { LOCATION_COLORS } from "./location-helper";
 import type {
   ActivityType,
+  BackendCreateTemplateResult,
   BackendEnrichedInstance,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendStartInstanceResult,
   BackendWeeklyInstancesResponse,
+  CreateTemplateResult,
   EnrichedInstance,
   InstanceStaffSummary,
   InstanceStatusResult,
@@ -312,6 +314,19 @@ export function mapInstanceStatusResult(
     instanceId: String(raw.instance_id),
     status: raw.status,
     completedAt: raw.completed_at,
+  };
+}
+
+export function mapCreateTemplateResult(
+  raw: BackendCreateTemplateResult,
+): CreateTemplateResult {
+  return {
+    templateId: String(raw.template_id),
+    timeframeId: String(raw.timeframe_id),
+    scheduleIds: (raw.schedule_ids ?? []).map(String),
+    instancesCreated: raw.instances_created,
+    materializedFrom: raw.materialized_from,
+    materializedTo: raw.materialized_to,
   };
 }
 

@@ -31,7 +31,7 @@ import {
   type LifecycleAction,
 } from "~/components/timetable/instance-detail-slide-over";
 import { MaterializeButton } from "~/components/timetable/materialize-button";
-import { SpontaneousInstanceModal } from "~/components/timetable/spontaneous-instance-modal";
+import { RecurringActivityModal } from "~/components/timetable/recurring-activity-modal";
 import { WeekNavigator } from "~/components/timetable/week-navigator";
 import { WeeklyPlannerGrid } from "~/components/timetable/weekly-planner-grid";
 import { createLogger } from "~/lib/logger";
@@ -222,9 +222,9 @@ function TimetablesContent() {
         <button
           type="button"
           onClick={() => setCreateModalOpen(true)}
-          className="inline-flex items-center gap-2 rounded-md border border-[#5080D8] bg-white px-3 py-2 text-xs font-semibold text-[#5080D8] shadow-sm transition-colors hover:bg-[#EBF0FB]"
+          className="inline-flex items-center gap-2 rounded-md border border-[#5080D8] bg-[#5080D8] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#4070c8]"
         >
-          + Spontane Aktivität
+          + Wiederkehrende Aktivität
         </button>
       </div>
 
@@ -268,14 +268,15 @@ function TimetablesContent() {
         editDeferred
       />
 
-      <SpontaneousInstanceModal
+      <RecurringActivityModal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        defaultDate={fromISO}
+        weekFrom={fromISO}
+        weekTo={toISO}
         onCreated={() => {
-          // Refetch the visible week so the new card appears immediately.
-          // The created instance is in the response too, but going through
-          // SWR mutate keeps a single source of truth (the cached week).
+          // The backend already materialised the visible week as part of
+          // the create call (we passed weekFrom/weekTo). Refetch so the
+          // fresh instances appear immediately.
           void tenantMutate(swrKey);
         }}
       />

@@ -16,12 +16,15 @@
 import { getSession } from "next-auth/react";
 import { createLogger } from "./logger";
 import type {
+  BackendCreateTemplateResult,
   BackendEnrichedInstance,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendStartInstanceResult,
   BackendWeeklyInstancesResponse,
   CreateInstanceBody,
+  CreateTemplateBody,
+  CreateTemplateResult,
   EnrichedInstance,
   InstanceStatusResult,
   MaterializeResult,
@@ -29,6 +32,7 @@ import type {
   WeeklyInstancesResponse,
 } from "./timetable-types";
 import {
+  mapCreateTemplateResult,
   mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
@@ -124,6 +128,33 @@ class TimetableService {
       is_spontaneous: raw.is_spontaneous,
     });
     return mapInstance(raw);
+  }
+
+  /**
+   * POST /api/timetable/templates — creates a recurring template
+   * (activities.groups + schedules + timeframe in one shot) plus
+   * optionally materializes the visible week so the new rows appear
+   * on the planner grid immediately.
+   */
+  async createTemplate(
+    body: CreateTemplateBody,
+  ): Promise<CreateTemplateResult> {
+    const response = await fetch("/api/timetable/templates", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    const raw = await unwrap<BackendCreateTemplateResult>(response);
+    logger.info("template_created", {
+      template_id: raw.template_id,
+      schedules: raw.schedule_ids.length,
+      instances_created: raw.instances_created,
+    });
+    return mapCreateTemplateResult(raw);
   }
 
   /**

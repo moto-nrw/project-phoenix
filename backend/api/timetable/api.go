@@ -54,6 +54,7 @@ type Resource struct {
 	staffRepo              users.StaffRepository
 	roomRepo               facilities.RoomRepository
 	activityGroupRepo      activities.GroupRepository
+	timeframeRepo          schedule.TimeframeRepository
 	userContextService     usercontextSvc.UserContextService
 	settingsService        configSvc.SettingsService
 	broadcaster            realtime.Broadcaster
@@ -85,6 +86,7 @@ type Dependencies struct {
 	StaffRepo              users.StaffRepository
 	RoomRepo               facilities.RoomRepository
 	ActivityGroupRepo      activities.GroupRepository
+	TimeframeRepo          schedule.TimeframeRepository
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	Broadcaster            realtime.Broadcaster
@@ -116,6 +118,7 @@ func NewResource(deps Dependencies) *Resource {
 		staffRepo:              deps.StaffRepo,
 		roomRepo:               deps.RoomRepo,
 		activityGroupRepo:      deps.ActivityGroupRepo,
+		timeframeRepo:          deps.TimeframeRepo,
 		userContextService:     deps.UserContextService,
 		settingsService:        deps.SettingsService,
 		broadcaster:            deps.Broadcaster,
@@ -204,6 +207,14 @@ func (rs *Resource) Router() chi.Router {
 		// WP-B13: exception-conflict warnings (planning-only, read-only).
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/exception-conflicts", rs.getExceptionConflicts)
+
+		// Templates — admin shortcut to add a recurring activity (Mensa,
+		// Lernzeit, AGs) without leaving the planner. Bundles timeframe +
+		// activities.groups + activities.schedules into one HTTP call and
+		// optionally materializes the visible week so the new instances
+		// appear immediately on the grid.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/templates", rs.createTemplate)
 	})
 
 	return r
