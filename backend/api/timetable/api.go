@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -51,6 +52,8 @@ type Resource struct {
 	visitRepo              active.VisitRepository
 	studentRepo            users.StudentRepository
 	staffRepo              users.StaffRepository
+	roomRepo               facilities.RoomRepository
+	activityGroupRepo      activities.GroupRepository
 	userContextService     usercontextSvc.UserContextService
 	settingsService        configSvc.SettingsService
 	broadcaster            realtime.Broadcaster
@@ -80,6 +83,8 @@ type Dependencies struct {
 	VisitRepo              active.VisitRepository
 	StudentRepo            users.StudentRepository
 	StaffRepo              users.StaffRepository
+	RoomRepo               facilities.RoomRepository
+	ActivityGroupRepo      activities.GroupRepository
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	Broadcaster            realtime.Broadcaster
@@ -109,6 +114,8 @@ func NewResource(deps Dependencies) *Resource {
 		visitRepo:              deps.VisitRepo,
 		studentRepo:            deps.StudentRepo,
 		staffRepo:              deps.StaffRepo,
+		roomRepo:               deps.RoomRepo,
+		activityGroupRepo:      deps.ActivityGroupRepo,
 		userContextService:     deps.UserContextService,
 		settingsService:        deps.SettingsService,
 		broadcaster:            deps.Broadcaster,
@@ -149,6 +156,12 @@ func (rs *Resource) Router() chi.Router {
 		// SchedulesManage. They share the tenant tx so start/complete/cancel
 		// are atomic end-to-end (no dangling bridge rows on rollback).
 		r.Route("/instances", func(r chi.Router) {
+			// WP-F2 backend prerequisite: list instances in a date window for
+			// the admin weekly planner. Read-only, gated on SchedulesRead so
+			// office staff with view-only permissions can browse the plan
+			// without being able to mutate it.
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/", rs.listInstances)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/re-plan-week", rs.replanWeek)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
