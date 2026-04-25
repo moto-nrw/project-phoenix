@@ -8,7 +8,14 @@ export type SSEEventType =
   | "activity_end"
   | "activity_update"
   | "dashboard_counts_changed"
-  | "arrival_schedule_changed";
+  | "arrival_schedule_changed"
+  // Timetable instance lifecycle events emitted by the backend (WP-B9).
+  // The weekly planner subscribes to these so admin and office staff see
+  // live status changes (start/complete/cancel) without manual refresh.
+  | "instance_started"
+  | "instance_completed"
+  | "instance_cancelled"
+  | "instance_overdue";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
@@ -25,6 +32,13 @@ export interface SSEEventData {
   room_id?: string;
   room_name?: string;
   supervisor_ids?: string[];
+
+  // Timetable instance fields (for instance_* events). instance_id is the
+  // schedule.activity_instances row id; date and start_time identify the
+  // affected slot in the weekly planner.
+  instance_id?: string;
+  instance_date?: string; // YYYY-MM-DD
+  instance_start_time?: string; // HH:MM:SS
 
   // Source tracking
   source?: "rfid" | "manual" | "automated";
