@@ -168,3 +168,20 @@ export interface BackendInstanceStatusResult {
   status: InstanceStatus;
   completed_at?: string;
 }
+
+/**
+ * Body for POST /api/timetable/instances. Mirrors the Go
+ * createInstanceRequest shape; the caller passes ISO date and HH:MM
+ * times (Berlin local), the backend handles normalisation.
+ */
+export interface CreateInstanceBody {
+  date: string; // YYYY-MM-DD
+  start_time: string; // HH:MM
+  end_time: string; // HH:MM
+  title: string;
+  room_id: number;
+  description?: string;
+  notes?: string;
+  activity_group_id?: number;
+  staff_ids?: number[];
+}

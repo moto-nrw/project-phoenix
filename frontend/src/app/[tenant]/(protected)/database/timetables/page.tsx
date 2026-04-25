@@ -19,7 +19,7 @@
  *   trigger refetch manually)
  */
 
-import { Suspense, useCallback, useMemo } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -31,6 +31,7 @@ import {
   type LifecycleAction,
 } from "~/components/timetable/instance-detail-slide-over";
 import { MaterializeButton } from "~/components/timetable/materialize-button";
+import { SpontaneousInstanceModal } from "~/components/timetable/spontaneous-instance-modal";
 import { WeekNavigator } from "~/components/timetable/week-navigator";
 import { WeeklyPlannerGrid } from "~/components/timetable/weekly-planner-grid";
 import { createLogger } from "~/lib/logger";
@@ -61,6 +62,7 @@ function TimetablesContent() {
 
   const weekOffset = parseWeekOffset(searchParams.get("week"));
   const selectedInstanceId = searchParams.get("instance");
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const updateUrlParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -219,9 +221,8 @@ function TimetablesContent() {
         <div className="flex-1" />
         <button
           type="button"
-          disabled
-          title="Spontane Aktivität kommt im nächsten Update"
-          className="inline-flex cursor-not-allowed items-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-400"
+          onClick={() => setCreateModalOpen(true)}
+          className="inline-flex items-center gap-2 rounded-md border border-[#5080D8] bg-white px-3 py-2 text-xs font-semibold text-[#5080D8] shadow-sm transition-colors hover:bg-[#EBF0FB]"
         >
           + Spontane Aktivität
         </button>
@@ -265,6 +266,18 @@ function TimetablesContent() {
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
         editDeferred
+      />
+
+      <SpontaneousInstanceModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        defaultDate={fromISO}
+        onCreated={() => {
+          // Refetch the visible week so the new card appears immediately.
+          // The created instance is in the response too, but going through
+          // SWR mutate keeps a single source of truth (the cached week).
+          void tenantMutate(swrKey);
+        }}
       />
     </div>
   );

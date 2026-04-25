@@ -66,6 +66,27 @@ type InstanceService interface {
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	ReplanWeek(ctx context.Context, from, to time.Time) (*ReplanWeekResult, error)
+	Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error)
+}
+
+// CreateInstanceInput bundles the fields needed to insert a fresh instance
+// (spontaneous or scheduled) outside the materialization flow.
+//
+// IsSpontaneous is computed from ActivityGroupID: when nil the instance is
+// purely free-form; when set it is bound to a template (e.g. an
+// admin-scheduled extra Yoga slot using the existing Yoga template's
+// metadata, but on a date that materialization would not have emitted).
+type CreateInstanceInput struct {
+	Date             time.Time // YYYY-MM-DD anchored at UTC midnight
+	StartTime        time.Time // 2000-01-01 HH:MM in UTC
+	EndTime          time.Time // 2000-01-01 HH:MM in UTC
+	Title            string
+	Description      *string
+	Notes            *string
+	RoomID           int64
+	ActivityGroupID  *int64
+	StaffIDs         []int64
+	CreatedByStaffID *int64
 }
 
 // StartInstanceResult bundles what the start endpoint returns. ActiveGroupID
@@ -304,6 +325,65 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*schedu
 
 	s.broadcastInstanceEvent(ctx, realtime.EventInstanceCancelled, instance, nil, nil)
 	return instance, nil
+}
+
+// Create inserts a new activity instance and optionally pre-assigns staff.
+// Spontaneity is derived from the absence of an ActivityGroupID — a value
+// of nil means there is no template binding, so is_spontaneous is set to
+// true. Conflict detection is intentionally not run here; the read-side
+// of the planner surfaces conflicts on the response, and surfacing them
+// in the create path would block admins from creating overlapping rows
+// they may explicitly want (e.g. parallel offers in different rooms).
+func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return nil, &ScheduleError{Op: "create instance", Err: errors.New("no tenant in context")}
+	}
+
+	inst := &scheduleModel.ActivityInstance{
+		Date:            req.Date,
+		StartTime:       req.StartTime,
+		EndTime:         req.EndTime,
+		Title:           req.Title,
+		Description:     req.Description,
+		Notes:           req.Notes,
+		RoomID:          req.RoomID,
+		ActivityGroupID: req.ActivityGroupID,
+		Status:          scheduleModel.InstanceStatusPlanned,
+		IsSpontaneous:   req.ActivityGroupID == nil,
+		CreatedBy:       req.CreatedByStaffID,
+	}
+	inst.SetTenantID(tenantID)
+
+	if err := s.deps.InstanceRepo.Create(ctx, inst); err != nil {
+		return nil, &ScheduleError{Op: "create instance: insert", Err: err}
+	}
+
+	for _, staffID := range req.StaffIDs {
+		if staffID <= 0 {
+			continue
+		}
+		row := &scheduleModel.InstanceStaff{
+			InstanceID: inst.ID,
+			StaffID:    staffID,
+			// RoomID nil → uses instance.RoomID at runtime
+			IsPrimary: false,
+		}
+		row.SetTenantID(tenantID)
+		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
+			return nil, &ScheduleError{Op: "create instance: assign staff", Err: err}
+		}
+	}
+
+	s.getLogger().Info("instance created",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("instance_id", inst.ID),
+		slog.String("date", inst.Date.Format("2006-01-02")),
+		slog.Bool("spontaneous", inst.IsSpontaneous),
+		slog.Int("staff_assigned", len(req.StaffIDs)),
+	)
+
+	return inst, nil
 }
 
 // updateLifecycleColumns writes only the named columns on the given instance.

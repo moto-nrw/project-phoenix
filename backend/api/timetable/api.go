@@ -162,6 +162,11 @@ func (rs *Resource) Router() chi.Router {
 			// without being able to mutate it.
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/", rs.listInstances)
+			// Spontaneous (and template-bound out-of-cycle) create. Returns
+			// the same enriched shape as the list endpoint so the frontend
+			// can splice the fresh row into its SWR cache.
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/", rs.createInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/re-plan-week", rs.replanWeek)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).

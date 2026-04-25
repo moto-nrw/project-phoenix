@@ -16,16 +16,20 @@
 import { getSession } from "next-auth/react";
 import { createLogger } from "./logger";
 import type {
+  BackendEnrichedInstance,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendStartInstanceResult,
   BackendWeeklyInstancesResponse,
+  CreateInstanceBody,
+  EnrichedInstance,
   InstanceStatusResult,
   MaterializeResult,
   StartInstanceResult,
   WeeklyInstancesResponse,
 } from "./timetable-types";
 import {
+  mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
   mapStartInstanceResult,
@@ -95,6 +99,31 @@ class TimetableService {
 
     const raw = await unwrap<BackendWeeklyInstancesResponse>(response);
     return mapWeeklyInstances(raw);
+  }
+
+  /**
+   * POST /api/timetable/instances — creates a planned instance outside
+   * the materialization flow. When activity_group_id is omitted the row
+   * is purely spontaneous (is_spontaneous=true server-side). Returns the
+   * enriched instance shape so the caller can splice it into the SWR
+   * cache without a refetch.
+   */
+  async create(body: CreateInstanceBody): Promise<EnrichedInstance> {
+    const response = await fetch("/api/timetable/instances", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    const raw = await unwrap<BackendEnrichedInstance>(response);
+    logger.info("instance_created", {
+      instance_id: raw.id,
+      is_spontaneous: raw.is_spontaneous,
+    });
+    return mapInstance(raw);
   }
 
   /**
