@@ -235,7 +235,7 @@ func (s *service) checkRoomSupervisorAccess(ctx context.Context, studentID, staf
 // FK column always points at a real iot.devices row.
 //
 // The insert is guarded by a partial unique index on
-// (student_id, date) WHERE check_out_time IS NULL (migration 1.15.41), so a
+// (student_id, date) WHERE check_out_time IS NULL (migration 1.15.42), so a
 // concurrent second "in" call is silently absorbed via ON CONFLICT and we
 // re-fetch the open row to return as the canonical result.
 func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now, today time.Time) (*AttendanceResult, error) {

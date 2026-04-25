@@ -83,7 +83,7 @@ type AttendanceRepository interface {
 
 	// CreateIfNoOpenForToday inserts the attendance row using ON CONFLICT
 	// against the partial unique index on (student_id, date) WHERE
-	// check_out_time IS NULL (migration 1.15.41). Returns inserted=true when
+	// check_out_time IS NULL (migration 1.15.42). Returns inserted=true when
 	// the row was written, false when the conflict path swallowed the insert
 	// (a concurrent caller already opened today's attendance for the student).
 	CreateIfNoOpenForToday(ctx context.Context, attendance *Attendance) (bool, error)

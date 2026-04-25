@@ -8,7 +8,11 @@ import (
 )
 
 const (
-	attendanceUniqueOpenPerDayVersion     = "1.15.41"
+	// Renumbered to 1.15.42 to avoid colliding with the deleted nullable
+	// device_id migration that briefly held 1.15.41 on this branch — dev
+	// DBs already have "001015041" in bun_migrations from that earlier
+	// version, so the new partial-index migration must be a fresh number.
+	attendanceUniqueOpenPerDayVersion     = "1.15.42"
 	attendanceUniqueOpenPerDayDescription = "Add partial UNIQUE(student_id, date) WHERE check_out_time IS NULL on active.attendance to block double check-in races"
 )
 
@@ -32,7 +36,7 @@ func init() {
 }
 
 func attendanceUniqueOpenPerDayUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.41: Adding partial unique index on active.attendance(student_id, date) WHERE check_out_time IS NULL...")
+	fmt.Println("Migration 1.15.42: Adding partial unique index on active.attendance(student_id, date) WHERE check_out_time IS NULL...")
 
 	// Two concurrent "in" calls (tab double-click, web + kiosk, retry) used to
 	// both pass the read-then-write idempotency check and INSERT duplicate
@@ -52,7 +56,7 @@ func attendanceUniqueOpenPerDayUp(ctx context.Context, db *bun.DB) error {
 }
 
 func attendanceUniqueOpenPerDayDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.41: dropping uniq_attendance_open_per_student_day...")
+	fmt.Println("Rolling back migration 1.15.42: dropping uniq_attendance_open_per_student_day...")
 
 	_, err := db.NewRaw(`DROP INDEX IF EXISTS active.uniq_attendance_open_per_student_day;`).Exec(ctx)
 	if err != nil {
