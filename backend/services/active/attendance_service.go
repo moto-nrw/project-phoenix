@@ -120,7 +120,13 @@ func (s *service) getStaffNameByID(ctx context.Context, staffID int64) string {
 }
 
 // ToggleStudentAttendance toggles the attendance state (check-in or check-out)
-// skipAuthCheck: if true, skips authorization check (used when caller already authorized)
+// skipAuthCheck: if true, skips authorization check (used when caller already authorized).
+//
+// IMPORTANT: only safe when the caller serializes scans (e.g. an IoT kiosk).
+// Web callers MUST use CheckInStudent / CheckOutStudent instead — under
+// concurrency the read-then-flip here can swap a desired "in" into an "out"
+// because the second caller's internal re-read sees the first caller's
+// commit and flips the action.
 func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error) {
 	authorizedStaffID, err := s.authorizeAttendanceToggle(ctx, studentID, staffID, deviceID, skipAuthCheck)
 	if err != nil {
@@ -145,6 +151,37 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	}
 
 	return s.performCheckOut(ctx, studentID, authorizedStaffID, now)
+}
+
+// CheckInStudent applies "in" unconditionally. Concurrency-safe: the
+// underlying insert uses ON CONFLICT DO NOTHING against the partial unique
+// index, so the loser of an in/in race is absorbed and reports the existing
+// open row as the canonical result. Action is always "checked_in".
+func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error) {
+	authorizedStaffID, err := s.authorizeAttendanceToggle(ctx, studentID, staffID, deviceID, skipAuthCheck)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	today := timezone.TodayUTC()
+	return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+}
+
+// CheckOutStudent applies "out" unconditionally via the state-checked
+// CloseOpenForToday repository method. If no open row exists (already closed,
+// never checked in, or another concurrent caller already closed it), returns
+// an idempotent successful result with Action="checked_out" and no
+// AttendanceID — the caller can re-fetch the latest status if they need
+// timestamps for display.
+func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error) {
+	// Auth path is shared with the toggle — pass deviceID=0 because the
+	// caller is web-side (no kiosk involved); IsIoTDeviceRequest is false
+	// for web so authorizeWebToggle runs and validates teacher access.
+	authorizedStaffID, err := s.authorizeAttendanceToggle(ctx, studentID, staffID, 0, skipAuthCheck)
+	if err != nil {
+		return nil, err
+	}
+	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now())
 }
 
 // authorizeAttendanceToggle handles authorization and returns the staff ID to use
@@ -276,27 +313,35 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	}, nil
 }
 
-// performCheckOut updates attendance record for check-out
+// performCheckOut closes the open attendance row for the student via a
+// state-checked UPDATE WHERE check_out_time IS NULL. Two key properties:
+//
+//  1. Concurrency-safe: a second concurrent "out" call (or an "in" call that
+//     lost the race against another "out") simply finds no open row to
+//     update; we report idempotent success rather than corrupting state.
+//  2. Yard sub-state is cleared as part of the same UPDATE so detailed-mode
+//     callers don't observe an inconsistent (CheckOutTime set, YardSince
+//     still set) row even briefly.
 func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time) (*AttendanceResult, error) {
-	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
+	closed, err := s.attendanceRepo.CloseOpenForToday(ctx, studentID, now, staffID)
 	if err != nil {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
 	}
 
-	attendance.CheckOutTime = &now
-	// Clear any yard sub-state: the student has formally left the premises.
-	attendance.YardSince = nil
-	if staffID > 0 {
-		attendance.CheckedOutBy = &staffID
-	}
-
-	if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during update: %w", err)}
+	if closed == nil {
+		// No open row — student is already checked out (or never checked in
+		// today). Report idempotent success so the caller treats this the
+		// same as an actual close.
+		return &AttendanceResult{
+			Action:    "checked_out",
+			StudentID: studentID,
+			Timestamp: now,
+		}, nil
 	}
 
 	return &AttendanceResult{
 		Action:       "checked_out",
-		AttendanceID: attendance.ID,
+		AttendanceID: closed.ID,
 		StudentID:    studentID,
 		Timestamp:    now,
 	}, nil

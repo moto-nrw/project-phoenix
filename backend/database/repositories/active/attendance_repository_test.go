@@ -1346,3 +1346,90 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 		createdIDs = append(createdIDs, reentry.ID)
 	})
 }
+
+// TestAttendanceRepository_CloseOpenForToday locks in the state-checked
+// checkout contract used by the action-explicit CheckOutStudent service
+// method. Two cases:
+//
+//  1. Student has an open row → it's closed; CheckOutTime / CheckedOutBy /
+//     yard_since are set / cleared in a single UPDATE; the closed row is
+//     returned.
+//  2. Student has no open row (already closed, never checked in, or another
+//     concurrent caller already closed it) → returns nil (no row), no error
+//     — caller treats as idempotent success.
+func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Attendance
+	ctx := testpkg.TenantContext(1)
+	data := createAttendanceTestData(t, db)
+	defer cleanupAttendanceTestData(t, db, data)
+
+	var createdIDs []int64
+	defer func() {
+		for _, id := range createdIDs {
+			testpkg.CleanupTableRecords(t, db, "active.attendance", id)
+		}
+	}()
+
+	t.Run("closes the open row and clears yard_since", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Close", "Open", "2x")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		now := time.Now()
+		yard := now.Add(-15 * time.Minute)
+		open := &active.Attendance{
+			StudentID:   student.ID,
+			Date:        timezone.TodayUTC(),
+			CheckInTime: now.Add(-1 * time.Hour),
+			CheckedInBy: data.Staff1.ID,
+			DeviceID:    data.Device1.ID,
+			YardSince:   &yard,
+		}
+		require.NoError(t, repo.Create(ctx, open))
+		createdIDs = append(createdIDs, open.ID)
+
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, data.Staff2.ID)
+		require.NoError(t, err)
+		require.NotNil(t, closed, "open row must have been closed")
+		assert.Equal(t, open.ID, closed.ID)
+		require.NotNil(t, closed.CheckOutTime)
+		assert.WithinDuration(t, now, *closed.CheckOutTime, time.Second)
+		require.NotNil(t, closed.CheckedOutBy)
+		assert.Equal(t, data.Staff2.ID, *closed.CheckedOutBy)
+		assert.Nil(t, closed.YardSince, "yard sub-state must be cleared on checkout")
+	})
+
+	t.Run("no open row returns nil without error", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Close", "Idempotent", "2y")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, time.Now(), data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Nil(t, closed, "no open row → idempotent success, repo returns nil")
+	})
+
+	t.Run("zero staff id leaves checked_out_by NULL", func(t *testing.T) {
+		// Mirrors the kiosk path where deviceID owns the close but no
+		// staff PIN is in scope.
+		student := testpkg.CreateTestStudent(t, db, "Close", "NoStaff", "2z")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		now := time.Now()
+		open := &active.Attendance{
+			StudentID:   student.ID,
+			Date:        timezone.TodayUTC(),
+			CheckInTime: now.Add(-1 * time.Hour),
+			CheckedInBy: data.Staff1.ID,
+			DeviceID:    data.Device1.ID,
+		}
+		require.NoError(t, repo.Create(ctx, open))
+		createdIDs = append(createdIDs, open.ID)
+
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, 0)
+		require.NoError(t, err)
+		require.NotNil(t, closed)
+		assert.Nil(t, closed.CheckedOutBy, "staffID=0 must not write a bogus FK")
+	})
+}

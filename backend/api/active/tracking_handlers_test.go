@@ -304,6 +304,12 @@ func (m *trackingMockActiveService) GetStudentsAttendanceStatuses(ctx context.Co
 func (m *trackingMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
+func (m *trackingMockActiveService) CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *trackingMockActiveService) CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
 	return false, nil
 }

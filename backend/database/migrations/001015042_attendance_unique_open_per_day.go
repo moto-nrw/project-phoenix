@@ -36,19 +36,52 @@ func init() {
 }
 
 func attendanceUniqueOpenPerDayUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.42: Adding partial unique index on active.attendance(student_id, date) WHERE check_out_time IS NULL...")
+	fmt.Println("Migration 1.15.42: Closing duplicate open attendance rows then adding partial unique index...")
+
+	// Pre-step: dedupe. CREATE UNIQUE INDEX would fail outright on any DB
+	// where the old race left more than one open row per (student_id, date)
+	// — the very condition this migration exists to make impossible. Pick
+	// the row with the latest check_in_time as the survivor; close every
+	// older duplicate by setting check_out_time = check_in_time + 1 second
+	// so the close timestamp follows the open one but doesn't claim a
+	// supervised checkout (checked_out_by stays NULL — clearly a system
+	// closure rather than a real person's action). yard_since is also
+	// cleared so the closed rows pass the IsOnYard invariant.
+	res, err := db.NewRaw(`
+		WITH ranked AS (
+			SELECT id,
+			       ROW_NUMBER() OVER (
+			           PARTITION BY student_id, date
+			           ORDER BY check_in_time DESC, id DESC
+			       ) AS rn,
+			       check_in_time
+			FROM active.attendance
+			WHERE check_out_time IS NULL
+		)
+		UPDATE active.attendance a
+		SET check_out_time = ranked.check_in_time + INTERVAL '1 second',
+		    yard_since = NULL
+		FROM ranked
+		WHERE a.id = ranked.id
+		  AND ranked.rn > 1;
+	`).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed deduping open attendance rows before unique index: %w", err)
+	}
+	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
+		fmt.Printf("Migration 1.15.42: closed %d duplicate open attendance row(s) before applying unique index\n", affected)
+	}
 
 	// Two concurrent "in" calls (tab double-click, web + kiosk, retry) used to
 	// both pass the read-then-write idempotency check and INSERT duplicate
 	// open attendance rows. The partial unique index closes the race at the
 	// database layer, and performCheckIn now uses ON CONFLICT DO NOTHING so
 	// the loser quietly re-fetches the open row instead of raising an error.
-	_, err := db.NewRaw(`
+	if _, err := db.NewRaw(`
 		CREATE UNIQUE INDEX IF NOT EXISTS uniq_attendance_open_per_student_day
 		ON active.attendance (student_id, date)
 		WHERE check_out_time IS NULL;
-	`).Exec(ctx)
-	if err != nil {
+	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed creating uniq_attendance_open_per_student_day: %w", err)
 	}
 

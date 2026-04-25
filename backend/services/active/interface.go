@@ -103,7 +103,22 @@ type Service interface {
 	// Attendance tracking operations
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
 	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*AttendanceStatus, error)
+	// ToggleStudentAttendance flips state based on the current row — used by
+	// the IoT kiosk where a single device serializes scans. NOT safe under
+	// concurrent web callers because the read-then-flip can swap an "in"
+	// click into an "out" if another caller wins the race; web callers must
+	// use CheckInStudent / CheckOutStudent below, which never flip the
+	// requested action against the observed state.
 	ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error)
+	// CheckInStudent applies "in" unconditionally. The insert is ON CONFLICT
+	// DO NOTHING against the partial unique index, so a concurrent winner is
+	// transparently absorbed; Action is always "checked_in" on return.
+	CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error)
+	// CheckOutStudent applies "out" unconditionally via a state-checked
+	// UPDATE WHERE check_out_time IS NULL — closes the open row when one
+	// exists, returns idempotent success otherwise. Action is always
+	// "checked_out" on return.
+	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 	BroadcastDailyCheckout(ctx context.Context, studentID int64)
 

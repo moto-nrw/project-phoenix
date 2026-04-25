@@ -190,25 +190,32 @@ func (rs *Resource) applySchoolCheckinAction(
 		return buildSchoolCheckinResponse(student.ID, current, false), nil
 	}
 
-	// Web-initiated writes use ToggleStudentAttendance with skipAuthCheck=true
-	// because we've already enforced permission + web_checkin_access above.
-	// ToggleStudentAttendance resolves current status internally and creates
-	// or closes the attendance row as appropriate.
-	if _, err := rs.ActiveService.ToggleStudentAttendance(ctx, student.ID, staffID, 0, true); err != nil {
-		return nil, err
-	}
-
-	// On checkout, end any open room visit so detailed-mode supervisor views
-	// don't show "still in Room X" after a web checkout. In binary mode
-	// EndVisit is a no-op (see services/active.EndVisit gate).
-	if action == schoolCheckinActionOut {
+	// Action-explicit writes — never route through ToggleStudentAttendance
+	// here. The toggle re-reads state and flips, which under concurrency can
+	// turn a desired "in" into an "out" (two parallel "in" requests for an
+	// absent student: the second sees the first's commit and flips). The
+	// CheckIn/CheckOut methods are race-safe individually (ON CONFLICT for
+	// in, state-checked UPDATE for out) so the action contract is preserved.
+	switch action {
+	case schoolCheckinActionIn:
+		if _, err := rs.ActiveService.CheckInStudent(ctx, student.ID, staffID, 0, true); err != nil {
+			return nil, err
+		}
+	case schoolCheckinActionOut:
+		if _, err := rs.ActiveService.CheckOutStudent(ctx, student.ID, staffID, true); err != nil {
+			return nil, err
+		}
+		// End any open room visit so detailed-mode supervisor views don't
+		// show "still in Room X" after a web checkout. In binary mode
+		// EndVisit is a no-op (see services/active.EndVisit gate).
+		//
+		// Bubble any failure up so the TenantTxMiddleware rolls the whole
+		// request back — leaving an open visit while attendance says
+		// checked-out is exactly the inconsistency this PR exists to
+		// prevent.
 		if visit, vErr := rs.ActiveService.GetStudentCurrentVisit(ctx, student.ID); vErr == nil && visit != nil {
 			if endErr := rs.ActiveService.EndVisit(ctx, visit.ID); endErr != nil {
-				rs.getLogger().Warn("failed to end open visit on school checkout — attendance already updated",
-					slog.Int64("student_id", student.ID),
-					slog.Int64("visit_id", visit.ID),
-					slog.String("error", endErr.Error()),
-				)
+				return nil, fmt.Errorf("end open visit on school checkout (visit_id=%d): %w", visit.ID, endErr)
 			}
 		}
 	}

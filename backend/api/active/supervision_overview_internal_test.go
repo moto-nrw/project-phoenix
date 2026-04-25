@@ -278,6 +278,12 @@ func (s *stubActiveService) GetStudentsAttendanceStatuses(_ context.Context, _ [
 func (s *stubActiveService) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
+func (s *stubActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (s *stubActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
 func (s *stubActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }

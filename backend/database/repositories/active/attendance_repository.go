@@ -3,6 +3,8 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -194,6 +196,53 @@ func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, atten
 		return false, &modelBase.DatabaseError{Op: "create_if_no_open_for_today_rows_affected", Err: err}
 	}
 	return affected > 0, nil
+}
+
+// CloseOpenForToday closes the open attendance row for the given student
+// today via a state-checked UPDATE — the WHERE check_out_time IS NULL guard
+// turns concurrent "out" calls (and "in/out" races where the in lost) into
+// no-ops at the database layer instead of corrupting the row.
+//
+// Why this exists: the school-checkin handler used to route writes through
+// ToggleStudentAttendance, which read-then-flipped the state. Two concurrent
+// "in" requests for an absent student could end up calling check-out, because
+// the second request's internal re-read saw the first request's commit and
+// flipped the action. Action-explicit handlers now call this method directly
+// and skip the toggle entirely.
+func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, staffID int64) (*active.Attendance, error) {
+	today := timezone.TodayUTC()
+
+	// UPDATE … RETURNING populates the row scan target. Bun bubbles up
+	// sql.ErrNoRows when zero rows match, so we treat that as the
+	// idempotent "no open row" path rather than a database error.
+	//
+	// Tenant scoping note: the request is already inside a tenant tx with
+	// RLS, which makes student_id de facto unique (one tenant only sees
+	// its own students), so we don't need an explicit tenant_id predicate
+	// here — RLS rejects rows that aren't ours before the WHERE runs.
+	row := &active.Attendance{}
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model(row).
+		ModelTableExpr("active.attendance").
+		Set("check_out_time = ?", now).
+		Set("yard_since = NULL").
+		Where("student_id = ?", studentID).
+		Where("date = ?", today).
+		Where("check_out_time IS NULL").
+		Returning("*")
+	if staffID > 0 {
+		q = q.Set("checked_out_by = ?", staffID)
+	}
+
+	if _, err := q.Exec(ctx, row); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// No open row — student wasn't checked in, or another concurrent
+			// caller already closed it. Both are idempotent successes.
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "close_open_for_today", Err: err}
+	}
+	return row, nil
 }
 
 // Update overrides base Update to handle validation

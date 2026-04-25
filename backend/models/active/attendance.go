@@ -91,6 +91,14 @@ type AttendanceRepository interface {
 	// Update updates an existing attendance record
 	Update(ctx context.Context, attendance *Attendance) error
 
+	// CloseOpenForToday closes the currently-open attendance row for the
+	// given student today via a state-checked UPDATE
+	// (WHERE check_out_time IS NULL). Returns the updated row when an open
+	// row was actually closed, nil when no open row existed (e.g. student
+	// was never checked in or another concurrent caller already closed it).
+	// The caller treats both cases as successful idempotent checkouts.
+	CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, staffID int64) (*Attendance, error)
+
 	// FindByID finds an attendance record by ID
 	FindByID(ctx context.Context, id int64) (*Attendance, error)
 

@@ -1162,6 +1162,12 @@ func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, _ [
 func (m *mockActiveService) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
 	return nil, nil
 }
+func (m *mockActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
 func (m *mockActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }
