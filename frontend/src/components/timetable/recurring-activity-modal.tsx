@@ -20,7 +20,6 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { roomService, type Room } from "~/lib/api";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import {
   getActivityColor,
@@ -29,6 +28,28 @@ import {
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { ActivityType, CreateTemplateResult } from "~/lib/timetable-types";
+
+/**
+ * Shape used by the room dropdown — minimal subset of the backend room
+ * row. We bypass roomService.getRooms() because its parseRoomsResponse
+ * helper is broken (expects a bare array, but the proxy returns the
+ * wrapped envelope) and the rest of the app uses createCrudService for
+ * rooms instead. Direct fetch keeps this modal isolated from that
+ * legacy concern.
+ */
+interface RoomOption {
+  id: number;
+  name: string;
+  building?: string;
+}
+
+interface BackendRoomsEnvelope {
+  data?: Array<{
+    id: number;
+    name: string;
+    building?: string;
+  }>;
+}
 
 const logger = createLogger({ component: "RecurringActivityModal" });
 
@@ -93,7 +114,7 @@ export function RecurringActivityModal({
 }: RecurringActivityModalProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [loadingRefs, setLoadingRefs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -106,12 +127,24 @@ export function RecurringActivityModal({
     setLoadingRefs(true);
 
     void Promise.all([
-      roomService.getRooms().catch((err: unknown) => {
-        logger.error("rooms_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return [] as Room[];
-      }),
+      // Direct fetch + envelope unwrap. /api/rooms returns
+      // {data: [...rooms], pagination, status, message} thanks to the
+      // route-wrapper special case (see route-wrapper.ts formatGetResponse).
+      fetch("/api/rooms", { credentials: "include" })
+        .then((r) => r.json() as Promise<BackendRoomsEnvelope>)
+        .then((j): RoomOption[] =>
+          (j.data ?? []).map((room) => ({
+            id: room.id,
+            name: room.name,
+            building: room.building,
+          })),
+        )
+        .catch((err: unknown) => {
+          logger.error("rooms_fetch_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return [] as RoomOption[];
+        }),
       fetch("/api/activities/categories", { credentials: "include" })
         .then((r) => r.json() as Promise<{ data?: ActivityCategory[] }>)
         .then((j) => j.data ?? [])
