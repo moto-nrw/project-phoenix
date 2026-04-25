@@ -274,7 +274,11 @@ export type SchoolCheckinAction = "in" | "out";
  * a follow-up fetch.
  */
 export interface SchoolCheckinResponse {
-  studentId: number;
+  /**
+   * Backend int64 IDs are converted to string at the API boundary
+   * (CLAUDE.md §4) so consumers don't lose precision in JSON/JS number land.
+   */
+  studentId: string;
   status: "checked_in" | "on_yard" | "checked_out" | "not_checked_in";
   checkInTime?: string;
   checkOutTime?: string;
@@ -319,7 +323,8 @@ export async function schoolCheckinStudent(
 
     const data = extractApiData<BackendSchoolCheckinResponse>(response);
     return {
-      studentId: data.student_id,
+      // Convert int64 -> string at the boundary per CLAUDE.md §4.
+      studentId: data.student_id.toString(),
       status: data.status,
       checkInTime: data.check_in_time,
       checkOutTime: data.check_out_time,

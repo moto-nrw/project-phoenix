@@ -231,22 +231,41 @@ func (s *service) checkRoomSupervisorAccess(ctx context.Context, studentID, staf
 
 // performCheckIn creates a new attendance record for check-in.
 // deviceID == 0 marks a web-originated check-in with no kiosk involved;
-// the column is nullable as of migration 1.15.41 so those rows write NULL
-// instead of a bogus FK reference.
+// in that case we fall back to the virtual WEB-MANUAL-001 device so the
+// FK column always points at a real iot.devices row.
+//
+// The insert is guarded by a partial unique index on
+// (student_id, date) WHERE check_out_time IS NULL (migration 1.15.41), so a
+// concurrent second "in" call is silently absorbed via ON CONFLICT and we
+// re-fetch the open row to return as the canonical result.
 func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now, today time.Time) (*AttendanceResult, error) {
+	resolvedDeviceID := s.resolveDeviceIDForAttendance(ctx, deviceID)
 	attendance := &active.Attendance{
 		StudentID:   studentID,
 		Date:        today,
 		CheckInTime: now,
 		CheckedInBy: staffID,
+		DeviceID:    resolvedDeviceID,
 	}
-	if deviceID != 0 {
-		attendance.DeviceID = &deviceID
-	}
-
 	attendance.SetTenantID(tenant.FromContext(ctx))
-	if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
+
+	inserted, err := s.attendanceRepo.CreateIfNoOpenForToday(ctx, attendance)
+	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+	}
+	if !inserted {
+		// Another concurrent "in" already created the open attendance row.
+		// Treat as success — the desired end state (open attendance) holds.
+		existing, fetchErr := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
+		if fetchErr != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
+		}
+		return &AttendanceResult{
+			Action:       "checked_in",
+			AttendanceID: existing.ID,
+			StudentID:    studentID,
+			Timestamp:    existing.CheckInTime,
+		}, nil
 	}
 
 	return &AttendanceResult{

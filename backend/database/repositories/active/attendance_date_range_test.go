@@ -27,7 +27,7 @@ func createAttendanceForDate(t *testing.T, ctx context.Context, repo active.Atte
 		CheckInTime:  checkIn,
 		CheckOutTime: &checkOut,
 		CheckedInBy:  staffID,
-		DeviceID:     &deviceID,
+		DeviceID:     deviceID,
 	}
 	a.SetTenantID(1)
 	err := repo.Create(ctx, a)

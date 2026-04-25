@@ -70,7 +70,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 			Date:        date,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -98,7 +98,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 			CheckOutTime: &checkOutTime,
 			CheckedInBy:  data.Staff1.ID,
 			CheckedOutBy: &checkedOutBy,
-			DeviceID:     &data.Device1.ID,
+			DeviceID:     data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -128,7 +128,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(1 * time.Hour), // Different time to avoid conflict
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendanceCheckedIn)
@@ -147,7 +147,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 			CheckOutTime: &checkOutTime,
 			CheckedInBy:  data.Staff1.ID,
 			CheckedOutBy: &checkedOutBy,
-			DeviceID:     &data.Device1.ID,
+			DeviceID:     data.Device1.ID,
 		}
 
 		err = repo.Create(ctx, attendanceCheckedOut)
@@ -184,7 +184,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 			Date:        date,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -218,7 +218,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(-2 * time.Hour), // Earliest
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		attendance2 := &active.Attendance{
@@ -226,7 +226,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 			Date:        date,
 			CheckInTime: now, // Middle
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		attendance3 := &active.Attendance{
@@ -234,7 +234,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(1 * time.Hour), // Latest
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		for _, att := range []*active.Attendance{attendance1, attendance2, attendance3} {
@@ -278,7 +278,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(5 * time.Hour), // Different time
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -311,7 +311,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(6 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		// Create attendance for student2
@@ -320,7 +320,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(7 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		for _, att := range []*active.Attendance{attendance1, attendance2} {
@@ -355,7 +355,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 			Date:        date1,
 			CheckInTime: now.Add(8 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		// Create attendance for date2
@@ -364,7 +364,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 			Date:        date2,
 			CheckInTime: now.Add(32 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		for _, att := range []*active.Attendance{attendance1, attendance2} {
@@ -428,7 +428,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        date1,
 			CheckInTime: now.Add(-48 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		// Create attendance for date2 (middle)
@@ -437,7 +437,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        date2,
 			CheckInTime: now.Add(-24 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		// Create attendance for date3 (latest by date)
@@ -446,7 +446,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        date3,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		for _, att := range []*active.Attendance{attendance1, attendance2, attendance3} {
@@ -474,7 +474,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(-2 * time.Hour), // Earlier
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		attendance2 := &active.Attendance{
@@ -482,7 +482,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(1 * time.Hour), // Later
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		for _, att := range []*active.Attendance{attendance1, attendance2} {
@@ -525,7 +525,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        date,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -556,7 +556,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        yesterday,
 			CheckInTime: now.Add(-30 * time.Hour), // Earlier yesterday
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		attendanceYesterday2 := &active.Attendance{
@@ -564,7 +564,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        yesterday,
 			CheckInTime: now.Add(-25 * time.Hour), // Later yesterday
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		// Today: single record but earlier in the day than latest yesterday record
@@ -573,7 +573,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        today,
 			CheckInTime: now.Add(-2 * time.Hour), // Early today
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		for _, att := range []*active.Attendance{attendanceYesterday1, attendanceYesterday2, attendanceToday} {
@@ -602,7 +602,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(2 * time.Hour), // Use different times
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		// Create attendance for student2 (later)
@@ -611,7 +611,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(3 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		for _, att := range []*active.Attendance{attendanceStudent1, attendanceStudent2} {
@@ -677,7 +677,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 			Date:        today,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 			// CheckOutTime is nil - student is checked in
 		}
 
@@ -713,7 +713,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 			CheckOutTime: &checkOutTime,
 			CheckedInBy:  data.Staff1.ID,
 			CheckedOutBy: &checkedOutBy,
-			DeviceID:     &data.Device1.ID,
+			DeviceID:     data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -745,7 +745,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 			Date:        today,
 			CheckInTime: now.Add(-3 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		// Check-out from first session
@@ -758,7 +758,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 			CheckOutTime: &checkOutTime1,
 			CheckedInBy:  data.Staff1.ID,
 			CheckedOutBy: &checkedOutBy1,
-			DeviceID:     &data.Device1.ID,
+			DeviceID:     data.Device1.ID,
 		}
 
 		// Second check-in (latest)
@@ -767,7 +767,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 			Date:        today,
 			CheckInTime: now.Add(-1 * time.Hour), // Latest check-in time
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		for _, att := range []*active.Attendance{attendance1, attendance2, attendance3} {
@@ -800,7 +800,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 			Date:        yesterday,
 			CheckInTime: now.Add(-24 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -829,7 +829,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 			Date:        today,
 			CheckInTime: now.Add(-1 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		// Create attendance for student2 with check-out
@@ -842,7 +842,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 			CheckOutTime: &checkOutTime2,
 			CheckedInBy:  data.Staff1.ID,
 			CheckedOutBy: &checkedOutBy2,
-			DeviceID:     &data.Device1.ID,
+			DeviceID:     data.Device1.ID,
 		}
 
 		for _, att := range []*active.Attendance{attendance1, attendance2} {
@@ -881,7 +881,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 			Date:        today,
 			CheckInTime: today.Add(23 * time.Hour), // Late in the day
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -923,7 +923,7 @@ func TestAttendanceRepository_Update(t *testing.T) {
 			Date:        date,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -980,7 +980,7 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 			Date:        date,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -1018,7 +1018,7 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 			Date:        date,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -1058,7 +1058,7 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 			Date:        today,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance)
@@ -1107,7 +1107,7 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 			Date:        date,
 			CheckInTime: now.Add(-1 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		attendance2 := &active.Attendance{
@@ -1115,7 +1115,7 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 			Date:        date,
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
-			DeviceID:    &data.Device1.ID,
+			DeviceID:    data.Device1.ID,
 		}
 
 		err := repo.Create(ctx, attendance1)

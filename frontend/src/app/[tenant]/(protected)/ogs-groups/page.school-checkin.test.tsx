@@ -119,6 +119,7 @@ vi.mock("~/components/students/student-card", () => ({
     <div>{children}</div>
   ),
   PickupTimeRow: () => <div />,
+  ArrivalTimeRow: () => <div />,
 }));
 
 // ── Standard page mocks ─────────────────────────────────────────────────────

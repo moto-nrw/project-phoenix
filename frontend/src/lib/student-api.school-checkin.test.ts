@@ -56,7 +56,8 @@ describe("schoolCheckinStudent", () => {
     );
 
     expect(result).toEqual({
-      studentId: 42,
+      // Backend int64 -> frontend string at the boundary (CLAUDE.md §4).
+      studentId: "42",
       status: "checked_in",
       checkInTime: "2026-04-22T08:00:00Z",
       checkOutTime: undefined,

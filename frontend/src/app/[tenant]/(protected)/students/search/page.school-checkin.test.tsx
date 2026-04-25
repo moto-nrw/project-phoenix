@@ -111,6 +111,7 @@ vi.mock("~/components/students/student-card", () => ({
     <div>{children}</div>
   ),
   PickupTimeRow: () => <div />,
+  ArrivalTimeRow: () => <div />,
 }));
 
 const mockPush = vi.fn();

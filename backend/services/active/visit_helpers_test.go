@@ -61,8 +61,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		// Verify attendance was created with RFID device
 		attendance := getAttendanceForStudent(t, db, student.ID)
 		require.NotNil(t, attendance, "Attendance record should exist")
-		require.NotNil(t, attendance.DeviceID, "RFID-origin attendance must carry a device_id")
-		assert.Equal(t, rfidDevice.ID, *attendance.DeviceID, "Attendance should use RFID device")
+		assert.Equal(t, rfidDevice.ID, attendance.DeviceID, "Attendance should use RFID device")
 		assert.Equal(t, staff.ID, attendance.CheckedInBy, "Attendance should have correct staff ID")
 	})
 }
@@ -333,7 +332,7 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 		CheckOutTime: &checkoutTime,
 		CheckedInBy:  staffID,
 		CheckedOutBy: &checkedOutBy,
-		DeviceID:     &deviceID,
+		DeviceID:     deviceID,
 	}
 	attendance.SetTenantID(1)
 

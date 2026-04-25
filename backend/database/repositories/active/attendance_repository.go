@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -159,6 +160,40 @@ func (r *AttendanceRepository) Create(ctx context.Context, attendance *active.At
 
 	// Use the base Create method
 	return r.Repository.Create(ctx, attendance)
+}
+
+// CreateIfNoOpenForToday inserts the attendance row, deferring to the partial
+// unique index uniq_attendance_open_per_student_day on
+// (student_id, date) WHERE check_out_time IS NULL when a concurrent caller
+// already opened today's attendance. Returns inserted=true when the row was
+// actually written; false signals the conflict path swallowed the insert and
+// the caller should re-fetch the existing open row.
+func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, attendance *active.Attendance) (bool, error) {
+	if attendance == nil {
+		return false, fmt.Errorf("attendance cannot be nil")
+	}
+
+	// Auto-set tenant_id from context if not yet populated, matching base.Create.
+	if attendance.GetTenantID() == 0 {
+		if tid := tenant.FromContext(ctx); tid != 0 {
+			attendance.SetTenantID(tid)
+		}
+	}
+
+	res, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(attendance).
+		ModelTableExpr("active.attendance").
+		On("CONFLICT (student_id, date) WHERE check_out_time IS NULL DO NOTHING").
+		Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "create_if_no_open_for_today", Err: err}
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "create_if_no_open_for_today_rows_affected", Err: err}
+	}
+	return affected > 0, nil
 }
 
 // Update overrides base Update to handle validation

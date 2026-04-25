@@ -93,31 +93,6 @@ describe("mapAttendanceHistoryResponse", () => {
     expect(day2.attendance!.checkOutTime).toBeNull();
     expect(day2.attendance!.durationMinutes).toBeNull();
   });
-
-  it("maps a web-originated attendance row with null device_id to null deviceId", () => {
-    // Backend migration 1.15.41 made device_id nullable — web school-checkin
-    // rows omit the device. The mapper must coalesce undefined/null to null
-    // so consumers don't see a NaN-ish number.
-    const webRaw: BackendAttendanceHistoryResponse = {
-      ...raw,
-      days: [
-        {
-          date: "2026-04-10",
-          attendance: {
-            check_in_time: "2026-04-10T09:00:00Z",
-            check_out_time: null,
-            duration_minutes: null,
-            checked_in_by: 11,
-            // device_id omitted — simulates `null` from the backend JSON
-          },
-          room_detail_available: false,
-          visits: null,
-        },
-      ],
-    };
-    const result = mapAttendanceHistoryResponse(webRaw);
-    expect(result.days[0]!.attendance!.deviceId).toBeNull();
-  });
 });
 
 describe("formatDuration", () => {

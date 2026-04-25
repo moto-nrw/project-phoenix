@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -125,9 +126,18 @@ func evaluateWebCheckinAccess(mode string, supervisorHasAccess bool) error {
 
 // enforceWebCheckinAccess enforces the attendance.web_checkin_access setting
 // for a given caller+student pair. Returns nil on allow, an error on deny.
-// Admin wildcards (admin:*) match users:checkin via the route middleware
-// regardless of this setting; the gate only tightens non-admin access.
+//
+// Admins (admin:* or *:* in JWT claims) bypass this gate entirely — same
+// pattern as the sibling helpers (isGroupSupervisorOrAdmin, canModifyStudent)
+// in this package, where tenant admins are trusted on every student-scoped
+// path regardless of supervision. Without this short-circuit, an admin who
+// happens not to teach the student's group would get a 403 in
+// `group_supervisors` mode, which contradicts the rest of the admin model.
 func (rs *Resource) enforceWebCheckinAccess(ctx context.Context, staffID, studentID int64) error {
+	if hasAdminPermissions(jwt.PermissionsFromCtx(ctx)) {
+		return nil
+	}
+
 	mode := configSvc.ResolveStringOrDefault(
 		ctx,
 		rs.SettingsService,

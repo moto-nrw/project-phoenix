@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -21,12 +22,21 @@ import (
 // AccessAdminOnly setting (e.g. the OGS device PIN). Surfaced as HTTP 403.
 const errAdminOnlyForOperator = "this setting is admin-only and cannot be modified by operators"
 
-// errPresenceModeSwitchBlocked is shown to the operator when they try to flip
-// operations.presence_mode while students are still checked in for the day.
-// German copy; staticcheck ST1005 (capitalization / trailing punctuation) is
-// waived at the callsite with a nolint directive, matching the convention in
-// api/groups for German user-facing errors.
-const errPresenceModeSwitchBlocked = "Moduswechsel während aktiver Anwesenheit nicht möglich. Bitte zunächst Tagesabschluss durchführen."
+// errPresenceModeSwitchBlockedMsg is the German user-facing copy returned
+// when an operator tries to flip operations.presence_mode while students are
+// still checked in for the day. staticcheck ST1005 (capitalization / trailing
+// punctuation) is waived at the callsite with a nolint directive, matching
+// the convention in api/groups for German user-facing errors.
+const errPresenceModeSwitchBlockedMsg = "Moduswechsel während aktiver Anwesenheit nicht möglich. Bitte zunächst Tagesabschluss durchführen."
+
+// ErrPresenceModeSwitchBlocked is the sentinel returned by
+// enforcePresenceModeSwitchGuard so callers can branch on it via errors.Is
+// without relying on string equality (which breaks the moment any wrapper
+// modifies the message). Mirrors the SettingsService error pattern
+// (DefinitionNotFoundError / InvalidValueError).
+//
+//nolint:staticcheck // ST1005: German user-facing message
+var ErrPresenceModeSwitchBlocked = errors.New(errPresenceModeSwitchBlockedMsg)
 
 // enforcePresenceModeSwitchGuard rejects an in-progress write to
 // operations.presence_mode when any student is currently checked in for the
@@ -57,8 +67,7 @@ func enforcePresenceModeSwitchGuard(ctx context.Context, tx bun.Tx, key string, 
 		return fmt.Errorf("failed to check active attendance before mode switch: %w", err)
 	}
 	if exists {
-		//nolint:staticcheck // ST1005: German user-facing message
-		return errors.New(errPresenceModeSwitchBlocked)
+		return ErrPresenceModeSwitchBlocked
 	}
 	return nil
 }
@@ -153,6 +162,17 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 	// switch). Everything else ignores the flag.
 	force := r.URL.Query().Get("force") == "true"
 
+	// Audit-log force-bypass writes on guarded keys so we have a trail when
+	// an operator overrides the safety check. This is intentionally a Warn
+	// (not Info) so it surfaces in standard log review.
+	if force && key == configModel.KeyPresenceMode {
+		slog.Warn("operator_setting_force_bypass",
+			slog.Int64("operator_id", changedBy),
+			slog.Int64("school_id", schoolID),
+			slog.String("setting_key", key),
+		)
+	}
+
 	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, tx bun.Tx) error {
 		if err := enforcePresenceModeSwitchGuard(ctx, tx, key, force); err != nil {
 			return err
@@ -167,9 +187,10 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 	})
 	if err != nil {
 		// Dedicated 409 path for the mode-switch block so the frontend can
-		// surface the "daily end required" copy without heuristics.
-		if err.Error() == errPresenceModeSwitchBlocked {
-			render.Render(w, r, ErrConflict(errPresenceModeSwitchBlocked)) //nolint:errcheck
+		// surface the "daily end required" copy without heuristics. errors.Is
+		// keeps the branch resilient to wrapping, unlike string equality.
+		if errors.Is(err, ErrPresenceModeSwitchBlocked) {
+			render.Render(w, r, ErrConflict(errPresenceModeSwitchBlockedMsg)) //nolint:errcheck
 			return
 		}
 		renderOperatorSettingsError(w, r, err)

@@ -74,13 +74,11 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visi
 		Date:        visitDate,
 		CheckInTime: visit.EntryTime,
 		CheckedInBy: resolvedStaffID,
-	}
-	if resolvedDeviceID != 0 {
-		attendance.DeviceID = &resolvedDeviceID
+		DeviceID:    resolvedDeviceID,
 	}
 
 	attendance.SetTenantID(tenant.FromContext(ctx))
-	if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
+	if _, err := s.attendanceRepo.CreateIfNoOpenForToday(ctx, attendance); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 	return nil

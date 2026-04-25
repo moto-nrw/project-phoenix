@@ -17,9 +17,14 @@ type Attendance struct {
 	CheckOutTime *time.Time `bun:"check_out_time" json:"check_out_time,omitempty"`
 	CheckedInBy  int64      `bun:"checked_in_by,notnull" json:"checked_in_by"`
 	CheckedOutBy *int64     `bun:"checked_out_by" json:"checked_out_by,omitempty"`
-	// DeviceID is NULL for web-originated school check-ins (no kiosk
-	// involved). IoT kiosk flows still populate it. See migration 1.15.41.
-	DeviceID  *int64     `bun:"device_id" json:"device_id,omitempty"`
+	DeviceID     int64      `bun:"device_id,notnull" json:"device_id"`
+	// YardSince is set when the student transitions to "Schulhof" in binary
+	// mode and cleared on a school checkout. Schema and read paths
+	// (deriveAttendanceStatus, ResolveBinaryLocation, performCheckOut) are
+	// in place, but the *write* originates from PyrePortal's "Schulhof"
+	// kiosk endpoint, which is tracked separately. Until that ships,
+	// `on_yard` is unreachable in production. See the cross-repo PyrePortal
+	// ticket linked in the PR description.
 	YardSince *time.Time `bun:"yard_since" json:"yard_since,omitempty"`
 }
 
@@ -75,6 +80,13 @@ func (a *Attendance) IsCheckedIn() bool {
 type AttendanceRepository interface {
 	// Create creates a new attendance record
 	Create(ctx context.Context, attendance *Attendance) error
+
+	// CreateIfNoOpenForToday inserts the attendance row using ON CONFLICT
+	// against the partial unique index on (student_id, date) WHERE
+	// check_out_time IS NULL (migration 1.15.41). Returns inserted=true when
+	// the row was written, false when the conflict path swallowed the insert
+	// (a concurrent caller already opened today's attendance for the student).
+	CreateIfNoOpenForToday(ctx context.Context, attendance *Attendance) (bool, error)
 
 	// Update updates an existing attendance record
 	Update(ctx context.Context, attendance *Attendance) error

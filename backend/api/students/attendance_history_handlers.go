@@ -53,9 +53,7 @@ type attendanceDayRecord struct {
 	DurationMinutes *int       `json:"duration_minutes,omitempty"`
 	CheckedInBy     int64      `json:"checked_in_by"`
 	CheckedOutBy    *int64     `json:"checked_out_by,omitempty"`
-	// DeviceID is a pointer to match the nullable column (migration 1.15.41);
-	// web-originated check-ins have no device and emit `"device_id": null`.
-	DeviceID *int64 `json:"device_id,omitempty"`
+	DeviceID        int64      `json:"device_id"`
 }
 
 type attendanceVisitEntry struct {

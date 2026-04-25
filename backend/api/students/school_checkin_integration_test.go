@@ -170,9 +170,9 @@ func TestSchoolCheckin_GroupSupervisors_DeniesNonSupervisor(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	// Non-admin claim so the users:checkin permission flows through the
-	// attendance.web_checkin_access gate (admins would match admin:* and
-	// still fail the supervisor check via the same gate, but we want the
-	// narrow user role here to prove the gate itself blocks correctly).
+	// attendance.web_checkin_access gate. Admins (admin:* / *:*) now
+	// short-circuit the gate and would always pass — to test the
+	// supervisor-only branch we have to drop the admin wildcard.
 	claims := testutil.AdminTestClaims(int(account.ID))
 	claims.Roles = []string{"user"}
 	claims.IsAdmin = false
