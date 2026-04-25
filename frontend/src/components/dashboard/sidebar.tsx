@@ -243,6 +243,7 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/personal", label: "Personal" },
   { href: "/database/rooms", label: "Räume" },
   { href: "/database/activities", label: "Aktivitäten" },
+  { href: "/database/timetables", label: "Stundenplan" },
   { href: "/database/groups", label: "Gruppen" },
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },

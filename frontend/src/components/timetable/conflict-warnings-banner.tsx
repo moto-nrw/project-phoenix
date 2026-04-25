@@ -33,8 +33,8 @@ export function ConflictWarningsBanner({
           Woche
         </div>
         <div className="text-xs text-[#A16207]">
-          Doppelt belegte Raeume, Personal oder Schueler. Klicke einen
-          markierten Termin zur Detailansicht.
+          Doppelt belegte Räume, Personal oder Schüler. Klicke einen markierten
+          Termin zur Detailansicht.
         </div>
       </div>
     </div>

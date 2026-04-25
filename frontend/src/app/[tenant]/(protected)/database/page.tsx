@@ -120,7 +120,7 @@ const baseDataSections = [
   {
     id: "timetables",
     title: "Stundenplan",
-    description: "Wochenplan, Vertretungen und spontane Aktivitaeten",
+    description: "Wochenplan, Vertretungen und spontane Aktivitäten",
     href: "/database/timetables",
     icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
     color: "from-[#5080D8] to-[#83CD2D]",
@@ -161,6 +161,7 @@ function DatabaseContent() {
     canViewRoles: boolean;
     canViewDevices: boolean;
     canViewPermissions: boolean;
+    canViewTimetables: boolean;
   }>({
     canViewStudents: false,
     canViewTeachers: false,
@@ -170,6 +171,7 @@ function DatabaseContent() {
     canViewRoles: false,
     canViewDevices: false,
     canViewPermissions: false,
+    canViewTimetables: false,
   });
   const [countsLoading, setCountsLoading] = useState(true);
 
@@ -202,6 +204,7 @@ function DatabaseContent() {
                 canViewRoles: boolean;
                 canViewDevices: boolean;
                 canViewPermissions: boolean;
+                canViewTimetables: boolean;
               };
             };
           };
@@ -226,6 +229,7 @@ function DatabaseContent() {
               canViewRoles: false,
               canViewDevices: false,
               canViewPermissions: false,
+              canViewTimetables: false,
             },
           );
         } else if (response.status === 401 || response.status === 403) {
@@ -250,6 +254,7 @@ function DatabaseContent() {
             canViewRoles: false,
             canViewDevices: false,
             canViewPermissions: false,
+            canViewTimetables: false,
           });
         } else {
           logger.error("failed to fetch counts", { status: response.status });

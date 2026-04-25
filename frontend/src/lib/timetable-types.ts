@@ -40,7 +40,7 @@ export interface InstanceStaffSummary {
  * One activity instance enriched with everything the weekly grid needs:
  * room name, activity-group type (drives the colour key), staff list, and
  * expected/present student counts. is_live is true when the instance has an
- * active.group bridge — drives the LAEUFT badge.
+ * active.group bridge — drives the LÄUFT badge.
  */
 export interface EnrichedInstance {
   id: string;
@@ -113,7 +113,7 @@ export interface BackendWeeklyInstancesResponse {
 
 /**
  * Result of a manual materialization run — POST /api/timetable/materialize.
- * Exposed in the UI as a German toast: "Plan aktualisiert: X Aktivitaeten
+ * Exposed in the UI as a German toast: "Plan aktualisiert: X Aktivitäten
  * angelegt".
  */
 export interface MaterializeResult {

@@ -29,7 +29,7 @@ import type {
  *
  * - care     → blue  (#5080D8) — Mensa, Lernzeit, Freispiel
  * - activity → green (#83CD2D) — AGs (Yoga, Bouldern, …)
- * - external → orange (#F78C10) — DAZ, Musikschule, externe Foerderung
+ * - external → orange (#F78C10) — DAZ, Musikschule, externe Förderung
  */
 export function getActivityColor(type: ActivityType): string {
   switch (type) {
@@ -217,7 +217,7 @@ export function getStatusLabel(status: EnrichedInstance["status"]): string {
     case "planned":
       return "Geplant";
     case "active":
-      return "LAEUFT";
+      return "LÄUFT";
     case "completed":
       return "Abgeschlossen";
     case "cancelled":

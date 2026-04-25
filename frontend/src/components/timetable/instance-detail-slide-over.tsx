@@ -149,7 +149,7 @@ export function InstanceDetailSlideOver({
                 <button
                   type="button"
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100"
-                  aria-label="Schliessen"
+                  aria-label="Schließen"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -193,7 +193,7 @@ export function InstanceDetailSlideOver({
                         : ""
                     }`}
               </Row>
-              <Row icon={<Users className="h-4 w-4" />} label="Schueler">
+              <Row icon={<Users className="h-4 w-4" />} label="Schüler">
                 {instance.expectedStudentsCount + instance.presentStudentsCount}{" "}
                 eingetragen
                 {instance.presentStudentsCount > 0
@@ -209,7 +209,7 @@ export function InstanceDetailSlideOver({
 
             {editDeferred && (
               <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-500">
-                Bearbeitung von Zeit, Raum und Personal kommt im naechsten
+                Bearbeitung von Zeit, Raum und Personal kommt im nächsten
                 Update. Aktuell: Lifecycle (Starten, Beenden, Absagen) ist live.
               </div>
             )}
@@ -269,20 +269,20 @@ export function InstanceDetailSlideOver({
               {instance.status === "completed" && (
                 <span className="inline-flex items-center gap-2 text-xs text-slate-500">
                   <CheckCircle2 className="h-4 w-4" />
-                  Diese Aktivitaet ist bereits abgeschlossen.
+                  Diese Aktivität ist bereits abgeschlossen.
                 </span>
               )}
               {instance.status === "cancelled" && (
                 <span className="inline-flex items-center gap-2 text-xs text-slate-500">
                   <CircleX className="h-4 w-4" />
-                  Diese Aktivitaet wurde abgesagt.
+                  Diese Aktivität wurde abgesagt.
                 </span>
               )}
             </div>
             {editDeferred && (
               <div className="flex items-center justify-end gap-2 text-xs text-slate-400">
                 <Pencil className="h-3.5 w-3.5" />
-                <span>Bearbeiten kommt im naechsten Update</span>
+                <span>Bearbeiten kommt im nächsten Update</span>
               </div>
             )}
           </SlideOverFooter>

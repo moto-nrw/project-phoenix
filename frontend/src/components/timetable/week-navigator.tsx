@@ -39,7 +39,7 @@ export function WeekNavigator({
         type="button"
         onClick={() => onChange(weekOffset + 1)}
         className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
-        aria-label="Naechste Woche"
+        aria-label="Nächste Woche"
       >
         <ChevronRight className="h-4 w-4" />
       </button>

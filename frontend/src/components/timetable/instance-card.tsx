@@ -7,7 +7,7 @@
  * Visual contract:
  * - Coloured left bar based on activity type (care/activity/external)
  * - Light background tint matching the bar
- * - LAEUFT badge with green pulse-dot when status === "active"
+ * - LÄUFT badge with green pulse-dot when status === "active"
  * - Strikethrough text + ABGESAGT badge when status === "cancelled"
  * - Conflict warning icon when conflictWarnings is non-empty
  * - Selected state (clicked) raises the card with a stronger shadow
@@ -106,7 +106,7 @@ export function InstanceCard({
           {isActive && (
             <span className="inline-flex items-center gap-1 rounded-full bg-[#83CD2D] px-1.5 py-0.5 text-[8px] font-bold text-white">
               <span className="h-1 w-1 rounded-full bg-white" />
-              LAEUFT
+              LÄUFT
             </span>
           )}
           {isCancelled && (

@@ -44,7 +44,7 @@ export function MaterializeButton({
       {showConfirm && !isPending && (
         <span className="text-xs text-slate-600">
           Geplante Termine in <span className="font-semibold">{weekLabel}</span>{" "}
-          werden ueberschrieben.
+          werden überschrieben.
         </span>
       )}
       <Button
@@ -60,7 +60,7 @@ export function MaterializeButton({
         <span className="inline-flex items-center gap-2">
           <CalendarPlus className="h-4 w-4" />
           {showConfirm
-            ? "Bestaetigen — Plan aktualisieren"
+            ? "Bestätigen — Plan aktualisieren"
             : "Plan aktualisieren"}
         </span>
       </Button>

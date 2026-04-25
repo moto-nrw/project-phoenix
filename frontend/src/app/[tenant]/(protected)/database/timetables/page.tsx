@@ -137,7 +137,7 @@ function TimetablesContent() {
       const result = await timetableService.materialize(fromISO, toISO);
       toastSuccess(
         `Plan aktualisiert: ${result.instancesCreated} ${
-          result.instancesCreated === 1 ? "Aktivitaet" : "Aktivitaeten"
+          result.instancesCreated === 1 ? "Aktivität" : "Aktivitäten"
         } angelegt`,
       );
       await tenantMutate(swrKey);
@@ -160,14 +160,14 @@ function TimetablesContent() {
               `Gestartet — ${res.warnings.length} Hinweis(e): ${res.warnings.map((w) => w.message).join(", ")}`,
             );
           } else {
-            toastSuccess("Aktivitaet gestartet");
+            toastSuccess("Aktivität gestartet");
           }
         } else if (action === "complete") {
           await timetableService.complete(selectedInstance.id);
-          toastSuccess("Aktivitaet beendet");
+          toastSuccess("Aktivität beendet");
         } else {
           await timetableService.cancel(selectedInstance.id);
-          toastSuccess("Aktivitaet abgesagt");
+          toastSuccess("Aktivität abgesagt");
         }
         await tenantMutate(swrKey);
       } catch (err) {
@@ -179,7 +179,7 @@ function TimetablesContent() {
         toastError(
           err instanceof Error
             ? err.message
-            : "Aktion konnte nicht durchgefuehrt werden",
+            : "Aktion konnte nicht durchgeführt werden",
         );
         throw err;
       }
@@ -220,10 +220,10 @@ function TimetablesContent() {
         <button
           type="button"
           disabled
-          title="Spontane Aktivitaet kommt im naechsten Update"
+          title="Spontane Aktivität kommt im nächsten Update"
           className="inline-flex cursor-not-allowed items-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-400"
         >
-          + Spontane Aktivitaet
+          + Spontane Aktivität
         </button>
       </div>
 
@@ -253,7 +253,7 @@ function TimetablesContent() {
 
       {instances.length === 0 && !error && (
         <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500">
-          Fuer diese Woche sind noch keine Aktivitaeten geplant.
+          Für diese Woche sind noch keine Aktivitäten geplant.
           <br />
           Klicke auf <span className="font-semibold">Plan aktualisieren</span>,
           um die Vorlagen zu materialisieren.

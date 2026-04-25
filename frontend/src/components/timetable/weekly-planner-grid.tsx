@@ -90,7 +90,7 @@ export function WeeklyPlannerGrid({
               {dayInstances.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center">
                   <span className="text-center text-[11px] text-slate-400 italic">
-                    Keine Aktivitaeten
+                    Keine Aktivitäten
                   </span>
                 </div>
               ) : (
