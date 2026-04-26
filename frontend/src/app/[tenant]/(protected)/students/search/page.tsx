@@ -33,6 +33,7 @@ import {
   ArrivalTimeRow,
 } from "~/components/students/student-card";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
+import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
   deriveCheckinState,
   useSchoolCheckinMode,
@@ -529,12 +530,12 @@ function SearchPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {/* Sticky page header. Compact-on-scroll shrinks the search row so a
-          long roster stays visible; active filters surface as a count badge
-          on the filter pill. The check-in/out trigger lives in a floating
-          FAB rendered at the bottom of this component (outside the sticky
-          stack). */}
-      <div className="sticky top-[73px] z-30 -mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
+      {/* Page header — scrolls with the rest of the page (no sticky).
+          Active filters surface as a count badge on the filter pill. The
+          check-in/out trigger lives in a floating FAB rendered at the
+          bottom of this component on mobile/tablet, or inline in the
+          header on desktop via primaryAction. */}
+      <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
         <PageHeaderWithSearch
           title="Suche"
           badge={{
@@ -566,7 +567,6 @@ function SearchPageContent() {
               />
             ) : undefined
           }
-          compactOnScroll
           activeFilterDisplay="count"
           search={{
             value: searchTerm,
@@ -594,8 +594,20 @@ function SearchPageContent() {
         </div>
       )}
 
-      {/* Student Grid. Bottom padding clears the floating FAB on mobile/
-          tablet; desktop's inline pill lives in the header. */}
+      {/* Mobile (<md) check-in mode trigger — inline pill / sticky bar. */}
+      {isBinaryMode && (
+        <div className="mb-3 md:hidden">
+          <SchoolCheckinModeMobile
+            isActive={schoolCheckin.isActive}
+            onToggle={schoolCheckin.toggleActive}
+            successCount={schoolCheckin.successCount}
+            pendingCount={schoolCheckin.pendingIds.size}
+          />
+        </div>
+      )}
+
+      {/* Student Grid. Bottom padding reserves room for the mobile sticky
+          bar / tablet floating FAB; desktop has neither. */}
       <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
         {(() => {
           // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
@@ -763,10 +775,11 @@ function SearchPageContent() {
         })()}
       </div>
 
-      {/* Mobile/tablet check-in mode trigger — floating FAB. Desktop
-          renders the inline pill via the header's primaryAction slot. */}
+      {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
+          uses the inline pill / sticky bar above; desktop uses the
+          header inline pill. */}
       {isBinaryMode && (
-        <div className="lg:hidden">
+        <div className="hidden md:block lg:hidden">
           <SchoolCheckinFab
             variant="floating"
             isActive={schoolCheckin.isActive}

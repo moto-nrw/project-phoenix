@@ -79,6 +79,25 @@ vi.mock("~/components/students/school-checkin-fab", () => ({
   },
 }));
 
+// SchoolCheckinModeMobile is page-tested in its own file; mock here so we
+// don't have to expand the location-helper mock surface.
+vi.mock("~/components/students/school-checkin-mode-mobile", () => ({
+  SchoolCheckinModeMobile: (props: {
+    isActive: boolean;
+    onToggle: () => void;
+    successCount: number;
+    pendingCount: number;
+  }) => (
+    <button
+      data-testid="school-checkin-mobile"
+      data-active={props.isActive}
+      onClick={props.onToggle}
+    >
+      mobile
+    </button>
+  ),
+}));
+
 // Capture StudentCard prop calls so we can assert checkin props end to end.
 vi.mock("~/components/students/student-card", () => ({
   StudentCard: (props: {

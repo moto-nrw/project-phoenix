@@ -72,6 +72,23 @@ vi.mock("~/components/students/school-checkin-fab", () => ({
   },
 }));
 
+vi.mock("~/components/students/school-checkin-mode-mobile", () => ({
+  SchoolCheckinModeMobile: (props: {
+    isActive: boolean;
+    onToggle: () => void;
+    successCount: number;
+    pendingCount: number;
+  }) => (
+    <button
+      data-testid="school-checkin-mobile"
+      data-active={props.isActive}
+      onClick={props.onToggle}
+    >
+      mobile
+    </button>
+  ),
+}));
+
 vi.mock("~/components/students/student-card", () => ({
   StudentCard: (props: {
     studentId: string;

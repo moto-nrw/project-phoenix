@@ -53,6 +53,7 @@ import {
   ArrivalTimeRow,
 } from "~/components/students/student-card";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
+import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
   deriveCheckinState,
   useSchoolCheckinMode,
@@ -1261,13 +1262,11 @@ function OGSGroupPageContent() {
   return (
     <>
       <div className="w-full">
-        {/* Filter row + check-in mode bar share a single sticky stack so
-            the user always sees both the filters and the active mode while
-            scrolling a long roster. Top offset = global app header height.
-            Background stays transparent so the page's subtle gradient
-            shows through unbroken — the search bar and banner are already
-            opaque pills, so individual elements stay readable on scroll. */}
-        <div className="sticky top-[73px] z-30 -mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
+        {/* Page header — scrolls with the rest of the page (no sticky).
+            Active filters surface as a count badge on the filter pill (no
+            separate chips row), and the kebab menu carries the rare
+            "Gruppe übergeben" action. */}
+        <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
           <PageHeaderWithSearch
             title={
               isMobile && allGroups.length === 1
@@ -1288,7 +1287,6 @@ function OGSGroupPageContent() {
                 />
               ) : undefined
             }
-            compactOnScroll
             activeFilterDisplay="count"
             tabs={
               allGroups.length > 1 && !isDesktop
@@ -1336,20 +1334,34 @@ function OGSGroupPageContent() {
           </div>
         )}
 
-        {/* Student Grid. Bottom padding clears the floating FAB on
-            mobile/tablet; on desktop the inline pill lives in the header
-            and doesn't overlap the grid. */}
+        {/* Mobile (<md) check-in mode trigger — inline pill at the top of
+            the card list when OFF; switches to a sticky bottom bar above
+            the mobile nav when ON. Tablet keeps the floating FAB and
+            desktop the header inline pill, both rendered below. */}
+        {isBinaryMode && (
+          <div className="mb-3 md:hidden">
+            <SchoolCheckinModeMobile
+              isActive={schoolCheckin.isActive}
+              onToggle={schoolCheckin.toggleActive}
+              successCount={schoolCheckin.successCount}
+              pendingCount={schoolCheckin.pendingIds.size}
+            />
+          </div>
+        )}
+
+        {/* Student Grid. Bottom padding reserves room for the mobile
+            sticky bar / tablet floating FAB so the last row of cards
+            stays tappable; desktop has neither and gets pb-0. */}
         <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
           {renderStudentContent()}
         </div>
       </div>
 
-      {/* Mobile/tablet check-in mode trigger — floating FAB. The desktop
-          equivalent renders as an inline pill inside the page header's
-          primaryAction slot (see PageHeaderWithSearch above). The two
-          renders are CSS-gated so only one is ever visible per viewport. */}
+      {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
+          renders the inline pill / sticky bar combo above; desktop
+          renders the inline pill inside the page header. */}
       {isBinaryMode && (
-        <div className="lg:hidden">
+        <div className="hidden md:block lg:hidden">
           <SchoolCheckinFab
             variant="floating"
             isActive={schoolCheckin.isActive}
