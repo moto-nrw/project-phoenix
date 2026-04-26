@@ -52,10 +52,7 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
 } from "~/components/students/student-card";
-import {
-  SchoolCheckinToggle,
-  SchoolCheckinToggleMobile,
-} from "~/components/students/school-checkin-toggle";
+import { SchoolCheckinModeBar } from "~/components/students/school-checkin-mode-bar";
 import {
   deriveCheckinState,
   useSchoolCheckinMode,
@@ -1060,57 +1057,21 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Render helper for desktop action button
+  // Render helper for desktop action button — "Gruppe übergeben" only.
+  // The check-in/out toggle moved into its own ModeBar between the filter
+  // row and the card grid (less cramped, full-width for tablet/mobile).
   const renderDesktopActionButton = () => {
     if (isMobile || !currentGroup) return undefined;
 
-    const checkinButton = isBinaryMode ? (
-      <SchoolCheckinToggle
-        isActive={schoolCheckin.isActive}
-        onToggle={schoolCheckin.toggleActive}
-        pendingCount={schoolCheckin.pendingIds.size}
-      />
-    ) : null;
-
     if (currentGroup.viaSubstitution) {
       return (
-        <div className="flex items-center gap-2">
-          {checkinButton}
-          <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
-            <svg
-              className="h-5 w-5 text-orange-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-              />
-            </svg>
-            <span className="text-sm font-medium text-orange-900">
-              In Vertretung
-            </span>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="flex items-center gap-2">
-        {checkinButton}
-        <button
-          onClick={() => setShowTransferModal(true)}
-          className="flex h-10 items-center gap-2 rounded-full border border-[#83CD2D] bg-white px-4 text-[#4a7a15] transition-colors duration-150 hover:bg-[#f0f9e4] active:bg-[#e4f3d3]"
-          aria-label="Gruppe übergeben"
-        >
+        <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
           <svg
-            className="h-4 w-4"
+            className="h-5 w-5 text-orange-600"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
-            strokeWidth={2}
+            strokeWidth={2.5}
           >
             <path
               strokeLinecap="round"
@@ -1118,67 +1079,57 @@ function OGSGroupPageContent() {
               d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
             />
           </svg>
-          <span className="text-sm font-medium">
-            {activeTransfers.length > 0
-              ? `Gruppe übergeben (${activeTransfers.length})`
-              : "Gruppe übergeben"}
+          <span className="text-sm font-medium text-orange-900">
+            In Vertretung
           </span>
-        </button>
-      </div>
+        </div>
+      );
+    }
+    return (
+      <button
+        onClick={() => setShowTransferModal(true)}
+        className="flex h-10 items-center gap-2 rounded-full border border-[#83CD2D] bg-white px-4 text-[#4a7a15] transition-colors duration-150 hover:bg-[#f0f9e4] active:bg-[#e4f3d3]"
+        aria-label="Gruppe übergeben"
+      >
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+          />
+        </svg>
+        <span className="text-sm font-medium">
+          {activeTransfers.length > 0
+            ? `Gruppe übergeben (${activeTransfers.length})`
+            : "Gruppe übergeben"}
+        </span>
+      </button>
     );
   };
 
-  // Render helper for mobile action button
+  // Render helper for mobile action button — same logic as desktop, smaller
+  // affordance. Check-in toggle is rendered separately by the ModeBar.
   const renderMobileActionButton = () => {
     if (!isMobile || !currentGroup) return undefined;
 
-    const checkinButton = isBinaryMode ? (
-      <SchoolCheckinToggleMobile
-        isActive={schoolCheckin.isActive}
-        onToggle={schoolCheckin.toggleActive}
-        pendingCount={schoolCheckin.pendingIds.size}
-      />
-    ) : null;
-
     if (currentGroup.viaSubstitution) {
       return (
-        <div className="flex items-center gap-2">
-          {checkinButton}
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
-            title="In Vertretung"
-          >
-            <svg
-              className="h-4 w-4 text-orange-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-              />
-            </svg>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="flex items-center gap-2">
-        {checkinButton}
-        <button
-          onClick={() => setShowTransferModal(true)}
-          className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[#4a7a15] transition-colors duration-150 active:bg-[#e4f3d3]"
-          aria-label="Gruppe übergeben"
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
+          title="In Vertretung"
         >
           <svg
-            className="h-4 w-4"
+            className="h-4 w-4 text-orange-600"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
-            strokeWidth={2}
+            strokeWidth={2.5}
           >
             <path
               strokeLinecap="round"
@@ -1186,13 +1137,34 @@ function OGSGroupPageContent() {
               d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
             />
           </svg>
-          {activeTransfers.length > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[10px] font-bold text-[#4a7a15]">
-              {activeTransfers.length}
-            </span>
-          )}
-        </button>
-      </div>
+        </div>
+      );
+    }
+    return (
+      <button
+        onClick={() => setShowTransferModal(true)}
+        className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[#4a7a15] transition-colors duration-150 active:bg-[#e4f3d3]"
+        aria-label="Gruppe übergeben"
+      >
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+          />
+        </svg>
+        {activeTransfers.length > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[10px] font-bold text-[#4a7a15]">
+            {activeTransfers.length}
+          </span>
+        )}
+      </button>
     );
   };
 
@@ -1337,53 +1309,76 @@ function OGSGroupPageContent() {
   return (
     <>
       <div className="w-full">
-        {/* PageHeaderWithSearch - Title only on mobile */}
-        <PageHeaderWithSearch
-          title={
-            isMobile && allGroups.length === 1
-              ? (currentGroup?.name ?? "Meine Gruppe")
-              : "" // No title when multiple groups (tabs show group names) or on desktop
-          }
-          actionButton={renderDesktopActionButton()}
-          mobileActionButton={renderMobileActionButton()}
-          tabs={
-            allGroups.length > 1 && !isDesktop
-              ? {
-                  items: allGroups.map((group) => ({
-                    id: group.id,
-                    label: group.name,
-                    count: group.student_count,
-                  })),
-                  activeTab: currentGroup?.id ?? "",
-                  onTabChange: (tabId) => {
-                    const group = allGroups.find((g) => g.id === tabId);
-                    if (group) {
-                      localStorage.setItem("sidebar-last-group", tabId);
-                      localStorage.setItem(
-                        "sidebar-last-group-name",
-                        group.name,
-                      );
-                      void switchToGroup(tabId);
-                    }
-                  },
-                }
-              : undefined
-          }
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Name suchen...",
-          }}
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setAttendanceFilter("all");
-            setSortMode("default");
-          }}
-        />
+        {/* Filter row + check-in mode bar share a single sticky stack so
+            the user always sees both the filters and the active mode while
+            scrolling a long roster. Top offset = global app header height.
+            Background stays transparent so the page's subtle gradient
+            shows through unbroken — the search bar and banner are already
+            opaque pills, so individual elements stay readable on scroll. */}
+        <div className="sticky top-[73px] z-30 -mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
+          {/* PageHeaderWithSearch - Title only on mobile */}
+          <PageHeaderWithSearch
+            title={
+              isMobile && allGroups.length === 1
+                ? (currentGroup?.name ?? "Meine Gruppe")
+                : "" // No title when multiple groups (tabs show group names) or on desktop
+            }
+            actionButton={renderDesktopActionButton()}
+            mobileActionButton={renderMobileActionButton()}
+            tabs={
+              allGroups.length > 1 && !isDesktop
+                ? {
+                    items: allGroups.map((group) => ({
+                      id: group.id,
+                      label: group.name,
+                      count: group.student_count,
+                    })),
+                    activeTab: currentGroup?.id ?? "",
+                    onTabChange: (tabId) => {
+                      const group = allGroups.find((g) => g.id === tabId);
+                      if (group) {
+                        localStorage.setItem("sidebar-last-group", tabId);
+                        localStorage.setItem(
+                          "sidebar-last-group-name",
+                          group.name,
+                        );
+                        void switchToGroup(tabId);
+                      }
+                    },
+                  }
+                : undefined
+            }
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Name suchen...",
+            }}
+            filters={filterConfigs}
+            activeFilters={activeFilters}
+            onClearAllFilters={() => {
+              setSearchTerm("");
+              setAttendanceFilter("all");
+              setSortMode("default");
+            }}
+          />
 
-        {/* Mobile Error Display */}
+          {/* School check-in/out mode bar — only in binary-mode tenants.
+              Sits between the filter row and the card grid; in OFF state it
+              offers the entry into the mode, in ON state it shows progress
+              + a Fertig button. The cards themselves render the per-student
+              tap-strip via the StudentCard checkinMode props. */}
+          {isBinaryMode && (
+            <SchoolCheckinModeBar
+              isActive={schoolCheckin.isActive}
+              onToggle={schoolCheckin.toggleActive}
+              successCount={schoolCheckin.successCount}
+              pendingCount={schoolCheckin.pendingIds.size}
+            />
+          )}
+        </div>
+
+        {/* Mobile Error Display — outside the sticky stack so it doesn't
+            push everything down on small screens. */}
         {error && (
           <div className="mb-4 md:hidden">
             <Alert type="error" message={error} />

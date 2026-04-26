@@ -62,12 +62,16 @@ function actionForState(state: StudentCheckinState): SchoolCheckinAction {
 export interface UseSchoolCheckinModeResult {
   /** Whether the page is currently in check-in/out mode. */
   isActive: boolean;
-  /** Flip between active and inactive. */
+  /** Flip between active and inactive. Resets the per-session counter
+   *  whenever the mode is freshly switched on. */
   toggleActive: () => void;
   /** Set mode off (used when navigating away or on unrecoverable errors). */
   deactivate: () => void;
   /** Set of student IDs whose API call is still in flight. */
   pendingIds: ReadonlySet<string>;
+  /** Successful toggles in the current active session. Resets to 0 when the
+   *  mode is freshly entered or when the user explicitly deactivates. */
+  successCount: number;
   /**
    * Toggle a student's attendance. Resolves the next action from their
    * current StudentCheckinState, calls the school-checkin endpoint, and
@@ -91,10 +95,18 @@ export interface UseSchoolCheckinModeResult {
 export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
   const [isActive, setIsActive] = useState(false);
   const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
+  const [successCount, setSuccessCount] = useState(0);
   const toast = useToast();
 
   const toggleActive = useCallback(() => {
-    setIsActive((prev) => !prev);
+    setIsActive((prev) => {
+      // Entering the mode resets the per-session counter so each fresh
+      // session starts at 0. Leaving keeps the counter as-is until the
+      // next entry — useful for debugging but invisible to the UI which
+      // only reads it while isActive is true.
+      if (!prev) setSuccessCount(0);
+      return !prev;
+    });
   }, []);
 
   const deactivate = useCallback(() => {
@@ -125,6 +137,11 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
               key.includes("tracking-indicators-") ||
               key.includes(`student-detail-${studentId}`)),
         );
+
+        // Bump the per-session counter so the ModeBar can surface "X
+        // angemeldet" feedback. We count both directions equally — the
+        // banner copy makes the direction unambiguous.
+        setSuccessCount((c) => c + 1);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error("school_checkin_toggle_failed", {
@@ -148,5 +165,12 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     [pendingIds, toast],
   );
 
-  return { isActive, toggleActive, deactivate, pendingIds, toggle };
+  return {
+    isActive,
+    toggleActive,
+    deactivate,
+    pendingIds,
+    successCount,
+    toggle,
+  };
 }

@@ -29,46 +29,60 @@ interface StudentCardProps {
   /** Optional tracking indicators (right-aligned, below location badge) */
   readonly trackingIndicators?: ReactNode;
   /**
-   * When true, the card is rendered in school check-in/out mode: tinted by
-   * checkinState, click fires onCheckinClick instead of onClick, the "more
-   * info" hint is replaced with "Tippen zum An-/Abmelden", and a spinner
-   * overlay appears while isCheckinPending is true.
+   * When true, the card is rendered in school check-in/out mode: the bottom
+   * hint area becomes a coloured tap-strip whose copy + colour follow
+   * checkinState, click fires onCheckinClick instead of onClick, and a
+   * spinner replaces the strip while isCheckinPending is true. The card
+   * body stays neutral white — the tap-strip carries the visual signal.
    */
   readonly checkinMode?: boolean;
-  /** Required when checkinMode is true — drives the tint color. */
+  /** Required when checkinMode is true — drives the tap-strip colour + copy. */
   readonly checkinState?: StudentCheckinState;
-  /** Render spinner overlay + disable the button while the API call is in flight. */
+  /** Render spinner inside the tap-strip and disable the button while the API call is in flight. */
   readonly isCheckinPending?: boolean;
   /** Click handler for check-in mode. Ignored when checkinMode is false. */
   readonly onCheckinClick?: () => void;
 }
 
-// Brand-hex overrides applied to the card when checkinMode is on. Matches
-// the colors the PresenceBadge uses so card + badge visually reinforce each
-// other at a glance.
-const CHECKIN_TINT: Record<
+// Tap-strip styles for the bottom action area when checkinMode is on. The
+// approach mirrors the time-tracking page's pill-pattern (subtle bg + brand
+// hex text) so the visual stays consistent with the rest of the app — never
+// flat-fill the card. Hex literals come from LOCATION_COLORS (CLAUDE.md §0).
+const TAP_STRIP_STYLES: Record<
   StudentCheckinState,
-  { border: string; background: string; focusRing: string }
+  {
+    background: string;
+    text: string;
+    copy: string;
+    action: "anmelden" | "abmelden";
+  }
 > = {
   anwesend: {
-    border: LOCATION_COLORS.GROUP_ROOM, // #83CD2D green
-    background: `${LOCATION_COLORS.GROUP_ROOM}1a`, // ~10% alpha
-    focusRing: `${LOCATION_COLORS.GROUP_ROOM}80`, // ~50% alpha for focus
+    // Currently present → tap to check out (red accent communicates the destination state)
+    background: `${LOCATION_COLORS.HOME}26`, // ~15% alpha
+    text: "#B82A29", // accessible darker red on tinted bg
+    copy: "Tippen zum Abmelden",
+    action: "abmelden",
   },
   schulhof: {
-    border: LOCATION_COLORS.SCHOOLYARD, // #F78C10 orange
-    background: `${LOCATION_COLORS.SCHOOLYARD}1a`,
-    focusRing: `${LOCATION_COLORS.SCHOOLYARD}80`,
+    // On schoolyard counts as present → tap also checks out
+    background: `${LOCATION_COLORS.HOME}26`,
+    text: "#B82A29",
+    copy: "Tippen zum Abmelden",
+    action: "abmelden",
   },
   abwesend: {
-    border: LOCATION_COLORS.HOME, // #FF3130 red
-    background: `${LOCATION_COLORS.HOME}1a`,
-    focusRing: `${LOCATION_COLORS.HOME}80`,
+    // Currently absent → tap to check in (green accent for the destination state)
+    background: `${LOCATION_COLORS.GROUP_ROOM}26`, // ~15% alpha
+    text: "#5A8B1F", // mirrors GROUP_ROOM_SHADES.text equivalent for darker green
+    copy: "Tippen zum Anmelden",
+    action: "anmelden",
   },
   unknown: {
-    border: LOCATION_COLORS.UNKNOWN, // gray-ish
-    background: `${LOCATION_COLORS.UNKNOWN}1a`,
-    focusRing: `${LOCATION_COLORS.UNKNOWN}80`,
+    background: `${LOCATION_COLORS.UNKNOWN}26`,
+    text: "#4B5563",
+    copy: "Tippen zum An-/Abmelden",
+    action: "anmelden",
   },
 };
 
@@ -90,27 +104,19 @@ export function StudentCard({
   isCheckinPending = false,
   onCheckinClick,
 }: StudentCardProps) {
-  // Active handler + a11y label swap when the page is in check-in mode.
-  // Falls back to navigation when checkinMode is off, or when the caller
-  // omitted onCheckinClick (defensive — allows partial adoption).
+  // In checkinMode the card click triggers the toggle; otherwise it
+  // navigates to the detail page. Falls back to navigation if the page
+  // forgot to wire onCheckinClick (defensive — allows partial adoption).
   const activeHandler =
     checkinMode && onCheckinClick ? onCheckinClick : onClick;
-  const ariaLabel = checkinMode
-    ? `${firstName} ${lastName} - Tippen zum An-/Abmelden`
-    : `${firstName} ${lastName} - Tippen für mehr Infos`;
 
-  // Inline styles when in check-in mode. We avoid Tailwind arbitrary
-  // syntax for dynamic per-state hex values because six generated classes
-  // would never be purged cleanly; inline style keeps the brand hex bound
-  // to runtime state.
-  const tint = checkinMode ? CHECKIN_TINT[checkinState] : null;
-  const style = tint
-    ? ({
-        borderColor: tint.border,
-        backgroundColor: tint.background,
-        "--checkin-focus-ring": tint.focusRing,
-      } as React.CSSProperties)
-    : undefined;
+  // Pull a Tap-Strip preset for the bottom action area in checkinMode.
+  // The strip carries the colour signal; the card body stays neutral white.
+  const tapStrip = checkinMode ? TAP_STRIP_STYLES[checkinState] : null;
+
+  const ariaLabel = checkinMode
+    ? `${firstName} ${lastName} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
+    : `${firstName} ${lastName} - Tippen für mehr Infos`;
 
   return (
     <button
@@ -122,116 +128,143 @@ export function StudentCard({
       aria-busy={isCheckinPending}
       data-checkin-mode={checkinMode || undefined}
       data-checkin-state={checkinMode ? checkinState : undefined}
-      style={style}
-      className={
-        checkinMode
-          ? "group relative w-full cursor-pointer overflow-hidden rounded-3xl border-2 text-left shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:outline-none active:scale-[0.98] disabled:cursor-wait disabled:opacity-70 disabled:active:scale-100 md:hover:-translate-y-0.5 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.14)]"
-          : "group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-[#5080D8]/40 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
-      }
+      className={`group relative w-full cursor-pointer overflow-hidden rounded-3xl bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none disabled:cursor-wait disabled:opacity-70 md:hover:-translate-y-0.5 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)] ${
+        // Click-time scale skipped in check-in mode: sub-pixel aliasing
+        // during the scale animation flashes a 1px white seam at the
+        // body→tap-strip boundary. Pending spinner gives the click feedback.
+        checkinMode ? "" : "active:scale-[0.98] disabled:active:scale-100"
+      }`}
     >
-      {/* Decorative layers — skipped in check-in mode so the brand tint
-          stays visually clean. */}
-      {!checkinMode && (
-        <>
-          <div
-            className={`absolute inset-0 bg-gradient-to-br ${gradient} rounded-3xl opacity-[0.03]`}
-          />
-          <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20" />
-          <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-blue-200/60" />
-        </>
-      )}
-
-      <div className="relative p-6">
-        {/* Header with student name */}
-        <div className="mb-3 flex items-start justify-between gap-3">
-          {/* Student Name */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h3
-                className={
-                  checkinMode
-                    ? "overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-900"
-                    : "overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-150 md:group-hover:text-blue-600"
-                }
-              >
-                {firstName}
-              </h3>
-              {/* Arrow hint only makes sense for navigation; in check-in
-                  mode the whole card IS the action. */}
-              {!checkinMode && (
-                <svg
-                  className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-150 md:group-hover:text-blue-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              )}
-            </div>
-            <p
-              className={
-                checkinMode
-                  ? "overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-800"
-                  : "overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-150 md:group-hover:text-blue-500"
-              }
-            >
-              {lastName}
-            </p>
-            {/* Extra content slot (school class, group name, etc.) */}
-            {extraContent}
-          </div>
-
-          {/* Location Badge + optional Tracking Indicators */}
-          {trackingIndicators ? (
-            <div className="flex flex-col items-end gap-1">
-              {locationBadge}
-              {trackingIndicators}
-            </div>
-          ) : (
-            locationBadge
-          )}
-        </div>
-
-        {/* Bottom row hint — different copy per mode */}
-        <div className="flex justify-start">
-          <p
-            className={
-              checkinMode
-                ? "text-xs font-medium text-gray-600"
-                : "text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400"
-            }
-          >
-            {checkinMode ? "Tippen zum An-/Abmelden" : "Tippen für mehr Infos"}
-          </p>
-        </div>
-
-        {/* Decorative pings — only in navigation mode */}
+      <div className={`relative ${checkinMode ? "p-6 pb-0" : "p-6 pb-5"}`}>
+        {/* Decorative layers — scoped to the card body so the tap-strip
+            below stays cleanly coloured. The from-white/80 gradient was
+            previously washing the strip into a pale tint. */}
+        <div
+          className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${gradient} opacity-[0.03]`}
+        />
+        {/* White-gradient overlay. In navigation mode it sits at inset-px
+            so the rounded corners stay crisp; in check-in mode it stretches
+            full inset so the 1px button-bg seam at the body→tap-strip
+            boundary doesn't flash white during the click animation. */}
+        <div
+          className={`pointer-events-none absolute ${checkinMode ? "inset-0" : "inset-px"} bg-gradient-to-br from-white/80 to-white/20`}
+        />
+        {/* Subtle hover ring — only in navigation mode. In check-in mode the
+            tap-strip below carries the visual signal, and a hover ring would
+            print as a horizontal line at the body→strip boundary (pb-0). */}
         {!checkinMode && (
-          <>
-            <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20" />
-            <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30" />
-          </>
+          <div className="pointer-events-none absolute inset-0 ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-blue-200/60" />
         )}
 
-        {/* Spinner overlay while the API call is in flight. */}
-        {isCheckinPending && (
-          <div
-            className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-3xl bg-white/40 backdrop-blur-[1px]"
-            data-checkin-pending="true"
-          >
+        {/* Card body content sits above the decorative layers */}
+        <div className="relative">
+          {/* Header with student name */}
+          <div className="mb-3 flex items-start justify-between gap-3">
+            {/* Student Name */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-150 md:group-hover:text-blue-600">
+                  {firstName}
+                </h3>
+                {/* Arrow hint only points to navigation; in check-in mode the
+                  bottom strip carries the action signal instead. */}
+                {!checkinMode && (
+                  <svg
+                    className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-150 md:group-hover:text-blue-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                )}
+              </div>
+              <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-150 md:group-hover:text-blue-500">
+                {lastName}
+              </p>
+              {/* Extra content slot (school class, group name, etc.) */}
+              {extraContent}
+            </div>
+
+            {/* Location Badge + optional Tracking Indicators */}
+            {trackingIndicators ? (
+              <div className="flex flex-col items-end gap-1">
+                {locationBadge}
+                {trackingIndicators}
+              </div>
+            ) : (
+              locationBadge
+            )}
+          </div>
+
+          {/* Bottom-hint in navigation mode only — the check-in tap-strip
+            below replaces this when the page enters check-in mode. */}
+          {!checkinMode && (
+            <p className="text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
+              Tippen für mehr Infos
+            </p>
+          )}
+
+          {/* Decorative pings — kept in both modes, they belong to the card's
+              visual identity, not to the navigation affordance. */}
+          <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20" />
+          <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30" />
+        </div>
+      </div>
+
+      {/* Tap-Strip — full-width action area at the bottom in check-in mode.
+          Hex literals come via TAP_STRIP_STYLES from LOCATION_COLORS so the
+          colour signalling stays inside the brand palette (CLAUDE.md §0).
+          Layout stays identical between idle and pending states (icon swaps,
+          text stays) so the strip's height never changes — otherwise the
+          card resizes mid-toggle and a 1px white seam flashes at the
+          body→strip boundary. */}
+      {checkinMode && tapStrip && (
+        <div
+          className="relative flex min-h-[44px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-colors duration-150"
+          style={{
+            backgroundColor: tapStrip.background,
+            color: tapStrip.text,
+          }}
+          data-checkin-tap-strip="true"
+        >
+          {isCheckinPending ? (
             <Loader2
-              className="h-8 w-8 animate-spin text-gray-700"
+              className="h-4 w-4 flex-shrink-0 animate-spin"
               aria-hidden="true"
             />
-          </div>
-        )}
-      </div>
+          ) : (
+            <svg
+              className="h-4 w-4 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              aria-hidden="true"
+            >
+              {tapStrip.action === "anmelden" ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 4v16m8-8H4"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M20 12H4"
+                />
+              )}
+            </svg>
+          )}
+          <span>{tapStrip.copy}</span>
+        </div>
+      )}
 
       {/* Glowing border effect — navigation mode only */}
       {!checkinMode && (

@@ -32,10 +32,7 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
 } from "~/components/students/student-card";
-import {
-  SchoolCheckinToggle,
-  SchoolCheckinToggleMobile,
-} from "~/components/students/school-checkin-toggle";
+import { SchoolCheckinModeBar } from "~/components/students/school-checkin-mode-bar";
 import {
   deriveCheckinState,
   useSchoolCheckinMode,
@@ -532,63 +529,61 @@ function SearchPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {/* PageHeaderWithSearch - With Suche title */}
-      <PageHeaderWithSearch
-        title="Suche"
-        actionButton={
-          isBinaryMode ? (
-            <SchoolCheckinToggle
-              isActive={schoolCheckin.isActive}
-              onToggle={schoolCheckin.toggleActive}
-              pendingCount={schoolCheckin.pendingIds.size}
-            />
-          ) : undefined
-        }
-        mobileActionButton={
-          isBinaryMode ? (
-            <SchoolCheckinToggleMobile
-              isActive={schoolCheckin.isActive}
-              onToggle={schoolCheckin.toggleActive}
-              pendingCount={schoolCheckin.pendingIds.size}
-            />
-          ) : undefined
-        }
-        badge={{
-          icon: (
-            <svg
-              className="h-5 w-5 text-gray-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-              />
-            </svg>
-          ),
-          count: filteredStudents.length,
-        }}
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Name suchen...",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setSelectedGroup("");
-          setSelectedYear("all");
-          setAttendanceFilter("all");
-          setPickupTimeFilter("all");
-          setTrackingFilter("all");
-        }}
-      />
+      {/* Filter row + check-in mode bar share a single sticky stack so
+          the user always sees both filters and active mode while scrolling
+          a long roster. Mirrors the /ogs-groups treatment. */}
+      <div className="sticky top-[73px] z-30 -mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
+        {/* PageHeaderWithSearch - With Suche title */}
+        <PageHeaderWithSearch
+          title="Suche"
+          badge={{
+            icon: (
+              <svg
+                className="h-5 w-5 text-gray-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                />
+              </svg>
+            ),
+            count: filteredStudents.length,
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Name suchen...",
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setSelectedGroup("");
+            setSelectedYear("all");
+            setAttendanceFilter("all");
+            setPickupTimeFilter("all");
+            setTrackingFilter("all");
+          }}
+        />
 
-      {/* Mobile Error Display */}
+        {/* School check-in/out mode bar — only in binary-mode tenants. */}
+        {isBinaryMode && (
+          <SchoolCheckinModeBar
+            isActive={schoolCheckin.isActive}
+            onToggle={schoolCheckin.toggleActive}
+            successCount={schoolCheckin.successCount}
+            pendingCount={schoolCheckin.pendingIds.size}
+          />
+        )}
+      </div>
+
+      {/* Mobile Error Display — outside the sticky stack so it doesn't
+          push everything down on small screens. */}
       {errorMessage && (
         <div className="mb-4 md:hidden">
           <Alert type="error" message={errorMessage} />
