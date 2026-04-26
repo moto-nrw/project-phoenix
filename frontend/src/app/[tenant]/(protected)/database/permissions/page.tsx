@@ -1,11 +1,10 @@
 "use client";
 
-import { createLogger } from "~/lib/logger";
-import { useEffect, useMemo, useState, useCallback } from "react";
-
-const logger = createLogger({ component: "DatabasePermissionsPage" });
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
+import { DatabaseCreateAction } from "~/components/database/database-create-action";
+import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
@@ -18,47 +17,56 @@ import { permissionsConfig } from "@/lib/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
 import {
   PermissionCreateModal,
-  PermissionDetailModal,
   PermissionEditModal,
+  PermissionsMasterDetail,
 } from "@/components/permissions";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   formatPermissionDisplay,
-  localizeAction,
   localizeDescription,
-  localizeResource,
 } from "@/lib/permission-labels";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "DatabasePermissionsPage" });
 
 export default function PermissionsPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const searchParams = useSearchParams();
+  const updateUrlParams = useUpdateUrlParams();
+
+  const selectedId = searchParams.get("permission");
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();
 
-  // Modals
+  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-  const [selectedPermission, setSelectedPermission] =
-    useState<Permission | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [savingPermission, setSavingPermission] = useState(false);
+  const isMountedRef = useRef(true);
 
-  // Delete confirmation modal management
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(setShowDetailModal);
+  } = useDeleteConfirmation(() => {});
 
   const { success: toastSuccess, error: toastError } = useToast();
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const { status } = useSession({
     required: true,
@@ -74,38 +82,31 @@ export default function PermissionsPage() {
       setLoading(true);
       const data = await service.getList({ page: 1, pageSize: 500 });
       const arr = Array.isArray(data.data) ? data.data : [];
+      if (!isMountedRef.current) return;
       setPermissions(arr);
       setError(null);
     } catch (err) {
       logger.error("failed to fetch permissions", {
         error: err instanceof Error ? err.message : String(err),
       });
+      if (!isMountedRef.current) return;
       setError(
         "Fehler beim Laden der Berechtigungen. Bitte versuchen Sie es später erneut.",
       );
       setPermissions([]);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [service]);
 
   useEffect(() => {
-    fetchPermissions().catch(() => {
-      // Error already handled in fetchPermissions
-    });
+    void fetchPermissions();
   }, [fetchPermissions]);
 
-  const toDisplay = (p: Permission) =>
-    formatPermissionDisplay(p.resource, p.action);
-
-  // Immer den deutschen Anzeigenamen verwenden (Ressource: Aktion)
-  const displayTitle = (p: Permission) => toDisplay(p);
-
-  // Deutsche Beschreibung aus der Label-Map, Fallback auf DB-Beschreibung
-  const displayDescription = (p: Permission) =>
-    localizeDescription(p.resource, p.action, p.description);
-
   const filters: FilterConfig[] = useMemo(() => [], []);
+
   const activeFilters: ActiveFilter[] = useMemo(
     () =>
       searchTerm
@@ -124,15 +125,22 @@ export default function PermissionsPage() {
     let arr = [...permissions];
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      arr = arr.filter(
-        (p) =>
+      arr = arr.filter((p) => {
+        const display = formatPermissionDisplay(p.resource, p.action);
+        const description = localizeDescription(
+          p.resource,
+          p.action,
+          p.description,
+        );
+        return (
           p.name.toLowerCase().includes(q) ||
           (p.description?.toLowerCase().includes(q) ?? false) ||
           p.resource.toLowerCase().includes(q) ||
           p.action.toLowerCase().includes(q) ||
-          displayDescription(p).toLowerCase().includes(q) ||
-          toDisplay(p).toLowerCase().includes(q),
-      );
+          description.toLowerCase().includes(q) ||
+          display.toLowerCase().includes(q)
+        );
+      });
     }
     arr.sort((a, b) => {
       const r = a.resource.localeCompare(b.resource, "de");
@@ -144,135 +152,158 @@ export default function PermissionsPage() {
     return arr;
   }, [permissions, searchTerm]);
 
-  const handleSelectPermission = async (perm: Permission) => {
-    setSelectedPermission(perm);
-    setShowDetailModal(true);
-    try {
-      setDetailLoading(true);
-      const fresh = await service.getOne(perm.id);
-      setSelectedPermission(fresh);
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+  const selectedPermission = useMemo(
+    () =>
+      selectedId
+        ? (filteredPermissions.find(
+            (permission) => permission.id === selectedId,
+          ) ?? null)
+        : null,
+    [filteredPermissions, selectedId],
+  );
 
-  const handleCreatePermission = async (data: Partial<Permission>) => {
-    try {
-      setCreateLoading(true);
-      setCreateError(null);
-      // Apply transform before submit to extract resource/action from permissionSelector
-      if (permissionsConfig.form.transformBeforeSubmit) {
-        data = permissionsConfig.form.transformBeforeSubmit(data);
-      }
-      const created = await service.create(data);
-      const display = `${created.resource}: ${created.action}`;
-      toastSuccess(
-        getDbOperationMessage(
-          "create",
-          permissionsConfig.name.singular,
-          display,
-        ),
-      );
-      setShowCreateModal(false);
-      await fetchPermissions();
-    } catch (err) {
-      // Check for duplicate key error and show in modal
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      if (
-        errorMessage.includes("duplicate key") ||
-        errorMessage.includes("23505")
-      ) {
-        setCreateError(
-          `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
-            `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
-            `Bitte wählen Sie eine andere Kombination.`,
-        );
-      } else {
-        setCreateError(
-          "Fehler beim Erstellen der Berechtigung. Bitte versuchen Sie es erneut.",
-        );
-      }
-    } finally {
-      setCreateLoading(false);
-    }
-  };
+  const handleSelectPermission = useCallback(
+    (id: string | null) => {
+      updateUrlParams({ permission: id });
+    },
+    [updateUrlParams],
+  );
 
-  const handleUpdatePermission = async (data: Partial<Permission>) => {
-    if (!selectedPermission) return;
-    try {
-      setDetailLoading(true);
-      setEditError(null);
-      // Apply transform before submit to extract resource/action from permissionSelector
-      if (permissionsConfig.form.transformBeforeSubmit) {
-        data = permissionsConfig.form.transformBeforeSubmit(data);
-      }
-      await service.update(selectedPermission.id, data);
-      const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
-      toastSuccess(
-        getDbOperationMessage(
-          "update",
-          permissionsConfig.name.singular,
-          display,
-        ),
-      );
-      const refreshed = await service.getOne(selectedPermission.id);
-      setSelectedPermission(refreshed);
-      setShowEditModal(false);
-      setShowDetailModal(true);
-      await fetchPermissions();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      if (
-        errorMessage.includes("duplicate key") ||
-        errorMessage.includes("23505")
-      ) {
-        setEditError(
-          `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
-            `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
-            `Bitte wählen Sie eine andere Kombination.`,
-        );
-      } else {
-        setEditError(
-          "Fehler beim Aktualisieren der Berechtigung. Bitte versuchen Sie es erneut.",
-        );
-      }
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const handleDeletePermission = async () => {
-    if (!selectedPermission) return;
-    try {
-      setDetailLoading(true);
-      const deleteError = await service.delete(selectedPermission.id);
-      if (deleteError) {
-        toastError(deleteError);
-        return;
-      }
-      const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
-      toastSuccess(
-        getDbOperationMessage(
-          "delete",
-          permissionsConfig.name.singular,
-          display,
-        ),
-      );
-      setShowDetailModal(false);
-      setSelectedPermission(null);
-      await fetchPermissions();
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const handleEditClick = () => {
-    setShowDetailModal(false);
+  const handleEditClick = useCallback(() => {
+    setEditError(null);
     setShowEditModal(true);
-  };
+  }, []);
+  const handleCloseEditModal = useCallback(() => {
+    setShowEditModal(false);
+    setEditError(null);
+  }, []);
+  const handleCloseCreateModal = useCallback(() => {
+    setShowCreateModal(false);
+    setCreateError(null);
+  }, []);
+
+  const handleCreatePermission = useCallback(
+    async (data: Partial<Permission>) => {
+      try {
+        setCreateLoading(true);
+        setCreateError(null);
+        const payload = permissionsConfig.form.transformBeforeSubmit
+          ? permissionsConfig.form.transformBeforeSubmit(data)
+          : data;
+        const created = await service.create(payload);
+        if (!isMountedRef.current) return;
+        const display = `${created.resource}: ${created.action}`;
+        toastSuccess(
+          getDbOperationMessage(
+            "create",
+            permissionsConfig.name.singular,
+            display,
+          ),
+        );
+        setShowCreateModal(false);
+        await fetchPermissions();
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        if (
+          errorMessage.includes("duplicate key") ||
+          errorMessage.includes("23505")
+        ) {
+          setCreateError(
+            `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
+              `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
+              `Bitte wählen Sie eine andere Kombination.`,
+          );
+        } else {
+          setCreateError(
+            "Fehler beim Erstellen der Berechtigung. Bitte versuchen Sie es erneut.",
+          );
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setCreateLoading(false);
+        }
+      }
+    },
+    [service, fetchPermissions, toastSuccess],
+  );
+
+  const handleUpdatePermission = useCallback(
+    async (data: Partial<Permission>) => {
+      if (!selectedPermission) return;
+      try {
+        setSavingPermission(true);
+        setEditError(null);
+        const payload = permissionsConfig.form.transformBeforeSubmit
+          ? permissionsConfig.form.transformBeforeSubmit(data)
+          : data;
+        await service.update(selectedPermission.id, payload);
+        if (!isMountedRef.current) return;
+        setShowEditModal(false);
+        const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
+        toastSuccess(
+          getDbOperationMessage(
+            "update",
+            permissionsConfig.name.singular,
+            display,
+          ),
+        );
+        await fetchPermissions();
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        if (
+          errorMessage.includes("duplicate key") ||
+          errorMessage.includes("23505")
+        ) {
+          setEditError(
+            `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
+              `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
+              `Bitte wählen Sie eine andere Kombination.`,
+          );
+        } else {
+          setEditError(
+            "Fehler beim Aktualisieren der Berechtigung. Bitte versuchen Sie es erneut.",
+          );
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setSavingPermission(false);
+        }
+      }
+    },
+    [selectedPermission, service, fetchPermissions, toastSuccess],
+  );
+
+  const handleDeletePermission = useCallback(async () => {
+    if (!selectedPermission) return;
+    const deleteError = await service.delete(selectedPermission.id);
+    if (deleteError) {
+      toastError(deleteError);
+      return;
+    }
+    if (!isMountedRef.current) return;
+    const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
+    toastSuccess(
+      getDbOperationMessage("delete", permissionsConfig.name.singular, display),
+    );
+    handleSelectPermission(null);
+    await fetchPermissions();
+  }, [
+    selectedPermission,
+    service,
+    toastError,
+    toastSuccess,
+    handleSelectPermission,
+    fetchPermissions,
+  ]);
+
+  const canShowDetail = !loading && filteredPermissions.length > 0;
 
   return (
-    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+    <DatabasePageLayout
+      loading={loading}
+      sessionLoading={status === "loading"}
+      className="-mt-1.5 flex w-full flex-col"
+    >
       <div className="mb-4">
         <PageHeaderWithSearch
           title={isMobile ? "Berechtigungen" : ""}
@@ -305,68 +336,15 @@ export default function PermissionsPage() {
             setSearchTerm("");
           }}
           actionButton={
-            !isMobile && (
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)",
-                  willChange: "transform, opacity",
-                  WebkitTransform: "translateZ(0)",
-                  transform: "translateZ(0)",
-                }}
-                aria-label="Berechtigung erstellen"
-              >
-                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-                <svg
-                  className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
-                </svg>
-                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-              </button>
-            )
+            <DatabaseCreateAction
+              label="Berechtigung"
+              ariaLabel="Berechtigung erstellen"
+              onClick={() => setShowCreateModal(true)}
+              showDesktop={!isMobile}
+            />
           }
         />
       </div>
-
-      <button
-        onClick={() => setShowCreateModal(true)}
-        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(244,114,182,0.3)] active:scale-95 md:hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, rgb(236, 72, 153) 0%, rgb(225, 29, 72) 100%)",
-          willChange: "transform, opacity",
-          WebkitTransform: "translateZ(0)",
-          transform: "translateZ(0)",
-        }}
-        aria-label="Berechtigung erstellen"
-      >
-        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-        <svg
-          className="pointer-events-none relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 4.5v15m7.5-7.5h-15"
-          />
-        </svg>
-        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-      </button>
 
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
@@ -374,9 +352,19 @@ export default function PermissionsPage() {
         </div>
       )}
 
-      {filteredPermissions.length === 0 ? (
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="text-center">
+      {canShowDetail ? (
+        <div className="min-h-0 flex-1 pb-4">
+          <PermissionsMasterDetail
+            permissions={filteredPermissions}
+            selectedId={selectedId}
+            onSelect={handleSelectPermission}
+            onEditClick={handleEditClick}
+            onDeleteClick={handleDeleteClick}
+          />
+        </div>
+      ) : !loading ? (
+        <DatabaseEmptyState
+          icon={
             <svg
               className="mx-auto h-12 w-12 text-gray-400"
               fill="none"
@@ -390,118 +378,28 @@ export default function PermissionsPage() {
                 d="M15 7a2 2 0 012 2v1a2 2 0 11-4 0V9a2 2 0 012-2m-6 6h3l3 3 3-3 3 3-7 7-5-5v-2a2 2 0 012-2"
               />
             </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
-              {searchTerm
-                ? "Keine Berechtigungen gefunden"
-                : "Keine Berechtigungen vorhanden"}
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              {searchTerm
-                ? "Versuchen Sie einen anderen Suchbegriff."
-                : "Es wurden noch keine Berechtigungen erstellt."}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredPermissions.map((perm, index) => {
-            const handleClick = () => void handleSelectPermission(perm);
-            return (
-              <button
-                type="button"
-                key={perm.id}
-                onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-indigo-400/60 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
-                style={{
-                  animationName: "fadeInUp",
-                  animationDuration: "0.5s",
-                  animationTimingFunction: "ease-out",
-                  animationFillMode: "forwards",
-                  animationDelay: `${index * 0.03}s`,
-                  opacity: 0,
-                }}
-              >
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-pink-50/80 to-rose-100/80 opacity-[0.03]"></div>
-                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-pink-300/60"></div>
+          }
+          title={
+            searchTerm
+              ? "Keine Berechtigungen gefunden"
+              : "Keine Berechtigungen vorhanden"
+          }
+          description={
+            searchTerm
+              ? "Versuchen Sie einen anderen Suchbegriff."
+              : "Es wurden noch keine Berechtigungen erstellt."
+          }
+        />
+      ) : null}
 
-                <div className="relative flex items-center gap-4 p-5">
-                  <div className="flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-rose-600 font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
-                      {perm.resource?.charAt(0)?.toUpperCase() ?? "P"}
-                    </div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-pink-600">
-                      {displayTitle(perm)}
-                    </h3>
-                    {displayDescription(perm) && (
-                      <p className="mt-0.5 line-clamp-1 text-sm text-gray-600">
-                        {displayDescription(perm)}
-                      </p>
-                    )}
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                        {localizeResource(perm.resource)}
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-medium text-pink-700">
-                        {localizeAction(perm.action)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-indigo-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-pink-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Create */}
       <PermissionCreateModal
         isOpen={showCreateModal}
-        onClose={() => {
-          setShowCreateModal(false);
-          setCreateError(null);
-        }}
+        onClose={handleCloseCreateModal}
         onCreate={handleCreatePermission}
         loading={createLoading}
         error={createError}
       />
 
-      {/* Detail */}
-      {selectedPermission && (
-        <PermissionDetailModal
-          isOpen={showDetailModal}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedPermission(null);
-          }}
-          permission={selectedPermission}
-          onEdit={handleEditClick}
-          onDelete={() => void handleDeletePermission()}
-          loading={detailLoading}
-          onDeleteClick={handleDeleteClick}
-        />
-      )}
-
-      {/* Delete Confirmation */}
       {selectedPermission && (
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
@@ -522,22 +420,16 @@ export default function PermissionsPage() {
         </ConfirmationModal>
       )}
 
-      {/* Edit */}
       {selectedPermission && (
         <PermissionEditModal
           isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-            setEditError(null);
-          }}
+          onClose={handleCloseEditModal}
           permission={selectedPermission}
           onSave={handleUpdatePermission}
-          loading={detailLoading}
+          loading={savingPermission}
           error={editError}
         />
       )}
-
-      {/* Success toasts handled globally */}
     </DatabasePageLayout>
   );
 }

@@ -1,0 +1,113 @@
+import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("~/hooks/useIsMobile", () => ({
+  useIsMobile: vi.fn(() => false),
+}));
+
+class MockResizeObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+
+vi.stubGlobal("ResizeObserver", MockResizeObserver);
+
+import { PermissionsMasterDetail } from "./permissions-master-detail";
+import type { Permission } from "@/lib/auth-helpers";
+
+const readPermission: Permission = {
+  id: "1",
+  name: "students:read",
+  description: "Schülerdaten lesen",
+  resource: "students",
+  action: "read",
+  createdAt: "2026-01-01",
+  updatedAt: "2026-01-02",
+};
+
+const writePermission: Permission = {
+  id: "2",
+  name: "students:write",
+  description: "Schülerdaten bearbeiten",
+  resource: "students",
+  action: "write",
+  createdAt: "2026-01-01",
+  updatedAt: "2026-01-02",
+};
+
+describe("PermissionsMasterDetail", () => {
+  const onSelect = vi.fn();
+  const onEditClick = vi.fn();
+  const onDeleteClick = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows the empty detail state when nothing is selected", () => {
+    render(
+      <PermissionsMasterDetail
+        permissions={[readPermission]}
+        selectedId={null}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
+    // The list row is rendered.
+    expect(screen.getAllByRole("button").length).toBeGreaterThan(0);
+  });
+
+  it("renders the selected permission detail with technical name", () => {
+    render(
+      <PermissionsMasterDetail
+        permissions={[readPermission]}
+        selectedId="1"
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    expect(screen.getAllByText("students:read").length).toBeGreaterThan(0);
+    // Section title.
+    expect(screen.getByText("Berechtigungsdetails")).toBeInTheDocument();
+  });
+
+  it("triggers edit and delete callbacks from the header", () => {
+    render(
+      <PermissionsMasterDetail
+        permissions={[readPermission]}
+        selectedId="1"
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Bearbeiten"));
+    expect(onEditClick).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("Löschen"));
+    expect(onDeleteClick).toHaveBeenCalled();
+  });
+
+  it("groups permissions under a single 'Alle Berechtigungen' bucket and renders a Stammdaten tab", () => {
+    render(
+      <PermissionsMasterDetail
+        permissions={[readPermission, writePermission]}
+        selectedId="1"
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    expect(screen.getByText("Alle Berechtigungen (2)")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
+  });
+});
