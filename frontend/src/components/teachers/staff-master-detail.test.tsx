@@ -309,4 +309,73 @@ describe("StaffMasterDetail", () => {
       screen.getByDisplayValue("Fresh notes from parent"),
     ).toBeInTheDocument();
   });
+
+  it("opens mailto with the staff display name as the subject when 'Schreiben' is clicked", () => {
+    const originalLocation = globalThis.location;
+    const setHref = vi.fn();
+    Object.defineProperty(globalThis, "location", {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        set href(value: string) {
+          setHref(value);
+        },
+        get href() {
+          return originalLocation.href;
+        },
+      },
+    });
+
+    render(
+      <StaffMasterDetail
+        groupDefinitions={flatGroup([baseTeacher])}
+        selectedId="1"
+        selectedTeacher={baseTeacher}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        onUpdateNotes={onUpdateNotes}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("E-Mail schreiben"));
+
+    expect(setHref).toHaveBeenCalledTimes(1);
+    const url = setHref.mock.calls[0]?.[0] as string;
+    expect(url).toMatch(/^mailto:anna\.mueller@example\.com\?subject=/);
+    // The subject must be URL-encoded so umlauts survive transit.
+    expect(url).toContain(encodeURIComponent("Betreff: Anna Müller"));
+
+    Object.defineProperty(globalThis, "location", {
+      configurable: true,
+      value: originalLocation,
+    });
+  });
+
+  it("copies the email to the clipboard and flips the button label to 'Kopiert'", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(
+      <StaffMasterDetail
+        groupDefinitions={flatGroup([baseTeacher])}
+        selectedId="1"
+        selectedTeacher={baseTeacher}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        onUpdateNotes={onUpdateNotes}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("E-Mail kopieren"));
+
+    expect(writeText).toHaveBeenCalledWith("anna.mueller@example.com");
+    await waitFor(() => {
+      expect(screen.getByText("Kopiert")).toBeInTheDocument();
+    });
+  });
 });

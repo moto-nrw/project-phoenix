@@ -110,4 +110,45 @@ describe("PermissionsMasterDetail", () => {
     expect(screen.getByText("Alle Berechtigungen")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
   });
+
+  it("forwards a row click to onSelect with that row's permission id", () => {
+    render(
+      <PermissionsMasterDetail
+        permissions={[readPermission, writePermission]}
+        selectedId={null}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    // List rows surface the German description as the title. Click the row
+    // matching writePermission and assert it selects id="2", confirming each
+    // row is wired to its own id rather than a captured stale value.
+    fireEvent.click(screen.getByText("Schülerdaten bearbeiten"));
+    expect(onSelect).toHaveBeenCalledWith("2");
+  });
+
+  it("falls back to a 'resource · action' subtitle when description is blank", () => {
+    const permissionWithoutDescription: Permission = {
+      ...readPermission,
+      id: "9",
+      description: "   ",
+    };
+
+    render(
+      <PermissionsMasterDetail
+        permissions={[permissionWithoutDescription]}
+        selectedId={null}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    // The subtitle must be the localized "resource · action" composite, not
+    // an empty string. We assert on the separator dot — the localized parts
+    // are tested in auth-helpers — to stay decoupled from translations.
+    expect(screen.getByText(/·/)).toBeInTheDocument();
+  });
 });

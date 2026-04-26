@@ -195,4 +195,26 @@ describe("ActivitiesMasterDetail", () => {
     expect(screen.getByText("Alle Aktivitäten")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
   });
+
+  it("shows the loading spinner instead of the form while detailLoading is true", () => {
+    render(
+      <ActivitiesMasterDetail
+        activities={[regularActivity]}
+        selectedId="1"
+        selectedActivity={regularActivity}
+        detailLoading={true}
+        onSelect={onSelect}
+        onSaveActivity={onSaveActivity}
+        onResetForm={onResetForm}
+        onDeleteClick={onDeleteClick}
+        formResetKey="1:0"
+      />,
+    );
+
+    expect(
+      screen.getByText("Aktivitätsdaten werden geladen..."),
+    ).toBeInTheDocument();
+    // The form must NOT mount while loading.
+    expect(screen.queryByTestId("database-form")).not.toBeInTheDocument();
+  });
 });

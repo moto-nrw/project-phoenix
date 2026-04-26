@@ -63,4 +63,20 @@ describe("useClipboardCopy", () => {
     });
     consoleWarn.mockRestore();
   });
+
+  it("stringifies non-Error rejection reasons before logging", async () => {
+    writeText.mockRejectedValueOnce("permission-denied");
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    render(<Probe text="payload" />);
+
+    await act(async () => {
+      screen.getByTestId("probe").click();
+    });
+
+    expect(screen.getByTestId("probe")).toHaveTextContent("Kopieren");
+    expect(consoleWarn).toHaveBeenCalledWith("clipboard_copy_failed", {
+      error: "permission-denied",
+    });
+    consoleWarn.mockRestore();
+  });
 });

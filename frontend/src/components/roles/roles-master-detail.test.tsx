@@ -189,4 +189,27 @@ describe("RolesMasterDetail", () => {
     expect(screen.getByText("Alle Rollen")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
   });
+
+  it("renders the loading spinner instead of role data while detailLoading is true", () => {
+    render(
+      <RolesMasterDetail
+        roles={[customRole]}
+        selectedId="1"
+        selectedRole={customRole}
+        detailLoading={true}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        onManagePermissions={onManagePermissions}
+      />,
+    );
+
+    expect(
+      screen.getByText("Rollendaten werden geladen..."),
+    ).toBeInTheDocument();
+    // The Stammdaten data fields must NOT render while loading. "Berechtigungen"
+    // is the InfoSection-only label for the permission count grid; the header
+    // subtitle has its own count chip.
+    expect(screen.queryByText("Rollendetails")).not.toBeInTheDocument();
+  });
 });

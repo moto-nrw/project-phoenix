@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("~/hooks/useIsMobile", () => ({
@@ -179,5 +179,89 @@ describe("DevicesMasterDetail", () => {
     expect(screen.getByText("Kiosk (1)")).toBeInTheDocument();
     expect(screen.getByText("Info Point (1)")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
+  });
+
+  it("toggles the API key reveal back to masked after a second click", () => {
+    render(
+      <DevicesMasterDetail
+        groupDefinitions={flatGroup([offlineDeviceWithKey])}
+        selectedId="2"
+        selectedDevice={offlineDeviceWithKey}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    const reveal = screen.getByText("Anzeigen");
+    fireEvent.click(reveal);
+    expect(
+      (screen.getByDisplayValue("secret-token-abc") as HTMLInputElement).type,
+    ).toBe("text");
+
+    fireEvent.click(screen.getByText("Verbergen"));
+    expect(
+      (screen.getByDisplayValue("secret-token-abc") as HTMLInputElement).type,
+    ).toBe("password");
+  });
+
+  it("copies the API key to the clipboard and flips the button to 'Kopiert!'", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(
+      <DevicesMasterDetail
+        groupDefinitions={flatGroup([offlineDeviceWithKey])}
+        selectedId="2"
+        selectedDevice={offlineDeviceWithKey}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Kopieren"));
+    expect(writeText).toHaveBeenCalledWith("secret-token-abc");
+
+    await waitFor(() => {
+      expect(screen.getByText("Kopiert!")).toBeInTheDocument();
+    });
+  });
+
+  it("renders the offline status text and a labeled indicator dot when the device is offline", () => {
+    render(
+      <DevicesMasterDetail
+        groupDefinitions={flatGroup([offlineDeviceWithKey])}
+        selectedId="2"
+        selectedDevice={offlineDeviceWithKey}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    // Multiple "Offline" texts surface intentionally: the connection field, the
+    // status pill, and the list dot. We only assert that at least one is shown
+    // and that the labeled list-item indicator is also present.
+    expect(screen.getAllByText("Offline").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByLabelText("Offline").length).toBeGreaterThan(0);
+  });
+
+  it("labels the list-item connection dot as 'Online' for is_online devices", () => {
+    render(
+      <DevicesMasterDetail
+        groupDefinitions={flatGroup([onlineDevice])}
+        selectedId={null}
+        selectedDevice={null}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+      />,
+    );
+
+    expect(screen.getAllByLabelText("Online").length).toBeGreaterThan(0);
   });
 });

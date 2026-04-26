@@ -107,18 +107,27 @@ vi.mock("@/components/devices", () => ({
     isOpen,
     onClose,
     onCreate,
+    error,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { device_id: string }) => Promise<void>;
+    error?: string | null;
   }) =>
     isOpen ? (
       <div data-testid="device-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
           onClick={() => void onCreate({ device_id: "new-device" })}
         >
           Submit
+        </button>
+        <button
+          data-testid="submit-create-duplicate"
+          onClick={() => void onCreate({ device_id: "duplicate-id" })}
+        >
+          Submit Duplicate
         </button>
         <button data-testid="close-create-modal" onClick={onClose}>
           Close
@@ -138,7 +147,12 @@ vi.mock("@/components/devices", () => ({
       <div data-testid="device-edit-modal">
         <button
           data-testid="submit-edit"
-          onClick={() => void onSave({ name: "Updated Device" })}
+          onClick={() => {
+            // The real DeviceEditModal swallows rejections internally so it can
+            // surface its own error UI. Mirror that here so tests can assert on
+            // failure paths without unhandled-rejection noise.
+            onSave({ name: "Updated Device" }).catch(() => {});
+          }}
         >
           Save
         </button>
@@ -719,6 +733,146 @@ describe("DevicesPage", () => {
       );
       expect(screen.queryByTestId("detail-api-key")).not.toBeInTheDocument();
     });
+  });
+
+  it("propagates update failures so the edit modal stays open and no success toast fires", async () => {
+    setSelectedDevice("1");
+    mockUpdate.mockRejectedValueOnce(new Error("backend exploded"));
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "1",
+        expect.objectContaining({ name: "Updated Device" }),
+      );
+    });
+    // Modal must remain mounted on failure (the page rethrows so the modal
+    // can show its own error UI and let the user retry).
+    expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a German duplicate-ID hint that includes the rejected device_id", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error("backend says: duplicate device ID rejected"),
+    );
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create-duplicate"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Die Geräte-ID "duplicate-id" ist bereits vergeben/,
+      );
+    });
+    // The modal must NOT close on a duplicate so the user can correct the ID.
+    expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    // No success toast on failure.
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("matches duplicate-ID errors when the backend uses an HTTP 409 message", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error("Request failed with status 409"),
+    );
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create-duplicate"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /bereits vergeben/,
+      );
+    });
+  });
+
+  it("falls back to a generic error when the failure is not a duplicate", async () => {
+    mockCreate.mockRejectedValueOnce(new Error("network unreachable"));
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Fehler beim Erstellen des Geräts/,
+      );
+    });
+  });
+
+  it("clears the create error when the user closes the create modal", async () => {
+    mockCreate.mockRejectedValueOnce(new Error("network unreachable"));
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("close-create-modal"));
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("device-create-modal"),
+      ).not.toBeInTheDocument();
+    });
+
+    // Reopen the modal: the previous error must be gone.
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("create-error")).not.toBeInTheDocument();
   });
 
   it("keeps the created device detail mounted when the current search hides it", async () => {
