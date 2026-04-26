@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { redirect, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -76,14 +76,6 @@ export default function StudentsPage() {
   const isMobile = useIsMobile();
 
   const { success: toastSuccess, error: toastError } = useToast();
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   const { status } = useSession({
     required: true,
@@ -223,7 +215,6 @@ export default function StudentsPage() {
         studentData = studentsConfig.form.transformBeforeSubmit(studentData);
       }
       const newStudent = await service.create(studentData);
-      if (!isMountedRef.current) return;
       const displayName = studentsConfig.list.item.title(newStudent);
       toastSuccess(
         getDbOperationMessage(
@@ -245,7 +236,6 @@ export default function StudentsPage() {
           studentData = studentsConfig.form.transformBeforeSubmit(studentData);
         }
         await service.update(studentId, studentData);
-        if (!isMountedRef.current) return;
         toastSuccess(
           getDbOperationMessage(
             "update",
@@ -273,7 +263,6 @@ export default function StudentsPage() {
       toastError(deleteError);
       return;
     }
-    if (!isMountedRef.current) return;
     const displayName = studentsConfig.list.item.title(selectedStudent);
     toastSuccess(
       getDbOperationMessage(
@@ -298,10 +287,7 @@ export default function StudentsPage() {
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(() => {
-    // Detail panel doesn't track its own open state in this page,
-    // so there's nothing to close here.
-  });
+  } = useDeleteConfirmation();
 
   const handleArrivalChanged = useCallback(() => {
     setArrivalRevision((prev) => prev + 1);
@@ -387,7 +373,6 @@ export default function StudentsPage() {
                 label="Schüler"
                 ariaLabel="Schüler erstellen"
                 onClick={() => setShowCreateModal(true)}
-                showDesktop={!isMobile}
               />
             </div>
           }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -62,25 +62,15 @@ export default function RolesPage() {
     null,
   );
   const [detailLoading, setDetailLoading] = useState(false);
-  const isMountedRef = useRef(true);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(() => {
-    // Detail pane stays mounted; nothing to close.
-  });
+  } = useDeleteConfirmation();
 
   const { success: toastSuccess, error: toastError } = useToast();
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   const { status } = useSession({
     required: true,
@@ -96,22 +86,18 @@ export default function RolesPage() {
       setLoading(true);
       const data = await service.getList({ page: 1, pageSize: 500 });
       const arr = Array.isArray(data.data) ? data.data : [];
-      if (!isMountedRef.current) return;
       setRoles(arr);
       setError(null);
     } catch (err) {
       logger.error("failed to fetch roles", {
         error: err instanceof Error ? err.message : String(err),
       });
-      if (!isMountedRef.current) return;
       setError(
         "Fehler beim Laden der Rollen. Bitte versuchen Sie es später erneut.",
       );
       setRoles([]);
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [service]);
 
@@ -227,7 +213,6 @@ export default function RolesPage() {
       try {
         setCreateLoading(true);
         const created = await service.create(data);
-        if (!isMountedRef.current) return;
         toastSuccess(
           getDbOperationMessage(
             "create",
@@ -238,9 +223,7 @@ export default function RolesPage() {
         setShowCreateModal(false);
         await fetchRoles();
       } finally {
-        if (isMountedRef.current) {
-          setCreateLoading(false);
-        }
+        setCreateLoading(false);
       }
     },
     [service, fetchRoles, toastSuccess],
@@ -253,7 +236,6 @@ export default function RolesPage() {
         setDetailLoading(true);
         await service.update(selectedRole.id, data);
         const refreshed = await service.getOne(selectedRole.id);
-        if (!isMountedRef.current) return;
         setSelectedRoleDetail(refreshed);
         setShowEditModal(false);
         toastSuccess(
@@ -271,9 +253,7 @@ export default function RolesPage() {
         });
         throw err;
       } finally {
-        if (isMountedRef.current) {
-          setDetailLoading(false);
-        }
+        setDetailLoading(false);
       }
     },
     [selectedRole, service, fetchRoles, toastSuccess],
@@ -288,7 +268,6 @@ export default function RolesPage() {
         toastError(deleteError);
         return;
       }
-      if (!isMountedRef.current) return;
       toastSuccess(
         getDbOperationMessage(
           "delete",
@@ -300,9 +279,7 @@ export default function RolesPage() {
       handleSelectRole(null);
       await fetchRoles();
     } finally {
-      if (isMountedRef.current) {
-        setDetailLoading(false);
-      }
+      setDetailLoading(false);
     }
   }, [
     selectedRole,
@@ -358,7 +335,6 @@ export default function RolesPage() {
               label="Rolle"
               ariaLabel="Rolle erstellen"
               onClick={() => setShowCreateModal(true)}
-              showDesktop={!isMobile}
             />
           }
         />
@@ -476,9 +452,7 @@ export default function RolesPage() {
           onUpdate={async () => {
             await fetchRoles();
             const refreshed = await service.getOne(selectedRole.id);
-            if (isMountedRef.current) {
-              setSelectedRoleDetail(refreshed);
-            }
+            setSelectedRoleDetail(refreshed);
           }}
         />
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -44,25 +44,15 @@ export default function ActivitiesPage() {
     useState<Activity | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [formResetCounter, setFormResetCounter] = useState(0);
-  const isMountedRef = useRef(true);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(() => {
-    // Detail pane stays mounted; nothing to close.
-  });
+  } = useDeleteConfirmation();
 
   const { success: toastSuccess, error: toastError } = useToast();
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   const { status } = useSession({
     required: true,
@@ -223,7 +213,6 @@ export default function ActivitiesPage() {
           ? activitiesConfig.form.transformBeforeSubmit(data)
           : data;
         const created = await service.create(payload);
-        if (!isMountedRef.current) return;
         toastSuccess(
           getDbOperationMessage(
             "create",
@@ -234,9 +223,7 @@ export default function ActivitiesPage() {
         setShowCreateModal(false);
         await tenantMutate("database-activities-list");
       } finally {
-        if (isMountedRef.current) {
-          setCreateLoading(false);
-        }
+        setCreateLoading(false);
       }
     },
     [service, tenantMutate, toastSuccess],
@@ -252,7 +239,6 @@ export default function ActivitiesPage() {
           : data;
         await service.update(selectedActivity.id, payload);
         const refreshed = await service.getOne(selectedActivity.id);
-        if (!isMountedRef.current) return;
         setSelectedActivityDetail(refreshed);
         setFormResetCounter((current) => current + 1);
         toastSuccess(
@@ -273,9 +259,7 @@ export default function ActivitiesPage() {
         });
         throw updateError;
       } finally {
-        if (isMountedRef.current) {
-          setDetailLoading(false);
-        }
+        setDetailLoading(false);
       }
     },
     [selectedActivity, service, tenantMutate, toastSuccess],
@@ -290,7 +274,6 @@ export default function ActivitiesPage() {
         toastError(deleteError);
         return;
       }
-      if (!isMountedRef.current) return;
       toastSuccess(
         getDbOperationMessage(
           "delete",
@@ -303,9 +286,7 @@ export default function ActivitiesPage() {
       handleSelectActivity(null);
       await tenantMutate("database-activities-list");
     } finally {
-      if (isMountedRef.current) {
-        setDetailLoading(false);
-      }
+      setDetailLoading(false);
     }
   }, [
     selectedActivity,
@@ -362,7 +343,6 @@ export default function ActivitiesPage() {
               label="Aktivität"
               ariaLabel="Aktivität erstellen"
               onClick={() => setShowCreateModal(true)}
-              showDesktop={!isMobile}
             />
           }
         />

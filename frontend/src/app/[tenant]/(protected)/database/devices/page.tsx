@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -72,23 +72,15 @@ export default function DevicesPage() {
   // as the pre-master-detail modal had when it closed.
   const [createdDevice, setCreatedDevice] = useState<Device | null>(null);
   const [savingDevice, setSavingDevice] = useState(false);
-  const isMountedRef = useRef(true);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(() => {});
+  } = useDeleteConfirmation();
 
   const { success: toastSuccess, error: toastError } = useToast();
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   const { status } = useSession({
     required: true,
@@ -230,7 +222,6 @@ export default function DevicesPage() {
           ? devicesConfig.form.transformBeforeSubmit(data)
           : data;
         const created = await service.create(payload);
-        if (!isMountedRef.current) return;
         toastSuccess(
           getDbOperationMessage(
             "create",
@@ -258,9 +249,7 @@ export default function DevicesPage() {
         }
         logger.error("device_create_failed", { error: errorMessage });
       } finally {
-        if (isMountedRef.current) {
-          setCreateLoading(false);
-        }
+        setCreateLoading(false);
       }
     },
     [service, handleSelectDevice, tenantMutate, toastSuccess],
@@ -275,7 +264,6 @@ export default function DevicesPage() {
           ? devicesConfig.form.transformBeforeSubmit(data)
           : data;
         const updatedDevice = await service.update(selectedDevice.id, payload);
-        if (!isMountedRef.current) return;
         // Editing closes the api_key flash — the snapshot would otherwise
         // overlay the freshly-edited list values on the next render.
         setCreatedDevice(null);
@@ -295,9 +283,7 @@ export default function DevicesPage() {
         });
         throw err;
       } finally {
-        if (isMountedRef.current) {
-          setSavingDevice(false);
-        }
+        setSavingDevice(false);
       }
     },
     [selectedDevice, service, tenantMutate, toastSuccess],
@@ -310,7 +296,6 @@ export default function DevicesPage() {
       toastError(deleteError);
       return;
     }
-    if (!isMountedRef.current) return;
     toastSuccess(
       getDbOperationMessage(
         "delete",
@@ -384,7 +369,6 @@ export default function DevicesPage() {
                 label="Gerät"
                 ariaLabel="Gerät registrieren"
                 onClick={() => setShowCreateModal(true)}
-                showDesktop={!isMobile}
               />
             </div>
           }

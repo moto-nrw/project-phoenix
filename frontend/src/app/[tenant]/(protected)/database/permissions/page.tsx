@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -50,23 +50,15 @@ export default function PermissionsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [savingPermission, setSavingPermission] = useState(false);
-  const isMountedRef = useRef(true);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(() => {});
+  } = useDeleteConfirmation();
 
   const { success: toastSuccess, error: toastError } = useToast();
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   const { status } = useSession({
     required: true,
@@ -82,22 +74,18 @@ export default function PermissionsPage() {
       setLoading(true);
       const data = await service.getList({ page: 1, pageSize: 500 });
       const arr = Array.isArray(data.data) ? data.data : [];
-      if (!isMountedRef.current) return;
       setPermissions(arr);
       setError(null);
     } catch (err) {
       logger.error("failed to fetch permissions", {
         error: err instanceof Error ? err.message : String(err),
       });
-      if (!isMountedRef.current) return;
       setError(
         "Fehler beim Laden der Berechtigungen. Bitte versuchen Sie es später erneut.",
       );
       setPermissions([]);
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [service]);
 
@@ -191,7 +179,6 @@ export default function PermissionsPage() {
           ? permissionsConfig.form.transformBeforeSubmit(data)
           : data;
         const created = await service.create(payload);
-        if (!isMountedRef.current) return;
         const display = `${created.resource}: ${created.action}`;
         toastSuccess(
           getDbOperationMessage(
@@ -219,9 +206,7 @@ export default function PermissionsPage() {
           );
         }
       } finally {
-        if (isMountedRef.current) {
-          setCreateLoading(false);
-        }
+        setCreateLoading(false);
       }
     },
     [service, fetchPermissions, toastSuccess],
@@ -237,7 +222,6 @@ export default function PermissionsPage() {
           ? permissionsConfig.form.transformBeforeSubmit(data)
           : data;
         await service.update(selectedPermission.id, payload);
-        if (!isMountedRef.current) return;
         setShowEditModal(false);
         const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
         toastSuccess(
@@ -265,9 +249,7 @@ export default function PermissionsPage() {
           );
         }
       } finally {
-        if (isMountedRef.current) {
-          setSavingPermission(false);
-        }
+        setSavingPermission(false);
       }
     },
     [selectedPermission, service, fetchPermissions, toastSuccess],
@@ -280,7 +262,6 @@ export default function PermissionsPage() {
       toastError(deleteError);
       return;
     }
-    if (!isMountedRef.current) return;
     const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
     toastSuccess(
       getDbOperationMessage("delete", permissionsConfig.name.singular, display),
@@ -340,7 +321,6 @@ export default function PermissionsPage() {
               label="Berechtigung"
               ariaLabel="Berechtigung erstellen"
               onClick={() => setShowCreateModal(true)}
-              showDesktop={!isMobile}
             />
           }
         />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -58,23 +58,15 @@ export default function RoomsPage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
-  const isMountedRef = useRef(true);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(() => {});
+  } = useDeleteConfirmation();
 
   const { success: toastSuccess, error: toastError } = useToast();
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   const { status } = useSession({
     required: true,
@@ -224,7 +216,6 @@ export default function RoomsPage() {
           data = roomsConfig.form.transformBeforeSubmit(data);
         }
         const created = await service.create(data);
-        if (!isMountedRef.current) return;
         toastSuccess(
           getDbOperationMessage(
             "create",
@@ -235,9 +226,7 @@ export default function RoomsPage() {
         setShowCreateModal(false);
         await tenantMutate("database-rooms-list");
       } finally {
-        if (isMountedRef.current) {
-          setCreateLoading(false);
-        }
+        setCreateLoading(false);
       }
     },
     [service, tenantMutate, toastSuccess],
@@ -251,7 +240,6 @@ export default function RoomsPage() {
           data = roomsConfig.form.transformBeforeSubmit(data);
         }
         await service.update(selectedRoom.id, data);
-        if (!isMountedRef.current) return;
         toastSuccess(
           getDbOperationMessage(
             "update",
@@ -281,7 +269,6 @@ export default function RoomsPage() {
       toastError(deleteError);
       return;
     }
-    if (!isMountedRef.current) return;
     toastSuccess(
       getDbOperationMessage(
         "delete",
@@ -354,7 +341,6 @@ export default function RoomsPage() {
                 label="Raum"
                 ariaLabel="Raum erstellen"
                 onClick={() => setShowCreateModal(true)}
-                showDesktop={!isMobile}
               />
             </div>
           }

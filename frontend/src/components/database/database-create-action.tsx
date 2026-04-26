@@ -4,27 +4,27 @@ interface DatabaseCreateActionProps {
   label: string;
   ariaLabel: string;
   onClick: () => void;
-  showDesktop: boolean;
 }
 
+/**
+ * Renders both the desktop "+ Label" button and the mobile FAB. Visibility
+ * is controlled by Tailwind responsive utilities (no JS-side viewport check).
+ */
 export function DatabaseCreateAction({
   label,
   ariaLabel,
   onClick,
-  showDesktop,
 }: DatabaseCreateActionProps) {
   return (
     <>
-      {showDesktop ? (
-        <button
-          type="button"
-          onClick={onClick}
-          className="flex h-10 items-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white hover:bg-[#76B929]"
-          aria-label={ariaLabel}
-        >
-          + {label}
-        </button>
-      ) : null}
+      <button
+        type="button"
+        onClick={onClick}
+        className="hidden h-10 items-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white hover:bg-[#76B929] md:flex"
+        aria-label={ariaLabel}
+      >
+        + {label}
+      </button>
       <button
         type="button"
         onClick={onClick}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -37,23 +37,15 @@ export default function GroupsPage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
-  const isMountedRef = useRef(true);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(() => {});
+  } = useDeleteConfirmation();
 
   const { success: toastSuccess, error: toastError } = useToast();
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   const { status } = useSession({
     required: true,
@@ -162,7 +154,6 @@ export default function GroupsPage() {
           ? groupsConfig.form.transformBeforeSubmit(data)
           : data;
         const created = await service.create(payload);
-        if (!isMountedRef.current) return;
         toastSuccess(
           getDbOperationMessage(
             "create",
@@ -173,9 +164,7 @@ export default function GroupsPage() {
         setShowCreateModal(false);
         await tenantMutate("database-groups-list");
       } finally {
-        if (isMountedRef.current) {
-          setCreateLoading(false);
-        }
+        setCreateLoading(false);
       }
     },
     [service, tenantMutate, toastSuccess],
@@ -189,7 +178,6 @@ export default function GroupsPage() {
           ? groupsConfig.form.transformBeforeSubmit(data)
           : data;
         await service.update(selectedGroup.id, payload);
-        if (!isMountedRef.current) return;
         toastSuccess(
           getDbOperationMessage(
             "update",
@@ -219,7 +207,6 @@ export default function GroupsPage() {
       toastError(deleteError);
       return;
     }
-    if (!isMountedRef.current) return;
     toastSuccess(
       getDbOperationMessage(
         "delete",
@@ -284,7 +271,6 @@ export default function GroupsPage() {
               label="Gruppe"
               ariaLabel="Gruppe erstellen"
               onClick={() => setShowCreateModal(true)}
-              showDesktop={!isMobile}
             />
           }
         />
