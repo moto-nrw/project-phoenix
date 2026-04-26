@@ -91,7 +91,10 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-// Mock PageHeaderWithSearch — renders filters and activeFilters to exercise those code paths
+// Mock PageHeaderWithSearch — renders filters, activeFilters, and the
+// overflow-menu items so the existing "Gruppe übergeben" assertions keep
+// working. The real OverflowMenu requires a click to expose its items, but
+// for tests we render them flat so getByLabelText still finds them.
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({
     title,
@@ -99,6 +102,7 @@ vi.mock("~/components/ui/page-header", () => ({
     activeFilters,
     onClearAllFilters,
     actionButton,
+    overflowMenu,
   }: {
     title: string;
     filters?: Array<{
@@ -111,10 +115,26 @@ vi.mock("~/components/ui/page-header", () => ({
     activeFilters?: Array<{ id: string; label: string; onRemove: () => void }>;
     onClearAllFilters?: () => void;
     actionButton?: React.ReactNode;
+    overflowMenu?: Array<{
+      label: string;
+      onClick: () => void;
+      badge?: string | number;
+    }>;
   }) => (
     <div data-testid="page-header">
       {title}
       {actionButton}
+      {overflowMenu?.map((item) => (
+        <button
+          key={item.label}
+          aria-label={item.label}
+          data-testid={`overflow-${item.label}`}
+          onClick={item.onClick}
+        >
+          {item.label}
+          {item.badge != null ? <span>{` (${item.badge})`}</span> : null}
+        </button>
+      ))}
       {filters?.map((f) => (
         <div key={f.id} data-testid={`filter-${f.id}`} data-value={f.value}>
           {f.options.map((opt) => (
@@ -361,13 +381,10 @@ vi.mock("lucide-react", () => ({
   ),
 }));
 
-// Mock school-checkin-toggle so the existing tests don't need to care
-// about the new header button — page.school-checkin.test.tsx exercises it.
-vi.mock("~/components/students/school-checkin-toggle", () => ({
-  SchoolCheckinToggle: () => <div data-testid="school-checkin-toggle" />,
-  SchoolCheckinToggleMobile: () => (
-    <div data-testid="school-checkin-toggle-mobile" />
-  ),
+// Mock the school-checkin FAB so existing tests don't need to care about
+// the floating mode trigger — page.school-checkin.test.tsx exercises it.
+vi.mock("~/components/students/school-checkin-fab", () => ({
+  SchoolCheckinFab: () => <div data-testid="school-checkin-fab" />,
 }));
 
 // Mock the school-checkin hook so tests don't need to wire useToast/SWR up.
@@ -377,6 +394,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     toggleActive: vi.fn(),
     deactivate: vi.fn(),
     pendingIds: new Set<string>(),
+    successCount: 0,
     toggle: vi.fn(),
   }),
   deriveCheckinState: () => "unknown",

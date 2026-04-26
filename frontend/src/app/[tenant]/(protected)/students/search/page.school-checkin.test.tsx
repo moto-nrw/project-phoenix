@@ -1,7 +1,12 @@
 /**
  * Page-level wiring tests for StudentSearchPage + school check-in/out.
- * Asserts the toggle renders in the header and that StudentCard receives
- * the correct check-in props from the hook.
+ * Asserts the FAB renders on binary-mode tenants and that StudentCard
+ * receives the correct check-in props from the hook.
+ *
+ * NOTE: tests previously asserted on the legacy SchoolCheckinToggle which
+ * lived in the page header. The toggle was replaced by a floating FAB
+ * (SchoolCheckinFab) rendered outside the header. The behavioural
+ * assertions are unchanged — only the mock target moved.
  */
 import {
   cleanup,
@@ -17,15 +22,13 @@ const {
   mockToggleStudent,
   mockUseSchoolCheckinMode,
   mockStudentCard,
-  mockDesktopToggle,
-  mockMobileToggle,
+  mockFab,
 } = vi.hoisted(() => ({
   mockToggleActive: vi.fn(),
   mockToggleStudent: vi.fn(),
   mockUseSchoolCheckinMode: vi.fn(),
   mockStudentCard: vi.fn(),
-  mockDesktopToggle: vi.fn(),
-  mockMobileToggle: vi.fn(),
+  mockFab: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
@@ -47,36 +50,23 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock("~/components/students/school-checkin-toggle", () => ({
-  SchoolCheckinToggle: (props: {
+vi.mock("~/components/students/school-checkin-fab", () => ({
+  SchoolCheckinFab: (props: {
     isActive: boolean;
     onToggle: () => void;
-    pendingCount?: number;
+    successCount: number;
+    pendingCount: number;
   }) => {
-    mockDesktopToggle(props);
+    mockFab(props);
     return (
       <button
-        data-testid="school-checkin-toggle"
+        data-testid="school-checkin-fab"
         data-active={props.isActive}
+        data-pending={props.pendingCount}
+        data-success-count={props.successCount}
         onClick={props.onToggle}
       >
-        toggle
-      </button>
-    );
-  },
-  SchoolCheckinToggleMobile: (props: {
-    isActive: boolean;
-    onToggle: () => void;
-    pendingCount?: number;
-  }) => {
-    mockMobileToggle(props);
-    return (
-      <button
-        data-testid="school-checkin-toggle-mobile"
-        data-active={props.isActive}
-        onClick={props.onToggle}
-      >
-        mobile-toggle
+        fab
       </button>
     );
   },
@@ -245,6 +235,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
       toggleActive: mockToggleActive,
       deactivate: vi.fn(),
       pendingIds: new Set<string>(),
+      successCount: 0,
       toggle: mockToggleStudent,
     });
 
@@ -264,25 +255,24 @@ describe("StudentSearchPage — school check-in wiring", () => {
     cleanup();
   });
 
-  it("renders the SchoolCheckinToggle in the header", async () => {
+  it("renders the SchoolCheckinFab on binary-mode tenants", async () => {
     render(<StudentSearchPage />);
 
     await waitFor(() => {
       expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
     });
 
-    const toggles = screen.queryAllByTestId(/school-checkin-toggle/);
-    expect(toggles.length).toBeGreaterThan(0);
+    expect(screen.getByTestId("school-checkin-fab")).toBeInTheDocument();
   });
 
-  it("clicking the toggle fires hook.toggleActive", async () => {
+  it("clicking the FAB fires hook.toggleActive", async () => {
     render(<StudentSearchPage />);
 
     await waitFor(() => {
       expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.queryAllByTestId(/school-checkin-toggle/)[0]!);
+    fireEvent.click(screen.getByTestId("school-checkin-fab"));
     expect(mockToggleActive).toHaveBeenCalledTimes(1);
   });
 
@@ -292,6 +282,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
       toggleActive: mockToggleActive,
       deactivate: vi.fn(),
       pendingIds: new Set<string>(),
+      successCount: 0,
       toggle: mockToggleStudent,
     });
 
@@ -312,6 +303,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
       toggleActive: mockToggleActive,
       deactivate: vi.fn(),
       pendingIds: new Set<string>(),
+      successCount: 0,
       toggle: mockToggleStudent,
     });
 
@@ -336,5 +328,27 @@ describe("StudentSearchPage — school check-in wiring", () => {
     fireEvent.click(screen.getByTestId("student-card-7"));
     expect(mockPush).toHaveBeenCalledWith("/students/7?from=/students/search");
     expect(mockToggleStudent).not.toHaveBeenCalled();
+  });
+
+  it("forwards pending count to the FAB via prop", async () => {
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(["7", "8"]),
+      successCount: 0,
+      toggle: mockToggleStudent,
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("school-checkin-fab")).toHaveAttribute(
+      "data-pending",
+      "2",
+    );
   });
 });

@@ -1,5 +1,9 @@
 // Types for the PageHeaderWithSearch component system
 
+import type { OverflowMenuItem } from "./OverflowMenu";
+
+export type { OverflowMenuItem } from "./OverflowMenu";
+
 export interface PageHeaderWithSearchProps {
   // Header configuration
   readonly title: string;
@@ -38,6 +42,39 @@ export interface PageHeaderWithSearchProps {
   // Custom action buttons
   readonly actionButton?: React.ReactNode; // Desktop action button (shown in tab row with full styling)
   readonly mobileActionButton?: React.ReactNode; // Mobile action button (compact version in tab row)
+
+  /**
+   * Optional kebab-menu (⋮) items rendered right of the tabs/title row.
+   * Empty or undefined → no menu rendered. Used for rarely-touched actions
+   * (export, "Gruppe übergeben", etc.) so the visible header stays calm.
+   */
+  readonly overflowMenu?: readonly OverflowMenuItem[];
+
+  /**
+   * Page-level primary action (e.g. a check-in mode trigger). When set, the
+   * desktop search row splits into two rows: row 1 carries search +
+   * primaryAction, row 2 carries filters + actionButton + kebab. Mobile is
+   * unaffected — primary actions on mobile typically render as a floating
+   * FAB at the page level, not inside this header.
+   */
+  readonly primaryAction?: React.ReactNode;
+
+  /**
+   * When true, the search row shrinks (transform-only) and gains a
+   * backdrop-blur background once the page is scrolled past ~40px. Default
+   * `false` so existing consumers are unaffected.
+   */
+  readonly compactOnScroll?: boolean;
+
+  /**
+   * How active filters are surfaced.
+   *
+   * - `"chips"` (default): the existing chip row below the search row.
+   * - `"count"`: chip row is suppressed and the active count is shown as a
+   *   numeric badge on the filter pill (mobile) and on a small inline pill
+   *   in the desktop search row.
+   */
+  readonly activeFilterDisplay?: "chips" | "count";
 
   // Layout options
   readonly className?: string;
@@ -86,6 +123,8 @@ export interface PageHeaderProps {
     readonly tooltip?: string;
   };
   readonly actionButton?: React.ReactNode;
+  /** Optional kebab-menu rendered after the action button on mobile. */
+  readonly overflowMenu?: readonly OverflowMenuItem[];
   readonly className?: string;
 }
 

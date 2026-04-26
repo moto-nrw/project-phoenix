@@ -52,11 +52,12 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
 } from "~/components/students/student-card";
-import { SchoolCheckinModeBar } from "~/components/students/school-checkin-mode-bar";
+import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
+import { buildGroupOverflowItems } from "./components/group-overflow-items";
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
@@ -1057,13 +1058,14 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Render helper for desktop action button — "Gruppe übergeben" only.
-  // The check-in/out toggle moved into its own ModeBar between the filter
-  // row and the card grid (less cramped, full-width for tablet/mobile).
-  const renderDesktopActionButton = () => {
-    if (isMobile || !currentGroup) return undefined;
+  // Render helper for the substitution status pill. "In Vertretung" is a
+  // passive informational badge — it just signals that the current user is
+  // covering for someone else. Active actions ("Gruppe übergeben") moved into
+  // the kebab-menu, and the check-in mode lives in the SchoolCheckinFab.
+  const renderSubstitutionBadge = (variant: "desktop" | "mobile") => {
+    if (!currentGroup?.viaSubstitution) return undefined;
 
-    if (currentGroup.viaSubstitution) {
+    if (variant === "desktop") {
       return (
         <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
           <svg
@@ -1085,18 +1087,18 @@ function OGSGroupPageContent() {
         </div>
       );
     }
+
     return (
-      <button
-        onClick={() => setShowTransferModal(true)}
-        className="flex h-10 items-center gap-2 rounded-full border border-[#83CD2D] bg-white px-4 text-[#4a7a15] transition-colors duration-150 hover:bg-[#f0f9e4] active:bg-[#e4f3d3]"
-        aria-label="Gruppe übergeben"
+      <div
+        className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
+        title="In Vertretung"
       >
         <svg
-          className="h-4 w-4"
+          className="h-4 w-4 text-orange-600"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          strokeWidth={2}
+          strokeWidth={2.5}
         >
           <path
             strokeLinecap="round"
@@ -1104,69 +1106,19 @@ function OGSGroupPageContent() {
             d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
           />
         </svg>
-        <span className="text-sm font-medium">
-          {activeTransfers.length > 0
-            ? `Gruppe übergeben (${activeTransfers.length})`
-            : "Gruppe übergeben"}
-        </span>
-      </button>
+      </div>
     );
   };
 
-  // Render helper for mobile action button — same logic as desktop, smaller
-  // affordance. Check-in toggle is rendered separately by the ModeBar.
-  const renderMobileActionButton = () => {
-    if (!isMobile || !currentGroup) return undefined;
-
-    if (currentGroup.viaSubstitution) {
-      return (
-        <div
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
-          title="In Vertretung"
-        >
-          <svg
-            className="h-4 w-4 text-orange-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-            />
-          </svg>
-        </div>
-      );
-    }
-    return (
-      <button
-        onClick={() => setShowTransferModal(true)}
-        className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[#4a7a15] transition-colors duration-150 active:bg-[#e4f3d3]"
-        aria-label="Gruppe übergeben"
-      >
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-          />
-        </svg>
-        {activeTransfers.length > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[10px] font-bold text-[#4a7a15]">
-            {activeTransfers.length}
-          </span>
-        )}
-      </button>
-    );
-  };
+  // Build the kebab-menu items once per render. Skip when there's no current
+  // group (loading state) so the menu doesn't appear with stale handlers.
+  const overflowItems = currentGroup
+    ? buildGroupOverflowItems({
+        viaSubstitution: currentGroup.viaSubstitution ?? false,
+        activeTransfersCount: activeTransfers.length,
+        onOpenTransfer: () => setShowTransferModal(true),
+      })
+    : [];
 
   // Render helper for student grid content
   const renderStudentContent = () => {
@@ -1316,15 +1268,28 @@ function OGSGroupPageContent() {
             shows through unbroken — the search bar and banner are already
             opaque pills, so individual elements stay readable on scroll. */}
         <div className="sticky top-[73px] z-30 -mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
-          {/* PageHeaderWithSearch - Title only on mobile */}
           <PageHeaderWithSearch
             title={
               isMobile && allGroups.length === 1
                 ? (currentGroup?.name ?? "Meine Gruppe")
                 : "" // No title when multiple groups (tabs show group names) or on desktop
             }
-            actionButton={renderDesktopActionButton()}
-            mobileActionButton={renderMobileActionButton()}
+            actionButton={renderSubstitutionBadge("desktop")}
+            mobileActionButton={renderSubstitutionBadge("mobile")}
+            overflowMenu={overflowItems}
+            primaryAction={
+              isBinaryMode ? (
+                <SchoolCheckinFab
+                  variant="inline"
+                  isActive={schoolCheckin.isActive}
+                  onToggle={schoolCheckin.toggleActive}
+                  successCount={schoolCheckin.successCount}
+                  pendingCount={schoolCheckin.pendingIds.size}
+                />
+              ) : undefined
+            }
+            compactOnScroll
+            activeFilterDisplay="count"
             tabs={
               allGroups.length > 1 && !isDesktop
                 ? {
@@ -1361,20 +1326,6 @@ function OGSGroupPageContent() {
               setSortMode("default");
             }}
           />
-
-          {/* School check-in/out mode bar — only in binary-mode tenants.
-              Sits between the filter row and the card grid; in OFF state it
-              offers the entry into the mode, in ON state it shows progress
-              + a Fertig button. The cards themselves render the per-student
-              tap-strip via the StudentCard checkinMode props. */}
-          {isBinaryMode && (
-            <SchoolCheckinModeBar
-              isActive={schoolCheckin.isActive}
-              onToggle={schoolCheckin.toggleActive}
-              successCount={schoolCheckin.successCount}
-              pendingCount={schoolCheckin.pendingIds.size}
-            />
-          )}
         </div>
 
         {/* Mobile Error Display — outside the sticky stack so it doesn't
@@ -1385,9 +1336,29 @@ function OGSGroupPageContent() {
           </div>
         )}
 
-        {/* Student Grid - Mobile Optimized */}
-        {renderStudentContent()}
+        {/* Student Grid. Bottom padding clears the floating FAB on
+            mobile/tablet; on desktop the inline pill lives in the header
+            and doesn't overlap the grid. */}
+        <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
+          {renderStudentContent()}
+        </div>
       </div>
+
+      {/* Mobile/tablet check-in mode trigger — floating FAB. The desktop
+          equivalent renders as an inline pill inside the page header's
+          primaryAction slot (see PageHeaderWithSearch above). The two
+          renders are CSS-gated so only one is ever visible per viewport. */}
+      {isBinaryMode && (
+        <div className="lg:hidden">
+          <SchoolCheckinFab
+            variant="floating"
+            isActive={schoolCheckin.isActive}
+            onToggle={schoolCheckin.toggleActive}
+            successCount={schoolCheckin.successCount}
+            pendingCount={schoolCheckin.pendingIds.size}
+          />
+        </div>
+      )}
 
       {/* Group Transfer Modal */}
       <GroupTransferModal

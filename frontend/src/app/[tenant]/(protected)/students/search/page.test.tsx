@@ -169,14 +169,11 @@ vi.mock("~/lib/location-helper", () => ({
   },
 }));
 
-// Mock school-checkin-toggle + hook so existing search tests aren't
-// responsible for the new header button — page.school-checkin.test.tsx
-// exercises that wiring directly.
-vi.mock("~/components/students/school-checkin-toggle", () => ({
-  SchoolCheckinToggle: () => <div data-testid="school-checkin-toggle" />,
-  SchoolCheckinToggleMobile: () => (
-    <div data-testid="school-checkin-toggle-mobile" />
-  ),
+// Mock school-checkin FAB + hook so existing search tests aren't
+// responsible for the new floating mode trigger —
+// page.school-checkin.test.tsx covers it dedicatedly.
+vi.mock("~/components/students/school-checkin-fab", () => ({
+  SchoolCheckinFab: () => <div data-testid="school-checkin-fab" />,
 }));
 
 vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
@@ -185,6 +182,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     toggleActive: vi.fn(),
     deactivate: vi.fn(),
     pendingIds: new Set<string>(),
+    successCount: 0,
     toggle: vi.fn(),
   }),
   deriveCheckinState: () => "unknown",

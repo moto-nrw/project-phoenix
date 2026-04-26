@@ -1,12 +1,17 @@
 /**
  * Page-level wiring tests for school check-in/out integration.
  * Verifies that OGSGroupPage:
- *   1. Renders the SchoolCheckinToggle in the header action slot.
+ *   1. Renders the SchoolCheckinFab on binary-mode tenants.
  *   2. Forwards check-in mode state + per-student handlers to StudentCard.
  *
  * The hook itself has its own unit test (use-school-checkin-mode.test.ts);
  * here we mock it so we can drive state deterministically and focus on
  * the page's glue rather than SWR/toast infrastructure.
+ *
+ * NOTE: tests previously asserted on the legacy SchoolCheckinToggle which
+ * lived in the page header. The toggle was replaced by a floating FAB
+ * (SchoolCheckinFab) rendered outside the header. The behavioural
+ * assertions are unchanged — only the mock target moved.
  */
 import {
   cleanup,
@@ -23,15 +28,13 @@ const {
   mockToggleStudent,
   mockUseSchoolCheckinMode,
   mockStudentCard,
-  mockDesktopToggle,
-  mockMobileToggle,
+  mockFab,
 } = vi.hoisted(() => ({
   mockToggleActive: vi.fn(),
   mockToggleStudent: vi.fn(),
   mockUseSchoolCheckinMode: vi.fn(),
   mockStudentCard: vi.fn(),
-  mockDesktopToggle: vi.fn(),
-  mockMobileToggle: vi.fn(),
+  mockFab: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
@@ -44,8 +47,8 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
   },
 }));
 
-// Page gates the toggle on binary mode; the global tenant-provider mock
-// (src/test/setup.ts) defaults to "detailed", which would hide the button
+// Page gates the FAB on binary mode; the global tenant-provider mock
+// (src/test/setup.ts) defaults to "detailed", which would hide the trigger
 // and make every assertion here fail. Override to "binary".
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
@@ -54,37 +57,23 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock("~/components/students/school-checkin-toggle", () => ({
-  SchoolCheckinToggle: (props: {
+vi.mock("~/components/students/school-checkin-fab", () => ({
+  SchoolCheckinFab: (props: {
     isActive: boolean;
     onToggle: () => void;
-    pendingCount?: number;
+    successCount: number;
+    pendingCount: number;
   }) => {
-    mockDesktopToggle(props);
+    mockFab(props);
     return (
       <button
-        data-testid="school-checkin-toggle"
+        data-testid="school-checkin-fab"
         data-active={props.isActive}
-        data-pending={props.pendingCount ?? 0}
+        data-pending={props.pendingCount}
+        data-success-count={props.successCount}
         onClick={props.onToggle}
       >
-        toggle
-      </button>
-    );
-  },
-  SchoolCheckinToggleMobile: (props: {
-    isActive: boolean;
-    onToggle: () => void;
-    pendingCount?: number;
-  }) => {
-    mockMobileToggle(props);
-    return (
-      <button
-        data-testid="school-checkin-toggle-mobile"
-        data-active={props.isActive}
-        onClick={props.onToggle}
-      >
-        mobile-toggle
+        fab
       </button>
     );
   },
@@ -317,6 +306,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       toggleActive: mockToggleActive,
       deactivate: vi.fn(),
       pendingIds: new Set<string>(),
+      successCount: 0,
       toggle: mockToggleStudent,
     });
 
@@ -357,28 +347,24 @@ describe("OGSGroupPage — school check-in wiring", () => {
     cleanup();
   });
 
-  it("renders the SchoolCheckinToggle in the header action slot", async () => {
+  it("renders the SchoolCheckinFab on binary-mode tenants", async () => {
     render(<OGSGroupPage />);
 
     await waitFor(() => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    // At least one toggle variant should be present (desktop OR mobile,
-    // depending on the simulated viewport — both are wired up).
-    const toggles = screen.queryAllByTestId(/school-checkin-toggle/);
-    expect(toggles.length).toBeGreaterThan(0);
+    expect(screen.getByTestId("school-checkin-fab")).toBeInTheDocument();
   });
 
-  it("clicking the toggle calls toggleActive on the hook", async () => {
+  it("clicking the FAB calls toggleActive on the hook", async () => {
     render(<OGSGroupPage />);
 
     await waitFor(() => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    const toggles = screen.queryAllByTestId(/school-checkin-toggle/);
-    fireEvent.click(toggles[0]!);
+    fireEvent.click(screen.getByTestId("school-checkin-fab"));
     expect(mockToggleActive).toHaveBeenCalledTimes(1);
   });
 
@@ -399,6 +385,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       toggleActive: mockToggleActive,
       deactivate: vi.fn(),
       pendingIds: new Set<string>(),
+      successCount: 0,
       toggle: mockToggleStudent,
     });
 
@@ -419,6 +406,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       toggleActive: mockToggleActive,
       deactivate: vi.fn(),
       pendingIds: new Set<string>(),
+      successCount: 0,
       toggle: mockToggleStudent,
     });
 
@@ -446,12 +434,13 @@ describe("OGSGroupPage — school check-in wiring", () => {
     expect(mockToggleStudent).not.toHaveBeenCalled();
   });
 
-  it("surfaces pending count on the toggle via prop", async () => {
+  it("forwards pending count to the FAB via prop", async () => {
     mockUseSchoolCheckinMode.mockReturnValue({
       isActive: true,
       toggleActive: mockToggleActive,
       deactivate: vi.fn(),
       pendingIds: new Set<string>(["42", "99"]),
+      successCount: 0,
       toggle: mockToggleStudent,
     });
 
@@ -461,12 +450,32 @@ describe("OGSGroupPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    // Either desktop or mobile toggle captures pendingCount=2.
-    const captured = [
-      ...mockDesktopToggle.mock.calls,
-      ...mockMobileToggle.mock.calls,
-    ].map((c) => c[0] as { pendingCount?: number });
-    expect(captured.some((p) => p.pendingCount === 2)).toBe(true);
+    expect(screen.getByTestId("school-checkin-fab")).toHaveAttribute(
+      "data-pending",
+      "2",
+    );
+  });
+
+  it("forwards success count to the FAB via prop", async () => {
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(),
+      successCount: 5,
+      toggle: mockToggleStudent,
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("school-checkin-fab")).toHaveAttribute(
+      "data-success-count",
+      "5",
+    );
   });
 
   it("marks the card as pending when its id is in pendingIds", async () => {
@@ -475,6 +484,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       toggleActive: mockToggleActive,
       deactivate: vi.fn(),
       pendingIds: new Set<string>(["42"]),
+      successCount: 0,
       toggle: mockToggleStudent,
     });
 
