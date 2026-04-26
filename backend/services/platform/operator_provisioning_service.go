@@ -20,6 +20,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -158,6 +159,7 @@ type operatorProvisioningService struct {
 	staffRepo           userModels.StaffRepository
 	teacherRepo         userModels.TeacherRepository
 	groupSupervisorRepo activeModels.GroupSupervisorRepository
+	calendarPeriodRepo  scheduleModels.CalendarPeriodRepository
 	invitationService   authSvc.InvitationService
 	authService         authSvc.AuthService
 	auditLogRepo        platform.OperatorAuditLogRepository
@@ -177,6 +179,7 @@ type OperatorProvisioningServiceConfig struct {
 	StaffRepo           userModels.StaffRepository
 	TeacherRepo         userModels.TeacherRepository
 	GroupSupervisorRepo activeModels.GroupSupervisorRepository
+	CalendarPeriodRepo  scheduleModels.CalendarPeriodRepository
 	InvitationService   authSvc.InvitationService
 	AuthService         authSvc.AuthService
 	AuditLogRepo        platform.OperatorAuditLogRepository
@@ -197,6 +200,7 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		staffRepo:           cfg.StaffRepo,
 		teacherRepo:         cfg.TeacherRepo,
 		groupSupervisorRepo: cfg.GroupSupervisorRepo,
+		calendarPeriodRepo:  cfg.CalendarPeriodRepo,
 		invitationService:   cfg.InvitationService,
 		authService:         cfg.AuthService,
 		auditLogRepo:        cfg.AuditLogRepo,
@@ -331,6 +335,9 @@ func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *
 		}
 		if deviceErr := s.createWebManualDevice(adminCtx, school.ID); deviceErr != nil {
 			return deviceErr
+		}
+		if periodErr := s.seedDefaultCalendarPeriod(adminCtx, school.ID); periodErr != nil {
+			return periodErr
 		}
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceSchool, &school.ID, clientIP, map[string]any{
 			"name":           school.Name,
@@ -1367,6 +1374,73 @@ func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.
 	}
 
 	return nil
+}
+
+// seedDefaultCalendarPeriod creates the initial school-year calendar period
+// for a freshly provisioned tenant. Without this, the materialization service
+// silently no-ops on the first manual or scheduled run because it cannot
+// resolve a period for any candidate date — see iteration 4, decision E15
+// in the timetable RFC.
+//
+// The period covers the school year that contains time.Now(), running from
+// August 1 through July 31 of the following year (no DST concerns; civil
+// dates only). Admins can edit start/end and toggle is_active later via
+// the Stundenplan header button.
+//
+// Idempotent: a tenant that already has any active period is left alone,
+// so re-running provisioning (e.g. after a partial rollback) does not
+// produce duplicates.
+func (s *operatorProvisioningService) seedDefaultCalendarPeriod(ctx context.Context, tenantID int64) error {
+	if s.calendarPeriodRepo == nil || tenantID <= 0 {
+		return nil
+	}
+
+	periodCtx := tenant.WithTenantID(ctx, tenantID)
+	existing, err := s.calendarPeriodRepo.FindActiveByTenantID(periodCtx)
+	if err != nil {
+		return fmt.Errorf("check existing calendar periods for tenant %d: %w", tenantID, err)
+	}
+	if len(existing) > 0 {
+		return nil
+	}
+
+	startYear, endYear := schoolYearBounds(time.Now())
+	period := &scheduleModels.CalendarPeriod{
+		Name:            fmt.Sprintf("Schuljahr %d/%d", startYear, endYear),
+		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+		StartDate:       time.Date(startYear, time.August, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:         time.Date(endYear, time.July, 31, 0, 0, 0, 0, time.UTC),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	period.SetTenantID(tenantID)
+
+	if err := s.calendarPeriodRepo.Create(periodCtx, period); err != nil {
+		if isUniqueViolation(err) {
+			// Concurrent provisioning won the race — leave their period.
+			return nil
+		}
+		return fmt.Errorf("create default calendar period for tenant %d: %w", tenantID, err)
+	}
+
+	s.getLogger().Info("created default calendar period for tenant",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("period_id", period.ID),
+		slog.String("name", period.Name),
+	)
+	return nil
+}
+
+// schoolYearBounds returns (startYear, endYear) for the German school year
+// containing the given moment. August or later → current/next; before August
+// → previous/current. The output is suitable for "Schuljahr Y/Y+1" naming
+// and for August 1 / July 31 boundary dates.
+func schoolYearBounds(now time.Time) (int, int) {
+	year := now.Year()
+	if now.Month() >= time.August {
+		return year, year + 1
+	}
+	return year - 1, year
 }
 
 func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context, tenantID int64) error {

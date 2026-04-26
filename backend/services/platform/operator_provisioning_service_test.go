@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -257,6 +258,53 @@ func (m *mockCategoryRepo) FindByName(context.Context, string) (*activityModels.
 	return nil, nil
 }
 func (m *mockCategoryRepo) ListAll(context.Context) ([]*activityModels.Category, error) {
+	return nil, nil
+}
+
+type mockCalendarPeriodRepo struct {
+	created              []*scheduleModels.CalendarPeriod
+	findActiveResult     []*scheduleModels.CalendarPeriod
+	findActiveErr        error
+	createErr            error
+	createFn             func(context.Context, *scheduleModels.CalendarPeriod) error
+	findActiveByTenantFn func(context.Context) ([]*scheduleModels.CalendarPeriod, error)
+}
+
+func (m *mockCalendarPeriodRepo) Create(_ context.Context, p *scheduleModels.CalendarPeriod) error {
+	if m.createFn != nil {
+		return m.createFn(context.Background(), p)
+	}
+	if m.createErr != nil {
+		return m.createErr
+	}
+	if p != nil {
+		if p.ID == 0 {
+			p.ID = int64(len(m.created) + 1)
+		}
+		m.created = append(m.created, p)
+	}
+	return nil
+}
+func (m *mockCalendarPeriodRepo) FindByID(context.Context, interface{}) (*scheduleModels.CalendarPeriod, error) {
+	return nil, nil
+}
+func (m *mockCalendarPeriodRepo) Update(context.Context, *scheduleModels.CalendarPeriod) error {
+	return nil
+}
+func (m *mockCalendarPeriodRepo) Delete(context.Context, interface{}) error { return nil }
+func (m *mockCalendarPeriodRepo) List(context.Context, *base.QueryOptions) ([]*scheduleModels.CalendarPeriod, error) {
+	return nil, nil
+}
+func (m *mockCalendarPeriodRepo) FindByTenantID(context.Context) ([]*scheduleModels.CalendarPeriod, error) {
+	return nil, nil
+}
+func (m *mockCalendarPeriodRepo) FindActiveByTenantID(ctx context.Context) ([]*scheduleModels.CalendarPeriod, error) {
+	if m.findActiveByTenantFn != nil {
+		return m.findActiveByTenantFn(ctx)
+	}
+	return m.findActiveResult, m.findActiveErr
+}
+func (m *mockCalendarPeriodRepo) FindByName(context.Context, string) (*scheduleModels.CalendarPeriod, error) {
 	return nil, nil
 }
 
@@ -1269,6 +1317,124 @@ func TestOperatorProvisioningService_CreateSchool_CategorySeedError(t *testing.T
 	}, 1, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, school)
 	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestOperatorProvisioningService_CreateSchool_SeedsDefaultCalendarPeriod(t *testing.T) {
+	periodRepo := &mockCalendarPeriodRepo{}
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			createFn: func(_ context.Context, school *platformModels.School) error {
+				school.ID = 1234
+				return nil
+			},
+		},
+		CategoryRepo:       &mockCategoryRepo{},
+		CalendarPeriodRepo: periodRepo,
+		AuditLogRepo:       &mockAuditLogRepoShared{},
+	})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 2,
+		Name:           "Periode Test School",
+		Slug:           "periode-test-school",
+		Subdomain:      "periode-test-school",
+		Active:         true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, school)
+
+	require.Len(t, periodRepo.created, 1, "exactly one default calendar period should be seeded")
+	period := periodRepo.created[0]
+	assert.Equal(t, scheduleModels.PeriodTypeSchoolYear, period.PeriodType)
+	assert.Equal(t, 1, period.WeekCycleLength)
+	assert.True(t, period.IsActive)
+	assert.Equal(t, school.ID, period.GetTenantID())
+	// Boundary dates always Aug 1 / Jul 31, never empty.
+	assert.Equal(t, time.August, period.StartDate.Month())
+	assert.Equal(t, 1, period.StartDate.Day())
+	assert.Equal(t, time.July, period.EndDate.Month())
+	assert.Equal(t, 31, period.EndDate.Day())
+	// End year is exactly one after start year.
+	assert.Equal(t, period.StartDate.Year()+1, period.EndDate.Year())
+}
+
+func TestOperatorProvisioningService_CreateSchool_SkipsCalendarPeriodWhenAlreadyPresent(t *testing.T) {
+	// Idempotency: a re-run on a school that somehow already has an active
+	// period (partial rollback, race) does not produce a duplicate.
+	periodRepo := &mockCalendarPeriodRepo{
+		findActiveResult: []*scheduleModels.CalendarPeriod{
+			{Name: "Schuljahr 2025/2026", PeriodType: scheduleModels.PeriodTypeSchoolYear, IsActive: true},
+		},
+	}
+	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		OrganizationRepo: &mockOrganizationRepo{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
+			},
+		},
+		SchoolRepo: &mockSchoolRepo{
+			findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+				return nil, nil
+			},
+			createFn: func(_ context.Context, school *platformModels.School) error {
+				school.ID = 9876
+				return nil
+			},
+		},
+		CategoryRepo:       &mockCategoryRepo{},
+		CalendarPeriodRepo: periodRepo,
+		AuditLogRepo:       &mockAuditLogRepoShared{},
+	})
+
+	school, err := service.CreateSchool(context.Background(), &platformModels.School{
+		OrganizationID: 2,
+		Name:           "Idempotent School",
+		Slug:           "idempotent-school",
+		Subdomain:      "idempotent-school",
+		Active:         true,
+	}, 1, net.IPv4(127, 0, 0, 1))
+	require.NoError(t, err)
+	require.NotNil(t, school)
+
+	assert.Empty(t, periodRepo.created, "no new period should be created when one is already present")
+}
+
+func TestSchoolYearBounds(t *testing.T) {
+	// Calendar boundary: month >= August → currentYear/currentYear+1; before
+	// August → previousYear/currentYear. Mirrors the German Schuljahr cadence.
+	cases := []struct {
+		name          string
+		now           time.Time
+		expectedStart int
+		expectedEnd   int
+	}{
+		{"August boundary", time.Date(2025, time.August, 1, 0, 0, 0, 0, time.UTC), 2025, 2026},
+		{"deep into school year", time.Date(2025, time.November, 15, 0, 0, 0, 0, time.UTC), 2025, 2026},
+		{"after rollover, January", time.Date(2026, time.January, 7, 0, 0, 0, 0, time.UTC), 2025, 2026},
+		{"end of school year, July 31", time.Date(2026, time.July, 31, 0, 0, 0, 0, time.UTC), 2025, 2026},
+		{"new school year, August 1", time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC), 2026, 2027},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			start, end := platformSvc.SchoolYearBoundsForTest(tc.now)
+			assert.Equal(t, tc.expectedStart, start)
+			assert.Equal(t, tc.expectedEnd, end)
+		})
+	}
 }
 
 func TestOperatorProvisioningService_InviteSchoolAdmin_SchoolNotFound(t *testing.T) {
