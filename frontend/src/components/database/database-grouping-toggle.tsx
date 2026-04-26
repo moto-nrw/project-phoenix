@@ -3,7 +3,7 @@
 import { ChevronDown, Layers } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export interface GroupingOption<K extends string> {
+interface GroupingOption<K extends string> {
   value: K;
   label: string;
 }
