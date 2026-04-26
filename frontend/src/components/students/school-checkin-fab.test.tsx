@@ -125,8 +125,9 @@ describe("SchoolCheckinFab", () => {
       const wrapper = container.firstChild as HTMLElement;
       expect(wrapper.className).toContain("fixed");
       expect(wrapper.className).toContain("right-4");
+      // Bottom offset clears the mobile bottom nav (h-16) + safe-area.
       expect(wrapper.className).toContain(
-        "bottom-[max(1rem,env(safe-area-inset-bottom))]",
+        "bottom-[calc(4rem+0.75rem+env(safe-area-inset-bottom))]",
       );
     });
 
