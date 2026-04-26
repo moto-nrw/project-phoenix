@@ -23,9 +23,11 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
+import { CalendarPeriodHeaderButton } from "~/components/timetable/calendar-period-header-button";
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { Loading } from "~/components/ui/loading";
 import { useToast } from "~/contexts/ToastContext";
+import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { ConflictWarningsBanner } from "~/components/timetable/conflict-warnings-banner";
 import {
   InstanceDetailSlideOver,
@@ -65,6 +67,19 @@ function TimetablesContent() {
   const selectedInstanceId = searchParams.get("instance");
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
+  // null = create mode (no active period yet); otherwise edit the named period.
+  const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
+    null,
+  );
+
+  const openPeriodCreate = useCallback(() => {
+    setEditingPeriod(null);
+    setPeriodModalOpen(true);
+  }, []);
+  const openPeriodEdit = useCallback((period: CalendarPeriod) => {
+    setEditingPeriod(period);
+    setPeriodModalOpen(true);
+  }, []);
 
   const updateUrlParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -166,7 +181,7 @@ function TimetablesContent() {
         // For "no_active_period" specifically: open the period editor so
         // the admin can fix the precondition without leaving the planner.
         if (result.warnings.some((w) => w.code === "no_active_period")) {
-          setPeriodModalOpen(true);
+          openPeriodCreate();
         }
         await tenantMutate(swrKey);
         return;
@@ -184,7 +199,15 @@ function TimetablesContent() {
       });
       toastError("Plan konnte nicht aktualisiert werden");
     }
-  }, [fromISO, toISO, swrKey, toastSuccess, toastError, tenantMutate]);
+  }, [
+    fromISO,
+    toISO,
+    swrKey,
+    toastSuccess,
+    toastError,
+    tenantMutate,
+    openPeriodCreate,
+  ]);
 
   const handleLifecycle = useCallback(
     async (action: LifecycleAction) => {
@@ -240,6 +263,10 @@ function TimetablesContent() {
           <p className="text-sm text-slate-500">Wochenplan • {weekLabel}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <CalendarPeriodHeaderButton
+            onCreate={openPeriodCreate}
+            onEdit={openPeriodEdit}
+          />
           <MaterializeButton
             onMaterialize={handleMaterialize}
             weekLabel={weekLabel}
@@ -305,10 +332,11 @@ function TimetablesContent() {
       <CalendarPeriodModal
         isOpen={periodModalOpen}
         onClose={() => setPeriodModalOpen(false)}
+        initial={editingPeriod}
         onSaved={() => {
-          // Re-trigger the week query so the user can re-run materialize
-          // immediately. The period list cache is invalidated by the
-          // header button component when it lands.
+          // Refresh both caches: the period header button and the week grid
+          // can pick up the new state without a manual reload.
+          void tenantMutate("database-calendar-periods-list");
           void tenantMutate(swrKey);
         }}
       />
