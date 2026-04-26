@@ -1,15 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  redirect,
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Trash2 } from "lucide-react";
+import { DatabaseCreateAction } from "~/components/database/database-create-action";
+import { DatabaseEmptyState } from "~/components/database/database-empty-state";
+import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
@@ -17,13 +15,13 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { useToast } from "~/contexts/ToastContext";
 import { StudentCreateModal } from "@/components/students/student-create-modal";
-import { StudentsMasterDetail } from "@/components/students/students-master-detail";
 import {
-  StudentsGroupingToggle,
+  StudentsMasterDetail,
   type GroupingMode,
-} from "@/components/students/students-grouping-toggle";
+} from "@/components/students/students-master-detail";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
@@ -35,36 +33,25 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
+const STUDENTS_GROUPING_DEFAULT: GroupingMode = "class";
+
+const STUDENTS_GROUPING_OPTIONS: { value: GroupingMode; label: string }[] = [
+  { value: "class", label: "Klasse" },
+  { value: "group", label: "Gruppe" },
+  { value: "none", label: "Keine" },
+];
+
 function parseGrouping(value: string | null): GroupingMode {
   if (value === "group" || value === "none") return value;
-  return "class";
+  return STUDENTS_GROUPING_DEFAULT;
 }
 
 export default function StudentsPage() {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
+  const updateUrlParams = useUpdateUrlParams();
 
   const selectedId = searchParams.get("student");
   const grouping = parseGrouping(searchParams.get("groupBy"));
-
-  const updateUrlParams = useCallback(
-    (patch: Record<string, string | null>) => {
-      const next = new URLSearchParams(searchParams.toString());
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === null || value === "") {
-          next.delete(key);
-        } else {
-          next.set(key, value);
-        }
-      }
-      const query = next.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, {
-        scroll: false,
-      });
-    },
-    [pathname, router, searchParams],
-  );
 
   const handleSelect = useCallback(
     (id: string | null) => {
@@ -75,7 +62,9 @@ export default function StudentsPage() {
 
   const handleGroupingChange = useCallback(
     (next: GroupingMode) => {
-      updateUrlParams({ groupBy: next === "class" ? null : next });
+      updateUrlParams({
+        groupBy: next === STUDENTS_GROUPING_DEFAULT ? null : next,
+      });
     },
     [updateUrlParams],
   );
@@ -378,28 +367,29 @@ export default function StudentsPage() {
             setGroupFilter("all");
           }}
           actionButton={
-            !isMobile && (
-              <div className="flex items-center gap-2">
-                <StudentsGroupingToggle
-                  value={grouping}
-                  onChange={handleGroupingChange}
-                />
-                <Link
-                  href="/database/students/import"
-                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Importieren
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(true)}
-                  className="flex h-10 items-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white hover:bg-[#76B929]"
-                  aria-label="Schüler erstellen"
-                >
-                  + Schüler
-                </button>
-              </div>
-            )
+            <div className="flex items-center gap-2">
+              {!isMobile ? (
+                <>
+                  <DatabaseGroupingToggle
+                    value={grouping}
+                    options={STUDENTS_GROUPING_OPTIONS}
+                    onChange={handleGroupingChange}
+                  />
+                  <Link
+                    href="/database/students/import"
+                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Importieren
+                  </Link>
+                </>
+              ) : null}
+              <DatabaseCreateAction
+                label="Schüler"
+                ariaLabel="Schüler erstellen"
+                onClick={() => setShowCreateModal(true)}
+                showDesktop={!isMobile}
+              />
+            </div>
           }
         />
       </div>
@@ -426,42 +416,20 @@ export default function StudentsPage() {
           />
         </div>
       ) : !loading ? (
-        <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-gray-200 bg-white">
-          <div className="text-center">
-            <h3 className="text-lg font-medium text-gray-900">
-              {searchTerm || groupFilter !== "all"
-                ? "Keine Schüler gefunden"
-                : "Keine Schüler vorhanden"}
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              {searchTerm || groupFilter !== "all"
-                ? "Versuchen Sie andere Suchkriterien oder Filter."
-                : "Es wurden noch keine Schüler erstellt."}
-            </p>
-          </div>
-        </div>
+        <DatabaseEmptyState
+          icon={null}
+          title={
+            searchTerm || groupFilter !== "all"
+              ? "Keine Schüler gefunden"
+              : "Keine Schüler vorhanden"
+          }
+          description={
+            searchTerm || groupFilter !== "all"
+              ? "Versuchen Sie andere Suchkriterien oder Filter."
+              : "Es wurden noch keine Schüler erstellt."
+          }
+        />
       ) : null}
-
-      {/* Mobile FAB */}
-      <button
-        onClick={() => setShowCreateModal(true)}
-        className="fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#83CD2D] text-white shadow-lg hover:bg-[#76B929] md:hidden"
-        aria-label="Schüler erstellen"
-      >
-        <svg
-          className="h-6 w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 4.5v15m7.5-7.5h-15"
-          />
-        </svg>
-      </button>
 
       <StudentCreateModal
         isOpen={showCreateModal}

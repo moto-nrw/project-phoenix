@@ -12,6 +12,10 @@ export interface GroupingTarget {
 
 export type Grouper<T> = (item: T) => GroupingTarget;
 
+export type GroupDecorator<T> = (
+  group: GroupDefinition<T>,
+) => Partial<Omit<GroupDefinition<T>, "id" | "items">>;
+
 const FLAT_GROUP_ID = "__flat__";
 
 export function useGroupedItems<T, K extends string>(
@@ -19,18 +23,22 @@ export function useGroupedItems<T, K extends string>(
   mode: K | "none",
   groupers: Partial<Record<K, Grouper<T>>>,
   pluralLabel: string,
+  decorateGroup?: GroupDecorator<T>,
 ): GroupDefinition<T>[] {
   return useMemo(() => {
     if (items.length === 0) return [];
 
+    const decorate = (group: GroupDefinition<T>): GroupDefinition<T> =>
+      decorateGroup ? { ...group, ...decorateGroup(group) } : group;
+
     const grouper = mode === "none" ? undefined : groupers[mode as K];
     if (!grouper) {
       return [
-        {
+        decorate({
           id: FLAT_GROUP_ID,
-          title: `Alle ${pluralLabel} (${items.length})`,
+          title: `Alle ${pluralLabel}`,
           items,
-        },
+        }),
       ];
     }
 
@@ -54,10 +62,12 @@ export function useGroupedItems<T, K extends string>(
 
     return [...buckets.entries()]
       .sort((a, b) => a[1].sortKey.localeCompare(b[1].sortKey, "de"))
-      .map(([id, bucket]) => ({
-        id,
-        title: `${bucket.title} (${bucket.items.length})`,
-        items: bucket.items,
-      }));
-  }, [items, mode, groupers, pluralLabel]);
+      .map(([id, bucket]) =>
+        decorate({
+          id,
+          title: bucket.title,
+          items: bucket.items,
+        }),
+      );
+  }, [items, mode, groupers, pluralLabel, decorateGroup]);
 }
