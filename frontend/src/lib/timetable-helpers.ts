@@ -286,6 +286,13 @@ export function mapMaterializeResult(
     to: raw.to,
     instancesCreated: raw.instances_created,
     candidatesSkippedExisting: raw.candidates_skipped_existing,
+    warnings: (raw.warnings ?? []).map((w) => ({
+      // The codes the backend emits today are bounded; widening to string
+      // here keeps the mapper forward-compatible if a new code lands without
+      // requiring a frontend release.
+      code: w.code as MaterializeResult["warnings"][number]["code"],
+      message: w.message,
+    })),
     durationMs: raw.duration_ms,
   };
 }

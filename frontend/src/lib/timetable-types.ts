@@ -114,14 +114,26 @@ export interface BackendWeeklyInstancesResponse {
 /**
  * Result of a manual materialization run — POST /api/timetable/materialize.
  * Exposed in the UI as a German toast: "Plan aktualisiert: X Aktivitäten
- * angelegt".
+ * angelegt". When `warnings` is non-empty the run hit a precondition that
+ * caused a no-op (e.g. tenant has no active calendar period); the toast
+ * surfaces the warning text instead of the success message.
  */
 export interface MaterializeResult {
   from: string;
   to: string;
   instancesCreated: number;
   candidatesSkippedExisting: number;
+  warnings: MaterializeWarning[];
   durationMs: number;
+}
+
+/**
+ * Typed soft-precondition warning — keep `code` in sync with the backend
+ * MaterializationWarning constants (services/schedule/materialization_service.go).
+ */
+export interface MaterializeWarning {
+  code: "no_active_period" | "no_templates" | (string & {});
+  message: string;
 }
 
 export interface BackendMaterializeResult {
@@ -129,6 +141,7 @@ export interface BackendMaterializeResult {
   to: string;
   instances_created: number;
   candidates_skipped_existing: number;
+  warnings?: { code: string; message: string }[];
   duration_ms: number;
 }
 

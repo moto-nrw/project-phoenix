@@ -19,10 +19,11 @@
  *   trigger refetch manually)
  */
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
+import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { Loading } from "~/components/ui/loading";
 import { useToast } from "~/contexts/ToastContext";
 import { ConflictWarningsBanner } from "~/components/timetable/conflict-warnings-banner";
@@ -63,6 +64,7 @@ function TimetablesContent() {
   const weekOffset = parseWeekOffset(searchParams.get("week"));
   const selectedInstanceId = searchParams.get("instance");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [periodModalOpen, setPeriodModalOpen] = useState(false);
 
   const updateUrlParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -119,6 +121,21 @@ function TimetablesContent() {
     () => timetableService.getWeek(fromISO, toISO),
   );
 
+  // SWR retries (errorRetryCount=3) produce a fresh Error per attempt. Keying
+  // the effect on the message string keeps the toast from firing once per
+  // retry when the underlying message is unchanged.
+  const errorMessage = error
+    ? error instanceof Error
+      ? error.message
+      : String(error)
+    : null;
+
+  useEffect(() => {
+    if (!errorMessage) return;
+    logger.error("week_load_failed", { error: errorMessage });
+    toastError(`Stundenplan konnte nicht geladen werden: ${errorMessage}`);
+  }, [errorMessage, toastError]);
+
   // Memoise on data?.instances so the reference is stable between renders
   // when SWR returns the same response (the linter warns when arrays are
   // derived inline because `?? []` produces a new array each render).
@@ -137,6 +154,24 @@ function TimetablesContent() {
   const handleMaterialize = useCallback(async () => {
     try {
       const result = await timetableService.materialize(fromISO, toISO);
+
+      // The backend reports preconditions (no active calendar period, no
+      // templates) as typed warnings rather than HTTP errors so the run
+      // logs cleanly. Surface them as error toasts so the admin sees the
+      // actual reason instead of a misleading "0 angelegt" success message.
+      if (result.warnings.length > 0) {
+        for (const w of result.warnings) {
+          toastError(w.message);
+        }
+        // For "no_active_period" specifically: open the period editor so
+        // the admin can fix the precondition without leaving the planner.
+        if (result.warnings.some((w) => w.code === "no_active_period")) {
+          setPeriodModalOpen(true);
+        }
+        await tenantMutate(swrKey);
+        return;
+      }
+
       toastSuccess(
         `Plan aktualisiert: ${result.instancesCreated} ${
           result.instancesCreated === 1 ? "Aktivität" : "Aktivitäten"
@@ -230,27 +265,13 @@ function TimetablesContent() {
 
       <ConflictWarningsBanner conflictCount={conflictCount} />
 
-      {error ? (
-        <div className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-4 text-sm text-[#7F1D1D]">
-          Stundenplan konnte nicht geladen werden:{" "}
-          {error instanceof Error ? error.message : "Unbekannter Fehler"}.
-          <button
-            type="button"
-            onClick={() => void tenantMutate(swrKey)}
-            className="ml-2 font-semibold underline hover:no-underline"
-          >
-            Erneut versuchen
-          </button>
-        </div>
-      ) : (
-        <WeeklyPlannerGrid
-          weekDays={weekDays}
-          instances={instances}
-          selectedId={selectedInstanceId}
-          onInstanceClick={handleSelectInstance}
-          todayISO={todayISO}
-        />
-      )}
+      <WeeklyPlannerGrid
+        weekDays={weekDays}
+        instances={instances}
+        selectedId={selectedInstanceId}
+        onInstanceClick={handleSelectInstance}
+        todayISO={todayISO}
+      />
 
       {instances.length === 0 && !error && (
         <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500">
@@ -277,6 +298,17 @@ function TimetablesContent() {
           // The backend already materialised the visible week as part of
           // the create call (we passed weekFrom/weekTo). Refetch so the
           // fresh instances appear immediately.
+          void tenantMutate(swrKey);
+        }}
+      />
+
+      <CalendarPeriodModal
+        isOpen={periodModalOpen}
+        onClose={() => setPeriodModalOpen(false)}
+        onSaved={() => {
+          // Re-trigger the week query so the user can re-run materialize
+          // immediately. The period list cache is invalidated by the
+          // header button component when it lands.
           void tenantMutate(swrKey);
         }}
       />
