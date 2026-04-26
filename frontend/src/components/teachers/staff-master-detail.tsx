@@ -321,7 +321,7 @@ function StaffStammdatenTab({
           <button
             type="button"
             onClick={onManageCaregiver}
-            className="rounded-lg border border-orange-200 px-3 py-2 text-xs font-medium text-orange-700 transition-all duration-200 hover:bg-orange-50 md:text-sm"
+            className="rounded-lg border border-[#F78C10]/30 px-3 py-2 text-xs font-medium text-[#F78C10] transition-all duration-200 hover:bg-[#F78C10]/10 md:text-sm"
           >
             Betreuung verwalten
           </button>
@@ -449,7 +449,7 @@ function EmailActions({ email, name }: { email: string; name: string }) {
           onClick={() => void copy(email)}
           className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-200 ${
             copied
-              ? "border-green-200 bg-green-50 text-green-700"
+              ? "border-[#83CD2D]/30 bg-[#83CD2D]/10 text-[#83CD2D]"
               : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900"
           }`}
           title="E-Mail kopieren"
