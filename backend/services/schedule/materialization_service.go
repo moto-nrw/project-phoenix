@@ -234,7 +234,13 @@ func (s *materializationService) MaterializeForTenant(
 	}
 	if len(periods) == 0 {
 		// Graceful no-op: no active period means A/B resolution has no anchor
-		// and unbounded templates have nothing to scope against.
+		// and unbounded templates have nothing to scope against. Surface a
+		// typed warning so the UI can prompt the admin instead of showing
+		// a misleading "0 angelegt" success toast.
+		result.Warnings = append(result.Warnings, MaterializationWarning{
+			Code:    MaterializationWarningCodeNoActivePeriod,
+			Message: "Keine aktive Kalenderperiode hinterlegt — der Plan kann nicht materialisiert werden.",
+		})
 		s.finishLog(tenantID, source, result, start)
 		return result, nil
 	}
@@ -244,6 +250,13 @@ func (s *materializationService) MaterializeForTenant(
 		return nil, &ScheduleError{Op: "materialize for tenant: load templates", Err: err}
 	}
 	if len(templates) == 0 {
+		// Periods exist but no recurring activities yet. Distinct warning so
+		// the UI can guide the admin to "+ Wiederkehrende Aktivität" rather
+		// than the period editor.
+		result.Warnings = append(result.Warnings, MaterializationWarning{
+			Code:    MaterializationWarningCodeNoTemplates,
+			Message: "Keine wiederkehrenden Aktivitäten hinterlegt — lege eine Vorlage an.",
+		})
 		s.finishLog(tenantID, source, result, start)
 		return result, nil
 	}

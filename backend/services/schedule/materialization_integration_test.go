@@ -350,6 +350,12 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 	assert.Zero(t, r.CandidatesSkippedExisting)
 	assert.Zero(t, r.CandidatesSkippedNoPeriod)
 	assert.Zero(t, r.CandidatesSkippedABWeek)
+
+	// The early-return path must emit a typed warning so the UI can prompt
+	// the admin instead of showing "0 angelegt" with no clue why.
+	require.Len(t, r.Warnings, 1)
+	assert.Equal(t, scheduleSvc.MaterializationWarningCodeNoActivePeriod, r.Warnings[0].Code)
+	assert.NotEmpty(t, r.Warnings[0].Message)
 }
 
 func TestMaterializeForTenant_PreFetchObservesFirstRunThenSkips(t *testing.T) {
