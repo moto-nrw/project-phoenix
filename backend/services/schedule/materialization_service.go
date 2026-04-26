@@ -70,6 +70,12 @@ const (
 // one bucket per (template, schedule, target_date) tuple. InstancesCreated is
 // the only bucket that produced a database row; every "Skipped*" bucket is a
 // reason why a candidate was passed over and is safe to surface in the UI.
+//
+// Warnings collects soft, non-error conditions the caller should surface in
+// the UI — e.g. "tenant has no active period" or "tenant has no templates".
+// They are produced when a precondition is unmet and the run effectively
+// no-ops; without them the admin sees `created:0, skipped_*:0` and has no way
+// to tell why.
 type MaterializationResult struct {
 	From                        time.Time
 	To                          time.Time
@@ -82,8 +88,24 @@ type MaterializationResult struct {
 	CandidatesRaced             int // UNIQUE violation absorbed (concurrent run won the insert)
 	InstanceStudentsCreated     int
 	InstanceStaffCreated        int
+	Warnings                    []MaterializationWarning
 	DurationMS                  int64
 }
+
+// MaterializationWarning is a typed, UI-ready hint about a precondition.
+// Code is a stable machine-readable discriminant; Message is German for
+// direct display in the admin toast.
+type MaterializationWarning struct {
+	Code    string
+	Message string
+}
+
+// Warning codes — keep in sync with the frontend MaterializeWarning union
+// in lib/timetable-types.ts.
+const (
+	MaterializationWarningCodeNoActivePeriod = "no_active_period"
+	MaterializationWarningCodeNoTemplates    = "no_templates"
+)
 
 // MaterializationService drives conversion of templates into activity_instances.
 type MaterializationService interface {
