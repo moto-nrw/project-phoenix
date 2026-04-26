@@ -585,6 +585,70 @@ describe("DevicesPage", () => {
     expect(mockGetOne).not.toHaveBeenCalledWith("3");
   });
 
+  it("keeps the api_key snapshot when the URL update lags one render behind setCreatedDevice", async () => {
+    // Production Next.js routers update useSearchParams() asynchronously after
+    // router.replace, so for one render `selectedId` is still null while
+    // `createdDevice` is already populated. Mimic that lag by deferring the
+    // currentSearch update to a microtask. Without the `selectedId !== null`
+    // guard in the cleanup effect, this race wipes the api_key snapshot before
+    // the URL catches up.
+    const originalReplace = mockReplace.getMockImplementation();
+    mockReplace.mockImplementation((url: string) => {
+      const query = url.includes("?") ? (url.split("?")[1] ?? "") : "";
+      void Promise.resolve().then(() => {
+        currentSearch = new URLSearchParams(query);
+      });
+    });
+
+    try {
+      mockCreate.mockResolvedValueOnce({
+        id: "3",
+        device_id: "kiosk-003",
+        device_type: "kiosk",
+        name: "Neues Kiosk",
+        status: "active",
+        is_online: true,
+        api_key: "secret-token-xyz",
+      });
+
+      render(<DevicesPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+      await waitFor(() => {
+        expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+      });
+
+      setSwrData([
+        ...mockDevices,
+        {
+          id: "3",
+          device_id: "kiosk-003",
+          device_type: "kiosk",
+          name: "Neues Kiosk",
+          status: "active",
+          is_online: true,
+        },
+      ]);
+
+      fireEvent.click(screen.getByTestId("submit-create"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("3");
+      });
+      expect(screen.getByTestId("detail-api-key")).toHaveTextContent(
+        "secret-token-xyz",
+      );
+    } finally {
+      if (originalReplace) {
+        mockReplace.mockImplementation(originalReplace);
+      }
+    }
+  });
+
   it("drops the flashed API key after the created device is closed and reopened", async () => {
     mockCreate.mockResolvedValueOnce({
       id: "3",

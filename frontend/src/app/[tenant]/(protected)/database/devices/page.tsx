@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { Laptop } from "lucide-react";
@@ -106,13 +106,11 @@ export default function DevicesPage() {
     ? "Fehler beim Laden der Geräte. Bitte versuchen Sie es später erneut."
     : null;
 
-  // Drop the snapshot as soon as the user navigates away from the created
-  // device. Re-selecting it later shows only the list values (no api_key).
-  useEffect(() => {
-    if (createdDevice && selectedId !== createdDevice.id) {
-      setCreatedDevice(null);
-    }
-  }, [createdDevice, selectedId]);
+  // Snapshot lifecycle is managed synchronously in the click/edit/delete
+  // handlers below — never via an effect on `selectedId`. router.replace is
+  // async and useSearchParams lags one render behind it, so any effect that
+  // compares createdDevice.id to selectedId would race the URL update and
+  // wipe the api_key before it could render.
 
   const filters: FilterConfig[] = useMemo(() => [], []);
 
@@ -165,6 +163,9 @@ export default function DevicesPage() {
 
   const handleSelectDevice = useCallback(
     (id: string | null) => {
+      setCreatedDevice((current) =>
+        current && current.id !== id ? null : current,
+      );
       updateUrlParams({ device: id });
     },
     [updateUrlParams],
