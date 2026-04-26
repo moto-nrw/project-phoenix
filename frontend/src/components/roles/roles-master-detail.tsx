@@ -13,7 +13,7 @@ import {
 import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
-import { useFlatGroup } from "~/components/database/use-flat-group";
+import { useGroupedItems } from "~/components/database/use-grouped-items";
 import {
   DataField,
   DataGrid,
@@ -57,7 +57,7 @@ export function RolesMasterDetail({
   onDeleteClick,
   onManagePermissions,
 }: RolesMasterDetailProps) {
-  const groupDefinitions = useFlatGroup(roles, "Rollen");
+  const groupDefinitions = useGroupedItems(roles, "none", {}, "Rollen");
 
   const renderItem = (role: Role) => (
     <DatabaseListItem
@@ -161,7 +161,9 @@ function RoleDetailContent({
     <DetailPanel
       header={
         <DatabaseDetailHeader
-          avatar={getRoleDisplayName(role.name).charAt(0).toUpperCase() || "R"}
+          avatar={(
+            getRoleDisplayName(role.name)?.slice(0, 2) ?? "RO"
+          ).toUpperCase()}
           title={getRoleDisplayName(role.name)}
           subtitle={buildSubtitle(role)}
           actions={headerActions}

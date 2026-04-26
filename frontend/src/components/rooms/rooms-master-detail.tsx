@@ -139,6 +139,11 @@ function RoomDetailContent({
   const [formResetCounter, setFormResetCounter] = useState(0);
   const isSystem = isSystemRoom(room);
 
+  const handleSaveRoom = async (data: Partial<Room>) => {
+    await onSaveRoom(data);
+    setFormResetCounter((n) => n + 1);
+  };
+
   const headerActions = !isSystem ? (
     <DetailDeleteButton onClick={onDeleteClick} />
   ) : null;
@@ -150,7 +155,7 @@ function RoomDetailContent({
       content: (
         <RoomStammdatenTab
           room={room}
-          onSaveRoom={onSaveRoom}
+          onSaveRoom={handleSaveRoom}
           onResetForm={() => setFormResetCounter((n) => n + 1)}
           formResetKey={`${room.id}:${formResetCounter}`}
         />

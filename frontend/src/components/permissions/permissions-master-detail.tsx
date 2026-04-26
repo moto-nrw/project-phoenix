@@ -12,7 +12,7 @@ import {
 import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
-import { useFlatGroup } from "~/components/database/use-flat-group";
+import { useGroupedItems } from "~/components/database/use-grouped-items";
 import {
   DataField,
   DataGrid,
@@ -44,7 +44,7 @@ function getTitle(permission: Permission): string {
 }
 
 function getInitial(permission: Permission): string {
-  return permission.resource?.charAt(0)?.toUpperCase() || "P";
+  return (permission.resource?.slice(0, 2) ?? "PE").toUpperCase();
 }
 
 function buildSubtitle(permission: Permission): string {
@@ -74,7 +74,12 @@ export function PermissionsMasterDetail({
         : null,
     [permissions, selectedId],
   );
-  const groupDefinitions = useFlatGroup(permissions, "Berechtigungen");
+  const groupDefinitions = useGroupedItems(
+    permissions,
+    "none",
+    {},
+    "Berechtigungen",
+  );
 
   const renderItem = (permission: Permission) => (
     <DatabaseListItem

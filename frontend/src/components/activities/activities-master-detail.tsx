@@ -12,7 +12,7 @@ import {
 import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
-import { useFlatGroup } from "~/components/database/use-flat-group";
+import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import { activitiesConfig } from "@/lib/database/configs/activities.config";
 import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
@@ -53,7 +53,12 @@ export function ActivitiesMasterDetail({
   onDeleteClick,
   formResetKey,
 }: ActivitiesMasterDetailProps) {
-  const groupDefinitions = useFlatGroup(activities, "Aktivitäten");
+  const groupDefinitions = useGroupedItems(
+    activities,
+    "none",
+    {},
+    "Aktivitäten",
+  );
 
   const renderItem = (activity: Activity) => (
     <DatabaseListItem

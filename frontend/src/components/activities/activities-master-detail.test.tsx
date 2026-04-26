@@ -192,7 +192,7 @@ describe("ActivitiesMasterDetail", () => {
       />,
     );
 
-    expect(screen.getByText("Alle Aktivitäten (2)")).toBeInTheDocument();
+    expect(screen.getByText("Alle Aktivitäten")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
   });
 });

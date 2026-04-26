@@ -151,7 +151,7 @@ describe("GroupsMasterDetail", () => {
       />,
     );
 
-    expect(screen.getByText("Alle Gruppen (2)")).toBeInTheDocument();
+    expect(screen.getByText("Alle Gruppen")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
   });
 });

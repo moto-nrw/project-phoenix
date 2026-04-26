@@ -1,6 +1,19 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockLoggerError } = vi.hoisted(() => ({
+  mockLoggerError: vi.fn(),
+}));
+
+vi.mock("~/lib/logger", () => ({
+  createLogger: () => ({
+    error: mockLoggerError,
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  }),
+}));
 
 vi.mock("~/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
@@ -226,5 +239,74 @@ describe("StaffMasterDetail", () => {
     fireEvent.click(screen.getByText("Speichern"));
 
     expect(onUpdateNotes).toHaveBeenCalledWith("Important note");
+  });
+
+  it("logs note save failures without closing the inline editor", async () => {
+    const failingUpdate = vi.fn().mockRejectedValue(new Error("save failed"));
+
+    render(
+      <StaffMasterDetail
+        groupDefinitions={flatGroup([baseTeacher])}
+        selectedId="1"
+        selectedTeacher={{ ...baseTeacher, staff_notes: "Existing notes" }}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        onUpdateNotes={failingUpdate}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Existing notes"));
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => {
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        "notes_save_failed",
+        expect.objectContaining({ error: "save failed" }),
+      );
+    });
+    expect(
+      screen.getByPlaceholderText("Notizen hinzufügen..."),
+    ).toBeInTheDocument();
+  });
+
+  it("resyncs inline notes when parent props change after cancel", () => {
+    const { rerender } = render(
+      <StaffMasterDetail
+        groupDefinitions={flatGroup([baseTeacher])}
+        selectedId="1"
+        selectedTeacher={{ ...baseTeacher, staff_notes: "Initial notes" }}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        onUpdateNotes={onUpdateNotes}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Initial notes"));
+    fireEvent.change(screen.getByPlaceholderText("Notizen hinzufügen..."), {
+      target: { value: "Unsaved local edit" },
+    });
+    fireEvent.click(screen.getByText("Abbrechen"));
+
+    rerender(
+      <StaffMasterDetail
+        groupDefinitions={flatGroup([baseTeacher])}
+        selectedId="1"
+        selectedTeacher={{
+          ...baseTeacher,
+          staff_notes: "Fresh notes from parent",
+        }}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        onUpdateNotes={onUpdateNotes}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Fresh notes from parent"));
+    expect(
+      screen.getByDisplayValue("Fresh notes from parent"),
+    ).toBeInTheDocument();
   });
 });

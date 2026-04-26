@@ -186,7 +186,7 @@ describe("RolesMasterDetail", () => {
       />,
     );
 
-    expect(screen.getByText("Alle Rollen (3)")).toBeInTheDocument();
+    expect(screen.getByText("Alle Rollen")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
   });
 });

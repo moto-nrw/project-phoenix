@@ -107,7 +107,7 @@ describe("PermissionsMasterDetail", () => {
       />,
     );
 
-    expect(screen.getByText("Alle Berechtigungen (2)")).toBeInTheDocument();
+    expect(screen.getByText("Alle Berechtigungen")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
   });
 });

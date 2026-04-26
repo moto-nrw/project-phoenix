@@ -11,7 +11,7 @@ import {
 import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
-import { useFlatGroup } from "~/components/database/use-flat-group";
+import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import { groupsConfig } from "@/lib/database/configs/groups.config";
 import { configToFormSection } from "@/lib/database/types";
@@ -47,7 +47,7 @@ export function GroupsMasterDetail({
         : null,
     [groups, selectedId],
   );
-  const groupDefinitions = useFlatGroup(groups, "Gruppen");
+  const groupDefinitions = useGroupedItems(groups, "none", {}, "Gruppen");
 
   const renderItem = (group: Group) => (
     <DatabaseListItem
@@ -110,6 +110,11 @@ function GroupDetailContent({
   const [activeTab, setActiveTab] = useState<string>("master-data");
   const [formResetCounter, setFormResetCounter] = useState(0);
 
+  const handleSaveGroup = async (data: Partial<Group>) => {
+    await onSaveGroup(data);
+    setFormResetCounter((n) => n + 1);
+  };
+
   const headerActions = <DetailDeleteButton onClick={onDeleteClick} />;
 
   const tabs: DetailTab[] = [
@@ -119,7 +124,7 @@ function GroupDetailContent({
       content: (
         <GroupStammdatenTab
           group={group}
-          onSaveGroup={onSaveGroup}
+          onSaveGroup={handleSaveGroup}
           onResetForm={() => setFormResetCounter((n) => n + 1)}
           formResetKey={`${group.id}:${formResetCounter}`}
         />
