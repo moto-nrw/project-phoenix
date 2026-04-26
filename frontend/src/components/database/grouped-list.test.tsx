@@ -72,7 +72,7 @@ describe("GroupedList", () => {
       <GroupedList groups={[]} renderItem={() => null} keyFor={() => "x"} />,
     );
 
-    expect(screen.getByText("Keine Eintraege")).toBeInTheDocument();
+    expect(screen.getByText("Keine Einträge")).toBeInTheDocument();
   });
 
   it("renders custom emptyState", () => {

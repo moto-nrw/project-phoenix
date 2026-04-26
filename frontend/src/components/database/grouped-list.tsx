@@ -53,7 +53,7 @@ export function GroupedList<T>({
   if (groups.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
-        {emptyState ?? <p className="text-sm text-gray-500">Keine Eintraege</p>}
+        {emptyState ?? <p className="text-sm text-gray-500">Keine Einträge</p>}
       </div>
     );
   }
