@@ -11,8 +11,15 @@ interface MaterializeBody {
   to_date?: string;
 }
 
+// The Go backend wraps responses in { status, data, message } — strip
+// the envelope so route-wrapper does not double-wrap the payload.
 export const POST = createPostHandler<unknown, MaterializeBody>(
   async (_request: NextRequest, body: MaterializeBody, token: string) => {
-    return await apiPost("/api/timetable/materialize", token, body ?? {});
+    const response = await apiPost<{ data: unknown }>(
+      "/api/timetable/materialize",
+      token,
+      body ?? {},
+    );
+    return response.data;
   },
 );

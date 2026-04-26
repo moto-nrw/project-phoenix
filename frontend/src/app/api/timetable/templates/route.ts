@@ -4,12 +4,22 @@
 // endpoint (templates_create.go). The backend bundles timeframe +
 // activities.groups + activities.schedules into one transaction and can
 // optionally materialize the visible week.
+//
+// The Go backend returns { status, data, message }. We unwrap the Go
+// envelope here so route-wrapper's wrapInApiResponse doesn't double-wrap
+// the payload — clients (timetable-api.ts unwrap) expect a single
+// envelope and read envelope.data as the real result.
 import type { NextRequest } from "next/server";
 import { apiPost } from "~/lib/api-helpers";
 import { createPostHandler } from "~/lib/route-wrapper";
 
 export const POST = createPostHandler(
   async (_request: NextRequest, body: unknown, token: string) => {
-    return await apiPost("/api/timetable/templates", token, body ?? {});
+    const response = await apiPost<{ data: unknown }>(
+      "/api/timetable/templates",
+      token,
+      body ?? {},
+    );
+    return response.data;
   },
 );
