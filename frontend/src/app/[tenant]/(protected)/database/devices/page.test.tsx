@@ -1,17 +1,39 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import DevicesPage from "./page";
-import type { Device } from "@/lib/iot-helpers";
 
-const mockUseSession = vi.fn();
 vi.mock("next-auth/react", () => ({
-  useSession: (opts?: { required?: boolean; onUnauthenticated?: () => void }) =>
-    mockUseSession(opts),
+  useSession: vi.fn(() => ({
+    data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+    status: "authenticated",
+  })),
 }));
+
+let currentSearch = new URLSearchParams();
+const mockReplace = vi.fn((url: string) => {
+  const query = url.includes("?") ? (url.split("?")[1] ?? "") : "";
+  currentSearch = new URLSearchParams(query);
+});
+const setSelectedDevice = (id: string | null) => {
+  currentSearch = new URLSearchParams();
+  if (id) {
+    currentSearch.set("device", id);
+  }
+};
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  useRouter: vi.fn(() => ({ push: vi.fn(), replace: mockReplace })),
+  usePathname: vi.fn(() => "/tenant/database/devices"),
+  useSearchParams: () => currentSearch,
+}));
+
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: vi.fn(),
+  mutate: vi.fn(),
+  useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
 const mockGetList = vi.fn();
@@ -19,85 +41,62 @@ const mockGetOne = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
-
 vi.mock("@/lib/database/service-factory", () => ({
-  createCrudService: () => ({
+  createCrudService: vi.fn(() => ({
     getList: mockGetList,
     getOne: mockGetOne,
     create: mockCreate,
     update: mockUpdate,
     delete: mockDelete,
-  }),
+  })),
 }));
 
-const mockTransform = vi.fn((data: unknown) => data);
-vi.mock("@/lib/database/configs/devices.config", () => ({
-  devicesConfig: {
-    name: { singular: "Gerät", plural: "Geräte" },
-    form: {
-      transformBeforeSubmit: (data: unknown) => mockTransform(data),
-    },
-  },
+vi.mock("~/hooks/useIsMobile", () => ({
+  useIsMobile: vi.fn(() => false),
+}));
+
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: vi.fn(() => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+  })),
 }));
 
 vi.mock("~/components/database/database-page-layout", () => ({
   DatabasePageLayout: ({
     children,
     loading,
-    sessionLoading,
   }: {
-    children: React.ReactNode;
+    children: ReactNode;
     loading: boolean;
-    sessionLoading: boolean;
-  }) =>
-    loading || sessionLoading ? (
-      <div data-testid="loading">Loading...</div>
-    ) : (
-      <div data-testid="database-layout">{children}</div>
-    ),
+  }) => (
+    <div data-testid="database-layout" data-loading={loading}>
+      {children}
+    </div>
+  ),
 }));
 
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({
-    badge,
     search,
-    activeFilters,
     onClearAllFilters,
     actionButton,
   }: {
-    badge?: { count: number };
-    search?: { value: string; onChange: (v: string) => void };
-    activeFilters?: Array<{ id: string; label: string; onRemove: () => void }>;
-    onClearAllFilters?: () => void;
-    actionButton?: React.ReactNode;
+    search: { value: string; onChange: (value: string) => void };
+    onClearAllFilters: () => void;
+    actionButton?: ReactNode;
   }) => (
     <div data-testid="page-header">
-      {badge && <span data-testid="badge-count">{badge.count}</span>}
-      {search && (
-        <input
-          data-testid="search-input"
-          value={search.value}
-          onChange={(e) => search.onChange(e.target.value)}
-        />
-      )}
-      {activeFilters && activeFilters.length > 0 && (
-        <div data-testid="active-filters">
-          {activeFilters.map((f) => (
-            <button
-              key={f.id}
-              data-testid={`filter-${f.id}`}
-              onClick={f.onRemove}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      )}
-      {onClearAllFilters && (
-        <button data-testid="clear-filters" onClick={onClearAllFilters}>
-          Clear
-        </button>
-      )}
+      <input
+        data-testid="search-input"
+        value={search.value}
+        onChange={(event) => search.onChange(event.target.value)}
+      />
+      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+        Clear
+      </button>
       {actionButton}
     </div>
   ),
@@ -108,66 +107,20 @@ vi.mock("@/components/devices", () => ({
     isOpen,
     onClose,
     onCreate,
-    loading,
-    error,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (data: Partial<Device>) => void;
-    loading: boolean;
-    error?: string | null;
+    onCreate: (data: { device_id: string }) => Promise<void>;
   }) =>
     isOpen ? (
-      <div data-testid="create-modal">
-        {error && <div data-testid="create-error">{error}</div>}
+      <div data-testid="device-create-modal">
         <button
-          data-testid="create-submit"
-          disabled={loading}
-          onClick={() =>
-            onCreate({
-              device_id: "NEW-001",
-              name: "New Device",
-              device_type: "terminal",
-            })
-          }
+          data-testid="submit-create"
+          onClick={() => void onCreate({ device_id: "new-device" })}
         >
-          Create
+          Submit
         </button>
-        <button data-testid="create-close" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
-  DeviceDetailModal: ({
-    isOpen,
-    onClose,
-    device,
-    onEdit,
-    onDeleteClick,
-    loading,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    device: Device;
-    onEdit: () => void;
-    onDelete: () => void;
-    onDeleteClick: () => void;
-    loading: boolean;
-  }) =>
-    isOpen ? (
-      <div data-testid="detail-modal">
-        <span data-testid="device-name">{device.name ?? device.device_id}</span>
-        <button data-testid="edit-button" disabled={loading} onClick={onEdit}>
-          Edit
-        </button>
-        <button
-          data-testid="delete-button"
-          disabled={loading}
-          onClick={onDeleteClick}
-        >
-          Delete
-        </button>
-        <button data-testid="detail-close" onClick={onClose}>
+        <button data-testid="close-create-modal" onClick={onClose}>
           Close
         </button>
       </div>
@@ -175,45 +128,103 @@ vi.mock("@/components/devices", () => ({
   DeviceEditModal: ({
     isOpen,
     onClose,
-    device,
     onSave,
-    loading,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    device: Device;
-    onSave: (data: Partial<Device>) => void;
-    loading: boolean;
+    onSave: (data: { name: string }) => Promise<void>;
   }) =>
     isOpen ? (
-      <div data-testid="edit-modal">
-        <span data-testid="edit-device-id">{device.device_id}</span>
+      <div data-testid="device-edit-modal">
         <button
-          data-testid="save-button"
-          disabled={loading}
-          onClick={() => onSave({ name: "Updated Device" })}
+          data-testid="submit-edit"
+          onClick={() => void onSave({ name: "Updated Device" })}
         >
           Save
         </button>
-        <button data-testid="edit-close" onClick={onClose}>
+        <button data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
       </div>
     ) : null,
+  DevicesMasterDetail: ({
+    groupDefinitions,
+    selectedId,
+    selectedDevice,
+    onSelect,
+    onEditClick,
+    onDeleteClick,
+  }: {
+    groupDefinitions: Array<{
+      id: string;
+      title: string;
+      items: Array<{ id: string; name?: string; device_id: string }>;
+    }>;
+    selectedId: string | null;
+    selectedDevice?: {
+      name?: string;
+      device_id: string;
+      api_key?: string;
+      room_name?: string | null;
+    } | null;
+    onSelect: (id: string | null) => void;
+    onEditClick: () => void;
+    onDeleteClick: () => void;
+  }) => (
+    <div data-testid="devices-master-detail">
+      {groupDefinitions.map((group) => (
+        <div key={group.id} data-testid={`group-${group.id}`}>
+          <span data-testid={`group-title-${group.id}`}>{group.title}</span>
+          {group.items.map((device) => (
+            <button
+              key={device.id}
+              data-testid={`device-row-${device.id}`}
+              onClick={() => onSelect(device.id)}
+            >
+              {device.name ?? device.device_id}
+            </button>
+          ))}
+        </div>
+      ))}
+      {selectedId ? (
+        <div data-testid="device-detail-panel">
+          <span data-testid="detail-selected-id">{selectedId}</span>
+          <span data-testid="detail-device-name">
+            {selectedDevice?.name ?? selectedDevice?.device_id ?? "unbekannt"}
+          </span>
+          <span data-testid="detail-device-room">
+            {selectedDevice?.room_name ?? "kein-raum"}
+          </span>
+          {selectedDevice?.api_key ? (
+            <span data-testid="detail-api-key">{selectedDevice.api_key}</span>
+          ) : null}
+          <button data-testid="trigger-edit" onClick={onEditClick}>
+            Edit
+          </button>
+          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+            Delete
+          </button>
+          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+            Close
+          </button>
+        </div>
+      ) : null}
+    </div>
+  ),
 }));
 
 vi.mock("~/components/ui/modal", () => ({
   ConfirmationModal: ({
     isOpen,
-    onClose,
     onConfirm,
+    onClose,
   }: {
     isOpen: boolean;
-    onClose: () => void;
-    onConfirm: () => void;
+    onConfirm?: () => void;
+    onClose?: () => void;
   }) =>
     isOpen ? (
-      <div data-testid="confirm-modal">
+      <div data-testid="confirmation-modal">
         <button data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
@@ -224,144 +235,92 @@ vi.mock("~/components/ui/modal", () => ({
     ) : null,
 }));
 
-vi.mock("@/lib/iot-helpers", () => ({
-  getDeviceTypeDisplayName: (type: string) => type.toUpperCase(),
-}));
+import { useSWRAuth } from "~/lib/swr";
 
-const mockToastSuccess = vi.fn();
-const mockToastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
-}));
+type Device = {
+  id: string;
+  device_id: string;
+  device_type: string;
+  name?: string;
+  status: string;
+  is_online: boolean;
+  room_name?: string | null;
+  api_key?: string;
+  created_at?: string;
+  updated_at?: string;
+};
 
-const mockUseIsMobile = vi.fn(() => false);
-vi.mock("~/hooks/useIsMobile", () => ({
-  useIsMobile: () => mockUseIsMobile(),
-}));
+const mockDevices: Device[] = [
+  {
+    id: "1",
+    device_id: "kiosk-001",
+    device_type: "kiosk",
+    name: "Eingang Kiosk",
+    status: "active",
+    is_online: true,
+    room_name: "Foyer",
+    created_at: "2026-01-01",
+    updated_at: "2026-01-02",
+  },
+  {
+    id: "2",
+    device_id: "kiosk-002",
+    device_type: "kiosk",
+    name: "Backup Kiosk",
+    status: "offline",
+    is_online: false,
+    room_name: null,
+    created_at: "2026-01-01",
+    updated_at: "2026-01-02",
+  },
+];
 
-const mockHandleDeleteClick = vi.fn();
-const mockHandleDeleteCancel = vi.fn();
-const mockConfirmDelete = vi.fn();
-const mockShowConfirmModal = vi.fn(() => false);
-
-vi.mock("~/hooks/useDeleteConfirmation", () => ({
-  useDeleteConfirmation: () => ({
-    showConfirmModal: mockShowConfirmModal(),
-    handleDeleteClick: mockHandleDeleteClick,
-    handleDeleteCancel: mockHandleDeleteCancel,
-    confirmDelete: mockConfirmDelete,
-  }),
-}));
-
-vi.mock("@/lib/use-notification", () => ({
-  getDbOperationMessage: (op: string, type: string, name: string) =>
-    `${op} ${type} ${name}`,
-}));
+function setSwrData(devices: Device[]) {
+  vi.mocked(useSWRAuth).mockReturnValue({
+    data: devices,
+    isLoading: false,
+    error: null,
+    isValidating: false,
+    mutate: vi.fn(),
+  } as ReturnType<typeof useSWRAuth>);
+}
 
 describe("DevicesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockTransform.mockImplementation((data) => data); // Reset transform
-    mockUseSession.mockReturnValue({
-      data: {
-        user: {
-          id: "1",
-          name: "Test User",
-          email: "test@test.com",
-          token: "tok",
-          roles: ["admin"],
-        },
-      },
-      status: "authenticated",
-    });
-    mockUseIsMobile.mockReturnValue(false);
-    mockShowConfirmModal.mockReturnValue(false);
+    currentSearch = new URLSearchParams();
+    setSwrData(mockDevices);
   });
 
-  it("shows loading state initially", () => {
-    mockGetList.mockReturnValue(new Promise(() => {}));
-    render(<DevicesPage />);
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
-  });
-
-  it("shows loading when session is loading", () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: "loading",
-    });
-    mockGetList.mockResolvedValue({ data: [] });
-    render(<DevicesPage />);
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
-  });
-
-  it("renders devices after loading", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-
+  it("renders the page with devices data", async () => {
     render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-      expect(screen.getByText("TERMINAL")).toBeInTheDocument();
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+      expect(screen.getByText("Backup Kiosk")).toBeInTheDocument();
     });
   });
 
-  it("renders device without name using device_id", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: null,
-          device_type: "terminal",
-        },
-      ],
-    });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("DEV-001")).toBeInTheDocument();
-    });
-  });
-
-  it("shows empty state when no devices", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Keine Geräte vorhanden")).toBeInTheDocument();
-      expect(
-        screen.getByText("Es wurden noch keine Geräte registriert."),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows error when API fails", async () => {
-    mockGetList.mockRejectedValue(new Error("API Error"));
+  it("shows error message when fetch fails", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("Failed to fetch"),
+      isValidating: false,
+      mutate: vi.fn(),
+    } as ReturnType<typeof useSWRAuth>);
 
     render(<DevicesPage />);
 
     await waitFor(() => {
       expect(
-        screen.getByText(
-          "Fehler beim Laden der Geräte. Bitte versuchen Sie es später erneut.",
-        ),
+        screen.getByText(/Fehler beim Laden der Geräte/),
       ).toBeInTheDocument();
     });
   });
 
-  it("handles non-array response from API", async () => {
-    mockGetList.mockResolvedValue({ data: null });
+  it("shows empty state when no devices exist", async () => {
+    setSwrData([]);
 
     render(<DevicesPage />);
 
@@ -370,653 +329,192 @@ describe("DevicesPage", () => {
     });
   });
 
-  it("filters devices by search term (name)", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-        {
-          id: "2",
-          device_id: "DEV-002",
-          name: "Reader 2",
-          device_type: "info_point",
-        },
-      ],
-    });
-
+  it("filters devices by search term", async () => {
     render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
     });
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Reader 2" } });
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Backup" },
+    });
 
     await waitFor(() => {
-      expect(screen.queryByText("Reader 1")).not.toBeInTheDocument();
-      expect(screen.getByText("Reader 2")).toBeInTheDocument();
+      expect(screen.queryByText("Eingang Kiosk")).not.toBeInTheDocument();
+      expect(screen.getByText("Backup Kiosk")).toBeInTheDocument();
     });
   });
 
-  it("filters devices by device_id", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-        {
-          id: "2",
-          device_id: "ABC-002",
-          name: "Reader 2",
-          device_type: "info_point",
-        },
-      ],
-    });
-
+  it("clears filters when clear button is clicked", async () => {
     render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
     });
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "ABC" } });
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Backup" },
+    });
+    fireEvent.click(screen.getByTestId("clear-filters"));
 
     await waitFor(() => {
-      expect(screen.queryByText("Reader 1")).not.toBeInTheDocument();
-      expect(screen.getByText("Reader 2")).toBeInTheDocument();
+      expect(screen.getByTestId("search-input")).toHaveValue("");
     });
   });
 
-  it("filters devices by device_type", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-        {
-          id: "2",
-          device_id: "DEV-002",
-          name: "Info-Point 1",
-          device_type: "info_point",
-        },
-      ],
-    });
-
+  it("opens create modal when add button is clicked", async () => {
     render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-    });
-
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "info_point" } });
-
-    await waitFor(() => {
-      expect(screen.queryByText("Reader 1")).not.toBeInTheDocument();
-      expect(screen.getByText("Info-Point 1")).toBeInTheDocument();
-    });
-  });
-
-  it("shows empty state with search term when no matches", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-    });
-
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "nonexistent" } });
-
-    await waitFor(() => {
-      expect(screen.getByText("Keine Geräte gefunden")).toBeInTheDocument();
-      expect(
-        screen.getByText("Versuchen Sie einen anderen Suchbegriff."),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows active filter when searching", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-    });
-
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Reader" } });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("active-filters")).toBeInTheDocument();
-      expect(screen.getByText('"Reader"')).toBeInTheDocument();
-    });
-  });
-
-  it("clears search when filter is removed", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-    });
-
-    const searchInput: HTMLInputElement = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Reader" } });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("filter-search")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("filter-search"));
-
-    await waitFor(() => {
-      expect(searchInput.value).toBe("");
-    });
-  });
-
-  it("renders desktop create button when not mobile", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-    mockUseIsMobile.mockReturnValue(false);
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      const buttons = screen.getAllByLabelText("Gerät registrieren");
-      // Desktop button in header + mobile FAB
-      expect(buttons.length).toBeGreaterThan(0);
-    });
-  });
-
-  it("opens create modal when desktop button clicked", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-    });
-
-    const createButtons = screen.getAllByLabelText("Gerät registrieren");
-    fireEvent.click(createButtons[0]!);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("opens create modal when mobile FAB clicked", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-    });
-
-    const createButtons = screen.getAllByLabelText("Gerät registrieren");
-    // Mobile FAB is last button
-    fireEvent.click(createButtons[createButtons.length - 1]!);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("creates device successfully", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockResolvedValue({
-      id: "1",
-      device_id: "NEW-001",
-      name: "New Device",
-      device_type: "terminal",
-    });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
 
     await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-
-    await waitFor(() => {
-      expect(mockTransform).toHaveBeenCalled();
-      expect(mockCreate).toHaveBeenCalled();
-      expect(mockToastSuccess).toHaveBeenCalled();
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
     });
   });
 
-  it("handles create without transform", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockResolvedValue({
-      id: "1",
-      device_id: "NEW-001",
-      name: null,
-      device_type: "terminal",
-    });
-    mockTransform.mockReset();
-
+  it("syncs device selection into the URL when a row is clicked", async () => {
     render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() =>
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-submit"));
+    fireEvent.click(screen.getByTestId("device-row-1"));
 
     await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalled();
-    });
-  });
-
-  it("closes create modal", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() =>
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-close"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument();
-    });
-  });
-
-  it("opens detail modal when device clicked", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1 Full",
-      device_type: "terminal",
-    });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Reader 1"));
-
-    await waitFor(() => {
-      expect(mockGetOne).toHaveBeenCalledWith("1");
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
-      expect(screen.getByTestId("device-name")).toHaveTextContent(
-        "Reader 1 Full",
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/tenant/database/devices?device=1",
+        { scroll: false },
       );
     });
   });
 
-  it("closes detail modal", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1",
-      device_type: "terminal",
-    });
+  it("hydrates the detail panel from the device URL param using the cached list", async () => {
+    setSelectedDevice("1");
 
     render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
+      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
+      expect(screen.getByTestId("detail-device-name")).toHaveTextContent(
+        "Eingang Kiosk",
+      );
+      expect(screen.getByTestId("detail-device-room")).toHaveTextContent(
+        "Foyer",
+      );
     });
+    // No per-selection refetch — list DTO already carries every detail field.
+    expect(mockGetOne).not.toHaveBeenCalled();
+  });
 
-    fireEvent.click(screen.getByText("Reader 1"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
+  it("opens the edit modal when the detail panel edit button is clicked", async () => {
+    setSelectedDevice("1");
 
-    fireEvent.click(screen.getByTestId("detail-close"));
+    render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.queryByTestId("detail-modal")).not.toBeInTheDocument();
+      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
     });
   });
 
-  it("opens edit modal from detail modal", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1",
-      device_type: "terminal",
+  it("calls update service when saving the edit modal", async () => {
+    setSelectedDevice("1");
+    mockUpdate.mockResolvedValueOnce({
+      ...mockDevices[0],
+      name: "Updated Device",
+      room_name: "Werkraum",
     });
 
     render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
+      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Reader 1"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
+    // Simulate the post-mutate SWR refresh by swapping in the updated list.
+    setSwrData([
+      {
+        ...mockDevices[0]!,
+        name: "Updated Device",
+        room_name: "Werkraum",
+      },
+      mockDevices[1]!,
+    ]);
 
-    fireEvent.click(screen.getByTestId("edit-button"));
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
 
     await waitFor(() => {
-      expect(screen.queryByTestId("detail-modal")).not.toBeInTheDocument();
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument();
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "1",
+        expect.objectContaining({ name: "Updated Device" }),
+      );
+      expect(screen.getByTestId("detail-device-name")).toHaveTextContent(
+        "Updated Device",
+      );
+      expect(screen.getByTestId("detail-device-room")).toHaveTextContent(
+        "Werkraum",
+      );
     });
   });
 
-  it("updates device successfully", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1",
-      device_type: "terminal",
-    });
-    mockUpdate.mockResolvedValue({});
+  it("calls delete service after confirming deletion from the detail panel", async () => {
+    setSelectedDevice("1");
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
+      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Reader 1"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("edit-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("save-button"));
+    fireEvent.click(screen.getByTestId("trigger-delete"));
 
     await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith("1", { name: "Updated Device" });
-      expect(mockToastSuccess).toHaveBeenCalled();
-      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
     });
-  });
-
-  it("closes edit modal", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1",
-      device_type: "terminal",
-    });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Reader 1"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("edit-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("edit-close"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
-    });
-  });
-
-  it("triggers delete confirmation", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1",
-      device_type: "terminal",
-    });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Reader 1"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("delete-button"));
-
-    expect(mockHandleDeleteClick).toHaveBeenCalled();
-  });
-
-  it("shows delete confirmation modal", async () => {
-    mockShowConfirmModal.mockReturnValue(true);
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1",
-      device_type: "terminal",
-    });
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Reader 1"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("deletes device successfully", async () => {
-    mockShowConfirmModal.mockReturnValue(true);
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1",
-      device_type: "terminal",
-    });
-    mockDelete.mockResolvedValue(null);
-    mockConfirmDelete.mockImplementation((fn: () => void) => fn());
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Reader 1"));
-    await waitFor(() =>
-      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument(),
-    );
 
     fireEvent.click(screen.getByTestId("confirm-delete"));
 
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalledWith("1");
-      expect(mockToastSuccess).toHaveBeenCalled();
+      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/devices", {
+        scroll: false,
+      });
     });
   });
 
-  it("shows error toast when delete returns error", async () => {
-    mockShowConfirmModal.mockReturnValue(true);
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1",
-      device_type: "terminal",
-    });
-    mockDelete.mockResolvedValue("Gerät kann nicht gelöscht werden");
-    mockConfirmDelete.mockImplementation((fn: () => void) => fn());
+  it("shows an error toast when delete returns an error", async () => {
+    setSelectedDevice("1");
+    mockDelete.mockResolvedValueOnce("Gerät kann nicht gelöscht werden");
 
     render(<DevicesPage />);
+
     await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
+      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("Reader 1"));
+
+    fireEvent.click(screen.getByTestId("trigger-delete"));
     await waitFor(() => {
-      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
     });
+
     fireEvent.click(screen.getByTestId("confirm-delete"));
 
     await waitFor(() => {
@@ -1026,183 +524,252 @@ describe("DevicesPage", () => {
     });
   });
 
-  it("shows duplicate device ID error on 409", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockRejectedValue(
-      new Error("API error: 409 - duplicate device ID: NEW-001"),
-    );
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() =>
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-
-    await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalled();
-      expect(screen.getByTestId("create-error")).toBeInTheDocument();
-      expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /bereits vergeben/,
-      );
-      expect(screen.getByTestId("create-error")).toHaveTextContent("NEW-001");
-    });
-  });
-
-  it("shows duplicate error when error contains 'duplicate device ID'", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockRejectedValue(new Error("duplicate device ID: NEW-001"));
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() =>
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /bereits vergeben/,
-      );
-    });
-  });
-
-  it("shows generic error when create fails with non-duplicate error", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockRejectedValue(new Error("Network error"));
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() =>
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /Fehler beim Erstellen des Geräts/,
-      );
-    });
-  });
-
-  it("clears create error when modal is closed", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockRejectedValue(new Error("duplicate device ID: NEW-001"));
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() =>
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-    await waitFor(() =>
-      expect(screen.getByTestId("create-error")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-close"));
-    await waitFor(() =>
-      expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument(),
-    );
-
-    // Reopen modal - error should be cleared
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-      expect(screen.queryByTestId("create-error")).not.toBeInTheDocument();
-    });
-  });
-
-  it("clears create error on next successful attempt", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
-    mockCreate.mockRejectedValueOnce(new Error("duplicate device ID: NEW-001"));
-
-    render(<DevicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
-    await waitFor(() =>
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-    await waitFor(() =>
-      expect(screen.getByTestId("create-error")).toBeInTheDocument(),
-    );
-
-    // Now succeed on retry
+  it("preserves the once-only API key in the detail panel after create", async () => {
     mockCreate.mockResolvedValueOnce({
-      id: "1",
-      device_id: "NEW-001",
-      name: "New Device",
-      device_type: "terminal",
-    });
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-    await waitFor(() => {
-      expect(screen.queryByTestId("create-error")).not.toBeInTheDocument();
-    });
-  });
-
-  it("cancels delete confirmation", async () => {
-    mockShowConfirmModal.mockReturnValue(true);
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          device_id: "DEV-001",
-          name: "Reader 1",
-          device_type: "terminal",
-        },
-      ],
-    });
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      device_id: "DEV-001",
-      name: "Reader 1",
-      device_type: "terminal",
+      id: "3",
+      device_id: "kiosk-003",
+      device_type: "kiosk",
+      name: "Neues Kiosk",
+      status: "active",
+      is_online: true,
+      api_key: "secret-token-xyz",
     });
 
     render(<DevicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Reader 1")).toBeInTheDocument();
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Reader 1"));
-    await waitFor(() =>
-      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument(),
-    );
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
 
-    fireEvent.click(screen.getByTestId("cancel-delete"));
+    // Simulate the post-mutate SWR refresh that adds the new device (without
+    // api_key — that field only exists on the create response).
+    setSwrData([
+      ...mockDevices,
+      {
+        id: "3",
+        device_id: "kiosk-003",
+        device_type: "kiosk",
+        name: "Neues Kiosk",
+        status: "active",
+        is_online: true,
+      },
+    ]);
 
-    expect(mockHandleDeleteCancel).toHaveBeenCalled();
-    expect(mockDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("detail-api-key")).toHaveTextContent(
+        "secret-token-xyz",
+      );
+    });
+    // No per-selection refetch — the api_key would otherwise be wiped.
+    expect(mockGetOne).not.toHaveBeenCalledWith("3");
+  });
+
+  it("drops the flashed API key after the created device is closed and reopened", async () => {
+    mockCreate.mockResolvedValueOnce({
+      id: "3",
+      device_id: "kiosk-003",
+      device_type: "kiosk",
+      name: "Neues Kiosk",
+      status: "active",
+      is_online: true,
+      api_key: "secret-token-xyz",
+    });
+
+    const { rerender } = render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
+
+    setSwrData([
+      ...mockDevices,
+      {
+        id: "3",
+        device_id: "kiosk-003",
+        device_type: "kiosk",
+        name: "Neues Kiosk",
+        status: "active",
+        is_online: true,
+      },
+    ]);
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("detail-api-key")).toHaveTextContent(
+        "secret-token-xyz",
+      );
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-deselect"));
+    rerender(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("device-detail-panel"),
+      ).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("device-row-3"));
+    rerender(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("3");
+      expect(screen.queryByTestId("detail-api-key")).not.toBeInTheDocument();
+    });
+  });
+
+  it("clears the flashed API key after editing a newly created device", async () => {
+    mockCreate.mockResolvedValueOnce({
+      id: "3",
+      device_id: "kiosk-003",
+      device_type: "kiosk",
+      name: "Neues Kiosk",
+      status: "active",
+      is_online: true,
+      api_key: "secret-token-xyz",
+    });
+    mockUpdate.mockResolvedValueOnce({
+      id: "3",
+      device_id: "kiosk-003",
+      device_type: "kiosk",
+      name: "Bearbeitetes Kiosk",
+      status: "active",
+      is_online: true,
+      room_name: "Werkraum",
+      created_at: "2026-01-01",
+      updated_at: "2026-01-03",
+    });
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
+
+    setSwrData([
+      ...mockDevices,
+      {
+        id: "3",
+        device_id: "kiosk-003",
+        device_type: "kiosk",
+        name: "Neues Kiosk",
+        status: "active",
+        is_online: true,
+        room_name: null,
+      },
+    ]);
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("detail-api-key")).toHaveTextContent(
+        "secret-token-xyz",
+      );
+    });
+
+    // Edit triggers another SWR refresh with the updated row.
+    setSwrData([
+      ...mockDevices,
+      {
+        id: "3",
+        device_id: "kiosk-003",
+        device_type: "kiosk",
+        name: "Bearbeitetes Kiosk",
+        status: "active",
+        is_online: true,
+        room_name: "Werkraum",
+      },
+    ]);
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "3",
+        expect.objectContaining({ name: "Updated Device" }),
+      );
+      expect(screen.getByTestId("detail-device-name")).toHaveTextContent(
+        "Bearbeitetes Kiosk",
+      );
+      expect(screen.getByTestId("detail-device-room")).toHaveTextContent(
+        "Werkraum",
+      );
+      expect(screen.queryByTestId("detail-api-key")).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps the created device detail mounted when the current search hides it", async () => {
+    mockCreate.mockResolvedValueOnce({
+      id: "3",
+      device_id: "kiosk-003",
+      device_type: "kiosk",
+      name: "Neues Kiosk",
+      status: "active",
+      is_online: true,
+      api_key: "secret-token-xyz",
+    });
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "unmatched-filter" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Keine Geräte gefunden")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
+
+    setSwrData([
+      ...mockDevices,
+      {
+        id: "3",
+        device_id: "kiosk-003",
+        device_type: "kiosk",
+        name: "Neues Kiosk",
+        status: "active",
+        is_online: true,
+      },
+    ]);
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("3");
+      expect(screen.getByTestId("detail-api-key")).toHaveTextContent(
+        "secret-token-xyz",
+      );
+    });
   });
 });
