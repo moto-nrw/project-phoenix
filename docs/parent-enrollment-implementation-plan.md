@@ -2,7 +2,7 @@
 
 **Companion to:** `docs/parent-enrollment-plan.md`
 **Audience:** Claude (across multiple sessions) + human reviewer
-**Status:** Drafted 2026-04-16
+**Status:** Drafted 2026-04-16, updated 2026-04-27 (rev 1.2 — Timetable RFC dependencies confirmed shipped)
 
 This document is the step-by-step execution plan for implementing the parent enrollment feature. The main plan describes **what** we're building. This document describes **how** to build it PR-by-PR, how to start each session cleanly, and how to hand off state between sessions.
 
@@ -282,23 +282,25 @@ All of these with German labels + descriptions. See §5.6 for the full table. Do
 
 **Goal:** Ship `enrollment.care_offerings` table + admin editor UI for managing the catalog (add/edit/delete/clone for next year). Parent-facing form doesn't consume it yet (PR 7).
 
-**Depends on:** Something has to own `schedule.calendar_periods` before this merges. See §3 "Calendar Periods Emergency Plan" below — if Yannick hasn't shipped the table by the time we reach this PR, ship the minimal subset as part of this PR (not a separate PR).
+**Depends on:** `schedule.calendar_periods` is **live in `development`** (migration `1.15.33`, rev 2.4). No coordination work needed before this PR. Two pre-PR-6 decisions remain — see §3 below: (a) where the "create first school_year period" affordance lives (Q14); (b) whether the new enrollment-side FKs should use `ON DELETE SET NULL` (matches codebase) or `ON DELETE RESTRICT` (original plan assumption) — see Q16.
 
 **Scope:**
 - Migration: `enrollment.care_offerings` + `enrollment.request_child_offerings` (the latter is empty until PR 7 writes to it). RLS.
 - Model + repo + service per offering entity
 - Admin UI at `/{tenant}/admin/care-offerings` — list by calendar period, create/edit/delete/clone form
 - API: offering CRUD + parent-facing open-window endpoint (returns offerings filterable by school year + window open)
+- Setup affordance: when no `school_year` calendar period exists for the tenant, surface a "Create first school year" call-to-action (per Q14 resolution — recommended path is enrollment-owned)
 
 **Tests:**
 - Capacity check logic (null = unlimited)
 - Application window filter: offerings with window in the past / future excluded from parent-facing endpoint
 - Clone-to-next-year helper: new offerings created with shifted dates but identical module structure
 - Admin can see closed offerings; parent endpoint cannot
+- "No school_year period exists yet" path: admin UI prompts to create one; parent-facing endpoint returns empty list with a typed reason
 
 **Acceptance criteria:**
 - Admin UI lets them build a realistic catalog (e.g., "Regelbetreuung", "Ferienbetreuung Ostern", "Ferienbetreuung Sommer")
-- Calendar period FK works: deleting a period with offerings is blocked (`ON DELETE RESTRICT`)
+- Calendar period FK behaves per Q16 decision (default expectation for rev 2.4: `ON DELETE SET NULL` to match codebase pattern; admin UI surfaces a warning when deleting a period with referencing enrollment rows)
 
 ---
 
@@ -357,21 +359,28 @@ All of these with German labels + descriptions. See §5.6 for the full table. Do
 
 ---
 
-## 3. Calendar Periods Coordination (no longer an emergency — confirmed 2026-04-16)
+## 3. Calendar Periods Coordination — SHIPPED (rev 1.2, 2026-04-27)
 
-**Resolution:** Yannick has agreed to ship `schedule.calendar_periods` as part of the Timetable RFC work. The enrollment plan no longer needs a fallback migration.
+**Resolution:** The Timetable RFC tables landed in `development` first, materialising "Scenario A" from `parent-enrollment-plan.md` §11. The enrollment plan does not need to migrate or extend these tables — it consumes them.
 
-**What this means:**
+**What landed in `development`:**
 
-- PR 6 (care offerings) depends on Yannick's calendar_periods table being live before it can merge
-- If PR 6 is ready and calendar_periods isn't yet merged, coordinate with Yannick on timing — don't re-open the emergency plan without explicit approval from Christian + Yannick
-- PR 7 and PR 8 depend on `activities.student_enrollments` having the `valid_from`/`valid_until` columns (Timetable RFC E17). Confirm these are live before PR 8 merges.
+| Migration | What it does |
+|-----------|-------------|
+| `1.15.33` (`backend/database/migrations/001015033_create_calendar_periods.go`) | Creates `schedule.calendar_periods` with `period_type IN ('school_year', 'semester', 'holiday', 'custom')`, `week_cycle_length`, `week_cycle_anchor`, `is_active`, RLS forced, tenant-isolation policy, unique `(tenant_id, name)` |
+| `1.15.34` (`001015034_template_extensions.go`) | Renames `activities.student_enrollments.enrollment_date` → `valid_from`; adds `valid_until` (nullable DATE) and `calendar_period_id` (FK with `ON DELETE SET NULL`); same validity columns added to `activities.supervisors` |
+| `1.15.36` (`001015036_create_activity_instances.go`) | Adds another `calendar_period_id` FK on activity_instances, also `ON DELETE SET NULL` — establishes the codebase-wide pattern |
 
-**Still open (ask Yannick before PR 6):**
+**What this means for PR 2 onward:**
 
-- Does Yannick's delivery auto-create a default `school_year` period per tenant, or do we need to add this to enrollment setup flow?
-- What's `ON DELETE` behavior if an admin tries to delete a calendar_period that enrollment rows reference? Enrollment wants `ON DELETE RESTRICT` — confirm Yannick agrees.
-- Any additional fields on `activities.student_enrollments` beyond `valid_from`/`valid_until`/`calendar_period_id` that we should know about?
+- PR 2 has no dependency on calendar_periods — proceed without coordination
+- PR 6 (care offerings) consumes existing tables — `enrollment.care_offerings.calendar_period_id` references `schedule.calendar_periods(id)`
+- PR 8 writes to `activities.student_enrollments` using the existing `valid_from`/`valid_until`/`calendar_period_id` columns — no schema work needed there
+
+**Still open before PR 6 (decisions, not coordination):**
+
+- **Q14 — auto-default `school_year` period.** Confirmed: `development` does **not** auto-create a default period for new tenants. No provisioning hook, migration backfill, or school-creation side effect. Decision needed: enrollment owns a "create first school year" wizard, OR platform provisioning grows a default-period side-effect, OR explicit operator action. Recommended path: enrollment owns it (PR 6 setup affordance).
+- **Q16 — `ON DELETE` behavior for enrollment FKs.** Codebase pattern is `SET NULL`. Earlier plan revisions assumed `RESTRICT`. Decision needed: align with codebase (default recommendation) or diverge for enrollment-side data. If aligning, PR 6 must include an admin warning when deleting a period that has referencing rows.
 
 ---
 
@@ -484,8 +493,9 @@ These are open questions that don't block starting PR 2 but should be resolved b
 | Digest vs immediate default | PR 8 | plan §4 Q10 | open — ask before PR 8 (my recommendation: `digest`) |
 | Outbox scope (enrollment-only vs platform-shared) | PR 5 | plan §4 Q11 | **RESOLVED: `platform.email_outbox` (shared)** |
 | Status token TTL (1 year?) | PR 5 | plan §4 Q12 | **RESOLVED: 1 year default, operator-only editable per tenant (new `platform:config:update` write permission)** |
-| Calendar period ownership | PR 6 | plan §4 Q13 | **RESOLVED: Yannick ships it** |
-| Default school-year period auto-gen | PR 6 | plan §4 Q14 | depends on Yannick's delivery — ask before PR 6 |
+| Calendar period ownership | PR 6 | plan §4 Q13 | **RESOLVED: shipped in `development` (migration 1.15.33)** |
+| Default school-year period auto-gen | PR 6 | plan §4 Q14 | **CONFIRMED OPEN (rev 1.2):** verified no auto-creation in `development`. Decision needed before PR 6 — recommended: enrollment owns a setup wizard. |
+| `ON DELETE` behavior for `calendar_period_id` FKs in enrollment tables | PR 6 | plan §4 Q16 | **NEW (rev 1.2):** codebase uses `SET NULL`; original plan assumed `RESTRICT`. Decide before PR 6 — recommended: align with codebase. |
 
 **Protocol for re-asking open questions:** Claude must re-read this table at the start of every session starting from PR 5 onward, and explicitly ask the user for answers to the open items before writing code that depends on them. Don't assume; ask.
 
@@ -505,3 +515,4 @@ Do NOT rewrite history — keep a changelog at the top.
 
 - **2026-04-16 (v1):** Initial execution plan drafted by Claude for team review.
 - **2026-04-16 (v1.1):** Resolved Q11 (outbox → `platform.email_outbox` shared), Q12 (status token TTL 1 year, operator-only editable — introduces new `platform:config:update` permission pattern), Q13 (Yannick ships calendar_periods). Emergency fallback replaced by coordination notes. PR-7 open questions marked as re-ask-before-PR-7.
+- **2026-04-27 (v1.2):** Verified Timetable RFC dependencies have **landed in `development`** — migrations `1.15.33` (calendar_periods) and `1.15.34` (student_enrollments + supervisors validity columns). §3 rewritten from "coordination" to "shipped" with concrete migration refs. PR 6 dependency line updated. Two pre-PR-6 decisions recorded: Q14 (auto-default `school_year` period — confirmed NOT auto-generated, enrollment must own affordance) and new Q16 (`ON DELETE` behavior — codebase uses `SET NULL`, original plan assumed `RESTRICT`).

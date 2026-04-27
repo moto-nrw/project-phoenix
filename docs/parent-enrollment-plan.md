@@ -1,8 +1,8 @@
 # Parent-Facing Student Enrollment System — Implementation Plan
 
-**Status:** Draft for team discussion (revision 2)
+**Status:** Draft for team discussion (revision 2.4)
 **Target branch:** `development`
-**Author:** Drafted with Claude Code, 2026-04-13 (revised 2026-04-15 based on team feedback)
+**Author:** Drafted with Claude Code, 2026-04-13 (revised 2026-04-15, 2026-04-16, 2026-04-27 based on team feedback)
 
 ## Changelog
 
@@ -10,6 +10,7 @@
 - **2026-04-15 (rev 2.1):** Added per-offering application windows (`application_window_start`/`_end`) and service date fields on `care_offerings` so parents can't apply for offerings whose intake period has closed (e.g. holiday care after holidays begin).
 - **2026-04-16 (rev 2.2):** Aligned with Yannick's Timetable RFC (`docs/timetable-system-plan.md`). Dropped `platform.school_years` in favor of `schedule.calendar_periods` (filter by `period_type='school_year'`). Dropped `users.student_year_assignments` in favor of the validity-scoped pattern (`valid_from`/`valid_until`). Approved care offering selections now create `activities.student_enrollments` rows instead of a new `users.student_care_enrollments` table. Added §11 Cross-dependencies.
 - **2026-04-16 (rev 2.3):** Resolved team questions. Q11: outbox is **shared platform-level** (`platform.email_outbox`), not enrollment-scoped. Q12: status token TTL default 1 year, **operator-editable only** per tenant (new `platform:config:update` write permission for this setting). Q13: Yannick will ship `schedule.calendar_periods` — emergency fallback plan removed from Phase 1 PR 1 / PR 6.
+- **2026-04-27 (rev 2.4):** **Timetable RFC dependencies have landed in `development`.** Verified migrations: `1.15.33` ships `schedule.calendar_periods` (incl. `week_cycle_length`/`week_cycle_anchor`, RLS, tenant isolation); `1.15.34` adds `valid_from`/`valid_until`/`calendar_period_id` to `activities.student_enrollments` and `activities.supervisors`. **Phase 1 PR 1 is now a no-op — start from PR 2.** Two follow-ups recorded: (a) Q14 confirmed **NOT auto-resolved** — no provisioning hook auto-creates a default `school_year` period per tenant; enrollment must own the "create first school year" affordance. (b) Yannick's pattern uses **`ON DELETE SET NULL`** on all three calendar_period FKs, not the `RESTRICT` the enrollment plan assumed — see new Q16.
 
 ---
 
@@ -62,7 +63,7 @@ Enable parents to submit a sign-up request for a child (or multiple children) fo
 
 1. **GDPR / consent checkboxes** — what fixed consent items are legally required on a first-time signup form? Proposed defaults: (a) AGB/terms acceptance, (b) data processing, (c) contact by email. Are there more (photo, emergency contact sharing)?
 2. **Rejected-request retention** — how long should rejected submissions stay in the DB before automatic deletion? Proposed default: 90 days, settings-configurable.
-3. **Calendar period management ownership** — who creates `calendar_periods` entries (with `period_type='school_year'`) in the admin UI? Operator-level (moto) or tenant-level (school admin)? Since the Timetable RFC auto-generates a default school-year period per tenant (E15), the practical answer may be "automatically by the system; admins only add extra periods (holiday, custom)." Confirm with Yannick.
+3. **Calendar period management ownership** — who creates `calendar_periods` entries (with `period_type='school_year'`) in the admin UI? Operator-level (moto) or tenant-level (school admin)? Confirmed (rev 2.4): Yannick's delivery in `development` does **not** auto-generate a default `school_year` period — see Q14. The practical answer is now "either an enrollment setup wizard or the platform provisioning flow inserts the first `school_year` period; admins add extras (holiday, custom) via the Timetable RFC's admin UI."
 4. **Existing `school_class` string field** — Yannick's RFC (E11) keeps `students.school_class` as the canonical source for class identity and uses it as the filter for arrival-schedule bulk endpoints. Our plan no longer needs a year-scoped assignment table, so we can leave `school_class` untouched. Grade-level progression across years becomes the Timetable RFC's concern.
 5. **Spam protection** — is Turnstile/hCaptcha acceptable, or do we need a different provider? Gated behind `enrollment.require_captcha` setting.
 6. **Email sender identity** — emails sent from a tenant-specific from-address, or a global `enrollment@moto-app.de`? DNS/DKIM implications.
@@ -73,8 +74,9 @@ Enable parents to submit a sign-up request for a child (or multiple children) fo
 11. **Outbox scope** — **RESOLVED (rev 2.3):** build `platform.email_outbox` (shared across features), not an enrollment-scoped table.
 12. **Status token lifetime** — **RESOLVED (rev 2.3):** default 1 year. Operator-only editable per tenant (new permission pattern — see §11 coordination notes).
 13. **Coordination with Timetable RFC delivery** — **RESOLVED (rev 2.3):** Yannick will ship `schedule.calendar_periods`. Enrollment Phase 1 no longer needs its own calendar_periods PR; we consume his.
-14. **Auto-generated default school-year period** — still open: does Yannick's delivery auto-create a `school_year` period per tenant? If not, the enrollment admin UI (PR 6 or earlier) needs a setup step. Ask him.
+14. **Auto-generated default school-year period** — **CONFIRMED OPEN (rev 2.4):** verified `development` does **not** auto-create a default `school_year` period for new tenants. No provisioning hook, migration backfill, or school-creation side effect. Decision needed before PR 6: (a) enrollment admin setup wizard prompts for first school year on first use; (b) platform provisioning side-effect creates a default period at school creation; (c) explicit operator action — pick one. Recommendation: (a) — keeps responsibility in the feature that needs the data and avoids silent assumptions in unrelated code paths.
 15. **Care offering ↔ activity group wiring UX** — since `care_offerings.activity_group_id` is nullable, admins can create offerings before the matching `activities.groups` row exists. When a care offering has no linked activity group and a child is approved, what should happen? Proposed: log a warning, still approve the enrollment request, but skip the `student_enrollments` insert — admin can wire it later via an "attach activity group" action.
+16. **`ON DELETE` behavior on `calendar_period_id` FKs — NEW (rev 2.4):** Yannick's pattern in `development` uses `ON DELETE SET NULL` on all three existing FKs (`activities.student_enrollments.calendar_period_id`, `activities.supervisors.calendar_period_id`, `activity_instances.calendar_period_id`). Earlier enrollment plan revisions assumed `ON DELETE RESTRICT` for `enrollment.requests.calendar_period_id` and `enrollment.care_offerings.calendar_period_id` (so admins can't delete a period that has live enrollment data). Decision needed before PR 6: (a) **align with codebase** — `SET NULL`, accept that orphaned requests/offerings lose year scope (display "kein Schuljahr zugeordnet" in admin UI; bulk-fix workflow); (b) **diverge for enrollment** — `RESTRICT` and explain why enrollment is special. Recommendation: (a) for consistency; surface an admin warning when deleting a period with referencing enrollment rows.
 
 ---
 
@@ -356,8 +358,8 @@ Slog entries use student IDs only (GDPR — no names at info level).
 
 ### Phase 1: Foundation (no user-visible enrollment feature yet)
 
-- **PR 1** — `schedule.calendar_periods` table + model + repo + admin CRUD API + admin UI. **Coordinate with Yannick** — if the Timetable RFC ships the full table first, this PR becomes a no-op. Otherwise ship a minimal subset (`id, tenant_id, name, period_type, start_date, end_date, is_active`) that the Timetable RFC can extend later with the week-cycle columns.
-- **PR 2** — Student lifecycle fields (`status`, `enrolled_from`, `enrolled_until`) + scheduler activation job + tests. No `student_year_assignments` table — year-scoped progression is handled by the Timetable RFC's enrollment-validity pattern on `activities.student_enrollments`.
+- ~~**PR 1** — `schedule.calendar_periods` table + model + repo + admin CRUD API + admin UI.~~ **Dropped (rev 2.4):** the table landed in `development` via migration `1.15.33`, model + repo are in `backend/models/schedule/calendar_period.go` / `backend/database/repositories/schedule/calendar_period_repo.go`. Phase 1 starts at PR 2.
+- **PR 2** — Student lifecycle fields (`status`, `enrolled_from`, `enrolled_until`) + scheduler activation job + tests. No `student_year_assignments` table — year-scoped progression is handled by the Timetable RFC's enrollment-validity pattern on `activities.student_enrollments` (already shipped via migration `1.15.34`).
 - **PR 3** — Complete `guardian_invitation_service` + `/accept-guardian-invite` frontend page
 
 ### Phase 2: Enrollment MVP
@@ -428,31 +430,34 @@ Each PR is independently shippable and gated by `enrollment.enabled` (off by def
 
 This plan intentionally defers several concepts to Yannick's Timetable RFC (`docs/timetable-system-plan.md`) rather than building parallel structures. The overlap is substantial and listed here for coordination.
 
-| Concept | Owner | Consumed by this plan |
-|---------|-------|-----------------------|
-| `schedule.calendar_periods` table | Timetable RFC (E15) | Year picker on submission form; `enrollment.requests.calendar_period_id`; `enrollment.care_offerings.calendar_period_id`; `valid_from`/`valid_until` on created `activities.student_enrollments` rows |
-| Auto-generated default `school_year` period per tenant | Timetable RFC (E15) | We assume at least one `school_year` calendar period exists for each active tenant |
-| `activities.student_enrollments` with `valid_from`/`valid_until` | Timetable RFC (E17) — extends an existing table | Approval service writes rows here to record approved care offerings |
-| `activities.groups` with `type='care'` | Timetable RFC (existing + extension) | `enrollment.care_offerings.activity_group_id` points here |
-| Bulk semester rollover endpoint | Timetable RFC (E17, §5.4) | Not consumed directly; relevant for post-v1 re-enrollment flow |
-| Student progression across school years | Timetable RFC (enrollment-validity pattern) | Not modeled in this plan; once a year ends, the Timetable RFC's rollover mechanism handles continuation |
+**Status as of 2026-04-27 (rev 2.4):** Scenario A has materialised — the underlying tables have **landed in `development`** (migrations `1.15.33` and `1.15.34`). Phase 1 PR 1 is dropped; this plan starts from PR 2. Two follow-ups remain (Q14, Q16) — see below.
 
-### Delivery Scenarios
+| Concept | Owner | Consumed by this plan | Status in `development` |
+|---------|-------|-----------------------|-------------------------|
+| `schedule.calendar_periods` table | Timetable RFC (E15) | Year picker on submission form; `enrollment.requests.calendar_period_id`; `enrollment.care_offerings.calendar_period_id`; `valid_from`/`valid_until` on created `activities.student_enrollments` rows | **✅ Shipped** (migration `1.15.33`) — incl. `period_type CHECK ('school_year','semester','holiday','custom')`, `week_cycle_length`, `week_cycle_anchor`, RLS forced, tenant-isolation policy, unique `(tenant_id, name)` |
+| Auto-generated default `school_year` period per tenant | Timetable RFC (E15) | We assume at least one `school_year` calendar period exists for each active tenant | **❌ Not shipped** — no auto-creation logic found in `development`. Enrollment must own this affordance. See Q14. |
+| `activities.student_enrollments` with `valid_from`/`valid_until` | Timetable RFC (E17) — extends an existing table | Approval service writes rows here to record approved care offerings | **✅ Shipped** (migration `1.15.34`) — `enrollment_date` renamed to `valid_from`; `valid_until` nullable DATE; `calendar_period_id` FK with `ON DELETE SET NULL` |
+| `activities.supervisors` with `valid_from`/`valid_until` (validity pattern) | Timetable RFC (E17) | Reference pattern for our own validity-scoped writes | **✅ Shipped** (migration `1.15.34`) |
+| `activities.groups` with `type='care'` | Timetable RFC (existing + extension) | `enrollment.care_offerings.activity_group_id` points here | Verify before PR 6 — confirm `'care'` is the canonical type value |
+| Bulk semester rollover endpoint | Timetable RFC (E17, §5.4) | Not consumed directly; relevant for post-v1 re-enrollment flow | n/a for v1 |
+| Student progression across school years | Timetable RFC (enrollment-validity pattern) | Not modeled in this plan; once a year ends, the Timetable RFC's rollover mechanism handles continuation | n/a for v1 |
 
-**Scenario A — Timetable RFC lands first:** This plan's Phase 1 PR 1 is unnecessary. Start from Phase 1 PR 2.
+### Delivery Scenarios — RESOLVED
 
-**Scenario B — This plan lands first:** Ship a minimal `schedule.calendar_periods` table in Phase 1 PR 1 (just `id, tenant_id, name, period_type, start_date, end_date, is_active`). Yannick's RFC extends the same table later with the week-cycle columns (additive migration). Similarly ship the additive migration on `activities.student_enrollments` (`valid_from`/`valid_until` nullable, `calendar_period_id` nullable).
+Scenario A is the path: the Timetable RFC's tables landed in `development` first. This plan's **Phase 1 PR 1 is dropped** (no minimal-subset migration needed). Start from PR 2.
 
-**Scenario C — Parallel delivery:** Weekly sync to decide table ownership per PR to avoid migration-number collisions (see Sharp Edges §10).
+Scenarios B and C (kept here for historical context only):
+- ~~Scenario B — This plan lands first: ship a minimal `schedule.calendar_periods` table in Phase 1 PR 1...~~ — moot; the full table including week-cycle columns is already live.
+- ~~Scenario C — Parallel delivery: weekly sync to decide table ownership per PR to avoid migration-number collisions...~~ — moot.
 
-### Required Coordination Points
+### Required Coordination Points (remaining)
 
-- Table ownership for `schedule.calendar_periods` migration — **Yannick ships it (rev 2.3)**; enrollment consumes
-- Migration version numbers across both plans must not collide (`MigrationRegistry` is a map — collisions silently overwrite)
-- `activities.student_enrollments` column additions — agree who writes them and who runs the data migration
+- ~~Table ownership for `schedule.calendar_periods` migration — Yannick ships it (rev 2.3); enrollment consumes~~ — **DONE (rev 2.4)**, migration `1.15.33`
+- ~~Migration version numbers across both plans must not collide~~ — no longer a risk for the calendar_periods table; still applies to enrollment's own migrations
+- ~~`activities.student_enrollments` column additions~~ — **DONE (rev 2.4)**, migration `1.15.34`
 - Confirm `activities.groups.type='care'` is the right mapping for holiday care, daily care, Mensa, etc.
-- Error handling when a calendar period is deleted while an enrollment request still references it (FK strategy: `ON DELETE RESTRICT` on both sides)
-- Auto-generated default `school_year` period — confirm with Yannick whether his delivery handles this, or enrollment admin UI must create the first period manually
+- **Error handling when a calendar period is deleted while an enrollment request still references it** — see Q16. The codebase pattern (`ON DELETE SET NULL`) differs from this plan's prior assumption (`RESTRICT`); decision needed before PR 6.
+- **Auto-generated default `school_year` period** — see Q14. Yannick's delivery does not handle this; enrollment must own the setup affordance.
 
 ### New Permission Pattern: `platform:config:update`
 
