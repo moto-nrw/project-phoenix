@@ -61,13 +61,14 @@ export function SchoolCheckinModeMobile({
     );
   }
 
-  // Sticky bar sits above the mobile bottom nav (h-16 = 4rem fixed at
-  // bottom-0, with its own safe-area handling). Bottom offset = nav height
-  // + the device's safe-area-inset.
+  // Sticky bar sits above the mobile bottom nav. The nav's actual visible
+  // height is ~4.75rem (pill min-h-44px + py-2 + outer pb-4) plus its own
+  // safe-area-inset. Offset = 5.5rem (nav + breathing gap) + safe-area so
+  // the bar visually floats above the nav with a clear separator.
   return (
     <div
       className="fixed right-0 left-0 z-40 px-3"
-      style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}
+      style={{ bottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}
       data-checkin-mode-mobile="active"
     >
       <div

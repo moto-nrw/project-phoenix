@@ -53,10 +53,11 @@ export function SchoolCheckinFab({
 
   const positionClasses =
     resolved === "floating"
-      ? // Anchored bottom-right above the mobile bottom nav (h-16 = 4rem
-        // tall + own safe-area-inset). Offset = nav height + breathing
-        // gap + safe-area-inset so the FAB never sits behind the nav.
-        "fixed right-4 bottom-[calc(4rem+0.75rem+env(safe-area-inset-bottom))] z-40"
+      ? // Anchored bottom-right above the mobile bottom nav. The nav is
+        // ~4.75rem visible (pill + paddings) + its own safe-area-inset.
+        // Offset = 5.5rem (nav + breathing gap) + safe-area so the FAB
+        // visually floats above the nav with a clear separator.
+        "fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40"
       : "relative z-0";
 
   // OFF = subtle ghost (white pill, brand-green border + text). Reads as
