@@ -378,7 +378,13 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
           Bearbeiten
         </button>
         <Link
-          href={school ? `/operator/schools/${school.id}/settings` : "#"}
+          href={
+            school
+              ? `/operator/schools/${school.id}/settings?back=${encodeURIComponent(
+                  `/operator/organizations/${slug}/schools/${schoolSlug}`,
+                )}`
+              : "#"
+          }
           className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
         >
           Einstellungen
@@ -396,7 +402,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
         </button>
       </>
     ),
-    [handleToggleSchoolActive, school, schoolDelete],
+    [handleToggleSchoolActive, school, schoolDelete, schoolSlug, slug],
   );
 
   const tabActions = useMemo(() => {

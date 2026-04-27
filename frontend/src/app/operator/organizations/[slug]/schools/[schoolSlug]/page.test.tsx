@@ -396,14 +396,15 @@ describe("OperatorSchoolDetailPage", () => {
 
   // --- Settings link ---
 
-  it("links to school settings", async () => {
+  it("links to school settings with back URL pointing to drill-in", async () => {
     setupSWR();
 
     await renderPage();
 
     const settings = await screen.findByText("Einstellungen");
-    expect(settings.closest("a")?.getAttribute("href")).toBe(
-      "/operator/schools/10/settings",
-    );
+    const expected = `/operator/schools/10/settings?back=${encodeURIComponent(
+      "/operator/organizations/test-org/schools/test-school",
+    )}`;
+    expect(settings.closest("a")?.getAttribute("href")).toBe(expected);
   });
 });

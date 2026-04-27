@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
 import type { SettingsSchema } from "~/lib/settings-api";
@@ -32,9 +33,25 @@ interface PageProps {
   readonly params: Promise<{ id: string }>;
 }
 
+// Restrict the `back` param to internal operator paths so the link cannot be
+// used to bounce the user to an arbitrary host (open-redirect guard).
+const SAFE_BACK_PATH = /^\/operator\/[A-Za-z0-9/_\-?=&%.]*$/;
+
+function resolveBackHref(raw: string | null): string {
+  if (!raw) return "/operator/schools";
+  return SAFE_BACK_PATH.test(raw) ? raw : "/operator/schools";
+}
+
 export default function OperatorSchoolSettingsPage({ params }: PageProps) {
   const { id: schoolId } = use(params);
   const { status: sessionStatus } = useSession();
+  const searchParams = useSearchParams();
+  const backHref = useMemo(
+    () => resolveBackHref(searchParams.get("back")),
+    [searchParams],
+  );
+  const backLabel =
+    backHref === "/operator/schools" ? "Zu den Schulen" : "Zurück zur Schule";
 
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [schoolName, setSchoolName] = useState<string>("");
@@ -121,7 +138,7 @@ export default function OperatorSchoolSettingsPage({ params }: PageProps) {
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
         <Link
-          href="/operator/schools"
+          href={backHref}
           className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
         >
           <svg
@@ -137,7 +154,7 @@ export default function OperatorSchoolSettingsPage({ params }: PageProps) {
               d="M15 19l-7-7 7-7"
             />
           </svg>
-          Zu den Schulen
+          {backLabel}
         </Link>
         <h1 className="text-2xl font-semibold text-gray-900">
           Einstellungen{schoolName ? ` · ${schoolName}` : ""}
