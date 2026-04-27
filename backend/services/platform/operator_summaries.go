@@ -210,7 +210,9 @@ func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) (
 }
 
 // ListOrganizationSchoolSummaries returns schools under a specific organization
-// with per-row counts. Returns OrganizationNotFoundError if the org does not exist.
+// with per-row counts. Includes soft-deleted schools so the operator drill-in
+// can show them in the Papierkorb. Returns OrganizationNotFoundError if the org
+// does not exist.
 func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error) {
 	var result []*SchoolSummary
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
@@ -222,7 +224,7 @@ func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx contex
 			return &OrganizationNotFoundError{OrganizationID: organizationID}
 		}
 		db := s.pickDB(adminCtx)
-		q := schoolSummariesQueryBase + ` WHERE "s".organization_id = ? AND "s".deleted_at IS NULL ORDER BY "s".name ASC`
+		q := schoolSummariesQueryBase + ` WHERE "s".organization_id = ? ORDER BY "s".name ASC`
 		return db.NewRaw(q, organizationID).Scan(adminCtx, &result)
 	})
 	if err != nil {

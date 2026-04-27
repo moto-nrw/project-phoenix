@@ -187,12 +187,10 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
     mutate: mutateSchoolSummaries,
   } = useSWR(
     isAuthenticated && organizationId
-      ? ["operator-school-summaries", organizationId]
+      ? ["operator-organization-school-summaries", organizationId]
       : null,
-    async () => {
-      const summaries = await operatorProvisioningService.listSchoolSummaries();
-      return summaries.filter((item) => item.organizationId === organizationId);
-    },
+    () =>
+      operatorProvisioningService.listOrganizationSchools(organizationId ?? ""),
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
@@ -476,14 +474,29 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
   const tabActions = useMemo(() => {
     if (activeTab === "schulen") {
       return (
-        <button
-          type="button"
-          onClick={() => setCreateSchoolOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-        >
-          <PlusIcon />
-          Neue Schule
-        </button>
+        <>
+          {deletedSchools.length > 0 && (
+            <button
+              type="button"
+              onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                schoolDelete.showTrash
+                  ? "bg-red-100 text-red-700 hover:bg-red-200"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              Papierkorb ({deletedSchools.length})
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setCreateSchoolOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+          >
+            <PlusIcon />
+            Neue Schule
+          </button>
+        </>
       );
     }
 
@@ -501,7 +514,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
     }
 
     return null;
-  }, [activeTab]);
+  }, [activeTab, deletedSchools.length, schoolDelete]);
 
   if (isLoading && !organization) {
     return (
@@ -582,24 +595,6 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
           </div>
 
           <TabsPrimitive.Content value="schulen" className="mt-4">
-            {deletedSchools.length > 0 && (
-              <div className="mb-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() =>
-                    schoolDelete.setShowTrash(!schoolDelete.showTrash)
-                  }
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                    schoolDelete.showTrash
-                      ? "bg-red-100 text-red-700 hover:bg-red-200"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Papierkorb ({deletedSchools.length})
-                </button>
-              </div>
-            )}
-
             {schoolsLoading ? (
               <CardSkeletons />
             ) : schoolDelete.showTrash ? (
