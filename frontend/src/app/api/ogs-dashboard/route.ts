@@ -34,6 +34,8 @@ interface BackendStudent {
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
 }
 
 interface BackendRoomStatus {

@@ -128,6 +128,12 @@ vi.mock("@/components/ui/location-badge", () => ({
 
 // Mock location helpers
 vi.mock("~/lib/location-helper", () => ({
+  LOCATION_COLORS: {
+    UNKNOWN: "#6B7280",
+    SCHOOLYARD: "#F78C10",
+    HOME: "#FF3130",
+    GROUP_ROOM: "#83CD2D",
+  },
   isHomeLocation: (loc: string) => loc === "Zuhause" || loc === "",
   isPresentLocation: (loc: string) =>
     loc !== "Zuhause" &&

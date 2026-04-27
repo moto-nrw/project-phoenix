@@ -547,12 +547,14 @@ export default function StudentDetailPage() {
           myGroups={myGroups}
           myGroupRooms={myGroupRooms}
           mySupervisedRooms={mySupervisedRooms}
-          todayPickupTime={todayPickup.time}
+          todayPickupPlannedTime={todayPickup.time}
+          todayPickupActualTime={student.actual_pickup_time}
           todayPickupNote={todayPickup.note}
           isPickupException={todayPickup.isException}
-          todayArrivalTime={todayArrival.time}
-          todayArrivalNote={todayArrival.note}
+          todayArrivalPlannedTime={todayArrival.time}
+          todayArrivalActualTime={student.actual_arrival_time}
           isArrivalException={todayArrival.isException}
+          todayArrivalNote={todayArrival.note}
           isArrivalAbsent={todayArrival.isAbsent}
         />
 

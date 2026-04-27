@@ -30,11 +30,7 @@ import {
   matchesSearchFilter,
   matchesAttendanceFilter,
 } from "./ogs-group-helpers";
-import {
-  getPickupUrgency,
-  useMinuteClock,
-  combinePickupNotes,
-} from "~/lib/pickup-helpers";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import type { OGSGroup } from "./ogs-group-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
@@ -54,10 +50,15 @@ import {
 } from "~/components/students/student-card";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
-import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
+import {
+  areStudentDayTimesResolved,
+  combineTimeNotes,
+  getStudentTimeStatus,
+  getTimeStatusSortRank,
+} from "~/lib/student-time-status";
 
 import { createLogger } from "~/lib/logger";
 
@@ -94,6 +95,8 @@ interface BackendStudentFromBFF {
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
 }
 
 // BFF response type for dashboard data
@@ -315,6 +318,8 @@ function OGSGroupPageContent() {
         arrival_time: s.arrival_time,
         arrival_is_exception: s.arrival_is_exception,
         arrival_notes: s.arrival_notes,
+        actual_arrival_time: s.actual_arrival_time,
+        actual_pickup_time: s.actual_pickup_time,
       }));
       setStudents(mappedStudents);
 
@@ -796,14 +801,6 @@ function OGSGroupPageContent() {
     };
 
     if (sortMode === "pickup") {
-      // Urgency rank: overdue (0) → soon (1) → normal (2) → none/no time (3) → zuhause (4)
-      const urgencyRank: Record<string, number> = {
-        overdue: 0,
-        soon: 1,
-        normal: 2,
-        none: 3,
-      };
-
       return sorted.sort((a, b) => {
         const aHome = isHomeLocation(a.current_location);
         const bHome = isHomeLocation(b.current_location);
@@ -816,10 +813,18 @@ function OGSGroupPageContent() {
         // Beide anwesend: nach Urgency-Gruppe sortieren
         const timeA = pickupTimes.get(a.id.toString())?.pickupTime;
         const timeB = pickupTimes.get(b.id.toString())?.pickupTime;
-        const urgencyA = getPickupUrgency(timeA, now);
-        const urgencyB = getPickupUrgency(timeB, now);
-        const rankA = urgencyRank[urgencyA] ?? 3;
-        const rankB = urgencyRank[urgencyB] ?? 3;
+        const statusA = getStudentTimeStatus({
+          plannedTime: timeA,
+          actualTime: a.actual_pickup_time,
+          now,
+        });
+        const statusB = getStudentTimeStatus({
+          plannedTime: timeB,
+          actualTime: b.actual_pickup_time,
+          now,
+        });
+        const rankA = getTimeStatusSortRank(statusA);
+        const rankB = getTimeStatusSortRank(statusB);
 
         // Verschiedene Urgency-Gruppen: überzogen zuerst
         if (rankA !== rankB) return rankA - rankB;
@@ -835,14 +840,6 @@ function OGSGroupPageContent() {
     }
 
     if (sortMode === "arrival") {
-      // Urgency rank for arrival: verspätet (0) → bald (1) → normal (2) → none/angekommen (3)
-      const urgencyRank: Record<string, number> = {
-        overdue: 0,
-        soon: 1,
-        normal: 2,
-        none: 3,
-      };
-
       return sorted.sort((a, b) => {
         const aHome = isHomeLocation(a.current_location);
         const bHome = isHomeLocation(b.current_location);
@@ -854,10 +851,18 @@ function OGSGroupPageContent() {
         // Beide zu Hause: nach Ankunfts-Urgency sortieren
         const timeA = a.arrival_time;
         const timeB = b.arrival_time;
-        const urgencyA = getArrivalUrgency(timeA, now, aHome);
-        const urgencyB = getArrivalUrgency(timeB, now, bHome);
-        const rankA = urgencyRank[urgencyA] ?? 3;
-        const rankB = urgencyRank[urgencyB] ?? 3;
+        const statusA = getStudentTimeStatus({
+          plannedTime: timeA,
+          actualTime: a.actual_arrival_time,
+          now,
+        });
+        const statusB = getStudentTimeStatus({
+          plannedTime: timeB,
+          actualTime: b.actual_arrival_time,
+          now,
+        });
+        const rankA = getTimeStatusSortRank(statusA);
+        const rankB = getTimeStatusSortRank(statusB);
 
         if (rankA !== rankB) return rankA - rankB;
 
@@ -1191,7 +1196,16 @@ function OGSGroupPageContent() {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
-              const isHome = isHomeLocation(student.current_location);
+              const arrivalStatus = getStudentTimeStatus({
+                plannedTime: student.arrival_time,
+                actualTime: student.actual_arrival_time,
+                now,
+              });
+              const pickupStatus = getStudentTimeStatus({
+                plannedTime: studentPickup?.pickupTime,
+                actualTime: student.actual_pickup_time,
+                now,
+              });
 
               return (
                 <StudentCard
@@ -1200,6 +1214,10 @@ function OGSGroupPageContent() {
                   firstName={student.first_name}
                   lastName={student.second_name}
                   gradient={cardGradient}
+                  isClosedOut={areStudentDayTimesResolved(
+                    arrivalStatus,
+                    pickupStatus,
+                  )}
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
                   }
@@ -1222,27 +1240,27 @@ function OGSGroupPageContent() {
                     <>
                       <ArrivalTimeRow
                         arrivalTime={student.arrival_time}
+                        actualTime={student.actual_arrival_time}
                         isException={student.arrival_is_exception ?? false}
                         isAbsent={
                           (student.arrival_is_exception ?? false) &&
                           !student.arrival_time
                         }
                         notes={student.arrival_notes}
-                        isHome={isHome}
                         now={now}
                       />
                       <PickupTimeRow
                         pickupTime={studentPickup?.pickupTime}
+                        actualTime={student.actual_pickup_time}
                         isException={studentPickup?.isException ?? false}
                         notes={
                           studentPickup
-                            ? combinePickupNotes(
+                            ? combineTimeNotes(
                                 studentPickup.notes,
                                 studentPickup.dayNotes,
                               )
                             : undefined
                         }
-                        isHome={isHome}
                         now={now}
                       />
                     </>

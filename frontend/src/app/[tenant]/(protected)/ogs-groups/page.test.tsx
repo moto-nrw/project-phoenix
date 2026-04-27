@@ -160,6 +160,12 @@ vi.mock("~/lib/api", () => ({
 
 // Mock location helpers
 vi.mock("~/lib/location-helper", () => ({
+  LOCATION_COLORS: {
+    UNKNOWN: "#6B7280",
+    SCHOOLYARD: "#F78C10",
+    HOME: "#FF3130",
+    GROUP_ROOM: "#83CD2D",
+  },
   LOCATION_STATUSES: { PRESENT: "Anwesend" },
   isHomeLocation: vi.fn(() => false),
   isSchoolyardLocation: vi.fn(() => false),
@@ -218,12 +224,17 @@ vi.mock("~/components/students/student-card", () => ({
     firstName,
     lastName,
     extraContent,
+    isClosedOut,
   }: {
     firstName: string;
     lastName: string;
     extraContent?: React.ReactNode;
+    isClosedOut?: boolean;
   }) => (
-    <div data-testid="student-card">
+    <div
+      data-testid="student-card"
+      data-is-closed-out={String(Boolean(isClosedOut))}
+    >
       {firstName} {lastName}
       {extraContent && <div data-testid="extra-content">{extraContent}</div>}
     </div>
@@ -240,31 +251,24 @@ vi.mock("~/components/students/student-card", () => ({
       {children}
     </div>
   ),
-  renderPickupIcon: (urgency: string) => {
-    if (urgency === "overdue")
-      return <span data-testid="lucide-alert-triangle">alert</span>;
-    if (urgency === "soon")
-      return <span data-testid="lucide-clock">clock</span>;
-    return <span data-testid="pickup-time-icon">clock-gray</span>;
-  },
   PickupTimeRow: ({
     pickupTime,
+    actualTime,
     isException,
     notes,
-    isHome,
   }: {
     pickupTime?: string;
+    actualTime?: string;
     isException: boolean;
     notes?: string;
-    isHome: boolean;
     now: Date;
   }) => {
     return (
       <div
         data-testid="pickup-time-row"
         data-pickup-time={pickupTime ?? ""}
+        data-actual-time={actualTime ?? ""}
         data-is-exception={String(isException)}
-        data-is-home={String(isHome)}
       >
         {pickupTime && <>Abholzeit: {pickupTime} Uhr</>}
         {!pickupTime && isException && (notes || "Abwesend")}
@@ -275,24 +279,24 @@ vi.mock("~/components/students/student-card", () => ({
   },
   ArrivalTimeRow: ({
     arrivalTime,
+    actualTime,
     isException,
     isAbsent,
     notes,
-    isHome,
   }: {
     arrivalTime?: string;
+    actualTime?: string;
     isException: boolean;
     isAbsent: boolean;
     notes?: string;
-    isHome: boolean;
     now: Date;
   }) => (
     <div
       data-testid="arrival-time-row"
       data-arrival-time={arrivalTime ?? ""}
+      data-actual-time={actualTime ?? ""}
       data-is-exception={String(isException)}
       data-is-absent={String(isAbsent)}
-      data-is-home={String(isHome)}
     >
       {isAbsent && <>Kommt heute nicht</>}
       {!isAbsent && arrivalTime && <>Ankunftszeit: {arrivalTime} Uhr</>}
@@ -2094,135 +2098,6 @@ describe("OGSGroupPage card gradient logic", () => {
   });
 });
 
-describe("OGSGroupPage pickup urgency logic", () => {
-  // Mirror the getPickupUrgency function logic from page.tsx
-  const PICKUP_URGENCY_SOON_MINUTES = 30;
-
-  type PickupUrgency = "overdue" | "soon" | "normal" | "none";
-
-  function getPickupUrgency(
-    pickupTimeStr: string | undefined,
-    now: Date,
-  ): PickupUrgency {
-    if (!pickupTimeStr) return "none";
-
-    const [hours, minutes] = pickupTimeStr.split(":").map(Number);
-    const pickupDate = new Date(now);
-    pickupDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-
-    const diffMs = pickupDate.getTime() - now.getTime();
-    const diffMinutes = diffMs / 60000;
-
-    if (diffMinutes < 0) return "overdue";
-    if (diffMinutes <= PICKUP_URGENCY_SOON_MINUTES) return "soon";
-    return "normal";
-  }
-
-  it("returns 'none' when no pickup time provided", () => {
-    const now = new Date(2026, 0, 28, 14, 0);
-    expect(getPickupUrgency(undefined, now)).toBe("none");
-  });
-
-  it("returns 'overdue' when pickup time has passed", () => {
-    const now = new Date(2026, 0, 28, 15, 0); // 15:00
-    expect(getPickupUrgency("14:30", now)).toBe("overdue"); // 14:30 already passed
-  });
-
-  it("returns 'soon' when pickup is within 30 minutes", () => {
-    const now = new Date(2026, 0, 28, 14, 10); // 14:10
-    expect(getPickupUrgency("14:30", now)).toBe("soon"); // 20 min away
-  });
-
-  it("returns 'soon' when pickup is exactly 30 minutes away", () => {
-    const now = new Date(2026, 0, 28, 14, 0); // 14:00
-    expect(getPickupUrgency("14:30", now)).toBe("soon"); // exactly 30 min
-  });
-
-  it("returns 'soon' when pickup is exactly now (0 minutes)", () => {
-    const now = new Date(2026, 0, 28, 14, 30); // 14:30
-    expect(getPickupUrgency("14:30", now)).toBe("soon"); // diff = 0, <= 30
-  });
-
-  it("returns 'normal' when pickup is more than 30 minutes away", () => {
-    const now = new Date(2026, 0, 28, 13, 0); // 13:00
-    expect(getPickupUrgency("14:30", now)).toBe("normal"); // 90 min away
-  });
-
-  it("returns 'overdue' for pickup time far in the past", () => {
-    const now = new Date(2026, 0, 28, 20, 0); // 20:00
-    expect(getPickupUrgency("14:00", now)).toBe("overdue"); // 6 hours past
-  });
-
-  it("returns 'normal' for early morning pickup when checked early", () => {
-    const now = new Date(2026, 0, 28, 8, 0); // 08:00
-    expect(getPickupUrgency("16:00", now)).toBe("normal"); // 8 hours away
-  });
-
-  it("handles pickup time at midnight edge case", () => {
-    const now = new Date(2026, 0, 28, 23, 50); // 23:50
-    expect(getPickupUrgency("00:00", now)).toBe("overdue"); // midnight is earlier in the same day
-  });
-});
-
-describe("OGSGroupPage pickup urgency with home location", () => {
-  // Tests the logic: at-home students get "none" urgency regardless of pickup time
-  it("returns 'none' for at-home students regardless of pickup time", () => {
-    const isAtHome = true;
-    type PickupUrgency = "overdue" | "soon" | "normal" | "none";
-
-    // Simulate the component logic
-    const urgency: PickupUrgency = isAtHome ? "none" : "soon";
-    expect(urgency).toBe("none");
-  });
-
-  it("returns computed urgency for non-home students", () => {
-    const isAtHome = false;
-    type PickupUrgency = "overdue" | "soon" | "normal" | "none";
-
-    const computedUrgency: PickupUrgency = "soon";
-    const urgency: PickupUrgency = isAtHome ? "none" : computedUrgency;
-    expect(urgency).toBe("soon");
-  });
-});
-
-describe("OGSGroupPage pickup icon rendering logic", () => {
-  type PickupUrgency = "overdue" | "soon" | "normal" | "none";
-
-  function resolveIconType(urgency: PickupUrgency): string {
-    if (urgency === "overdue") return "alert-triangle";
-    if (urgency === "soon") return "clock-pulse";
-    return "pickup-time-default";
-  }
-
-  it("renders AlertTriangle for overdue urgency", () => {
-    expect(resolveIconType("overdue")).toBe("alert-triangle");
-  });
-
-  it("renders pulsing Clock for soon urgency", () => {
-    expect(resolveIconType("soon")).toBe("clock-pulse");
-  });
-
-  it("renders default PickupTimeIcon for normal urgency", () => {
-    expect(resolveIconType("normal")).toBe("pickup-time-default");
-  });
-
-  it("renders default PickupTimeIcon for none urgency", () => {
-    expect(resolveIconType("none")).toBe("pickup-time-default");
-  });
-
-  it("uses ExceptionIcon when student has exception regardless of urgency", () => {
-    const isException = true;
-    const iconType = isException ? "exception" : resolveIconType("overdue");
-    expect(iconType).toBe("exception");
-  });
-
-  it("uses urgency icon when student has no exception", () => {
-    const isException = false;
-    const iconType = isException ? "exception" : resolveIconType("overdue");
-    expect(iconType).toBe("alert-triangle");
-  });
-});
-
 describe("OGSGroupPage sorting logic", () => {
   type StudentSort = {
     id: string;
@@ -2464,303 +2339,6 @@ describe("OGSGroupPage sorting logic", () => {
   });
 });
 
-describe("OGSGroupPage urgency-based pickup sorting", () => {
-  type StudentSort = {
-    id: string;
-    first_name: string;
-    second_name: string;
-    current_location: string;
-  };
-
-  const isHomeLocation = (loc: string) => loc === "Zuhause";
-
-  // Mirror getPickupUrgency from ogs-group-helpers.ts
-  function getPickupUrgency(
-    pickupTimeStr: string | undefined,
-    now: Date,
-  ): "overdue" | "soon" | "normal" | "none" {
-    if (!pickupTimeStr) return "none";
-    const [hours, minutes] = pickupTimeStr.split(":").map(Number);
-    const pickupDate = new Date(now);
-    pickupDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-    const diffMinutes = (pickupDate.getTime() - now.getTime()) / 60000;
-    if (diffMinutes < 0) return "overdue";
-    if (diffMinutes <= 30) return "soon";
-    return "normal";
-  }
-
-  const urgencyRank: Record<string, number> = {
-    overdue: 0,
-    soon: 1,
-    normal: 2,
-    none: 3,
-  };
-
-  function compareByName(a: StudentSort, b: StudentSort) {
-    const lastCmp = (a.second_name ?? "").localeCompare(
-      b.second_name ?? "",
-      "de",
-    );
-    if (lastCmp !== 0) return lastCmp;
-    return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
-  }
-
-  function pickupSort(
-    students: StudentSort[],
-    pickupTimes: Map<string, { pickupTime?: string }>,
-    now: Date,
-  ) {
-    return [...students].sort((a, b) => {
-      const aHome = isHomeLocation(a.current_location);
-      const bHome = isHomeLocation(b.current_location);
-
-      if (aHome && !bHome) return 1;
-      if (!aHome && bHome) return -1;
-      if (aHome && bHome) return compareByName(a, b);
-
-      const timeA = pickupTimes.get(a.id)?.pickupTime;
-      const timeB = pickupTimes.get(b.id)?.pickupTime;
-      const urgencyA = getPickupUrgency(timeA, now);
-      const urgencyB = getPickupUrgency(timeB, now);
-      const rankA = urgencyRank[urgencyA] ?? 3;
-      const rankB = urgencyRank[urgencyB] ?? 3;
-
-      if (rankA !== rankB) return rankA - rankB;
-
-      if (timeA && timeB) {
-        const timeCmp = timeA.localeCompare(timeB);
-        if (timeCmp !== 0) return timeCmp;
-      }
-
-      return compareByName(a, b);
-    });
-  }
-
-  it("sorts overdue before soon before normal", () => {
-    // now = 14:30
-    const now = new Date(2026, 0, 28, 14, 30, 0);
-    const pickupTimes = new Map([
-      ["1", { pickupTime: "16:00" }], // normal (1.5h away)
-      ["2", { pickupTime: "14:00" }], // overdue (30min ago)
-      ["3", { pickupTime: "14:45" }], // soon (15min away)
-    ]);
-
-    const students: StudentSort[] = [
-      {
-        id: "1",
-        first_name: "A",
-        second_name: "A",
-        current_location: "Raum 101",
-      },
-      {
-        id: "2",
-        first_name: "B",
-        second_name: "B",
-        current_location: "Raum 101",
-      },
-      {
-        id: "3",
-        first_name: "C",
-        second_name: "C",
-        current_location: "Raum 101",
-      },
-    ];
-
-    const sorted = pickupSort(students, pickupTimes, now);
-    // overdue (14:00) → soon (14:45) → normal (16:00)
-    expect(sorted.map((s) => s.id)).toEqual(["2", "3", "1"]);
-  });
-
-  it("sorts by time within same urgency bucket", () => {
-    // now = 14:00, both overdue
-    const now = new Date(2026, 0, 28, 14, 0, 0);
-    const pickupTimes = new Map([
-      ["1", { pickupTime: "13:30" }], // overdue 30min
-      ["2", { pickupTime: "12:00" }], // overdue 2h
-    ]);
-
-    const students: StudentSort[] = [
-      {
-        id: "1",
-        first_name: "A",
-        second_name: "A",
-        current_location: "Raum 101",
-      },
-      {
-        id: "2",
-        first_name: "B",
-        second_name: "B",
-        current_location: "Raum 101",
-      },
-    ];
-
-    const sorted = pickupSort(students, pickupTimes, now);
-    // 12:00 first (longest overdue), then 13:30
-    expect(sorted.map((s) => s.id)).toEqual(["2", "1"]);
-  });
-
-  it("uses last name as tiebreaker within same time", () => {
-    const now = new Date(2026, 0, 28, 14, 0, 0);
-    const pickupTimes = new Map([
-      ["1", { pickupTime: "16:00" }],
-      ["2", { pickupTime: "16:00" }],
-    ]);
-
-    const students: StudentSort[] = [
-      {
-        id: "1",
-        first_name: "Max",
-        second_name: "Zeller",
-        current_location: "Raum 101",
-      },
-      {
-        id: "2",
-        first_name: "Anna",
-        second_name: "Becker",
-        current_location: "Raum 101",
-      },
-    ];
-
-    const sorted = pickupSort(students, pickupTimes, now);
-    // Same time → Becker before Zeller
-    expect(sorted.map((s) => s.id)).toEqual(["2", "1"]);
-  });
-
-  it("sorts students without pickup time after those with time", () => {
-    const now = new Date(2026, 0, 28, 14, 0, 0);
-    const pickupTimes = new Map([
-      ["1", { pickupTime: "16:00" }], // normal
-    ]);
-
-    const students: StudentSort[] = [
-      {
-        id: "2",
-        first_name: "B",
-        second_name: "B",
-        current_location: "Raum 101",
-      }, // no time
-      {
-        id: "1",
-        first_name: "A",
-        second_name: "A",
-        current_location: "Raum 101",
-      }, // 16:00
-    ];
-
-    const sorted = pickupSort(students, pickupTimes, now);
-    // normal (16:00) → none
-    expect(sorted.map((s) => s.id)).toEqual(["1", "2"]);
-  });
-
-  it("sorts home students by last name", () => {
-    const now = new Date(2026, 0, 28, 14, 0, 0);
-    const pickupTimes = new Map<string, { pickupTime?: string }>();
-
-    const students: StudentSort[] = [
-      {
-        id: "1",
-        first_name: "Max",
-        second_name: "Zeller",
-        current_location: "Zuhause",
-      },
-      {
-        id: "2",
-        first_name: "Anna",
-        second_name: "Becker",
-        current_location: "Zuhause",
-      },
-    ];
-
-    const sorted = pickupSort(students, pickupTimes, now);
-    // Both home → alphabetical: Becker before Zeller
-    expect(sorted.map((s) => s.id)).toEqual(["2", "1"]);
-  });
-
-  it("sorts students without time by last name", () => {
-    const now = new Date(2026, 0, 28, 14, 0, 0);
-    const pickupTimes = new Map<string, { pickupTime?: string }>();
-
-    const students: StudentSort[] = [
-      {
-        id: "1",
-        first_name: "Max",
-        second_name: "Zeller",
-        current_location: "Raum 101",
-      },
-      {
-        id: "2",
-        first_name: "Anna",
-        second_name: "Becker",
-        current_location: "Raum 102",
-      },
-    ];
-
-    const sorted = pickupSort(students, pickupTimes, now);
-    // Both none urgency, no time → Becker before Zeller
-    expect(sorted.map((s) => s.id)).toEqual(["2", "1"]);
-  });
-
-  it("full sort: overdue → soon → normal → no time → home, with name tiebreakers", () => {
-    // now = 14:30
-    const now = new Date(2026, 0, 28, 14, 30, 0);
-    const pickupTimes = new Map([
-      ["1", { pickupTime: "16:00" }], // normal
-      ["2", { pickupTime: "14:00" }], // overdue
-      ["3", { pickupTime: "14:45" }], // soon
-      // 4: no time (present)
-      // 5: home
-      ["6", { pickupTime: "14:00" }], // overdue (same time as 2)
-    ]);
-
-    const students: StudentSort[] = [
-      {
-        id: "5",
-        first_name: "Eva",
-        second_name: "Fischer",
-        current_location: "Zuhause",
-      },
-      {
-        id: "4",
-        first_name: "Dirk",
-        second_name: "Dahmen",
-        current_location: "Raum 101",
-      },
-      {
-        id: "1",
-        first_name: "Anna",
-        second_name: "Alpha",
-        current_location: "Raum 101",
-      },
-      {
-        id: "3",
-        first_name: "Clara",
-        second_name: "Cotta",
-        current_location: "Raum 101",
-      },
-      {
-        id: "2",
-        first_name: "Bert",
-        second_name: "Zeta",
-        current_location: "Raum 101",
-      },
-      {
-        id: "6",
-        first_name: "Fritz",
-        second_name: "Beta",
-        current_location: "Raum 101",
-      },
-    ];
-
-    const sorted = pickupSort(students, pickupTimes, now);
-    // overdue 14:00: Beta(6) before Zeta(2) by name
-    // soon 14:45: Cotta(3)
-    // normal 16:00: Alpha(1)
-    // no time: Dahmen(4)
-    // home: Fischer(5)
-    expect(sorted.map((s) => s.id)).toEqual(["6", "2", "3", "1", "4", "5"]);
-  });
-});
-
 describe("OGSGroupPage sort active filter", () => {
   type SortMode = "default" | "pickup";
 
@@ -2850,7 +2428,7 @@ describe("OGSGroupPage clear all filters includes sort reset", () => {
 
 // ===== RENDER TESTS that exercise actual source code lines =====
 // These tests render the component with pickup time data to cover
-// getPickupUrgency, renderPickupIcon, sortedStudents, and filter configs.
+// getStudentTimeStatus, sortedStudents, and filter configs.
 
 describe("OGSGroupPage rendered pickup urgency", () => {
   const mockMutate = vi.fn();
@@ -2880,6 +2458,10 @@ describe("OGSGroupPage rendered pickup urgency", () => {
     locationMocks?: {
       isHome?: (loc: string | null | undefined) => boolean;
     },
+    studentActuals?: Record<
+      string,
+      { actualArrivalTime?: string; actualPickupTime?: string }
+    >,
   ) {
     vi.clearAllMocks();
     // Re-freeze time after clearAllMocks since it may reset fake timers state
@@ -2930,6 +2512,8 @@ describe("OGSGroupPage rendered pickup urgency", () => {
               first_name: "Anna",
               last_name: "Becker",
               current_location: "Raum 101",
+              actual_arrival_time: studentActuals?.["1"]?.actualArrivalTime,
+              actual_pickup_time: studentActuals?.["1"]?.actualPickupTime,
             },
             {
               id: "2",
@@ -2937,6 +2521,8 @@ describe("OGSGroupPage rendered pickup urgency", () => {
               first_name: "Max",
               last_name: "Zeller",
               current_location: "Raum 101",
+              actual_arrival_time: studentActuals?.["2"]?.actualArrivalTime,
+              actual_pickup_time: studentActuals?.["2"]?.actualPickupTime,
             },
             {
               id: "3",
@@ -2944,6 +2530,8 @@ describe("OGSGroupPage rendered pickup urgency", () => {
               first_name: "Lena",
               last_name: "Mueller",
               current_location: "Zuhause",
+              actual_arrival_time: studentActuals?.["3"]?.actualArrivalTime,
+              actual_pickup_time: studentActuals?.["3"]?.actualPickupTime,
             },
           ],
           roomStatus: {
@@ -3023,40 +2611,12 @@ describe("OGSGroupPage rendered pickup urgency", () => {
     expect(row).toBeDefined();
   });
 
-  it("passes isHome=true to PickupTimeRow for at-home students", async () => {
-    // Student 3 is "Zuhause" — page should pass isHome=true
-    const pickupMap = new Map([
-      ["3", { pickupTime: "00:01", isException: false }],
-    ]);
-    setupWithStudentsAndPickupTimes(pickupMap, {
-      isHome: (loc) => loc === "Zuhause",
-    });
-
-    render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
-    });
-
-    // At-home student should have isHome=true passed to PickupTimeRow
-    await waitFor(() => {
-      expect(screen.getByText(/00:01 Uhr/)).toBeInTheDocument();
-    });
-    const row = screen
-      .getAllByTestId("pickup-time-row")
-      .find((el) => el.dataset.pickupTime === "00:01");
-    expect(row).toBeDefined();
-    expect(row?.dataset.isHome).toBe("true");
-  });
-
-  it("passes isHome=false to PickupTimeRow for present students", async () => {
-    // Student 1 is in "Raum 101" (not home) — page should pass isHome=false
+  it("propagates the student's actual pickup time to PickupTimeRow", async () => {
     const pickupMap = new Map([
       ["1", { pickupTime: "14:00", isException: false }],
-      ["3", { pickupTime: "14:00", isException: false }],
     ]);
-    setupWithStudentsAndPickupTimes(pickupMap, {
-      isHome: (loc) => loc === "Zuhause",
+    setupWithStudentsAndPickupTimes(pickupMap, undefined, {
+      "1": { actualPickupTime: "14:07" },
     });
 
     render(<OGSGroupPage />);
@@ -3065,19 +2625,50 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
 
-    // Present student (id=1, "Raum 101") should have isHome=false
-    const rows = screen.getAllByTestId("pickup-time-row");
-    const presentRow = rows.find(
-      (el) =>
-        el.dataset.pickupTime === "14:00" && el.dataset.isHome === "false",
-    );
-    expect(presentRow).toBeDefined();
+    const row = screen
+      .getAllByTestId("pickup-time-row")
+      .find((el) => el.dataset.pickupTime === "14:00");
+    expect(row).toBeDefined();
+    expect(row?.dataset.actualTime).toBe("14:07");
+  });
 
-    // At-home student (id=3, "Zuhause") should have isHome=true
-    const homeRow = rows.find(
-      (el) => el.dataset.pickupTime === "14:00" && el.dataset.isHome === "true",
-    );
-    expect(homeRow).toBeDefined();
+  it("marks a student as closed-out when both actual arrival and pickup times exist", async () => {
+    const pickupMap = new Map([
+      ["1", { pickupTime: "14:00", isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap, undefined, {
+      "1": { actualArrivalTime: "08:02", actualPickupTime: "14:07" },
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    const cards = screen.getAllByTestId("student-card");
+    const closedOut = cards.filter((el) => el.dataset.isClosedOut === "true");
+    const open = cards.filter((el) => el.dataset.isClosedOut === "false");
+    expect(closedOut).toHaveLength(1);
+    expect(open).toHaveLength(2);
+  });
+
+  it("does not mark a student as closed-out when only one actual time is present", async () => {
+    const pickupMap = new Map([
+      ["1", { pickupTime: "14:00", isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap, undefined, {
+      "1": { actualArrivalTime: "08:02" },
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    const cards = screen.getAllByTestId("student-card");
+    expect(cards.every((el) => el.dataset.isClosedOut === "false")).toBe(true);
   });
 
   it("renders sort filter with Alphabetisch and Nächste Abholung options", async () => {
@@ -3789,7 +3380,6 @@ import {
   matchesAttendanceFilter as actualMatchesAttendanceFilter,
   matchesForeignRoomFilter as actualMatchesForeignRoomFilter,
 } from "./ogs-group-helpers";
-import { getPickupUrgency as actualGetPickupUrgency } from "~/lib/pickup-helpers";
 
 // Helper to build a minimal Student for direct function tests
 function makeTestStudent(
@@ -3807,27 +3397,6 @@ function makeTestStudent(
     ...overrides,
   } as Parameters<typeof actualMatchesSearchFilter>[0];
 }
-
-describe("getPickupUrgency (exported)", () => {
-  it("returns 'none' for undefined pickup time", () => {
-    expect(actualGetPickupUrgency(undefined, new Date())).toBe("none");
-  });
-
-  it("returns 'overdue' when pickup is in the past", () => {
-    const now = new Date("2025-06-10T15:00:00");
-    expect(actualGetPickupUrgency("14:00", now)).toBe("overdue");
-  });
-
-  it("returns 'soon' when pickup is within 30 minutes", () => {
-    const now = new Date("2025-06-10T14:45:00");
-    expect(actualGetPickupUrgency("15:00", now)).toBe("soon");
-  });
-
-  it("returns 'normal' when pickup is far in the future", () => {
-    const now = new Date("2025-06-10T10:00:00");
-    expect(actualGetPickupUrgency("15:00", now)).toBe("normal");
-  });
-});
 
 describe("isStudentInGroupRoom (exported)", () => {
   it("returns false when student has no location", () => {
