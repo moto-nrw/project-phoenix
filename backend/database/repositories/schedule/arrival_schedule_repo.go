@@ -201,7 +201,7 @@ func (r *StudentArrivalScheduleRepository) Update(ctx context.Context, s *schedu
 
 // List retrieves arrival schedules matching the provided query options
 func (r *StudentArrivalScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentArrivalSchedule, error) {
-	var schedules []*schedule.StudentArrivalSchedule
+	schedules := make([]*schedule.StudentArrivalSchedule, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(`schedule.student_arrival_schedules AS "student_arrival_schedule"`)
@@ -482,7 +482,7 @@ func (r *StudentArrivalExceptionRepository) Update(ctx context.Context, e *sched
 
 // List retrieves arrival exceptions matching the provided query options
 func (r *StudentArrivalExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentArrivalException, error) {
-	var exceptions []*schedule.StudentArrivalException
+	exceptions := make([]*schedule.StudentArrivalException, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`)
@@ -705,7 +705,7 @@ func (r *StudentArrivalNoteRepository) Update(ctx context.Context, n *schedule.S
 
 // List retrieves arrival notes matching the provided query options
 func (r *StudentArrivalNoteRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentArrivalNote, error) {
-	var notes []*schedule.StudentArrivalNote
+	notes := make([]*schedule.StudentArrivalNote, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`)

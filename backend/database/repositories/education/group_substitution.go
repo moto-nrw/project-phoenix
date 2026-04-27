@@ -283,7 +283,7 @@ func applyReasonLikeFilter(filter *modelBase.Filter, value interface{}) {
 
 // ListWithOptions provides a type-safe way to list group substitutions with query options
 func (r *GroupSubstitutionRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupSubstitution, error) {
-	var substitutions []*education.GroupSubstitution
+	substitutions := make([]*education.GroupSubstitution, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableExprGroupSubstitutionAsGS)
