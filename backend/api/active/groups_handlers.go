@@ -9,11 +9,13 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/uptrace/bun"
 )
 
@@ -263,7 +265,13 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	responses := rs.buildVisitDisplayResponses(results)
+	attendanceStatuses, err := rs.fetchAttendanceStatusesForVisits(r, results)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	responses := rs.buildVisitDisplayResponses(results, attendanceStatuses)
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
@@ -384,8 +392,32 @@ func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID in
 	return results, err
 }
 
+func collectVisitStudentIDs(results []visitWithStudent) []int64 {
+	studentIDs := make([]int64, 0, len(results))
+	seen := make(map[int64]struct{}, len(results))
+
+	for _, result := range results {
+		if _, ok := seen[result.StudentID]; ok {
+			continue
+		}
+		seen[result.StudentID] = struct{}{}
+		studentIDs = append(studentIDs, result.StudentID)
+	}
+
+	return studentIDs
+}
+
+func (rs *Resource) fetchAttendanceStatusesForVisits(r *http.Request, results []visitWithStudent) (map[int64]*activeService.AttendanceStatus, error) {
+	studentIDs := collectVisitStudentIDs(results)
+	if len(studentIDs) == 0 {
+		return map[int64]*activeService.AttendanceStatus{}, nil
+	}
+
+	return rs.ActiveService.GetStudentsAttendanceStatuses(r.Context(), studentIDs)
+}
+
 // buildVisitDisplayResponses builds visit responses with display data
-func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []VisitWithDisplayDataResponse {
+func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, attendanceStatuses map[int64]*activeService.AttendanceStatus) []VisitWithDisplayDataResponse {
 	responses := make([]VisitWithDisplayDataResponse, 0, len(results))
 	for _, result := range results {
 		studentName := result.FirstName + " " + result.LastName
@@ -397,12 +429,22 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []Vis
 		if result.Excused != nil {
 			excused = *result.Excused
 		}
+
+		var actualArrival *string
+		var actualPickup *string
+		if attendanceStatus, ok := attendanceStatuses[result.StudentID]; ok && attendanceStatus != nil {
+			actualArrival = timezone.FormatBerlinClock(attendanceStatus.CheckInTime)
+			actualPickup = timezone.FormatBerlinClock(attendanceStatus.CheckOutTime)
+		}
+
 		responses = append(responses, VisitWithDisplayDataResponse{
 			ID:            result.VisitID,
 			StudentID:     result.StudentID,
 			ActiveGroupID: result.ActiveGroupID,
 			CheckInTime:   result.EntryTime,
 			CheckOutTime:  result.ExitTime,
+			ActualArrival: actualArrival,
+			ActualPickup:  actualPickup,
 			IsActive:      result.ExitTime == nil,
 			StudentName:   studentName,
 			SchoolClass:   result.SchoolClass,

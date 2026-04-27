@@ -243,6 +243,42 @@ func TestEndOfDay(t *testing.T) {
 	}
 }
 
+func TestFormatBerlinClock(t *testing.T) {
+	t.Run("nil input returns nil pointer", func(t *testing.T) {
+		assert.Nil(t, FormatBerlinClock(nil))
+	})
+
+	t.Run("UTC input is converted to Berlin wall clock (CEST)", func(t *testing.T) {
+		// 2026-04-27 06:05 UTC = 08:05 CEST
+		t1 := time.Date(2026, 4, 27, 6, 5, 0, 0, time.UTC)
+		got := FormatBerlinClock(&t1)
+		require.NotNil(t, got)
+		assert.Equal(t, "08:05", *got)
+	})
+
+	t.Run("UTC input is converted to Berlin wall clock (CET)", func(t *testing.T) {
+		// 2026-01-15 13:42 UTC = 14:42 CET
+		t1 := time.Date(2026, 1, 15, 13, 42, 0, 0, time.UTC)
+		got := FormatBerlinClock(&t1)
+		require.NotNil(t, got)
+		assert.Equal(t, "14:42", *got)
+	})
+
+	t.Run("input already in Berlin formats wall clock as-is", func(t *testing.T) {
+		t1 := time.Date(2026, 1, 15, 7, 12, 0, 0, Berlin)
+		got := FormatBerlinClock(&t1)
+		require.NotNil(t, got)
+		assert.Equal(t, "07:12", *got)
+	})
+
+	t.Run("zero pads single digit hours and minutes", func(t *testing.T) {
+		t1 := time.Date(2026, 1, 15, 4, 3, 0, 0, Berlin)
+		got := FormatBerlinClock(&t1)
+		require.NotNil(t, got)
+		assert.Equal(t, "04:03", *got)
+	})
+}
+
 func TestDateOfUTC_DifferentFromDateOf(t *testing.T) {
 	// Create a time that would have the same date in both UTC and Berlin
 	testTime := time.Date(2026, 1, 18, 12, 0, 0, 0, time.UTC)
