@@ -45,8 +45,15 @@ func attendanceUniqueOpenPerDayUp(ctx context.Context, db *bun.DB) error {
 	// older duplicate by setting check_out_time = check_in_time + 1 second
 	// so the close timestamp follows the open one but doesn't claim a
 	// supervised checkout (checked_out_by stays NULL — clearly a system
-	// closure rather than a real person's action). yard_since is also
-	// cleared so the closed rows pass the IsOnYard invariant.
+	// closure rather than a real person's action).
+	//
+	// Why this query touches only check_out_time: the yard_since column is
+	// added by a later migration (1.15.43 after the rename), so referencing
+	// it here would crash on a fresh-DB run that applies migrations in
+	// version order. The IsOnYard invariant
+	// (yard_since != NULL && check_out_time == NULL) already evaluates to
+	// false once check_out_time is set, so leaving any stale yard_since
+	// timestamp on these dedup-closed rows is functionally harmless.
 	res, err := db.NewRaw(`
 		WITH ranked AS (
 			SELECT id,
@@ -59,8 +66,7 @@ func attendanceUniqueOpenPerDayUp(ctx context.Context, db *bun.DB) error {
 			WHERE check_out_time IS NULL
 		)
 		UPDATE active.attendance a
-		SET check_out_time = ranked.check_in_time + INTERVAL '1 second',
-		    yard_since = NULL
+		SET check_out_time = ranked.check_in_time + INTERVAL '1 second'
 		FROM ranked
 		WHERE a.id = ranked.id
 		  AND ranked.rn > 1;
