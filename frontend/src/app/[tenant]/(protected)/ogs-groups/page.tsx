@@ -54,7 +54,6 @@ import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import {
-  areStudentDayTimesResolved,
   combineTimeNotes,
   getStudentTimeStatus,
   getTimeStatusSortRank,
@@ -1196,16 +1195,6 @@ function OGSGroupPageContent() {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
-              const arrivalStatus = getStudentTimeStatus({
-                plannedTime: student.arrival_time,
-                actualTime: student.actual_arrival_time,
-                now,
-              });
-              const pickupStatus = getStudentTimeStatus({
-                plannedTime: studentPickup?.pickupTime,
-                actualTime: student.actual_pickup_time,
-                now,
-              });
 
               return (
                 <StudentCard
@@ -1214,10 +1203,6 @@ function OGSGroupPageContent() {
                   firstName={student.first_name}
                   lastName={student.second_name}
                   gradient={cardGradient}
-                  isClosedOut={areStudentDayTimesResolved(
-                    arrivalStatus,
-                    pickupStatus,
-                  )}
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
                   }

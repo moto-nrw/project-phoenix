@@ -25,8 +25,6 @@ interface StudentCardProps {
   readonly extraContent?: ReactNode;
   /** Optional tracking indicators (right-aligned, below location badge) */
   readonly trackingIndicators?: ReactNode;
-  /** Whether both arrival and pickup are resolved for today */
-  readonly isClosedOut?: boolean;
 }
 
 /**
@@ -42,7 +40,6 @@ export function StudentCard({
   locationBadge,
   extraContent,
   trackingIndicators,
-  isClosedOut = false,
 }: StudentCardProps) {
   return (
     <button
@@ -50,9 +47,7 @@ export function StudentCard({
       type="button"
       onClick={onClick}
       aria-label={`${firstName} ${lastName} - Tippen für mehr Infos`}
-      className={`group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-[#5080D8]/40 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)] ${
-        isClosedOut ? "opacity-60" : ""
-      }`}
+      className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-[#5080D8]/40 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
     >
       {/* Modern gradient overlay */}
       <div

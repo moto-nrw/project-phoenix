@@ -224,17 +224,12 @@ vi.mock("~/components/students/student-card", () => ({
     firstName,
     lastName,
     extraContent,
-    isClosedOut,
   }: {
     firstName: string;
     lastName: string;
     extraContent?: React.ReactNode;
-    isClosedOut?: boolean;
   }) => (
-    <div
-      data-testid="student-card"
-      data-is-closed-out={String(Boolean(isClosedOut))}
-    >
+    <div data-testid="student-card">
       {firstName} {lastName}
       {extraContent && <div data-testid="extra-content">{extraContent}</div>}
     </div>
@@ -2630,45 +2625,6 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       .find((el) => el.dataset.pickupTime === "14:00");
     expect(row).toBeDefined();
     expect(row?.dataset.actualTime).toBe("14:07");
-  });
-
-  it("marks a student as closed-out when both actual arrival and pickup times exist", async () => {
-    const pickupMap = new Map([
-      ["1", { pickupTime: "14:00", isException: false }],
-    ]);
-    setupWithStudentsAndPickupTimes(pickupMap, undefined, {
-      "1": { actualArrivalTime: "08:02", actualPickupTime: "14:07" },
-    });
-
-    render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
-    });
-
-    const cards = screen.getAllByTestId("student-card");
-    const closedOut = cards.filter((el) => el.dataset.isClosedOut === "true");
-    const open = cards.filter((el) => el.dataset.isClosedOut === "false");
-    expect(closedOut).toHaveLength(1);
-    expect(open).toHaveLength(2);
-  });
-
-  it("does not mark a student as closed-out when only one actual time is present", async () => {
-    const pickupMap = new Map([
-      ["1", { pickupTime: "14:00", isException: false }],
-    ]);
-    setupWithStudentsAndPickupTimes(pickupMap, undefined, {
-      "1": { actualArrivalTime: "08:02" },
-    });
-
-    render(<OGSGroupPage />);
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
-    });
-
-    const cards = screen.getAllByTestId("student-card");
-    expect(cards.every((el) => el.dataset.isClosedOut === "false")).toBe(true);
   });
 
   it("renders sort filter with Alphabetisch and Nächste Abholung options", async () => {

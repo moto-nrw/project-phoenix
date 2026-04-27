@@ -48,11 +48,7 @@ import {
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
-import {
-  areStudentDayTimesResolved,
-  combineTimeNotes,
-  getStudentTimeStatus,
-} from "~/lib/student-time-status";
+import { combineTimeNotes } from "~/lib/student-time-status";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
@@ -1320,16 +1316,6 @@ function MeinRaumPageContent() {
               const studentArrival = arrivalTimesData?.get(
                 student.id.toString(),
               );
-              const arrivalStatus = getStudentTimeStatus({
-                plannedTime: studentArrival?.expectedArrival,
-                actualTime: student.actual_arrival_time,
-                now,
-              });
-              const pickupStatus = getStudentTimeStatus({
-                plannedTime: studentPickup?.pickupTime,
-                actualTime: student.actual_pickup_time,
-                now,
-              });
 
               return (
                 <StudentCard
@@ -1338,10 +1324,6 @@ function MeinRaumPageContent() {
                   firstName={student.first_name}
                   lastName={student.second_name}
                   gradient={GROUP_CARD_GRADIENT}
-                  isClosedOut={areStudentDayTimesResolved(
-                    arrivalStatus,
-                    pickupStatus,
-                  )}
                   onClick={() =>
                     router.push(
                       `/students/${student.id}?from=/active-supervisions`,

@@ -109,12 +109,6 @@ describe("StudentCard", () => {
     expect(screen.getByTestId("location-badge")).toBeInTheDocument();
     expect(container.querySelector("[data-testid='tracking']")).toBeNull();
   });
-
-  it("dims closed-out cards", () => {
-    render(<StudentCard {...defaultProps} isClosedOut={true} />);
-
-    expect(screen.getByRole("button")).toHaveClass("opacity-60");
-  });
 });
 
 describe("SchoolClassIcon", () => {

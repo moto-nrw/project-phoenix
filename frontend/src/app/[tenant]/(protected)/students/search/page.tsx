@@ -38,7 +38,6 @@ import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
 import {
-  areStudentDayTimesResolved,
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
@@ -633,27 +632,12 @@ function SearchPageContent() {
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {sortedStudents.map((student) => {
-                const arrivalStatus = getStudentTimeStatus({
-                  plannedTime: student.arrival_time,
-                  actualTime: student.actual_arrival_time,
-                  now,
-                });
-                const pickupStatus = getStudentTimeStatus({
-                  plannedTime: student.pickup_time ?? undefined,
-                  actualTime: student.actual_pickup_time,
-                  now,
-                });
-
                 return (
                   <StudentCard
                     key={student.id}
                     studentId={student.id}
                     firstName={student.first_name}
                     lastName={student.second_name}
-                    isClosedOut={areStudentDayTimesResolved(
-                      arrivalStatus,
-                      pickupStatus,
-                    )}
                     onClick={() =>
                       router.push(
                         `/students/${student.id}?from=/students/search`,
