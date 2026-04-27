@@ -411,6 +411,8 @@ function TodayTimeStatusInlineRow({
   isAbsent?: boolean;
   absentReason?: string;
 }>) {
+  const now = useMinuteClock();
+
   if (isAbsent) {
     return (
       <div
@@ -429,7 +431,6 @@ function TodayTimeStatusInlineRow({
     );
   }
 
-  const now = useMinuteClock();
   const status = getStudentTimeStatus({
     plannedTime,
     actualTime,
