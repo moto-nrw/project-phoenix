@@ -4,6 +4,7 @@ import type React from "react";
 import { AlertTriangle, Check, Clock } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import { getStudentTimeStatus } from "~/lib/student-time-status";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
@@ -428,10 +429,11 @@ function TodayTimeStatusInlineRow({
     );
   }
 
+  const now = useMinuteClock();
   const status = getStudentTimeStatus({
     plannedTime,
     actualTime,
-    now: new Date(),
+    now,
   });
 
   const plannedDisplay = plannedTime?.slice(0, 5);
