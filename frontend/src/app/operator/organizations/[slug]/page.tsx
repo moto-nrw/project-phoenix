@@ -314,6 +314,32 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
     await Promise.all([mutateOrgDevices(), refreshOrganizationDrillIn()]);
   }, [mutateOrgDevices, refreshOrganizationDrillIn]);
 
+  const handleTabValueChange = useCallback(
+    (value: string) => {
+      if (isTabId(value)) setActiveTab(value);
+    },
+    [setActiveTab],
+  );
+
+  const headerStats = useMemo(
+    () =>
+      organization
+        ? [
+            {
+              label: "Schulen",
+              value: numberFormat(organization.schulenCount),
+            },
+            { label: "Konten", value: numberFormat(organization.kontenCount) },
+            { label: "Geräte", value: numberFormat(organization.geraeteCount) },
+            {
+              label: "Personen",
+              value: numberFormat(organization.personenCount),
+            },
+          ]
+        : [],
+    [organization],
+  );
+
   const orgHeaderActions = useMemo(
     () => (
       <>
@@ -493,15 +519,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
         active={organization.active}
         createdAt={organization.createdAt}
         actions={orgHeaderActions}
-        stats={[
-          { label: "Schulen", value: numberFormat(organization.schulenCount) },
-          { label: "Konten", value: numberFormat(organization.kontenCount) },
-          { label: "Geräte", value: numberFormat(organization.geraeteCount) },
-          {
-            label: "Personen",
-            value: numberFormat(organization.personenCount),
-          },
-        ]}
+        stats={headerStats}
       />
 
       {orgToggleError && (
@@ -509,12 +527,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
       )}
 
       <div className="mt-6">
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) => {
-            if (isTabId(value)) setActiveTab(value);
-          }}
-        >
+        <Tabs value={activeTab} onValueChange={handleTabValueChange}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <TabsList variant="line">
               {TAB_ITEMS.map((tab) => (

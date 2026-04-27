@@ -97,7 +97,44 @@ func (s *operatorProvisioningService) GetProvisioningStats(ctx context.Context) 
 	return &result, nil
 }
 
+// organizationSummariesQuery aggregates child counts in single-pass CTEs and
+// LEFT JOINs them onto the organization rows. Each child table is scanned once
+// regardless of organization count, replacing the previous per-row correlated
+// subqueries (which were O(orgs * 4) executions).
 const organizationSummariesQuery = `
+WITH school_agg AS (
+	SELECT "s".organization_id,
+		COUNT(*) AS schulen_count
+	FROM platform.schools AS "s"
+	WHERE "s".deleted_at IS NULL
+	GROUP BY "s".organization_id
+),
+account_agg AS (
+	SELECT "s".organization_id,
+		COUNT(DISTINCT "at".account_id) AS konten_count
+	FROM auth.account_tenants AS "at"
+	INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
+	WHERE "s".deleted_at IS NULL
+		AND "at".status = 'active'
+	GROUP BY "s".organization_id
+),
+device_agg AS (
+	SELECT "s".organization_id,
+		COUNT(*) AS geraete_count
+	FROM iot.devices AS "d"
+	INNER JOIN platform.schools AS "s" ON "s".id = "d".tenant_id
+	WHERE "s".deleted_at IS NULL
+	GROUP BY "s".organization_id
+),
+person_agg AS (
+	SELECT "s".organization_id,
+		COUNT(*) AS personen_count
+	FROM users.persons AS "p"
+	INNER JOIN platform.schools AS "s" ON "s".id = "p".tenant_id
+	WHERE "s".deleted_at IS NULL
+		AND "p".deleted_at IS NULL
+	GROUP BY "s".organization_id
+)
 SELECT
 	"o".id,
 	"o".name,
@@ -107,36 +144,15 @@ SELECT
 	"o".updated_at,
 	"o".deleted_at,
 	COALESCE("o".settings, '{}') AS settings,
-	COALESCE((
-		SELECT COUNT(*)
-		FROM platform.schools AS "s"
-		WHERE "s".organization_id = "o".id
-			AND "s".deleted_at IS NULL
-	), 0) AS schulen_count,
-	COALESCE((
-		SELECT COUNT(DISTINCT "at".account_id)
-		FROM auth.account_tenants AS "at"
-		INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
-		WHERE "s".organization_id = "o".id
-			AND "s".deleted_at IS NULL
-			AND "at".status = 'active'
-	), 0) AS konten_count,
-	COALESCE((
-		SELECT COUNT(*)
-		FROM iot.devices AS "d"
-		INNER JOIN platform.schools AS "s" ON "s".id = "d".tenant_id
-		WHERE "s".organization_id = "o".id
-			AND "s".deleted_at IS NULL
-	), 0) AS geraete_count,
-	COALESCE((
-		SELECT COUNT(*)
-		FROM users.persons AS "p"
-		INNER JOIN platform.schools AS "s" ON "s".id = "p".tenant_id
-		WHERE "s".organization_id = "o".id
-			AND "s".deleted_at IS NULL
-			AND "p".deleted_at IS NULL
-	), 0) AS personen_count
+	COALESCE("sa".schulen_count, 0) AS schulen_count,
+	COALESCE("aa".konten_count, 0) AS konten_count,
+	COALESCE("da".geraete_count, 0) AS geraete_count,
+	COALESCE("pa".personen_count, 0) AS personen_count
 FROM platform.organizations AS "o"
+LEFT JOIN school_agg AS "sa" ON "sa".organization_id = "o".id
+LEFT JOIN account_agg AS "aa" ON "aa".organization_id = "o".id
+LEFT JOIN device_agg AS "da" ON "da".organization_id = "o".id
+LEFT JOIN person_agg AS "pa" ON "pa".organization_id = "o".id
 ORDER BY "o".name ASC
 `
 
@@ -157,7 +173,63 @@ func (s *operatorProvisioningService) ListOrganizationSummaries(ctx context.Cont
 	return result, nil
 }
 
-const schoolSummariesQueryBase = `
+// schoolSummariesQueryGlobal aggregates child counts in single-pass CTEs for
+// the platform-wide Schulen list. Cheaper than per-row correlated subqueries
+// once the school count grows.
+const schoolSummariesQueryGlobal = `
+WITH account_agg AS (
+	SELECT "at".tenant_id,
+		COUNT(DISTINCT "at".account_id) AS konten_count
+	FROM auth.account_tenants AS "at"
+	WHERE "at".status = 'active'
+	GROUP BY "at".tenant_id
+),
+device_agg AS (
+	SELECT "d".tenant_id,
+		COUNT(*) AS geraete_count
+	FROM iot.devices AS "d"
+	GROUP BY "d".tenant_id
+),
+person_agg AS (
+	SELECT "p".tenant_id,
+		COUNT(*) AS personen_count
+	FROM users.persons AS "p"
+	WHERE "p".deleted_at IS NULL
+	GROUP BY "p".tenant_id
+)
+SELECT
+	"s".id,
+	"s".organization_id,
+	"o".name AS organization_name,
+	"s".name,
+	"s".slug,
+	"s".subdomain,
+	"s".active,
+	"s".hidden,
+	"s".created_at,
+	"s".updated_at,
+	"s".deleted_at,
+	COALESCE("s".address, '') AS address,
+	COALESCE("s".city, '') AS city,
+	COALESCE("s".zip, '') AS zip,
+	COALESCE("s".phone, '') AS phone,
+	COALESCE("s".email, '') AS email,
+	COALESCE("s".settings, '{}') AS settings,
+	COALESCE("aa".konten_count, 0) AS konten_count,
+	COALESCE("da".geraete_count, 0) AS geraete_count,
+	COALESCE("pa".personen_count, 0) AS personen_count
+FROM platform.schools AS "s"
+INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
+LEFT JOIN account_agg AS "aa" ON "aa".tenant_id = "s".id
+LEFT JOIN device_agg AS "da" ON "da".tenant_id = "s".id
+LEFT JOIN person_agg AS "pa" ON "pa".tenant_id = "s".id
+ORDER BY "o".name ASC, "s".name ASC
+`
+
+// schoolSummariesQueryByOrg keeps correlated subqueries because per-org school
+// counts are small (typically <20 schools) — the planner does cheap indexed
+// lookups, and the org filter avoids scanning every child table.
+const schoolSummariesQueryByOrg = `
 SELECT
 	"s".id,
 	"s".organization_id,
@@ -195,6 +267,8 @@ SELECT
 	), 0) AS personen_count
 FROM platform.schools AS "s"
 INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
+WHERE "s".organization_id = ?
+ORDER BY "s".name ASC
 `
 
 // ListSchoolSummaries returns all schools (global scope) with per-row counts.
@@ -202,8 +276,7 @@ func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) (
 	var result []*SchoolSummary
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		db := s.pickDB(adminCtx)
-		q := schoolSummariesQueryBase + ` ORDER BY "o".name ASC, "s".name ASC`
-		return db.NewRaw(q).Scan(adminCtx, &result)
+		return db.NewRaw(schoolSummariesQueryGlobal).Scan(adminCtx, &result)
 	})
 	if err != nil {
 		return nil, err
@@ -229,8 +302,7 @@ func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx contex
 			return &OrganizationNotFoundError{OrganizationID: organizationID}
 		}
 		db := s.pickDB(adminCtx)
-		q := schoolSummariesQueryBase + ` WHERE "s".organization_id = ? ORDER BY "s".name ASC`
-		return db.NewRaw(q, organizationID).Scan(adminCtx, &result)
+		return db.NewRaw(schoolSummariesQueryByOrg, organizationID).Scan(adminCtx, &result)
 	})
 	if err != nil {
 		return nil, err

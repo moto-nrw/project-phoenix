@@ -179,6 +179,71 @@ describe("DeletePersonModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("disables both buttons and shows in-flight label while delete is pending", async () => {
+    let resolveDelete: (() => void) | undefined;
+    mockSoftDeletePerson.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveDelete = resolve;
+      }),
+    );
+
+    render(
+      <DeletePersonModal
+        person={makePerson()}
+        onClose={vi.fn()}
+        onDeleted={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByLabelText(/Geben Sie den vollständigen Namen/),
+      { target: { value: "Anna Beispiel" } },
+    );
+    fireEvent.click(getDeleteButton());
+
+    await waitFor(() => {
+      expect(screen.getByText("Wird gelöscht...")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: "Wird gelöscht..." }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+
+    resolveDelete?.();
+  });
+
+  it("does not fire a second soft-delete request when the button is clicked twice rapidly", async () => {
+    let resolveDelete: (() => void) | undefined;
+    mockSoftDeletePerson.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveDelete = resolve;
+      }),
+    );
+
+    render(
+      <DeletePersonModal
+        person={makePerson()}
+        onClose={vi.fn()}
+        onDeleted={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByLabelText(/Geben Sie den vollständigen Namen/),
+      { target: { value: "Anna Beispiel" } },
+    );
+    const button = getDeleteButton();
+    fireEvent.click(button);
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(mockSoftDeletePerson).toHaveBeenCalledTimes(1);
+    });
+
+    resolveDelete?.();
+  });
+
   it("falls back to a generic German error when the thrown value has no message", async () => {
     mockSoftDeletePerson.mockRejectedValue("non-error value");
 

@@ -151,6 +151,67 @@ describe("DeleteDeviceModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("disables both buttons and shows in-flight label while delete is pending", async () => {
+    let resolveDelete: (() => void) | undefined;
+    mockDeleteDevice.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveDelete = resolve;
+      }),
+    );
+
+    render(
+      <DeleteDeviceModal
+        device={makeDevice()}
+        onClose={vi.fn()}
+        onDeleted={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Ja, löschen"));
+    fireEvent.click(screen.getByText("Endgültig löschen"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Wird gelöscht...")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: "Wird gelöscht..." }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+
+    resolveDelete?.();
+  });
+
+  it("does not fire a second delete request when the button is clicked twice rapidly", async () => {
+    let resolveDelete: (() => void) | undefined;
+    mockDeleteDevice.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveDelete = resolve;
+      }),
+    );
+
+    render(
+      <DeleteDeviceModal
+        device={makeDevice()}
+        onClose={vi.fn()}
+        onDeleted={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Ja, löschen"));
+    const confirmButton = screen.getByRole("button", {
+      name: "Endgültig löschen",
+    });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(mockDeleteDevice).toHaveBeenCalledTimes(1);
+    });
+
+    resolveDelete?.();
+  });
+
   it("falls back to a generic German error when the thrown value has no message", async () => {
     mockDeleteDevice.mockRejectedValue("non-error value");
 

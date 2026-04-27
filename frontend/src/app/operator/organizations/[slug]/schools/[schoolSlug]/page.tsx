@@ -268,6 +268,25 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
     await Promise.all([mutateSchoolPersons(), refreshSchoolDetail()]);
   }, [mutateSchoolPersons, refreshSchoolDetail]);
 
+  const handleTabValueChange = useCallback(
+    (value: string) => {
+      if (isTabId(value)) setActiveTab(value);
+    },
+    [setActiveTab],
+  );
+
+  const headerStats = useMemo(
+    () =>
+      school
+        ? [
+            { label: "Konten", value: numberFormat(school.kontenCount) },
+            { label: "Geräte", value: numberFormat(school.geraeteCount) },
+            { label: "Personen", value: numberFormat(school.personenCount) },
+          ]
+        : [],
+    [school],
+  );
+
   const schoolHeaderActions = useMemo(
     () => (
       <>
@@ -427,11 +446,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
             )}
           </span>
         }
-        stats={[
-          { label: "Konten", value: numberFormat(school.kontenCount) },
-          { label: "Geräte", value: numberFormat(school.geraeteCount) },
-          { label: "Personen", value: numberFormat(school.personenCount) },
-        ]}
+        stats={headerStats}
       />
 
       {schoolToggleError && (
@@ -439,12 +454,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
       )}
 
       <div className="mt-6">
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) => {
-            if (isTabId(value)) setActiveTab(value);
-          }}
-        >
+        <Tabs value={activeTab} onValueChange={handleTabValueChange}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <TabsList variant="line">
               {TAB_ITEMS.map((tab) => (
