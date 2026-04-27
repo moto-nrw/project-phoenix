@@ -75,6 +75,20 @@ const (
 	KeyAdminSupervisionOverview       = "operations.admin_supervision_overview"
 	KeySickClearMode                  = "operations.sick_clear_mode"
 	KeyExcusedClearMode               = "operations.excused_clear_mode"
+	KeyPresenceMode                   = "operations.presence_mode"
+	KeyWebCheckinAccess               = "attendance.web_checkin_access"
+)
+
+// PresenceMode option values for KeyPresenceMode.
+const (
+	PresenceModeDetailed = "detailed"
+	PresenceModeBinary   = "binary"
+)
+
+// WebCheckinAccess option values for KeyWebCheckinAccess.
+const (
+	WebCheckinAccessGroupSupervisors = "group_supervisors"
+	WebCheckinAccessAllStaff         = "all_staff"
 )
 
 // StatusFlagClearMode option values for KeySickClearMode and KeyExcusedClearMode.

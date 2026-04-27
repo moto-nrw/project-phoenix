@@ -9,6 +9,7 @@ vi.unmock("~/components/tenant/tenant-provider");
 
 import {
   TenantProvider,
+  usePresenceMode,
   useTenant,
   useTenantSlugSafe,
 } from "./tenant-provider";
@@ -25,6 +26,7 @@ const mockTenant: TenantInfo = {
   organizationId: 10,
   organizationName: "Org A",
   settings: {},
+  presenceMode: "detailed",
 };
 
 // ============================================================================
@@ -93,5 +95,34 @@ describe("useTenantSlugSafe", () => {
     const { result } = renderHook(() => useTenantSlugSafe());
 
     expect(result.current).toBeNull();
+  });
+});
+
+describe("usePresenceMode", () => {
+  const binaryTenant: TenantInfo = { ...mockTenant, presenceMode: "binary" };
+
+  it("returns the tenant's presenceMode when inside a TenantProvider", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={binaryTenant}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => usePresenceMode(), { wrapper });
+    expect(result.current).toBe("binary");
+  });
+
+  it("returns 'detailed' outside any TenantProvider (safe default)", () => {
+    const { result } = renderHook(() => usePresenceMode());
+    expect(result.current).toBe("detailed");
+  });
+
+  it("returns 'detailed' when tenant hasn't resolved yet", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={null}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => usePresenceMode(), { wrapper });
+    expect(result.current).toBe("detailed");
   });
 });

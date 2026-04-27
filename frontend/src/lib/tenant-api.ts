@@ -22,6 +22,15 @@ export function loginImageSrc(storedPath: string): string {
   return `/api/public/login-image/${filename}`;
 }
 
+/**
+ * Tenant presence mode. "detailed" tracks rooms/activities/visits;
+ * "binary" tracks only in-school/out-of-school on `active.attendance`.
+ * Drives which badge component renders (LocationBadge vs PresenceBadge)
+ * and which nav items appear. Defaults to "detailed" so older tenants
+ * without the setting keep their current UX.
+ */
+export type PresenceMode = "detailed" | "binary";
+
 export interface TenantInfo {
   tenantId: number;
   slug: string;
@@ -30,6 +39,7 @@ export interface TenantInfo {
   organizationId: number;
   organizationName: string;
   settings: TenantSettings;
+  presenceMode: PresenceMode;
 }
 
 interface TenantResolveResponse {
@@ -40,6 +50,16 @@ interface TenantResolveResponse {
   organization_id: number;
   organization_name: string;
   settings: TenantSettings;
+  presence_mode?: string;
+}
+
+/**
+ * Normalize the backend's presence_mode string into our union type.
+ * Anything other than "binary" collapses to "detailed" — the safe default
+ * used by the backend itself when the setting is missing or errors.
+ */
+export function normalizePresenceMode(raw: unknown): PresenceMode {
+  return raw === "binary" ? "binary" : "detailed";
 }
 
 /**
@@ -69,6 +89,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       organizationId: data.organization_id,
       organizationName: data.organization_name,
       settings: data.settings ?? {},
+      presenceMode: normalizePresenceMode(data.presence_mode),
     };
   } catch {
     return null;
@@ -127,6 +148,9 @@ export async function listAllTenants(
           organizationId: 0,
           organizationName: t.organization_name,
           settings: {},
+          // list endpoints don't carry per-tenant presence mode; consumers
+          // that need it call resolveTenant() on the selected slug.
+          presenceMode: "detailed",
         })),
         status: "ok",
       };
@@ -177,6 +201,9 @@ export async function listAvailableTenants(): Promise<TenantInfo[]> {
     organizationId: t.organization_id,
     organizationName: t.organization_name,
     settings: {},
+    // account-tenants endpoint is pre-switch listing; presenceMode is re-resolved
+    // after the switch when the new tenant's layout mounts and calls resolveTenant.
+    presenceMode: "detailed",
   }));
 }
 

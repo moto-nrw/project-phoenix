@@ -97,6 +97,7 @@ func (m *mockActiveSvcForSSE) GetTrackingIndicators(_ context.Context, _ []int64
 }
 
 func (m *mockActiveSvcForSSE) SetSettingsService(_ activeSvc.SettingsResolver) {}
+func (m *mockActiveSvcForSSE) GetPresenceMode(_ context.Context) string        { return "detailed" }
 
 // Stubs for the rest of active.Service (never called by resolveSupervisions)
 func (m *mockActiveSvcForSSE) GetActiveGroup(_ context.Context, _ int64) (*activeModel.Group, error) {
@@ -281,6 +282,12 @@ func (m *mockActiveSvcForSSE) GetStudentsAttendanceStatuses(_ context.Context, _
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
