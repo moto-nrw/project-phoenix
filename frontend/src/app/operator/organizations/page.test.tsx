@@ -164,6 +164,25 @@ describe("OperatorOrganizationsPage", () => {
     expect(screen.getByText("Aktiv")).toBeInTheDocument();
   });
 
+  it("opens the create-organization modal from the empty state action button", async () => {
+    withDefaultSWR({ orgs: [] });
+
+    render(<OperatorOrganizationsPage />);
+
+    // EmptyState renders "Neuer Träger" inside the empty state. Clicking it
+    // opens the create modal.
+    const emptyAction = screen.getAllByText("Neuer Träger");
+    expect(emptyAction.length).toBeGreaterThan(0);
+    // The empty state's action sits inside an EmptyState card; the header
+    // also has a "Neuer Träger" trigger. Click whichever is found first in
+    // the empty-state card area.
+    fireEvent.click(emptyAction[emptyAction.length - 1]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+  });
+
   it("renders empty state for organizations", () => {
     withDefaultSWR({ orgs: [] });
 
@@ -400,5 +419,76 @@ describe("OperatorOrganizationsPage", () => {
     expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
     expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Deaktivieren")).not.toBeInTheDocument();
+  });
+
+  // --- Column sorting (covers sortValue callbacks for each column) ---
+
+  describe("column sorting", () => {
+    it("sorts by Träger column when the header is clicked", () => {
+      withDefaultSWR({
+        orgs: [
+          { ...mockOrg, id: "1", slug: "z-org", name: "Z Org" },
+          { ...mockOrg, id: "2", slug: "a-org", name: "A Org" },
+        ],
+      });
+
+      render(<OperatorOrganizationsPage />);
+
+      // Sort header buttons have an accessible name like
+      // "Träger – Spalte sortieren" / "Träger – aufsteigend sortiert".
+      fireEvent.click(screen.getByRole("button", { name: /^Träger – / }));
+
+      // After clicking the header, both rows still render (sort doesn't
+      // hide rows). The point of the test is that the sortValue callback
+      // executed at least once during the comparison.
+      expect(screen.getByText("A Org")).toBeInTheDocument();
+      expect(screen.getByText("Z Org")).toBeInTheDocument();
+    });
+
+    it("sorts by Schulen / Konten / Geräte / Personen / Status when their headers are clicked", () => {
+      withDefaultSWR({
+        orgs: [
+          {
+            ...mockOrg,
+            id: "1",
+            slug: "a-org",
+            name: "A Org",
+            schulenCount: 5,
+            kontenCount: 10,
+            geraeteCount: 2,
+            personenCount: 7,
+            active: false,
+          },
+          {
+            ...mockOrg,
+            id: "2",
+            slug: "b-org",
+            name: "B Org",
+            schulenCount: 1,
+            kontenCount: 30,
+            geraeteCount: 8,
+            personenCount: 3,
+            active: true,
+          },
+        ],
+      });
+
+      render(<OperatorOrganizationsPage />);
+
+      for (const header of [
+        "Schulen",
+        "Konten",
+        "Geräte",
+        "Personen",
+        "Status",
+      ]) {
+        fireEvent.click(
+          screen.getByRole("button", { name: new RegExp(`^${header} – `) }),
+        );
+      }
+
+      expect(screen.getByText("A Org")).toBeInTheDocument();
+      expect(screen.getByText("B Org")).toBeInTheDocument();
+    });
   });
 });

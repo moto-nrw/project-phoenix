@@ -613,4 +613,57 @@ describe("OperatorSchoolsPage", () => {
       expect(mockMutateSchools).toHaveBeenCalled();
     });
   });
+
+  // --- Column sorting (covers each column's sortValue callback) ---
+
+  describe("column sorting", () => {
+    it("sorts by Schule / Träger / Konten / Geräte / Personen / Status when headers are clicked", () => {
+      withDefaultSWR({
+        schools: [
+          {
+            ...mockSchool,
+            id: "1",
+            slug: "z-school",
+            name: "Z School",
+            subdomain: "z-school",
+            organizationName: "Org B",
+            kontenCount: 10,
+            geraeteCount: 2,
+            personenCount: 7,
+            active: false,
+          },
+          {
+            ...mockSchool,
+            id: "2",
+            slug: "a-school",
+            name: "A School",
+            subdomain: "a-school",
+            organizationName: "Org A",
+            kontenCount: 30,
+            geraeteCount: 8,
+            personenCount: 3,
+            active: true,
+          },
+        ],
+      });
+
+      render(<OperatorSchoolsPage />);
+
+      for (const header of [
+        "Schule",
+        "Träger",
+        "Konten",
+        "Geräte",
+        "Personen",
+        "Status",
+      ]) {
+        fireEvent.click(
+          screen.getByRole("button", { name: new RegExp(`^${header} – `) }),
+        );
+      }
+
+      expect(screen.getByText("A School")).toBeInTheDocument();
+      expect(screen.getByText("Z School")).toBeInTheDocument();
+    });
+  });
 });

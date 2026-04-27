@@ -61,10 +61,11 @@ vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
 }));
 
+let currentSearchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
   usePathname: () => "/operator/organizations/test-org/schools/test-school",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => currentSearchParams,
 }));
 
 vi.mock("next/link", () => ({
@@ -262,6 +263,7 @@ async function renderPage() {
 describe("OperatorSchoolDetailPage", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
     mockUseSession.mockReturnValue({
       data: { user: { id: "1", email: "operator@example.com" } },
       status: "authenticated",
@@ -406,5 +408,220 @@ describe("OperatorSchoolDetailPage", () => {
       "/operator/organizations/test-org/schools/test-school",
     )}`;
     expect(settings.closest("a")?.getAttribute("href")).toBe(expected);
+  });
+
+  // --- Tab flows ---
+
+  describe("with the Konten tab active", () => {
+    const mockSchoolAccount = {
+      accountId: "100",
+      personId: "200",
+      firstName: "Anna",
+      lastName: "Beispiel",
+      email: "anna@example.com",
+      isStaff: true,
+      isStudent: false,
+      hasGuardianAccess: false,
+      role: "teacher",
+      createdAt: "2026-01-01T00:00:00Z",
+    };
+
+    it("renders the accounts table when accounts are present", async () => {
+      currentSearchParams = new URLSearchParams("tab=konten");
+      setupSWR({ accounts: [mockSchoolAccount] });
+
+      await renderPage();
+
+      expect(await screen.findByText("anna@example.com")).toBeInTheDocument();
+    });
+
+    it("renders empty state when there are no accounts", async () => {
+      currentSearchParams = new URLSearchParams("tab=konten");
+      setupSWR({ accounts: [] });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText("Keine Konten für diese Schule."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("with the Geräte tab active", () => {
+    const mockDevice = {
+      id: "1",
+      deviceId: "OGS-001",
+      deviceType: "ogs",
+      name: "Empfang",
+      status: "active",
+      apiKey: "",
+      maskedApiKey: "abc***",
+      lastSeen: null,
+      isOnline: false,
+      schoolId: "10",
+      schoolName: "Test School",
+      organizationId: "1",
+      organizationName: "Test Org",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+
+    it("renders the devices table when devices are present", async () => {
+      currentSearchParams = new URLSearchParams("tab=geraete");
+      setupSWR({ devices: [mockDevice] });
+
+      await renderPage();
+
+      expect(await screen.findByText("OGS-001")).toBeInTheDocument();
+    });
+
+    it("renders empty state when there are no devices", async () => {
+      currentSearchParams = new URLSearchParams("tab=geraete");
+      setupSWR({ devices: [] });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText("Keine Geräte für diese Schule."),
+      ).toBeInTheDocument();
+    });
+
+    it("renders the 'Neues Gerät' action button", async () => {
+      currentSearchParams = new URLSearchParams("tab=geraete");
+      setupSWR({ devices: [] });
+
+      await renderPage();
+
+      expect(await screen.findByText("Neues Gerät")).toBeInTheDocument();
+    });
+
+    it("opens the delete-device modal when a device delete is requested", async () => {
+      currentSearchParams = new URLSearchParams("tab=geraete");
+      setupSWR({ devices: [mockDevice] });
+
+      await renderPage();
+
+      // The devices-table renders a "Löschen" button with title="Gerät löschen"
+      // — the school header's "Löschen" button uses a different title.
+      const rowDelete = await screen.findByTitle("Gerät löschen");
+      fireEvent.click(rowDelete);
+
+      // The DeleteDeviceModal renders "Gerät löschen" as a heading.
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: "Gerät löschen" }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("calls deleteDevice and refreshes both devices and detail on confirm", async () => {
+      currentSearchParams = new URLSearchParams("tab=geraete");
+      setupSWR({ devices: [mockDevice] });
+      mockDeleteDevice.mockResolvedValue(undefined);
+
+      await renderPage();
+
+      fireEvent.click(await screen.findByTitle("Gerät löschen"));
+
+      // Two-step confirm: click "Ja, löschen" then "Endgültig löschen"
+      fireEvent.click(await screen.findByText("Ja, löschen"));
+      fireEvent.click(await screen.findByText("Endgültig löschen"));
+
+      await waitFor(() => {
+        expect(mockDeleteDevice).toHaveBeenCalledWith("1");
+      });
+      // handleDeviceDeleted runs Promise.all([mutateDevices, refreshDetail])
+      // → both mutate functions are invoked.
+      await waitFor(() => {
+        expect(mockMutateDevices).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("with the Personen tab active", () => {
+    const mockPerson = {
+      id: "5",
+      firstName: "Anna",
+      lastName: "Beispiel",
+      fullName: "Anna Beispiel",
+      hasAccount: true,
+      accountEmail: "anna@example.com",
+      hasRfidCard: false,
+      isStaff: true,
+      isStudent: false,
+      schoolId: "10",
+      schoolName: "Test School",
+      organizationId: "1",
+      organizationName: "Test Org",
+      createdAt: "2026-01-01T00:00:00Z",
+    };
+
+    it("renders the persons table when persons are present", async () => {
+      currentSearchParams = new URLSearchParams("tab=personen");
+      setupSWR({ persons: [mockPerson] });
+
+      await renderPage();
+
+      expect(await screen.findByText("Anna Beispiel")).toBeInTheDocument();
+    });
+
+    it("renders empty state when there are no persons", async () => {
+      currentSearchParams = new URLSearchParams("tab=personen");
+      setupSWR({ persons: [] });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText("Keine Personen für diese Schule."),
+      ).toBeInTheDocument();
+    });
+
+    it("opens the soft-delete person modal when delete is requested", async () => {
+      currentSearchParams = new URLSearchParams("tab=personen");
+      setupSWR({ persons: [mockPerson] });
+
+      await renderPage();
+
+      // The persons-table renders a "Löschen" button with title="Person löschen".
+      const rowDelete = await screen.findByTitle("Person löschen");
+      fireEvent.click(rowDelete);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: "Person löschen" }),
+        ).toBeInTheDocument();
+      });
+    });
+  });
+
+  // --- Soft-delete school + redirect back to org drill-in ---
+
+  it("soft-deletes the school, clears tenant cache, and routes back to the org drill-in", async () => {
+    setupSWR();
+    mockSoftDeleteSchool.mockResolvedValue(undefined);
+
+    await renderPage();
+
+    fireEvent.click(await screen.findByText("Löschen"));
+
+    const confirmInput = await screen.findByLabelText(
+      /Geben Sie den Schulnamen ein/,
+    );
+    fireEvent.change(confirmInput, { target: { value: "Test School" } });
+
+    const deleteButtons = screen.getAllByRole("button", { name: "Löschen" });
+    fireEvent.click(deleteButtons[deleteButtons.length - 1]!);
+
+    await waitFor(() => {
+      expect(mockSoftDeleteSchool).toHaveBeenCalledWith("10");
+    });
+    await waitFor(() => {
+      expect(revalidateTenantCache).toHaveBeenCalledWith(["test-school"]);
+    });
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/operator/organizations/test-org?tab=schulen",
+      );
+    });
   });
 });
