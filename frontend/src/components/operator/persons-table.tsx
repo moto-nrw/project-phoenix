@@ -18,17 +18,17 @@ function PersonTags({ person }: Readonly<{ person: OperatorPerson }>) {
   return (
     <div className="flex flex-wrap gap-1">
       {person.isStaff && (
-        <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+        <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#4070C8]">
           Mitarbeiter
         </span>
       )}
       {person.isStudent && (
-        <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+        <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#5A8B1F]">
           Schüler
         </span>
       )}
       {person.hasRfidCard && (
-        <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+        <span className="inline-flex items-center rounded-full bg-[#7C3AED]/10 px-2 py-0.5 text-xs font-medium text-[#5B21B6]">
           RFID
         </span>
       )}
@@ -107,7 +107,7 @@ export function PersonsTable({
             <button
               type="button"
               onClick={() => onDelete(row)}
-              className="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+              className="rounded-lg border border-[#FF3130]/20 px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 hover:text-[#FF3130]"
               title="Person löschen"
             >
               Löschen

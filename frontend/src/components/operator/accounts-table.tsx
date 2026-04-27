@@ -15,31 +15,31 @@ function getAccountCapabilityMeta(account: SchoolAccount) {
   if (account.isActiveCaregiver && account.hasAdminRole) {
     return {
       label: "Verwaltung + Betreuung",
-      className: "bg-emerald-100 text-emerald-700",
+      className: "bg-[#83CD2D]/15 text-[#5A8B1F]",
     };
   }
   if (account.isActiveCaregiver) {
     return {
       label: "Betreuung aktiv",
-      className: "bg-orange-100 text-orange-700",
+      className: "bg-[#F78C10]/15 text-[#C56F0D]",
     };
   }
   if (account.hasUserRole && !account.hasCaregiverProfile) {
     return {
       label: "Betreuung unvollständig",
-      className: "bg-amber-100 text-amber-700",
+      className: "bg-[#EAB308]/15 text-[#854D0E]",
     };
   }
   if (account.hasCaregiverProfile && !account.hasUserRole) {
     return {
       label: "Betreuungsprofil inaktiv",
-      className: "bg-slate-100 text-slate-700",
+      className: "bg-gray-100 text-gray-700",
     };
   }
   if (account.hasAdminRole) {
     return {
       label: "Nur Verwaltung",
-      className: "bg-blue-100 text-blue-700",
+      className: "bg-[#5080D8]/15 text-[#4070C8]",
     };
   }
   return {
@@ -50,9 +50,9 @@ function getAccountCapabilityMeta(account: SchoolAccount) {
 
 function AccountStatusBadge({ status }: Readonly<{ status: string }>) {
   const styles: Record<string, string> = {
-    active: "bg-green-100 text-green-700",
-    pending: "bg-yellow-100 text-yellow-700",
-    invited: "bg-purple-100 text-purple-700",
+    active: "bg-[#83CD2D]/15 text-[#5A8B1F]",
+    pending: "bg-[#EAB308]/15 text-[#854D0E]",
+    invited: "bg-[#7C3AED]/15 text-[#5B21B6]",
     inactive: "bg-gray-100 text-gray-500",
   };
   const labels: Record<string, string> = {
@@ -135,7 +135,7 @@ export function AccountsTable({
               {row.roleName.split(", ").map((role) => (
                 <span
                   key={role}
-                  className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+                  className="inline-flex rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#4070C8]"
                 >
                   {role}
                 </span>

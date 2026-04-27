@@ -20,17 +20,17 @@ function DeviceStatusBadge({
 }: Readonly<{ status: string; isOnline: boolean }>) {
   if (isOnline) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+      <span className="inline-flex items-center gap-1 rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-xs font-medium text-[#5A8B1F]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#83CD2D]" />
         Online
       </span>
     );
   }
   const styles: Record<string, string> = {
-    active: "bg-green-100 text-green-700",
+    active: "bg-[#83CD2D]/15 text-[#5A8B1F]",
     inactive: "bg-gray-100 text-gray-500",
-    maintenance: "bg-yellow-100 text-yellow-700",
-    offline: "bg-red-100 text-red-700",
+    maintenance: "bg-[#EAB308]/15 text-[#854D0E]",
+    offline: "bg-[#FF3130]/10 text-[#CC2626]",
   };
   return (
     <span
@@ -72,7 +72,7 @@ function CheckIcon() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="text-green-600"
+      className="text-[#5A8B1F]"
     >
       <path d="M20 6 9 17l-5-5" />
     </svg>
@@ -210,7 +210,7 @@ export function DevicesTable({
               <button
                 type="button"
                 onClick={() => onDelete(row)}
-                className="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+                className="rounded-lg border border-[#FF3130]/20 px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 hover:text-[#FF3130]"
                 title="Gerät löschen"
               >
                 Löschen

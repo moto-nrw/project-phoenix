@@ -64,7 +64,7 @@ export function DeletePersonModal({
           von <span className="font-medium">{person.schoolName}</span> wirklich
           löschen?
         </p>
-        <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div className="mt-3 rounded-lg bg-[#EAB308]/10 px-3 py-2 text-sm text-[#854D0E]">
           <p className="font-medium">Folgende Aktionen werden ausgeführt:</p>
           <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
             <li>Account wird deaktiviert und Login gesperrt</li>
@@ -90,13 +90,13 @@ export function DeletePersonModal({
             value={confirmInput}
             onChange={(event) => setConfirmInput(event.target.value)}
             placeholder={person.fullName}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#FF3130] focus:ring-1 focus:ring-[#FF3130] focus:outline-none"
             autoComplete="off"
           />
         </div>
 
         {error && (
-          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+          <div className="mt-3 rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
             {error}
           </div>
         )}
@@ -114,7 +114,7 @@ export function DeletePersonModal({
             type="button"
             onClick={() => void handleDelete()}
             disabled={loading || confirmInput !== person.fullName}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-[#FF3130] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#CC2626] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "Wird gelöscht..." : "Endgültig löschen"}
           </button>
