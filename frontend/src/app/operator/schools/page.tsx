@@ -185,7 +185,7 @@ export default function OperatorSchoolsPage() {
             <div className="flex items-center gap-2">
               <span className="font-semibold text-gray-900">{row.name}</span>
               {row.hidden && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                <span className="rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#854D0E]">
                   Verborgen
                 </span>
               )}
