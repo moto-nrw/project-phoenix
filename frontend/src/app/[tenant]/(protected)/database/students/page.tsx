@@ -1,23 +1,29 @@
 "use client";
 
-import { createLogger } from "~/lib/logger";
-import { useState, useMemo, useRef, useEffect } from "react";
-
-const logger = createLogger({ component: "DatabaseStudentsPage" });
-import { useIsMobile } from "~/hooks/useIsMobile";
-import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  redirect,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { Trash2 } from "lucide-react";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
-  FilterConfig,
   ActiveFilter,
+  FilterConfig,
 } from "~/components/ui/page-header/types";
+import { useIsMobile } from "~/hooks/useIsMobile";
 import { useToast } from "~/contexts/ToastContext";
-import { StudentDetailModal } from "@/components/students/student-detail-modal";
-import { StudentEditModal } from "@/components/students/student-edit-modal";
 import { StudentCreateModal } from "@/components/students/student-create-modal";
+import { StudentsMasterDetail } from "@/components/students/students-master-detail";
+import {
+  StudentsGroupingToggle,
+  type GroupingMode,
+} from "@/components/students/students-grouping-toggle";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
@@ -25,32 +31,62 @@ import { studentsConfig } from "@/lib/database/configs/students.config";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "DatabaseStudentsPage" });
+
+function parseGrouping(value: string | null): GroupingMode {
+  if (value === "group" || value === "none") return value;
+  return "class";
+}
 
 export default function StudentsPage() {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const selectedId = searchParams.get("student");
+  const grouping = parseGrouping(searchParams.get("groupBy"));
+
+  const updateUrlParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const next = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null || value === "") {
+          next.delete(key);
+        } else {
+          next.set(key, value);
+        }
+      }
+      const query = next.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const handleSelect = useCallback(
+    (id: string | null) => {
+      updateUrlParams({ student: id });
+    },
+    [updateUrlParams],
+  );
+
+  const handleGroupingChange = useCallback(
+    (next: GroupingMode) => {
+      updateUrlParams({ groupBy: next === "class" ? null : next });
+    },
+    [updateUrlParams],
+  );
+
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [arrivalRevision, setArrivalRevision] = useState(0);
   const isMobile = useIsMobile();
 
-  // Modal states
-  const [showCreateModal, setShowCreateModal] = useState(false);
-
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
-
-  // Delete confirmation modal management
-  const {
-    showConfirmModal: showDeleteConfirmModal,
-    handleDeleteClick,
-    handleDeleteCancel,
-    confirmDelete,
-  } = useDeleteConfirmation(setShowDetailModal);
-
   const { success: toastSuccess, error: toastError } = useToast();
-
-  // Track mounted state to prevent race conditions
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -67,25 +103,26 @@ export default function StudentsPage() {
     },
   });
 
-  // Create service instance
   const service = useMemo(() => createCrudService(studentsConfig), []);
   const tenantMutate = useTenantMutate();
 
-  // Fetch students with SWR (automatic caching, deduplication, revalidation)
   const {
     data: studentsData,
     isLoading: loading,
     error: studentsError,
   } = useSWRAuth("database-students-list", async () => {
-    const data = await service.getList({ page: 1, pageSize: 1000 });
+    const data = await service.getList({
+      page: 1,
+      pageSize: 1000,
+      include_arrival_times: true,
+    });
     return Array.isArray(data.data) ? data.data : [];
   });
 
-  const error = studentsError
+  const errorMessage = studentsError
     ? "Fehler beim Laden der Schüler. Bitte versuchen Sie es später erneut."
     : null;
 
-  // Fetch all groups for the dropdown with SWR
   const { data: allGroups = [] } = useSWRAuth<
     Array<{ value: string; label: string }>
   >("database-groups-dropdown", async () => {
@@ -96,7 +133,6 @@ export default function StudentsPage() {
     }
     const data: unknown = await response.json();
 
-    // Handle the response - it might be wrapped or an array
     let groups: Array<{ id: number; name: string }> = [];
     if (Array.isArray(data)) {
       groups = data as Array<{ id: number; name: string }>;
@@ -112,7 +148,6 @@ export default function StudentsPage() {
       return [];
     }
 
-    // Map to the format needed by the dropdown
     return groups
       .map((group) => ({
         value: String(group.id),
@@ -121,12 +156,10 @@ export default function StudentsPage() {
       .sort((a, b) => a.label.localeCompare(b.label));
   });
 
-  // Apply filters (use studentsData directly to avoid dependency issues)
   const filteredStudents = useMemo(() => {
     const students = studentsData ?? [];
     let filtered = [...students];
 
-    // Search filter
     if (searchTerm) {
       const searchLower = searchTerm.trim().toLowerCase();
       filtered = filtered.filter(
@@ -140,25 +173,27 @@ export default function StudentsPage() {
       );
     }
 
-    // Group filter
     if (groupFilter !== "all") {
       filtered = filtered.filter((student) => student.group_id === groupFilter);
     }
 
-    // Sort alphabetically by name
     filtered.sort((a, b) => {
-      const nameA = `${a.first_name} ${a.second_name}`;
-      const nameB = `${b.first_name} ${b.second_name}`;
+      const nameA = `${a.second_name ?? ""} ${a.first_name ?? ""}`;
+      const nameB = `${b.second_name ?? ""} ${b.first_name ?? ""}`;
       return nameA.localeCompare(nameB, "de");
     });
 
     return filtered;
   }, [studentsData, searchTerm, groupFilter]);
 
-  // Use all groups fetched from API (not just groups with students)
-  const uniqueGroups = allGroups;
+  const selectedStudent = useMemo(
+    () =>
+      selectedId
+        ? (filteredStudents.find((s) => String(s.id) === selectedId) ?? null)
+        : null,
+    [selectedId, filteredStudents],
+  );
 
-  // Prepare filters for PageHeaderWithSearch
   const filters: FilterConfig[] = useMemo(
     () => [
       {
@@ -167,206 +202,167 @@ export default function StudentsPage() {
         type: "dropdown",
         value: groupFilter,
         onChange: (value) => setGroupFilter(value as string),
-        options: [{ value: "all", label: "Alle Gruppen" }, ...uniqueGroups],
+        options: [{ value: "all", label: "Alle Gruppen" }, ...allGroups],
       },
     ],
-    [groupFilter, uniqueGroups],
+    [groupFilter, allGroups],
   );
 
-  // Prepare active filters
   const activeFilters: ActiveFilter[] = useMemo(() => {
-    const filters: ActiveFilter[] = [];
-
+    const chips: ActiveFilter[] = [];
     if (searchTerm) {
-      filters.push({
+      chips.push({
         id: "search",
         label: `"${searchTerm}"`,
         onRemove: () => setSearchTerm(""),
       });
     }
-
     if (groupFilter !== "all") {
-      const group = uniqueGroups.find((g) => g.value === groupFilter);
-      filters.push({
+      const group = allGroups.find((g) => g.value === groupFilter);
+      chips.push({
         id: "group",
         label: group?.label ?? "Gruppe",
         onRemove: () => setGroupFilter("all"),
       });
     }
+    return chips;
+  }, [searchTerm, groupFilter, allGroups]);
 
-    return filters;
-  }, [searchTerm, groupFilter, uniqueGroups]);
-
-  // Handle student selection
-  const handleSelectStudent = async (student: Student) => {
-    setSelectedStudent(student);
-    setShowDetailModal(true);
-    setDetailError(null);
-
-    try {
-      setDetailLoading(true);
-      const freshData = await service.getOne(student.id);
-
-      // Only update state if still mounted
-      if (!isMountedRef.current) return;
-
-      setSelectedStudent(freshData);
-    } catch (err) {
-      // Only update state if still mounted
-      if (!isMountedRef.current) return;
-
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Laden der Schülerdaten.";
-      setDetailError(errorMessage);
-      toastError(errorMessage);
-    } finally {
-      if (isMountedRef.current) {
-        setDetailLoading(false);
+  const handleCreateStudent = useCallback(
+    async (studentData: Partial<Student>) => {
+      if (studentsConfig.form.transformBeforeSubmit) {
+        studentData = studentsConfig.form.transformBeforeSubmit(studentData);
       }
+      const newStudent = await service.create(studentData);
+      if (!isMountedRef.current) return;
+      const displayName = studentsConfig.list.item.title(newStudent);
+      toastSuccess(
+        getDbOperationMessage(
+          "create",
+          studentsConfig.name.singular,
+          displayName,
+        ),
+      );
+      setShowCreateModal(false);
+      await tenantMutate("database-students-list");
+    },
+    [service, tenantMutate, toastSuccess],
+  );
+
+  const handleUpdateStudent = useCallback(
+    async (studentId: string, studentData: Partial<Student>) => {
+      try {
+        if (studentsConfig.form.transformBeforeSubmit) {
+          studentData = studentsConfig.form.transformBeforeSubmit(studentData);
+        }
+        await service.update(studentId, studentData);
+        if (!isMountedRef.current) return;
+        toastSuccess(
+          getDbOperationMessage(
+            "update",
+            studentsConfig.name.singular,
+            studentData.first_name && studentData.second_name
+              ? `${studentData.first_name} ${studentData.second_name}`
+              : studentsConfig.name.singular,
+          ),
+        );
+        await tenantMutate("database-students-list");
+      } catch (err) {
+        logger.error("failed to update student", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    },
+    [service, tenantMutate, toastSuccess],
+  );
+
+  const handleDeleteStudent = useCallback(async () => {
+    if (!selectedStudent) return;
+    const deleteError = await service.delete(selectedStudent.id);
+    if (deleteError) {
+      toastError(deleteError);
+      return;
     }
-  };
-
-  // Handle create student
-  const handleCreateStudent = async (studentData: Partial<Student>) => {
-    if (studentsConfig.form.transformBeforeSubmit) {
-      studentData = studentsConfig.form.transformBeforeSubmit(studentData);
-    }
-
-    const newStudent = await service.create(studentData);
-
-    // Only update state if still mounted
     if (!isMountedRef.current) return;
-
-    const displayName = studentsConfig.list.item.title(newStudent);
+    const displayName = studentsConfig.list.item.title(selectedStudent);
     toastSuccess(
       getDbOperationMessage(
-        "create",
+        "delete",
         studentsConfig.name.singular,
         displayName,
       ),
     );
-
-    setShowCreateModal(false);
+    handleSelect(null);
     await tenantMutate("database-students-list");
-  };
+  }, [
+    selectedStudent,
+    service,
+    tenantMutate,
+    toastSuccess,
+    toastError,
+    handleSelect,
+  ]);
 
-  // Handle update student
-  const handleUpdateStudent = async (studentData: Partial<Student>) => {
-    if (!selectedStudent) return;
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(() => {
+    // Detail panel doesn't track its own open state in this page,
+    // so there's nothing to close here.
+  });
 
-    try {
-      setDetailLoading(true);
+  const handleArrivalChanged = useCallback(() => {
+    setArrivalRevision((prev) => prev + 1);
+    void tenantMutate("database-students-list");
+  }, [tenantMutate]);
 
-      if (studentsConfig.form.transformBeforeSubmit) {
-        studentData = studentsConfig.form.transformBeforeSubmit(studentData);
-      }
+  const studentsWithArrival = useMemo(
+    () => new Set(filteredStudents.map((s) => String(s.id))),
+    // NOTE: v1 defaults every student to "has arrival" so no false-positive
+    // warnings are shown in the list. A bulk arrival-status endpoint (arrival-times/bulk)
+    // can later drive real warnings — reference arrivalRevision below to refetch on save.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredStudents, arrivalRevision],
+  );
 
-      await service.update(selectedStudent.id, studentData);
-
-      // Only update state if still mounted
-      if (!isMountedRef.current) return;
-
-      const displayName = studentsConfig.list.item.title(selectedStudent);
-      toastSuccess(
-        getDbOperationMessage(
-          "update",
-          studentsConfig.name.singular,
-          displayName,
-        ),
-      );
-
-      // Refresh student data
-      const refreshedStudent = await service.getOne(selectedStudent.id);
-
-      // Check again before updating state after second async operation
-      if (!isMountedRef.current) return;
-
-      setSelectedStudent(refreshedStudent);
-
-      // Close edit modal and show updated detail modal
-      setShowEditModal(false);
-      setShowDetailModal(true);
-
-      await tenantMutate("database-students-list");
-    } catch (err) {
-      logger.error("failed to update student", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      throw err;
-    } finally {
-      if (isMountedRef.current) {
-        setDetailLoading(false);
+  const arrivalSummaryById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const student of filteredStudents) {
+      if (student.arrival_is_exception && !student.arrival_time) {
+        map.set(String(student.id), "Kommt heute nicht");
+      } else if (student.arrival_time) {
+        map.set(String(student.id), `Ankunft ${student.arrival_time} Uhr`);
       }
     }
-  };
+    return map;
+  }, [filteredStudents]);
 
-  // Handle delete student
-  const handleDeleteStudent = async () => {
-    if (!selectedStudent) return;
+  const canShowDetail = !loading && filteredStudents.length > 0;
 
-    try {
-      setDetailLoading(true);
-      const deleteError = await service.delete(selectedStudent.id);
-      if (deleteError) {
-        toastError(deleteError);
-        return;
-      }
-
-      // Only update state if still mounted
-      if (!isMountedRef.current) return;
-
-      const displayName = studentsConfig.list.item.title(selectedStudent);
-      toastSuccess(
-        getDbOperationMessage(
-          "delete",
-          studentsConfig.name.singular,
-          displayName,
-        ),
-      );
-
-      setShowDetailModal(false);
-      setSelectedStudent(null);
-      await tenantMutate("database-students-list");
-    } finally {
-      if (isMountedRef.current) {
-        setDetailLoading(false);
-      }
-    }
-  };
-
-  // Handle edit button click
-  const handleEditClick = () => {
-    setShowDetailModal(false);
-    setShowEditModal(true);
-  };
+  const detailActions = selectedStudent ? (
+    <button
+      type="button"
+      onClick={handleDeleteClick}
+      className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100"
+    >
+      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+      Löschen
+    </button>
+  ) : null;
 
   return (
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 w-full"
+      className="-mt-1.5 flex w-full flex-col"
     >
       <div className="mb-4">
         <PageHeaderWithSearch
           title={isMobile ? "Schüler" : ""}
           badge={{
-            icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-            ),
             count: filteredStudents.length,
             label: "Schüler",
           }}
@@ -383,54 +379,24 @@ export default function StudentsPage() {
           }}
           actionButton={
             !isMobile && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <StudentsGroupingToggle
+                  value={grouping}
+                  onChange={handleGroupingChange}
+                />
                 <Link
                   href="/database/students/import"
-                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
-                  aria-label="Schüler importieren"
+                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
-                  <svg
-                    className="h-4.5 w-4.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-                    />
-                  </svg>
                   Importieren
                 </Link>
                 <button
+                  type="button"
                   onClick={() => setShowCreateModal(true)}
-                  className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#5080D8] to-[#4070c8] text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgb(80, 128, 216) 0%, rgb(64, 112, 200) 100%)",
-                    willChange: "transform, opacity",
-                    WebkitTransform: "translateZ(0)",
-                    transform: "translateZ(0)",
-                  }}
+                  className="flex h-10 items-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white hover:bg-[#76B929]"
                   aria-label="Schüler erstellen"
                 >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
-                  <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
+                  + Schüler
                 </button>
               </div>
             )
@@ -438,61 +404,31 @@ export default function StudentsPage() {
         />
       </div>
 
-      {/* Mobile FAB Create Button */}
-      <button
-        onClick={() => setShowCreateModal(true)}
-        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5080D8] to-[#4070c8] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(80,128,216,0.3)] active:scale-95 md:hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, rgb(80, 128, 216) 0%, rgb(64, 112, 200) 100%)",
-          willChange: "transform, opacity",
-          WebkitTransform: "translateZ(0)",
-          transform: "translateZ(0)",
-        }}
-        aria-label="Schüler erstellen"
-      >
-        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-        <svg
-          className="pointer-events-none relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 4.5v15m7.5-7.5h-15"
-          />
-        </svg>
-        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-      </button>
-
-      {/* Error Display */}
-      {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
+      {errorMessage ? (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800">{errorMessage}</p>
         </div>
-      )}
+      ) : null}
 
-      {/* Student List */}
-      {filteredStudents.length === 0 ? (
-        <div className="flex min-h-[300px] items-center justify-center">
+      {canShowDetail ? (
+        <div className="min-h-0 flex-1 pb-4">
+          <StudentsMasterDetail
+            students={filteredStudents}
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            grouping={grouping}
+            studentsWithArrival={studentsWithArrival}
+            arrivalSummaryById={arrivalSummaryById}
+            onArrivalDataChanged={handleArrivalChanged}
+            groups={allGroups}
+            onUpdateStudent={handleUpdateStudent}
+            detailActions={detailActions}
+          />
+        </div>
+      ) : !loading ? (
+        <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-gray-200 bg-white">
           <div className="text-center">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-              />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
+            <h3 className="text-lg font-medium text-gray-900">
               {searchTerm || groupFilter !== "all"
                 ? "Keine Schüler gefunden"
                 : "Keine Schüler vorhanden"}
@@ -504,118 +440,37 @@ export default function StudentsPage() {
             </p>
           </div>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredStudents.map((student, index) => {
-            const initials = `${student.first_name?.[0] ?? ""}${student.second_name?.[0] ?? ""}`;
-            const handleClick = () => handleSelectStudent(student);
+      ) : null}
 
-            return (
-              <button
-                type="button"
-                key={student.id}
-                onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-blue-300/50 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
-                style={{
-                  animationName: "fadeInUp",
-                  animationDuration: "0.5s",
-                  animationTimingFunction: "ease-out",
-                  animationFillMode: "forwards",
-                  animationDelay: `${index * 0.03}s`,
-                  opacity: 0,
-                }}
-              >
-                {/* Modern gradient overlay */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
-                {/* Subtle inner glow */}
-                <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                {/* Modern border highlight */}
-                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+      {/* Mobile FAB */}
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#83CD2D] text-white shadow-lg hover:bg-[#76B929] md:hidden"
+        aria-label="Schüler erstellen"
+      >
+        <svg
+          className="h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 4.5v15m7.5-7.5h-15"
+          />
+        </svg>
+      </button>
 
-                <div className="relative flex items-center gap-4 p-5">
-                  {/* Avatar */}
-                  <div className="flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#5080D8] to-[#4070c8] font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
-                      {initials}
-                    </div>
-                  </div>
-
-                  {/* Student Info */}
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-blue-600">
-                      {student.first_name} {student.second_name}
-                    </h3>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      {/* Group Badge */}
-                      {student.group_name && (
-                        <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-1 text-xs font-medium text-[#5A8B1F]">
-                          {student.group_name}
-                        </span>
-                      )}
-                    </div>
-                    {/* Guardian info */}
-                    {student.name_lg && (
-                      <p className="mt-1 text-sm text-gray-500">
-                        <span className="text-gray-400">
-                          Erziehungsberechtigter:
-                        </span>{" "}
-                        {student.name_lg}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Arrow Icon */}
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-blue-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Glowing border effect on hover */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Create Modal */}
       <StudentCreateModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateStudent}
-        groups={uniqueGroups}
+        groups={allGroups}
       />
 
-      {/* Detail Modal */}
-      <StudentDetailModal
-        isOpen={showDetailModal}
-        onClose={() => {
-          setShowDetailModal(false);
-          setSelectedStudent(null);
-          setDetailError(null);
-        }}
-        student={selectedStudent}
-        onEdit={handleEditClick}
-        onDelete={() => void handleDeleteStudent()}
-        loading={detailLoading}
-        error={detailError}
-        onDeleteClick={handleDeleteClick}
-      />
-
-      {/* Delete Confirmation Modal */}
-      {selectedStudent && (
+      {selectedStudent ? (
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
@@ -633,21 +488,7 @@ export default function StudentsPage() {
             wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
           </p>
         </ConfirmationModal>
-      )}
-
-      {/* Edit Modal */}
-      <StudentEditModal
-        isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-        }}
-        student={selectedStudent}
-        onSave={handleUpdateStudent}
-        loading={detailLoading}
-        groups={uniqueGroups}
-      />
-
-      {/* Success toasts handled globally */}
+      ) : null}
     </DatabasePageLayout>
   );
 }

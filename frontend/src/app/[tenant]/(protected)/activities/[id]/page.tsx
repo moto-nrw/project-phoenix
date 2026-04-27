@@ -17,6 +17,7 @@ import {
   type ActivityStudent,
   type Timeframe,
 } from "@/lib/activity-helpers";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 
 const logger = createLogger({ component: "ActivityDetailPage" });
 
@@ -394,7 +395,7 @@ function ActivityDetailContent() {
                         <div className="font-medium">{student.name}</div>
                         {student.school_class && (
                           <div className="text-sm text-gray-600">
-                            Klasse: {student.school_class}
+                            {student.school_class}
                           </div>
                         )}
                       </button>
@@ -422,14 +423,16 @@ function ActivityDetailContent() {
 
 export default function ActivityDetailPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <p>Lädt...</p>
-        </div>
-      }
-    >
-      <ActivityDetailContent />
-    </Suspense>
+    <BinaryModeGuard>
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center">
+            <p>Lädt...</p>
+          </div>
+        }
+      >
+        <ActivityDetailContent />
+      </Suspense>
+    </BinaryModeGuard>
   );
 }

@@ -64,6 +64,8 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingActivityEvent = useRef(false);
   const hasPendingDashboardEvent = useRef(false);
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
+  const hasPendingArrivalScheduleEvent = useRef(false);
+  const hasPendingStudentUpdateEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
@@ -97,12 +99,15 @@ export function useGlobalSSE(): SSEHookState {
     if (
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
-      hasPendingDashboardEvent.current
+      hasPendingDashboardEvent.current ||
+      hasPendingArrivalScheduleEvent.current ||
+      hasPendingStudentUpdateEvent.current
     ) {
       mutate(
         (key) =>
           typeof key === "string" &&
           (key.includes("ogs-students-") ||
+            key.includes("database-students-list") ||
             key.includes("search-students-") ||
             key.includes("tracking-supervisions-") ||
             key.includes("tracking-indicators-")),
@@ -128,6 +133,35 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    if (hasPendingStudentUpdateEvent.current) {
+      mutate(
+        (key) => typeof key === "string" && key.includes("student-detail-"),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "student_detail",
+        });
+      });
+    }
+
+    // Arrival schedule changes affect derived "Kommt heute nicht" badges and
+    // arrival rows. These keys are independent from attendance/location caches.
+    if (hasPendingArrivalScheduleEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("arrival-search-") ||
+            key.includes("arrival-supervisions-") ||
+            key.includes("arrival-ogs-groups-") ||
+            key.includes("arrival-data-")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "arrival_schedule",
+        });
+      });
+    }
+
     // Invalidate dashboard for activity events, explicit dashboard broadcasts,
     // and student movement fallbacks. BroadcastToAll is best-effort, so a
     // delivered student_checkin/student_checkout may be the only signal that
@@ -137,7 +171,9 @@ export function useGlobalSSE(): SSEHookState {
       pendingStudentIds.current.size > 0 ||
       hasPendingActivityEvent.current ||
       hasPendingDashboardEvent.current ||
-      hasPendingDailyCheckoutDashboardEvent.current
+      hasPendingDailyCheckoutDashboardEvent.current ||
+      hasPendingArrivalScheduleEvent.current ||
+      hasPendingStudentUpdateEvent.current
     ) {
       mutate(
         (key) => typeof key === "string" && key.includes("dashboard"),
@@ -171,6 +207,8 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingActivityEvent.current = false;
     hasPendingDashboardEvent.current = false;
     hasPendingDailyCheckoutDashboardEvent.current = false;
+    hasPendingArrivalScheduleEvent.current = false;
+    hasPendingStudentUpdateEvent.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -201,6 +239,12 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        case "student_updated": {
+          hasPendingStudentUpdateEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
         case "activity_start":
         case "activity_end":
         case "activity_update": {
@@ -216,6 +260,12 @@ export function useGlobalSSE(): SSEHookState {
           // Global event from BroadcastToAll — only refresh dashboard counts,
           // NOT room/supervision/active caches (those are for activity events).
           hasPendingDashboardEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "arrival_schedule_changed": {
+          hasPendingArrivalScheduleEvent.current = true;
           scheduleFlush();
           break;
         }

@@ -42,6 +42,7 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -757,17 +758,11 @@ func formatTimeOfDay(t time.Time) string {
 	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
 }
 
-// extractTimeOfDay returns a new time.Time at year 0001-01-01 UTC with the
-// wall-clock hour/minute/second/nanosecond of `t` in `t`'s own location.
-//
-// This is the correct bridge between `schedule.timeframes.start_time`
-// (TIMESTAMPTZ — a timezone-aware instant) and
-// `schedule.activity_instances.start_time` (TIME — a wall-clock value):
-// we preserve what the admin saw ("08:00") rather than what the UTC instant
-// was ("06:00"). When bun writes the returned time.Time to a TIME column the
-// wall-clock hour survives the round-trip because the value is already in UTC.
+// extractTimeOfDay is a thin wrapper around timezone.WallClock preserved so
+// the local call sites read unchanged. See timezone.WallClock for the
+// full rationale on why TIMESTAMPTZ → TIME round-trips need this.
 func extractTimeOfDay(t time.Time) time.Time {
-	return time.Date(1, 1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
+	return timezone.WallClock(t)
 }
 
 // isUniqueViolation returns true when err (or a wrapped modelBase.DatabaseError)

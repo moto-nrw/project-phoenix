@@ -9,6 +9,7 @@ import {
   ExceptionIcon,
   PickupTimeRow,
   renderPickupIcon,
+  ArrivalTimeRow,
 } from "./student-card";
 
 describe("StudentCard", () => {
@@ -110,6 +111,159 @@ describe("StudentCard", () => {
     expect(screen.getByTestId("location-badge")).toBeInTheDocument();
     // No tracking indicators present
     expect(container.querySelector("[data-testid='tracking']")).toBeNull();
+  });
+
+  // ── School check-in mode ───────────────────────────────────────────────
+  // The check-in mode flips the card into a mutation surface: tint by
+  // attendance state, click fires onCheckinClick instead of onClick, the
+  // hint copy changes, and a spinner overlays during pendingCount > 0.
+
+  it("uses navigation copy + onClick when checkinMode is false (default)", () => {
+    const onClick = vi.fn();
+    const onCheckinClick = vi.fn();
+    render(
+      <StudentCard
+        {...defaultProps}
+        onClick={onClick}
+        onCheckinClick={onCheckinClick}
+      />,
+    );
+    // Navigation hint copy.
+    expect(screen.getByText(/Tippen für mehr Infos/)).toBeInTheDocument();
+    // The default click goes to onClick, NOT onCheckinClick.
+    fireEvent.click(screen.getByRole("button"));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onCheckinClick).not.toHaveBeenCalled();
+  });
+
+  it("renders the tap-strip with state-specific copy when checkinMode is true", () => {
+    // Per StudentCheckinState the tap-strip flips copy: anwesend/schulhof
+    // → "Abmelden" (already present, tap checks out); abwesend → "Anmelden".
+    // The "An-/Abmelden" generic only shows up on the unknown state.
+    const onCheckinClick = vi.fn();
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        onCheckinClick={onCheckinClick}
+      />,
+    );
+    expect(screen.getByText(/Tippen zum Abmelden/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button"));
+    expect(onCheckinClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses Anmelden copy on absent students (tap = check in)", () => {
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="abwesend"
+        onCheckinClick={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Tippen zum Anmelden/)).toBeInTheDocument();
+  });
+
+  it("falls back to An-/Abmelden generic on unknown state", () => {
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="unknown"
+        onCheckinClick={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Tippen zum An-\/Abmelden/)).toBeInTheDocument();
+  });
+
+  it("routes click to onCheckinClick instead of onClick when in check-in mode", () => {
+    const onClick = vi.fn();
+    const onCheckinClick = vi.fn();
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        onClick={onClick}
+        onCheckinClick={onCheckinClick}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(onCheckinClick).toHaveBeenCalledTimes(1);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("falls back to onClick when checkinMode is true but onCheckinClick is omitted", () => {
+    // Defensive branch — partial adoption shouldn't break navigation.
+    const onClick = vi.fn();
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        onClick={onClick}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([["anwesend"], ["schulhof"], ["abwesend"], ["unknown"]])(
+    "exposes checkinState=%s on the data-checkin-state attribute when active",
+    (state) => {
+      render(
+        <StudentCard
+          {...defaultProps}
+          checkinMode
+          checkinState={
+            state as "anwesend" | "schulhof" | "abwesend" | "unknown"
+          }
+        />,
+      );
+      const btn = screen.getByRole("button");
+      expect(btn).toHaveAttribute("data-checkin-mode", "true");
+      expect(btn).toHaveAttribute("data-checkin-state", state);
+    },
+  );
+
+  it("renders the spinner inside the tap-strip and disables the button when isCheckinPending", () => {
+    const onCheckinClick = vi.fn();
+    const { container } = render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        isCheckinPending
+        onCheckinClick={onCheckinClick}
+      />,
+    );
+    // The tap-strip itself remains present (preserves card height under
+    // toggle), and the spinner replaces the action icon while pending.
+    const strip = container.querySelector("[data-checkin-tap-strip='true']");
+    expect(strip).not.toBeNull();
+    expect(strip?.querySelector(".animate-spin")).not.toBeNull();
+    const btn = screen.getByRole("button");
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    expect(btn).toBeDisabled();
+    // Disabled button must NOT fire onCheckinClick.
+    fireEvent.click(btn);
+    expect(onCheckinClick).not.toHaveBeenCalled();
+  });
+
+  it("hides the navigation arrow + 'mehr Infos' hint when checkinMode is true", () => {
+    // Affordances scoped to navigation mode only; the tap-strip carries
+    // the action signal in check-in mode instead.
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        onCheckinClick={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/Tippen für mehr Infos/)).toBeNull();
   });
 });
 
@@ -281,6 +435,95 @@ describe("renderPickupIcon", () => {
   it("renders gray PickupTimeIcon for none", () => {
     const { container } = render(<>{renderPickupIcon("none")}</>);
     expect(container.querySelector("svg.text-gray-400")).toBeInTheDocument();
+  });
+});
+
+describe("ArrivalTimeRow", () => {
+  const now = new Date("2025-01-15T08:00:00");
+
+  it("shows absence message with reason when isAbsent", () => {
+    render(
+      <ArrivalTimeRow
+        isException={false}
+        isAbsent={true}
+        notes="Arzttermin"
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(
+      screen.getByText("Kommt heute nicht (Arzttermin)"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows default absence message when isAbsent without notes", () => {
+    render(
+      <ArrivalTimeRow
+        isException={false}
+        isAbsent={true}
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
+  });
+
+  it("shows arrival time when arrivalTime provided", () => {
+    render(
+      <ArrivalTimeRow
+        arrivalTime="08:00"
+        isException={false}
+        isAbsent={false}
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText(/08:00 Uhr/)).toBeInTheDocument();
+  });
+
+  it("shows notes next to arrival time", () => {
+    render(
+      <ArrivalTimeRow
+        arrivalTime="08:00"
+        isException={false}
+        isAbsent={false}
+        notes="Testnote"
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText("(Testnote)")).toBeInTheDocument();
+  });
+
+  it("uses exception icon when isException and has arrivalTime", () => {
+    const { container } = render(
+      <ArrivalTimeRow
+        arrivalTime="08:15"
+        isException={true}
+        isAbsent={false}
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(container.querySelector("svg.text-orange-500")).toBeInTheDocument();
+  });
+
+  it("falls back to dash when no arrival info", () => {
+    render(
+      <ArrivalTimeRow
+        isException={false}
+        isAbsent={false}
+        isHome={false}
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText("Ankunftszeit: —")).toBeInTheDocument();
   });
 });
 

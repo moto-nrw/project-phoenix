@@ -155,6 +155,32 @@ func (s *service) SetSettingsService(resolver SettingsResolver) {
 	s.settings = resolver
 }
 
+// GetPresenceMode returns the tenant's resolved presence mode
+// ("detailed" | "binary"), falling back to "detailed" whenever the settings
+// resolver is nil, the key is unset/empty, or the lookup errors. Mirrors the
+// fallback logic of services/config.ResolvePresenceMode but avoids importing
+// the config package here (it would create a dep cycle through the factory).
+func (s *service) GetPresenceMode(ctx context.Context) string {
+	const (
+		keyPresenceMode      = "operations.presence_mode"
+		presenceModeDetailed = "detailed"
+	)
+	if s.settings == nil {
+		return presenceModeDetailed
+	}
+	val, err := s.settings.ResolveString(ctx, keyPresenceMode)
+	if err != nil {
+		s.getLogger().Warn("presence_mode resolve failed, using default",
+			slog.String("error", err.Error()),
+		)
+		return presenceModeDetailed
+	}
+	if val == "" {
+		return presenceModeDetailed
+	}
+	return val
+}
+
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *service) getLogger() *slog.Logger {
 	if s.logger != nil {
@@ -408,6 +434,13 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
 	}
 
+	// Binary-mode tenants don't track room visits — attendance is the only
+	// surface. Short-circuit here so every caller (IoT, web, scheduler) stays
+	// consistent without having to resolve the mode at each call site.
+	if s.GetPresenceMode(ctx) == "binary" {
+		return nil
+	}
+
 	// Validate student exists before INSERT (prevents FK constraint errors in logs)
 	if err := s.validateStudentExists(ctx, visit.StudentID); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
@@ -579,6 +612,13 @@ func (s *service) FindVisitsByTimeRange(ctx context.Context, start, end time.Tim
 }
 
 func (s *service) EndVisit(ctx context.Context, id int64) error {
+	// Binary-mode tenants don't keep visit rows, so there's nothing to end.
+	// Callers that hold a stale visit ID from before a mode switch hit this
+	// no-op path instead of a missing-row error.
+	if s.GetPresenceMode(ctx) == "binary" {
+		return nil
+	}
+
 	endedVisit, err := s.endVisitRecord(ctx, id)
 	if err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {

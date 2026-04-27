@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/viper"
@@ -14,6 +15,9 @@ import (
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -410,4 +414,111 @@ func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.
 		Count(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, before, after, "failed hook must roll back the write (row count should not change)")
+}
+
+// =============================================================================
+// Presence-mode switch guard (must-fix #1 from review round 2)
+// =============================================================================
+//
+// The guard rejects an in-progress flip of operations.presence_mode while
+// any student is still checked in for the day. Three properties under test:
+//
+//  1. Open attendance row → 409 with the German user-facing message; the
+//     setting value does NOT change.
+//  2. ?force=true → guard is bypassed even with open rows; setting is
+//     written; an audit-log Warn is emitted (not asserted directly here,
+//     but the code path is exercised).
+//  3. No open rows → guard passes through; setting is written.
+
+// presenceModeAttendanceCleanup wipes any open attendance rows for the
+// guard tests so we can deterministically test "no open rows" cases.
+func presenceModeAttendanceCleanup(t *testing.T, db *bun.DB) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(),
+		`DELETE FROM active.attendance WHERE date = ? AND tenant_id = 1`,
+		timezone.TodayUTC(),
+	)
+	require.NoError(t, err)
+}
+
+// resetPresenceMode clears any tenant override on operations.presence_mode
+// so each guard test starts from the registry default ("detailed").
+func resetPresenceMode(t *testing.T, db *bun.DB) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(),
+		`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = ?`,
+		configModel.KeyPresenceMode,
+	)
+	require.NoError(t, err)
+}
+
+func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	presenceModeAttendanceCleanup(t, ctx.db)
+	resetPresenceMode(t, ctx.db)
+	defer presenceModeAttendanceCleanup(t, ctx.db)
+	defer resetPresenceMode(t, ctx.db)
+
+	// Create a student + open attendance row for today (Berlin date as UTC
+	// midnight — the same form the guard binds via timezone.TodayUTC).
+	student := testpkg.CreateTestStudent(t, ctx.db, "Guard", "Block", "9a")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Guard", "Staff")
+	device := testpkg.CreateTestDevice(t, ctx.db, "guard-device-001")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID, staff.ID, device.ID)
+
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, device.ID, checkInTime, nil)
+
+	// Try to flip mode — must hit the 409 sentinel branch.
+	body := map[string]interface{}{"value": configModel.PresenceModeBinary}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/"+configModel.KeyPresenceMode, body)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	assert.Equal(t, http.StatusConflict, rr.Code, "open attendance must block the switch")
+	assert.Contains(t, rr.Body.String(), "Moduswechsel", "German user-facing message must appear")
+}
+
+func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	presenceModeAttendanceCleanup(t, ctx.db)
+	resetPresenceMode(t, ctx.db)
+	defer presenceModeAttendanceCleanup(t, ctx.db)
+	defer resetPresenceMode(t, ctx.db)
+
+	// Same setup as the blocked case — open attendance exists.
+	student := testpkg.CreateTestStudent(t, ctx.db, "Guard", "Force", "9b")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Guard", "Staff2")
+	device := testpkg.CreateTestDevice(t, ctx.db, "guard-device-002")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID, staff.ID, device.ID)
+
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, device.ID, checkInTime, nil)
+
+	// ?force=true must bypass the guard AND emit the audit-log Warn.
+	body := map[string]interface{}{"value": configModel.PresenceModeBinary}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/"+configModel.KeyPresenceMode+"?force=true", body)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestOperatorSetSchoolSettingValue_PresenceMode_PassesWithNoOpenAttendance(t *testing.T) {
+	ctx := setupOperatorSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	presenceModeAttendanceCleanup(t, ctx.db)
+	resetPresenceMode(t, ctx.db)
+	defer resetPresenceMode(t, ctx.db)
+
+	// No attendance rows at all today — the guard's SQL EXISTS check returns
+	// false, the setting write proceeds.
+	body := map[string]interface{}{"value": configModel.PresenceModeBinary}
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/"+configModel.KeyPresenceMode, body)
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }

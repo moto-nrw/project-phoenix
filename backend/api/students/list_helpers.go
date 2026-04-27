@@ -14,16 +14,17 @@ import (
 
 // studentListParams holds all query parameters for student listing
 type studentListParams struct {
-	schoolClass        string
-	guardianName       string
-	firstName          string
-	lastName           string
-	location           string
-	groupID            int64
-	search             string
-	page               int
-	pageSize           int
-	includePickupTimes bool
+	schoolClass         string
+	guardianName        string
+	firstName           string
+	lastName            string
+	location            string
+	groupID             int64
+	search              string
+	page                int
+	pageSize            int
+	includePickupTimes  bool
+	includeArrivalTimes bool
 }
 
 // studentAccessContext holds access control information for student listing
@@ -53,6 +54,7 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 
 	// Parse optional includes
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
+	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
 
 	// Parse pagination
 	params.page, params.pageSize = common.ParsePagination(r)
@@ -223,4 +225,14 @@ func applyInMemoryPagination(responses []StudentResponse, page, pageSize int) ([
 	}
 
 	return responses[startIndex:endIndex], totalCount
+}
+
+func collectFullAccessStudentIDs(responses []StudentResponse) []int64 {
+	fullAccessIDs := make([]int64, 0, len(responses))
+	for i := range responses {
+		if responses[i].HasFullAccess {
+			fullAccessIDs = append(fullAccessIDs, responses[i].ID)
+		}
+	}
+	return fullAccessIDs
 }

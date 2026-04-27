@@ -16,6 +16,7 @@ import (
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,9 +24,24 @@ import (
 
 // testContext holds shared test dependencies.
 type testContext struct {
-	db       *bun.DB
-	services *services.Factory
-	resource *studentsAPI.Resource
+	db          *bun.DB
+	services    *services.Factory
+	resource    *studentsAPI.Resource
+	broadcaster *recordingBroadcaster
+}
+
+type recordingBroadcaster struct {
+	events []realtime.Event
+}
+
+func (b *recordingBroadcaster) BroadcastToGroup(_ int64, _ string, event realtime.Event) error {
+	b.events = append(b.events, event)
+	return nil
+}
+
+func (b *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
+	b.events = append(b.events, event)
+	return nil
 }
 
 // setupTestContext initializes the test environment.
@@ -37,6 +53,7 @@ func setupTestContext(t *testing.T) *testContext {
 	repoFactory := repositories.NewFactory(db)
 	svc, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
+	broadcaster := &recordingBroadcaster{}
 
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          svc.Users,
@@ -53,6 +70,7 @@ func setupTestContext(t *testing.T) *testContext {
 		AttendanceRepo:         repoFactory.Attendance,
 		VisitRepo:              repoFactory.ActiveVisit,
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
+		Broadcaster:            broadcaster,
 		Logger:                 slog.Default(),
 		DB:                     db,
 	})
@@ -64,9 +82,10 @@ func setupTestContext(t *testing.T) *testContext {
 	})
 
 	return &testContext{
-		db:       db,
-		services: svc,
-		resource: resource,
+		db:          db,
+		services:    svc,
+		resource:    resource,
+		broadcaster: broadcaster,
 	}
 }
 

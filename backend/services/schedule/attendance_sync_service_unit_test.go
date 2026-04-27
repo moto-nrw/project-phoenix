@@ -127,6 +127,10 @@ func (f *fakeInstanceStudentRepo) FindByInstanceID(context.Context, int64) ([]*s
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*scheduleModel.InstanceStudent, error) {
 	panic("unused")
 }
@@ -136,6 +140,14 @@ func (f *fakeInstanceStudentRepo) DeleteByInstanceID(context.Context, int64) err
 }
 
 func (f *fakeInstanceStudentRepo) UpdateAttendanceFields(context.Context, int64, scheduleModel.AttendanceFieldPatch) error {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, string, string) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*scheduleModel.ScheduledInstanceRow, error) {
 	panic("unused")
 }
 

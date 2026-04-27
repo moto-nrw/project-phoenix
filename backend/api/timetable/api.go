@@ -13,8 +13,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -24,41 +30,90 @@ const dateLayout = "2006-01-02"
 
 // Resource defines the timetable API resource.
 //
-// instanceService, personService, instanceStudentRepo, and logger are optional
-// at construction time: tests that only exercise /periods or /materialize can
-// pass nil and will get a 500 on the dependent routes instead of a crash.
-// Production wiring must supply all of them via NewResource.
+// Optional services may be nil in tests that only exercise a subset of routes
+// — the dependent handler will return 500 instead of panicking. Production
+// wiring must populate every field.
 type Resource struct {
 	calendarPeriodService  scheduleSvc.CalendarPeriodService
 	materializationService scheduleSvc.MaterializationService
 	instanceService        scheduleSvc.InstanceService
 	personService          userSvc.PersonService
-	instanceStudentRepo    schedule.InstanceStudentRepository // WP-B10 PATCH /instances/{id}/students/{id}
+	instanceStudentRepo    schedule.InstanceStudentRepository
+	activityInstanceRepo   schedule.ActivityInstanceRepository
+	activityExceptionRepo  schedule.ActivityExceptionRepository
+	activityScheduleRepo   activities.ScheduleRepository
+	instanceStaffRepo      schedule.InstanceStaffRepository
+	supervisorRepo         active.GroupSupervisorRepository
+	arrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
+	arrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
+	pickupScheduleRepo     schedule.StudentPickupScheduleRepository
+	pickupExceptionRepo    schedule.StudentPickupExceptionRepository
+	visitRepo              active.VisitRepository
+	studentRepo            users.StudentRepository
+	staffRepo              users.StaffRepository
+	userContextService     usercontextSvc.UserContextService
+	settingsService        configSvc.SettingsService
+	broadcaster            realtime.Broadcaster
 	logger                 *slog.Logger
 	db                     *bun.DB
 }
 
-// NewResource creates a new timetable resource. Optional services (see the
-// Resource doc) may be nil; passing nil for the materialization or instance
-// service makes the corresponding routes return 500 instead of silently
-// misbehaving.
-func NewResource(
-	calendarPeriodService scheduleSvc.CalendarPeriodService,
-	materializationService scheduleSvc.MaterializationService,
-	instanceService scheduleSvc.InstanceService,
-	personService userSvc.PersonService,
-	instanceStudentRepo schedule.InstanceStudentRepository,
-	logger *slog.Logger,
-	db *bun.DB,
-) *Resource {
+// Dependencies bundles everything NewResource needs. Using a struct instead
+// of a positional signature keeps tests — which frequently only populate a
+// subset — readable and lets us add future deps without churning every call
+// site.
+type Dependencies struct {
+	CalendarPeriodService  scheduleSvc.CalendarPeriodService
+	MaterializationService scheduleSvc.MaterializationService
+	InstanceService        scheduleSvc.InstanceService
+	PersonService          userSvc.PersonService
+	InstanceStudentRepo    schedule.InstanceStudentRepository
+	ActivityInstanceRepo   schedule.ActivityInstanceRepository
+	ActivityExceptionRepo  schedule.ActivityExceptionRepository
+	ActivityScheduleRepo   activities.ScheduleRepository
+	InstanceStaffRepo      schedule.InstanceStaffRepository
+	SupervisorRepo         active.GroupSupervisorRepository
+	ArrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
+	ArrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
+	PickupScheduleRepo     schedule.StudentPickupScheduleRepository
+	PickupExceptionRepo    schedule.StudentPickupExceptionRepository
+	VisitRepo              active.VisitRepository
+	StudentRepo            users.StudentRepository
+	StaffRepo              users.StaffRepository
+	UserContextService     usercontextSvc.UserContextService
+	SettingsService        configSvc.SettingsService
+	Broadcaster            realtime.Broadcaster
+	Logger                 *slog.Logger
+	DB                     *bun.DB
+}
+
+// NewResource creates a new timetable resource from the given Dependencies.
+// Nil deps are tolerated at construction time; the dependent handler returns
+// 500 at request time if one of its deps is unset.
+func NewResource(deps Dependencies) *Resource {
 	return &Resource{
-		calendarPeriodService:  calendarPeriodService,
-		materializationService: materializationService,
-		instanceService:        instanceService,
-		personService:          personService,
-		instanceStudentRepo:    instanceStudentRepo,
-		logger:                 logger,
-		db:                     db,
+		calendarPeriodService:  deps.CalendarPeriodService,
+		materializationService: deps.MaterializationService,
+		instanceService:        deps.InstanceService,
+		personService:          deps.PersonService,
+		instanceStudentRepo:    deps.InstanceStudentRepo,
+		activityInstanceRepo:   deps.ActivityInstanceRepo,
+		activityExceptionRepo:  deps.ActivityExceptionRepo,
+		activityScheduleRepo:   deps.ActivityScheduleRepo,
+		instanceStaffRepo:      deps.InstanceStaffRepo,
+		supervisorRepo:         deps.SupervisorRepo,
+		arrivalScheduleRepo:    deps.ArrivalScheduleRepo,
+		arrivalExceptionRepo:   deps.ArrivalExceptionRepo,
+		pickupScheduleRepo:     deps.PickupScheduleRepo,
+		pickupExceptionRepo:    deps.PickupExceptionRepo,
+		visitRepo:              deps.VisitRepo,
+		studentRepo:            deps.StudentRepo,
+		staffRepo:              deps.StaffRepo,
+		userContextService:     deps.UserContextService,
+		settingsService:        deps.SettingsService,
+		broadcaster:            deps.Broadcaster,
+		logger:                 deps.Logger,
+		db:                     deps.DB,
 	}
 }
 
@@ -110,6 +165,27 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Patch("/{instance_id}/students/{student_id}", rs.patchInstanceStudent)
 		})
+
+		// WP-B11: per-student day and week read endpoints. Both gated on
+		// SchedulesRead; handler-level auth (authorize.CanReadStudent) adds
+		// the per-student check.
+		r.Route("/student/{id}", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/day", rs.getStudentDay)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/week", rs.getStudentWeek)
+		})
+
+		// WP-B12: gap detection + one-click substitute. Gaps is SchedulesRead
+		// (information view), substitute is SchedulesManage (mutation).
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/gaps", rs.getGaps)
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/substitute", rs.substitute)
+
+		// WP-B13: exception-conflict warnings (planning-only, read-only).
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/exception-conflicts", rs.getExceptionConflicts)
 	})
 
 	return r

@@ -151,11 +151,20 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 	return common.StudentLocationInfo{Location: "Abwesend"}
 }
 
-// resolveStudentLocationWithTime determines a student's current location with timestamp
+// resolveStudentLocationWithTime determines a student's current location with timestamp.
+//
+// Binary-mode tenants short-circuit to ResolveBinaryLocation — web check-ins
+// write only attendance (no room visit), so falling through to
+// presentOrTransit() would always yield "Unterwegs", contradicting the
+// simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
 func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) common.StudentLocationInfo {
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil || attendanceStatus == nil {
 		return common.StudentLocationInfo{Location: "Abwesend"}
+	}
+
+	if activeService.GetPresenceMode(ctx) == common.PresenceModeBinary {
+		return common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
 	}
 
 	// Handle non-checked-in states (checked_out or other)
@@ -332,6 +341,35 @@ func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []Stude
 	}
 }
 
+// enrichWithArrivalTimes adds today's effective arrival time to each student response.
+// It mirrors pickup enrichment so student list consumers can render arrival badges
+// from their primary SWR cache instead of maintaining a second cache.
+func (rs *Resource) enrichWithArrivalTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64, now time.Time) {
+	if len(studentIDs) == 0 || rs.ArrivalScheduleService == nil {
+		return
+	}
+
+	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, now)
+	if err != nil {
+		rs.Logger.Warn("failed to bulk-fetch arrival times", "error", err.Error())
+		return
+	}
+
+	for i := range responses {
+		if !responses[i].HasFullAccess {
+			continue
+		}
+		if eat, ok := arrivalTimes[responses[i].ID]; ok {
+			if eat.ArrivalTime != nil {
+				formatted := eat.ArrivalTime.Format("15:04")
+				responses[i].ArrivalTime = &formatted
+			}
+			responses[i].ArrivalIsException = eat.IsException
+			responses[i].ArrivalNotes = buildArrivalNotes(eat)
+		}
+	}
+}
+
 // buildPickupNotes combines exception reason and day notes into a single string.
 func buildPickupNotes(ept *schedule.EffectivePickupTime) string {
 	var parts []string
@@ -339,6 +377,20 @@ func buildPickupNotes(ept *schedule.EffectivePickupTime) string {
 		parts = append(parts, ept.Notes)
 	}
 	for _, n := range ept.DayNotes {
+		if n.Content != "" {
+			parts = append(parts, n.Content)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// buildArrivalNotes combines exception reason and day notes into a single string.
+func buildArrivalNotes(eat *schedule.EffectiveArrivalTime) string {
+	var parts []string
+	if eat.Notes != "" {
+		parts = append(parts, eat.Notes)
+	}
+	for _, n := range eat.DayNotes {
 		if n.Content != "" {
 			parts = append(parts, n.Content)
 		}

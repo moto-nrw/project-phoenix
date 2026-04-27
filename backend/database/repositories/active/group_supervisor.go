@@ -384,6 +384,41 @@ func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, s
 	return int(rowsAffected), nil
 }
 
+// EndByActiveGroupAndStaffID ends active supervisions matching both the
+// active_group_id and staff_id. Sets end_date=now() on all rows with
+// end_date IS NULL. Idempotent — zero matches is not an error. Tenant-scoped.
+func (r *GroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*active.GroupSupervisor)(nil)).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Set("end_date = now()").
+		Where(`"group_supervisor".group_id = ?`, activeGroupID).
+		Where(`"group_supervisor".staff_id = ?`, staffID).
+		Where(`"group_supervisor".end_date IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "end by active group and staff id",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "end by active group and staff id (rows affected)",
+			Err: err,
+		}
+	}
+
+	return int(rowsAffected), nil
+}
+
 // EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
 // Returns the number of supervisions ended.
 func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {

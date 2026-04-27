@@ -64,6 +64,11 @@ const OPERATOR_PUBLIC_PATHS = [
   "/announcements",
   "/settings",
   "/provisioning",
+  "/organizations",
+  "/schools",
+  "/accounts",
+  "/devices",
+  "/persons",
   "/operators",
   "/invite",
 ];

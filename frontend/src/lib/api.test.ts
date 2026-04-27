@@ -832,6 +832,30 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("appends include_arrival_times=true when includeArrivalTimes is true", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: [],
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.getStudents({
+          search: "Test",
+          includeArrivalTimes: true,
+          token: "test-token",
+        });
+
+        const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
+        expect(callUrl).toContain("include_arrival_times=true");
+      } finally {
+        restore();
+      }
+    });
   });
 
   describe("studentService.getStudent", () => {

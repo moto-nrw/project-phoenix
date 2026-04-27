@@ -91,7 +91,10 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-// Mock PageHeaderWithSearch — renders filters and activeFilters to exercise those code paths
+// Mock PageHeaderWithSearch — renders filters, activeFilters, and the
+// overflow-menu items so the existing "Gruppe übergeben" assertions keep
+// working. The real OverflowMenu requires a click to expose its items, but
+// for tests we render them flat so getByLabelText still finds them.
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({
     title,
@@ -99,6 +102,7 @@ vi.mock("~/components/ui/page-header", () => ({
     activeFilters,
     onClearAllFilters,
     actionButton,
+    overflowMenu,
   }: {
     title: string;
     filters?: Array<{
@@ -111,10 +115,26 @@ vi.mock("~/components/ui/page-header", () => ({
     activeFilters?: Array<{ id: string; label: string; onRemove: () => void }>;
     onClearAllFilters?: () => void;
     actionButton?: React.ReactNode;
+    overflowMenu?: Array<{
+      label: string;
+      onClick: () => void;
+      badge?: string | number;
+    }>;
   }) => (
     <div data-testid="page-header">
       {title}
       {actionButton}
+      {overflowMenu?.map((item) => (
+        <button
+          key={item.label}
+          aria-label={item.label}
+          data-testid={`overflow-${item.label}`}
+          onClick={item.onClick}
+        >
+          {item.label}
+          {item.badge != null ? <span>{` (${item.badge})`}</span> : null}
+        </button>
+      ))}
       {filters?.map((f) => (
         <div key={f.id} data-testid={`filter-${f.id}`} data-value={f.value}>
           {f.options.map((opt) => (
@@ -202,9 +222,16 @@ vi.mock("~/lib/group-transfer-api", () => ({
   },
 }));
 
-// Mock LocationBadge
+// Mock LocationBadge (kept even though page now imports StudentPresenceBadge,
+// so co-tests that transitively render LocationBadge don't explode).
 vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
+}));
+
+// Mock StudentPresenceBadge — page-level wrapper that picks Location vs
+// PresenceBadge based on tenant presence mode.
+vi.mock("@/components/ui/student-presence-badge", () => ({
+  StudentPresenceBadge: () => <div data-testid="location-badge">Presence</div>,
 }));
 
 // Mock EmptyStudentResults
@@ -273,6 +300,33 @@ vi.mock("~/components/students/student-card", () => ({
       </div>
     );
   },
+  ArrivalTimeRow: ({
+    arrivalTime,
+    isException,
+    isAbsent,
+    notes,
+    isHome,
+  }: {
+    arrivalTime?: string;
+    isException: boolean;
+    isAbsent: boolean;
+    notes?: string;
+    isHome: boolean;
+    now: Date;
+  }) => (
+    <div
+      data-testid="arrival-time-row"
+      data-arrival-time={arrivalTime ?? ""}
+      data-is-exception={String(isException)}
+      data-is-absent={String(isAbsent)}
+      data-is-home={String(isHome)}
+    >
+      {isAbsent && <>Kommt heute nicht</>}
+      {!isAbsent && arrivalTime && <>Ankunftszeit: {arrivalTime} Uhr</>}
+      {!isAbsent && !arrivalTime && <>Ankunftszeit: —</>}
+      {notes && <span>({notes})</span>}
+    </div>
+  ),
 }));
 
 // Mock pickup schedule API
@@ -294,6 +348,10 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
   ) => mockFetchBulkPickupTimes(...args),
 }));
 
+vi.mock("~/lib/student-arrival-api", () => ({
+  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
+}));
+
 // Mock lucide-react icons
 vi.mock("lucide-react", () => ({
   Clock: ({ className }: { className?: string }) => (
@@ -306,6 +364,40 @@ vi.mock("lucide-react", () => ({
       alert
     </span>
   ),
+  Loader2: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-loader2" className={className}>
+      loader
+    </span>
+  ),
+  UserCheck: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-user-check" className={className}>
+      user-check
+    </span>
+  ),
+  UserX: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-user-x" className={className}>
+      user-x
+    </span>
+  ),
+}));
+
+// Mock the school-checkin FAB so existing tests don't need to care about
+// the floating mode trigger — page.school-checkin.test.tsx exercises it.
+vi.mock("~/components/students/school-checkin-fab", () => ({
+  SchoolCheckinFab: () => <div data-testid="school-checkin-fab" />,
+}));
+
+// Mock the school-checkin hook so tests don't need to wire useToast/SWR up.
+vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
+  useSchoolCheckinMode: () => ({
+    isActive: false,
+    toggleActive: vi.fn(),
+    deactivate: vi.fn(),
+    pendingIds: new Set<string>(),
+    successCount: 0,
+    toggle: vi.fn(),
+  }),
+  deriveCheckinState: () => "unknown",
 }));
 
 // Mock useUserContext
@@ -3131,6 +3223,27 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(cards[0]?.textContent).toContain("Max Zeller"); // 14:00
       expect(cards[1]?.textContent).toContain("Anna Becker"); // 16:00
       expect(cards[2]?.textContent).toContain("Lena Mueller"); // at home, no time
+    });
+  });
+
+  it("renders the arrival sort option and sorts when activated", async () => {
+    setupWithStudentsAndPickupTimes(new Map(), {
+      isHome: (loc) => loc === "Zuhause",
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-sort")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Nächste Ankunft")).toBeInTheDocument();
+    const arrivalBtn = screen.getByTestId("filter-sort-arrival");
+    arrivalBtn.click();
+
+    await waitFor(() => {
+      // All three students still rendered after sort switch
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
     });
   });
 
