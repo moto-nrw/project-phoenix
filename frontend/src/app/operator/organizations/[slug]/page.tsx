@@ -366,7 +366,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
               orgDelete.setDeleteTarget(organization);
             }
           }}
-          className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+          className="rounded-lg bg-[#FF3130]/10 px-3 py-1.5 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/15"
         >
           Löschen
         </button>
@@ -385,7 +385,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
             <div className="flex items-center gap-2">
               <span className="font-semibold text-gray-900">{row.name}</span>
               {row.hidden && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                <span className="rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#854D0E]">
                   Verborgen
                 </span>
               )}
@@ -443,7 +443,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
               onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 schoolDelete.showTrash
-                  ? "bg-red-100 text-red-700 hover:bg-red-200"
+                  ? "bg-[#FF3130]/15 text-[#CC2626] hover:bg-[#FF3130]/20"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
@@ -523,7 +523,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
       />
 
       {orgToggleError && (
-        <p className="mt-3 text-sm text-red-600">{orgToggleError}</p>
+        <p className="mt-3 text-sm text-[#CC2626]">{orgToggleError}</p>
       )}
 
       <div className="mt-6">

@@ -325,7 +325,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
               schoolDelete.setDeleteTarget(school);
             }
           }}
-          className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+          className="rounded-lg bg-[#FF3130]/10 px-3 py-1.5 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/15"
         >
           Löschen
         </button>
@@ -440,7 +440,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
               </span>
             </span>
             {school.hidden && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+              <span className="rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#854D0E]">
                 Verborgen
               </span>
             )}
@@ -450,7 +450,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
       />
 
       {schoolToggleError && (
-        <p className="mt-3 text-sm text-red-600">{schoolToggleError}</p>
+        <p className="mt-3 text-sm text-[#CC2626]">{schoolToggleError}</p>
       )}
 
       <div className="mt-6">

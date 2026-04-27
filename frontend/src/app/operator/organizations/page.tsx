@@ -229,7 +229,7 @@ export default function OperatorOrganizationsPage() {
                 onClick={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                   orgDelete.showTrash
-                    ? "bg-red-100 text-red-700 hover:bg-red-200"
+                    ? "bg-[#FF3130]/15 text-[#CC2626] hover:bg-[#FF3130]/20"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
