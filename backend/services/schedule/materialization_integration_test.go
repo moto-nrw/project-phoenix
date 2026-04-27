@@ -358,6 +358,55 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 	assert.NotEmpty(t, r.Warnings[0].Message)
 }
 
+func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	require.NoError(t, err)
+	svc := scheduleSvc.NewMaterializationService(
+		repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.StudentEnrollment,
+		repoFactory.ActivitySupervisor, repoFactory.CalendarPeriod, repoFactory.ActivityInstance,
+		repoFactory.InstanceStaff, repoFactory.InstanceStudent, repoFactory.ActivityException,
+		repoFactory.Timeframe, serviceFactory.CalendarPeriod, db, slog.Default(),
+	)
+
+	const emptyTemplateTenantID = int64(990002)
+	ctx := testpkg.TenantContext(emptyTemplateTenantID)
+	testpkg.EnsureTestTenant(t, db, emptyTemplateTenantID)
+	_, err = db.ExecContext(context.Background(), `DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, emptyTemplateTenantID)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, emptyTemplateTenantID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.schools WHERE id = ?`, emptyTemplateTenantID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.organizations WHERE id = ?`, emptyTemplateTenantID)
+	}()
+
+	from := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
+	to := from.AddDate(0, 0, 6)
+	period := &scheduleModels.CalendarPeriod{
+		Name:            "No Templates Test 2025/2026",
+		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+		StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	require.NoError(t, serviceFactory.CalendarPeriod.CreatePeriod(ctx, period))
+
+	r, err := svc.MaterializeForTenant(ctx, from, to, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Zero(t, r.InstancesCreated)
+	assert.Zero(t, r.CandidatesSkippedExisting)
+	assert.Zero(t, r.CandidatesSkippedNoPeriod)
+	assert.Zero(t, r.CandidatesSkippedABWeek)
+
+	require.Len(t, r.Warnings, 1)
+	assert.Equal(t, scheduleSvc.MaterializationWarningCodeNoTemplates, r.Warnings[0].Code)
+	assert.NotEmpty(t, r.Warnings[0].Message)
+}
+
 func TestMaterializeForTenant_PreFetchObservesFirstRunThenSkips(t *testing.T) {
 	// Verifies the "expected" half of the idempotency story the UNIQUE index
 	// backstops: a first-run insert is observed by the second run's pre-fetch

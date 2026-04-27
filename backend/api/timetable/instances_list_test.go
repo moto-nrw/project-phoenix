@@ -17,6 +17,7 @@ import (
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -236,17 +237,39 @@ func TestListInstances_IsLive(t *testing.T) {
 	from, fromDate := listFutureDate(0)
 	to, _ := listFutureDate(7)
 
-	// active_group_id != nil ⇒ IsLive=true. We don't need a real active.group
-	// row for this test; the flag is computed purely from the column.
-	activeGroupID := int64(999) // not a FK target but the field is nullable bigint
+	suffix := time.Now().UnixNano()
+	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("Live-Category-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, s.db, "Live", fmt.Sprintf("Creator-%d", suffix))
+	group := &activitiesModels.Group{
+		Name:            fmt.Sprintf("Live-Group-%d", suffix),
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      category.ID,
+		CreatedBy:       &staff.ID,
+	}
+	group.SetTenantID(1)
+	_, err := s.db.NewInsert().
+		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	activeGroup := testpkg.CreateTestActiveGroup(t, s.db, group.ID, s.roomID)
 	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM:     "10:00",
 		EndHHMM:       "11:00",
 		Title:         "Live-Test",
 		Status:        schedule.InstanceStatusActive,
-		ActiveGroupID: &activeGroupID,
+		ActiveGroupID: &activeGroup.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", activeGroup.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.categories", category.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.staff", staff.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.persons", staff.PersonID)
+	})
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))

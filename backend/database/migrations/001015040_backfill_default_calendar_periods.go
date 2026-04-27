@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.39 — backfill the iteration-4 / E15 promise that was never delivered:
+// 1.15.40 — backfill the iteration-4 / E15 promise that was never delivered:
 // every existing tenant should have an active "Schuljahr Y/Y+1" calendar
 // period so the materialization service has an anchor on its first run.
 //
@@ -24,7 +24,7 @@ import (
 // period, regardless of name. Re-running this migration will not produce
 // duplicates.
 const (
-	backfillDefaultCalendarPeriodsVersion     = "1.15.39"
+	backfillDefaultCalendarPeriodsVersion     = "1.15.40"
 	backfillDefaultCalendarPeriodsDescription = "Backfill default school year calendar periods for tenants missing one"
 )
 
@@ -34,6 +34,7 @@ func init() {
 		Description: backfillDefaultCalendarPeriodsDescription,
 		DependsOn: []string{
 			createCalendarPeriodsVersion,
+			repairPickupScheduleTenantIDsVersion,
 		},
 	})
 
@@ -48,7 +49,7 @@ func init() {
 }
 
 func backfillDefaultCalendarPeriodsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.39: Backfilling default calendar periods for tenants without one...")
+	fmt.Println("Migration 1.15.40: Backfilling default calendar periods for tenants without one...")
 
 	// Single SQL statement: for every school with no active calendar period,
 	// insert one school_year period covering the current school year.
@@ -103,6 +104,6 @@ func backfillDefaultCalendarPeriodsDown(ctx context.Context, db *bun.DB) error {
 	// shifted dates) before a rollback runs. Removing periods we did not
 	// uniquely tag would discard real admin work. Reverting this migration
 	// just leaves the seeded rows in place.
-	fmt.Println("Rolling back migration 1.15.39: no-op (default periods preserved)")
+	fmt.Println("Rolling back migration 1.15.40: no-op (default periods preserved)")
 	return nil
 }
