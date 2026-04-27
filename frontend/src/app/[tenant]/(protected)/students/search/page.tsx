@@ -567,6 +567,11 @@ function SearchPageContent() {
               />
             ) : undefined
           }
+          // 6 filters overflow the inline desktop row at iPad-class
+          // viewports — switch to the mobile sheet pattern up to xl
+          // (1280px). Matches Stripe / Airbnb / Slack pattern for
+          // filter-heavy pages.
+          desktopFiltersFrom="xl"
           activeFilterDisplay="count"
           search={{
             value: searchTerm,
@@ -775,11 +780,13 @@ function SearchPageContent() {
         })()}
       </div>
 
-      {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
-          uses the inline pill / sticky bar above; desktop uses the
-          header inline pill. */}
+      {/* Tablet (md..xl) check-in mode trigger — floating FAB. Tablet
+          range is bumped to `xl` here to stay aligned with the header's
+          desktopFiltersFrom="xl" — both the filter sheet and the FAB
+          live under the same boundary so iPad Air gets the consistent
+          tablet UX. */}
       {isBinaryMode && (
-        <div className="hidden md:block lg:hidden">
+        <div className="hidden md:block xl:hidden">
           <SchoolCheckinFab
             variant="floating"
             isActive={schoolCheckin.isActive}

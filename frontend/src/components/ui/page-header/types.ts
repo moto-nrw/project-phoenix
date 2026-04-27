@@ -60,6 +60,22 @@ export interface PageHeaderWithSearchProps {
   readonly primaryAction?: React.ReactNode;
 
   /**
+   * Viewport at which the desktop layout (inline filter dropdowns) takes
+   * over from the mobile sheet pattern (search + filter button).
+   *
+   * - `"lg"` (default, 1024px): existing behaviour. Suitable for pages with
+   *   ≤4 filters that fit comfortably on a tablet.
+   * - `"xl"` (1280px): pages with 5+ filters where the inline row would
+   *   overflow on iPad-class viewports. The `MobileFilterPanel` covers
+   *   tablet too — matches Stripe / Airbnb / Slack / Spotify pattern.
+   *
+   * Pages that opt into `"xl"` should also bump their tablet-only floating
+   * FAB wrapper from `lg:hidden` to `xl:hidden` so the FAB and filter
+   * sheet stay aligned to the same breakpoint.
+   */
+  readonly desktopFiltersFrom?: "lg" | "xl";
+
+  /**
    * When true, the search row shrinks (transform-only) and gains a
    * backdrop-blur background once the page is scrolled past ~40px. Default
    * `false` so existing consumers are unaffected.

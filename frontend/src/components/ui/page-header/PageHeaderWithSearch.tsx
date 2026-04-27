@@ -40,6 +40,7 @@ export function PageHeaderWithSearch({
   primaryAction,
   compactOnScroll = false,
   activeFilterDisplay = "chips",
+  desktopFiltersFrom = "lg",
   className = "",
 }: Readonly<PageHeaderWithSearchProps>) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -96,7 +97,10 @@ export function PageHeaderWithSearch({
         />
       )}
 
-      {/* Mobile & Tablet Search & Filters */}
+      {/* Mobile/Tablet Search & Filters. Hidden at the breakpoint where
+          the desktop inline-filter layout takes over. Tailwind needs both
+          `lg:hidden` and `xl:hidden` literally present in the source for
+          the JIT scanner to include them — hence the static map. */}
       <MobileSearchSection
         search={search}
         filters={filters}
@@ -117,9 +121,12 @@ export function PageHeaderWithSearch({
           showFilterCountBadge ? activeFilterCount : undefined
         }
         showChipsRow={showChipsRow}
+        hideClass={desktopFiltersFrom === "xl" ? "xl:hidden" : "lg:hidden"}
       />
 
-      {/* Desktop Search & Filters */}
+      {/* Desktop Search & Filters. Default kicks in at `lg` (1024px); pages
+          with many filters can opt into `xl` (1280px) so iPad-class
+          viewports use the sheet pattern instead of overflowing inline. */}
       <DesktopSearchSection
         search={search}
         filters={filters}
@@ -141,6 +148,9 @@ export function PageHeaderWithSearch({
           showFilterCountBadge ? activeFilterCount : undefined
         }
         showChipsRow={showChipsRow}
+        showClass={
+          desktopFiltersFrom === "xl" ? "hidden xl:block" : "hidden lg:block"
+        }
       />
       {/* Suppress duplicated overflow when desktop branch already rendered it
           but we're on a small viewport — handled by the lg:* gating above. */}
@@ -222,6 +232,8 @@ interface MobileSearchSectionProps {
   /** When set, suppresses the chips row and renders this count on the filter pill. */
   readonly activeFilterCountForBadge?: number;
   readonly showChipsRow: boolean;
+  /** Tailwind class that hides this section at the desktop breakpoint. */
+  readonly hideClass: "lg:hidden" | "xl:hidden";
 }
 
 function MobileSearchSection({
@@ -242,6 +254,7 @@ function MobileSearchSection({
   compactOnScroll,
   activeFilterCountForBadge,
   showChipsRow,
+  hideClass,
 }: MobileSearchSectionProps) {
   const showInlineStatusBadge = shouldShowInlineStatusBadge(
     hasTabs,
@@ -263,7 +276,7 @@ function MobileSearchSection({
     : "";
 
   return (
-    <div className="lg:hidden">
+    <div className={hideClass}>
       {search && (
         <div
           className={`mb-3 flex items-center gap-2 ${compactWrapper}`}
@@ -339,6 +352,8 @@ interface DesktopSearchSectionProps {
   readonly compactOnScroll: boolean;
   readonly activeFilterCountForBadge?: number;
   readonly showChipsRow: boolean;
+  /** Tailwind class that shows this section at the desktop breakpoint. */
+  readonly showClass: "hidden lg:block" | "hidden xl:block";
 }
 
 function DesktopSearchSection({
@@ -358,6 +373,7 @@ function DesktopSearchSection({
   compactOnScroll,
   activeFilterCountForBadge,
   showChipsRow,
+  showClass,
 }: DesktopSearchSectionProps) {
   const hasOverflowMenu = overflowMenu !== undefined && overflowMenu.length > 0;
   const hasPrimaryAction = primaryAction != null;
@@ -398,7 +414,7 @@ function DesktopSearchSection({
   // consumers).
   if (hasPrimaryAction) {
     return (
-      <div className="mb-6 hidden lg:block">
+      <div className={`mb-6 ${showClass}`}>
         {/* Row 1: search left, primary action right */}
         {(search !== undefined || hasPrimaryAction) && (
           <div
@@ -463,7 +479,7 @@ function DesktopSearchSection({
     hasFilters || hasActionContent ? "min-w-48 max-w-96 flex-1" : "flex-1";
 
   return (
-    <div className="mb-6 hidden lg:block">
+    <div className={`mb-6 ${showClass}`}>
       {showSearchRow && (
         <div
           className={`mb-3 flex items-center gap-3 ${compactWrapper}`}
