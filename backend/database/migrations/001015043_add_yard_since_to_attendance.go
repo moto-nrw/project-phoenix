@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	addYardSinceToAttendanceVersion     = "1.15.39"
+	addYardSinceToAttendanceVersion     = "1.15.43"
 	addYardSinceToAttendanceDescription = "Add yard_since column to active.attendance for binary-mode yard tracking"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func addYardSinceToAttendanceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.39: Adding yard_since column to active.attendance...")
+	fmt.Println("Migration 1.15.43: Adding yard_since column to active.attendance...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE active.attendance
@@ -55,7 +55,7 @@ func addYardSinceToAttendanceUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addYardSinceToAttendanceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.39: Removing yard_since column from active.attendance...")
+	fmt.Println("Rolling back migration 1.15.43: Removing yard_since column from active.attendance...")
 
 	_, err := db.NewRaw(`DROP INDEX IF EXISTS active.idx_attendance_yard_since;`).Exec(ctx)
 	if err != nil {

@@ -89,6 +89,120 @@ describe("OverflowMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("invokes onClick on Enter keydown", () => {
+    const onClick = vi.fn();
+    render(<OverflowMenu items={[{ label: "Export", onClick }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+    const item = screen.getByRole("menuitem", { name: /Export/i });
+    fireEvent.keyDown(item, { key: "Enter" });
+
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("invokes onClick on Space keydown", () => {
+    const onClick = vi.fn();
+    render(<OverflowMenu items={[{ label: "Export", onClick }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+    const item = screen.getByRole("menuitem", { name: /Export/i });
+    fireEvent.keyDown(item, { key: " " });
+
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it("ignores keydowns when the item is disabled", () => {
+    const onClick = vi.fn();
+    render(
+      <OverflowMenu items={[{ label: "Export", onClick, disabled: true }]} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+    const item = screen.getByRole("menuitem", { name: /Export/i });
+    fireEvent.keyDown(item, { key: "Enter" });
+
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("ignores other keydowns (e.g. Tab)", () => {
+    const onClick = vi.fn();
+    render(<OverflowMenu items={[{ label: "Export", onClick }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+    const item = screen.getByRole("menuitem", { name: /Export/i });
+    fireEvent.keyDown(item, { key: "Tab" });
+
+    expect(onClick).not.toHaveBeenCalled();
+    // Menu stays open — Tab doesn't activate.
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("renders an icon next to the item when provided", () => {
+    render(
+      <OverflowMenu
+        items={[
+          {
+            label: "Export",
+            icon: <span data-testid="custom-icon">★</span>,
+            onClick: () => undefined,
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+    expect(screen.getByTestId("custom-icon")).toBeInTheDocument();
+  });
+
+  it("renders destructive items with a red text colour class", () => {
+    render(
+      <OverflowMenu
+        items={[
+          { label: "Löschen", destructive: true, onClick: () => undefined },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Weitere Aktionen/i }));
+    const item = screen.getByRole("menuitem", { name: /Löschen/i });
+    expect(item.className).toContain("text-red-600");
+  });
+
+  it("anchors menu to the left when the trigger sits near the left edge", () => {
+    // Force the trigger's bounding rect to report no room on its left so
+    // the alignment logic flips to `left-0`.
+    const originalGetRect = window.HTMLElement.prototype.getBoundingClientRect;
+    window.HTMLElement.prototype.getBoundingClientRect = () =>
+      ({
+        left: 10,
+        right: 50,
+        top: 0,
+        bottom: 0,
+        width: 40,
+        height: 0,
+        x: 10,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    try {
+      render(
+        <OverflowMenu
+          items={[{ label: "Export", onClick: () => undefined }]}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: /Weitere Aktionen/i }),
+      );
+      const menu = screen.getByRole("menu");
+      expect(menu.className).toContain("left-0");
+      expect(menu.className).not.toContain("right-0");
+    } finally {
+      window.HTMLElement.prototype.getBoundingClientRect = originalGetRect;
+    }
+  });
+
   it("closes on outside click", () => {
     render(
       <div>

@@ -62,7 +62,6 @@ export function PageHeaderWithSearch({
   const hasTitle = Boolean(title);
   const hasTabs = Boolean(tabs);
   const hasFilters = filters.length > 0;
-  const hasOverflowMenu = overflowMenu !== undefined && overflowMenu.length > 0;
   // Active-count is what we surface in count-mode; falls back to 0 cleanly
   // when activeFilters is empty.
   const activeFilterCount = activeFilters.length;
@@ -152,9 +151,6 @@ export function PageHeaderWithSearch({
           desktopFiltersFrom === "xl" ? "hidden xl:block" : "hidden lg:block"
         }
       />
-      {/* Suppress duplicated overflow when desktop branch already rendered it
-          but we're on a small viewport — handled by the lg:* gating above. */}
-      {!hasTitle && !hasTabs && hasOverflowMenu ? null : null}
     </div>
   );
 }

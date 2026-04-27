@@ -56,7 +56,7 @@ export function SchoolCheckinModeMobile({
         >
           <CheckSquare className="size-3.5" strokeWidth={2.5} aria-hidden />
         </span>
-        Schüler an- &amp; abmelden
+        <span>Schüler an- &amp; abmelden</span>
       </button>
     );
   }
