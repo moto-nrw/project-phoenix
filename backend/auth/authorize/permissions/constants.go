@@ -38,6 +38,12 @@ const (
 	UsersDelete = ResourceUsers + ":" + ActionDelete
 	UsersList   = ResourceUsers + ":" + ActionList
 	UsersManage = ResourceUsers + ":" + ActionManage
+
+	// UsersCheckin allows marking a student as checked in or out of school
+	// via the web UI (distinct from the IoT kiosk flow, which authenticates
+	// as a device). Admins match via AdminWildcard; other roles must be
+	// granted explicitly.
+	UsersCheckin = ResourceUsers + ":checkin"
 )
 
 // Activity permissions

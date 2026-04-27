@@ -86,6 +86,9 @@ func (m *trackingMockActiveService) GetTrackingIndicators(ctx context.Context, s
 	return nil, nil
 }
 func (m *trackingMockActiveService) SetSettingsService(_ activeSvc.SettingsResolver) {}
+func (m *trackingMockActiveService) GetPresenceMode(_ context.Context) string {
+	return "detailed"
+}
 
 // Stub out the rest of the Service interface:
 func (m *trackingMockActiveService) GetAllActiveSupervisions(_ context.Context) ([]*activeModel.GroupSupervisor, error) {
@@ -299,6 +302,12 @@ func (m *trackingMockActiveService) GetStudentsAttendanceStatuses(ctx context.Co
 	return nil, nil
 }
 func (m *trackingMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *trackingMockActiveService) CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *trackingMockActiveService) CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
 func (m *trackingMockActiveService) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {

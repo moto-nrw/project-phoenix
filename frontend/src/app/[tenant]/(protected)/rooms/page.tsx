@@ -10,6 +10,7 @@ import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -452,11 +453,15 @@ function RoomsPageContent() {
   );
 }
 
-// Main component with Suspense wrapper
+// Main component with Suspense wrapper + binary-mode 404 guard.
+// Binary-mode tenants don't track room occupancy — the concepts this page
+// surfaces don't apply. Guard triggers Next.js notFound() for direct URL entry.
 export default function RoomsPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <RoomsPageContent />
-    </Suspense>
+    <BinaryModeGuard>
+      <Suspense fallback={<Loading fullPage={false} />}>
+        <RoomsPageContent />
+      </Suspense>
+    </BinaryModeGuard>
   );
 }

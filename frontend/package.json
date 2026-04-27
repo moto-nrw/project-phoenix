@@ -61,7 +61,7 @@
     "lint-staged": "^16.4.0",
     "oxlint": "^1.59.0",
     "oxlint-tsgolint": "^0.20.0",
-    "postcss": "^8.5.9",
+    "postcss": "^8.5.10",
     "prettier": "^3.8.2",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "sharp": "^0.34.5",

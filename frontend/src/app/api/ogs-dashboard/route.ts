@@ -4,7 +4,10 @@
 // and prevent sequential loading "flash" on student cards
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
+import { createLogger } from "~/lib/logger";
 import { createGetHandler } from "~/lib/route-wrapper";
+
+const logger = createLogger({ component: "OGSDashboardRoute" });
 
 // Backend response types
 interface BackendEducationalGroup {
@@ -169,7 +172,13 @@ export const GET = createGetHandler<OGSDashboardResponse>(
         "/api/students/pickup-times/bulk",
         token,
         { student_ids: studentIds },
-      ).catch(() => ({ data: [] as BackendPickupTime[] }));
+      ).catch((error: unknown) => {
+        logger.warn("ogs_dashboard_pickup_times_fetch_failed", {
+          student_count: studentIds.length,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return { data: [] as BackendPickupTime[] };
+      });
       pickupTimes = pickupResult.data ?? [];
     }
 

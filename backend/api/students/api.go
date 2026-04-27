@@ -174,6 +174,12 @@ func (rs *Resource) Router() chi.Router {
 		// Bulk arrival schedule and time endpoints
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/arrival-schedules/bulk", rs.bulkUpsertArrivalSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
+
+		// Web-based school check-in/out. Mode-agnostic (writes attendance only).
+		// The users:checkin permission is the coarse gate; the
+		// attendance.web_checkin_access setting is the fine gate enforced inside
+		// the handler (group_supervisors vs all_staff).
+		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
 	})
 
 	// Device-authenticated routes for RFID devices.
@@ -978,6 +984,10 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 
 // ListStudentsHandler returns the handler for listing students.
 func (rs *Resource) ListStudentsHandler() http.HandlerFunc { return rs.listStudents }
+
+// SchoolCheckinHandler returns the handler for POST /api/students/{id}/school-checkin.
+// Exposed for integration tests that bypass the router's middleware chain.
+func (rs *Resource) SchoolCheckinHandler() http.HandlerFunc { return rs.schoolCheckinHandler }
 
 // GetStudentHandler returns the handler for getting a single student.
 func (rs *Resource) GetStudentHandler() http.HandlerFunc { return rs.getStudent }

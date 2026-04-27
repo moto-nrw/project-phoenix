@@ -18,6 +18,20 @@ type Attendance struct {
 	CheckedInBy  int64      `bun:"checked_in_by,notnull" json:"checked_in_by"`
 	CheckedOutBy *int64     `bun:"checked_out_by" json:"checked_out_by,omitempty"`
 	DeviceID     int64      `bun:"device_id,notnull" json:"device_id"`
+	// YardSince is set when the student transitions to "Schulhof" in binary
+	// mode and cleared on a school checkout. Schema and read paths
+	// (deriveAttendanceStatus, ResolveBinaryLocation, performCheckOut) are
+	// in place, but the *write* originates from PyrePortal's "Schulhof"
+	// kiosk endpoint, which is tracked separately. Until that ships,
+	// `on_yard` is unreachable in production. See the cross-repo PyrePortal
+	// ticket linked in the PR description.
+	YardSince *time.Time `bun:"yard_since" json:"yard_since,omitempty"`
+}
+
+// IsOnYard returns true if the student is currently marked as being on the school yard
+// (still on premises, outside the building). Only meaningful while IsCheckedIn is also true.
+func (a *Attendance) IsOnYard() bool {
+	return a.YardSince != nil && a.CheckOutTime == nil
 }
 
 // BeforeAppendModel is commented out to let the repository control the table expression
@@ -67,8 +81,23 @@ type AttendanceRepository interface {
 	// Create creates a new attendance record
 	Create(ctx context.Context, attendance *Attendance) error
 
+	// CreateIfNoOpenForToday inserts the attendance row using ON CONFLICT
+	// against the partial unique index on (student_id, date) WHERE
+	// check_out_time IS NULL (migration 1.15.42). Returns inserted=true when
+	// the row was written, false when the conflict path swallowed the insert
+	// (a concurrent caller already opened today's attendance for the student).
+	CreateIfNoOpenForToday(ctx context.Context, attendance *Attendance) (bool, error)
+
 	// Update updates an existing attendance record
 	Update(ctx context.Context, attendance *Attendance) error
+
+	// CloseOpenForToday closes the currently-open attendance row for the
+	// given student today via a state-checked UPDATE
+	// (WHERE check_out_time IS NULL). Returns the updated row when an open
+	// row was actually closed, nil when no open row existed (e.g. student
+	// was never checked in or another concurrent caller already closed it).
+	// The caller treats both cases as successful idempotent checkouts.
+	CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, staffID int64) (*Attendance, error)
 
 	// FindByID finds an attendance record by ID
 	FindByID(ctx context.Context, id int64) (*Attendance, error)
