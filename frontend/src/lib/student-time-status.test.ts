@@ -135,6 +135,90 @@ describe("getStudentTimeStatus", () => {
   });
 });
 
+describe("getStudentTimeStatus edge cases", () => {
+  const now = new Date("2025-01-15T14:00:00");
+
+  it("treats actual time before planned as done-on-time and reports negative diff", () => {
+    // Boundary: diff of exactly 0 must NOT be classified as 'done-late' —
+    // otherwise an on-time arrival would render with the late color.
+    const status = getStudentTimeStatus({
+      plannedTime: "14:00",
+      actualTime: "14:00",
+      now,
+    });
+
+    expect(status.state).toBe("done-on-time");
+    expect(status.diffMinutes).toBe(0);
+    // 0-min diff has no annotation — would render as "+0 min" otherwise.
+    expect(status.detailAnnotation).toBeUndefined();
+  });
+
+  it("classifies a 31-minute lead as planned, not approaching", () => {
+    // The threshold is 30 minutes; 31 min must fall on the 'planned' side.
+    const status = getStudentTimeStatus({
+      plannedTime: "14:31",
+      now,
+    });
+
+    expect(status.state).toBe("planned");
+  });
+
+  it("classifies a 30-minute lead as approaching (inclusive boundary)", () => {
+    const status = getStudentTimeStatus({
+      plannedTime: "14:30",
+      now,
+    });
+
+    expect(status.state).toBe("approaching");
+  });
+
+  it("classifies exactly-30-min late as very-overdue (exclusive boundary)", () => {
+    // diff = -30. The slightly-overdue branch is `diff > -30`, so -30 must
+    // tip into very-overdue.
+    const status = getStudentTimeStatus({
+      plannedTime: "13:30",
+      now,
+    });
+
+    expect(status.state).toBe("very-overdue");
+  });
+
+  it("ignores actualTime that has no displayable form and falls through to planned", () => {
+    // Empty actualTime string must be treated as 'no actual yet', not as
+    // 'resolved with empty value' — otherwise the card would dim out.
+    const status = getStudentTimeStatus({
+      plannedTime: "14:30",
+      actualTime: "",
+      now,
+    });
+
+    expect(status.state).toBe("approaching");
+    expect(status.displayTime).toBe("14:30");
+    expect(status.isResolved).toBe(false);
+  });
+
+  it("trims HH:MM:SS planned input down to HH:MM for display", () => {
+    const status = getStudentTimeStatus({
+      plannedTime: "15:00:00",
+      now,
+    });
+
+    expect(status.displayTime).toBe("15:00");
+  });
+
+  it("computes done-late diff correctly when actual is hours after planned", () => {
+    const status = getStudentTimeStatus({
+      plannedTime: "14:00",
+      actualTime: "15:30",
+      now,
+    });
+
+    expect(status.state).toBe("done-late");
+    expect(status.diffMinutes).toBe(90);
+    expect(status.detailAnnotation).toBe("+90 min");
+  });
+});
+
 describe("student-time-status helpers", () => {
   it("combines notes and day notes", () => {
     expect(
@@ -143,6 +227,60 @@ describe("student-time-status helpers", () => {
         { content: "Sportsachen" },
       ]),
     ).toBe("Termin, Früher abholen, Sportsachen");
+  });
+
+  it("returns undefined when both notes and day notes are empty", () => {
+    // Caller passes the result straight into JSX — an empty string would
+    // render an extra row with no content, undefined skips the row entirely.
+    expect(combineTimeNotes(undefined, undefined)).toBeUndefined();
+    expect(combineTimeNotes("", [])).toBeUndefined();
+  });
+
+  it("filters falsy day note content but keeps the rest", () => {
+    expect(
+      combineTimeNotes(undefined, [{ content: "" }, { content: "Bus" }]),
+    ).toBe("Bus");
+  });
+
+  it("ranks the 'none' state last so unresolved students still appear above closed ones", () => {
+    // Sorting contract: 'none' (no times configured at all) should never
+    // outrank a real status. If it did, students with no schedule would
+    // bubble to the top of an urgency-sorted list.
+    const none = getStudentTimeStatus({ now: new Date() });
+    const planned = getStudentTimeStatus({
+      plannedTime: "15:00",
+      now: new Date("2025-01-15T08:00:00"),
+    });
+    const doneOnTime = getStudentTimeStatus({
+      plannedTime: "14:00",
+      actualTime: "13:55",
+      now: new Date("2025-01-15T16:00:00"),
+    });
+
+    expect(getTimeStatusSortRank(none)).toBe(6);
+    expect(getTimeStatusSortRank(planned)).toBeLessThan(
+      getTimeStatusSortRank(none),
+    );
+    expect(getTimeStatusSortRank(doneOnTime)).toBeLessThan(
+      getTimeStatusSortRank(none),
+    );
+  });
+
+  it("ranks done-late ahead of done-on-time so flagged completions float up", () => {
+    const doneLate = getStudentTimeStatus({
+      plannedTime: "14:00",
+      actualTime: "14:20",
+      now: new Date("2025-01-15T15:00:00"),
+    });
+    const doneOnTime = getStudentTimeStatus({
+      plannedTime: "14:00",
+      actualTime: "13:55",
+      now: new Date("2025-01-15T15:00:00"),
+    });
+
+    expect(getTimeStatusSortRank(doneLate)).toBeLessThan(
+      getTimeStatusSortRank(doneOnTime),
+    );
   });
 
   it("marks a student closed out only when both rows are resolved", () => {
