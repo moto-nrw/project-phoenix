@@ -120,6 +120,43 @@ export function mapSchoolSummary(data: BackendSchoolSummary): SchoolSummary {
   };
 }
 
+// Adapters: drop the summary-only count fields so existing modal/form
+// components that accept the base Organization/School types can be reused on
+// drill-in pages without leaking aggregate counts into their props.
+export function summaryToOrganization(
+  summary: OrganizationSummary,
+): Organization {
+  return {
+    id: summary.id,
+    name: summary.name,
+    slug: summary.slug,
+    active: summary.active,
+    deletedAt: summary.deletedAt,
+    createdAt: summary.createdAt,
+    updatedAt: summary.updatedAt,
+  };
+}
+
+export function summaryToSchool(summary: SchoolSummary): School {
+  return {
+    id: summary.id,
+    organizationId: summary.organizationId,
+    name: summary.name,
+    slug: summary.slug,
+    subdomain: summary.subdomain,
+    address: summary.address,
+    city: summary.city,
+    zip: summary.zip,
+    phone: summary.phone,
+    email: summary.email,
+    active: summary.active,
+    hidden: summary.hidden,
+    deletedAt: summary.deletedAt,
+    createdAt: summary.createdAt,
+    updatedAt: summary.updatedAt,
+  };
+}
+
 export interface BackendOrganization {
   id: number;
   name: string;

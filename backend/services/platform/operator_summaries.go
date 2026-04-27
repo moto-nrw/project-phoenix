@@ -60,6 +60,11 @@ type SchoolSummary struct {
 	PersonenCount    int        `bun:"personen_count" json:"personen_count"`
 }
 
+// konten_count semantics: an account that is active in N schools counts ONCE
+// at the platform level (DISTINCT account_id). The same account may, however,
+// contribute one row to each of those N schools' own konten_count, so the
+// platform total will not equal the sum of school totals. Org-scoped counts
+// follow the same DISTINCT-account rule within their org boundary.
 const provisioningStatsQuery = `
 SELECT
 	(SELECT COUNT(*) FROM platform.organizations WHERE deleted_at IS NULL) AS traeger_count,

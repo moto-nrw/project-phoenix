@@ -14,15 +14,19 @@ import type {
   OperatorDevice,
   OperatorPerson,
   OrgAccount,
-  Organization,
   OrganizationSummary,
-  School,
   SchoolAccount,
   SchoolSummary,
+} from "~/lib/operator/provisioning-helpers";
+import {
+  summaryToOrganization,
+  summaryToSchool,
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
+import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
+import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -45,38 +49,6 @@ const logger = createLogger({ component: "OperatorSchoolDetailPage" });
 
 function numberFormat(value: number): string {
   return new Intl.NumberFormat("de-DE").format(value);
-}
-
-function summaryToOrganization(summary: OrganizationSummary): Organization {
-  return {
-    id: summary.id,
-    name: summary.name,
-    slug: summary.slug,
-    active: summary.active,
-    deletedAt: summary.deletedAt,
-    createdAt: summary.createdAt,
-    updatedAt: summary.updatedAt,
-  };
-}
-
-function summaryToSchool(summary: SchoolSummary): School {
-  return {
-    id: summary.id,
-    organizationId: summary.organizationId,
-    name: summary.name,
-    slug: summary.slug,
-    subdomain: summary.subdomain,
-    address: summary.address,
-    city: summary.city,
-    zip: summary.zip,
-    phone: summary.phone,
-    email: summary.email,
-    active: summary.active,
-    hidden: summary.hidden,
-    deletedAt: summary.deletedAt,
-    createdAt: summary.createdAt,
-    updatedAt: summary.updatedAt,
-  };
 }
 
 const TAB_ITEMS = [
@@ -117,31 +89,11 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
-  const [deleteDevice, setDeleteDeviceRaw] = useState<OperatorDevice | null>(
-    null,
-  );
-  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
-  const [deletePersonTarget, setDeletePersonTargetRaw] =
+  const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
+  const [deletePersonTarget, setDeletePersonTarget] =
     useState<OperatorPerson | null>(null);
-  const [deletePersonConfirmInput, setDeletePersonConfirmInput] = useState("");
-  const [deletePersonLoading, setDeletePersonLoading] = useState(false);
-  const [deletePersonError, setDeletePersonError] = useState("");
 
   const currentTabSearch = activeTab === "konten" ? "" : `?tab=${activeTab}`;
-
-  const setDeleteDevice = useCallback((device: OperatorDevice | null) => {
-    setDeleteDeviceRaw(device);
-    setDeleteConfirmed(false);
-    setDeleteError("");
-  }, []);
-
-  const setDeletePersonTarget = useCallback((person: OperatorPerson | null) => {
-    setDeletePersonTargetRaw(person);
-    setDeletePersonConfirmInput("");
-    setDeletePersonError("");
-  }, []);
 
   const setActiveTab = useCallback(
     (next: TabId) => {
@@ -308,55 +260,13 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
     },
   });
 
-  const handleDeleteDevice = useCallback(async () => {
-    if (!deleteDevice) return;
-    setDeleteLoading(true);
-    setDeleteError("");
-    try {
-      await operatorProvisioningService.deleteDevice(deleteDevice.id);
-      setDeleteDevice(null);
-      setDeleteConfirmed(false);
-      await Promise.all([mutateSchoolDevices(), refreshSchoolDetail()]);
-    } catch (error) {
-      logger.error("device_delete_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      setDeleteError(
-        error instanceof Error
-          ? error.message
-          : "Fehler beim Löschen des Geräts",
-      );
-    } finally {
-      setDeleteLoading(false);
-    }
-  }, [deleteDevice, mutateSchoolDevices, refreshSchoolDetail, setDeleteDevice]);
+  const handleDeviceDeleted = useCallback(async () => {
+    await Promise.all([mutateSchoolDevices(), refreshSchoolDetail()]);
+  }, [mutateSchoolDevices, refreshSchoolDetail]);
 
-  const handleDeletePerson = useCallback(async () => {
-    if (!deletePersonTarget) return;
-    setDeletePersonLoading(true);
-    setDeletePersonError("");
-    try {
-      await operatorProvisioningService.softDeletePerson(deletePersonTarget.id);
-      setDeletePersonTarget(null);
-      await Promise.all([mutateSchoolPersons(), refreshSchoolDetail()]);
-    } catch (error) {
-      logger.error("person_soft_delete_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      setDeletePersonError(
-        error instanceof Error
-          ? error.message
-          : "Fehler beim Löschen der Person",
-      );
-    } finally {
-      setDeletePersonLoading(false);
-    }
-  }, [
-    deletePersonTarget,
-    mutateSchoolPersons,
-    refreshSchoolDetail,
-    setDeletePersonTarget,
-  ]);
+  const handlePersonDeleted = useCallback(async () => {
+    await Promise.all([mutateSchoolPersons(), refreshSchoolDetail()]);
+  }, [mutateSchoolPersons, refreshSchoolDetail]);
 
   const schoolHeaderActions = useMemo(
     () => (
@@ -716,154 +626,17 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
         }}
       />
 
-      {deleteDevice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Gerät löschen
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Möchten Sie das Gerät{" "}
-              <span className="font-mono font-medium">
-                {deleteDevice.deviceId}
-              </span>
-              {deleteDevice.name && ` (${deleteDevice.name})`} von{" "}
-              <span className="font-medium">{deleteDevice.schoolName}</span>{" "}
-              wirklich löschen?
-            </p>
-            <p className="mt-2 text-sm font-medium text-red-600">
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </p>
+      <DeleteDeviceModal
+        device={deleteDevice}
+        onClose={() => setDeleteDevice(null)}
+        onDeleted={handleDeviceDeleted}
+      />
 
-            {deleteError && (
-              <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-                {deleteError}
-              </div>
-            )}
-
-            {!deleteConfirmed ? (
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteDevice(null)}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirmed(true)}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
-                >
-                  Ja, löschen
-                </button>
-              </div>
-            ) : (
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteDevice(null)}
-                  disabled={deleteLoading}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteDevice()}
-                  disabled={deleteLoading}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-                >
-                  {deleteLoading ? "Wird gelöscht..." : "Endgültig löschen"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {deletePersonTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Person löschen
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Möchten Sie{" "}
-              <span className="font-medium">
-                {deletePersonTarget.firstName} {deletePersonTarget.lastName}
-              </span>{" "}
-              von{" "}
-              <span className="font-medium">
-                {deletePersonTarget.schoolName}
-              </span>{" "}
-              wirklich löschen?
-            </p>
-            <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              <p className="font-medium">
-                Folgende Aktionen werden ausgeführt:
-              </p>
-              <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-                <li>Account wird deaktiviert und Login gesperrt</li>
-                <li>Persönliche Daten werden anonymisiert</li>
-                <li>RFID-Karte wird freigegeben</li>
-                <li>Diese Aktion kann nicht rückgängig gemacht werden</li>
-              </ul>
-            </div>
-
-            <div className="mt-4">
-              <label
-                htmlFor="delete-person-confirm-detail"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Geben Sie den vollständigen Namen ein:
-              </label>
-              <p className="mb-1 text-sm font-medium text-gray-900">
-                {deletePersonTarget.fullName}
-              </p>
-              <input
-                id="delete-person-confirm-detail"
-                type="text"
-                value={deletePersonConfirmInput}
-                onChange={(event) =>
-                  setDeletePersonConfirmInput(event.target.value)
-                }
-                placeholder={deletePersonTarget.fullName}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
-                autoComplete="off"
-              />
-            </div>
-
-            {deletePersonError && (
-              <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-                {deletePersonError}
-              </div>
-            )}
-
-            <div className="mt-5 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setDeletePersonTarget(null)}
-                disabled={deletePersonLoading}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDeletePerson()}
-                disabled={
-                  deletePersonLoading ||
-                  deletePersonConfirmInput !== deletePersonTarget.fullName
-                }
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {deletePersonLoading ? "Wird gelöscht..." : "Endgültig löschen"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeletePersonModal
+        person={deletePersonTarget}
+        onClose={() => setDeletePersonTarget(null)}
+        onDeleted={handlePersonDeleted}
+      />
     </div>
   );
 }

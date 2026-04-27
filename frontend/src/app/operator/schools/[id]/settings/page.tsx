@@ -13,6 +13,7 @@ import {
   revealOperatorSettingValue,
 } from "~/lib/operator/operator-settings-api";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import { resolveOperatorBackHref } from "~/lib/operator/back-href";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -33,21 +34,13 @@ interface PageProps {
   readonly params: Promise<{ id: string }>;
 }
 
-// Restrict the `back` param to internal operator paths so the link cannot be
-// used to bounce the user to an arbitrary host (open-redirect guard).
-const SAFE_BACK_PATH = /^\/operator\/[A-Za-z0-9/_\-?=&%.]*$/;
-
-function resolveBackHref(raw: string | null): string {
-  if (!raw) return "/operator/schools";
-  return SAFE_BACK_PATH.test(raw) ? raw : "/operator/schools";
-}
-
 export default function OperatorSchoolSettingsPage({ params }: PageProps) {
   const { id: schoolId } = use(params);
   const { status: sessionStatus } = useSession();
   const searchParams = useSearchParams();
   const backHref = useMemo(
-    () => resolveBackHref(searchParams.get("back")),
+    () =>
+      resolveOperatorBackHref(searchParams.get("back"), "/operator/schools"),
     [searchParams],
   );
   const backLabel =

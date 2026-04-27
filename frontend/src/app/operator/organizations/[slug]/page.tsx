@@ -13,15 +13,18 @@ import {
 import type {
   OperatorDevice,
   OrgAccount,
-  Organization,
   OrganizationSummary,
-  School,
   SchoolAccount,
   SchoolSummary,
+} from "~/lib/operator/provisioning-helpers";
+import {
+  summaryToOrganization,
+  summaryToSchool,
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
+import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
@@ -50,38 +53,6 @@ const logger = createLogger({ component: "OperatorOrganizationDetailPage" });
 
 function numberFormat(value: number): string {
   return new Intl.NumberFormat("de-DE").format(value);
-}
-
-function summaryToOrganization(summary: OrganizationSummary): Organization {
-  return {
-    id: summary.id,
-    name: summary.name,
-    slug: summary.slug,
-    active: summary.active,
-    deletedAt: summary.deletedAt,
-    createdAt: summary.createdAt,
-    updatedAt: summary.updatedAt,
-  };
-}
-
-function summaryToSchool(summary: SchoolSummary): School {
-  return {
-    id: summary.id,
-    organizationId: summary.organizationId,
-    name: summary.name,
-    slug: summary.slug,
-    subdomain: summary.subdomain,
-    address: summary.address,
-    city: summary.city,
-    zip: summary.zip,
-    phone: summary.phone,
-    email: summary.email,
-    active: summary.active,
-    hidden: summary.hidden,
-    deletedAt: summary.deletedAt,
-    createdAt: summary.createdAt,
-    updatedAt: summary.updatedAt,
-  };
 }
 
 const TAB_ITEMS = [
@@ -122,18 +93,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
   const [createSchoolOpen, setCreateSchoolOpen] = useState(false);
   const [createDeviceOpen, setCreateDeviceOpen] = useState(false);
   const [setKeyDevice, setSetKeyDevice] = useState<OperatorDevice | null>(null);
-  const [deleteDevice, setDeleteDeviceRaw] = useState<OperatorDevice | null>(
-    null,
-  );
-  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
-
-  const setDeleteDevice = useCallback((device: OperatorDevice | null) => {
-    setDeleteDeviceRaw(device);
-    setDeleteConfirmed(false);
-    setDeleteError("");
-  }, []);
+  const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
 
   const currentTabSearch = activeTab === "schulen" ? "" : `?tab=${activeTab}`;
 
@@ -350,33 +310,9 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
     [schoolDelete],
   );
 
-  const handleDeleteDevice = useCallback(async () => {
-    if (!deleteDevice) return;
-    setDeleteLoading(true);
-    setDeleteError("");
-    try {
-      await operatorProvisioningService.deleteDevice(deleteDevice.id);
-      setDeleteDevice(null);
-      setDeleteConfirmed(false);
-      await Promise.all([mutateOrgDevices(), refreshOrganizationDrillIn()]);
-    } catch (error) {
-      logger.error("device_delete_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      setDeleteError(
-        error instanceof Error
-          ? error.message
-          : "Fehler beim Löschen des Geräts",
-      );
-    } finally {
-      setDeleteLoading(false);
-    }
-  }, [
-    deleteDevice,
-    mutateOrgDevices,
-    refreshOrganizationDrillIn,
-    setDeleteDevice,
-  ]);
+  const handleDeviceDeleted = useCallback(async () => {
+    await Promise.all([mutateOrgDevices(), refreshOrganizationDrillIn()]);
+  }, [mutateOrgDevices, refreshOrganizationDrillIn]);
 
   const orgHeaderActions = useMemo(
     () => (
@@ -784,71 +720,11 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
         }}
       />
 
-      {deleteDevice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Gerät löschen
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Möchten Sie das Gerät{" "}
-              <span className="font-mono font-medium">
-                {deleteDevice.deviceId}
-              </span>
-              {deleteDevice.name && ` (${deleteDevice.name})`} von{" "}
-              <span className="font-medium">{deleteDevice.schoolName}</span>{" "}
-              wirklich löschen?
-            </p>
-            <p className="mt-2 text-sm font-medium text-red-600">
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </p>
-
-            {deleteError && (
-              <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-                {deleteError}
-              </div>
-            )}
-
-            {!deleteConfirmed ? (
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteDevice(null)}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirmed(true)}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
-                >
-                  Ja, löschen
-                </button>
-              </div>
-            ) : (
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteDevice(null)}
-                  disabled={deleteLoading}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteDevice()}
-                  disabled={deleteLoading}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-                >
-                  {deleteLoading ? "Wird gelöscht..." : "Endgültig löschen"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <DeleteDeviceModal
+        device={deleteDevice}
+        onClose={() => setDeleteDevice(null)}
+        onDeleted={handleDeviceDeleted}
+      />
     </div>
   );
 }

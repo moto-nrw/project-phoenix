@@ -120,19 +120,50 @@ export function DataTable<T>({
                     </th>
                   );
                 }
+                const ariaSort: "ascending" | "descending" | "none" = active
+                  ? sort?.direction === "asc"
+                    ? "ascending"
+                    : "descending"
+                  : "none";
+                const indicator = active
+                  ? sort?.direction === "asc"
+                    ? "↑"
+                    : "↓"
+                  : "↕";
+                // Accessible name combines the visible header with a state hint.
+                // We deliberately avoid embedding the column header verbatim
+                // into a separate aria-label so the button's name is always
+                // strictly more specific than the column header text — this
+                // keeps name-based queries that target row-action buttons
+                // (e.g. {name: "Konten"}) from matching the sort header.
+                // The aria-sort attribute on the <th> communicates the
+                // current sort direction to assistive tech independently.
+                const stateHint = active
+                  ? sort?.direction === "asc"
+                    ? "aufsteigend sortiert"
+                    : "absteigend sortiert"
+                  : "Spalte sortieren";
                 return (
                   <th
                     key={col.key}
                     scope="col"
-                    className={`cursor-pointer px-5 py-3 transition-colors select-none hover:text-gray-700 ${align} ${col.headerClassName ?? ""}`}
-                    onClick={() => toggleSort(col.key)}
+                    aria-sort={ariaSort}
+                    className={`px-5 py-3 ${align} ${col.headerClassName ?? ""}`}
                   >
-                    {col.header}
-                    <span
-                      className={`ml-1 inline-block ${active ? "text-gray-700" : "text-gray-300"}`}
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(col.key)}
+                      className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${align}`}
                     >
-                      {active ? (sort?.direction === "asc" ? "↑" : "↓") : "↕"}
-                    </span>
+                      <span>{col.header}</span>
+                      <span
+                        aria-hidden="true"
+                        className={active ? "text-gray-700" : "text-gray-300"}
+                      >
+                        {indicator}
+                      </span>
+                      <span className="sr-only">{` – ${stateHint}`}</span>
+                    </button>
                   </th>
                 );
               })}
