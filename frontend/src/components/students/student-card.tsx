@@ -299,15 +299,18 @@ function TimeStatusRow({
     renderTimeStatusIcon(status, kind)
   );
 
-  const timeText = `${status.displayTime} Uhr`;
+  // Keep label and time in a single text node so testing-library matchers
+  // and screen-reader output read the row as one continuous string. Splitting
+  // the time into its own <span> for the colored states would break exact
+  // text matching even though the rendered characters are identical.
+  const fullText = `${label}: ${status.displayTime} Uhr`;
 
   return (
     <StudentInfoRow icon={icon}>
-      {label}:{" "}
       {status.textColor ? (
-        <span style={{ color: status.textColor }}>{timeText}</span>
+        <span style={{ color: status.textColor }}>{fullText}</span>
       ) : (
-        timeText
+        fullText
       )}
       {notes && <span className="ml-1 text-gray-500">({notes})</span>}
     </StudentInfoRow>
