@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -153,6 +154,59 @@ func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
 	assert.Equal(t, "checked_out", resp.Data.Status)
 	assert.Equal(t, "Abwesend", resp.Data.Location)
 	assert.True(t, resp.Data.Changed)
+}
+
+// TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit covers the detailed-mode
+// cleanup branch in applySchoolCheckinAction: when the student has an open
+// active.visits row, web checkout must end the visit too so supervisor
+// views don't keep showing "still in Room X" after attendance is closed.
+//
+// This branch was previously uncovered because TestSchoolCheckin_CheckOut_FromCheckedIn
+// goes through "in" via the school-checkin endpoint, which only writes
+// attendance, never a visit. The visit must come from a separate kiosk-side
+// fixture for this branch to fire.
+func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
+	tc := setupTestContext(t)
+	setAllStaffAccess(t, tc)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Cleanup", "2c")
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Visit", "Caller")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	// Activity infrastructure for the visit. The kiosk path writes
+	// active.visits directly via CreateVisit; we shortcut with the test
+	// fixture so the integration test stays focused on the handler.
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "School Visit Cleanup")
+	room := testpkg.CreateTestRoom(t, tc.db, "Visit Cleanup Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, activityGroup.ID, room.ID, activeGroup.ID)
+
+	// Open visit + open attendance — same student, both still active.
+	entryTime := time.Now().Add(-30 * time.Minute)
+	visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, entryTime, nil)
+	defer testpkg.CleanupTableRecords(t, tc.db, "active.visits", visit.ID)
+
+	device := testpkg.CreateTestDevice(t, tc.db, "school-checkin-visit-device")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID)
+	checkInTime := time.Now().Add(-30 * time.Minute)
+	att := testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, checkInTime, nil)
+	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", att.ID)
+
+	// Web checkout — must close attendance AND end the open visit.
+	router := setupRouter(tc.resource.SchoolCheckinHandler(), "id")
+	body, _ := json.Marshal(map[string]string{"action": "out"})
+	req := testutil.NewRequest("POST", fmt.Sprintf("/%d", student.ID), bytesReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+	// Confirm the visit is now closed (ExitTime set).
+	updatedVisit, err := tc.services.Active.GetVisit(t.Context(), visit.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updatedVisit)
+	assert.NotNil(t, updatedVisit.ExitTime, "open visit must be closed after web checkout")
 }
 
 func TestSchoolCheckin_GroupSupervisors_DeniesNonSupervisor(t *testing.T) {
