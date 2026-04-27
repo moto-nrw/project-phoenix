@@ -334,24 +334,24 @@ export function StudentDetailHeader({
               <span className="truncate">{student.group_name}</span>
             </div>
           )}
-          <div className="mt-4 grid gap-3 md:max-w-xl md:grid-cols-2">
-            <TodayTimeStatusBlock
-              label="Heutige Ankunftszeit"
-              plannedTime={todayArrivalPlannedTime}
-              actualTime={todayArrivalActualTime}
-              isException={isArrivalException}
-              note={isArrivalAbsent ? undefined : todayArrivalNote}
-              isAbsent={isArrivalAbsent}
-              absentReason={todayArrivalNote}
-            />
-            <TodayTimeStatusBlock
-              label="Heutige Abholzeit"
-              plannedTime={todayPickupPlannedTime}
-              actualTime={todayPickupActualTime}
-              isException={isPickupException}
-              note={todayPickupNote}
-            />
-          </div>
+          <TodayTimeStatusInlineRow
+            kind="arrival"
+            label="Heutige Ankunft"
+            plannedTime={todayArrivalPlannedTime}
+            actualTime={todayArrivalActualTime}
+            isException={isArrivalException}
+            note={isArrivalAbsent ? undefined : todayArrivalNote}
+            isAbsent={isArrivalAbsent}
+            absentReason={todayArrivalNote}
+          />
+          <TodayTimeStatusInlineRow
+            kind="pickup"
+            label="Heutige Abholung"
+            plannedTime={todayPickupPlannedTime}
+            actualTime={todayPickupActualTime}
+            isException={isPickupException}
+            note={todayPickupNote}
+          />
         </div>
         <div className="mr-4 flex-shrink-0 pb-3">
           <LocationBadge
@@ -370,7 +370,7 @@ export function StudentDetailHeader({
   );
 }
 
-function renderTimeStatusBlockIcon(
+function renderInlineTimeIcon(
   state: ReturnType<typeof getStudentTimeStatus>,
 ): React.ReactNode {
   if (state.icon === "warning") {
@@ -391,7 +391,8 @@ function renderTimeStatusBlockIcon(
   );
 }
 
-function TodayTimeStatusBlock({
+function TodayTimeStatusInlineRow({
+  kind,
   label,
   plannedTime,
   actualTime,
@@ -400,6 +401,7 @@ function TodayTimeStatusBlock({
   isAbsent = false,
   absentReason,
 }: Readonly<{
+  kind: "arrival" | "pickup";
   label: string;
   plannedTime?: string;
   actualTime?: string;
@@ -410,17 +412,18 @@ function TodayTimeStatusBlock({
 }>) {
   if (isAbsent) {
     return (
-      <div className="rounded-2xl border border-gray-100 bg-white/70 px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-          <Clock className="h-4 w-4 text-gray-400" />
-          <span>{label}</span>
-        </div>
-        <div className="mt-2 text-base font-semibold text-gray-900">
-          Kommt heute nicht
-        </div>
-        {absentReason ? (
-          <div className="mt-1 text-sm text-gray-500">{absentReason}</div>
-        ) : null}
+      <div
+        data-testid={`today-time-row-${kind}`}
+        className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
+      >
+        <ClockIcon className="h-4 w-4 text-gray-400" />
+        <span>
+          {label}:{" "}
+          <span className="font-medium text-gray-900">Kommt heute nicht</span>
+          {absentReason && (
+            <span className="ml-1 text-gray-500">({absentReason})</span>
+          )}
+        </span>
       </div>
     );
   }
@@ -431,39 +434,44 @@ function TodayTimeStatusBlock({
     now: new Date(),
   });
 
-  const showPlannedLine = Boolean(plannedTime && actualTime);
+  const plannedDisplay = plannedTime?.slice(0, 5);
+  const showPlannedHint = Boolean(plannedTime && actualTime);
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/70 px-4 py-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-        {renderTimeStatusBlockIcon(status)}
-        <span>{label}</span>
-        {isException ? (
+    <div
+      data-testid={`today-time-row-${kind}`}
+      className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
+    >
+      {renderInlineTimeIcon(status)}
+      <span>
+        {label}:{" "}
+        <span
+          className={
+            status.textColor ? "font-medium" : "font-medium text-gray-900"
+          }
+          style={status.textColor ? { color: status.textColor } : undefined}
+        >
+          {status.displayTime ?? "—"}
+        </span>
+        {showPlannedHint && plannedDisplay && (
+          <span className="ml-1 text-gray-500">
+            (geplant: {plannedDisplay}
+            {status.detailAnnotation ? `, ${status.detailAnnotation}` : ""})
+          </span>
+        )}
+        {!showPlannedHint && status.detailAnnotation && (
+          <span className="ml-1 text-gray-500">
+            ({status.detailAnnotation})
+          </span>
+        )}
+        {note && <span className="ml-1 text-gray-500">({note})</span>}
+        {isException && (
           <span
-            className="inline-flex h-2 w-2 rounded-full bg-orange-400"
+            className="ml-1.5 inline-flex h-2 w-2 rounded-full bg-orange-400"
             title="Ausnahme"
           />
-        ) : null}
-      </div>
-      <div
-        className={`mt-2 text-base font-semibold ${
-          status.textColor ? "" : "text-gray-900"
-        }`}
-        style={status.textColor ? { color: status.textColor } : undefined}
-      >
-        {status.displayTime ? `${status.displayTime} Uhr` : "—"}
-      </div>
-      {showPlannedLine ? (
-        <div className="mt-1 text-sm text-gray-500">
-          geplant: {plannedTime} Uhr
-        </div>
-      ) : null}
-      {note ? <div className="mt-1 text-sm text-gray-500">{note}</div> : null}
-      {status.detailAnnotation ? (
-        <div className="mt-1 text-sm text-gray-500">
-          {status.detailAnnotation}
-        </div>
-      ) : null}
+        )}
+      </span>
     </div>
   );
 }

@@ -156,13 +156,13 @@ describe("StudentDetailHeader", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // TodayTimeStatusBlock — covers planned/actual rendering, absent flow,
-  // exception dot, and the "geplant: …" secondary line.
+  // TodayTimeStatusInlineRow — covers planned/actual rendering, absent flow,
+  // exception dot, and the "(geplant: …)" parenthetical.
   //
-  // The block is private to student-detail-components, so we exercise it
+  // The row is private to student-detail-components, so we exercise it
   // through StudentDetailHeader's public time props.
   // ---------------------------------------------------------------------------
-  describe("TodayTimeStatusBlock (via StudentDetailHeader)", () => {
+  describe("TodayTimeStatusInlineRow (via StudentDetailHeader)", () => {
     // The setup file does not register a global cleanup; without this,
     // each render leaks into the next test's document.body and breaks
     // single-element assertions like getByText.
@@ -183,62 +183,55 @@ describe("StudentDetailHeader", () => {
     }
 
     /**
-     * Scope queries to a single time block. The header also renders a
-     * LocationBadge that can produce overlapping strings ("Kommt heute
-     * nicht"), so unscoped queries find duplicates and fail tests for
-     * the wrong reason. Walking up to the block's rounded card gives us
-     * an isolated subtree.
+     * Scope queries to a single time row by data-testid. The header also
+     * renders a LocationBadge that can produce overlapping strings ("Kommt
+     * heute nicht"), so unscoped queries find duplicates and fail tests for
+     * the wrong reason.
      */
-    function blockFor(label: "Heutige Ankunftszeit" | "Heutige Abholzeit") {
-      const heading = screen.getByText(label);
-      const block = heading.closest("div.rounded-2xl");
-      if (!block) {
-        throw new Error(`could not locate block for label "${label}"`);
-      }
-      return within(block as HTMLElement);
+    function rowFor(kind: "arrival" | "pickup") {
+      return within(screen.getByTestId(`today-time-row-${kind}`));
     }
 
-    it("renders both block headings even when no times are configured", () => {
-      // A school with zero configured times must still see the structural
-      // labels — otherwise an admin can't tell whether the system rendered
-      // nothing on purpose or hit an error.
+    it("renders both rows with a dash placeholder when no times are configured", () => {
+      // Always-render contract: caregivers should see the structural labels
+      // even when nothing is scheduled, otherwise it's ambiguous whether the
+      // system rendered nothing on purpose or hit an error.
       renderHeaderWithTimes({});
 
-      expect(
-        blockFor("Heutige Ankunftszeit").getByText("—"),
-      ).toBeInTheDocument();
-      expect(blockFor("Heutige Abholzeit").getByText("—")).toBeInTheDocument();
+      expect(rowFor("arrival").getByText("—")).toBeInTheDocument();
+      expect(rowFor("pickup").getByText("—")).toBeInTheDocument();
     });
 
-    it("shows the planned pickup time as the primary line when nothing is resolved yet", () => {
+    it("shows the planned pickup time as the primary value when nothing is resolved yet", () => {
       renderHeaderWithTimes({
         todayPickupPlannedTime: "15:30",
       });
 
-      const pickup = blockFor("Heutige Abholzeit");
-      // Primary line is rendered as "HH:MM Uhr". The secondary "geplant:"
-      // line is suppressed until an actual time arrives.
-      expect(pickup.getByText("15:30 Uhr")).toBeInTheDocument();
-      expect(pickup.queryByText(/^geplant:/)).not.toBeInTheDocument();
+      const pickup = rowFor("pickup");
+      // Primary value is the planned time. The "(geplant: …)" parenthetical
+      // is suppressed until an actual time arrives — otherwise we'd be
+      // duplicating the same value into both spots.
+      expect(pickup.getByText("15:30")).toBeInTheDocument();
+      expect(pickup.queryByText(/geplant:/)).not.toBeInTheDocument();
     });
 
-    it("promotes actual to primary and demotes planned to secondary when both exist", () => {
-      // This is the killer feature of the rewrite — caregivers need the
-      // actual at a glance, with the original schedule visible for context.
+    it("promotes actual to primary and demotes planned to a parenthetical when both exist", () => {
+      // The killer feature of the rewrite — caregivers need the actual at a
+      // glance, with the original schedule visible for context.
       renderHeaderWithTimes({
         todayPickupPlannedTime: "15:30",
         todayPickupActualTime: "15:42",
       });
 
-      const pickup = blockFor("Heutige Abholzeit");
-      // Primary line — what actually happened.
-      expect(pickup.getByText("15:42 Uhr")).toBeInTheDocument();
-      // Secondary line — what was scheduled. The "geplant: 15:30 Uhr"
-      // string is built by the block itself, not by any prop.
-      expect(pickup.getByText("geplant: 15:30 Uhr")).toBeInTheDocument();
+      const pickup = rowFor("pickup");
+      // Primary value — what actually happened.
+      expect(pickup.getByText("15:42")).toBeInTheDocument();
+      // Parenthetical — combines the planned value with the diff so the
+      // caregiver doesn't have to subtract in their head.
+      expect(pickup.getByText(/geplant: 15:30, \+12 min/)).toBeInTheDocument();
     });
 
-    it("renders the exception dot in the affected block only", () => {
+    it("renders the exception dot in the affected row only", () => {
       renderHeaderWithTimes({
         todayPickupPlannedTime: "15:30",
         isPickupException: true,
@@ -246,14 +239,8 @@ describe("StudentDetailHeader", () => {
 
       // The dot uses the German tooltip "Ausnahme" via title= attribute —
       // assert via title rather than class so we're not coupled to styling.
-      // Scope to the pickup block so we don't accidentally pass on a dot
-      // that bled into the arrival block.
-      expect(
-        blockFor("Heutige Abholzeit").getByTitle("Ausnahme"),
-      ).toBeInTheDocument();
-      expect(
-        blockFor("Heutige Ankunftszeit").queryByTitle("Ausnahme"),
-      ).toBeNull();
+      expect(rowFor("pickup").getByTitle("Ausnahme")).toBeInTheDocument();
+      expect(rowFor("arrival").queryByTitle("Ausnahme")).toBeNull();
     });
 
     it("does not render the exception dot when isPickupException is false", () => {
@@ -262,76 +249,70 @@ describe("StudentDetailHeader", () => {
         isPickupException: false,
       });
 
-      expect(blockFor("Heutige Abholzeit").queryByTitle("Ausnahme")).toBeNull();
+      expect(rowFor("pickup").queryByTitle("Ausnahme")).toBeNull();
     });
 
-    it("renders an optional pickup note as its own secondary line", () => {
+    it("renders an optional pickup note inline in parentheses", () => {
       renderHeaderWithTimes({
         todayPickupPlannedTime: "15:30",
         todayPickupNote: "Wird von Oma abgeholt",
       });
 
       expect(
-        blockFor("Heutige Abholzeit").getByText("Wird von Oma abgeholt"),
+        rowFor("pickup").getByText("(Wird von Oma abgeholt)"),
       ).toBeInTheDocument();
     });
 
-    it("switches the arrival block to 'Kommt heute nicht' when isArrivalAbsent is true", () => {
+    it("switches the arrival row to 'Kommt heute nicht' when isArrivalAbsent is true", () => {
       renderHeaderWithTimes({
         todayArrivalPlannedTime: "08:00",
         isArrivalAbsent: true,
       });
 
-      const arrival = blockFor("Heutige Ankunftszeit");
-      // Absent state is mutually exclusive with the planned line — showing
+      const arrival = rowFor("arrival");
+      // Absent state is mutually exclusive with the planned value — showing
       // both would confuse caregivers about whether to expect the kid.
       expect(arrival.getByText("Kommt heute nicht")).toBeInTheDocument();
-      expect(arrival.queryByText("08:00 Uhr")).toBeNull();
-      // Pickup block must remain unaffected.
-      expect(
-        blockFor("Heutige Abholzeit").queryByText("Kommt heute nicht"),
-      ).toBeNull();
+      expect(arrival.queryByText("08:00")).toBeNull();
+      // Pickup row must remain unaffected.
+      expect(rowFor("pickup").queryByText("Kommt heute nicht")).toBeNull();
     });
 
-    it("renders the absence reason inside the absent block", () => {
+    it("renders the absence reason inside the absent row", () => {
       renderHeaderWithTimes({
         todayArrivalPlannedTime: "08:00",
         isArrivalAbsent: true,
         todayArrivalNote: "Krank",
       });
 
-      const arrival = blockFor("Heutige Ankunftszeit");
-      // Absence reason appears as the dedicated reason text inside the
-      // absent block — not as a generic note.
+      const arrival = rowFor("arrival");
       expect(arrival.getByText("Kommt heute nicht")).toBeInTheDocument();
-      expect(arrival.getByText("Krank")).toBeInTheDocument();
+      expect(arrival.getByText("(Krank)")).toBeInTheDocument();
     });
 
     it("renders the actual time even when no planned time was scheduled (walk-in)", () => {
       // Walk-in scenario: a student arrives without a planned arrival
-      // configured. The block still renders the actual but suppresses the
-      // 'geplant: …' secondary line because there's nothing to compare.
+      // configured. The row still renders the actual but suppresses the
+      // "(geplant: …)" parenthetical because there's nothing to compare.
       renderHeaderWithTimes({
         todayArrivalActualTime: "07:55",
       });
 
-      const arrival = blockFor("Heutige Ankunftszeit");
-      expect(arrival.getByText("07:55 Uhr")).toBeInTheDocument();
-      expect(arrival.queryByText(/^geplant:/)).toBeNull();
+      const arrival = rowFor("arrival");
+      expect(arrival.getByText("07:55")).toBeInTheDocument();
+      expect(arrival.queryByText(/geplant:/)).toBeNull();
     });
 
-    it("renders the diff annotation when actual differs from planned", () => {
+    it("folds the diff annotation into the planned parenthetical", () => {
       renderHeaderWithTimes({
         todayPickupPlannedTime: "15:00",
         todayPickupActualTime: "15:12",
       });
 
-      // The +/- minute annotation comes from getStudentTimeStatus and is
-      // surfaced as a third line. It's the bridge between the colored
-      // primary time and the planned reference — without it, caregivers
-      // would have to mentally subtract.
+      // Inline form combines planned + diff in one parenthetical to keep
+      // the row compact: "(geplant: 15:00, +12 min)".
       expect(
-        blockFor("Heutige Abholzeit").getByText("+12 min"),
+        rowFor("pickup").getByText(/geplant: 15:00, \+12 min/),
       ).toBeInTheDocument();
     });
   });
