@@ -430,7 +430,7 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users
 
 // buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
 func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) *StudentResponse {
-	hasFullAccess := accessCtx.hasFullAccessToStudent(student)
+	hasFullAccess := accessCtx.HasFullAccessToStudent(student)
 
 	// Get person data from snapshot
 	person := dataSnapshot.GetPerson(student.PersonID)
