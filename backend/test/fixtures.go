@@ -409,10 +409,12 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ?)", id),
 			"active.visits (cascade)")
 
-		// Delete from active.groups by direct ID or by reference
+		// Delete from active.groups by direct ID or by reference.
+		// room_id reference is required so facilities.rooms can be deleted
+		// without tripping fk_active_groups_room_tenant.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("active.groups").
-			Where("id = ? OR group_id = ? OR device_id = ?", id, id, id),
+			Where("id = ? OR group_id = ? OR device_id = ? OR room_id = ?", id, id, id, id),
 			"active.groups")
 
 		// ========================================
@@ -425,10 +427,12 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where("activity_group_id = ?", id),
 			"activities.student_enrollments")
 
-		// Delete from activities.groups by ID or by category_id (to handle FK constraint)
+		// Delete from activities.groups by ID, by category_id, or by created_by.
+		// created_by reference is required so users.staff can be deleted without
+		// tripping fk_activity_groups_created_by_tenant.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("activities.groups").
-			Where("id = ? OR category_id = ?", id, id),
+			Where("id = ? OR category_id = ? OR created_by = ?", id, id, id),
 			"activities.groups")
 
 		// Delete from activities.categories (now safe after groups referencing them are deleted)
@@ -473,10 +477,12 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where(whereIDOrAccountID, id, id),
 			"users.profiles")
 
-		// Delete from active.attendance (by student_id before deleting student)
+		// Delete from active.attendance by student_id or device_id.
+		// device_id reference is required so iot.devices can be deleted without
+		// tripping fk_attendance_device_tenant.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("active.attendance").
-			Where("student_id = ?", id),
+			Where("student_id = ? OR device_id = ?", id, id),
 			"active.attendance")
 
 		// Delete from users.students

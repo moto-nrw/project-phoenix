@@ -133,14 +133,18 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	// Ensure default system staff exists (person ID 1, staff ID 1) for legacy
 	// tests that hardcode CreatedBy: 1 to satisfy created_by FK constraints on
 	// schedule/activity tables. Same convention as rooms.id=1 and schools.id=1.
-	_, _ = db.ExecContext(context.Background(), `
+	// Fail fast: if the fixture insert breaks (schema drift, missing schools FK),
+	// downstream tests would otherwise fail with cryptic "missing staff" errors.
+	_, err = db.ExecContext(context.Background(), `
 		INSERT INTO users.persons (id, tenant_id, first_name, last_name)
 		VALUES (1, 1, 'System', 'Test')
 		ON CONFLICT (id) DO NOTHING`)
-	_, _ = db.ExecContext(context.Background(), `
+	require.NoError(t, err, "SetupTestDB: failed to ensure system person fixture (id=1)")
+	_, err = db.ExecContext(context.Background(), `
 		INSERT INTO users.staff (id, tenant_id, person_id)
 		VALUES (1, 1, 1)
 		ON CONFLICT (id) DO NOTHING`)
+	require.NoError(t, err, "SetupTestDB: failed to ensure system staff fixture (id=1)")
 
 	// Advance the BIGSERIAL sequence past any explicitly-inserted IDs.
 	// Uses nextval (atomic, never goes backwards) instead of setval to avoid
