@@ -9,48 +9,6 @@ import (
 
 // Analytics and statistics
 
-func (s *service) GetActiveGroupsCount(ctx context.Context) (int, error) {
-	// Implementation would count active groups without end time
-	// This is a simplified implementation
-	groups, err := s.groupRepo.List(ctx, nil)
-	if err != nil {
-		return 0, &ActiveError{Op: "GetActiveGroupsCount", Err: ErrDatabaseOperation}
-	}
-
-	count := 0
-	for _, group := range groups {
-		if group.IsActive() {
-			count++
-		}
-	}
-
-	return count, nil
-}
-
-func (s *service) GetTotalVisitsCount(ctx context.Context) (int, error) {
-	visits, err := s.visitRepo.List(ctx, nil)
-	if err != nil {
-		return 0, &ActiveError{Op: "GetTotalVisitsCount", Err: ErrDatabaseOperation}
-	}
-	return len(visits), nil
-}
-
-func (s *service) GetActiveVisitsCount(ctx context.Context) (int, error) {
-	visits, err := s.visitRepo.List(ctx, nil)
-	if err != nil {
-		return 0, &ActiveError{Op: "GetActiveVisitsCount", Err: ErrDatabaseOperation}
-	}
-
-	count := 0
-	for _, visit := range visits {
-		if visit.IsActive() {
-			count++
-		}
-	}
-
-	return count, nil
-}
-
 func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error) {
 	analytics := &DashboardAnalytics{
 		LastUpdated: time.Now(),

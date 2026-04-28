@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
   BackendCombinedGroup,
   BackendGroupMapping,
-  BackendAnalytics,
   BackendSchulhofStatus,
   BackendToggleSupervisionResponse,
 } from "./active-helpers";
@@ -98,12 +97,6 @@ const sampleBackendGroupMapping: BackendGroupMapping = {
   combined_group_id: 300,
   group_name: "Class 3A",
   combined_name: "Combined Morning",
-};
-
-const sampleBackendAnalytics: BackendAnalytics = {
-  active_groups_count: 5,
-  total_visits_count: 150,
-  active_visits_count: 45,
 };
 
 describe("active-service", () => {
@@ -808,23 +801,6 @@ describe("active-service", () => {
             method: "POST",
           }),
         );
-      });
-    });
-  });
-
-  describe("Analytics", () => {
-    describe("getAnalyticsCounts", () => {
-      it("fetches analytics counts", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: sampleBackendAnalytics }),
-        } as Response);
-
-        const result = await activeService.getAnalyticsCounts();
-
-        expect(result.activeGroupsCount).toBe(5);
-        expect(result.totalVisitsCount).toBe(150);
       });
     });
   });

@@ -104,7 +104,6 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 		// Analytics
 		r.Route("/analytics", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", tc.resource.GetCountsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", tc.resource.GetDashboardAnalyticsHandler())
 		})
 	})
@@ -172,7 +171,6 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 		// Analytics - Extended
 		r.Route("/analytics", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", tc.resource.GetCountsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", tc.resource.GetDashboardAnalyticsHandler())
 		})
 
@@ -619,33 +617,6 @@ func TestGetStaffActiveSupervisions(t *testing.T) {
 // ============================================================================
 // ANALYTICS TESTS
 // ============================================================================
-
-func TestGetCounts(t *testing.T) {
-	_, router := setupProtectedRouter(t)
-
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("success with permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/counts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-
-		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		data, ok := response["data"].(map[string]interface{})
-		require.True(t, ok, "Expected data to be an object")
-		// Note: Fields with value 0 are omitted due to omitempty in struct tags
-		// So we only verify the response is a valid object with at least active_groups_count
-		assert.Contains(t, data, "active_groups_count")
-	})
-
-	t.Run("forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/counts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
-
-		testutil.AssertForbidden(t, rr)
-	})
-}
 
 func TestGetDashboardAnalytics(t *testing.T) {
 	_, router := setupProtectedRouter(t)

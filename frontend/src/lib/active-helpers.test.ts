@@ -5,7 +5,6 @@ import {
   mapSupervisorResponse,
   mapCombinedGroupResponse,
   mapGroupMappingResponse,
-  mapAnalyticsResponse,
   mapSchulhofStatusResponse,
   mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
@@ -18,7 +17,6 @@ import {
   type BackendSupervisor,
   type BackendCombinedGroup,
   type BackendGroupMapping,
-  type BackendAnalytics,
   type BackendSchulhofStatus,
   type BackendToggleSupervisionResponse,
   type ActiveGroup,
@@ -93,12 +91,6 @@ const sampleBackendGroupMapping: BackendGroupMapping = {
   combined_group_id: 300,
   group_name: "Class 3A",
   combined_name: "Combined Morning",
-};
-
-const sampleBackendAnalytics: BackendAnalytics = {
-  active_groups_count: 5,
-  total_visits_count: 150,
-  active_visits_count: 45,
 };
 
 describe("active-helpers", () => {
@@ -320,38 +312,6 @@ describe("active-helpers", () => {
 
       expect(result.groupName).toBeUndefined();
       expect(result.combinedName).toBeUndefined();
-    });
-  });
-
-  describe("mapAnalyticsResponse", () => {
-    it("maps all fields correctly from backend to frontend format", () => {
-      const result = mapAnalyticsResponse(sampleBackendAnalytics);
-
-      expect(result.activeGroupsCount).toBe(5);
-      expect(result.totalVisitsCount).toBe(150);
-      expect(result.activeVisitsCount).toBe(45);
-    });
-
-    it("handles undefined optional fields", () => {
-      const emptyAnalytics: BackendAnalytics = {};
-
-      const result = mapAnalyticsResponse(emptyAnalytics);
-
-      expect(result.activeGroupsCount).toBeUndefined();
-      expect(result.totalVisitsCount).toBeUndefined();
-      expect(result.activeVisitsCount).toBeUndefined();
-    });
-
-    it("handles partial analytics data", () => {
-      const partialAnalytics: BackendAnalytics = {
-        active_groups_count: 3,
-      };
-
-      const result = mapAnalyticsResponse(partialAnalytics);
-
-      expect(result.activeGroupsCount).toBe(3);
-      expect(result.totalVisitsCount).toBeUndefined();
-      expect(result.activeVisitsCount).toBeUndefined();
     });
   });
 
