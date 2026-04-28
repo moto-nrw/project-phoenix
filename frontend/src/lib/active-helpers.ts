@@ -311,7 +311,7 @@ export function mapAnalyticsResponse(
 }
 
 // Request/Response types
-export interface CreateActiveGroupRequest {
+interface CreateActiveGroupRequest {
   group_id: number;
   room_id: number;
   start_time: string;
@@ -319,15 +319,7 @@ export interface CreateActiveGroupRequest {
   notes?: string;
 }
 
-export interface UpdateActiveGroupRequest {
-  group_id: number;
-  room_id: number;
-  start_time: string;
-  end_time?: string;
-  notes?: string;
-}
-
-export interface CreateVisitRequest {
+interface CreateVisitRequest {
   student_id: number;
   active_group_id: number;
   check_in_time: string;
@@ -335,15 +327,7 @@ export interface CreateVisitRequest {
   notes?: string;
 }
 
-export interface UpdateVisitRequest {
-  student_id: number;
-  active_group_id: number;
-  check_in_time: string;
-  check_out_time?: string;
-  notes?: string;
-}
-
-export interface CreateSupervisorRequest {
+interface CreateSupervisorRequest {
   staff_id: number;
   active_group_id: number;
   start_time: string;
@@ -351,15 +335,7 @@ export interface CreateSupervisorRequest {
   notes?: string;
 }
 
-export interface UpdateSupervisorRequest {
-  staff_id: number;
-  active_group_id: number;
-  start_time: string;
-  end_time?: string;
-  notes?: string;
-}
-
-export interface CreateCombinedGroupRequest {
+interface CreateCombinedGroupRequest {
   name: string;
   description?: string;
   room_id: number;
@@ -369,16 +345,7 @@ export interface CreateCombinedGroupRequest {
   group_ids?: number[];
 }
 
-export interface UpdateCombinedGroupRequest {
-  name: string;
-  description?: string;
-  room_id: number;
-  start_time: string;
-  end_time?: string;
-  notes?: string;
-}
-
-export interface GroupMappingRequest {
+interface GroupMappingRequest {
   active_group_id: number;
   combined_group_id: number;
 }
@@ -493,9 +460,6 @@ export type CreateCombinedGroupInput = Omit<
 >;
 
 // UnclaimedGroup interface for deviceless room claiming
-export interface UnclaimedGroup extends ActiveGroup {
-  studentCount: number;
-}
 
 // Schulhof (schoolyard) types for permanent tab functionality
 export interface BackendSchulhofStatus {
@@ -511,7 +475,7 @@ export interface BackendSchulhofStatus {
   supervisors: BackendSchulhofSupervisor[];
 }
 
-export interface BackendSchulhofSupervisor {
+interface BackendSchulhofSupervisor {
   id: number;
   staff_id: number;
   name: string;
@@ -537,7 +501,7 @@ export interface SchulhofStatus {
   supervisors: SchulhofSupervisor[];
 }
 
-export interface SchulhofSupervisor {
+interface SchulhofSupervisor {
   id: string;
   staffId: string;
   name: string;

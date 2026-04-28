@@ -40,7 +40,7 @@ export interface UserProfile {
   active: boolean;
 }
 
-export interface Person {
+interface Person {
   id: string;
   first_name: string;
   last_name: string;

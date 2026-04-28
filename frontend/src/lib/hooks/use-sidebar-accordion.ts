@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 
-export type AccordionSection = "groups" | "supervisions" | "database" | null;
+type AccordionSection = "groups" | "supervisions" | "database" | null;
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
 

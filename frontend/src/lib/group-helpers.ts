@@ -72,7 +72,7 @@ export interface BackendCombinedGroup {
 
 // Frontend types
 // Define a compatible StudentForGroup interface that matches the required properties of Student in api.ts
-export interface StudentForGroup {
+interface StudentForGroup {
   id: string;
   name: string;
   school_class: string;
@@ -288,37 +288,6 @@ export function prepareCombinedGroupForBackend(
 }
 
 // Request/Response types
-export interface CreateGroupRequest {
-  name: string;
-  room_id?: number;
-  representative_id?: number;
-}
-
-export interface UpdateGroupRequest {
-  name: string;
-  room_id?: number;
-  representative_id?: number;
-}
-
-export interface CreateCombinedGroupRequest {
-  name: string;
-  is_active: boolean;
-  valid_until?: string;
-  access_policy: string;
-  specific_group_id?: number;
-  group_ids?: number[];
-  specialist_ids?: number[];
-}
-
-export interface UpdateCombinedGroupRequest {
-  name: string;
-  is_active: boolean;
-  valid_until?: string;
-  access_policy: string;
-  specific_group_id?: number;
-  group_ids?: number[];
-  specialist_ids?: number[];
-}
 
 // Helper functions
 export function formatGroupName(group: Group): string {

@@ -5,7 +5,7 @@
  * digit, special). Labels are the user-facing German copy — keep them
  * consistent across forms so that copy drift cannot happen.
  */
-export interface PasswordRule {
+interface PasswordRule {
   readonly label: string;
   readonly test: (value: string) => boolean;
 }

@@ -59,7 +59,7 @@ function actionForState(state: StudentCheckinState): SchoolCheckinAction {
   return state === "anwesend" || state === "schulhof" ? "out" : "in";
 }
 
-export interface UseSchoolCheckinModeResult {
+interface UseSchoolCheckinModeResult {
   /** Whether the page is currently in check-in/out mode. */
   isActive: boolean;
   /** Flip between active and inactive. Resets the per-session counter

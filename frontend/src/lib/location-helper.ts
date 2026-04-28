@@ -2,7 +2,7 @@
  * Centralized helpers for parsing, styling, and rendering student location data.
  */
 
-export interface ParsedLocation {
+interface ParsedLocation {
   status: string;
   room?: string;
 }

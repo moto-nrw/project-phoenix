@@ -32,7 +32,7 @@ export interface DashboardAnalytics {
   lastUpdated: Date;
 }
 
-export interface RecentActivity {
+interface RecentActivity {
   type: "check_in" | "check_out" | "group_start" | "group_end";
   groupName: string;
   roomName: string;
@@ -40,7 +40,7 @@ export interface RecentActivity {
   timestamp: Date;
 }
 
-export interface CurrentActivity {
+interface CurrentActivity {
   name: string;
   category: string;
   participants: number;
@@ -48,7 +48,7 @@ export interface CurrentActivity {
   status: "active" | "full" | "ending_soon";
 }
 
-export interface ActiveGroupInfo {
+interface ActiveGroupInfo {
   name: string;
   type: "ogs_group" | "activity";
   studentCount: number;

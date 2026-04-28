@@ -1,6 +1,6 @@
 import { authFetch } from "./api-helpers";
 
-export interface PlatformAnnouncement {
+interface PlatformAnnouncement {
   id: string;
   title: string;
   content: string;

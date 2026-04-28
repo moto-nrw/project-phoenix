@@ -11,14 +11,14 @@ export interface BackendAttendanceHistoryResponse {
   caps: { attendance_days: number; room_detail_days: number };
 }
 
-export interface BackendAttendanceHistoryDay {
+interface BackendAttendanceHistoryDay {
   date: string;
   attendance: BackendAttendanceRecord | null;
   room_detail_available: boolean;
   visits: BackendAttendanceVisit[] | null;
 }
 
-export interface BackendAttendanceRecord {
+interface BackendAttendanceRecord {
   check_in_time: string;
   check_out_time?: string | null;
   duration_minutes?: number | null;
@@ -27,7 +27,7 @@ export interface BackendAttendanceRecord {
   device_id: number;
 }
 
-export interface BackendAttendanceVisit {
+interface BackendAttendanceVisit {
   room_id?: number | null;
   room_name?: string;
   entry_time: string;
@@ -52,7 +52,7 @@ export interface AttendanceHistoryDay {
   visits: AttendanceVisit[];
 }
 
-export interface AttendanceRecord {
+interface AttendanceRecord {
   checkInTime: Date;
   checkOutTime: Date | null;
   durationMinutes: number | null;
@@ -61,7 +61,7 @@ export interface AttendanceRecord {
   deviceId: number;
 }
 
-export interface AttendanceVisit {
+interface AttendanceVisit {
   roomId: number | null;
   roomName: string;
   entryTime: Date;

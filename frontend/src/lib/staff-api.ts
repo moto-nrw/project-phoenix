@@ -26,7 +26,7 @@ export interface BackendStaffResponse {
   absence_type?: string;
 }
 
-export interface ActiveSupervisionResponse {
+interface ActiveSupervisionResponse {
   id: number;
   staff_id: number;
   group_id: number;
@@ -46,7 +46,7 @@ export interface ActiveSupervisionResponse {
 }
 
 // Individual supervision entry for a staff member
-export interface StaffSupervision {
+interface StaffSupervision {
   roomId: string;
   roomName: string;
   activeGroupId: string;

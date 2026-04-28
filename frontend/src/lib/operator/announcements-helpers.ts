@@ -1,6 +1,6 @@
 export type AnnouncementType = "announcement" | "release" | "maintenance";
 export type AnnouncementSeverity = "info" | "warning" | "critical";
-export type AnnouncementStatus = "draft" | "published" | "expired";
+type AnnouncementStatus = "draft" | "published" | "expired";
 export type SystemRole = "admin" | "user" | "guardian";
 
 export const SYSTEM_ROLE_LABELS: Record<SystemRole, string> = {
@@ -143,32 +143,8 @@ export const ANNOUNCEMENT_STATUS_LABELS: Record<AnnouncementStatus, string> = {
   expired: "Abgelaufen",
 };
 
-export const TYPE_STYLES: Record<AnnouncementType, string> = {
-  announcement: "bg-blue-100 text-blue-700",
-  release: "bg-green-100 text-green-700",
-  maintenance: "bg-orange-100 text-orange-700",
-};
-
 export const TYPE_TEXT_COLORS: Record<AnnouncementType, string> = {
   announcement: "text-[#5080D8]", // moto blue
   release: "text-[#83CD2D]", // moto green
   maintenance: "text-[#F78C10]", // moto orange
-};
-
-export const SEVERITY_STYLES: Record<AnnouncementSeverity, string> = {
-  info: "bg-gray-100 text-gray-700",
-  warning: "bg-yellow-100 text-yellow-800",
-  critical: "bg-red-100 text-red-700",
-};
-
-export const SEVERITY_BORDER_STYLES: Record<AnnouncementSeverity, string> = {
-  info: "border-l-gray-300",
-  warning: "border-l-yellow-400",
-  critical: "border-l-red-500",
-};
-
-export const ANNOUNCEMENT_STATUS_STYLES: Record<AnnouncementStatus, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  published: "bg-green-100 text-green-700",
-  expired: "bg-red-100 text-red-700",
 };
