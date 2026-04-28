@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -136,21 +137,41 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	// Fail fast: if the fixture insert breaks (schema drift, missing schools FK),
 	// downstream tests would otherwise fail with cryptic "missing staff" errors.
 	//
-	// Use unconstrained ON CONFLICT DO NOTHING so we catch every unique
-	// violation, not just the one on persons_pkey/staff_pkey: users.persons
-	// also carries idx_persons_tenant_pk UNIQUE(tenant_id, id) and Postgres
-	// raises that one first under concurrent test setup, so a targeted
-	// ON CONFLICT (id) leaks the error past the no-op intent.
-	_, err = db.ExecContext(context.Background(), `
-		INSERT INTO users.persons (id, tenant_id, first_name, last_name)
-		VALUES (1, 1, 'System', 'Test')
-		ON CONFLICT DO NOTHING`)
-	require.NoError(t, err, "SetupTestDB: failed to ensure system person fixture (id=1)")
-	_, err = db.ExecContext(context.Background(), `
-		INSERT INTO users.staff (id, tenant_id, person_id)
-		VALUES (1, 1, 1)
-		ON CONFLICT DO NOTHING`)
-	require.NoError(t, err, "SetupTestDB: failed to ensure system staff fixture (id=1)")
+	// Wrap both inserts in a transaction so they're atomic from the perspective
+	// of parallel test packages. Otherwise a concurrent CleanupActivityFixtures
+	// could delete the persons row between the two inserts, leaving the staff
+	// FK to fail. Use unconstrained ON CONFLICT DO NOTHING (rather than
+	// ON CONFLICT (id)) because users.persons also carries
+	// idx_persons_tenant_pk UNIQUE(tenant_id, id) and Postgres reports that
+	// index first under load, so a column-targeted ON CONFLICT leaks the error.
+	// After the upserts, reconcile any wrong-tenant row so the system fixture
+	// always ends up at (tenant_id=1, id=1).
+	ctx := context.Background()
+	require.NoError(t, db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, e := tx.ExecContext(ctx, `
+			INSERT INTO users.persons (id, tenant_id, first_name, last_name)
+			VALUES (1, 1, 'System', 'Test')
+			ON CONFLICT DO NOTHING`); e != nil {
+			return fmt.Errorf("ensure system person fixture (id=1): %w", e)
+		}
+		if _, e := tx.ExecContext(ctx, `
+			UPDATE users.persons SET tenant_id = 1, first_name = 'System', last_name = 'Test'
+			WHERE id = 1 AND tenant_id <> 1`); e != nil {
+			return fmt.Errorf("reconcile system person tenant_id (id=1): %w", e)
+		}
+		if _, e := tx.ExecContext(ctx, `
+			INSERT INTO users.staff (id, tenant_id, person_id)
+			VALUES (1, 1, 1)
+			ON CONFLICT DO NOTHING`); e != nil {
+			return fmt.Errorf("ensure system staff fixture (id=1): %w", e)
+		}
+		if _, e := tx.ExecContext(ctx, `
+			UPDATE users.staff SET tenant_id = 1, person_id = 1
+			WHERE id = 1 AND (tenant_id <> 1 OR person_id <> 1)`); e != nil {
+			return fmt.Errorf("reconcile system staff tenant_id (id=1): %w", e)
+		}
+		return nil
+	}), "SetupTestDB: failed to ensure system person/staff fixtures (id=1)")
 
 	// Advance the BIGSERIAL sequence past any explicitly-inserted IDs.
 	// Uses nextval (atomic, never goes backwards) instead of setval to avoid
