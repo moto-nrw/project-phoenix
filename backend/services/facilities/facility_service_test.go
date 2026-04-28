@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -22,7 +23,20 @@ func createRoomWithExactName(t *testing.T, db *bun.DB, name string) *facilities.
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
 
-	// Clean up any pre-existing room with this exact name (from crashed tests or seed data)
+	// Clean up any pre-existing room with this exact name, including active
+	// session artifacts that would otherwise block deleting the old room row.
+	// Parameterized via $1 to keep the helper safe against names containing
+	// quotes or other SQL metacharacters.
+	for _, query := range []string{
+		`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = $1 AND r.tenant_id = 1)`,
+		`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = $1 AND r.tenant_id = 1)`,
+		`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = $1 AND r.tenant_id = 1)`,
+		`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = $1 AND tenant_id = 1)`,
+		`UPDATE iot.devices SET room_id = NULL WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = $1 AND tenant_id = 1)`,
+	} {
+		_, _ = db.ExecContext(ctx, query, name)
+	}
+
 	_, _ = db.NewDelete().
 		TableExpr("facilities.rooms").
 		Where("name = ? AND tenant_id = 1", name).
@@ -32,8 +46,36 @@ func createRoomWithExactName(t *testing.T, db *bun.DB, name string) *facilities.
 		Name:     name,
 		Building: "Test Building",
 	}
+	switch name {
+	case constants.SchulhofRoomName:
+		color := constants.SchulhofColor
+		room.Color = &color
+	case constants.WCRoomName:
+		color := constants.WCColor
+		room.Color = &color
+	}
+
+	existing := new(facilities.Room)
+	err := db.NewSelect().
+		Model(existing).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".name = ? AND "room".tenant_id = 1`, name).
+		Scan(ctx)
+	if err == nil {
+		existing.Building = room.Building
+		existing.Color = room.Color
+		_, updateErr := db.NewUpdate().
+			Model(existing).
+			ModelTableExpr(`facilities.rooms AS "room"`).
+			Column("building", "color").
+			Where(`"room".id = ?`, existing.ID).
+			Exec(ctx)
+		require.NoError(t, updateErr, "Failed to normalize existing room %q", name)
+		return existing
+	}
+
 	room.SetTenantID(1)
-	err := db.NewInsert().
+	err = db.NewInsert().
 		Model(room).
 		ModelTableExpr(`facilities.rooms`).
 		Scan(ctx)
@@ -251,6 +293,30 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 	})
+
+	t.Run("rejects malformed hex color", func(t *testing.T) {
+		// ARRANGE — defense-in-depth: the model regex must catch garbage so
+		// junk colors never reach the DB or leak through to LocationBadge.
+		for _, bad := range []string{"red", "#GGGGGG", "#1234", "#12345", "rgb(0,0,0)"} {
+			bad := bad
+			t.Run(bad, func(t *testing.T) {
+				color := bad
+				room := &facilities.Room{
+					Name:     "BadColor-" + time.Now().Format("20060102150405.000000"),
+					Building: "Building A",
+					Color:    &color,
+				}
+
+				// ACT
+				err := service.CreateRoom(ctx, room)
+
+				// ASSERT
+				require.Error(t, err, "expected rejection for color %q", bad)
+				assert.Contains(t, err.Error(), "color", "error should mention the offending field")
+				assert.Zero(t, room.ID, "rejected room must not be persisted")
+			})
+		}
+	})
 }
 
 // ============================================================================
@@ -355,13 +421,14 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		assert.Contains(t, err.Error(), "Systemraum")
 	})
 
-	t.Run("allows updating other properties of system room", func(t *testing.T) {
+	t.Run("allows updating other properties of system room when color is omitted", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.WCRoomName
 		room := createRoomWithExactName(t, db, "WC")
 		defer cleanupRoom(t, db, room.ID)
 
 		newCapacity := 25
 		room.Capacity = &newCapacity
+		room.Color = nil
 
 		// ACT
 		err := service.UpdateRoom(ctx, room)
@@ -373,6 +440,40 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 25, *updated.Capacity)
 		assert.Equal(t, "WC", updated.Name)
+		require.NotNil(t, updated.Color)
+		assert.Equal(t, constants.WCColor, *updated.Color)
+	})
+
+	t.Run("blocks changing system room color", func(t *testing.T) {
+		// ARRANGE — exact name required to match constants.SchulhofRoomName
+		room := createRoomWithExactName(t, db, "Schulhof")
+		defer cleanupRoom(t, db, room.ID)
+
+		color := "#123456"
+		room.Color = &color
+
+		// ACT
+		err := service.UpdateRoom(ctx, room)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemraum")
+	})
+
+	t.Run("rejects malformed hex color on update", func(t *testing.T) {
+		// ARRANGE — start from a valid room, then try to overwrite with junk.
+		room := testpkg.CreateTestRoom(t, db, "UpdateBadColor-"+time.Now().Format("20060102150405.000"))
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+
+		bad := "not-a-hex"
+		room.Color = &bad
+
+		// ACT
+		err := service.UpdateRoom(ctx, room)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "color")
 	})
 }
 

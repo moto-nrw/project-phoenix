@@ -410,6 +410,9 @@ func (m *mockRoomRepo) Create(_ context.Context, _ *facilities.Room) error { ret
 func (m *mockRoomRepo) FindByID(_ context.Context, _ interface{}) (*facilities.Room, error) {
 	return nil, nil
 }
+func (m *mockRoomRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*facilities.Room, error) {
+	return map[int64]*facilities.Room{}, nil
+}
 func (m *mockRoomRepo) FindByName(_ context.Context, _ string) (*facilities.Room, error) {
 	return nil, nil
 }

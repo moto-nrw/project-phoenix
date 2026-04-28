@@ -128,6 +128,7 @@ interface BFFDashboardResponse {
     sickSince?: string;
     excused?: boolean;
     excusedSince?: string;
+    badgeColor?: string | null;
   }>;
   firstRoomId: string | null;
   schulhofStatus: SchulhofStatusResponse | null;
@@ -445,6 +446,7 @@ function MeinRaumPageContent() {
             sick_since: visit.sickSince,
             excused: visit.excused,
             excused_since: visit.excusedSince,
+            badge_color: visit.badgeColor ?? null,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
           } as StudentWithVisit;
@@ -779,6 +781,7 @@ function MeinRaumPageContent() {
               sick_since: visit.sickSince,
               excused: visit.excused,
               excused_since: visit.excusedSince,
+              badge_color: visit.badgeColor ?? null,
               activeGroupId: visit.activeGroupId,
               checkInTime: new Date(visit.checkInTime),
             } as StudentWithVisit;
@@ -936,6 +939,7 @@ function MeinRaumPageContent() {
           sick_since: visit.sickSince,
           excused: visit.excused,
           excused_since: visit.excusedSince,
+          badge_color: visit.badgeColor ?? null,
           activeGroupId: visit.activeGroupId,
           checkInTime: visit.checkInTime,
         } as StudentWithVisit;

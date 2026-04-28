@@ -8,6 +8,7 @@ interface StudentBadgeData {
   location_since?: string;
   group_id?: string;
   group_name?: string;
+  badge_color?: string | null;
 }
 
 interface StudentHeaderProps {

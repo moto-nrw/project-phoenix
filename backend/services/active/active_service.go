@@ -224,6 +224,33 @@ func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (m
 		groups = make(map[int64]*active.Group)
 	}
 
+	// Bulk-load rooms so downstream callers (location resolver, badge color)
+	// can render room names and per-room colors without extra queries.
+	roomIDs := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		if group != nil && group.Room == nil && group.RoomID > 0 {
+			roomIDs = append(roomIDs, group.RoomID)
+		}
+	}
+	if len(roomIDs) > 0 {
+		rooms, roomErr := s.roomRepo.FindByIDs(ctx, roomIDs)
+		if roomErr != nil {
+			s.getLogger().Warn("bulk room load failed",
+				slog.String("error", roomErr.Error()),
+				slog.Int("room_id_count", len(roomIDs)),
+			)
+		} else {
+			for _, group := range groups {
+				if group == nil || group.Room != nil || group.RoomID <= 0 {
+					continue
+				}
+				if room, ok := rooms[group.RoomID]; ok {
+					group.Room = room
+				}
+			}
+		}
+	}
+
 	return groups, nil
 }
 

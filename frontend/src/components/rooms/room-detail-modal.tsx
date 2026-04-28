@@ -10,6 +10,7 @@ import {
   DetailIcons,
 } from "~/components/ui/detail-modal-components";
 import { formatFloor, isSystemRoom, type Room } from "@/lib/room-helpers";
+import { getRoomGradient } from "~/lib/location-helper";
 
 interface RoomDetailModalProps {
   readonly isOpen: boolean;
@@ -49,7 +50,10 @@ export function RoomDetailModal({
       <div className="space-y-4 md:space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-gray-100 pb-3 md:gap-4 md:pb-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 text-xl font-semibold text-white shadow-md md:h-16 md:w-16">
+          <div
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br text-xl font-semibold text-white shadow-md md:h-16 md:w-16"
+            style={{ backgroundImage: getRoomGradient(room.color) }}
+          >
             {initial}
           </div>
           <div className="min-w-0">
@@ -87,6 +91,21 @@ export function RoomDetailModal({
               </DataField>
               <DataField label="Status">
                 {room.isOccupied ? "Belegt" : "Frei"}
+              </DataField>
+              <DataField label="Badge-Farbe">
+                {room.color ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      className="inline-block h-4 w-4 rounded-full border border-white shadow-sm"
+                      style={{ backgroundColor: room.color }}
+                    />
+                    <span className="font-mono text-xs uppercase">
+                      {room.color}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-gray-500">Keine</span>
+                )}
               </DataField>
               {room.activityName && (
                 <DataField label="Aktivität" fullWidth>

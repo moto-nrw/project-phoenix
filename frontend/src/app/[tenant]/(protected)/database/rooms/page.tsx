@@ -16,6 +16,7 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
+import { getRoomGradient } from "~/lib/location-helper";
 import {
   RoomCreateModal,
   RoomDetailModal,
@@ -401,7 +402,10 @@ export default function RoomsPage() {
 
                 <div className="relative flex items-center gap-4 p-5">
                   <div className="flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
+                    <div
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105"
+                      style={{ backgroundImage: getRoomGradient(room.color) }}
+                    >
                       {initial}
                     </div>
                   </div>

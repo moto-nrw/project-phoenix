@@ -11,8 +11,10 @@ import (
 
 // StudentLocationInfo contains resolved location data including timestamps
 type StudentLocationInfo struct {
-	Location string
-	Since    *time.Time // When the student entered this location (nil if not in a room)
+	Location   string
+	Since      *time.Time // When the student entered this location (nil if not in a room)
+	BadgeColor *string    // Per-room hex color (nil when student is not in a room with a custom color)
+	RoomID     *int64     // ID of the room the student is currently in (nil when not in a room)
 }
 
 // StudentLocationSnapshot caches attendance, visit, and group data for a set of students.
@@ -171,9 +173,12 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 	}
 
 	if group.Room != nil && group.Room.Name != "" {
+		roomID := group.Room.ID
 		return StudentLocationInfo{
-			Location: fmt.Sprintf("Anwesend - %s", group.Room.Name),
-			Since:    &visit.EntryTime,
+			Location:   fmt.Sprintf("Anwesend - %s", group.Room.Name),
+			Since:      &visit.EntryTime,
+			BadgeColor: ResolveRoomBadgeColor(group.Room.Name, group.Room.Color, false),
+			RoomID:     &roomID,
 		}
 	}
 

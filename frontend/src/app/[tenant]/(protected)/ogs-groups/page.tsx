@@ -89,6 +89,7 @@ interface BackendStudentFromBFF {
   excused?: boolean;
   excused_since?: string;
   location_since?: string;
+  badge_color?: string | null;
   group_id?: number;
   group_name?: string;
   arrival_time?: string;
@@ -310,6 +311,7 @@ function OGSGroupPageContent() {
         excused: s.excused ?? false,
         excused_since: s.excused_since,
         location_since: s.location_since,
+        badge_color: s.badge_color ?? null,
         group_id: s.group_id?.toString(),
         group_name: s.group_name,
         arrival_time: s.arrival_time,

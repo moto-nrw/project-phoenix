@@ -175,6 +175,16 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 		return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
 	}
 
+	// System-room edit forms intentionally omit the color field. Preserve the
+	// reserved stored color in that case, but still reject explicit changes.
+	if constants.IsSystemRoomName(existingRoom.Name) {
+		if room.Color == nil {
+			room.Color = existingRoom.Color
+		} else if !equalOptionalString(room.Color, existingRoom.Color) {
+			return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
+		}
+	}
+
 	// If name is changing, check for duplicates
 	if existingRoom.Name != room.Name {
 		existing, err := s.roomRepo.FindByName(ctx, room.Name)
@@ -222,6 +232,14 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 	}
 
 	return nil
+}
+
+func equalOptionalString(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+
+	return *a == *b
 }
 
 // ListRooms retrieves all rooms with occupancy status

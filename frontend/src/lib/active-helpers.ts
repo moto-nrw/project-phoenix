@@ -53,6 +53,8 @@ export interface BackendVisit {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  /** Resolved badge color: green when in own stammraum, room's custom color otherwise, null when no color is set */
+  badge_color?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +145,8 @@ export interface Visit {
   sickSince?: string;
   excused?: boolean;
   excusedSince?: string;
+  /** Resolved badge color (green for stammraum, room color else, null for fallback) */
+  badgeColor?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -237,6 +241,7 @@ export function mapVisitResponse(backendVisit: BackendVisit): Visit {
     sickSince: backendVisit.sick_since,
     excused: backendVisit.excused,
     excusedSince: backendVisit.excused_since,
+    badgeColor: backendVisit.badge_color ?? null,
     createdAt: new Date(backendVisit.created_at),
     updatedAt: new Date(backendVisit.updated_at),
   };

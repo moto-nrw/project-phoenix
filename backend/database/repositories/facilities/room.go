@@ -81,6 +81,35 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 	return base.AssertRowsAffected(result, 1, "update room")
 }
 
+// FindByIDs retrieves rooms by a list of IDs in one query and returns them keyed by ID.
+func (r *RoomRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*facilities.Room, error) {
+	if len(ids) == 0 {
+		return map[int64]*facilities.Room{}, nil
+	}
+
+	var rooms []*facilities.Room
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rooms).
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
+		Where("room.id IN (?)", bun.In(ids))
+
+	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by ids", Err: err}
+	}
+
+	result := make(map[int64]*facilities.Room, len(rooms))
+	for _, room := range rooms {
+		if room != nil {
+			result[room.ID] = room
+		}
+	}
+	return result, nil
+}
+
 // FindByName retrieves a room by its name
 func (r *RoomRepository) FindByName(ctx context.Context, name string) (*facilities.Room, error) {
 	room := new(facilities.Room)

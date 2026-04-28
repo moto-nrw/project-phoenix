@@ -79,6 +79,7 @@ function mapStudentResponse(
     location_since: hasAccess
       ? (mappedStudent.location_since ?? undefined)
       : undefined,
+    badge_color: mappedStudent.badge_color ?? null,
     bus: mappedStudent.bus ?? false,
     current_room: undefined,
     birthday: mappedStudent.birthday ?? undefined,

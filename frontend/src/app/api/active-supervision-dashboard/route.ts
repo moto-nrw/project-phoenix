@@ -74,6 +74,7 @@ interface BackendVisitDisplay {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  badge_color?: string | null;
   is_active: boolean;
 }
 
@@ -140,6 +141,7 @@ interface ActiveSupervisionDashboardResponse {
     sickSince?: string;
     excused?: boolean;
     excusedSince?: string;
+    badgeColor?: string | null;
   }>;
 
   // ID of first room (for state initialization)
@@ -382,6 +384,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
             sickSince: v.sick_since,
             excused: v.excused,
             excusedSince: v.excused_since,
+            badgeColor: v.badge_color ?? null,
           }));
       } catch {
         firstRoomVisits = [];

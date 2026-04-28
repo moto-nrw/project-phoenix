@@ -33,7 +33,7 @@ export function RoomEditModal({
   const isSystem = isSystemRoom(room);
 
   // Dynamically add legacy category if room has one not in standard list
-  // and disable name field for system rooms
+  // and apply system-room protections.
   const sections = useMemo(() => {
     let baseSections = roomsConfig.form.sections.map(configToFormSection);
 
@@ -57,19 +57,22 @@ export function RoomEditModal({
       }));
     }
 
-    // Disable name field for system rooms (Schulhof, WC)
+    // System rooms keep their reserved location semantics, so they cannot be
+    // renamed and their badge color cannot be customized.
     if (isSystem) {
       baseSections = baseSections.map((section) => ({
         ...section,
-        fields: section.fields.map((field) =>
-          field.name === "name"
-            ? {
-                ...field,
-                disabled: true,
-                helperText: "Systemraum: Name kann nicht geändert werden",
-              }
-            : field,
-        ),
+        fields: section.fields
+          .filter((field) => field.name !== "color")
+          .map((field) =>
+            field.name === "name"
+              ? {
+                  ...field,
+                  disabled: true,
+                  helperText: "Systemraum: Name kann nicht geändert werden",
+                }
+              : field,
+          ),
       }));
     }
 

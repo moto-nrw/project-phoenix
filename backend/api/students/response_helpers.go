@@ -134,6 +134,19 @@ func populateSnapshotPublicFields(response *StudentResponse, student *users.Stud
 	}
 }
 
+// applyStammraumOverride sets the response's BadgeColor to green when the
+// student is in the room assigned to their education group. Otherwise leaves
+// the color resolved from the visited room as-is.
+func applyStammraumOverride(response *StudentResponse, info common.StudentLocationInfo, group *education.Group) {
+	if info.RoomID == nil || group == nil || group.RoomID == nil {
+		return
+	}
+	if *info.RoomID == *group.RoomID {
+		green := common.BadgeStammraumGreen
+		response.BadgeColor = &green
+	}
+}
+
 // presentOrTransit returns the appropriate location for a checked-in student
 // without a specific room assignment, based on access level.
 func presentOrTransit(hasFullAccess bool) common.StudentLocationInfo {
@@ -176,9 +189,12 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 	// Include room name for all authenticated staff (needed for supervised room checkout)
 	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
+		roomID := activeGroup.Room.ID
 		return common.StudentLocationInfo{
-			Location: fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
-			Since:    &currentVisit.EntryTime,
+			Location:   fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
+			Since:      &currentVisit.EntryTime,
+			BadgeColor: common.ResolveRoomBadgeColor(activeGroup.Room.Name, activeGroup.Room.Color, false),
+			RoomID:     &roomID,
 		}
 	}
 
@@ -219,6 +235,8 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, services.ActiveService)
 		response.Location = locationInfo.Location
 		response.LocationSince = locationInfo.Since
+		response.BadgeColor = locationInfo.BadgeColor
+		applyStammraumOverride(&response, locationInfo, group)
 	}
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
@@ -255,6 +273,8 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	locationInfo := snapshot.ResolveLocationWithTime(student.ID, hasFullAccess)
 	response.Location = locationInfo.Location
 	response.LocationSince = locationInfo.Since
+	response.BadgeColor = locationInfo.BadgeColor
+	applyStammraumOverride(&response, locationInfo, group)
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 	populateSnapshotPublicFields(&response, student)

@@ -28,6 +28,8 @@ export interface StudentLocationContext {
   /** Today has an arrival-schedule exception with null expected time — student is not coming */
   not_arrival_today?: boolean;
   not_arrival_reason?: string | null;
+  /** Per-room custom color from the backend (resolved against the active group's room) */
+  badge_color?: string | null;
 }
 
 export const LOCATION_STATUSES = {
@@ -52,6 +54,69 @@ export const LOCATION_COLORS = {
   EXCUSED: "#7C3AED", // Purple - excused absence (kind is not attending today)
   NOT_ARRIVAL: "#6B7280", // Gray - planned absence via arrival-schedule exception
 } as const;
+
+/**
+ * Curated palette for per-room color customization. Picks are chosen from
+ * hue zones that do NOT appear in the status badges (no Rot/Orange/Amber/
+ * Lime-Grün/Medium-Blau/Violett/Magenta — those are reserved for HOME,
+ * SCHOOLYARD, SICK, GROUP_ROOM, OTHER_ROOM, EXCUSED, TRANSIT). Within the
+ * remaining safe range we use multiple recognizable shades per family
+ * (Mint/Türkis/Cyan and Hellblau/Dunkelblau and Pink/Rosa) so neighboring
+ * picks differ in lightness AND hue, not just one or the other.
+ */
+export const ROOM_COLOR_PALETTE: readonly string[] = [
+  "#34D399", // Mint        (emerald-400)  ~158° (light, NOT lime)
+  "#14B8A6", // Türkis      (teal-500)     ~173°
+  "#06B6D4", // Cyan        (cyan-500)     ~189°
+  "#38BDF8", // Hellblau    (sky-400)      ~199° (light)
+  "#1D4ED8", // Dunkelblau  (blue-700)     ~224° (deep, NOT OTHER_ROOM)
+  "#6366F1", // Indigo      (indigo-500)   ~239°
+  "#A855F7", // Lila        (purple-500)   ~271°
+  "#EC4899", // Pink        (pink-500)     ~333° (vivid)
+  "#F43F5E", // Rosa        (rose-500)     ~350° (red-leaning, NOT HOME)
+] as const;
+
+/**
+ * Picks a color from the palette using a soft-prefer-unique strategy:
+ * if any palette colors are unused by existing rooms, pick from those first;
+ * otherwise allow duplicates by picking from the full palette.
+ */
+export function pickRoomColor(usedColors: readonly string[]): string {
+  const usedSet = new Set(usedColors.map((c) => c.toLowerCase()));
+  const unused = ROOM_COLOR_PALETTE.filter(
+    (c) => !usedSet.has(c.toLowerCase()),
+  );
+  const pool = unused.length > 0 ? unused : ROOM_COLOR_PALETTE;
+  return pool[Math.floor(Math.random() * pool.length)] as string;
+}
+
+/**
+ * Matches `#RGB` or `#RRGGBB` (case-insensitive).
+ *
+ * Cross-stack parity: this MUST match the regex in
+ * `backend/models/facilities/room.go` (`Room.Validate()`), which is the
+ * authoritative gate enforced by `CreateRoom` / `UpdateRoom`. The frontend
+ * pattern is defensive (catches legacy/bad data before it hits CSS); the
+ * backend pattern is the one that prevents persistence.
+ */
+const HEX_COLOR_PATTERN = /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/;
+
+/** Returns true if `value` is a syntactically valid hex color string. */
+export function isValidRoomColor(value: unknown): value is string {
+  return typeof value === "string" && HEX_COLOR_PATTERN.test(value.trim());
+}
+
+/**
+ * Builds the avatar gradient used by room cards/avatars. Falls back to the
+ * OTHER_ROOM brand blue when no valid color is supplied so callers don't
+ * each invent their own fallback.
+ */
+export function getRoomGradient(color?: string | null): string {
+  const base = isValidRoomColor(color)
+    ? color.trim()
+    : LOCATION_COLORS.OTHER_ROOM;
+  return `linear-gradient(to bottom right, ${base}, color-mix(in srgb, ${base} 85%, black))`;
+}
 
 const LOCATION_SEPARATOR = "-";
 const UNKNOWN_STATUS = LOCATION_STATUSES.UNKNOWN;
@@ -155,11 +220,17 @@ function isStudentInGroupRoom(
 
 /**
  * Determines the color for a student who is present with a room assignment.
+ *
+ * Stammraum (own group's room) is hard-reserved as GROUP_ROOM green and
+ * always wins over `roomColor`. Otherwise, when the backend supplies the
+ * room's customized color via `roomColor`, that color is used; without it
+ * we fall back to OTHER_ROOM blue.
  */
 function getColorForPresentWithRoom(
   room: string,
   isGroupRoom?: boolean,
   groupRooms?: string[],
+  roomColor?: string | null,
 ): string {
   // Check if room is one of the user's OGS group rooms
   if (
@@ -175,7 +246,13 @@ function getColorForPresentWithRoom(
     return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
   }
 
-  // Student in any other room
+  // Student is in another room — prefer the room's individual color when
+  // it's a syntactically valid hex (defense-in-depth against legacy/bad data).
+  if (isValidRoomColor(roomColor)) {
+    return roomColor.trim();
+  }
+
+  // Fallback when the room has no (valid) color set
   return LOCATION_COLORS.OTHER_ROOM; // Blue - in external/supervised room
 }
 
@@ -184,13 +261,15 @@ function getColorForPresentWithRoom(
  *
  * Color rules:
  * - GREEN: Student in their OGS group's room OR "Anwesend" without room details
- * - BLUE: Student in any other room (external room or supervised room)
+ * - Per-room color: Student in any other room with a custom color set
+ * - BLUE: Student in any other room without a custom color
  * - RED/ORANGE/MAGENTA: Status-based (Home, Schoolyard, Transit)
  */
 export function getLocationColor(
   location?: string | null,
   isGroupRoom?: boolean,
   groupRooms?: string[],
+  roomColor?: string | null,
 ): string {
   const parsed = parseLocation(location);
   const status = parsed.status;
@@ -204,7 +283,12 @@ export function getLocationColor(
   // Handle "Anwesend" status
   if (status === LOCATION_STATUSES.PRESENT) {
     if (parsed.room) {
-      return getColorForPresentWithRoom(parsed.room, isGroupRoom, groupRooms);
+      return getColorForPresentWithRoom(
+        parsed.room,
+        isGroupRoom,
+        groupRooms,
+        roomColor,
+      );
     }
     // "Anwesend" without room details (GDPR-reduced) - show green (present in building)
     return LOCATION_COLORS.GROUP_ROOM;

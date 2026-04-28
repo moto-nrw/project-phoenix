@@ -311,6 +311,7 @@ export function StudentDetailHeader({
     excused: student.excused,
     excused_since: student.excused_since,
     has_full_access: student.has_full_access,
+    badge_color: student.badge_color,
     not_arrival_today: isArrivalAbsent ?? false,
     not_arrival_reason: todayArrivalNote ?? null,
   };

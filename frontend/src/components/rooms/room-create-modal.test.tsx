@@ -6,6 +6,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { RoomCreateModal } from "./room-create-modal";
 
+const mockPickRoomColor = vi.fn();
+const mockUseSWR = vi.fn();
+const mockFetchRooms = vi.fn();
+
 // Mock Modal component
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
@@ -34,12 +38,15 @@ vi.mock("~/components/ui/database/database-form", () => ({
     onSubmit,
     onCancel,
     submitLabel,
+    initialData,
   }: {
     onSubmit: (data: unknown) => Promise<void>;
     onCancel: () => void;
     submitLabel: string;
+    initialData: Record<string, unknown>;
   }) => (
     <div data-testid="database-form">
+      <span data-testid="initial-data">{JSON.stringify(initialData)}</span>
       <button onClick={() => onSubmit({ name: "Test Room" })}>
         {submitLabel}
       </button>
@@ -80,12 +87,30 @@ vi.mock("@/lib/database/types", () => ({
   configToFormSection: (section: unknown) => section,
 }));
 
+vi.mock("~/lib/location-helper", () => ({
+  pickRoomColor: (...args: unknown[]) => mockPickRoomColor(...args),
+}));
+
+vi.mock("swr", () => ({
+  default: (...args: unknown[]) => mockUseSWR(...args),
+}));
+
+vi.mock("~/lib/rooms-api", () => ({
+  fetchRooms: (...args: unknown[]) => mockFetchRooms(...args),
+}));
+
 describe("RoomCreateModal", () => {
   const mockOnClose = vi.fn();
   const mockOnCreate = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPickRoomColor.mockReset();
+    mockPickRoomColor
+      .mockReturnValueOnce("#111111")
+      .mockReturnValueOnce("#222222");
+    mockUseSWR.mockReturnValue({ data: [], isLoading: false });
+    mockFetchRooms.mockResolvedValue([]);
   });
 
   it("renders nothing when modal is closed", () => {
@@ -144,5 +169,87 @@ describe("RoomCreateModal", () => {
       expect(screen.getByTestId("database-form")).toBeInTheDocument();
       expect(screen.getByText("Erstellen")).toBeInTheDocument();
     });
+  });
+
+  it("waits for rooms before choosing the initial default color on cold open", async () => {
+    let swrState:
+      | { data: Array<{ color: string }>; isLoading: false }
+      | { data: undefined; isLoading: true } = {
+      data: undefined,
+      isLoading: true,
+    };
+
+    mockUseSWR.mockImplementation(() => swrState);
+
+    const { rerender } = render(
+      <RoomCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    expect(
+      screen.getByText("Formular wird vorbereitet..."),
+    ).toBeInTheDocument();
+    expect(mockPickRoomColor).not.toHaveBeenCalled();
+
+    swrState = { data: [{ color: "#34D399" }], isLoading: false };
+    rerender(
+      <RoomCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("database-form")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("initial-data")).toHaveTextContent("#111111");
+    expect(mockPickRoomColor).toHaveBeenCalledWith(["#34D399"]);
+  });
+
+  it("keeps initial data stable after rooms revalidate", async () => {
+    let swrState = {
+      data: [{ color: "#34D399" }],
+      isLoading: false,
+    };
+
+    mockUseSWR.mockImplementation(() => swrState);
+
+    const { rerender } = render(
+      <RoomCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("database-form")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("initial-data")).toHaveTextContent("#111111");
+
+    swrState = {
+      data: [{ color: "#34D399" }, { color: "#14B8A6" }],
+      isLoading: false,
+    };
+    rerender(
+      <RoomCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("database-form")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("initial-data")).toHaveTextContent("#111111");
+    expect(screen.getByTestId("initial-data")).not.toHaveTextContent("#222222");
   });
 });

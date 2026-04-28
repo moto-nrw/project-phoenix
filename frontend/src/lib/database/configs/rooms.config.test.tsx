@@ -40,11 +40,14 @@ describe("roomsConfig", () => {
     expect(fieldNames).toContain("floor");
   });
 
-  it("has default color value", () => {
-    expect(roomsConfig.form.defaultValues?.color).toBe("#4F46E5");
+  it("does not force a static default color (Create-Modal computes via pickRoomColor)", () => {
+    // The legacy "#4F46E5" indigo default was removed when the customisable
+    // room-color feature shipped. The default is now computed per-instance by
+    // RoomCreateModal using `pickRoomColor` against existing rooms.
+    expect(roomsConfig.form.defaultValues?.color).toBeUndefined();
   });
 
-  it("transforms data before submit", () => {
+  it("transforms data before submit (no longer forces a fallback color)", () => {
     const data = {
       name: "  Room 101  ",
       floor: "2",
@@ -54,7 +57,16 @@ describe("roomsConfig", () => {
     const transformed = roomsConfig.form.transformBeforeSubmit?.(data);
     expect(transformed?.name).toBe("Room 101");
     expect(transformed?.floor).toBe(2);
-    expect(transformed?.color).toBe("#4F46E5");
+    // Color is not coerced — RoomColorPicker manages its own value
+    // (palette pick or null for "Keine Farbe").
+    expect(transformed?.color).toBeUndefined();
+  });
+
+  it("includes a custom color picker field", () => {
+    const fields = roomsConfig.form.sections[0]?.fields ?? [];
+    const colorField = fields.find((f) => f.name === "color");
+    expect(colorField).toBeDefined();
+    expect(colorField?.type).toBe("custom");
   });
 
   it("validates floor field", () => {

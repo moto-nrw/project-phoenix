@@ -44,14 +44,16 @@ vi.mock("~/components/ui/database/database-form", () => ({
       fields: Array<{ name: string; disabled?: boolean; helperText?: string }>;
     }>;
   }) => {
-    const nameField = sections
-      ?.flatMap((s) => s.fields)
-      .find((f) => f.name === "name");
+    const fields = sections?.flatMap((s) => s.fields);
+    const nameField = fields.find((f) => f.name === "name");
+    const colorField = fields.find((f) => f.name === "color");
+
     return (
       <div data-testid="database-form">
         {nameField?.disabled && (
           <span data-testid="name-disabled">{nameField.helperText}</span>
         )}
+        {colorField && <span data-testid="color-field-present">Farbfeld</span>}
         <button onClick={() => onSubmit({ name: "Updated Room" })}>
           {submitLabel}
         </button>
@@ -91,6 +93,11 @@ vi.mock("@/lib/database/configs/rooms.config", () => ({
                 { value: "Themenraum", label: "Themenraum" },
                 { value: "Sport", label: "Sport" },
               ],
+            },
+            {
+              name: "color",
+              label: "Badge-Farbe",
+              type: "custom",
             },
           ],
         },
@@ -191,6 +198,7 @@ describe("RoomEditModal", () => {
     await waitFor(() => {
       expect(screen.getByTestId("database-form")).toBeInTheDocument();
       expect(screen.getByText("Speichern")).toBeInTheDocument();
+      expect(screen.getByTestId("color-field-present")).toBeInTheDocument();
     });
   });
 
@@ -248,6 +256,9 @@ describe("RoomEditModal", () => {
       const nameDisabled = screen.getByTestId("name-disabled");
       expect(nameDisabled).toBeInTheDocument();
       expect(nameDisabled).toHaveTextContent("Systemraum:");
+      expect(
+        screen.queryByTestId("color-field-present"),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -268,10 +279,13 @@ describe("RoomEditModal", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("name-disabled")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("color-field-present"),
+      ).not.toBeInTheDocument();
     });
   });
 
-  it("does not disable name field for regular room", async () => {
+  it("keeps color field for regular rooms", async () => {
     render(
       <RoomEditModal
         isOpen={true}
@@ -284,6 +298,7 @@ describe("RoomEditModal", () => {
     await waitFor(() => {
       expect(screen.getByTestId("database-form")).toBeInTheDocument();
       expect(screen.queryByTestId("name-disabled")).not.toBeInTheDocument();
+      expect(screen.getByTestId("color-field-present")).toBeInTheDocument();
     });
   });
 });

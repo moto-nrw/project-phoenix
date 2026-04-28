@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   LOCATION_STATUSES,
   LOCATION_COLORS,
+  ROOM_COLOR_PALETTE,
   parseLocation,
   normalizeLocation,
   getLocationColor,
@@ -12,6 +13,7 @@ import {
   isHomeLocation,
   isSchoolyardLocation,
   isTransitLocation,
+  pickRoomColor,
   type StudentLocationContext,
 } from "./location-helper";
 
@@ -44,6 +46,15 @@ describe("LOCATION_COLORS", () => {
     expect(LOCATION_COLORS.TRANSIT).toBe("#D946EF");
     expect(LOCATION_COLORS.UNKNOWN).toBe("#6B7280");
     expect(LOCATION_COLORS.SICK).toBe("#EAB308");
+  });
+
+  // Cross-stack parity: GROUP_ROOM is also hardcoded in
+  // backend/api/common/badge.go as `BadgeStammraumGreen`. The Go-side pin
+  // lives in `TestBadgeStammraumGreenLiteral`. If you change either side,
+  // update the other in the same commit or stammraum badges will desync
+  // between API responses and frontend rendering.
+  it("pins GROUP_ROOM to the value the backend resolves stammraum to", () => {
+    expect(LOCATION_COLORS.GROUP_ROOM).toBe("#83CD2D");
   });
 
   it("has SICK color (amber) for medical indication", () => {
@@ -312,5 +323,122 @@ describe("StudentLocationContext with sick fields", () => {
     };
     expect(student.sick).toBeUndefined();
     expect(student.sick_since).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// ROOM COLOR PALETTE + PICKER LOGIC
+// =============================================================================
+
+describe("ROOM_COLOR_PALETTE", () => {
+  it("contains the 9 curated palette colors", () => {
+    expect(ROOM_COLOR_PALETTE).toHaveLength(9);
+  });
+
+  it("does not include reserved status / brand colors", () => {
+    const reserved = [
+      LOCATION_COLORS.GROUP_ROOM,
+      LOCATION_COLORS.OTHER_ROOM,
+      LOCATION_COLORS.HOME,
+      LOCATION_COLORS.SCHOOLYARD,
+      LOCATION_COLORS.TRANSIT,
+      LOCATION_COLORS.SICK,
+      LOCATION_COLORS.EXCUSED,
+    ].map((c) => c.toLowerCase());
+    for (const palette of ROOM_COLOR_PALETTE) {
+      expect(reserved).not.toContain(palette.toLowerCase());
+    }
+  });
+});
+
+describe("pickRoomColor", () => {
+  it("returns a palette color when nothing is used", () => {
+    const picked = pickRoomColor([]);
+    expect(ROOM_COLOR_PALETTE).toContain(picked);
+  });
+
+  it("prefers an unused palette color when some are used", () => {
+    const used = ROOM_COLOR_PALETTE.slice(0, 3);
+    const picked = pickRoomColor(used);
+    expect(ROOM_COLOR_PALETTE).toContain(picked);
+    expect(used).not.toContain(picked);
+  });
+
+  it("falls back to allowing duplicates when palette is exhausted", () => {
+    const picked = pickRoomColor(ROOM_COLOR_PALETTE);
+    expect(ROOM_COLOR_PALETTE).toContain(picked);
+  });
+
+  it("compares case-insensitively when filtering used colors", () => {
+    const used = ROOM_COLOR_PALETTE.slice(0, 8).map((c) => c.toLowerCase());
+    const picked = pickRoomColor(used);
+    // Only one palette color should be left as truly "unused"
+    expect(picked.toLowerCase()).toBe(ROOM_COLOR_PALETTE[8]!.toLowerCase());
+  });
+});
+
+// =============================================================================
+// getLocationColor with roomColor parameter (per-room custom colors)
+// =============================================================================
+
+describe("getLocationColor with roomColor", () => {
+  it("returns the room's custom color for non-group rooms", () => {
+    const color = getLocationColor(
+      "Anwesend - Mathe-Raum",
+      false,
+      [],
+      "#06B6D4",
+    );
+    expect(color).toBe("#06B6D4");
+  });
+
+  it("falls back to OTHER_ROOM blue when roomColor is not provided", () => {
+    const color = getLocationColor("Anwesend - Mathe-Raum", false, []);
+    expect(color).toBe(LOCATION_COLORS.OTHER_ROOM);
+  });
+
+  it("falls back to OTHER_ROOM blue when roomColor is empty string", () => {
+    const color = getLocationColor("Anwesend - Mathe-Raum", false, [], "");
+    expect(color).toBe(LOCATION_COLORS.OTHER_ROOM);
+  });
+
+  it("falls back to OTHER_ROOM blue when roomColor is null", () => {
+    const color = getLocationColor("Anwesend - Mathe-Raum", false, [], null);
+    expect(color).toBe(LOCATION_COLORS.OTHER_ROOM);
+  });
+
+  it("Stammraum-Grün via groupRooms wins over roomColor", () => {
+    const color = getLocationColor(
+      "Anwesend - Mathe-Raum",
+      false,
+      ["Mathe-Raum"],
+      "#06B6D4",
+    );
+    expect(color).toBe(LOCATION_COLORS.GROUP_ROOM);
+  });
+
+  it("Stammraum-Grün via isGroupRoom flag wins over roomColor", () => {
+    const color = getLocationColor(
+      "Anwesend - Mathe-Raum",
+      true,
+      undefined,
+      "#06B6D4",
+    );
+    expect(color).toBe(LOCATION_COLORS.GROUP_ROOM);
+  });
+
+  it("status colors win over roomColor (Schulhof stays orange)", () => {
+    const color = getLocationColor("Schulhof", false, [], "#06B6D4");
+    expect(color).toBe(LOCATION_COLORS.SCHOOLYARD);
+  });
+
+  it("returns roomColor when room is not in groupRooms list", () => {
+    const color = getLocationColor(
+      "Anwesend - Bastelraum",
+      false,
+      ["Mathe-Raum"],
+      "#DB2777",
+    );
+    expect(color).toBe("#DB2777");
   });
 });

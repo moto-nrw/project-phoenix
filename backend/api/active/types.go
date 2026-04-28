@@ -99,6 +99,7 @@ type VisitWithDisplayDataResponse struct {
 	SickSince     *time.Time `json:"sick_since,omitempty"`
 	Excused       bool       `json:"excused"`
 	ExcusedSince  *time.Time `json:"excused_since,omitempty"`
+	BadgeColor    *string    `json:"badge_color,omitempty"` // Resolved badge color: green for stammraum, otherwise the room's custom color
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 }

@@ -350,6 +350,10 @@ type visitWithStudent struct {
 	ExcusedSince  *time.Time `bun:"excused_since"`
 	CreatedAt     time.Time  `bun:"created_at"`
 	UpdatedAt     time.Time  `bun:"updated_at"`
+	VisitedRoomID int64      `bun:"visited_room_id"` // active.groups.room_id (NOT NULL); always populated via INNER JOIN
+	RoomName      string     `bun:"room_name"`       // facilities.rooms.name; required for system-room badge overrides
+	RoomColor     *string    `bun:"room_color"`      // Per-room hex color (nullable: room may have no color)
+	StammraumID   *int64     `bun:"stammraum_id"`    // education.groups.room_id (nullable: student may have no group or group no room)
 }
 
 // fetchVisitsWithDisplayData fetches visits with student display data
@@ -372,10 +376,16 @@ func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID in
 		ColumnExpr("s.sick_since").
 		ColumnExpr("s.excused").
 		ColumnExpr("s.excused_since").
+		ColumnExpr("ag.room_id AS visited_room_id").
+		ColumnExpr("COALESCE(vr.name, '') AS room_name").
+		ColumnExpr("vr.color AS room_color").
+		ColumnExpr("g.room_id AS stammraum_id").
 		TableExpr("active.visits AS v").
 		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
 		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
 		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
+		Join("INNER JOIN active.groups AS ag ON ag.id = v.active_group_id").
+		Join("LEFT JOIN facilities.rooms AS vr ON vr.id = ag.room_id").
 		Where("v.active_group_id = ?", activeGroupID).
 		Where("v.exit_time IS NULL").
 		OrderExpr("v.entry_time DESC").
@@ -397,6 +407,13 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []Vis
 		if result.Excused != nil {
 			excused = *result.Excused
 		}
+		// Resolve final badge color with reserved semantic overrides for
+		// stammraum and system rooms. Frontend uses this verbatim.
+		badgeColor := common.ResolveRoomBadgeColor(
+			result.RoomName,
+			result.RoomColor,
+			result.StammraumID != nil && result.VisitedRoomID == *result.StammraumID,
+		)
 		responses = append(responses, VisitWithDisplayDataResponse{
 			ID:            result.VisitID,
 			StudentID:     result.StudentID,
@@ -411,6 +428,7 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []Vis
 			SickSince:     result.SickSince,
 			Excused:       excused,
 			ExcusedSince:  result.ExcusedSince,
+			BadgeColor:    badgeColor,
 			CreatedAt:     result.CreatedAt,
 			UpdatedAt:     result.UpdatedAt,
 		})

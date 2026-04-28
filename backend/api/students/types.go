@@ -22,6 +22,7 @@ type StudentResponse struct {
 	SchoolClass        string     `json:"school_class"`
 	Location           string     `json:"current_location"`
 	LocationSince      *time.Time `json:"location_since,omitempty"` // When student entered current location
+	BadgeColor         *string    `json:"badge_color,omitempty"`    // Per-room hex color of the active group's room (nil when not in a room)
 	GuardianName       string     `json:"guardian_name,omitempty"`
 	GuardianContact    string     `json:"guardian_contact,omitempty"`
 	GuardianEmail      string     `json:"guardian_email,omitempty"`
