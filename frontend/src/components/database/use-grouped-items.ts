@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { GroupDefinition } from "./grouped-list";
 
-export interface GroupingTarget {
+interface GroupingTarget {
   id: string;
   title: string;
   /** Optional sort key for ordering groups; falls back to `title`. */
