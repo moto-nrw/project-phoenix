@@ -391,6 +391,144 @@ Today ~250 functions are trivial helpers duplicated across packages. The cause i
 
 ---
 
+## 11. Services Don't Bypass Repositories
+
+**RULE: Services MUST NOT construct database queries (`NewSelect`, `NewUpdate`, `NewInsert`, `NewDelete`, `NewRaw`) directly on a `bun.DB` / `bun.IDB` / `bun.Tx` handle.** All data access goes through repositories.
+
+### What's allowed
+
+A service may hold `*bun.DB` for two reasons:
+
+- Passing it to repository constructors at wiring time
+- Starting transactions via the `base.TxHandler` pattern, then calling **repo methods** inside the closure
+
+Calling repo methods inside `RunInTx` is the correct pattern. Constructing queries inside a service — even via `repoBase.GetDB(ctx, s.db).NewSelect(...)` — is not.
+
+### Forbidden (real examples in the codebase today)
+
+```go
+// services/active/session_service.go:1096 — service issues direct SELECT
+err := s.db.NewSelect().Model(&groups).Where(...).Scan(ctx)
+
+// services/active/cleanup_service.go:181 — raw SQL in service
+err = s.db.NewRaw("DELETE FROM ... WHERE ...").Scan(ctx)
+
+// services/facilities/facility_service.go:77 — query constructed via tenant helper
+err := repoBase.GetDB(ctx, s.db).NewSelect().Model(&rooms).Where(...).Scan(ctx)
+```
+
+### Required
+
+```go
+// CORRECT — repo owns the query
+groups, err := s.groupRepo.ListByRoomID(ctx, roomID)
+
+// CORRECT — service orchestrates repo calls inside a transaction
+err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+    if err := s.visitRepo.End(ctx, visitID); err != nil { return err }
+    return s.attendanceRepo.RecordCheckout(ctx, ...)
+})
+```
+
+### Exceptions
+
+Cross-repo / cross-schema cleanup operations that genuinely don't fit a single repo's responsibility may use raw SQL — but the raw SQL must live in `database/repositories/{domain}/cleanup.go`, not inside the service. Document with a comment why a repo method isn't possible.
+
+### Detection
+
+```bash
+rg --type go -g '!*_test.go' '\.(NewSelect|NewUpdate|NewInsert|NewDelete|NewRaw)\(' backend/services/
+```
+
+Today returns ~50 hits across ~15 service files (the worst offenders: `services/active/cleanup_service.go` with 10, `services/schedule/timetable_cleanup_service.go` and `services/platform/operator_provisioning_service.go` with 8 each). New code MUST NOT add to this count.
+
+### Why
+
+The repository layer owns tenant filtering, soft-delete semantics, audit hooks, and BUN-specific quirks. When a service constructs a query directly, every one of those invariants is at risk of being silently dropped — a forgotten `WHERE tenant_id = ?` becomes a multi-tenant data leak. Centralizing queries in repos isolates that risk and makes RLS testing tractable.
+
+---
+
+## 12. Models Hold Data, Not Decisions
+
+**RULE: Methods on model entities are limited to (a) field accessors, (b) pure derivations from existing fields, and (c) BUN persistence hooks (`BeforeAppendModel`, `AfterScan`, etc.).** State mutations, business policies, RBAC decisions, and threshold-bearing logic MUST live in services. Magic numbers in model methods MUST move to settings or constants.
+
+### Allowed
+
+```go
+// CORRECT — derived field, no policy
+func (p *Person) FullName() string {
+    return p.FirstName + " " + p.LastName
+}
+
+// CORRECT — pure boolean from existing fields, no thresholds
+func (t *Token) IsExpired() bool {
+    return !t.ExpiresAt.IsZero() && time.Now().After(t.ExpiresAt)
+}
+
+// CORRECT — BUN persistence hook
+func (s *Staff) BeforeAppendModel(ctx context.Context, query bun.Query) error {
+    // tenant_id / timestamp wiring
+}
+```
+
+### Forbidden (real examples in the codebase today)
+
+```go
+// FORBIDDEN — state mutation with implicit policy
+// models/active/visit.go:97
+func (v *Visit) EndVisit() { ... }
+
+// FORBIDDEN — business decision with magic-number threshold
+// models/iot/device.go:140
+func (d *Device) IsOnline() bool {
+    return time.Since(*d.LastSeen) <= 5*time.Minute  // why 5? policy belongs elsewhere
+}
+
+// FORBIDDEN — magic number that should be a tenant setting
+// models/active/group.go:156
+return 30 * time.Minute  // "Default 30 minutes" — should be tenant-configurable
+
+// FORBIDDEN — RBAC decision in a model
+// models/auth/account.go:83
+func (a *Account) HasPermission(permission string) bool { ... }
+```
+
+### Required relocations
+
+| Was in model | Goes to |
+|---|---|
+| `Visit.EndVisit()` | `services/active/active_service.go` (with logging, events, audit) |
+| `Device.IsOnline()` (5-minute threshold) | `services/iot/iot_service.go`, threshold from settings registry |
+| `Group.DefaultDuration() = 30 * time.Minute` | settings registry (per-tenant configurable) |
+| `Account.HasPermission(p)` | `services/usercontext` or `backend/auth/authorize` |
+
+### Detection
+
+```bash
+# State-mutation verbs in model methods (Mark*/End*/Activate*/etc.)
+rg --type go -g '!*_test.go' \
+  '^func \([^)]+\) (Mark|End|Close|Reset|Activate|Deactivate|Cancel|Approve|Reject|Promote|Demote|Suspend|Restore|Archive)\w*\(' \
+  backend/models/
+
+# RBAC decisions in models
+rg --type go -g '!*_test.go' \
+  '^func \([^)]+\) (HasPermission|IsAdmin|IsOperator|CanAccess|CanEdit|CanDelete)\w*\(' \
+  backend/models/
+
+# Magic time-window literals in models
+rg --type go -g '!*_test.go' \
+  '\d+\s*\*\s*time\.(Hour|Minute|Second|Day)' \
+  backend/models/
+```
+
+Today the first command returns ~12 hits, the second returns 5 (all should move to services), and the third surfaces ~3 bona-fide policy thresholds (5-minute device offline, 30-minute default duration, 15-minute account lockout) plus a few benign `Truncate(24*time.Hour)` calls.
+
+### Why
+
+Business rules drift constantly. Yesterday's "device is offline after 5 minutes" becomes "10 minutes for school A, 2 minutes for school B." If that logic lives in a model, every drift requires touching the data layer — and worse, every consumer that calls `device.IsOnline()` becomes a hidden policy enforcer. **Models hold facts (the timestamp). Services hold rules (what counts as online). Settings hold the parameters.**
+
+---
+
 ## Code Review Checklist
 
 Apply this before approving any backend PR:
@@ -398,14 +536,16 @@ Apply this before approving any backend PR:
 - [ ] No repository imports in `api/` (other than `base.go` + `testutil/`)
 - [ ] No `Repository` fields on handler structs
 - [ ] No `.XxxRepository()` getter calls in handlers
-- [ ] New repo methods use generics — no `FindByEmail/FindByID/FindByX` clusters
-- [ ] New entities embed `base.TenantModel` — no `GetID/CreatedAt/UpdatedAt` redeclarations
+- [ ] New repo methods extend `Repository[T]` — no `FindByEmail/FindByID/FindByX` clusters, no per-field updaters
+- [ ] New entities embed `base.Model` (and `base.TenantModel` if tenant-scoped) — no redeclared ID/CreatedAt/UpdatedAt fields, no trivial `GetID/GetCreatedAt` methods
 - [ ] New handler functions score `gocognit ≤ 15`
 - [ ] No `*Handler() http.HandlerFunc` wrappers — tests use `Router()`
 - [ ] State variants live as filter params, not separate endpoints
 - [ ] Errors use `api/common` helpers, not local copies
 - [ ] Services encapsulate business logic, don't just delegate to repos
-- [ ] Auth code lives in `services/auth/` or `services/usercontext/`
+- [ ] Auth code matches the existing `backend/auth/` (primitives) vs `services/auth/` (flows) layering
+- [ ] **Services don't construct queries** — no `NewSelect/NewUpdate/NewInsert/NewDelete/NewRaw` in `services/`
+- [ ] **Models hold data, not decisions** — no state-mutation methods (`Mark*/End*/Activate*`), no RBAC (`HasPermission/IsAdmin`), no magic-number thresholds in model code
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
 
 ---
@@ -415,22 +555,38 @@ Apply this before approving any backend PR:
 ```bash
 cd backend
 
-# Layer violations
+# Rule 1 — handler layer skips
 rg --type go -g '!*_test.go' '^\s+\w+\s+[\w\.]*Repository\b|\.\w+Repository\(\)' \
    api/ -c | sort -t: -k2 -nr
 
-# Cognitive complexity over 15
+# Rule 4 — cognitive complexity over 15 in handlers
 gocognit -over 15 api/
 
-# Dead code
+# (project-wide) — dead code
 deadcode ./...
 
-# Test-export wrappers (pattern: one-line Handler() returning method)
+# Rule 5 — test-export wrappers
 rg -U '^func \([^)]+\) \w+Handler\(\) http\.HandlerFunc \{[^}]*return [^}]+\.\w+\s*\}' api/
 
-# Duplicate error helpers
+# Rule 7 — duplicate error helpers outside api/common
 rg --type go 'func ErrorInvalidRequest|func ErrorNotFound|func ErrorForbidden' api/ -l \
   | grep -v '/common/'
+
+# Rule 11 — services constructing queries directly
+rg --type go -g '!*_test.go' '\.(NewSelect|NewUpdate|NewInsert|NewDelete|NewRaw)\(' services/
+
+# Rule 12a — state-mutation methods in models
+rg --type go -g '!*_test.go' \
+  '^func \([^)]+\) (Mark|End|Close|Reset|Activate|Deactivate|Cancel|Approve|Reject|Promote|Demote|Suspend|Restore|Archive)\w*\(' \
+  models/
+
+# Rule 12b — RBAC decisions in models
+rg --type go -g '!*_test.go' \
+  '^func \([^)]+\) (HasPermission|IsAdmin|IsOperator|CanAccess|CanEdit|CanDelete)\w*\(' \
+  models/
+
+# Rule 12c — magic time-window literals in models
+rg --type go -g '!*_test.go' '\d+\s*\*\s*time\.(Hour|Minute|Second|Day)' models/
 ```
 
 If any of these return non-trivial output for new code, the PR violates a rule above.
