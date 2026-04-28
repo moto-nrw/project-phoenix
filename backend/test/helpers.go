@@ -148,6 +148,13 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	// always ends up at (tenant_id=1, id=1).
 	ctx := context.Background()
 	require.NoError(t, db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// Serialize concurrent fixture setup across parallel test packages.
+		// pg_advisory_xact_lock is released automatically on commit/rollback,
+		// so other packages wait at this line instead of racing the inserts
+		// below. Constant must stay identical wherever this lock is taken.
+		if _, e := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(914735691)`); e != nil {
+			return fmt.Errorf("acquire system fixture advisory lock: %w", e)
+		}
 		if _, e := tx.ExecContext(ctx, `
 			INSERT INTO users.persons (id, tenant_id, first_name, last_name)
 			VALUES (1, 1, 'System', 'Test')
