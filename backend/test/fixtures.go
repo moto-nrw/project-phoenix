@@ -445,10 +445,14 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// IoT domain cleanup
 		// ========================================
 
-		// Delete from iot.devices
+		// Delete from iot.devices, but never the WEB-MANUAL-001 system device
+		// (migration 1.7.5). Web-originated check-ins fall back to it, so
+		// deleting it would break TestSchoolCheckin_* on every parallel run
+		// where another test cleanup happens to pass its DB id.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("iot.devices").
-			Where(whereIDEquals, id),
+			Where(whereIDEquals, id).
+			Where("device_id != ?", "WEB-MANUAL-001"),
 			"iot.devices")
 
 		// ========================================
