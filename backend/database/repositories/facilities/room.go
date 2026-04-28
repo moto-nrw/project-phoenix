@@ -91,7 +91,7 @@ func (r *RoomRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rooms).
 		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
-		Where("room.id IN (?)", bun.In(ids))
+		Where("room.id IN (?)", bun.List(ids))
 
 	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
 		query = query.Where(where, val)
