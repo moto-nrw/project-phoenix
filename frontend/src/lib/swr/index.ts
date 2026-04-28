@@ -23,6 +23,7 @@ export {
   useImmutableSWR,
   useSWRWithId,
   useTenantMutate,
+  useTenantMutateMatching,
 } from "./hooks";
 
 // Re-export config for advanced usage

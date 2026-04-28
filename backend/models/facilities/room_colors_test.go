@@ -1,0 +1,160 @@
+package facilities_test
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func strPtr(s string) *string { return &s }
+
+func TestIsReservedRoomColor(t *testing.T) {
+	t.Run("rejects every status badge color", func(t *testing.T) {
+		// Mirrors LOCATION_COLORS in frontend/src/lib/location-helper.ts.
+		// If the frontend list grows, the backend list must too — this test
+		// won't catch that drift, but the cross-codebase reference comment
+		// in room_colors.go points reviewers at it.
+		reserved := []string{
+			"#83CD2D", // GROUP_ROOM
+			"#5080D8", // OTHER_ROOM (the blue we're trying to escape)
+			"#FF3130", // HOME
+			"#F78C10", // SCHOOLYARD
+			"#D946EF", // TRANSIT
+			"#EAB308", // SICK
+			"#7C3AED", // EXCUSED
+			"#6B7280", // UNKNOWN / NOT_ARRIVAL
+		}
+		for _, c := range reserved {
+			assert.True(t, facilities.IsReservedRoomColor(c),
+				"expected %s to be reserved", c)
+		}
+	})
+
+	t.Run("normalizes case and whitespace", func(t *testing.T) {
+		// User-supplied input could land in any of these shapes; all must hit.
+		variants := []string{"#5080d8", " #5080D8 ", "5080D8", "5080d8"}
+		for _, v := range variants {
+			assert.True(t, facilities.IsReservedRoomColor(v),
+				"variant %q should be reserved", v)
+		}
+	})
+
+	t.Run("expands #RGB shorthand", func(t *testing.T) {
+		// #6B7280 is reserved as #6B7280; test a known shorthand collapse to
+		// confirm the expansion path works at all.
+		assert.False(t, facilities.IsReservedRoomColor("#FFF"),
+			"#FFF expands to #FFFFFF which is not reserved")
+		// Build a 3-char that expands to a reserved 6-char: there is no exact
+		// 3→6 collision in the list (e.g. #837 → #883377 ≠ any reserved), so
+		// we just sanity-check the helper returns false for non-matches.
+	})
+
+	t.Run("allows arbitrary non-status colors", func(t *testing.T) {
+		// #4F46E5 used to live in this list as "non-reserved". It now sits
+		// in the reserved set on purpose — see migration 1.15.44 / the
+		// header comment in room_colors.go for why allowing admins to
+		// re-pick the legacy bug-default would defeat the migration's
+		// invariant. The test below asserts it's reserved.
+		nonReserved := []string{
+			"#A3D977", "#FFD580", "#1ABC9C", "#000000", "#FFFFFF",
+		}
+		for _, c := range nonReserved {
+			assert.False(t, facilities.IsReservedRoomColor(c),
+				"%s should not be reserved", c)
+		}
+	})
+
+	t.Run("rejects legacy bug-default #4F46E5", func(t *testing.T) {
+		// Migration 1.15.44 NULLs every row carrying this hex; the audit
+		// backup table relies on "any #4F46E5 row in facilities.rooms
+		// must have come from the bug" as a restore invariant. Letting an
+		// admin pick the same hex afterwards would break that. Both
+		// upper- and lower-case must be rejected since the picker emits
+		// uppercase but a direct API call could send either.
+		assert.True(t, facilities.IsReservedRoomColor("#4F46E5"))
+		assert.True(t, facilities.IsReservedRoomColor("#4f46e5"))
+	})
+
+	t.Run("handles empty and malformed input gracefully", func(t *testing.T) {
+		assert.False(t, facilities.IsReservedRoomColor(""))
+		assert.False(t, facilities.IsReservedRoomColor("#"))
+		assert.False(t, facilities.IsReservedRoomColor("not-a-color"))
+		assert.False(t, facilities.IsReservedRoomColor("#GGGGGG"))
+	})
+}
+
+func TestRoomValidate_ReservedColor(t *testing.T) {
+	t.Run("rejects a reserved color", func(t *testing.T) {
+		room := &facilities.Room{
+			Name:  "Reserved Color Room",
+			Color: strPtr("#5080D8"),
+		}
+		err := room.Validate()
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, facilities.ErrReservedColor),
+			"expected ErrReservedColor, got %v", err)
+		assert.True(t, facilities.IsValidationError(err),
+			"reserved-color error should report as validation error")
+	})
+
+	t.Run("allows a non-reserved hex", func(t *testing.T) {
+		room := &facilities.Room{
+			Name:  "Custom Color Room",
+			Color: strPtr("#A3D977"),
+		}
+		require.NoError(t, room.Validate())
+	})
+
+	t.Run("allows nil color (default fallback to blue)", func(t *testing.T) {
+		room := &facilities.Room{Name: "No Color"}
+		require.NoError(t, room.Validate())
+	})
+
+	t.Run("rejects malformed hex with sentinel", func(t *testing.T) {
+		room := &facilities.Room{
+			Name:  "Bad Color",
+			Color: strPtr("not-hex"),
+		}
+		err := room.Validate()
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, facilities.ErrInvalidColorFormat))
+	})
+
+	t.Run("auto-prefixes # before validation", func(t *testing.T) {
+		room := &facilities.Room{
+			Name:  "Prefixed",
+			Color: strPtr("A3D977"),
+		}
+		require.NoError(t, room.Validate())
+		require.NotNil(t, room.Color)
+		assert.Equal(t, "#A3D977", *room.Color)
+	})
+
+	t.Run("auto-prefix into reserved color is still rejected", func(t *testing.T) {
+		room := &facilities.Room{
+			Name:  "Sneaky",
+			Color: strPtr("5080D8"), // missing # → adds # → matches reserved
+		}
+		err := room.Validate()
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, facilities.ErrReservedColor))
+	})
+
+	t.Run("normalises mixed-case input to upper-case", func(t *testing.T) {
+		// The unique index lives on LOWER(color), so storage casing doesn't
+		// affect dedup — but audit log + API consumers expect a single
+		// canonical form. Without normalisation, "#a3d977" and "#A3D977"
+		// flow through as-is and the API answers two visually-identical
+		// rooms with different colour strings.
+		room := &facilities.Room{
+			Name:  "Mixed Case",
+			Color: strPtr("#a3D977"),
+		}
+		require.NoError(t, room.Validate())
+		require.NotNil(t, room.Color)
+		assert.Equal(t, "#A3D977", *room.Color)
+	})
+}

@@ -47,15 +47,22 @@ export function buildRoomFormSections(
   if (isSystemRoom(room)) {
     sections = sections.map((section) => ({
       ...section,
-      fields: section.fields.map((field) =>
-        field.name === "name"
-          ? {
-              ...field,
-              disabled: true,
-              helperText: "Systemraum: Name kann nicht geändert werden",
-            }
-          : field,
-      ),
+      fields: section.fields
+        // Drop the color picker for system rooms — Schulhof and WC have
+        // semantically fixed badges (Schulhof = orange via the parser,
+        // WC has no badge), so letting an admin pick a color would just
+        // mislead. Backend rejects color changes here too, so this is
+        // strictly a UX guard.
+        .filter((field) => field.name !== "color")
+        .map((field) =>
+          field.name === "name"
+            ? {
+                ...field,
+                disabled: true,
+                helperText: "Systemraum: Name kann nicht geändert werden",
+              }
+            : field,
+        ),
     }));
   }
 

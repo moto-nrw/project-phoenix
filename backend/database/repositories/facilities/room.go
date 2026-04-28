@@ -40,10 +40,12 @@ func (r *RoomRepository) Create(ctx context.Context, room *facilities.Room) erro
 		return fmt.Errorf("room cannot be nil")
 	}
 
-	// Validate room
-	if err := room.Validate(); err != nil {
-		return err
-	}
+	// Validation lives in the service layer — see services/facilities/
+	// facility_service.go CreateRoom/UpdateRoom. The repo previously
+	// re-validated here, which collided with the system-room legacy-colour
+	// preserve path: that flow re-attaches an existing #4F46E5 (now
+	// reserved per migration 1.15.44) right before the repo write, and a
+	// second Validate would reject it. Keep validation in one place.
 
 	// Use the base Create method which now uses ModelTableExpr
 	return r.Repository.Create(ctx, room)
@@ -55,10 +57,8 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 		return fmt.Errorf("room cannot be nil")
 	}
 
-	// Validate room
-	if err := room.Validate(); err != nil {
-		return err
-	}
+	// Validation lives in the service layer (see Create above for the full
+	// rationale). Repo writes trust the service to have validated already.
 
 	// Use GetDB to detect transaction from context
 	query := base.GetDB(ctx, r.db).NewUpdate().

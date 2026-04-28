@@ -21,7 +21,8 @@ type StudentResponse struct {
 	Birthday           string     `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
 	SchoolClass        string     `json:"school_class"`
 	Location           string     `json:"current_location"`
-	LocationSince      *time.Time `json:"location_since,omitempty"` // When student entered current location
+	LocationSince      *time.Time `json:"location_since,omitempty"`     // When student entered current location
+	RoomColor          *string    `json:"current_room_color,omitempty"` // Hex of the current room when set; nil for status-only locations or rooms without override
 	GuardianName       string     `json:"guardian_name,omitempty"`
 	GuardianContact    string     `json:"guardian_contact,omitempty"`
 	GuardianEmail      string     `json:"guardian_email,omitempty"`

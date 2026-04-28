@@ -34,6 +34,9 @@ vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
+  // Added with Issue #1324 — page invalidates badge consumer caches after a
+  // room save. Pure setup mock; no test asserts the matcher contents.
+  useTenantMutateMatching: vi.fn(() => vi.fn()),
 }));
 
 const mockGetOne = vi.fn();

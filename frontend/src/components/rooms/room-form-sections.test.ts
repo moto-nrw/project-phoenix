@@ -56,4 +56,58 @@ describe("buildRoomFormSections", () => {
       "Systemraum: Name kann nicht geändert werden",
     );
   });
+
+  // ===========================================================================
+  // Issue #1324 — system rooms must NOT show the color picker. Backend
+  // rejects color changes on Schulhof/WC with a 403, so leaving the picker
+  // visible would let admins pick a color, hit save, and see a confusing
+  // German error toast for what looks like a normal field. This filter is
+  // a UX guard, not a security one — the backend stays the source of truth.
+  // ===========================================================================
+  it("strips the color field for system rooms (Schulhof)", () => {
+    const sections = buildRoomFormSections({
+      ...baseRoom,
+      name: "Schulhof",
+    });
+    const fieldNames = sections.flatMap((section) =>
+      section.fields.map((f) => f.name),
+    );
+    expect(fieldNames).not.toContain("color");
+  });
+
+  it("strips the color field for system rooms (WC)", () => {
+    const sections = buildRoomFormSections({
+      ...baseRoom,
+      name: "WC",
+    });
+    const fieldNames = sections.flatMap((section) =>
+      section.fields.map((f) => f.name),
+    );
+    expect(fieldNames).not.toContain("color");
+  });
+
+  it("keeps the color field for regular rooms", () => {
+    // Regression guard: the filter must trigger ONLY for system rooms.
+    // If someone refactors and accidentally drops the isSystemRoom guard,
+    // every room loses its color picker silently.
+    const sections = buildRoomFormSections({
+      ...baseRoom,
+      name: "Werkraum",
+    });
+    const fieldNames = sections.flatMap((section) =>
+      section.fields.map((f) => f.name),
+    );
+    expect(fieldNames).toContain("color");
+  });
+
+  it("returns the color field unchanged when given null/undefined room", () => {
+    // The form is also rendered when creating a new room (no Room object
+    // exists yet). isSystemRoom(null) returns false, so the color field
+    // must be present — otherwise admins can never set a color on creation.
+    const sections = buildRoomFormSections(null);
+    const fieldNames = sections.flatMap((section) =>
+      section.fields.map((f) => f.name),
+    );
+    expect(fieldNames).toContain("color");
+  });
 });
