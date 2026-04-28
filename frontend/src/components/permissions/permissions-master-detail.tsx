@@ -1,7 +1,7 @@
 "use client";
 
 import { Pencil } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DetailDeleteButton } from "~/components/database/detail-delete-button";
@@ -30,6 +30,9 @@ import {
 interface PermissionsMasterDetailProps {
   permissions: Permission[];
   selectedId: string | null;
+  // Resolved by the page against the unfiltered list so the detail panel
+  // survives a search narrowing the visible rows.
+  selectedPermission: Permission | null;
   onSelect: (id: string | null) => void;
   onEditClick: () => void;
   onDeleteClick: () => void;
@@ -62,18 +65,11 @@ function buildSubtitle(permission: Permission): string {
 export function PermissionsMasterDetail({
   permissions,
   selectedId,
+  selectedPermission,
   onSelect,
   onEditClick,
   onDeleteClick,
 }: PermissionsMasterDetailProps) {
-  const selectedPermission = useMemo(
-    () =>
-      selectedId
-        ? (permissions.find((permission) => permission.id === selectedId) ??
-          null)
-        : null,
-    [permissions, selectedId],
-  );
   const groupDefinitions = useGroupedItems(
     permissions,
     "none",

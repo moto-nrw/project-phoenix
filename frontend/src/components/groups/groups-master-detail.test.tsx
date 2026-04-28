@@ -65,6 +65,7 @@ describe("GroupsMasterDetail", () => {
       <GroupsMasterDetail
         groups={[baseGroup]}
         selectedId={null}
+        selectedGroup={null}
         onSelect={onSelect}
         onSaveGroup={onSaveGroup}
         onDeleteClick={onDeleteClick}
@@ -80,6 +81,7 @@ describe("GroupsMasterDetail", () => {
       <GroupsMasterDetail
         groups={[baseGroup]}
         selectedId="1"
+        selectedGroup={baseGroup}
         onSelect={onSelect}
         onSaveGroup={onSaveGroup}
         onDeleteClick={onDeleteClick}
@@ -98,6 +100,7 @@ describe("GroupsMasterDetail", () => {
       <GroupsMasterDetail
         groups={[baseGroup]}
         selectedId="1"
+        selectedGroup={baseGroup}
         onSelect={onSelect}
         onSaveGroup={onSaveGroup}
         onDeleteClick={onDeleteClick}
@@ -113,6 +116,7 @@ describe("GroupsMasterDetail", () => {
       <GroupsMasterDetail
         groups={[groupWithoutRoom]}
         selectedId="2"
+        selectedGroup={groupWithoutRoom}
         onSelect={onSelect}
         onSaveGroup={onSaveGroup}
         onDeleteClick={onDeleteClick}
@@ -130,6 +134,7 @@ describe("GroupsMasterDetail", () => {
       <GroupsMasterDetail
         groups={[baseGroup]}
         selectedId="1"
+        selectedGroup={baseGroup}
         onSelect={onSelect}
         onSaveGroup={onSaveGroup}
         onDeleteClick={onDeleteClick}
@@ -145,6 +150,7 @@ describe("GroupsMasterDetail", () => {
       <GroupsMasterDetail
         groups={[baseGroup, groupWithoutRoom]}
         selectedId="1"
+        selectedGroup={baseGroup}
         onSelect={onSelect}
         onSaveGroup={onSaveGroup}
         onDeleteClick={onDeleteClick}

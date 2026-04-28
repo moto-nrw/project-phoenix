@@ -140,14 +140,15 @@ export default function PermissionsPage() {
     return arr;
   }, [permissions, searchTerm]);
 
+  // Resolve against the unfiltered list so the detail panel survives a search
+  // narrowing the visible rows.
   const selectedPermission = useMemo(
     () =>
       selectedId
-        ? (filteredPermissions.find(
-            (permission) => permission.id === selectedId,
-          ) ?? null)
+        ? (permissions.find((permission) => permission.id === selectedId) ??
+          null)
         : null,
-    [filteredPermissions, selectedId],
+    [permissions, selectedId],
   );
 
   const handleSelectPermission = useCallback(
@@ -277,7 +278,8 @@ export default function PermissionsPage() {
     fetchPermissions,
   ]);
 
-  const canShowDetail = !loading && filteredPermissions.length > 0;
+  const canShowDetail =
+    !loading && (filteredPermissions.length > 0 || selectedPermission !== null);
 
   return (
     <DatabasePageLayout
@@ -337,6 +339,7 @@ export default function PermissionsPage() {
           <PermissionsMasterDetail
             permissions={filteredPermissions}
             selectedId={selectedId}
+            selectedPermission={selectedPermission}
             onSelect={handleSelectPermission}
             onEditClick={handleEditClick}
             onDeleteClick={handleDeleteClick}

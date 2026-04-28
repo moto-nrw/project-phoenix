@@ -89,9 +89,9 @@ describe("RoomsMasterDetail form reset wiring", () => {
     const onSaveRoom = vi.fn().mockResolvedValue(undefined);
     render(
       <RoomsMasterDetail
-        rooms={[room]}
         groupDefinitions={groups}
         selectedId="1"
+        selectedRoom={room}
         onSelect={vi.fn()}
         onSaveRoom={onSaveRoom}
         onDeleteClick={vi.fn()}
@@ -117,9 +117,9 @@ describe("RoomsMasterDetail form reset wiring", () => {
   it("remounts the form when the user cancels (so unsaved field edits are discarded)", () => {
     render(
       <RoomsMasterDetail
-        rooms={[room]}
         groupDefinitions={groups}
         selectedId="1"
+        selectedRoom={room}
         onSelect={vi.fn()}
         onSaveRoom={vi.fn()}
         onDeleteClick={vi.fn()}
@@ -137,11 +137,11 @@ describe("RoomsMasterDetail form reset wiring", () => {
     const otherRoom: Room = { ...room, id: "2", name: "Raum 202" };
     const { rerender } = render(
       <RoomsMasterDetail
-        rooms={[room, otherRoom]}
         groupDefinitions={[
           { id: "__flat__", title: "Alle Räume (2)", items: [room, otherRoom] },
         ]}
         selectedId="1"
+        selectedRoom={room}
         onSelect={vi.fn()}
         onSaveRoom={vi.fn()}
         onDeleteClick={vi.fn()}
@@ -151,11 +151,11 @@ describe("RoomsMasterDetail form reset wiring", () => {
     const before = getCurrentNonce();
     rerender(
       <RoomsMasterDetail
-        rooms={[room, otherRoom]}
         groupDefinitions={[
           { id: "__flat__", title: "Alle Räume (2)", items: [room, otherRoom] },
         ]}
         selectedId="2"
+        selectedRoom={otherRoom}
         onSelect={vi.fn()}
         onSaveRoom={vi.fn()}
         onDeleteClick={vi.fn()}

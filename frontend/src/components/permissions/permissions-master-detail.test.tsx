@@ -51,6 +51,7 @@ describe("PermissionsMasterDetail", () => {
       <PermissionsMasterDetail
         permissions={[readPermission]}
         selectedId={null}
+        selectedPermission={null}
         onSelect={onSelect}
         onEditClick={onEditClick}
         onDeleteClick={onDeleteClick}
@@ -67,6 +68,7 @@ describe("PermissionsMasterDetail", () => {
       <PermissionsMasterDetail
         permissions={[readPermission]}
         selectedId="1"
+        selectedPermission={readPermission}
         onSelect={onSelect}
         onEditClick={onEditClick}
         onDeleteClick={onDeleteClick}
@@ -83,6 +85,7 @@ describe("PermissionsMasterDetail", () => {
       <PermissionsMasterDetail
         permissions={[readPermission]}
         selectedId="1"
+        selectedPermission={readPermission}
         onSelect={onSelect}
         onEditClick={onEditClick}
         onDeleteClick={onDeleteClick}
@@ -101,6 +104,7 @@ describe("PermissionsMasterDetail", () => {
       <PermissionsMasterDetail
         permissions={[readPermission, writePermission]}
         selectedId="1"
+        selectedPermission={readPermission}
         onSelect={onSelect}
         onEditClick={onEditClick}
         onDeleteClick={onDeleteClick}
@@ -116,6 +120,7 @@ describe("PermissionsMasterDetail", () => {
       <PermissionsMasterDetail
         permissions={[readPermission, writePermission]}
         selectedId={null}
+        selectedPermission={null}
         onSelect={onSelect}
         onEditClick={onEditClick}
         onDeleteClick={onDeleteClick}
@@ -140,6 +145,7 @@ describe("PermissionsMasterDetail", () => {
       <PermissionsMasterDetail
         permissions={[permissionWithoutDescription]}
         selectedId={null}
+        selectedPermission={null}
         onSelect={onSelect}
         onEditClick={onEditClick}
         onDeleteClick={onDeleteClick}

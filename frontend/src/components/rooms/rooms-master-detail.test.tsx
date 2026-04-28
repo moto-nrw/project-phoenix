@@ -88,9 +88,9 @@ describe("RoomsMasterDetail", () => {
   it("shows the empty detail state when nothing is selected", () => {
     render(
       <RoomsMasterDetail
-        rooms={[regularRoom]}
         groupDefinitions={flatGroup([regularRoom])}
         selectedId={null}
+        selectedRoom={null}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -104,9 +104,9 @@ describe("RoomsMasterDetail", () => {
   it("renders the selected room detail form and save path", () => {
     render(
       <RoomsMasterDetail
-        rooms={[regularRoom]}
         groupDefinitions={flatGroup([regularRoom])}
         selectedId="1"
+        selectedRoom={regularRoom}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -123,9 +123,9 @@ describe("RoomsMasterDetail", () => {
   it("hides the delete action for system rooms and disables the name field", () => {
     render(
       <RoomsMasterDetail
-        rooms={[systemRoom]}
         groupDefinitions={flatGroup([systemRoom])}
         selectedId="2"
+        selectedRoom={systemRoom}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -141,9 +141,9 @@ describe("RoomsMasterDetail", () => {
   it("passes delete clicks through for regular rooms", () => {
     render(
       <RoomsMasterDetail
-        rooms={[regularRoom]}
         groupDefinitions={flatGroup([regularRoom])}
         selectedId="1"
+        selectedRoom={regularRoom}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -163,9 +163,9 @@ describe("RoomsMasterDetail", () => {
     };
     render(
       <RoomsMasterDetail
-        rooms={[occupiedRoom]}
         groupDefinitions={flatGroup([occupiedRoom])}
         selectedId="1"
+        selectedRoom={occupiedRoom}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -181,7 +181,6 @@ describe("RoomsMasterDetail", () => {
   it("renders the group titles supplied by the page and a Stammdaten tab", () => {
     render(
       <RoomsMasterDetail
-        rooms={[regularRoom, systemRoom]}
         groupDefinitions={[
           {
             id: "Hauptgebäude",
@@ -195,6 +194,7 @@ describe("RoomsMasterDetail", () => {
           },
         ]}
         selectedId="1"
+        selectedRoom={regularRoom}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -209,9 +209,9 @@ describe("RoomsMasterDetail", () => {
   it("forwards a list-row click to onSelect with the room's id", () => {
     render(
       <RoomsMasterDetail
-        rooms={[regularRoom]}
         groupDefinitions={flatGroup([regularRoom])}
         selectedId={null}
+        selectedRoom={null}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -226,9 +226,9 @@ describe("RoomsMasterDetail", () => {
     const occupiedRoom: Room = { ...regularRoom, isOccupied: true };
     render(
       <RoomsMasterDetail
-        rooms={[occupiedRoom]}
         groupDefinitions={flatGroup([occupiedRoom])}
         selectedId={null}
+        selectedRoom={null}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -252,9 +252,9 @@ describe("RoomsMasterDetail", () => {
 
     render(
       <RoomsMasterDetail
-        rooms={[locationlessRoom]}
         groupDefinitions={flatGroup([locationlessRoom])}
         selectedId="9"
+        selectedRoom={locationlessRoom}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -287,9 +287,9 @@ describe("RoomsMasterDetail", () => {
 
     const { rerender } = render(
       <RoomsMasterDetail
-        rooms={[buildingOnly]}
         groupDefinitions={flatGroup([buildingOnly])}
         selectedId="10"
+        selectedRoom={buildingOnly}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}
@@ -301,9 +301,9 @@ describe("RoomsMasterDetail", () => {
 
     rerender(
       <RoomsMasterDetail
-        rooms={[floorOnly]}
         groupDefinitions={flatGroup([floorOnly])}
         selectedId="11"
+        selectedRoom={floorOnly}
         onSelect={onSelect}
         onSaveRoom={onSaveRoom}
         onDeleteClick={onDeleteClick}

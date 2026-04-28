@@ -131,12 +131,14 @@ export default function GroupsPage() {
     return arr;
   }, [groupsData, searchTerm, roomFilter]);
 
+  // Resolve against the unfiltered list so the detail panel survives a search
+  // narrowing the visible rows.
   const selectedGroup = useMemo(
     () =>
       selectedId
-        ? (filteredGroups.find((group) => group.id === selectedId) ?? null)
+        ? ((groupsData ?? []).find((group) => group.id === selectedId) ?? null)
         : null,
-    [filteredGroups, selectedId],
+    [groupsData, selectedId],
   );
 
   const handleSelectGroup = useCallback(
@@ -225,7 +227,8 @@ export default function GroupsPage() {
     tenantMutate,
   ]);
 
-  const canShowDetail = !loading && filteredGroups.length > 0;
+  const canShowDetail =
+    !loading && (filteredGroups.length > 0 || selectedGroup !== null);
 
   return (
     <DatabasePageLayout
@@ -287,6 +290,7 @@ export default function GroupsPage() {
           <GroupsMasterDetail
             groups={filteredGroups}
             selectedId={selectedId}
+            selectedGroup={selectedGroup}
             onSelect={handleSelectGroup}
             onSaveGroup={handleUpdateGroup}
             onDeleteClick={handleDeleteClick}

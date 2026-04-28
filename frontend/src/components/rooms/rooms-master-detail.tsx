@@ -20,9 +20,12 @@ import { formatFloor, isSystemRoom, type Room } from "@/lib/room-helpers";
 import { buildRoomFormSections } from "./room-form-sections";
 
 interface RoomsMasterDetailProps {
-  rooms: Room[];
   groupDefinitions: GroupDefinition<Room>[];
   selectedId: string | null;
+  // Resolved by the page against the unfiltered list so the detail panel
+  // survives a search narrowing the visible rows. See devices-master-detail
+  // for the same pattern.
+  selectedRoom: Room | null;
   onSelect: (id: string | null) => void;
   onSaveRoom: (data: Partial<Room>) => Promise<void>;
   onDeleteClick: () => void;
@@ -56,21 +59,13 @@ function buildRoomSubtitle(room: Room): string {
 }
 
 export function RoomsMasterDetail({
-  rooms,
   groupDefinitions,
   selectedId,
+  selectedRoom,
   onSelect,
   onSaveRoom,
   onDeleteClick,
 }: RoomsMasterDetailProps) {
-  const selectedRoom = useMemo(
-    () =>
-      selectedId
-        ? (rooms.find((room) => room.id === selectedId) ?? null)
-        : null,
-    [rooms, selectedId],
-  );
-
   const renderItem = (room: Room) => (
     <DatabaseListItem
       title={room.name}

@@ -20,6 +20,9 @@ import type { Group } from "@/lib/group-helpers";
 interface GroupsMasterDetailProps {
   groups: Group[];
   selectedId: string | null;
+  // Resolved by the page against the unfiltered list so the detail panel
+  // survives a search narrowing the visible rows.
+  selectedGroup: Group | null;
   onSelect: (id: string | null) => void;
   onSaveGroup: (data: Partial<Group>) => Promise<void>;
   onDeleteClick: () => void;
@@ -36,17 +39,11 @@ function buildGroupSubtitle(group: Group): string {
 export function GroupsMasterDetail({
   groups,
   selectedId,
+  selectedGroup,
   onSelect,
   onSaveGroup,
   onDeleteClick,
 }: GroupsMasterDetailProps) {
-  const selectedGroup = useMemo(
-    () =>
-      selectedId
-        ? (groups.find((group) => group.id === selectedId) ?? null)
-        : null,
-    [groups, selectedId],
-  );
   const groupDefinitions = useGroupedItems(groups, "none", {}, "Gruppen");
 
   const renderItem = (group: Group) => (

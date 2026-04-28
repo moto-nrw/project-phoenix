@@ -155,12 +155,14 @@ export default function RoomsPage() {
     return arr;
   }, [roomsData, searchTerm, categoryFilter]);
 
+  // Resolve against the unfiltered list so the detail panel survives a search
+  // narrowing the visible rows.
   const selectedRoom = useMemo(
     () =>
       selectedId
-        ? (filteredRooms.find((room) => room.id === selectedId) ?? null)
+        ? ((roomsData ?? []).find((room) => room.id === selectedId) ?? null)
         : null,
-    [filteredRooms, selectedId],
+    [roomsData, selectedId],
   );
 
   const handleSelectRoom = useCallback(
@@ -287,7 +289,8 @@ export default function RoomsPage() {
     tenantMutate,
   ]);
 
-  const canShowDetail = !loading && filteredRooms.length > 0;
+  const canShowDetail =
+    !loading && (filteredRooms.length > 0 || selectedRoom !== null);
 
   return (
     <DatabasePageLayout
@@ -356,9 +359,9 @@ export default function RoomsPage() {
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <RoomsMasterDetail
-            rooms={filteredRooms}
             groupDefinitions={groupDefinitions}
             selectedId={selectedId}
+            selectedRoom={selectedRoom}
             onSelect={handleSelectRoom}
             onSaveRoom={handleUpdateRoom}
             onDeleteClick={handleDeleteClick}

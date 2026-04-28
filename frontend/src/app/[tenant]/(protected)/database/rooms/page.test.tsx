@@ -146,7 +146,6 @@ vi.mock("@/components/rooms", () => ({
       </div>
     ) : null,
   RoomsMasterDetail: ({
-    rooms,
     groupDefinitions,
     selectedId,
     selectedRoom,
@@ -154,7 +153,6 @@ vi.mock("@/components/rooms", () => ({
     onSaveRoom,
     onDeleteClick,
   }: {
-    rooms: Array<{ id: string; name: string; category?: string | null }>;
     groupDefinitions: Array<{
       id: string;
       title: string;
@@ -167,7 +165,6 @@ vi.mock("@/components/rooms", () => ({
     onDeleteClick: () => void;
   }) => (
     <div data-testid="rooms-master-detail">
-      <span data-testid="rooms-prop-count">{rooms.length}</span>
       {groupDefinitions.map((group) => (
         <div key={group.id} data-testid={`group-${group.id}`}>
           <span data-testid={`group-title-${group.id}`}>{group.title}</span>
