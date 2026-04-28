@@ -73,7 +73,7 @@ describe("RoomColorPicker", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("shows 'außerhalb der Palette' hint for non-palette values", () => {
+  it("treats a non-palette legacy value as 'Keine Farbe' (cleared swatch selected)", () => {
     render(
       <RoomColorPicker
         value="#4F46E5"
@@ -81,25 +81,30 @@ describe("RoomColorPicker", () => {
         label="Badge-Farbe"
       />,
     );
-    expect(screen.getByText(/außerhalb der Palette/i)).toBeDefined();
-    expect(screen.getByText(/#4F46E5/i)).toBeDefined();
+    expect(screen.getByLabelText("Keine Farbe")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // No palette swatch should be marked as selected
+    for (const color of ROOM_COLOR_PALETTE) {
+      expect(screen.getByLabelText(`Farbe ${color}`)).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    }
   });
 
-  it("does not show the hint when value is in the palette", () => {
-    render(
-      <RoomColorPicker
-        value={ROOM_COLOR_PALETTE[0]}
-        onChange={() => {}}
-        label="Badge-Farbe"
-      />,
-    );
-    expect(screen.queryByText(/außerhalb der Palette/i)).toBeNull();
-  });
-
-  it("does not show the hint when value is null/empty", () => {
-    render(
-      <RoomColorPicker value={null} onChange={() => {}} label="Badge-Farbe" />,
-    );
-    expect(screen.queryByText(/außerhalb der Palette/i)).toBeNull();
+  it("never shows an 'außerhalb der Palette' hint, regardless of value", () => {
+    for (const value of [null, "#4F46E5", ROOM_COLOR_PALETTE[0]] as const) {
+      const { unmount } = render(
+        <RoomColorPicker
+          value={value}
+          onChange={() => {}}
+          label="Badge-Farbe"
+        />,
+      );
+      expect(screen.queryByText(/außerhalb der Palette/i)).toBeNull();
+      unmount();
+    }
   });
 });

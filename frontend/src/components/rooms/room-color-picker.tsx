@@ -12,8 +12,9 @@ interface RoomColorPickerProps {
 /**
  * Dumb controlled color picker for rooms. Renders a "Keine Farbe" option plus
  * the curated palette. Callers (e.g. RoomCreateModal) are responsible for
- * pre-filling a sensible default. Edit-mode rooms with an existing
- * non-palette color show a hint instead of being silently overwritten.
+ * pre-filling a sensible default. A stored value that isn't in the palette
+ * (e.g. legacy `#4F46E5`) is treated as the "no color picked" state — the
+ * cleared swatch lights up as selected, with no separate warning hint.
  */
 export function RoomColorPicker({
   value,
@@ -22,11 +23,11 @@ export function RoomColorPicker({
   required,
 }: RoomColorPickerProps) {
   const selected = typeof value === "string" ? value.toLowerCase() : "";
-  const isCleared = !selected;
   const isInPalette = ROOM_COLOR_PALETTE.some(
     (c) => c.toLowerCase() === selected,
   );
-  const hasNonPaletteValue = !isCleared && !isInPalette;
+  // Anything not in the palette (null, "", legacy hex) is treated as cleared.
+  const treatAsCleared = !isInPalette;
 
   return (
     <div>
@@ -39,10 +40,10 @@ export function RoomColorPicker({
           type="button"
           onClick={() => onChange(null)}
           aria-label="Keine Farbe"
-          aria-pressed={isCleared}
+          aria-pressed={treatAsCleared}
           title="Keine Farbe (Standardblau)"
           className={`relative flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white transition-transform duration-150 hover:scale-110 ${
-            isCleared
+            treatAsCleared
               ? "border-gray-900 ring-2 ring-gray-900/20"
               : "border-gray-300 shadow-sm"
           }`}
@@ -68,13 +69,6 @@ export function RoomColorPicker({
           );
         })}
       </div>
-      {hasNonPaletteValue && (
-        <p className="mt-2 text-xs text-gray-500">
-          Aktuell: <span className="font-mono uppercase">{selected}</span>{" "}
-          (außerhalb der Palette — wähle eine Farbe oben aus, um sie zu
-          ersetzen)
-        </p>
-      )}
     </div>
   );
 }

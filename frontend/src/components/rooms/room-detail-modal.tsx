@@ -92,21 +92,23 @@ export function RoomDetailModal({
               <DataField label="Status">
                 {room.isOccupied ? "Belegt" : "Frei"}
               </DataField>
-              <DataField label="Badge-Farbe">
-                {room.color ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span
-                      className="inline-block h-4 w-4 rounded-full border border-white shadow-sm"
-                      style={{ backgroundColor: room.color }}
-                    />
-                    <span className="font-mono text-xs uppercase">
-                      {room.color}
+              {!isSystemRoom(room) && (
+                <DataField label="Badge-Farbe">
+                  {room.color ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className="inline-block h-4 w-4 rounded-full border border-white shadow-sm"
+                        style={{ backgroundColor: room.color }}
+                      />
+                      <span className="font-mono text-xs uppercase">
+                        {room.color}
+                      </span>
                     </span>
-                  </span>
-                ) : (
-                  <span className="text-gray-500">Keine</span>
-                )}
-              </DataField>
+                  ) : (
+                    <span className="text-gray-500">Keine</span>
+                  )}
+                </DataField>
+              )}
               {room.activityName && (
                 <DataField label="Aktivität" fullWidth>
                   {room.activityName}
