@@ -371,29 +371,25 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from education.group_substitution (depends on group and staff)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("education.group_substitution").
+			TableExpr("education.group_substitution").
 			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id),
 			"education.group_substitution")
 
 		// Delete from education.group_teacher (depends on group and teacher)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("education.group_teacher").
+			TableExpr("education.group_teacher").
 			Where("group_id = ? OR teacher_id = ?", id, id),
 			"education.group_teacher")
 
 		// Delete from users.teachers (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersTeachers).
+			TableExpr(tableUsersTeachers).
 			Where("id = ? OR staff_id = ?", id, id),
 			tableUsersTeachers)
 
 		// Delete from education.groups
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("education.groups").
+			TableExpr("education.groups").
 			Where(whereIDEquals, id),
 			"education.groups")
 
@@ -403,22 +399,19 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from active.visits by direct ID, by student_id, or by active_group_id
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableActiveVisits).
+			TableExpr(tableActiveVisits).
 			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id),
 			tableActiveVisits)
 
 		// Delete from active.visits (cascade cleanup via activities.groups reference)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableActiveVisits).
+			TableExpr(tableActiveVisits).
 			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ?)", id),
 			"active.visits (cascade)")
 
 		// Delete from active.groups by direct ID or by reference
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("active.groups").
+			TableExpr("active.groups").
 			Where("id = ? OR group_id = ? OR device_id = ?", id, id, id),
 			"active.groups")
 
@@ -428,22 +421,19 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from activities.student_enrollments (depends on activities.groups)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("activities.student_enrollments").
+			TableExpr("activities.student_enrollments").
 			Where("activity_group_id = ?", id),
 			"activities.student_enrollments")
 
 		// Delete from activities.groups by ID or by category_id (to handle FK constraint)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("activities.groups").
+			TableExpr("activities.groups").
 			Where("id = ? OR category_id = ?", id, id),
 			"activities.groups")
 
 		// Delete from activities.categories (now safe after groups referencing them are deleted)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("activities.categories").
+			TableExpr("activities.categories").
 			Where(whereIDEquals, id),
 			"activities.categories")
 
@@ -453,8 +443,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from iot.devices
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("iot.devices").
+			TableExpr("iot.devices").
 			Where(whereIDEquals, id),
 			"iot.devices")
 
@@ -464,8 +453,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from facilities.rooms
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("facilities.rooms").
+			TableExpr("facilities.rooms").
 			Where(whereIDEquals, id),
 			"facilities.rooms")
 
@@ -475,43 +463,37 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from users.guests (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.guests").
+			TableExpr("users.guests").
 			Where("id = ? OR staff_id = ?", id, id),
 			"users.guests")
 
 		// Delete from users.profiles (depends on account)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.profiles").
+			TableExpr("users.profiles").
 			Where(whereIDOrAccountID, id, id),
 			"users.profiles")
 
 		// Delete from active.attendance (by student_id before deleting student)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("active.attendance").
+			TableExpr("active.attendance").
 			Where("student_id = ?", id),
 			"active.attendance")
 
 		// Delete from users.students
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.students").
+			TableExpr("users.students").
 			Where(whereIDEquals, id),
 			"users.students")
 
 		// Delete from users.staff
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersStaff).
+			TableExpr(tableUsersStaff).
 			Where(whereIDEquals, id),
 			tableUsersStaff)
 
 		// Delete from users.persons (last, as it's referenced by students and staff)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersPersons).
+			TableExpr(tableUsersPersons).
 			Where(whereIDEquals, id),
 			tableUsersPersons)
 
@@ -521,8 +503,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from active.group_supervisors
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("active.group_supervisors").
+			TableExpr("active.group_supervisors").
 			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id),
 			"active.group_supervisors")
 
@@ -537,29 +518,25 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from users.privacy_consents (by student_id)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.privacy_consents").
+			TableExpr("users.privacy_consents").
 			Where("id = ? OR student_id = ?", id, id),
 			"users.privacy_consents")
 
 		// Delete from users.persons_guardians (by person_id or guardian_account_id)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.persons_guardians").
+			TableExpr("users.persons_guardians").
 			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id),
 			"users.persons_guardians")
 
 		// Delete from users.guardian_profiles
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.guardian_profiles").
+			TableExpr("users.guardian_profiles").
 			Where(whereIDEquals, id),
 			"users.guardian_profiles")
 
 		// Delete from users.rfid_cards (note: string ID, but try as int64)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersRFIDCards).
+			TableExpr(tableUsersRFIDCards).
 			Where(whereIDEquals, fmt.Sprintf("%d", id)),
 			tableUsersRFIDCards)
 	}
@@ -643,8 +620,7 @@ func CleanupRFIDCards(tb testing.TB, db *bun.DB, tagIDs ...string) {
 
 	for _, tagID := range tagIDs {
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersRFIDCards).
+			TableExpr(tableUsersRFIDCards).
 			Where(whereIDEquals, tagID),
 			tableUsersRFIDCards)
 	}
@@ -826,8 +802,7 @@ func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
 	tb.Helper()
 
 	cleanupDelete(tb, db.NewDelete().
-		Model((*interface{})(nil)).
-		Table(tableUsersPersons).
+		TableExpr(tableUsersPersons).
 		Where(whereIDEquals, personID),
 		tableUsersPersons)
 }
@@ -867,23 +842,20 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 
 		// Delete teacher if exists (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersTeachers).
+			TableExpr(tableUsersTeachers).
 			Where("staff_id = ?", staffID),
 			tableUsersTeachers)
 
 		// Delete staff
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersStaff).
+			TableExpr(tableUsersStaff).
 			Where(whereIDEquals, staffID),
 			tableUsersStaff)
 
 		// Delete person if we found one
 		if staff.PersonID > 0 {
 			cleanupDelete(tb, db.NewDelete().
-				Model((*interface{})(nil)).
-				Table(tableUsersPersons).
+				TableExpr(tableUsersPersons).
 				Where(whereIDEquals, staff.PersonID),
 				tableUsersPersons)
 		}
@@ -940,16 +912,14 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 
 		// Delete teacher
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersTeachers).
+			TableExpr(tableUsersTeachers).
 			Where(whereIDEquals, teacherID),
 			tableUsersTeachers)
 
 		// Delete staff
 		if teacher.StaffID > 0 {
 			cleanupDelete(tb, db.NewDelete().
-				Model((*interface{})(nil)).
-				Table(tableUsersStaff).
+				TableExpr(tableUsersStaff).
 				Where(whereIDEquals, teacher.StaffID),
 				tableUsersStaff)
 		}
@@ -957,8 +927,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		// Delete person
 		if staff.PersonID > 0 {
 			cleanupDelete(tb, db.NewDelete().
-				Model((*interface{})(nil)).
-				Table(tableUsersPersons).
+				TableExpr(tableUsersPersons).
 				Where(whereIDEquals, staff.PersonID),
 				tableUsersPersons)
 		}
@@ -1679,8 +1648,7 @@ func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
 
 	for _, id := range timeframeIDs {
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("schedule.timeframes").
+			TableExpr("schedule.timeframes").
 			Where(whereIDEquals, id),
 			"schedule.timeframes")
 	}
@@ -1774,8 +1742,7 @@ func CleanupInvitationFixtures(tb testing.TB, db *bun.DB, invitationIDs ...int64
 
 	for _, id := range invitationIDs {
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.invitation_tokens").
+			TableExpr("auth.invitation_tokens").
 			Where(whereIDEquals, id),
 			"auth.invitation_tokens")
 	}

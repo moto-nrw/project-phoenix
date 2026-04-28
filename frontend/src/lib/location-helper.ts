@@ -2,7 +2,7 @@
  * Centralized helpers for parsing, styling, and rendering student location data.
  */
 
-export interface ParsedLocation {
+interface ParsedLocation {
   status: string;
   room?: string;
 }
@@ -51,6 +51,21 @@ export const LOCATION_COLORS = {
   SICK: "#EAB308", // Amber - medical/sick status
   EXCUSED: "#7C3AED", // Purple - excused absence (kind is not attending today)
   NOT_ARRIVAL: "#6B7280", // Gray - planned absence via arrival-schedule exception
+} as const;
+
+/**
+ * Hover/active/text/background shade variants of the brand green
+ * (LOCATION_COLORS.GROUP_ROOM). Centralised so the school check-in toggle and
+ * any future "primary action" buttons stop hardcoding hex literals — see
+ * CLAUDE.md §0 (route every brand color through LOCATION_COLORS).
+ */
+export const GROUP_ROOM_SHADES = {
+  base: LOCATION_COLORS.GROUP_ROOM, // #83CD2D
+  hover: "#74b827", // darker green for primary-button hover
+  active: "#669f21", // even darker for :active
+  text: "#4a7a15", // accessible text-on-white
+  bgHover: "#f0f9e4", // tinted background for ghost-button hover
+  bgActive: "#e4f3d3", // slightly darker tint for ghost-button :active
 } as const;
 
 const LOCATION_SEPARATOR = "-";

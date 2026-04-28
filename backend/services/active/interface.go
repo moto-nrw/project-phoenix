@@ -103,7 +103,22 @@ type Service interface {
 	// Attendance tracking operations
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
 	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*AttendanceStatus, error)
+	// ToggleStudentAttendance flips state based on the current row — used by
+	// the IoT kiosk where a single device serializes scans. NOT safe under
+	// concurrent web callers because the read-then-flip can swap an "in"
+	// click into an "out" if another caller wins the race; web callers must
+	// use CheckInStudent / CheckOutStudent below, which never flip the
+	// requested action against the observed state.
 	ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error)
+	// CheckInStudent applies "in" unconditionally. The insert is ON CONFLICT
+	// DO NOTHING against the partial unique index, so a concurrent winner is
+	// transparently absorbed; Action is always "checked_in" on return.
+	CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error)
+	// CheckOutStudent applies "out" unconditionally via a state-checked
+	// UPDATE WHERE check_out_time IS NULL — closes the open row when one
+	// exists, returns idempotent success otherwise. Action is always
+	// "checked_out" on return.
+	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 	BroadcastDailyCheckout(ctx context.Context, studentID int64)
 
@@ -117,6 +132,12 @@ type Service interface {
 	// Tracking indicators — returns per-student match results for the given labels.
 	// Each student gets a []bool aligned with the labels slice.
 	GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
+
+	// GetPresenceMode resolves the tenant's presence mode ("detailed" | "binary").
+	// Fails safe to "detailed" when the settings resolver is nil or the lookup
+	// errors. Use this instead of calling the settings service directly so every
+	// caller gets consistent fallback behavior.
+	GetPresenceMode(ctx context.Context) string
 
 	// Injects the tenant-scoped settings resolver (optional).
 	// Called by the factory after the settings service is constructed.
@@ -278,11 +299,19 @@ type CleanupPreview struct {
 
 // AttendanceStatus represents a student's current attendance status for the day
 type AttendanceStatus struct {
-	StudentID    int64      `json:"student_id"`
-	Status       string     `json:"status"` // "not_checked_in", "checked_in", "checked_out"
+	StudentID int64 `json:"student_id"`
+	// Status is derived from the attendance row's timestamps:
+	//   "not_checked_in" — no attendance row today
+	//   "checked_in"     — row exists, CheckOutTime nil, YardSince nil (in the building)
+	//   "on_yard"        — row exists, CheckOutTime nil, YardSince non-nil (on premises, outside the building)
+	//   "checked_out"    — CheckOutTime non-nil (formally left school)
+	Status       string     `json:"status"`
 	Date         time.Time  `json:"date"`
 	CheckInTime  *time.Time `json:"check_in_time"`
 	CheckOutTime *time.Time `json:"check_out_time"`
+	// YardSince, when non-nil, marks the moment the student moved to the
+	// schoolyard without checking out. Only meaningful while Status == "on_yard".
+	YardSince    *time.Time `json:"yard_since,omitempty"`
 	CheckedInBy  string     `json:"checked_in_by"`  // Formatted as "FirstName LastName"
 	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
 }

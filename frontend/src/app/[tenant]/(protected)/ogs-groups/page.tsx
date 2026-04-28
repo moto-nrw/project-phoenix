@@ -30,11 +30,7 @@ import {
   matchesSearchFilter,
   matchesAttendanceFilter,
 } from "./ogs-group-helpers";
-import {
-  getPickupUrgency,
-  useMinuteClock,
-  combinePickupNotes,
-} from "~/lib/pickup-helpers";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import type { OGSGroup } from "./ogs-group-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
@@ -45,19 +41,31 @@ import { useSWRAuth } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 
 import { Loading } from "~/components/ui/loading";
-import { LocationBadge } from "@/components/ui/location-badge";
+import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
   StudentCard,
   PickupTimeRow,
   ArrivalTimeRow,
 } from "~/components/students/student-card";
+import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
+import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import {
+  deriveCheckinState,
+  useSchoolCheckinMode,
+} from "~/lib/hooks/use-school-checkin-mode";
+import { buildGroupOverflowItems } from "./components/group-overflow-items";
+import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
-import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
+import {
+  combineTimeNotes,
+  getStudentTimeStatus,
+  getTimeStatusSortRank,
+} from "~/lib/student-time-status";
 
 import { createLogger } from "~/lib/logger";
 
@@ -94,6 +102,8 @@ interface BackendStudentFromBFF {
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
 }
 
 // BFF response type for dashboard data
@@ -147,6 +157,19 @@ function OGSGroupPageContent() {
 
   const { success: showSuccessToast } = useToast();
   const { userContext } = useUserContext();
+
+  // Only binary-mode tenants expose the web check-in toggle; in detailed
+  // mode the kiosk owns check-in/out and a parallel web button would
+  // confuse users. We gate both the header toggle and the card's
+  // check-in mode on this flag — when false the page behaves exactly as
+  // it did before this feature landed.
+  const presenceMode = usePresenceMode();
+  const isBinaryMode = presenceMode === "binary";
+
+  // Page-level school check-in/out mode. Toggle lives in the header; when
+  // isActive, clicking a card toggles that student's attendance instead of
+  // navigating to the detail page.
+  const schoolCheckin = useSchoolCheckinMode();
 
   // Check if user has access to OGS groups
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -315,6 +338,8 @@ function OGSGroupPageContent() {
         arrival_time: s.arrival_time,
         arrival_is_exception: s.arrival_is_exception,
         arrival_notes: s.arrival_notes,
+        actual_arrival_time: s.actual_arrival_time,
+        actual_pickup_time: s.actual_pickup_time,
       }));
       setStudents(mappedStudents);
 
@@ -796,14 +821,6 @@ function OGSGroupPageContent() {
     };
 
     if (sortMode === "pickup") {
-      // Urgency rank: overdue (0) → soon (1) → normal (2) → none/no time (3) → zuhause (4)
-      const urgencyRank: Record<string, number> = {
-        overdue: 0,
-        soon: 1,
-        normal: 2,
-        none: 3,
-      };
-
       return sorted.sort((a, b) => {
         const aHome = isHomeLocation(a.current_location);
         const bHome = isHomeLocation(b.current_location);
@@ -816,10 +833,18 @@ function OGSGroupPageContent() {
         // Beide anwesend: nach Urgency-Gruppe sortieren
         const timeA = pickupTimes.get(a.id.toString())?.pickupTime;
         const timeB = pickupTimes.get(b.id.toString())?.pickupTime;
-        const urgencyA = getPickupUrgency(timeA, now);
-        const urgencyB = getPickupUrgency(timeB, now);
-        const rankA = urgencyRank[urgencyA] ?? 3;
-        const rankB = urgencyRank[urgencyB] ?? 3;
+        const statusA = getStudentTimeStatus({
+          plannedTime: timeA,
+          actualTime: a.actual_pickup_time,
+          now,
+        });
+        const statusB = getStudentTimeStatus({
+          plannedTime: timeB,
+          actualTime: b.actual_pickup_time,
+          now,
+        });
+        const rankA = getTimeStatusSortRank(statusA);
+        const rankB = getTimeStatusSortRank(statusB);
 
         // Verschiedene Urgency-Gruppen: überzogen zuerst
         if (rankA !== rankB) return rankA - rankB;
@@ -835,14 +860,6 @@ function OGSGroupPageContent() {
     }
 
     if (sortMode === "arrival") {
-      // Urgency rank for arrival: verspätet (0) → bald (1) → normal (2) → none/angekommen (3)
-      const urgencyRank: Record<string, number> = {
-        overdue: 0,
-        soon: 1,
-        normal: 2,
-        none: 3,
-      };
-
       return sorted.sort((a, b) => {
         const aHome = isHomeLocation(a.current_location);
         const bHome = isHomeLocation(b.current_location);
@@ -854,10 +871,18 @@ function OGSGroupPageContent() {
         // Beide zu Hause: nach Ankunfts-Urgency sortieren
         const timeA = a.arrival_time;
         const timeB = b.arrival_time;
-        const urgencyA = getArrivalUrgency(timeA, now, aHome);
-        const urgencyB = getArrivalUrgency(timeB, now, bHome);
-        const rankA = urgencyRank[urgencyA] ?? 3;
-        const rankB = urgencyRank[urgencyB] ?? 3;
+        const statusA = getStudentTimeStatus({
+          plannedTime: timeA,
+          actualTime: a.actual_arrival_time,
+          now,
+        });
+        const statusB = getStudentTimeStatus({
+          plannedTime: timeB,
+          actualTime: b.actual_arrival_time,
+          now,
+        });
+        const rankA = getTimeStatusSortRank(statusA);
+        const rankB = getTimeStatusSortRank(statusB);
 
         if (rankA !== rankB) return rankA - rankB;
 
@@ -1038,10 +1063,14 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Render helper for desktop action button
-  const renderDesktopActionButton = () => {
-    if (isMobile || !currentGroup) return undefined;
-    if (currentGroup.viaSubstitution) {
+  // Render helper for the substitution status pill. "In Vertretung" is a
+  // passive informational badge — it just signals that the current user is
+  // covering for someone else. Active actions ("Gruppe übergeben") moved into
+  // the kebab-menu, and the check-in mode lives in the SchoolCheckinFab.
+  const renderSubstitutionBadge = (variant: "desktop" | "mobile") => {
+    if (!currentGroup?.viaSubstitution) return undefined;
+
+    if (variant === "desktop") {
       return (
         <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
           <svg
@@ -1063,18 +1092,18 @@ function OGSGroupPageContent() {
         </div>
       );
     }
+
     return (
-      <button
-        onClick={() => setShowTransferModal(true)}
-        className="flex h-10 items-center gap-2 rounded-full border border-[#83CD2D] bg-white px-4 text-[#4a7a15] transition-colors duration-150 hover:bg-[#f0f9e4] active:bg-[#e4f3d3]"
-        aria-label="Gruppe übergeben"
+      <div
+        className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
+        title="In Vertretung"
       >
         <svg
-          className="h-4 w-4"
+          className="h-4 w-4 text-orange-600"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          strokeWidth={2}
+          strokeWidth={2.5}
         >
           <path
             strokeLinecap="round"
@@ -1082,67 +1111,19 @@ function OGSGroupPageContent() {
             d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
           />
         </svg>
-        <span className="text-sm font-medium">
-          {activeTransfers.length > 0
-            ? `Gruppe übergeben (${activeTransfers.length})`
-            : "Gruppe übergeben"}
-        </span>
-      </button>
+      </div>
     );
   };
 
-  // Render helper for mobile action button
-  const renderMobileActionButton = () => {
-    if (!isMobile || !currentGroup) return undefined;
-    if (currentGroup.viaSubstitution) {
-      return (
-        <div
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
-          title="In Vertretung"
-        >
-          <svg
-            className="h-4 w-4 text-orange-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-            />
-          </svg>
-        </div>
-      );
-    }
-    return (
-      <button
-        onClick={() => setShowTransferModal(true)}
-        className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[#4a7a15] transition-colors duration-150 active:bg-[#e4f3d3]"
-        aria-label="Gruppe übergeben"
-      >
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-          />
-        </svg>
-        {activeTransfers.length > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[10px] font-bold text-[#4a7a15]">
-            {activeTransfers.length}
-          </span>
-        )}
-      </button>
-    );
-  };
+  // Build the kebab-menu items once per render. Skip when there's no current
+  // group (loading state) so the menu doesn't appear with stale handlers.
+  const overflowItems = currentGroup
+    ? buildGroupOverflowItems({
+        viaSubstitution: currentGroup.viaSubstitution ?? false,
+        activeTransfersCount: activeTransfers.length,
+        onOpenTransfer: () => setShowTransferModal(true),
+      })
+    : [];
 
   // Render helper for student grid content
   const renderStudentContent = () => {
@@ -1191,8 +1172,9 @@ function OGSGroupPageContent() {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
-              const isHome = isHomeLocation(student.current_location);
 
+              const checkinState = deriveCheckinState(student.current_location);
+              const studentIdStr = student.id.toString();
               return (
                 <StudentCard
                   key={student.id}
@@ -1203,8 +1185,14 @@ function OGSGroupPageContent() {
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
                   }
+                  checkinMode={isBinaryMode && schoolCheckin.isActive}
+                  checkinState={checkinState}
+                  isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+                  onCheckinClick={() =>
+                    void schoolCheckin.toggle(studentIdStr, checkinState)
+                  }
                   locationBadge={
-                    <LocationBadge
+                    <StudentPresenceBadge
                       student={{
                         ...student,
                         not_arrival_today:
@@ -1222,27 +1210,27 @@ function OGSGroupPageContent() {
                     <>
                       <ArrivalTimeRow
                         arrivalTime={student.arrival_time}
+                        actualTime={student.actual_arrival_time}
                         isException={student.arrival_is_exception ?? false}
                         isAbsent={
                           (student.arrival_is_exception ?? false) &&
                           !student.arrival_time
                         }
                         notes={student.arrival_notes}
-                        isHome={isHome}
                         now={now}
                       />
                       <PickupTimeRow
                         pickupTime={studentPickup?.pickupTime}
+                        actualTime={student.actual_pickup_time}
                         isException={studentPickup?.isException ?? false}
                         notes={
                           studentPickup
-                            ? combinePickupNotes(
+                            ? combineTimeNotes(
                                 studentPickup.notes,
                                 studentPickup.dayNotes,
                               )
                             : undefined
                         }
-                        isHome={isHome}
                         now={now}
                       />
                     </>
@@ -1277,62 +1265,115 @@ function OGSGroupPageContent() {
   return (
     <>
       <div className="w-full">
-        {/* PageHeaderWithSearch - Title only on mobile */}
-        <PageHeaderWithSearch
-          title={
-            isMobile && allGroups.length === 1
-              ? (currentGroup?.name ?? "Meine Gruppe")
-              : "" // No title when multiple groups (tabs show group names) or on desktop
-          }
-          actionButton={renderDesktopActionButton()}
-          mobileActionButton={renderMobileActionButton()}
-          tabs={
-            allGroups.length > 1 && !isDesktop
-              ? {
-                  items: allGroups.map((group) => ({
-                    id: group.id,
-                    label: group.name,
-                    count: group.student_count,
-                  })),
-                  activeTab: currentGroup?.id ?? "",
-                  onTabChange: (tabId) => {
-                    const group = allGroups.find((g) => g.id === tabId);
-                    if (group) {
-                      localStorage.setItem("sidebar-last-group", tabId);
-                      localStorage.setItem(
-                        "sidebar-last-group-name",
-                        group.name,
-                      );
-                      void switchToGroup(tabId);
-                    }
-                  },
-                }
-              : undefined
-          }
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Name suchen...",
-          }}
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setAttendanceFilter("all");
-            setSortMode("default");
-          }}
-        />
+        {/* Page header — scrolls with the rest of the page (no sticky).
+            Active filters surface as a count badge on the filter pill (no
+            separate chips row), and the kebab menu carries the rare
+            "Gruppe übergeben" action. */}
+        <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
+          <PageHeaderWithSearch
+            title={
+              isMobile && allGroups.length === 1
+                ? (currentGroup?.name ?? "Meine Gruppe")
+                : "" // No title when multiple groups (tabs show group names) or on desktop
+            }
+            actionButton={renderSubstitutionBadge("desktop")}
+            mobileActionButton={renderSubstitutionBadge("mobile")}
+            overflowMenu={overflowItems}
+            primaryAction={
+              isBinaryMode ? (
+                <SchoolCheckinFab
+                  variant="inline"
+                  isActive={schoolCheckin.isActive}
+                  onToggle={schoolCheckin.toggleActive}
+                  successCount={schoolCheckin.successCount}
+                  pendingCount={schoolCheckin.pendingIds.size}
+                />
+              ) : undefined
+            }
+            activeFilterDisplay="count"
+            tabs={
+              allGroups.length > 1 && !isDesktop
+                ? {
+                    items: allGroups.map((group) => ({
+                      id: group.id,
+                      label: group.name,
+                      count: group.student_count,
+                    })),
+                    activeTab: currentGroup?.id ?? "",
+                    onTabChange: (tabId) => {
+                      const group = allGroups.find((g) => g.id === tabId);
+                      if (group) {
+                        localStorage.setItem("sidebar-last-group", tabId);
+                        localStorage.setItem(
+                          "sidebar-last-group-name",
+                          group.name,
+                        );
+                        void switchToGroup(tabId);
+                      }
+                    },
+                  }
+                : undefined
+            }
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Name suchen...",
+            }}
+            filters={filterConfigs}
+            activeFilters={activeFilters}
+            onClearAllFilters={() => {
+              setSearchTerm("");
+              setAttendanceFilter("all");
+              setSortMode("default");
+            }}
+          />
+        </div>
 
-        {/* Mobile Error Display */}
+        {/* Mobile Error Display — outside the sticky stack so it doesn't
+            push everything down on small screens. */}
         {error && (
           <div className="mb-4 md:hidden">
             <Alert type="error" message={error} />
           </div>
         )}
 
-        {/* Student Grid - Mobile Optimized */}
-        {renderStudentContent()}
+        {/* Mobile (<md) check-in mode trigger — inline pill at the top of
+            the card list when OFF; switches to a sticky bottom bar above
+            the mobile nav when ON. Tablet keeps the floating FAB and
+            desktop the header inline pill, both rendered below. */}
+        {isBinaryMode && (
+          <div className="mb-3 md:hidden">
+            <SchoolCheckinModeMobile
+              isActive={schoolCheckin.isActive}
+              onToggle={schoolCheckin.toggleActive}
+              successCount={schoolCheckin.successCount}
+              pendingCount={schoolCheckin.pendingIds.size}
+            />
+          </div>
+        )}
+
+        {/* Student Grid. Bottom padding reserves room for the mobile
+            sticky bar / tablet floating FAB so the last row of cards
+            stays tappable; desktop has neither and gets pb-0. */}
+        <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
+          {renderStudentContent()}
+        </div>
       </div>
+
+      {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
+          renders the inline pill / sticky bar combo above; desktop
+          renders the inline pill inside the page header. */}
+      {isBinaryMode && (
+        <div className="hidden md:block lg:hidden">
+          <SchoolCheckinFab
+            variant="floating"
+            isActive={schoolCheckin.isActive}
+            onToggle={schoolCheckin.toggleActive}
+            successCount={schoolCheckin.successCount}
+            pendingCount={schoolCheckin.pendingIds.size}
+          />
+        </div>
+      )}
 
       {/* Group Transfer Modal */}
       <GroupTransferModal

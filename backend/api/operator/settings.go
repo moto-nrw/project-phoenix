@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -20,6 +22,64 @@ import (
 // errAdminOnlyForOperator explains why an operator may not touch an
 // AccessAdminOnly setting (e.g. the OGS device PIN). Surfaced as HTTP 403.
 const errAdminOnlyForOperator = "this setting is admin-only and cannot be modified by operators"
+
+// errPresenceModeSwitchBlockedMsg is the German user-facing copy returned
+// when an operator tries to flip operations.presence_mode while students are
+// still checked in for the day. staticcheck ST1005 (capitalization / trailing
+// punctuation) is waived at the callsite with a nolint directive, matching
+// the convention in api/groups for German user-facing errors.
+const errPresenceModeSwitchBlockedMsg = "Moduswechsel während aktiver Anwesenheit nicht möglich. Bitte zunächst Tagesabschluss durchführen."
+
+// ErrPresenceModeSwitchBlocked is the sentinel returned by
+// enforcePresenceModeSwitchGuard so callers can branch on it via errors.Is
+// without relying on string equality (which breaks the moment any wrapper
+// modifies the message). Mirrors the SettingsService error pattern
+// (DefinitionNotFoundError / InvalidValueError).
+//
+//nolint:staticcheck // ST1005: German user-facing message
+var ErrPresenceModeSwitchBlocked = errors.New(errPresenceModeSwitchBlockedMsg)
+
+// enforcePresenceModeSwitchGuard rejects an in-progress write to
+// operations.presence_mode when any student is currently checked in for the
+// tenant. Runs inside the same tenant transaction as the write itself so RLS
+// scopes the attendance query automatically. Callers may bypass the guard
+// with `?force=true` for operational recovery.
+//
+// Why guard only the switch, not every write: the cascading impact of
+// flipping presence mode mid-day (stale open visits, SSE events mis-keyed,
+// device UX inconsistent with the tenant it's authenticated for) is far
+// larger than any other operator setting. Other keys don't need this.
+func enforcePresenceModeSwitchGuard(ctx context.Context, tx bun.Tx, key string, force bool) error {
+	if key != configModel.KeyPresenceMode {
+		return nil
+	}
+	if force {
+		return nil
+	}
+	// Bind the Berlin calendar date as UTC midnight (matches how
+	// performCheckIn writes active.attendance.date). Using CURRENT_DATE on
+	// the postgres side would be wrong: the PG session is UTC, so between
+	// 22:00–24:00 UTC (i.e. ~00:00–02:00 Berlin) CURRENT_DATE returns
+	// "yesterday" while open rows for the new Berlin day already exist
+	// under "today" — and the guard would silently let the switch through
+	// in exactly the window it's supposed to block.
+	today := timezone.TodayUTC()
+	var exists bool
+	err := tx.NewRaw(`
+		SELECT EXISTS(
+			SELECT 1 FROM active.attendance
+			WHERE date = ?
+			  AND check_out_time IS NULL
+		)
+	`, today).Scan(ctx, &exists)
+	if err != nil {
+		return fmt.Errorf("failed to check active attendance before mode switch: %w", err)
+	}
+	if exists {
+		return ErrPresenceModeSwitchBlocked
+	}
+	return nil
+}
 
 // guardOperatorWrite blocks the operator from set/reset/reveal on AccessAdminOnly settings.
 // Returns true when the handler should abort (response has already been written).
@@ -106,8 +166,26 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
+	// ?force=true lets operators bypass the presence-mode switch guard when
+	// doing maintenance recovery (e.g. stuck attendance rows blocking the
+	// switch). Everything else ignores the flag.
+	force := r.URL.Query().Get("force") == "true"
 
-	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
+	// Audit-log force-bypass writes on guarded keys so we have a trail when
+	// an operator overrides the safety check. This is intentionally a Warn
+	// (not Info) so it surfaces in standard log review.
+	if force && key == configModel.KeyPresenceMode {
+		slog.Warn("operator_setting_force_bypass",
+			slog.Int64("operator_id", changedBy),
+			slog.Int64("school_id", schoolID),
+			slog.String("setting_key", key),
+		)
+	}
+
+	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, tx bun.Tx) error {
+		if err := enforcePresenceModeSwitchGuard(ctx, tx, key, force); err != nil {
+			return err
+		}
 		if err := rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, nil); err != nil {
 			return err
 		}
@@ -117,6 +195,13 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		return nil
 	})
 	if err != nil {
+		// Dedicated 409 path for the mode-switch block so the frontend can
+		// surface the "daily end required" copy without heuristics. errors.Is
+		// keeps the branch resilient to wrapping, unlike string equality.
+		if errors.Is(err, ErrPresenceModeSwitchBlocked) {
+			render.Render(w, r, ErrConflict(errPresenceModeSwitchBlockedMsg)) //nolint:errcheck
+			return
+		}
 		renderOperatorSettingsError(w, r, err)
 		return
 	}

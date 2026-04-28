@@ -72,6 +72,16 @@ vi.mock("./TabsActionArea", () => ({
   ),
 }));
 
+vi.mock("./OverflowMenu", () => ({
+  OverflowMenu: ({ items }: { items: { label: string }[] }) => (
+    <div data-testid="overflow-menu">
+      {items.map((it) => (
+        <span key={it.label}>{it.label}</span>
+      ))}
+    </div>
+  ),
+}));
+
 describe("PageHeaderWithSearch", () => {
   const mockOnChange = vi.fn();
   const mockOnTabChange = vi.fn();
@@ -289,5 +299,91 @@ describe("PageHeaderWithSearch", () => {
     render(<PageHeaderWithSearch {...propsWithStatus} />);
     // Status is passed to PageHeader mock
     expect(screen.getByTestId("page-header")).toBeInTheDocument();
+  });
+
+  describe("overflowMenu prop", () => {
+    it("renders nothing when prop is omitted (default behaviour)", () => {
+      render(<PageHeaderWithSearch {...baseProps} />);
+      expect(screen.queryByTestId("overflow-menu")).toBeNull();
+    });
+
+    it("renders nothing when items array is empty", () => {
+      render(<PageHeaderWithSearch {...baseProps} overflowMenu={[]} />);
+      expect(screen.queryByTestId("overflow-menu")).toBeNull();
+    });
+
+    it("renders the kebab when tabs + items are provided", () => {
+      render(
+        <PageHeaderWithSearch
+          {...baseProps}
+          tabs={{
+            items: [{ id: "a", label: "A" }],
+            activeTab: "a",
+            onTabChange: vi.fn(),
+          }}
+          overflowMenu={[{ label: "Gruppe übergeben", onClick: vi.fn() }]}
+        />,
+      );
+      expect(screen.getByTestId("overflow-menu")).toBeInTheDocument();
+      expect(screen.getByText("Gruppe übergeben")).toBeInTheDocument();
+    });
+  });
+
+  describe("activeFilterDisplay prop", () => {
+    const filtersWithActive: PageHeaderWithSearchProps = {
+      ...baseProps,
+      filters: [
+        {
+          id: "status",
+          label: "Status",
+          type: "buttons",
+          value: "active",
+          onChange: vi.fn(),
+          options: [
+            { value: "all", label: "Alle" },
+            { value: "active", label: "Aktiv" },
+          ],
+        },
+      ],
+      activeFilters: [
+        { id: "status", label: "Status: Aktiv", onRemove: vi.fn() },
+      ],
+    };
+
+    it("renders chips by default (rückwärtskompatibel)", () => {
+      render(<PageHeaderWithSearch {...filtersWithActive} />);
+      expect(
+        screen.getAllByTestId("active-filter-chips").length,
+      ).toBeGreaterThan(0);
+    });
+
+    it("suppresses chips when set to count", () => {
+      render(
+        <PageHeaderWithSearch
+          {...filtersWithActive}
+          activeFilterDisplay="count"
+        />,
+      );
+      expect(screen.queryByTestId("active-filter-chips")).toBeNull();
+    });
+  });
+
+  describe("compactOnScroll prop", () => {
+    it("does not add scroll-driven classes by default", () => {
+      const { container } = render(<PageHeaderWithSearch {...baseProps} />);
+      // No transition classes injected when compactOnScroll is off.
+      expect(container.innerHTML).not.toContain("backdrop-blur-md");
+    });
+
+    it("opts in to scroll-driven transitions when enabled", () => {
+      const { container } = render(
+        <PageHeaderWithSearch {...baseProps} compactOnScroll />,
+      );
+      // The transition class is rendered even at scrollY=0 (idle); the
+      // active state classes only attach once scrollY > threshold.
+      expect(container.innerHTML).toContain(
+        "transition-[transform,backdrop-filter,background-color]",
+      );
+    });
   });
 });

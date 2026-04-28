@@ -19,7 +19,7 @@ export interface ActivitySupervisorSummary {
   name: string;
 }
 
-export function mapActivitySupervisorSummaryResponse(
+function mapActivitySupervisorSummaryResponse(
   supervisor: BackendActivitySupervisor,
 ): ActivitySupervisorSummary {
   return {
@@ -202,7 +202,7 @@ export interface ActivityStudent {
 }
 
 // Added: Frontend supervisor type
-export interface Supervisor {
+interface Supervisor {
   id: string;
   name: string;
 }
@@ -724,10 +724,6 @@ export interface ActivityFilter {
 }
 
 // Schedule filter type
-export interface ActivityScheduleFilter {
-  weekday?: string;
-  has_timeframe?: boolean;
-}
 
 // Helper functions
 export function formatActivityTimes(

@@ -17,17 +17,12 @@ export function getWeekdayLabel(weekday: number): string {
   return found ? found.label : `Tag ${weekday}`;
 }
 
-export function getWeekdayShortLabel(weekday: number): string {
-  const found = WEEKDAYS.find((w) => w.value === weekday);
-  return found ? found.shortLabel : `T${weekday}`;
-}
-
 export function formatArrivalTime(time: string): string {
   if (time.length > 5) return time.substring(0, 5);
   return time;
 }
 
-export function getWeekStart(weekOffset = 0): Date {
+function getWeekStart(weekOffset = 0): Date {
   const today = new Date();
   const dayOfWeek = today.getDay();
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -54,7 +49,7 @@ export function formatShortDate(date: Date): string {
   return `${day}.${month}.`;
 }
 
-export function isSameDay(a: Date, b: Date): boolean {
+function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
@@ -62,7 +57,7 @@ export function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-export function getWeekdayFromDate(date: Date): number | null {
+function getWeekdayFromDate(date: Date): number | null {
   const jsDay = date.getDay();
   if (jsDay === 0 || jsDay === 6) return null;
   return jsDay;
@@ -79,14 +74,6 @@ export interface ArrivalScheduleFormEntry {
   weekday: number;
   expected_arrival: string;
   notes?: string | null;
-}
-
-export function createEmptyWeeklySchedule(): ArrivalScheduleFormEntry[] {
-  return WEEKDAYS.map((w) => ({
-    weekday: w.value,
-    expected_arrival: "",
-    notes: null,
-  }));
 }
 
 export function mergeSchedulesWithTemplate(
@@ -192,35 +179,4 @@ export function getDayData(
     isAbsent,
     notes: dayNotes,
   };
-}
-
-export type ArrivalUrgency = "overdue" | "soon" | "normal" | "none";
-
-const ARRIVAL_URGENCY_SOON_MINUTES = 30;
-
-/**
- * Calculate urgency for an expected arrival time.
- *
- * Unlike pickup urgency, the meaning is inverted with respect to `isHome`:
- * arrival matters only while the student is still at home. Once `isHome`
- * is false (student already in the building), arrival is "done" → "none".
- */
-export function getArrivalUrgency(
-  arrivalTimeStr: string | undefined,
-  now: Date,
-  isHome: boolean,
-): ArrivalUrgency {
-  if (!arrivalTimeStr) return "none";
-  if (!isHome) return "none";
-
-  const [hours, minutes] = arrivalTimeStr.split(":").map(Number);
-  const arrivalDate = new Date(now);
-  arrivalDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-
-  const diffMs = arrivalDate.getTime() - now.getTime();
-  const diffMinutes = diffMs / 60000;
-
-  if (diffMinutes < 0) return "overdue";
-  if (diffMinutes <= ARRIVAL_URGENCY_SOON_MINUTES) return "soon";
-  return "normal";
 }

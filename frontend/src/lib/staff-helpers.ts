@@ -3,7 +3,7 @@
 import type { Staff } from "./staff-api";
 
 // Location status type matching the pattern from OGS groups
-export interface LocationStatus {
+interface LocationStatus {
   label: string;
   badgeColor: string;
   cardGradient: string;

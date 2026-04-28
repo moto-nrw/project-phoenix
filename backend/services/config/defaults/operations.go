@@ -226,4 +226,47 @@ func init() {
 		SortOrder:       31,
 		Options:         statusFlagOptions,
 	})
+
+	// --- Anwesenheits-Modus (presence tracking model, operator-only) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyPresenceMode,
+		Label:           "Anwesenheits-Modus",
+		Description:     "Detailliert erfasst Räume und Aktivitäten. Binär erfasst nur, ob ein Schüler in der Schule ist (ohne Raumverfolgung).",
+		Type:            config.FieldSelect,
+		Default:         config.PresenceModeDetailed,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "anwesenheit",
+		SortOrder:       40,
+		AccessPolicy:    config.AccessOperatorOnly,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Detailliert (Räume & Aktivitäten)", Value: config.PresenceModeDetailed},
+				{Label: "Binär (nur An-/Abwesend)", Value: config.PresenceModeBinary},
+			},
+		},
+	})
+
+	// --- Web-An/Abmeldung Zugriff (who can toggle presence via web UI) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyWebCheckinAccess,
+		Label:           "Web-An/Abmeldung Zugriff",
+		Description:     "Legt fest, welche Mitarbeitenden Schüler über die Weboberfläche an- und abmelden dürfen.",
+		Type:            config.FieldSelect,
+		Default:         config.WebCheckinAccessGroupSupervisors,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "anwesenheit",
+		SortOrder:       41,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Nur Gruppenbetreuer des Schülers", Value: config.WebCheckinAccessGroupSupervisors},
+				{Label: "Alle berechtigten Mitarbeitenden", Value: config.WebCheckinAccessAllStaff},
+			},
+		},
+	})
 }

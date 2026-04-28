@@ -130,6 +130,18 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 		VALUES (1, 1, 'Default Room', 'Default')
 		ON CONFLICT (id) DO NOTHING`)
 
+	// Ensure default system staff exists (person ID 1, staff ID 1) for legacy
+	// tests that hardcode CreatedBy: 1 to satisfy created_by FK constraints on
+	// schedule/activity tables. Same convention as rooms.id=1 and schools.id=1.
+	_, _ = db.ExecContext(context.Background(), `
+		INSERT INTO users.persons (id, tenant_id, first_name, last_name)
+		VALUES (1, 1, 'System', 'Test')
+		ON CONFLICT (id) DO NOTHING`)
+	_, _ = db.ExecContext(context.Background(), `
+		INSERT INTO users.staff (id, tenant_id, person_id)
+		VALUES (1, 1, 1)
+		ON CONFLICT (id) DO NOTHING`)
+
 	// Advance the BIGSERIAL sequence past any explicitly-inserted IDs.
 	// Uses nextval (atomic, never goes backwards) instead of setval to avoid
 	// races when parallel test packages call SetupTestDB concurrently.
@@ -138,6 +150,10 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 		BEGIN
 			SELECT COALESCE(MAX(id), 0) INTO max_id FROM facilities.rooms;
 			WHILE nextval('facilities.rooms_id_seq') < max_id LOOP END LOOP;
+			SELECT COALESCE(MAX(id), 0) INTO max_id FROM users.persons;
+			WHILE nextval('users.persons_id_seq') < max_id LOOP END LOOP;
+			SELECT COALESCE(MAX(id), 0) INTO max_id FROM users.staff;
+			WHILE nextval('users.staff_id_seq') < max_id LOOP END LOOP;
 		END $$`)
 
 	return db

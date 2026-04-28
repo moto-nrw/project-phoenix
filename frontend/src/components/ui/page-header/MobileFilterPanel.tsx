@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import { useEffect } from "react";
 import {
   normalizeFilterValues,
   type MobileFilterPanelProps,
@@ -31,6 +31,17 @@ export function MobileFilterPanel({
   onApply,
   onReset,
 }: Readonly<MobileFilterPanelProps>) {
+  // Escape key closes the panel — only attached while open so we don't pay
+  // the listener cost on every page that mounts a panel.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) {
     return null;
   }
@@ -151,43 +162,66 @@ export function MobileFilterPanel({
   };
 
   return (
-    <div className="mb-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="space-y-4">
-        {filters.map((filter) => (
-          <div key={filter.id}>
-            <label className="mb-1.5 block text-xs font-medium text-gray-600">
-              {filter.label}
-            </label>
-            {renderFilterOptions(filter)}
-          </div>
-        ))}
-      </div>
+    <>
+      {/* Click-outside backdrop. Transparent so the page content stays
+          visible behind it — Stripe / Linear pattern. The panel itself
+          dominates focus via shadow + border. */}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Filter schließen"
+        className="fixed inset-0 z-40 cursor-default bg-transparent"
+      />
 
-      {(onApply ?? onReset) && (
-        <div className="mt-4 flex gap-2 border-t border-gray-100 pt-3">
-          {onReset && (
-            <button
-              type="button"
-              onClick={onReset}
-              className="flex-1 py-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Zurücksetzen
-            </button>
-          )}
-          {onApply && (
-            <button
-              type="button"
-              onClick={() => {
-                onApply();
-                onClose();
-              }}
-              className="flex-1 rounded-lg bg-gray-900 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-            >
-              Anwenden
-            </button>
-          )}
+      {/* Panel.
+          - Mobile (<md): bottom-anchored sheet with side margins.
+          - Tablet+ (md+): top-right anchored popover, ~400px wide. Sits
+            below the header where the trigger lives, with a comfortable
+            inner scroll region so long filter lists don't blow up the
+            viewport. */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Filter"
+        className="fixed inset-x-3 bottom-3 z-50 max-h-[85vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-xl md:inset-x-auto md:top-[6rem] md:right-4 md:bottom-auto md:max-h-[80vh] md:w-96"
+      >
+        <div className="space-y-4">
+          {filters.map((filter) => (
+            <div key={filter.id}>
+              <label className="mb-1.5 block text-xs font-medium text-gray-600">
+                {filter.label}
+              </label>
+              {renderFilterOptions(filter)}
+            </div>
+          ))}
         </div>
-      )}
-    </div>
+
+        {(onApply ?? onReset) && (
+          <div className="mt-4 flex gap-2 border-t border-gray-100 pt-3">
+            {onReset && (
+              <button
+                type="button"
+                onClick={onReset}
+                className="flex-1 py-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+              >
+                Zurücksetzen
+              </button>
+            )}
+            {onApply && (
+              <button
+                type="button"
+                onClick={() => {
+                  onApply();
+                  onClose();
+                }}
+                className="flex-1 rounded-lg bg-gray-900 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+              >
+                Anwenden
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

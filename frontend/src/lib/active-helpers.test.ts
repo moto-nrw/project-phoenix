@@ -191,6 +191,40 @@ describe("active-helpers", () => {
       expect(result.schoolClass).toBeUndefined();
       expect(result.groupName).toBeUndefined();
       expect(result.activeGroupName).toBeUndefined();
+      expect(result.actualArrivalTime).toBeUndefined();
+      expect(result.actualPickupTime).toBeUndefined();
+    });
+
+    it("preserves actual_arrival_time and actual_pickup_time as HH:MM strings", () => {
+      // The backend sends the wall-clock string already formatted in Berlin
+      // time (`timezone.FormatBerlinClock`). The mapper must NOT parse it
+      // into a Date — that would re-anchor it to today's local TZ and
+      // break diff calculations against `plannedTime` strings.
+      const visit = buildBackendVisit({
+        actual_arrival_time: "08:30",
+        actual_pickup_time: "16:05",
+      });
+
+      const result = mapVisitResponse(visit);
+
+      expect(result.actualArrivalTime).toBe("08:30");
+      expect(result.actualPickupTime).toBe("16:05");
+      expect(typeof result.actualArrivalTime).toBe("string");
+    });
+
+    it("threads only actual_arrival_time when student is still checked in", () => {
+      const visit = buildBackendVisit({
+        actual_arrival_time: "08:00",
+        actual_pickup_time: undefined,
+        check_out_time: undefined,
+        is_active: true,
+      });
+
+      const result = mapVisitResponse(visit);
+
+      expect(result.actualArrivalTime).toBe("08:00");
+      expect(result.actualPickupTime).toBeUndefined();
+      expect(result.checkOutTime).toBeUndefined();
     });
   });
 

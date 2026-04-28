@@ -16,6 +16,7 @@ import {
 } from "~/lib/date-helpers";
 import { formatFloor } from "~/lib/room-helpers";
 import { createLogger } from "~/lib/logger";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 
 const logger = createLogger({ component: "RoomDetailPage" });
 
@@ -172,7 +173,17 @@ function StatusBadge({ isOccupied }: Readonly<{ isOccupied: boolean }>) {
   );
 }
 
+// Binary-mode tenants have no room occupancy to detail. Guard the page here
+// so direct URL entry 404s instead of rendering an empty/confusing shell.
 export default function RoomDetailPage() {
+  return (
+    <BinaryModeGuard>
+      <RoomDetailPageContent />
+    </BinaryModeGuard>
+  );
+}
+
+function RoomDetailPageContent() {
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();

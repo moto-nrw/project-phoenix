@@ -174,6 +174,12 @@ func (rs *Resource) Router() chi.Router {
 		// Bulk arrival schedule and time endpoints
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/arrival-schedules/bulk", rs.bulkUpsertArrivalSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
+
+		// Web-based school check-in/out. Mode-agnostic (writes attendance only).
+		// The users:checkin permission is the coarse gate; the
+		// attendance.web_checkin_access setting is the fine gate enforced inside
+		// the handler (group_supervisors vs all_staff).
+		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
 	})
 
 	// Device-authenticated routes for RFID devices.
@@ -354,6 +360,13 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
+	for i := range responses {
+		if !responses[i].HasFullAccess {
+			continue
+		}
+		applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
+	}
+
 	// Optionally enrich the paginated slice with today's effective pickup times (single bulk query).
 	// Only query for students the caller has full access to (GDPR — skip redacted students).
 	if params.includePickupTimes || params.includeArrivalTimes {
@@ -417,7 +430,7 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users
 
 // buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
 func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) *StudentResponse {
-	hasFullAccess := accessCtx.hasFullAccessToStudent(student)
+	hasFullAccess := accessCtx.HasFullAccessToStudent(student)
 
 	// Get person data from snapshot
 	person := dataSnapshot.GetPerson(student.PersonID)
@@ -483,6 +496,18 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		HasWriteAccess:       hasWriteAccess,
 		AttendanceLogEnabled: attendanceLogEnabled,
 		FeedbackEnabled:      feedbackEnabled,
+	}
+
+	if hasFullAccess {
+		attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+		if err != nil {
+			rs.Logger.Warn("failed to resolve actual student arrival/pickup times",
+				"student_id", student.ID,
+				"error", err.Error(),
+			)
+		} else {
+			applyActualTimesFromAttendance(&response.StudentResponse, attendanceStatus)
+		}
 	}
 
 	// Add supervisor contacts for users without full access
@@ -959,6 +984,10 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 
 // ListStudentsHandler returns the handler for listing students.
 func (rs *Resource) ListStudentsHandler() http.HandlerFunc { return rs.listStudents }
+
+// SchoolCheckinHandler returns the handler for POST /api/students/{id}/school-checkin.
+// Exposed for integration tests that bypass the router's middleware chain.
+func (rs *Resource) SchoolCheckinHandler() http.HandlerFunc { return rs.schoolCheckinHandler }
 
 // GetStudentHandler returns the handler for getting a single student.
 func (rs *Resource) GetStudentHandler() http.HandlerFunc { return rs.getStudent }

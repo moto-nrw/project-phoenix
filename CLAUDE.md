@@ -22,6 +22,17 @@ Project Phoenix is part of a three-repo system. All repos live side-by-side (`..
 
 **If you change IoT endpoints, error messages, or auth headers**: PyrePortal will break silently. Error messages are hardcoded in `PyrePortal/src/services/api.ts` and mapped to German UI text. Coordinate changes across repos.
 
+### Presence mode (cross-repo contract)
+
+`GET /api/iot/config` returns a `presence_mode: "detailed" | "binary"` field
+that PyrePortal must respect. In `binary` mode the kiosk must hide room
+selection, hide Raumwechsel/WC buttons, and branch the scan-result modal
+based on `checkout.schulhof_enabled` (2-button door kiosk vs 3-button with
+yard state). Missing or unknown values default to `detailed` so old kiosk
+builds continue to work. Backend checkin semantics adapt transparently —
+only the kiosk UI needs to change per mode. See the companion PyrePortal
+issue for the exact UI state machine.
+
 ## Multi-Tenancy
 
 ### Tenant Hierarchy
