@@ -35,8 +35,7 @@ import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
-import { isHomeLocation } from "~/lib/location-helper";
-import { useMinuteClock, combinePickupNotes } from "~/lib/pickup-helpers";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { isAdmin, isCaregiver } from "~/lib/auth-utils";
@@ -50,6 +49,7 @@ import {
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
+import { combineTimeNotes } from "~/lib/student-time-status";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
@@ -124,6 +124,8 @@ interface BFFDashboardResponse {
     groupName: string;
     activeGroupId: string;
     checkInTime: string;
+    actualArrivalTime?: string;
+    actualPickupTime?: string;
     isActive: boolean;
     sick?: boolean;
     sickSince?: string;
@@ -446,6 +448,8 @@ function MeinRaumPageContent() {
             sick_since: visit.sickSince,
             excused: visit.excused,
             excused_since: visit.excusedSince,
+            actual_arrival_time: visit.actualArrivalTime,
+            actual_pickup_time: visit.actualPickupTime,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
           } as StudentWithVisit;
@@ -780,6 +784,8 @@ function MeinRaumPageContent() {
               sick_since: visit.sickSince,
               excused: visit.excused,
               excused_since: visit.excusedSince,
+              actual_arrival_time: visit.actualArrivalTime,
+              actual_pickup_time: visit.actualPickupTime,
               activeGroupId: visit.activeGroupId,
               checkInTime: new Date(visit.checkInTime),
             } as StudentWithVisit;
@@ -937,6 +943,8 @@ function MeinRaumPageContent() {
           sick_since: visit.sickSince,
           excused: visit.excused,
           excused_since: visit.excusedSince,
+          actual_arrival_time: visit.actualArrivalTime,
+          actual_pickup_time: visit.actualPickupTime,
           activeGroupId: visit.activeGroupId,
           checkInTime: visit.checkInTime,
         } as StudentWithVisit;
@@ -1309,7 +1317,6 @@ function MeinRaumPageContent() {
               const studentArrival = arrivalTimesData?.get(
                 student.id.toString(),
               );
-              const isHome = isHomeLocation(student.current_location);
 
               return (
                 <StudentCard
@@ -1353,6 +1360,7 @@ function MeinRaumPageContent() {
                       )}
                       <ArrivalTimeRow
                         arrivalTime={studentArrival?.expectedArrival}
+                        actualTime={student.actual_arrival_time}
                         isException={studentArrival?.isException ?? false}
                         isAbsent={
                           (studentArrival?.isException ?? false) &&
@@ -1360,27 +1368,26 @@ function MeinRaumPageContent() {
                         }
                         notes={
                           studentArrival
-                            ? combinePickupNotes(
+                            ? combineTimeNotes(
                                 studentArrival.notes,
                                 studentArrival.dayNotes,
                               )
                             : undefined
                         }
-                        isHome={isHome}
                         now={now}
                       />
                       <PickupTimeRow
                         pickupTime={studentPickup?.pickupTime}
+                        actualTime={student.actual_pickup_time}
                         isException={studentPickup?.isException ?? false}
                         notes={
                           studentPickup
-                            ? combinePickupNotes(
+                            ? combineTimeNotes(
                                 studentPickup.notes,
                                 studentPickup.dayNotes,
                               )
                             : undefined
                         }
-                        isHome={isHome}
                         now={now}
                       />
                     </>

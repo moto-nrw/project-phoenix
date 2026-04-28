@@ -39,12 +39,15 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
-import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
+import {
+  getStudentTimeStatus,
+  getTimeStatusSortRank,
+} from "~/lib/student-time-status";
 import {
   matchesTrackingFilter,
   resolveTrackingFilterAfterLabelChange,
@@ -481,13 +484,6 @@ function SearchPageContent() {
   const sortedStudents = useMemo(() => {
     if (sortMode !== "arrival") return filteredStudents;
 
-    const urgencyRank: Record<string, number> = {
-      overdue: 0,
-      soon: 1,
-      normal: 2,
-      none: 3,
-    };
-
     const compareByName = (a: Student, b: Student) => {
       const lastCmp = (a.second_name ?? "").localeCompare(
         b.second_name ?? "",
@@ -506,10 +502,18 @@ function SearchPageContent() {
 
       const timeA = a.arrival_time;
       const timeB = b.arrival_time;
-      const urgencyA = getArrivalUrgency(timeA, now, aHome);
-      const urgencyB = getArrivalUrgency(timeB, now, bHome);
-      const rankA = urgencyRank[urgencyA] ?? 3;
-      const rankB = urgencyRank[urgencyB] ?? 3;
+      const statusA = getStudentTimeStatus({
+        plannedTime: timeA,
+        actualTime: a.actual_arrival_time,
+        now,
+      });
+      const statusB = getStudentTimeStatus({
+        plannedTime: timeB,
+        actualTime: b.actual_arrival_time,
+        now,
+      });
+      const rankA = getTimeStatusSortRank(statusA);
+      const rankB = getTimeStatusSortRank(statusB);
 
       if (rankA !== rankB) return rankA - rankB;
 
@@ -683,7 +687,6 @@ function SearchPageContent() {
             <div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
                 {sortedStudents.map((student) => {
-                  const isHome = isHomeLocation(student.current_location);
                   const checkinState = deriveCheckinState(
                     student.current_location,
                   );
@@ -738,6 +741,7 @@ function SearchPageContent() {
                             <>
                               <ArrivalTimeRow
                                 arrivalTime={student.arrival_time}
+                                actualTime={student.actual_arrival_time}
                                 isException={
                                   student.arrival_is_exception ?? false
                                 }
@@ -746,16 +750,15 @@ function SearchPageContent() {
                                   !student.arrival_time
                                 }
                                 notes={student.arrival_notes}
-                                isHome={isHome}
                                 now={now}
                               />
                               <PickupTimeRow
                                 pickupTime={student.pickup_time ?? undefined}
+                                actualTime={student.actual_pickup_time}
                                 isException={
                                   student.pickup_is_exception ?? false
                                 }
                                 notes={student.pickup_notes}
-                                isHome={isHome}
                                 now={now}
                               />
                             </>

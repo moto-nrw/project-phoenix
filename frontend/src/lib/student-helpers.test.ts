@@ -182,6 +182,43 @@ describe("mapStudentResponse", () => {
     expect(result.scheduled_checkout).toBeDefined();
     expect(result.scheduled_checkout?.reason).toBe("Doctor appointment");
   });
+
+  it("passes through actual_arrival_time and actual_pickup_time when provided", () => {
+    const student: BackendStudent = {
+      ...sampleBackendStudent,
+      actual_arrival_time: "07:58",
+      actual_pickup_time: "15:42",
+    };
+
+    const result = mapStudentResponse(student);
+
+    expect(result.actual_arrival_time).toBe("07:58");
+    expect(result.actual_pickup_time).toBe("15:42");
+  });
+
+  it("leaves actual_arrival_time and actual_pickup_time undefined when backend omits them", () => {
+    // Mapper must not synthesize timestamps. A missing field on the wire
+    // must become `undefined` on the frontend so the time-status engine
+    // can distinguish "not yet known" from "actually missing".
+    const result = mapStudentResponse(sampleBackendStudent);
+
+    expect(result.actual_arrival_time).toBeUndefined();
+    expect(result.actual_pickup_time).toBeUndefined();
+  });
+
+  it("threads actual times independently — arrival without pickup is valid", () => {
+    // Real-world case: student is checked in but not yet picked up.
+    const student: BackendStudent = {
+      ...sampleBackendStudent,
+      actual_arrival_time: "08:05",
+      actual_pickup_time: undefined,
+    };
+
+    const result = mapStudentResponse(student);
+
+    expect(result.actual_arrival_time).toBe("08:05");
+    expect(result.actual_pickup_time).toBeUndefined();
+  });
 });
 
 describe("mapStudentsResponse", () => {

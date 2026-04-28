@@ -193,34 +193,3 @@ export function getDayData(
     notes: dayNotes,
   };
 }
-
-export type ArrivalUrgency = "overdue" | "soon" | "normal" | "none";
-
-const ARRIVAL_URGENCY_SOON_MINUTES = 30;
-
-/**
- * Calculate urgency for an expected arrival time.
- *
- * Unlike pickup urgency, the meaning is inverted with respect to `isHome`:
- * arrival matters only while the student is still at home. Once `isHome`
- * is false (student already in the building), arrival is "done" → "none".
- */
-export function getArrivalUrgency(
-  arrivalTimeStr: string | undefined,
-  now: Date,
-  isHome: boolean,
-): ArrivalUrgency {
-  if (!arrivalTimeStr) return "none";
-  if (!isHome) return "none";
-
-  const [hours, minutes] = arrivalTimeStr.split(":").map(Number);
-  const arrivalDate = new Date(now);
-  arrivalDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-
-  const diffMs = arrivalDate.getTime() - now.getTime();
-  const diffMinutes = diffMs / 60000;
-
-  if (diffMinutes < 0) return "overdue";
-  if (diffMinutes <= ARRIVAL_URGENCY_SOON_MINUTES) return "soon";
-  return "normal";
-}

@@ -38,6 +38,8 @@ type StudentResponse struct {
 	ArrivalTime        *string    `json:"arrival_time,omitempty"`         // Today's effective arrival time (HH:MM)
 	ArrivalIsException bool       `json:"arrival_is_exception,omitempty"` // True if today's arrival time is an exception
 	ArrivalNotes       string     `json:"arrival_notes,omitempty"`        // Exception reason or schedule notes
+	ActualArrivalTime  *string    `json:"actual_arrival_time,omitempty"`  // Today's actual arrival time from attendance (HH:MM)
+	ActualPickupTime   *string    `json:"actual_pickup_time,omitempty"`   // Today's actual pickup time from attendance (HH:MM)
 	Bus                bool       `json:"bus"`
 	Sick               bool       `json:"sick"`
 	SickSince          *time.Time `json:"sick_since,omitempty"`

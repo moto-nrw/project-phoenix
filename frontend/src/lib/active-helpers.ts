@@ -41,6 +41,8 @@ export interface BackendVisit {
   active_group_id: number;
   check_in_time: string;
   check_out_time?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
   is_active: boolean;
   notes?: string;
   student_name?: string;
@@ -131,6 +133,8 @@ export interface Visit {
   activeGroupId: string;
   checkInTime: Date;
   checkOutTime?: Date;
+  actualArrivalTime?: string;
+  actualPickupTime?: string;
   isActive: boolean;
   notes?: string;
   studentName?: string;
@@ -227,6 +231,8 @@ export function mapVisitResponse(backendVisit: BackendVisit): Visit {
     checkOutTime: backendVisit.check_out_time
       ? new Date(backendVisit.check_out_time)
       : undefined,
+    actualArrivalTime: backendVisit.actual_arrival_time,
+    actualPickupTime: backendVisit.actual_pickup_time,
     isActive: backendVisit.is_active,
     notes: backendVisit.notes,
     studentName: backendVisit.student_name,

@@ -9,11 +9,13 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/uptrace/bun"
 )
 
@@ -263,7 +265,20 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	responses := rs.buildVisitDisplayResponses(results)
+	// Resolve the caller's per-student access context once. Actual
+	// arrival/pickup times are gated identically to planned times — a
+	// caller who can't see a student's planned schedule (because they
+	// don't supervise the student's education group) must not see the
+	// real check-in/out clock either.
+	access := common.DetermineStudentAccess(r, rs.UserContextService, rs.SettingsService, rs.getLogger())
+
+	attendanceStatuses, err := rs.fetchAttendanceStatusesForVisits(r, results, access)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	responses := rs.buildVisitDisplayResponses(results, attendanceStatuses, access)
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
@@ -343,6 +358,7 @@ type visitWithStudent struct {
 	FirstName     string     `bun:"first_name"`
 	LastName      string     `bun:"last_name"`
 	SchoolClass   string     `bun:"school_class"`
+	GroupID       *int64     `bun:"group_id"` // student's education group_id (nullable)
 	OGSGroupName  string     `bun:"ogs_group_name"`
 	Sick          *bool      `bun:"sick"`
 	SickSince     *time.Time `bun:"sick_since"`
@@ -367,6 +383,7 @@ func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID in
 		ColumnExpr("p.first_name").
 		ColumnExpr("p.last_name").
 		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
+		ColumnExpr("s.group_id").
 		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
 		ColumnExpr("s.sick").
 		ColumnExpr("s.sick_since").
@@ -384,8 +401,62 @@ func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID in
 	return results, err
 }
 
-// buildVisitDisplayResponses builds visit responses with display data
-func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []VisitWithDisplayDataResponse {
+func collectVisitStudentIDs(results []visitWithStudent) []int64 {
+	studentIDs := make([]int64, 0, len(results))
+	seen := make(map[int64]struct{}, len(results))
+
+	for _, result := range results {
+		if _, ok := seen[result.StudentID]; ok {
+			continue
+		}
+		seen[result.StudentID] = struct{}{}
+		studentIDs = append(studentIDs, result.StudentID)
+	}
+
+	return studentIDs
+}
+
+// fetchAttendanceStatusesForVisits fetches today's attendance status for the
+// students in results, but only for the subset the caller has full access to.
+// Students outside the caller's access scope are skipped entirely so the DB
+// never returns their actual check-in/out times to this request.
+func (rs *Resource) fetchAttendanceStatusesForVisits(r *http.Request, results []visitWithStudent, access *common.StudentAccessContext) (map[int64]*activeService.AttendanceStatus, error) {
+	studentIDs := collectAuthorizedVisitStudentIDs(results, access)
+	if len(studentIDs) == 0 {
+		return map[int64]*activeService.AttendanceStatus{}, nil
+	}
+
+	return rs.ActiveService.GetStudentsAttendanceStatuses(r.Context(), studentIDs)
+}
+
+// collectAuthorizedVisitStudentIDs returns the unique student IDs from results
+// for which the caller has full data access (admin, all_staff scope, or group
+// supervisor). Used to scope the bulk attendance lookup so unauthorized rows
+// never leave the DB.
+func collectAuthorizedVisitStudentIDs(results []visitWithStudent, access *common.StudentAccessContext) []int64 {
+	studentIDs := make([]int64, 0, len(results))
+	seen := make(map[int64]struct{}, len(results))
+
+	for _, result := range results {
+		if _, ok := seen[result.StudentID]; ok {
+			continue
+		}
+		if !access.HasFullAccessByGroupID(result.GroupID) {
+			continue
+		}
+		seen[result.StudentID] = struct{}{}
+		studentIDs = append(studentIDs, result.StudentID)
+	}
+
+	return studentIDs
+}
+
+// buildVisitDisplayResponses builds visit responses with display data.
+// Actual arrival/pickup times are emitted only for students the caller has
+// full data access to — the same gate planned times use on the bulk pickup
+// and arrival endpoints. Other fields (name, school class, sick/excused) keep
+// their existing group-level visibility.
+func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, attendanceStatuses map[int64]*activeService.AttendanceStatus, access *common.StudentAccessContext) []VisitWithDisplayDataResponse {
 	responses := make([]VisitWithDisplayDataResponse, 0, len(results))
 	for _, result := range results {
 		studentName := result.FirstName + " " + result.LastName
@@ -397,12 +468,24 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent) []Vis
 		if result.Excused != nil {
 			excused = *result.Excused
 		}
+
+		var actualArrival *string
+		var actualPickup *string
+		if access.HasFullAccessByGroupID(result.GroupID) {
+			if attendanceStatus, ok := attendanceStatuses[result.StudentID]; ok && attendanceStatus != nil {
+				actualArrival = timezone.FormatBerlinClock(attendanceStatus.CheckInTime)
+				actualPickup = timezone.FormatBerlinClock(attendanceStatus.CheckOutTime)
+			}
+		}
+
 		responses = append(responses, VisitWithDisplayDataResponse{
 			ID:            result.VisitID,
 			StudentID:     result.StudentID,
 			ActiveGroupID: result.ActiveGroupID,
 			CheckInTime:   result.EntryTime,
 			CheckOutTime:  result.ExitTime,
+			ActualArrival: actualArrival,
+			ActualPickup:  actualPickup,
 			IsActive:      result.ExitTime == nil,
 			StudentName:   studentName,
 			SchoolClass:   result.SchoolClass,

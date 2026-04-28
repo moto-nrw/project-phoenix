@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -396,4 +397,26 @@ func buildArrivalNotes(eat *schedule.EffectiveArrivalTime) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+func applyActualTimesFromAttendance(response *StudentResponse, status *activeService.AttendanceStatus) {
+	if response == nil || status == nil {
+		return
+	}
+
+	response.ActualArrivalTime = timezone.FormatBerlinClock(status.CheckInTime)
+	response.ActualPickupTime = timezone.FormatBerlinClock(status.CheckOutTime)
+}
+
+func applyActualTimesFromSnapshot(response *StudentResponse, snapshot *common.StudentDataSnapshot) {
+	if response == nil || snapshot == nil || snapshot.LocationSnapshot == nil {
+		return
+	}
+
+	status, ok := snapshot.LocationSnapshot.Attendances[response.ID]
+	if !ok || status == nil {
+		return
+	}
+
+	applyActualTimesFromAttendance(response, status)
 }

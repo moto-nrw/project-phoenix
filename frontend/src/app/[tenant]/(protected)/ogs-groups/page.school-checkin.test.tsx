@@ -265,9 +265,7 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
 }));
 
 vi.mock("~/lib/pickup-helpers", () => ({
-  getPickupUrgency: () => "none",
   useMinuteClock: () => new Date(),
-  combinePickupNotes: () => undefined,
 }));
 
 vi.mock("~/lib/active-api", () => ({

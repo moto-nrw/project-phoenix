@@ -2,12 +2,11 @@
 // Shared student card component used across OGS groups and active supervisions pages
 
 import type { ReactNode } from "react";
-import { Clock, AlertTriangle, Loader2, LogIn } from "lucide-react";
-import { getPickupUrgency, type PickupUrgency } from "~/lib/pickup-helpers";
+import { Clock, AlertTriangle, Check, Loader2, LogIn } from "lucide-react";
 import {
-  getArrivalUrgency,
-  type ArrivalUrgency,
-} from "~/lib/arrival-schedule-helpers";
+  getStudentTimeStatus,
+  type StudentTimeStatus,
+} from "~/lib/student-time-status";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 
@@ -371,39 +370,117 @@ export function ExceptionIcon() {
 /**
  * Shared pickup time display row used across OGS groups, active supervisions,
  * and student search pages. Normalizes the three rendering branches:
- *   1. Has pickup time → show time with urgency/exception icon
+ *   1. Has planned or actual time → show status-aware time row
  *   2. Exception without time → show exception reason
  *   3. Neither → show "Abholzeit: —" fallback
  */
-export function PickupTimeRow({
-  pickupTime,
-  isException,
-  notes,
-  isHome,
-  now,
-}: Readonly<{
-  pickupTime?: string;
-  isException: boolean;
-  notes?: string;
-  isHome: boolean;
-  now: Date;
-}>) {
-  const urgency = isHome
-    ? ("none" as const)
-    : getPickupUrgency(pickupTime, now);
+function ArrivalTimeIcon() {
+  return <LogIn className="h-3.5 w-3.5 text-gray-400" />;
+}
 
-  if (pickupTime) {
+function renderTimeStatusIcon(
+  status: StudentTimeStatus,
+  kind: "arrival" | "pickup",
+): ReactNode {
+  if (status.icon === "warning") {
     return (
-      <StudentInfoRow
-        icon={isException ? <ExceptionIcon /> : renderPickupIcon(urgency)}
-      >
-        Abholzeit: {pickupTime} Uhr
-        {notes && <span className="ml-1 text-gray-500">({notes})</span>}
-      </StudentInfoRow>
+      <AlertTriangle
+        className="h-3.5 w-3.5"
+        style={{ color: status.iconColor }}
+      />
     );
   }
 
-  if (isException) {
+  if (status.icon === "check") {
+    return (
+      <Check className="h-3.5 w-3.5" style={{ color: status.iconColor }} />
+    );
+  }
+
+  if (kind === "arrival") {
+    return (
+      <LogIn
+        className={`h-3.5 w-3.5 ${
+          status.state === "approaching" ? "animate-pulse" : ""
+        }`}
+        style={{ color: status.iconColor }}
+      />
+    );
+  }
+
+  return (
+    <Clock
+      className={`h-3.5 w-3.5 ${
+        status.state === "approaching" ? "animate-pulse" : ""
+      }`}
+      style={{ color: status.iconColor }}
+    />
+  );
+}
+
+function TimeStatusRow({
+  label,
+  plannedTime,
+  actualTime,
+  isException,
+  notes,
+  now,
+  kind,
+}: Readonly<{
+  label: string;
+  plannedTime?: string;
+  actualTime?: string;
+  isException?: boolean;
+  notes?: string;
+  now: Date;
+  kind: "arrival" | "pickup";
+}>) {
+  const status = getStudentTimeStatus({ plannedTime, actualTime, now });
+
+  if (!status.displayTime) {
+    const fallbackIcon =
+      kind === "arrival" ? <ArrivalTimeIcon /> : <PickupTimeIcon />;
+    return <StudentInfoRow icon={fallbackIcon}>{label}: —</StudentInfoRow>;
+  }
+
+  const icon = isException ? (
+    <ExceptionIcon />
+  ) : (
+    renderTimeStatusIcon(status, kind)
+  );
+
+  // Keep label and time in a single text node so testing-library matchers
+  // and screen-reader output read the row as one continuous string. Splitting
+  // the time into its own <span> for the colored states would break exact
+  // text matching even though the rendered characters are identical.
+  const fullText = `${label}: ${status.displayTime} Uhr`;
+
+  return (
+    <StudentInfoRow icon={icon}>
+      {status.textColor ? (
+        <span style={{ color: status.textColor }}>{fullText}</span>
+      ) : (
+        fullText
+      )}
+      {notes && <span className="ml-1 text-gray-500">({notes})</span>}
+    </StudentInfoRow>
+  );
+}
+
+export function PickupTimeRow({
+  pickupTime,
+  actualTime,
+  isException,
+  notes,
+  now,
+}: Readonly<{
+  pickupTime?: string;
+  actualTime?: string;
+  isException: boolean;
+  notes?: string;
+  now: Date;
+}>) {
+  if (isException && !pickupTime && !actualTime) {
     return (
       <StudentInfoRow icon={<ExceptionIcon />}>
         {notes || "Abwesend"}
@@ -412,36 +489,16 @@ export function PickupTimeRow({
   }
 
   return (
-    <StudentInfoRow icon={<PickupTimeIcon />}>Abholzeit: —</StudentInfoRow>
+    <TimeStatusRow
+      label="Abholzeit"
+      plannedTime={pickupTime}
+      actualTime={actualTime}
+      isException={isException}
+      notes={notes}
+      now={now}
+      kind="pickup"
+    />
   );
-}
-
-/** Renders the appropriate pickup icon based on urgency level */
-export function renderPickupIcon(urgency: PickupUrgency): ReactNode {
-  if (urgency === "overdue") {
-    return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
-  }
-  if (urgency === "soon") {
-    return <Clock className="h-3.5 w-3.5 animate-pulse text-orange-500" />;
-  }
-  // normal / none — default gray clock
-  return <PickupTimeIcon />;
-}
-
-/** Icon for arrival time display */
-function ArrivalTimeIcon() {
-  return <LogIn className="h-3.5 w-3.5 text-gray-400" />;
-}
-
-/** Renders the appropriate arrival icon based on urgency level */
-function renderArrivalIcon(urgency: ArrivalUrgency): ReactNode {
-  if (urgency === "overdue") {
-    return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
-  }
-  if (urgency === "soon") {
-    return <LogIn className="h-3.5 w-3.5 animate-pulse text-orange-500" />;
-  }
-  return <ArrivalTimeIcon />;
 }
 
 /**
@@ -452,17 +509,17 @@ function renderArrivalIcon(urgency: ArrivalUrgency): ReactNode {
  */
 export function ArrivalTimeRow({
   arrivalTime,
+  actualTime,
   isException,
   isAbsent,
   notes,
-  isHome,
   now,
 }: Readonly<{
   arrivalTime?: string;
+  actualTime?: string;
   isException: boolean;
   isAbsent: boolean;
   notes?: string;
-  isHome: boolean;
   now: Date;
 }>) {
   if (isAbsent) {
@@ -473,20 +530,23 @@ export function ArrivalTimeRow({
     );
   }
 
-  const urgency = getArrivalUrgency(arrivalTime, now, isHome);
-
-  if (arrivalTime) {
+  if (isException && !arrivalTime && !actualTime) {
     return (
-      <StudentInfoRow
-        icon={isException ? <ExceptionIcon /> : renderArrivalIcon(urgency)}
-      >
-        Ankunftszeit: {arrivalTime} Uhr
-        {notes && <span className="ml-1 text-gray-500">({notes})</span>}
+      <StudentInfoRow icon={<ExceptionIcon />}>
+        {notes ? `Kommt heute nicht (${notes})` : "Kommt heute nicht"}
       </StudentInfoRow>
     );
   }
 
   return (
-    <StudentInfoRow icon={<ArrivalTimeIcon />}>Ankunftszeit: —</StudentInfoRow>
+    <TimeStatusRow
+      label="Ankunftszeit"
+      plannedTime={arrivalTime}
+      actualTime={actualTime}
+      isException={isException}
+      notes={notes}
+      now={now}
+      kind="arrival"
+    />
   );
 }
