@@ -61,6 +61,17 @@ interface PaginatedResponse<T> {
   message?: string;
 }
 
+interface WrappedPaginatedResponse<T> {
+  status?: string;
+  data:
+    | PaginatedResponse<T>
+    | {
+        data: T[];
+        pagination: PaginatedResponse<T>["pagination"];
+      };
+  message?: string;
+}
+
 // Error handler using shared utility
 function handleStudentApiError(error: unknown, context: string): never {
   handleDomainApiError(error, context, "STUDENT");
@@ -115,10 +126,30 @@ export async function fetchStudents(filters?: StudentFilters): Promise<{
     if (useProxy) {
       const session = await getCachedSession();
       const responseData = await authFetch<
-        Student[] | PaginatedResponse<Student>
+        | Student[]
+        | PaginatedResponse<Student>
+        | WrappedPaginatedResponse<Student>
       >(url, { token: session?.user?.token });
 
-      // Check if it's a paginated response
+      // Next.js API routes wrap GET responses once more:
+      // { status, data: { data: students, pagination } }.
+      if (
+        responseData &&
+        typeof responseData === "object" &&
+        "data" in responseData &&
+        responseData.data &&
+        typeof responseData.data === "object" &&
+        "data" in responseData.data &&
+        "pagination" in responseData.data &&
+        Array.isArray(responseData.data.data)
+      ) {
+        return {
+          students: responseData.data.data,
+          pagination: responseData.data.pagination,
+        };
+      }
+
+      // Backend-style paginated response.
       if (
         responseData &&
         typeof responseData === "object" &&

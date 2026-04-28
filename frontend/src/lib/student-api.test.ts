@@ -130,6 +130,28 @@ describe("student-api", () => {
         expect(result.pagination).toBeUndefined();
       });
 
+      it("unwraps Next.js route-wrapper paginated responses", async () => {
+        const pagination = {
+          current_page: 1,
+          page_size: 1000,
+          total_pages: 1,
+          total_records: 1,
+        };
+        mockedAuthFetch.mockResolvedValueOnce({
+          status: "success",
+          data: {
+            data: [sampleStudent],
+            pagination,
+          },
+          message: "Success",
+        });
+
+        const result = await fetchStudents();
+
+        expect(result.students).toEqual([sampleStudent]);
+        expect(result.pagination).toEqual(pagination);
+      });
+
       it("builds URL with filters", async () => {
         const filters: StudentFilters = {
           search: "Max",
