@@ -43,11 +43,14 @@ type mockInstanceService struct {
 	replanErr     error
 	createRes     *scheduleModel.ActivityInstance
 	createErr     error
+	updateRes     *scheduleModel.ActivityInstance
+	updateErr     error
 	lastStartID   int64
 	lastStartedBy int64
 	lastFrom      time.Time
 	lastTo        time.Time
 	lastCreate    *scheduleSvc.CreateInstanceInput
+	lastUpdate    *scheduleSvc.UpdateInstanceInput
 }
 
 func (m *mockInstanceService) Start(_ context.Context, id, startedBy int64) (*scheduleSvc.StartInstanceResult, error) {
@@ -89,6 +92,15 @@ func (m *mockInstanceService) Create(_ context.Context, req scheduleSvc.CreateIn
 		return nil, m.createErr
 	}
 	return m.createRes, nil
+}
+
+func (m *mockInstanceService) UpdatePlanned(_ context.Context, _ int64, req scheduleSvc.UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+	reqCopy := req
+	m.lastUpdate = &reqCopy
+	if m.updateErr != nil {
+		return nil, m.updateErr
+	}
+	return m.updateRes, nil
 }
 
 // -----------------------------------------------------------------------------

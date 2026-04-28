@@ -291,6 +291,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     roomId: String(raw.room_id),
     roomName: raw.room_name,
     staff,
+    studentIds: (raw.student_ids ?? []).map(String),
     staffCount: raw.staff_count,
     absentStaffCount: raw.absent_staff_count,
     expectedStudentsCount: raw.expected_students_count,
@@ -387,6 +388,13 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       maxParticipants: template.max_participants,
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
+      studentIds: (template.student_ids ?? []).map(String),
+      staffIds: (template.staff_ids ?? []).map(String),
+      primaryStaffId:
+        template.primary_staff_id !== undefined &&
+        template.primary_staff_id !== null
+          ? String(template.primary_staff_id)
+          : undefined,
       schedules: (template.schedules ?? []).map((schedule) => ({
         id: String(schedule.id),
         weekday: schedule.weekday,

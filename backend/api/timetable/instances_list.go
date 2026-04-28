@@ -67,6 +67,7 @@ type enrichedInstance struct {
 	RoomID                int64                  `json:"room_id"`
 	RoomName              string                 `json:"room_name"`
 	Staff                 []instanceStaffSummary `json:"staff"`
+	StudentIDs            []int64                `json:"student_ids"`
 	StaffCount            int                    `json:"staff_count"`
 	AbsentStaffCount      int                    `json:"absent_staff_count"`
 	ExpectedStudentsCount int                    `json:"expected_students_count"`
@@ -206,7 +207,9 @@ func (rs *Resource) enrichInstance(
 	}
 	expected := 0
 	present := 0
+	studentIDs := make([]int64, 0, len(studentRows))
 	for _, row := range studentRows {
+		studentIDs = append(studentIDs, row.StudentID)
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:
 			expected++
@@ -231,6 +234,7 @@ func (rs *Resource) enrichInstance(
 		RoomID:                inst.RoomID,
 		RoomName:              roomName,
 		Staff:                 staff,
+		StudentIDs:            studentIDs,
 		StaffCount:            len(staffRows),
 		AbsentStaffCount:      absentCount,
 		ExpectedStudentsCount: expected,

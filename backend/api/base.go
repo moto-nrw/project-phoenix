@@ -369,6 +369,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		StaffRepo:              repoFactory.Staff,
 		RoomRepo:               repoFactory.Room,
 		ActivityGroupRepo:      repoFactory.ActivityGroup,
+		ActivitySupervisorRepo: repoFactory.ActivitySupervisor,
+		StudentEnrollmentRepo:  repoFactory.StudentEnrollment,
 		TimeframeRepo:          repoFactory.Timeframe,
 		UserContextService:     api.Services.UserContext,
 		SettingsService:        api.Services.Settings,

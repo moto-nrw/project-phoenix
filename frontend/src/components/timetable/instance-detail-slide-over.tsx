@@ -52,6 +52,7 @@ interface InstanceDetailSlideOverProps {
   instance: EnrichedInstance | null;
   onClose: () => void;
   onLifecycleAction: (action: LifecycleAction) => Promise<void>;
+  onEdit?: (instance: EnrichedInstance) => void;
   /**
    * When true, edit + spontaneous-create UI surfaces are visible but
    * disabled with a tooltip. Default true until backend PUT/POST land.
@@ -96,6 +97,7 @@ export function InstanceDetailSlideOver({
   instance,
   onClose,
   onLifecycleAction,
+  onEdit,
   editDeferred = true,
 }: InstanceDetailSlideOverProps) {
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
@@ -230,6 +232,20 @@ export function InstanceDetailSlideOver({
                   <span className="inline-flex items-center gap-2">
                     <Play className="h-4 w-4" />
                     Starten
+                  </span>
+                </Button>
+              )}
+              {instance.status === "planned" && !editDeferred && onEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => onEdit(instance)}
+                  disabled={pendingAction !== null}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Pencil className="h-4 w-4" />
+                    Bearbeiten
                   </span>
                 </Button>
               )}

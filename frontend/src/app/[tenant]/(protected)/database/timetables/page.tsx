@@ -38,6 +38,7 @@ import { MaterializeButton } from "~/components/timetable/materialize-button";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { RecurringActivityModal } from "~/components/timetable/recurring-activity-modal";
 import { TemplateList } from "~/components/timetable/template-list";
+import { TimetableInstanceModal } from "~/components/timetable/timetable-instance-modal";
 import { WeekNavigator } from "~/components/timetable/week-navigator";
 import { WeeklyPlannerGrid } from "~/components/timetable/weekly-planner-grid";
 import { createLogger } from "~/lib/logger";
@@ -110,6 +111,11 @@ function TimetablesContent() {
   const selectedInstanceId = searchParams.get("instance");
   const selectedDay = searchParams.get("day");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [instanceModalOpen, setInstanceModalOpen] = useState(false);
+  const [editingInstance, setEditingInstance] =
+    useState<EnrichedInstance | null>(null);
+  const [editingTemplate, setEditingTemplate] =
+    useState<TimetableTemplate | null>(null);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] =
     useState<TimetableTemplate | null>(null);
@@ -408,6 +414,45 @@ function TimetablesContent() {
     [selectedInstance, swrKey, tenantMutate, toastSuccess, toastError],
   );
 
+  const openTemplateCreate = useCallback(() => {
+    if (assignedPeriods.length === 0) {
+      toastError("Lege zuerst eine Planungsperiode für diese Woche an.");
+      openPeriodCreate();
+      return;
+    }
+    setEditingTemplate(null);
+    setCreateModalOpen(true);
+  }, [assignedPeriods.length, openPeriodCreate, toastError]);
+
+  const openInstanceCreate = useCallback(() => {
+    setEditingInstance(null);
+    setInstanceModalOpen(true);
+  }, []);
+
+  const handleArchiveTemplate = useCallback(
+    async (template: TimetableTemplate) => {
+      try {
+        await timetableService.archiveTemplate(template.id);
+        toastSuccess(`Vorlage "${template.name}" archiviert`);
+        setSelectedTemplate(null);
+        if (templatePeriodID) {
+          await tenantMutate(`timetable-templates-${templatePeriodID}`);
+        }
+      } catch (err) {
+        logger.error("template_archive_failed", {
+          template_id: template.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toastError(
+          err instanceof Error
+            ? err.message
+            : "Vorlage konnte nicht archiviert werden",
+        );
+      }
+    },
+    [templatePeriodID, tenantMutate, toastError, toastSuccess],
+  );
+
   if (status === "loading" || (shouldLoadInstances && isLoading)) {
     return (
       <div className="p-6">
@@ -481,16 +526,14 @@ function TimetablesContent() {
         <div className="flex-1" />
         <button
           type="button"
-          onClick={() => {
-            if (assignedPeriods.length === 0) {
-              toastError(
-                "Lege zuerst eine Planungsperiode für diese Woche an.",
-              );
-              openPeriodCreate();
-              return;
-            }
-            setCreateModalOpen(true);
-          }}
+          onClick={openInstanceCreate}
+          className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-100"
+        >
+          + Termin
+        </button>
+        <button
+          type="button"
+          onClick={openTemplateCreate}
           className="inline-flex items-center gap-2 rounded-md border border-[#5080D8] bg-[#5080D8] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#4070c8]"
         >
           + Vorlage
@@ -541,10 +584,17 @@ function TimetablesContent() {
                 />
                 <button
                   type="button"
-                  onClick={() => setCreateModalOpen(true)}
+                  onClick={openTemplateCreate}
                   className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
                 >
                   Vorlage anlegen
+                </button>
+                <button
+                  type="button"
+                  onClick={openInstanceCreate}
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Termin hinzufügen
                 </button>
               </div>
             </div>
@@ -561,7 +611,12 @@ function TimetablesContent() {
               templates={templates}
               selectedId={selectedTemplate?.id ?? templates[0]?.id ?? null}
               onSelect={setSelectedTemplate}
-              onCreate={() => setCreateModalOpen(true)}
+              onCreate={openTemplateCreate}
+              onEdit={(template) => {
+                setEditingTemplate(template);
+                setCreateModalOpen(true);
+              }}
+              onArchive={(template) => void handleArchiveTemplate(template)}
             />
           )}
         </>
@@ -571,17 +626,38 @@ function TimetablesContent() {
         instance={selectedInstance}
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
-        editDeferred
+        onEdit={(instance) => {
+          setEditingInstance(instance);
+          setInstanceModalOpen(true);
+        }}
+        editDeferred={false}
+      />
+
+      <TimetableInstanceModal
+        isOpen={instanceModalOpen}
+        onClose={() => setInstanceModalOpen(false)}
+        defaultDate={selectedDay ?? fromISO}
+        initialInstance={editingInstance}
+        onSaved={(instance) => {
+          void tenantMutate(swrKey);
+          if (instance.id) {
+            updateUrlParams({ instance: instance.id });
+          }
+        }}
       />
 
       <RecurringActivityModal
         isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
+        onClose={() => {
+          setCreateModalOpen(false);
+          setEditingTemplate(null);
+        }}
         weekFrom={fromISO}
         weekTo={toISO}
         calendarPeriods={assignedPeriods}
         defaultCalendarPeriodId={defaultTemplatePeriod?.id ?? null}
         showPeriodField={showTemplatePeriodField}
+        initialTemplate={editingTemplate}
         onCreated={() => {
           // The backend already materialised the visible week as part of
           // the create call (we passed weekFrom/weekTo). Refetch so the
@@ -590,6 +666,7 @@ function TimetablesContent() {
           if (templatePeriodID) {
             void tenantMutate(`timetable-templates-${templatePeriodID}`);
           }
+          setEditingTemplate(null);
         }}
       />
 

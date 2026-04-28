@@ -35,6 +35,7 @@ type createInstanceRequest struct {
 	RoomID          int64   `json:"room_id"`
 	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
+	StudentIDs      []int64 `json:"student_ids,omitempty"`
 }
 
 // Bind runs cheap presence checks. Format errors (date / time) bubble up
@@ -129,6 +130,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		RoomID:           req.RoomID,
 		ActivityGroupID:  req.ActivityGroupID,
 		StaffIDs:         req.StaffIDs,
+		StudentIDs:       req.StudentIDs,
 		CreatedByStaffID: createdByPtr,
 	})
 	if err != nil {

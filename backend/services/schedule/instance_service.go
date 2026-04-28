@@ -67,6 +67,7 @@ type InstanceService interface {
 	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	ReplanWeek(ctx context.Context, from, to time.Time) (*ReplanWeekResult, error)
 	Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error)
+	UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error)
 }
 
 // CreateInstanceInput bundles the fields needed to insert a fresh instance
@@ -86,7 +87,21 @@ type CreateInstanceInput struct {
 	RoomID           int64
 	ActivityGroupID  *int64
 	StaffIDs         []int64
+	StudentIDs       []int64
 	CreatedByStaffID *int64
+}
+
+type UpdateInstanceInput struct {
+	Date            time.Time
+	StartTime       time.Time
+	EndTime         time.Time
+	Title           string
+	Description     *string
+	Notes           *string
+	RoomID          int64
+	ActivityGroupID *int64
+	StaffIDs        []int64
+	StudentIDs      []int64
 }
 
 // StartInstanceResult bundles what the start endpoint returns. ActiveGroupID
@@ -359,7 +374,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		return nil, &ScheduleError{Op: "create instance: insert", Err: err}
 	}
 
-	for _, staffID := range req.StaffIDs {
+	for _, staffID := range uniquePositiveInt64(req.StaffIDs) {
 		if staffID <= 0 {
 			continue
 		}
@@ -374,6 +389,20 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 			return nil, &ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
+	for _, studentID := range uniquePositiveInt64(req.StudentIDs) {
+		if studentID <= 0 {
+			continue
+		}
+		row := &scheduleModel.InstanceStudent{
+			InstanceID: inst.ID,
+			StudentID:  studentID,
+			Status:     scheduleModel.AttendanceStatusExpected,
+		}
+		row.SetTenantID(tenantID)
+		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
+			return nil, &ScheduleError{Op: "create instance: assign student", Err: err}
+		}
+	}
 
 	s.getLogger().Info("instance created",
 		slog.Int64("tenant_id", tenantID),
@@ -384,6 +413,93 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 	)
 
 	return inst, nil
+}
+
+func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if instance.Status != scheduleModel.InstanceStatusPlanned {
+		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
+	instance.Date = req.Date
+	instance.StartTime = req.StartTime
+	instance.EndTime = req.EndTime
+	instance.Title = req.Title
+	instance.Description = req.Description
+	instance.Notes = req.Notes
+	instance.RoomID = req.RoomID
+	instance.ActivityGroupID = req.ActivityGroupID
+	instance.IsSpontaneous = req.ActivityGroupID == nil
+
+	if err := s.updateLifecycleColumns(
+		ctx,
+		instance,
+		"date",
+		"start_time",
+		"end_time",
+		"title",
+		"description",
+		"notes",
+		"room_id",
+		"activity_group_id",
+		"is_spontaneous",
+	); err != nil {
+		return nil, &ScheduleError{Op: "update instance", Err: err}
+	}
+	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instance.ID); err != nil {
+		return nil, &ScheduleError{Op: "update instance: clear staff", Err: err}
+	}
+	if err := s.deps.InstanceStudents.DeleteByInstanceID(ctx, instance.ID); err != nil {
+		return nil, &ScheduleError{Op: "update instance: clear students", Err: err}
+	}
+	tenantID := tenant.FromContext(ctx)
+	for _, staffID := range uniquePositiveInt64(req.StaffIDs) {
+		if staffID <= 0 {
+			continue
+		}
+		row := &scheduleModel.InstanceStaff{InstanceID: instance.ID, StaffID: staffID}
+		row.SetTenantID(tenantID)
+		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
+			return nil, &ScheduleError{Op: "update instance: assign staff", Err: err}
+		}
+	}
+	for _, studentID := range uniquePositiveInt64(req.StudentIDs) {
+		if studentID <= 0 {
+			continue
+		}
+		row := &scheduleModel.InstanceStudent{
+			InstanceID: instance.ID,
+			StudentID:  studentID,
+			Status:     scheduleModel.AttendanceStatusExpected,
+		}
+		row.SetTenantID(tenantID)
+		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
+			return nil, &ScheduleError{Op: "update instance: assign student", Err: err}
+		}
+	}
+	return instance, nil
+}
+
+func uniquePositiveInt64(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 // updateLifecycleColumns writes only the named columns on the given instance.

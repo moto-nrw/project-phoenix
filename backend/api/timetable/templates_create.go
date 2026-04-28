@@ -53,6 +53,9 @@ type createTemplateRequest struct {
 	CalendarPeriodID *int64  `json:"calendar_period_id,omitempty"`
 	MaterializeFrom  *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
 	MaterializeTo    *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
+	StudentIDs       []int64 `json:"student_ids,omitempty"`
+	StaffIDs         []int64 `json:"staff_ids,omitempty"`
+	PrimaryStaffID   *int64  `json:"primary_staff_id,omitempty"`
 }
 
 // Bind enforces presence, but defers format/business validation to the
@@ -102,7 +105,8 @@ type createTemplateResponse struct {
 // createTemplate handles POST /api/timetable/templates.
 func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	if rs.activityGroupRepo == nil || rs.activityScheduleRepo == nil ||
-		rs.timeframeRepo == nil {
+		rs.timeframeRepo == nil || rs.studentEnrollmentRepo == nil ||
+		rs.activitySupervisorRepo == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -218,6 +222,17 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		scheduleIDs = append(scheduleIDs, sched.ID)
+	}
+
+	if err := rs.replaceTemplateStudents(ctx, group.ID, req.StudentIDs, req.CalendarPeriodID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"assign template students failed", err))
+		return
+	}
+	if err := rs.replaceTemplateStaff(ctx, group.ID, req.StaffIDs, req.PrimaryStaffID, req.CalendarPeriodID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"assign template staff failed", err))
+		return
 	}
 
 	resp := createTemplateResponse{

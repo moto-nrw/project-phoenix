@@ -27,8 +27,14 @@ import {
   getGermanWeekdayShort,
 } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
+import { fetchStudents } from "~/lib/student-api";
+import { staffService } from "~/lib/staff-api";
 import { timetableService } from "~/lib/timetable-api";
-import type { ActivityType, CreateTemplateResult } from "~/lib/timetable-types";
+import type {
+  ActivityType,
+  CreateTemplateResult,
+  TimetableTemplate,
+} from "~/lib/timetable-types";
 
 /**
  * Shape used by the room dropdown — minimal subset of the backend room
@@ -42,6 +48,10 @@ interface RoomOption {
   id: number;
   name: string;
   building?: string;
+}
+interface PersonOption {
+  id: string;
+  name: string;
 }
 
 interface BackendRoomsEnvelope {
@@ -65,6 +75,7 @@ interface RecurringActivityModalProps {
   calendarPeriods: CalendarPeriod[];
   defaultCalendarPeriodId?: string | null;
   showPeriodField?: boolean;
+  initialTemplate?: TimetableTemplate | null;
 }
 
 interface FormState {
@@ -76,6 +87,9 @@ interface FormState {
   roomId: string;
   categoryId: string;
   calendarPeriodId: string;
+  studentIds: string[];
+  staffIds: string[];
+  primaryStaffId: string;
 }
 
 const ALL_WEEKDAYS = [1, 2, 3, 4, 5] as const;
@@ -100,6 +114,9 @@ function emptyForm(): FormState {
     roomId: "",
     categoryId: "",
     calendarPeriodId: "",
+    studentIds: [],
+    staffIds: [],
+    primaryStaffId: "",
   };
 }
 
@@ -121,21 +138,42 @@ export function RecurringActivityModal({
   calendarPeriods,
   defaultCalendarPeriodId,
   showPeriodField = false,
+  initialTemplate = null,
 }: RecurringActivityModalProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [students, setStudents] = useState<PersonOption[]>([]);
+  const [staff, setStaff] = useState<PersonOption[]>([]);
   const [loadingRefs, setLoadingRefs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
-    setForm({
-      ...emptyForm(),
-      calendarPeriodId: defaultCalendarPeriodId ?? "",
-    });
+    const firstSchedule = initialTemplate?.schedules[0];
+    setForm(
+      initialTemplate
+        ? {
+            name: initialTemplate.name,
+            type: initialTemplate.type,
+            weekdays: initialTemplate.schedules.map((s) => s.weekday),
+            startTime: firstSchedule?.startTime ?? "12:00",
+            endTime: firstSchedule?.endTime ?? "13:00",
+            roomId: initialTemplate.roomId ?? "",
+            categoryId: initialTemplate.categoryId,
+            calendarPeriodId:
+              firstSchedule?.calendarPeriodId ?? defaultCalendarPeriodId ?? "",
+            studentIds: initialTemplate.studentIds,
+            staffIds: initialTemplate.staffIds,
+            primaryStaffId: initialTemplate.primaryStaffId ?? "",
+          }
+        : {
+            ...emptyForm(),
+            calendarPeriodId: defaultCalendarPeriodId ?? "",
+          },
+    );
     setValidationError(null);
     setLoadingRefs(true);
 
@@ -167,8 +205,30 @@ export function RecurringActivityModal({
           });
           return [] as ActivityCategory[];
         }),
+      fetchStudents({ page_size: 500 })
+        .then((res) =>
+          res.students.map((student) => ({
+            id: student.id,
+            name: student.name,
+          })),
+        )
+        .catch((err: unknown) => {
+          logger.error("students_fetch_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return [] as PersonOption[];
+        }),
+      staffService
+        .getAllStaff()
+        .then((items) => items.map((s) => ({ id: s.id, name: s.name })))
+        .catch((err: unknown) => {
+          logger.error("staff_fetch_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return [] as PersonOption[];
+        }),
     ])
-      .then(([roomData, categoryData]) => {
+      .then(([roomData, categoryData, studentData, staffData]) => {
         const sortedRooms = [...roomData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
@@ -177,6 +237,8 @@ export function RecurringActivityModal({
         );
         setRooms(sortedRooms);
         setCategories(sortedCategories);
+        setStudents(studentData);
+        setStaff(staffData);
         // Pre-select first category so the user can submit without an
         // explicit pick when there's an obvious default.
         setForm((prev) =>
@@ -186,7 +248,7 @@ export function RecurringActivityModal({
         );
       })
       .finally(() => setLoadingRefs(false));
-  }, [isOpen, defaultCalendarPeriodId]);
+  }, [isOpen, defaultCalendarPeriodId, initialTemplate]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -244,7 +306,7 @@ export function RecurringActivityModal({
 
     setSubmitting(true);
     try {
-      const result = await timetableService.createTemplate({
+      const body = {
         name: form.name.trim(),
         type: form.type,
         weekdays: form.weekdays,
@@ -253,16 +315,33 @@ export function RecurringActivityModal({
         room_id: roomId,
         category_id: categoryId,
         calendar_period_id: calendarPeriodId,
-        materialize_from: weekFrom,
-        materialize_to: weekTo,
-      });
+        student_ids: form.studentIds.map(Number),
+        staff_ids: form.staffIds.map(Number),
+        primary_staff_id: form.primaryStaffId
+          ? Number(form.primaryStaffId)
+          : undefined,
+      };
+      const result: CreateTemplateResult = initialTemplate
+        ? await timetableService
+            .updateTemplate(initialTemplate.id, body)
+            .then(() => ({
+              templateId: initialTemplate.id,
+              timeframeId: "",
+              scheduleIds: [],
+              instancesCreated: 0,
+            }))
+        : await timetableService.createTemplate({
+            ...body,
+            materialize_from: weekFrom,
+            materialize_to: weekTo,
+          });
       const created = result.instancesCreated ?? 0;
       const dayCount = form.weekdays.length;
       const dayWord = dayCount === 1 ? "Wochentag" : "Wochentage";
       toastSuccess(
         created > 0
           ? `Vorlage angelegt — ${created} Aktivität${created === 1 ? "" : "en"} fuer diese Woche eingeplant`
-          : `Vorlage "${form.name.trim()}" angelegt (${dayCount} ${dayWord})`,
+          : `Vorlage "${form.name.trim()}" ${initialTemplate ? "gespeichert" : `angelegt (${dayCount} ${dayWord})`}`,
       );
       onCreated(result);
       onClose();
@@ -285,7 +364,11 @@ export function RecurringActivityModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Wiederkehrende Aktivität anlegen"
+      title={
+        initialTemplate
+          ? "Vorlage bearbeiten"
+          : "Wiederkehrende Aktivität anlegen"
+      }
       footer={
         <div className="flex items-center justify-end gap-2">
           <Button
@@ -303,10 +386,10 @@ export function RecurringActivityModal({
             variant="primary"
             size="sm"
             isLoading={submitting}
-            loadingText="Lege an …"
+            loadingText={initialTemplate ? "Speichere …" : "Lege an …"}
             disabled={!canSubmit}
           >
-            Vorlage anlegen
+            {initialTemplate ? "Speichern" : "Vorlage anlegen"}
           </Button>
         </div>
       }
@@ -479,6 +562,45 @@ export function RecurringActivityModal({
           </div>
         )}
 
+        <MultiSelectField
+          label="Kinder"
+          options={students}
+          value={form.studentIds}
+          onChange={(ids) => update("studentIds", ids)}
+        />
+
+        <MultiSelectField
+          label="Personal"
+          options={staff}
+          value={form.staffIds}
+          onChange={(ids) => {
+            update("staffIds", ids);
+            if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
+              update("primaryStaffId", "");
+            }
+          }}
+        />
+
+        {form.staffIds.length > 0 && (
+          <Field label="Hauptverantwortlich" htmlFor="primary_staff">
+            <select
+              id="primary_staff"
+              value={form.primaryStaffId}
+              onChange={(e) => update("primaryStaffId", e.target.value)}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+            >
+              <option value="">Keine Auswahl</option>
+              {staff
+                .filter((s) => form.staffIds.includes(s.id))
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+        )}
+
         {calendarPeriods.length === 0 && (
           <div
             role="alert"
@@ -525,5 +647,60 @@ function Field({ label, htmlFor, required = false, children }: FieldProps) {
       </span>
       {children}
     </label>
+  );
+}
+
+function MultiSelectField({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: PersonOption[];
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const selected = new Set(value);
+  const toggle = (id: string) => {
+    const next = selected.has(id)
+      ? value.filter((item) => item !== id)
+      : [...value, id];
+    onChange(next);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-semibold text-slate-700">{label}</span>
+      <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+        {options.length === 0 ? (
+          <div className="px-2 py-3 text-xs text-slate-500">
+            Keine Einträge gefunden
+          </div>
+        ) : (
+          <div className="grid gap-1 sm:grid-cols-2">
+            {options.map((option) => (
+              <label
+                key={option.id}
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(option.id)}
+                  onChange={() => toggle(option.id)}
+                  className="h-4 w-4 rounded border-slate-300 text-[#5080D8] focus:ring-[#5080D8]"
+                />
+                <span className="min-w-0 truncate">{option.name}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+      {value.length > 0 && (
+        <span className="text-[11px] text-slate-500">
+          {value.length} ausgewählt
+        </span>
+      )}
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CalendarClock, DoorOpen, Users } from "lucide-react";
+import { Archive, CalendarClock, DoorOpen, Pencil, Users } from "lucide-react";
 
 import {
   getActivityColor,
@@ -15,6 +15,8 @@ interface TemplateListProps {
   selectedId?: string | null;
   onSelect: (template: TimetableTemplate) => void;
   onCreate: () => void;
+  onEdit: (template: TimetableTemplate) => void;
+  onArchive: (template: TimetableTemplate) => void;
 }
 
 export function TemplateList({
@@ -22,6 +24,8 @@ export function TemplateList({
   selectedId,
   onSelect,
   onCreate,
+  onEdit,
+  onArchive,
 }: TemplateListProps) {
   if (templates.length === 0) {
     return (
@@ -105,12 +109,22 @@ export function TemplateList({
 
       <TemplateDetail
         template={templates.find((t) => t.id === selectedId) ?? templates[0]!}
+        onEdit={onEdit}
+        onArchive={onArchive}
       />
     </div>
   );
 }
 
-function TemplateDetail({ template }: { template: TimetableTemplate }) {
+function TemplateDetail({
+  template,
+  onEdit,
+  onArchive,
+}: {
+  template: TimetableTemplate;
+  onEdit: (template: TimetableTemplate) => void;
+  onArchive: (template: TimetableTemplate) => void;
+}) {
   return (
     <aside className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="text-xs font-bold text-slate-400 uppercase">Vorlage</div>
@@ -122,9 +136,23 @@ function TemplateDetail({ template }: { template: TimetableTemplate }) {
         <Row label="Kinder">{template.enrollmentCount}</Row>
         <Row label="Personal">{template.supervisorCount}</Row>
       </dl>
-      <div className="mt-5 rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-500">
-        Vorlagen bearbeiten und löschen kommt im nächsten Schritt. Diese Ansicht
-        erklärt erst einmal, woraus der Kalender seine Termine erzeugt.
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(template)}
+          className="inline-flex items-center gap-2 rounded-md border border-[#5080D8] bg-[#5080D8] px-3 py-2 text-xs font-semibold text-white hover:bg-[#4070c8]"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          Bearbeiten
+        </button>
+        <button
+          type="button"
+          onClick={() => onArchive(template)}
+          className="inline-flex items-center gap-2 rounded-md border border-[#FECACA] bg-white px-3 py-2 text-xs font-semibold text-[#991B1B] hover:bg-[#FEF2F2]"
+        >
+          <Archive className="h-3.5 w-3.5" />
+          Archivieren
+        </button>
       </div>
     </aside>
   );

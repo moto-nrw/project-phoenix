@@ -58,6 +58,7 @@ export interface EnrichedInstance {
   roomId: string;
   roomName: string;
   staff: InstanceStaffSummary[];
+  studentIds: string[];
   staffCount: number;
   absentStaffCount: number;
   expectedStudentsCount: number;
@@ -99,6 +100,7 @@ export interface BackendEnrichedInstance {
   room_id: number;
   room_name: string;
   staff: BackendInstanceStaffSummary[];
+  student_ids?: number[];
   staff_count: number;
   absent_staff_count: number;
   expected_students_count: number;
@@ -132,6 +134,9 @@ export interface TimetableTemplate {
   maxParticipants: number;
   enrollmentCount: number;
   supervisorCount: number;
+  studentIds: string[];
+  staffIds: string[];
+  primaryStaffId?: string;
   schedules: TemplateSchedule[];
 }
 
@@ -160,6 +165,9 @@ export interface BackendTimetableTemplate {
   max_participants: number;
   enrollment_count: number;
   supervisor_count: number;
+  student_ids?: number[];
+  staff_ids?: number[];
+  primary_staff_id?: number;
   schedules: BackendTemplateSchedule[];
 }
 
@@ -253,6 +261,7 @@ export interface CreateInstanceBody {
   notes?: string;
   activity_group_id?: number;
   staff_ids?: number[];
+  student_ids?: number[];
 }
 
 /**
@@ -276,7 +285,15 @@ export interface CreateTemplateBody {
   calendar_period_id?: number;
   materialize_from?: string;
   materialize_to?: string;
+  student_ids?: number[];
+  staff_ids?: number[];
+  primary_staff_id?: number;
 }
+
+export type UpdateTemplateBody = Omit<
+  CreateTemplateBody,
+  "materialize_from" | "materialize_to"
+>;
 
 export interface CreateTemplateResult {
   templateId: string;

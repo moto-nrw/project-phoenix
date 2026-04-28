@@ -21,6 +21,7 @@ import type {
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendStartInstanceResult,
+  BackendTimetableTemplate,
   BackendTemplatesResponse,
   BackendWeeklyInstancesResponse,
   CreateInstanceBody,
@@ -31,6 +32,8 @@ import type {
   MaterializeResult,
   StartInstanceResult,
   TemplatesResponse,
+  TimetableTemplate,
+  UpdateTemplateBody,
   WeeklyInstancesResponse,
 } from "./timetable-types";
 import {
@@ -174,6 +177,49 @@ class TimetableService {
 
     const raw = await unwrap<BackendTemplatesResponse>(response);
     return mapTemplates(raw);
+  }
+
+  async updateTemplate(
+    templateId: string,
+    body: UpdateTemplateBody,
+  ): Promise<TimetableTemplate> {
+    const response = await fetch(`/api/timetable/templates/${templateId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    const raw = await unwrap<BackendTimetableTemplate>(response);
+    return mapTemplates({ templates: [raw] }).templates[0]!;
+  }
+
+  async archiveTemplate(templateId: string): Promise<void> {
+    const response = await fetch(`/api/timetable/templates/${templateId}`, {
+      method: "DELETE",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+    await unwrap<unknown>(response);
+  }
+
+  async update(
+    instanceId: string,
+    body: CreateInstanceBody,
+  ): Promise<EnrichedInstance> {
+    const response = await fetch(`/api/timetable/instances/${instanceId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    const raw = await unwrap<BackendEnrichedInstance>(response);
+    return mapInstance(raw);
   }
 
   /**

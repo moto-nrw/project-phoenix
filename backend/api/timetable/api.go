@@ -54,6 +54,8 @@ type Resource struct {
 	staffRepo              users.StaffRepository
 	roomRepo               facilities.RoomRepository
 	activityGroupRepo      activities.GroupRepository
+	activitySupervisorRepo activities.SupervisorPlannedRepository
+	studentEnrollmentRepo  activities.StudentEnrollmentRepository
 	timeframeRepo          schedule.TimeframeRepository
 	userContextService     usercontextSvc.UserContextService
 	settingsService        configSvc.SettingsService
@@ -86,6 +88,8 @@ type Dependencies struct {
 	StaffRepo              users.StaffRepository
 	RoomRepo               facilities.RoomRepository
 	ActivityGroupRepo      activities.GroupRepository
+	ActivitySupervisorRepo activities.SupervisorPlannedRepository
+	StudentEnrollmentRepo  activities.StudentEnrollmentRepository
 	TimeframeRepo          schedule.TimeframeRepository
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
@@ -118,6 +122,8 @@ func NewResource(deps Dependencies) *Resource {
 		staffRepo:              deps.StaffRepo,
 		roomRepo:               deps.RoomRepo,
 		activityGroupRepo:      deps.ActivityGroupRepo,
+		activitySupervisorRepo: deps.ActivitySupervisorRepo,
+		studentEnrollmentRepo:  deps.StudentEnrollmentRepo,
 		timeframeRepo:          deps.TimeframeRepo,
 		userContextService:     deps.UserContextService,
 		settingsService:        deps.SettingsService,
@@ -171,6 +177,8 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/", rs.createInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Put("/{id}", rs.updateInstance)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/re-plan-week", rs.replanWeek)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/start", rs.startInstance)
@@ -215,8 +223,14 @@ func (rs *Resource) Router() chi.Router {
 		// appear immediately on the grid.
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/templates", rs.listTemplates)
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/templates/{id}", rs.getTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Post("/templates", rs.createTemplate)
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Put("/templates/{id}", rs.updateTemplate)
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Delete("/templates/{id}", rs.archiveTemplate)
 	})
 
 	return r
