@@ -1,55 +1,85 @@
 "use client";
 
-import { createLogger } from "~/lib/logger";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
+import { Laptop } from "lucide-react";
+import { DatabaseCreateAction } from "~/components/database/database-create-action";
+import { DatabaseEmptyState } from "~/components/database/database-empty-state";
+import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import {
+  useGroupedItems,
+  type Grouper,
+} from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
-  FilterConfig,
   ActiveFilter,
+  FilterConfig,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { devicesConfig } from "@/lib/database/configs/devices.config";
-import type { Device } from "@/lib/iot-helpers";
+import { getDeviceTypeDisplayName, type Device } from "@/lib/iot-helpers";
 import {
   DeviceCreateModal,
-  DeviceDetailModal,
   DeviceEditModal,
+  DevicesMasterDetail,
 } from "@/components/devices";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { getDeviceTypeDisplayName } from "@/lib/iot-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
+import { createLogger } from "~/lib/logger";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "DatabaseDevicesPage" });
 
+type DevicesGroupingMode = "none" | "type" | "room";
+
+const DEVICES_GROUPING_DEFAULT: DevicesGroupingMode = "type";
+
+const DEVICES_GROUPING_OPTIONS: {
+  value: DevicesGroupingMode;
+  label: string;
+}[] = [
+  { value: "type", label: "Typ" },
+  { value: "room", label: "Raum" },
+  { value: "none", label: "Keine" },
+];
+
+function parseDevicesGrouping(value: string | null): DevicesGroupingMode {
+  if (value === "room" || value === "none") return value;
+  return DEVICES_GROUPING_DEFAULT;
+}
+
 export default function DevicesPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [devices, setDevices] = useState<Device[]>([]);
+  const searchParams = useSearchParams();
+  const updateUrlParams = useUpdateUrlParams();
+
+  const selectedId = searchParams.get("device");
+  const grouping = parseDevicesGrouping(searchParams.get("groupBy"));
   const [searchTerm, setSearchTerm] = useState("");
-  // No filters on this page (per requirements)
   const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  // The list response never carries `api_key` (it's a one-time create-only
+  // secret). We snapshot the freshly-created device here so the detail panel
+  // can render the key until the user navigates away — same dismiss semantics
+  // as the pre-master-detail modal had when it closed.
+  const [createdDevice, setCreatedDevice] = useState<Device | null>(null);
+  const [savingDevice, setSavingDevice] = useState(false);
 
-  // Delete confirmation modal management
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(setShowDetailModal);
+  } = useDeleteConfirmation();
 
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -61,34 +91,26 @@ export default function DevicesPage() {
   });
 
   const service = useMemo(() => createCrudService(devicesConfig), []);
+  const tenantMutate = useTenantMutate();
 
-  const fetchDevices = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await service.getList({ page: 1, pageSize: 500 });
-      const arr = Array.isArray(data.data) ? data.data : [];
-      setDevices(arr);
-      setError(null);
-    } catch (err) {
-      logger.error("failed to fetch devices", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError(
-        "Fehler beim Laden der Geräte. Bitte versuchen Sie es später erneut.",
-      );
-      setDevices([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [service]);
+  const {
+    data: devicesData,
+    isLoading: loading,
+    error: devicesError,
+  } = useSWRAuth("database-devices-list", async () => {
+    const data = await service.getList({ page: 1, pageSize: 500 });
+    return Array.isArray(data.data) ? data.data : [];
+  });
 
-  useEffect(() => {
-    fetchDevices().catch(() => {
-      // Error already handled in fetchDevices
-    });
-  }, [fetchDevices]);
+  const error = devicesError
+    ? "Fehler beim Laden der Geräte. Bitte versuchen Sie es später erneut."
+    : null;
 
-  // uniqueTypes removed
+  // Snapshot lifecycle is managed synchronously in the click/edit/delete
+  // handlers below — never via an effect on `selectedId`. router.replace is
+  // async and useSearchParams lags one render behind it, so any effect that
+  // compares createdDevice.id to selectedId would race the URL update and
+  // wipe the api_key before it could render.
 
   const filters: FilterConfig[] = useMemo(() => [], []);
 
@@ -106,8 +128,10 @@ export default function DevicesPage() {
     [searchTerm],
   );
 
+  const allDevices = useMemo(() => devicesData ?? [], [devicesData]);
+
   const filteredDevices = useMemo(() => {
-    let arr = [...devices];
+    let arr = [...allDevices];
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       arr = arr.filter(
@@ -117,140 +141,196 @@ export default function DevicesPage() {
           d.device_type.toLowerCase().includes(q),
       );
     }
-    // No additional filters — only search is applied
     arr.sort((a, b) =>
       (a.name ?? a.device_id).localeCompare(b.name ?? b.device_id, "de"),
     );
     return arr;
-  }, [devices, searchTerm]);
+  }, [allDevices, searchTerm]);
 
-  const handleSelectDevice = async (device: Device) => {
-    setSelectedDevice(device);
-    setShowDetailModal(true);
-    try {
-      setDetailLoading(true);
-      const fresh = await service.getOne(device.id);
-      setSelectedDevice(fresh);
-    } finally {
-      setDetailLoading(false);
+  // Detail lookup uses the unfiltered list so the panel survives a search
+  // narrowing the visible rows. The snapshot wins for the just-created device
+  // because it's the only place the api_key lives.
+  const selectedDevice = useMemo(() => {
+    if (!selectedId) return null;
+    const fromList = allDevices.find((d) => d.id === selectedId) ?? null;
+    if (createdDevice && createdDevice.id === selectedId) {
+      return fromList
+        ? { ...fromList, api_key: createdDevice.api_key }
+        : createdDevice;
     }
-  };
+    return fromList;
+  }, [allDevices, createdDevice, selectedId]);
 
-  const handleCreateDevice = async (data: Partial<Device>) => {
-    try {
-      setCreateLoading(true);
-      setCreateError(null);
-      if (devicesConfig.form.transformBeforeSubmit)
-        data = devicesConfig.form.transformBeforeSubmit(data);
-      const created = await service.create(data);
-      toastSuccess(
-        getDbOperationMessage(
-          "create",
-          devicesConfig.name.singular,
-          created.name ?? created.device_id,
-        ),
+  const handleSelectDevice = useCallback(
+    (id: string | null) => {
+      setCreatedDevice((current) =>
+        current && current.id !== id ? null : current,
       );
-      setShowCreateModal(false);
-      // Open detail to show API key if present
-      setSelectedDevice(created);
-      setShowDetailModal(true);
-      await fetchDevices();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      if (
-        errorMessage.includes("duplicate device ID") ||
-        errorMessage.includes("409")
-      ) {
-        setCreateError(
-          `Die Geräte-ID "${data.device_id ?? ""}" ist bereits vergeben. Bitte wählen Sie eine andere ID.`,
-        );
-      } else {
-        setCreateError(
-          "Fehler beim Erstellen des Geräts. Bitte versuchen Sie es erneut.",
-        );
-      }
-      logger.error("device_create_failed", {
-        error: errorMessage,
+      updateUrlParams({ device: id });
+    },
+    [updateUrlParams],
+  );
+
+  const handleGroupingChange = useCallback(
+    (next: DevicesGroupingMode) => {
+      updateUrlParams({
+        groupBy: next === DEVICES_GROUPING_DEFAULT ? null : next,
       });
-    } finally {
-      setCreateLoading(false);
-    }
-  };
+    },
+    [updateUrlParams],
+  );
 
-  const handleUpdateDevice = async (data: Partial<Device>) => {
-    if (!selectedDevice) return;
-    try {
-      setDetailLoading(true);
-      if (devicesConfig.form.transformBeforeSubmit)
-        data = devicesConfig.form.transformBeforeSubmit(data);
-      await service.update(selectedDevice.id, data);
-      toastSuccess(
-        getDbOperationMessage(
-          "update",
-          devicesConfig.name.singular,
-          selectedDevice.name ?? selectedDevice.device_id,
-        ),
-      );
-      const refreshed = await service.getOne(selectedDevice.id);
-      setSelectedDevice(refreshed);
-      setShowEditModal(false);
-      setShowDetailModal(true);
-      await fetchDevices();
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+  const groupers = useMemo<
+    Partial<Record<DevicesGroupingMode, Grouper<Device>>>
+  >(
+    () => ({
+      type: (device) => {
+        const id = device.device_type || "__no_type__";
+        const title = device.device_type
+          ? getDeviceTypeDisplayName(device.device_type)
+          : "Ohne Typ";
+        return { id, title };
+      },
+      room: (device) => {
+        const id = device.room_name?.trim() || "__no_room__";
+        const title = device.room_name?.trim() || "Ohne Raum";
+        return { id, title };
+      },
+    }),
+    [],
+  );
 
-  const handleDeleteDevice = async () => {
-    if (!selectedDevice) return;
-    try {
-      setDetailLoading(true);
-      const deleteError = await service.delete(selectedDevice.id);
-      if (deleteError) {
-        toastError(deleteError);
-        return;
+  const groupDefinitions = useGroupedItems(
+    filteredDevices,
+    grouping,
+    groupers,
+    "Geräte",
+  );
+
+  const handleCloseCreateModal = useCallback(() => {
+    setShowCreateModal(false);
+    setCreateError(null);
+  }, []);
+
+  const handleEditClick = useCallback(() => setShowEditModal(true), []);
+  const handleCloseEditModal = useCallback(() => setShowEditModal(false), []);
+
+  const handleCreateDevice = useCallback(
+    async (data: Partial<Device>) => {
+      try {
+        setCreateLoading(true);
+        setCreateError(null);
+        const payload = devicesConfig.form.transformBeforeSubmit
+          ? devicesConfig.form.transformBeforeSubmit(data)
+          : data;
+        const created = await service.create(payload);
+        toastSuccess(
+          getDbOperationMessage(
+            "create",
+            devicesConfig.name.singular,
+            created.name ?? created.device_id,
+          ),
+        );
+        setShowCreateModal(false);
+        setCreatedDevice(created);
+        handleSelectDevice(created.id);
+        await tenantMutate("database-devices-list");
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        if (
+          errorMessage.includes("duplicate device ID") ||
+          errorMessage.includes("409")
+        ) {
+          setCreateError(
+            `Die Geräte-ID "${data.device_id ?? ""}" ist bereits vergeben. Bitte wählen Sie eine andere ID.`,
+          );
+        } else {
+          setCreateError(
+            "Fehler beim Erstellen des Geräts. Bitte versuchen Sie es erneut.",
+          );
+        }
+        logger.error("device_create_failed", { error: errorMessage });
+      } finally {
+        setCreateLoading(false);
       }
-      toastSuccess(
-        getDbOperationMessage(
-          "delete",
-          devicesConfig.name.singular,
-          selectedDevice.name ?? selectedDevice.device_id,
-        ),
-      );
-      setShowDetailModal(false);
-      setSelectedDevice(null);
-      await fetchDevices();
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+    },
+    [service, handleSelectDevice, tenantMutate, toastSuccess],
+  );
 
-  const handleEditClick = () => {
-    setShowDetailModal(false);
-    setShowEditModal(true);
-  };
+  const handleUpdateDevice = useCallback(
+    async (data: Partial<Device>) => {
+      if (!selectedDevice) return;
+      try {
+        setSavingDevice(true);
+        const payload = devicesConfig.form.transformBeforeSubmit
+          ? devicesConfig.form.transformBeforeSubmit(data)
+          : data;
+        const updatedDevice = await service.update(selectedDevice.id, payload);
+        // Editing closes the api_key flash — the snapshot would otherwise
+        // overlay the freshly-edited list values on the next render.
+        setCreatedDevice(null);
+        setShowEditModal(false);
+        toastSuccess(
+          getDbOperationMessage(
+            "update",
+            devicesConfig.name.singular,
+            updatedDevice.name ?? updatedDevice.device_id,
+          ),
+        );
+        await tenantMutate("database-devices-list");
+      } catch (err) {
+        logger.error("failed to update device", {
+          device_id: selectedDevice.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      } finally {
+        setSavingDevice(false);
+      }
+    },
+    [selectedDevice, service, tenantMutate, toastSuccess],
+  );
+
+  const handleDeleteDevice = useCallback(async () => {
+    if (!selectedDevice) return;
+    const deleteError = await service.delete(selectedDevice.id);
+    if (deleteError) {
+      toastError(deleteError);
+      return;
+    }
+    toastSuccess(
+      getDbOperationMessage(
+        "delete",
+        devicesConfig.name.singular,
+        selectedDevice.name ?? selectedDevice.device_id,
+      ),
+    );
+    setCreatedDevice(null);
+    handleSelectDevice(null);
+    await tenantMutate("database-devices-list");
+  }, [
+    selectedDevice,
+    service,
+    toastError,
+    toastSuccess,
+    handleSelectDevice,
+    tenantMutate,
+  ]);
+
+  const canShowDetail =
+    !loading && (filteredDevices.length > 0 || selectedDevice !== null);
 
   return (
-    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+    <DatabasePageLayout
+      loading={loading}
+      sessionLoading={status === "loading"}
+      className="-mt-1.5 flex w-full flex-col"
+    >
       <div className="mb-4">
         <PageHeaderWithSearch
           title={isMobile ? "Geräte" : ""}
           badge={{
-            icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                />
-              </svg>
-            ),
+            icon: <Laptop className="h-5 w-5 text-gray-600" aria-hidden />,
             count: filteredDevices.length,
             label: "Geräte",
           }}
@@ -265,68 +345,23 @@ export default function DevicesPage() {
             setSearchTerm("");
           }}
           actionButton={
-            !isMobile && (
-              <button
+            <div className="flex items-center gap-2">
+              {!isMobile ? (
+                <DatabaseGroupingToggle
+                  value={grouping}
+                  options={DEVICES_GROUPING_OPTIONS}
+                  onChange={handleGroupingChange}
+                />
+              ) : null}
+              <DatabaseCreateAction
+                label="Gerät"
+                ariaLabel="Gerät registrieren"
                 onClick={() => setShowCreateModal(true)}
-                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
-                  willChange: "transform, opacity",
-                  WebkitTransform: "translateZ(0)",
-                  transform: "translateZ(0)",
-                }}
-                aria-label="Gerät registrieren"
-              >
-                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-                <svg
-                  className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
-                </svg>
-                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-              </button>
-            )
+              />
+            </div>
           }
         />
       </div>
-
-      <button
-        onClick={() => setShowCreateModal(true)}
-        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(234,179,8,0.3)] active:scale-95 md:hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
-          willChange: "transform, opacity",
-          WebkitTransform: "translateZ(0)",
-          transform: "translateZ(0)",
-        }}
-        aria-label="Gerät registrieren"
-      >
-        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-        <svg
-          className="pointer-events-none relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 4.5v15m7.5-7.5h-15"
-          />
-        </svg>
-        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-      </button>
 
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
@@ -334,153 +369,45 @@ export default function DevicesPage() {
         </div>
       )}
 
-      {filteredDevices.length === 0 ? (
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="text-center">
-            <svg
+      {canShowDetail ? (
+        <div className="min-h-0 flex-1 pb-4">
+          <DevicesMasterDetail
+            groupDefinitions={groupDefinitions}
+            selectedId={selectedId}
+            selectedDevice={selectedDevice}
+            onSelect={handleSelectDevice}
+            onEditClick={handleEditClick}
+            onDeleteClick={handleDeleteClick}
+          />
+        </div>
+      ) : !loading ? (
+        <DatabaseEmptyState
+          icon={
+            <Laptop
               className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
-              {searchTerm ? "Keine Geräte gefunden" : "Keine Geräte vorhanden"}
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              {searchTerm
-                ? "Versuchen Sie einen anderen Suchbegriff."
-                : "Es wurden noch keine Geräte registriert."}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredDevices.map((device, index) => {
-            const handleClick = () => void handleSelectDevice(device);
-            return (
-              <button
-                type="button"
-                key={device.id}
-                onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-amber-400/60 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
-                style={{
-                  animationName: "fadeInUp",
-                  animationDuration: "0.5s",
-                  animationTimingFunction: "ease-out",
-                  animationFillMode: "forwards",
-                  animationDelay: `${index * 0.03}s`,
-                  opacity: 0,
-                }}
-              >
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-yellow-50/80 to-yellow-100/80 opacity-[0.03]"></div>
-                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-yellow-300/60"></div>
+              strokeWidth={1.5}
+              aria-hidden
+            />
+          }
+          title={
+            searchTerm ? "Keine Geräte gefunden" : "Keine Geräte vorhanden"
+          }
+          description={
+            searchTerm
+              ? "Versuchen Sie einen anderen Suchbegriff."
+              : "Es wurden noch keine Geräte registriert."
+          }
+        />
+      ) : null}
 
-                <div className="relative flex items-center gap-4 p-5">
-                  <div className="relative flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-110">
-                      {(device.name ?? device.device_id)
-                        ?.charAt(0)
-                        ?.toUpperCase() ?? "D"}
-                    </div>
-                    <span
-                      className={`absolute right-0 bottom-0 h-3 w-3 rounded-full border-2 border-white ${device.is_online ? "bg-green-500" : "bg-gray-400"}`}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-150 md:group-hover:text-yellow-600">
-                      {device.name ?? device.device_id}
-                    </h3>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                        {getDeviceTypeDisplayName(device.device_type)}
-                      </span>
-                      {device.room_name && (
-                        <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                          <svg
-                            className="h-3 w-3"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                          </svg>
-                          {device.room_name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-6 w-6 text-gray-400 transition-all duration-150 md:group-hover:translate-x-1 md:group-hover:text-yellow-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-amber-100/30 to-transparent opacity-0 transition-opacity duration-150 md:group-hover:opacity-100"></div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Create */}
       <DeviceCreateModal
         isOpen={showCreateModal}
-        onClose={() => {
-          setShowCreateModal(false);
-          setCreateError(null);
-        }}
+        onClose={handleCloseCreateModal}
         onCreate={handleCreateDevice}
         loading={createLoading}
         error={createError}
       />
 
-      {/* Detail */}
-      {selectedDevice && (
-        <DeviceDetailModal
-          isOpen={showDetailModal}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedDevice(null);
-          }}
-          device={selectedDevice}
-          onEdit={handleEditClick}
-          onDelete={() => void handleDeleteDevice()}
-          loading={detailLoading}
-          onDeleteClick={handleDeleteClick}
-        />
-      )}
-
-      {/* Delete Confirmation */}
       {selectedDevice && (
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
@@ -501,20 +428,15 @@ export default function DevicesPage() {
         </ConfirmationModal>
       )}
 
-      {/* Edit */}
       {selectedDevice && (
         <DeviceEditModal
           isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-          }}
+          onClose={handleCloseEditModal}
           device={selectedDevice}
           onSave={handleUpdateDevice}
-          loading={detailLoading}
+          loading={savingDevice}
         />
       )}
-
-      {/* Success toasts are handled globally */}
     </DatabasePageLayout>
   );
 }

@@ -5,14 +5,14 @@ import { useState, useCallback } from "react";
 /**
  * Hook to manage delete confirmation modal flow for database pages.
  *
- * This hook handles the common pattern of:
- * 1. Closing detail modal when delete is clicked
- * 2. Opening confirmation modal
- * 3. Reopening detail modal on cancel
- * 4. Closing confirmation modal and triggering delete on confirm
+ * Pattern handled:
+ * 1. Optionally close a parent detail modal when delete is clicked
+ * 2. Open confirmation modal
+ * 3. Optionally reopen the parent detail modal on cancel
+ * 4. Close confirmation modal and run the delete on confirm
  *
- * @param setShowDetailModal - Function to control detail modal visibility
- * @returns Object containing confirmation modal state and handlers
+ * Master-detail pages keep the detail panel mounted, so the parent toggle is
+ * optional — pass nothing for those callers.
  *
  * @example
  * ```tsx
@@ -21,9 +21,8 @@ import { useState, useCallback } from "react";
  *   handleDeleteClick,
  *   handleDeleteCancel,
  *   confirmDelete,
- * } = useDeleteConfirmation(setShowDetailModal);
+ * } = useDeleteConfirmation();
  *
- * // In ConfirmationModal:
  * <ConfirmationModal
  *   isOpen={showConfirmModal}
  *   onClose={handleDeleteCancel}
@@ -32,7 +31,7 @@ import { useState, useCallback } from "react";
  * ```
  */
 export function useDeleteConfirmation(
-  setShowDetailModal: (show: boolean) => void,
+  setShowDetailModal?: (show: boolean) => void,
 ): {
   showConfirmModal: boolean;
   handleDeleteClick: () => void;
@@ -42,13 +41,13 @@ export function useDeleteConfirmation(
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const handleDeleteClick = useCallback(() => {
-    setShowDetailModal(false);
+    setShowDetailModal?.(false);
     setShowConfirmModal(true);
   }, [setShowDetailModal]);
 
   const handleDeleteCancel = useCallback(() => {
     setShowConfirmModal(false);
-    setShowDetailModal(true);
+    setShowDetailModal?.(true);
   }, [setShowDetailModal]);
 
   const confirmDelete = useCallback((onDelete: () => void) => {
