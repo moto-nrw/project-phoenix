@@ -85,6 +85,11 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [check-environment]
     if: needs.check-environment.outputs.should_deploy == 'true'
+    # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
+    # have their own concurrency groups, so they are NOT affected.
+    concurrency:
+      group: build-backend-${{ github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: read
       packages: write
@@ -93,8 +98,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: Set up Blacksmith Docker builder
+        uses: useblacksmith/setup-docker-builder@0499d0ae6eaca32ba5f461861e214b04be4c097f # v1.8.0
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -122,7 +127,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push backend
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -130,9 +135,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
-          # Use separate cache scope to prevent frontend overwriting backend cache
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+          # Layer cache is mounted automatically via Blacksmith sticky disks (per repo + Dockerfile)
           provenance: false
 
       - name: Image digest
@@ -143,6 +146,11 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [check-environment]
     if: needs.check-environment.outputs.should_deploy == 'true'
+    # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
+    # have their own concurrency groups, so they are NOT affected.
+    concurrency:
+      group: build-frontend-${{ github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: read
       packages: write
@@ -151,8 +159,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: Set up Blacksmith Docker builder
+        uses: useblacksmith/setup-docker-builder@0499d0ae6eaca32ba5f461861e214b04be4c097f # v1.8.0
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -207,7 +215,7 @@ jobs:
           fi
 
       - name: Build and push frontend
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
@@ -223,9 +231,7 @@ jobs:
             NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
             NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ needs.check-environment.outputs.is_staging == 'true' && 'staging' || 'production' }}
-          # Use separate cache scope to prevent backend overwriting frontend cache
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
+          # Layer cache is mounted automatically via Blacksmith sticky disks (per repo + Dockerfile)
           provenance: false
 
       - name: Image digest
