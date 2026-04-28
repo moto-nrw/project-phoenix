@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
@@ -2132,31 +2131,6 @@ func CreateTestTimeframeForTenant(tb testing.TB, db *bun.DB, tenantID int64, des
 	return timeframe
 }
 
-// CreateTestSettingForTenant creates a config setting belonging to a specific tenant.
-func CreateTestSettingForTenant(tb testing.TB, db *bun.DB, tenantID int64, key, value, category string) *config.Setting {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	uniqueKey := fmt.Sprintf("%s_%d", key, time.Now().UnixNano())
-
-	setting := &config.Setting{
-		Key:      uniqueKey,
-		Value:    value,
-		Category: category,
-	}
-	setting.SetTenantID(tenantID)
-
-	err := db.NewInsert().
-		Model(setting).
-		ModelTableExpr(`config.settings`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test setting for tenant")
-
-	return setting
-}
-
 // CreateTestDeviceForTenant creates an IoT device belonging to a specific tenant.
 func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, deviceID string) *iot.Device {
 	tb.Helper()
@@ -2439,7 +2413,6 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 	tables := []string{
 		"feedback.entries",
 		"auth.tokens",
-		"config.settings",
 		"schedule.timeframes",
 		"iot.devices",
 		"suggestions.votes",
