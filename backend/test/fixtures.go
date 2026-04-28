@@ -459,10 +459,12 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Facilities domain cleanup
 		// ========================================
 
-		// Delete from facilities.rooms
+		// Delete from facilities.rooms, but never the system default room
+		// (id=1, created by SetupTestDB). Concurrent test packages depend on it.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("facilities.rooms").
-			Where(whereIDEquals, id),
+			Where(whereIDEquals, id).
+			Where("id != ?", 1),
 			"facilities.rooms")
 
 		// ========================================
@@ -495,16 +497,21 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 			Where(whereIDEquals, id),
 			"users.students")
 
-		// Delete from users.staff
+		// Delete from users.staff, but never the system staff fixture
+		// (id=1, created by SetupTestDB). Tests across parallel packages share it.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr(tableUsersStaff).
-			Where(whereIDEquals, id),
+			Where(whereIDEquals, id).
+			Where("id != ?", 1),
 			tableUsersStaff)
 
-		// Delete from users.persons (last, as it's referenced by students and staff)
+		// Delete from users.persons (last, as it's referenced by students and staff).
+		// Skip the system person fixture (id=1, created by SetupTestDB) for the
+		// same reason as users.staff above.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr(tableUsersPersons).
-			Where(whereIDEquals, id),
+			Where(whereIDEquals, id).
+			Where("id != ?", 1),
 			tableUsersPersons)
 
 		// ========================================
