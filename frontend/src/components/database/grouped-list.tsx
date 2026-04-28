@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { GroupHeader, type GroupHeaderVariant } from "./group-header";
@@ -37,6 +37,28 @@ export function GroupedList<T>({
   }, [defaultOpenIds, groups]);
 
   const [openIds, setOpenIds] = useState<Set<string>>(initialOpen);
+
+  // Track every group id we've ever seen so we can default *newly introduced*
+  // groups to "open" without re-opening ones the user has explicitly collapsed.
+  // This kicks in when the grouping mode flips (e.g. flat -> by-floor) and a
+  // brand new set of group ids appears. Seed with every id present at mount —
+  // not just the initially-open ones — so groups that were closed at mount
+  // don't get treated as "new" on first effect run.
+  const knownIdsRef = useRef<Set<string>>(new Set(groups.map((g) => g.id)));
+
+  useEffect(() => {
+    const known = knownIdsRef.current;
+    const incoming = groups.map((g) => g.id);
+    const newlyIntroduced = incoming.filter((id) => !known.has(id));
+    if (newlyIntroduced.length === 0) return;
+
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      for (const id of newlyIntroduced) next.add(id);
+      return next;
+    });
+    for (const id of newlyIntroduced) known.add(id);
+  }, [groups]);
 
   const toggle = (id: string) => {
     setOpenIds((prev) => {
