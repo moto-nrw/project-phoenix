@@ -213,6 +213,8 @@ func (rs *Resource) Router() chi.Router {
 		// activities.groups + activities.schedules into one HTTP call and
 		// optionally materializes the visible week so the new instances
 		// appear immediately on the grid.
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/templates", rs.listTemplates)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Post("/templates", rs.createTemplate)
 	})

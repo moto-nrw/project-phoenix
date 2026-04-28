@@ -17,12 +17,14 @@ interface MaterializeButtonProps {
   onMaterialize: () => Promise<void>;
   weekLabel: string;
   disabled?: boolean;
+  variant?: "primary" | "secondary";
 }
 
 export function MaterializeButton({
   onMaterialize,
   weekLabel,
   disabled = false,
+  variant = "secondary",
 }: MaterializeButtonProps) {
   const [isPending, setIsPending] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -43,12 +45,12 @@ export function MaterializeButton({
     <div className="flex items-center gap-2">
       {showConfirm && !isPending && (
         <span className="text-xs text-slate-600">
-          Geplante Termine in <span className="font-semibold">{weekLabel}</span>{" "}
-          werden überschrieben.
+          Geplante Termine in <span className="font-semibold">{weekLabel}</span>
+          werden aus Vorlagen synchronisiert.
         </span>
       )}
       <Button
-        variant="success"
+        variant={variant === "primary" ? "success" : "outline"}
         size="sm"
         onClick={handleClick}
         disabled={disabled}
@@ -60,8 +62,10 @@ export function MaterializeButton({
         <span className="inline-flex items-center gap-2">
           <CalendarPlus className="h-4 w-4" />
           {showConfirm
-            ? "Bestätigen — Plan aktualisieren"
-            : "Plan aktualisieren"}
+            ? "Bestätigen"
+            : variant === "primary"
+              ? "Woche planen"
+              : "Aus Vorlagen synchronisieren"}
         </span>
       </Button>
       {showConfirm && !isPending && (

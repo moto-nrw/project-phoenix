@@ -21,6 +21,7 @@ import type {
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendStartInstanceResult,
+  BackendTemplatesResponse,
   BackendWeeklyInstancesResponse,
   CreateInstanceBody,
   CreateTemplateBody,
@@ -29,6 +30,7 @@ import type {
   InstanceStatusResult,
   MaterializeResult,
   StartInstanceResult,
+  TemplatesResponse,
   WeeklyInstancesResponse,
 } from "./timetable-types";
 import {
@@ -37,6 +39,7 @@ import {
   mapInstanceStatusResult,
   mapMaterializeResult,
   mapStartInstanceResult,
+  mapTemplates,
   mapWeeklyInstances,
 } from "./timetable-helpers";
 
@@ -155,6 +158,22 @@ class TimetableService {
       instances_created: raw.instances_created,
     });
     return mapCreateTemplateResult(raw);
+  }
+
+  async getTemplates(periodId?: string | null): Promise<TemplatesResponse> {
+    const params = new URLSearchParams();
+    if (periodId) params.set("period_id", periodId);
+    const response = await fetch(
+      `/api/timetable/templates${params.toString() ? `?${params}` : ""}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+
+    const raw = await unwrap<BackendTemplatesResponse>(response);
+    return mapTemplates(raw);
   }
 
   /**

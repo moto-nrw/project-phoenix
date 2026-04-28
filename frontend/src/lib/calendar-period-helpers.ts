@@ -84,6 +84,45 @@ export function mapPeriods(raw: BackendCalendarPeriod[]): CalendarPeriod[] {
   return raw.map(mapPeriod);
 }
 
+export function findPeriodForDate(
+  periods: CalendarPeriod[],
+  isoDate: string,
+): CalendarPeriod | null {
+  const matches = periods
+    .filter((p) => p.isActive)
+    .filter((p) => p.startDate <= isoDate && isoDate <= p.endDate)
+    .sort((a, b) => Number(a.id) - Number(b.id));
+
+  return matches[0] ?? null;
+}
+
+export interface DayPeriodAssignment {
+  date: string;
+  period: CalendarPeriod | null;
+}
+
+export function mapPeriodsForDates(
+  periods: CalendarPeriod[],
+  isoDates: string[],
+): DayPeriodAssignment[] {
+  return isoDates.map((date) => ({
+    date,
+    period: findPeriodForDate(periods, date),
+  }));
+}
+
+export function uniqueAssignedPeriods(
+  assignments: DayPeriodAssignment[],
+): CalendarPeriod[] {
+  const byID = new Map<string, CalendarPeriod>();
+  for (const assignment of assignments) {
+    if (assignment.period) {
+      byID.set(assignment.period.id, assignment.period);
+    }
+  }
+  return [...byID.values()].sort((a, b) => Number(a.id) - Number(b.id));
+}
+
 /**
  * Formats "01.09.2025 – 31.07.2026" for the list view. Both dates are
  * already YYYY-MM-DD so we splice without going through Date.

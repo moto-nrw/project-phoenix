@@ -111,6 +111,62 @@ export interface BackendWeeklyInstancesResponse {
   instances: BackendEnrichedInstance[];
 }
 
+export interface TemplateSchedule {
+  id: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  weekPattern: number;
+  calendarPeriodId?: string;
+}
+
+export interface TimetableTemplate {
+  id: string;
+  name: string;
+  type: ActivityType;
+  categoryId: string;
+  categoryName: string;
+  roomId?: string;
+  roomName?: string;
+  isOpen: boolean;
+  maxParticipants: number;
+  enrollmentCount: number;
+  supervisorCount: number;
+  schedules: TemplateSchedule[];
+}
+
+export interface TemplatesResponse {
+  templates: TimetableTemplate[];
+}
+
+export interface BackendTemplateSchedule {
+  id: number;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  week_pattern: number;
+  calendar_period_id?: number;
+}
+
+export interface BackendTimetableTemplate {
+  id: number;
+  name: string;
+  type: ActivityType;
+  category_id: number;
+  category_name: string;
+  room_id?: number;
+  room_name?: string;
+  is_open: boolean;
+  max_participants: number;
+  enrollment_count: number;
+  supervisor_count: number;
+  schedules: BackendTemplateSchedule[];
+}
+
+export interface BackendTemplatesResponse {
+  templates: BackendTimetableTemplate[];
+}
+
 /**
  * Result of a manual materialization run — POST /api/timetable/materialize.
  * Exposed in the UI as a German toast: "Plan aktualisiert: X Aktivitäten

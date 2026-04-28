@@ -21,6 +21,7 @@ import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
+import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import {
   getActivityColor,
   getGermanWeekdayShort,
@@ -60,6 +61,10 @@ interface RecurringActivityModalProps {
   /** Visible week range — passed to the backend so materialize fills the grid. */
   weekFrom?: string;
   weekTo?: string;
+  /** Periods covering the visible week. New templates must bind to one. */
+  calendarPeriods: CalendarPeriod[];
+  defaultCalendarPeriodId?: string | null;
+  showPeriodField?: boolean;
 }
 
 interface FormState {
@@ -70,6 +75,7 @@ interface FormState {
   endTime: string;
   roomId: string;
   categoryId: string;
+  calendarPeriodId: string;
 }
 
 const ALL_WEEKDAYS = [1, 2, 3, 4, 5] as const;
@@ -93,6 +99,7 @@ function emptyForm(): FormState {
     endTime: "13:00",
     roomId: "",
     categoryId: "",
+    calendarPeriodId: "",
   };
 }
 
@@ -111,6 +118,9 @@ export function RecurringActivityModal({
   onCreated,
   weekFrom,
   weekTo,
+  calendarPeriods,
+  defaultCalendarPeriodId,
+  showPeriodField = false,
 }: RecurringActivityModalProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -122,7 +132,10 @@ export function RecurringActivityModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setForm(emptyForm());
+    setForm({
+      ...emptyForm(),
+      calendarPeriodId: defaultCalendarPeriodId ?? "",
+    });
     setValidationError(null);
     setLoadingRefs(true);
 
@@ -173,7 +186,7 @@ export function RecurringActivityModal({
         );
       })
       .finally(() => setLoadingRefs(false));
-  }, [isOpen]);
+  }, [isOpen, defaultCalendarPeriodId]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -199,6 +212,7 @@ export function RecurringActivityModal({
       form.endTime !== "" &&
       form.roomId !== "" &&
       form.categoryId !== "" &&
+      form.calendarPeriodId !== "" &&
       !submitting
     );
   }, [form, submitting]);
@@ -222,6 +236,11 @@ export function RecurringActivityModal({
       setValidationError("Bitte eine Kategorie auswählen.");
       return;
     }
+    const calendarPeriodId = Number.parseInt(form.calendarPeriodId, 10);
+    if (!Number.isFinite(calendarPeriodId) || calendarPeriodId <= 0) {
+      setValidationError("Bitte eine Planungsperiode auswählen.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -233,6 +252,7 @@ export function RecurringActivityModal({
         end_time: form.endTime,
         room_id: roomId,
         category_id: categoryId,
+        calendar_period_id: calendarPeriodId,
         materialize_from: weekFrom,
         materialize_to: weekTo,
       });
@@ -428,6 +448,46 @@ export function RecurringActivityModal({
             </select>
           </Field>
         </div>
+
+        {showPeriodField && (
+          <Field label="Planungsperiode" htmlFor="calendar_period" required>
+            <select
+              id="calendar_period"
+              value={form.calendarPeriodId}
+              onChange={(e) => update("calendarPeriodId", e.target.value)}
+              required
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+            >
+              <option value="">Periode auswählen …</option>
+              {calendarPeriods.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+
+        {!showPeriodField && defaultCalendarPeriodId && (
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            Vorlage wird an{" "}
+            <span className="font-semibold">
+              {calendarPeriods.find((p) => p.id === defaultCalendarPeriodId)
+                ?.name ?? "die aktuelle Planungsperiode"}
+            </span>{" "}
+            gebunden.
+          </div>
+        )}
+
+        {calendarPeriods.length === 0 && (
+          <div
+            role="alert"
+            className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]"
+          >
+            Für diese Woche gibt es keine aktive Planungsperiode. Lege zuerst
+            eine Periode im Kopfbereich an.
+          </div>
+        )}
 
         {weekFrom && weekTo && (
           <div className="rounded-md border border-[#BAE6FD] bg-[#F0F9FF] px-3 py-2 text-xs text-[#075985]">

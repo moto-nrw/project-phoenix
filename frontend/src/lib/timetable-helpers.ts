@@ -14,6 +14,7 @@ import type {
   BackendEnrichedInstance,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
+  BackendTemplatesResponse,
   BackendStartInstanceResult,
   BackendWeeklyInstancesResponse,
   CreateTemplateResult,
@@ -22,6 +23,7 @@ import type {
   InstanceStatusResult,
   MaterializeResult,
   StartInstanceResult,
+  TemplatesResponse,
   WeeklyInstancesResponse,
 } from "./timetable-types";
 
@@ -211,6 +213,37 @@ export function getWeekdays(from: Date): Date[] {
   return days;
 }
 
+export function getMonthRange(ref: Date): { from: Date; to: Date } {
+  const first = new Date(ref.getFullYear(), ref.getMonth(), 1);
+  first.setHours(0, 0, 0, 0);
+  const from = getMondayOfWeek(first, 0);
+
+  const last = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+  last.setHours(0, 0, 0, 0);
+  const to = new Date(getMondayOfWeek(last, 0));
+  to.setDate(to.getDate() + 6);
+  return { from, to };
+}
+
+export function getMonthDays(ref: Date): Date[] {
+  const { from, to } = getMonthRange(ref);
+  const dayCount = Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+  const days: Date[] = [];
+  for (let offset = 0; offset < dayCount; offset++) {
+    const cursor = new Date(from);
+    cursor.setDate(cursor.getDate() + offset);
+    days.push(new Date(cursor));
+  }
+  return days;
+}
+
+export function formatMonthLabel(ref: Date): string {
+  return ref.toLocaleDateString("de-DE", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
 /**
  * Status-to-German UI label. Surfaced as the badge on cards.
  */
@@ -334,6 +367,39 @@ export function mapCreateTemplateResult(
     instancesCreated: raw.instances_created,
     materializedFrom: raw.materialized_from,
     materializedTo: raw.materialized_to,
+  };
+}
+
+export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
+  return {
+    templates: (raw.templates ?? []).map((template) => ({
+      id: String(template.id),
+      name: template.name,
+      type: template.type,
+      categoryId: String(template.category_id),
+      categoryName: template.category_name,
+      roomId:
+        template.room_id !== undefined && template.room_id !== null
+          ? String(template.room_id)
+          : undefined,
+      roomName: template.room_name,
+      isOpen: template.is_open,
+      maxParticipants: template.max_participants,
+      enrollmentCount: template.enrollment_count,
+      supervisorCount: template.supervisor_count,
+      schedules: (template.schedules ?? []).map((schedule) => ({
+        id: String(schedule.id),
+        weekday: schedule.weekday,
+        startTime: schedule.start_time,
+        endTime: schedule.end_time,
+        weekPattern: schedule.week_pattern,
+        calendarPeriodId:
+          schedule.calendar_period_id !== undefined &&
+          schedule.calendar_period_id !== null
+            ? String(schedule.calendar_period_id)
+            : undefined,
+      })),
+    })),
   };
 }
 

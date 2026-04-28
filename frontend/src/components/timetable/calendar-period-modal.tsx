@@ -33,6 +33,8 @@ interface CalendarPeriodModalProps {
   onSaved: (period: CalendarPeriod) => void;
   /** Pass an existing period to enter edit mode. Omit/null for create. */
   initial?: CalendarPeriod | null;
+  /** Optional defaults used when creating from a visible planner week. */
+  createDefaults?: Partial<FormState>;
 }
 
 interface FormState {
@@ -74,6 +76,7 @@ export function CalendarPeriodModal({
   onClose,
   onSaved,
   initial,
+  createDefaults,
 }: CalendarPeriodModalProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -84,9 +87,11 @@ export function CalendarPeriodModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setForm(initial ? formFromPeriod(initial) : emptyForm());
+    setForm(
+      initial ? formFromPeriod(initial) : { ...emptyForm(), ...createDefaults },
+    );
     setValidationError(null);
-  }, [isOpen, initial]);
+  }, [isOpen, initial, createDefaults]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
