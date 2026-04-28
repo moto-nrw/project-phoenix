@@ -230,6 +230,12 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
             type={revealed ? "text" : "password"}
             value={apiKey}
             readOnly
+            // Opt out of password manager / browser autosave prompts; this is
+            // a one-shot device key, not a user credential.
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
           />
           <button
