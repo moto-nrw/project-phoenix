@@ -52,7 +52,7 @@ export function PageHeaderWithSearch({
           title={title}
           badge={badge}
           statusIndicator={statusIndicator}
-          actionButton={mobileActionButton}
+          actionButton={mobileActionButton ?? actionButton}
         />
       )}
 
