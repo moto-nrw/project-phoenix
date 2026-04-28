@@ -210,7 +210,7 @@ func (r *StudentPickupScheduleRepository) Update(ctx context.Context, s *schedul
 
 // List retrieves pickup schedules matching the provided query options
 func (r *StudentPickupScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupSchedule, error) {
-	var schedules []*schedule.StudentPickupSchedule
+	schedules := make([]*schedule.StudentPickupSchedule, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`)
@@ -495,7 +495,7 @@ func (r *StudentPickupExceptionRepository) Update(ctx context.Context, e *schedu
 
 // List retrieves pickup exceptions matching the provided query options
 func (r *StudentPickupExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupException, error) {
-	var exceptions []*schedule.StudentPickupException
+	exceptions := make([]*schedule.StudentPickupException, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`)
@@ -720,7 +720,7 @@ func (r *StudentPickupNoteRepository) Update(ctx context.Context, n *schedule.St
 
 // List retrieves pickup notes matching the provided query options
 func (r *StudentPickupNoteRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupNote, error) {
-	var notes []*schedule.StudentPickupNote
+	notes := make([]*schedule.StudentPickupNote, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)

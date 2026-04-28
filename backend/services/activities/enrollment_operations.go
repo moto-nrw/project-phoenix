@@ -239,7 +239,7 @@ func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*a
 	}
 
 	// Filter out already enrolled groups
-	var availableGroups []*activities.Group
+	availableGroups := make([]*activities.Group, 0)
 	for _, group := range allGroups {
 		if !enrolledMap[group.ID] {
 			availableGroups = append(availableGroups, group)
