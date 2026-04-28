@@ -38,7 +38,7 @@ export interface BackendDevice {
 }
 
 // Device creation request
-export interface CreateDeviceRequest {
+interface CreateDeviceRequest {
   device_id: string;
   device_type: string;
   name?: string;
@@ -47,7 +47,7 @@ export interface CreateDeviceRequest {
 }
 
 // Device update request
-export interface UpdateDeviceRequest {
+interface UpdateDeviceRequest {
   device_id?: string;
   device_type?: string;
   name?: string;

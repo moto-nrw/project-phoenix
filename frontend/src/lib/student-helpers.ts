@@ -33,7 +33,7 @@ export function getSchoolYear(schoolClass: string): string | null {
 }
 
 // Scheduled checkout information
-export interface ScheduledCheckoutInfo {
+interface ScheduledCheckoutInfo {
   id: number;
   scheduled_for: string;
   reason?: string;
@@ -332,18 +332,6 @@ export function prepareStudentForBackend(
 }
 
 // Request/Response types
-export interface CreateStudentRequest {
-  first_name?: string;
-  second_name?: string; // Will be mapped to last_name for backend
-  school_class?: string;
-  group_id?: number;
-  name_lg?: string; // Guardian name
-  contact_lg?: string; // Guardian contact
-  tag_id?: string; // Optional RFID
-  guardian_email?: string;
-  guardian_phone?: string;
-  extra_info?: string;
-}
 
 export interface UpdateStudentRequest {
   first_name?: string;

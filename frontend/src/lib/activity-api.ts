@@ -39,21 +39,7 @@ import {
 } from "./activity-helpers";
 
 // Re-export types for external use
-export type {
-  Activity,
-  ActivityCategory,
-  Supervisor,
-  BackendActivity,
-  BackendActivityCategory,
-  BackendSupervisor,
-  BackendActivitySupervisor,
-  ActivityStudent,
-  BackendActivityStudent,
-  ActivitySchedule,
-  BackendActivitySchedule,
-  Timeframe,
-  BackendTimeframe,
-} from "./activity-helpers";
+export type { Activity, ActivityCategory } from "./activity-helpers";
 
 // Generic API response interface
 interface ApiResponse<T> {

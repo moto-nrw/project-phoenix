@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { theme } from "./theme";
-import defaultTheme from "./theme";
 
 describe("theme object structure", () => {
   it("has all expected top-level keys", () => {
@@ -190,11 +189,5 @@ describe("theme.zIndex", () => {
     expect(theme.zIndex.dropdown).toBe(10);
     expect(theme.zIndex.modal).toBe(50);
     expect(theme.zIndex.toast).toBe(100);
-  });
-});
-
-describe("default export", () => {
-  it("exports the same theme object as named export", () => {
-    expect(defaultTheme).toBe(theme);
   });
 });

@@ -2,7 +2,7 @@ import { LOCATION_COLORS } from "./location-helper";
 
 const APPROACHING_THRESHOLD_MINUTES = 30;
 
-export type TimeStatusState =
+type TimeStatusState =
   | "none"
   | "planned"
   | "approaching"
@@ -11,7 +11,7 @@ export type TimeStatusState =
   | "done-on-time"
   | "done-late";
 
-export type TimeStatusIcon = "clock" | "warning" | "check";
+type TimeStatusIcon = "clock" | "warning" | "check";
 
 export interface StudentTimeStatus {
   state: TimeStatusState;

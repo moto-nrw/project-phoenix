@@ -1,6 +1,6 @@
 // SSE Event Types for Real-Time Updates
 
-export type SSEEventType =
+type SSEEventType =
   | "student_checkin"
   | "student_checkout"
   | "student_updated"
@@ -13,7 +13,7 @@ export type SSEEventType =
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
 
-export interface SSEEventData {
+interface SSEEventData {
   // Student-related fields (for check-in/check-out events)
   student_id?: string;
   student_name?: string;

@@ -158,7 +158,7 @@ interface BackendCaregiverCapabilityState {
   group_assignments?: BackendBlockerGroup[];
 }
 
-export interface EnableCaregiverCapabilityRequest {
+interface EnableCaregiverCapabilityRequest {
   first_name?: string;
   last_name?: string;
   position?: string;

@@ -15,12 +15,12 @@
 /**
  * Log severity levels (matches backend slog)
  */
-export type LogLevel = "debug" | "info" | "warn" | "error";
+type LogLevel = "debug" | "info" | "warn" | "error";
 
 /**
  * Numeric levels for filtering (matches slog.Level)
  */
-export const LogLevelValue: Record<LogLevel, number> = {
+const LogLevelValue: Record<LogLevel, number> = {
   debug: -4,
   info: 0,
   warn: 4,
@@ -30,7 +30,7 @@ export const LogLevelValue: Record<LogLevel, number> = {
 /**
  * Structured log entry (Loki-compatible JSON)
  */
-export interface LogEntry {
+interface LogEntry {
   timestamp: string; // ISO 8601
   level: LogLevel;
   msg: string;
@@ -45,7 +45,7 @@ export interface LogEntry {
 /**
  * Logger configuration
  */
-export interface LoggerConfig {
+interface LoggerConfig {
   /** Minimum level to log (filters below this) */
   level?: LogLevel;
   /** Component/module name for all logs */
@@ -59,7 +59,7 @@ export interface LoggerConfig {
 /**
  * Logger interface (abstract, swappable implementations)
  */
-export interface Logger {
+interface Logger {
   /**
    * Log at DEBUG level (verbose, development only)
    */
@@ -394,17 +394,4 @@ export function createLogger(config?: LoggerConfig): Logger {
   } else {
     return new ServerLogger(mergedConfig);
   }
-}
-
-/**
- * Global default logger (lazy-initialized)
- */
-let _defaultLogger: Logger | null = null;
-
-/**
- * Get the default logger instance (singleton)
- */
-export function getLogger(): Logger {
-  _defaultLogger ??= createLogger();
-  return _defaultLogger;
 }
