@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockLoggerError } = vi.hoisted(() => ({
@@ -236,7 +242,12 @@ describe("StaffMasterDetail", () => {
 
     const textarea = screen.getByPlaceholderText("Notizen hinzufügen...");
     fireEvent.change(textarea, { target: { value: "Important note" } });
-    fireEvent.click(screen.getByText("Speichern"));
+    // Save resolves asynchronously and updates the editor's local state on
+    // success — wrap the click + microtask flush in act() so the resulting
+    // post-render doesn't escape the test scope.
+    await act(async () => {
+      fireEvent.click(screen.getByText("Speichern"));
+    });
 
     expect(onUpdateNotes).toHaveBeenCalledWith("Important note");
   });
