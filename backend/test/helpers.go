@@ -135,15 +135,21 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	// schedule/activity tables. Same convention as rooms.id=1 and schools.id=1.
 	// Fail fast: if the fixture insert breaks (schema drift, missing schools FK),
 	// downstream tests would otherwise fail with cryptic "missing staff" errors.
+	//
+	// Use unconstrained ON CONFLICT DO NOTHING so we catch every unique
+	// violation, not just the one on persons_pkey/staff_pkey: users.persons
+	// also carries idx_persons_tenant_pk UNIQUE(tenant_id, id) and Postgres
+	// raises that one first under concurrent test setup, so a targeted
+	// ON CONFLICT (id) leaks the error past the no-op intent.
 	_, err = db.ExecContext(context.Background(), `
 		INSERT INTO users.persons (id, tenant_id, first_name, last_name)
 		VALUES (1, 1, 'System', 'Test')
-		ON CONFLICT (id) DO NOTHING`)
+		ON CONFLICT DO NOTHING`)
 	require.NoError(t, err, "SetupTestDB: failed to ensure system person fixture (id=1)")
 	_, err = db.ExecContext(context.Background(), `
 		INSERT INTO users.staff (id, tenant_id, person_id)
 		VALUES (1, 1, 1)
-		ON CONFLICT (id) DO NOTHING`)
+		ON CONFLICT DO NOTHING`)
 	require.NoError(t, err, "SetupTestDB: failed to ensure system staff fixture (id=1)")
 
 	// Advance the BIGSERIAL sequence past any explicitly-inserted IDs.
