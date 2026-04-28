@@ -25,13 +25,19 @@ export function useGroupedItems<T, K extends string>(
   pluralLabel: string,
   decorateGroup?: GroupDecorator<T>,
 ): GroupDefinition<T>[] {
+  // When grouping is off, the `groupers` argument is irrelevant. Several call
+  // sites pass a fresh `{}` literal in that case, which would otherwise bust
+  // the memo on every parent render. Resolving the active grouper outside
+  // the memo lets us depend only on the resolved function, so a stable
+  // identity for `groupers[mode]` (or `undefined`) keeps the memo warm.
+  const grouper = mode === "none" ? undefined : groupers[mode as K];
+
   return useMemo(() => {
     if (items.length === 0) return [];
 
     const decorate = (group: GroupDefinition<T>): GroupDefinition<T> =>
       decorateGroup ? { ...group, ...decorateGroup(group) } : group;
 
-    const grouper = mode === "none" ? undefined : groupers[mode as K];
     if (!grouper) {
       return [
         decorate({
@@ -69,5 +75,5 @@ export function useGroupedItems<T, K extends string>(
           items: bucket.items,
         }),
       );
-  }, [items, mode, groupers, pluralLabel, decorateGroup]);
+  }, [items, grouper, pluralLabel, decorateGroup]);
 }
