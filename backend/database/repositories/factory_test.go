@@ -97,7 +97,8 @@ func TestNewFactory(t *testing.T) {
 
 	// Verify config repositories are initialized
 	t.Run("config repositories", func(t *testing.T) {
-		assert.NotNil(t, factory.Setting)
+		assert.NotNil(t, factory.SettingValue)
+		assert.NotNil(t, factory.SettingAudit)
 	})
 
 	// Verify audit repositories are initialized

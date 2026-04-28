@@ -34,25 +34,6 @@ func (rs *Resource) processSessionTimeout(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusOK, response, "Session timeout processed successfully")
 }
 
-// getSessionTimeoutConfig returns timeout configuration for the requesting device
-func (rs *Resource) getSessionTimeoutConfig(w http.ResponseWriter, r *http.Request) {
-	deviceCtx := device.DeviceFromCtx(r.Context())
-
-	settings, err := rs.ConfigService.GetDeviceTimeoutSettings(r.Context(), deviceCtx.ID)
-	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
-		return
-	}
-
-	config := SessionTimeoutConfig{
-		TimeoutMinutes:       settings.GetEffectiveTimeoutMinutes(),
-		WarningMinutes:       settings.WarningThresholdMinutes,
-		CheckIntervalSeconds: settings.CheckIntervalSeconds,
-	}
-
-	common.Respond(w, r, http.StatusOK, config, "Timeout configuration retrieved")
-}
-
 // updateSessionActivity handles activity updates for timeout tracking
 func (rs *Resource) updateSessionActivity(w http.ResponseWriter, r *http.Request) {
 	deviceCtx := device.DeviceFromCtx(r.Context())

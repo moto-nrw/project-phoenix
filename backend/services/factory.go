@@ -52,7 +52,6 @@ type Factory struct {
 	Feedback                 feedback.Service
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
-	Config                   config.Service
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
@@ -257,12 +256,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Initialize IoT service
 	iotService := iot.NewService(
 		repos.Device,
-		db,
-	)
-
-	// Initialize config service
-	configService := config.NewService(
-		repos.Setting,
 		db,
 	)
 
@@ -617,7 +610,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Feedback:                 feedbackService,
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
-		Config:                   configService,
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,

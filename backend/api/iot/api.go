@@ -47,7 +47,6 @@ type ServiceDependencies struct {
 	UsersService          usersSvc.PersonService
 	ActiveService         activeSvc.Service
 	ActivitiesService     activitiesSvc.ActivityService
-	ConfigService         configSvc.Service
 	SettingsService       configSvc.SettingsService
 	FacilityService       facilitiesSvc.Service
 	EducationService      educationSvc.Service
@@ -64,7 +63,6 @@ type Resource struct {
 	UsersService          usersSvc.PersonService
 	ActiveService         activeSvc.Service
 	ActivitiesService     activitiesSvc.ActivityService
-	ConfigService         configSvc.Service
 	SettingsService       configSvc.SettingsService
 	FacilityService       facilitiesSvc.Service
 	EducationService      educationSvc.Service
@@ -82,7 +80,6 @@ func NewResource(deps ServiceDependencies) *Resource {
 		UsersService:          deps.UsersService,
 		ActiveService:         deps.ActiveService,
 		ActivitiesService:     deps.ActivitiesService,
-		ConfigService:         deps.ConfigService,
 		SettingsService:       deps.SettingsService,
 		FacilityService:       deps.FacilityService,
 		EducationService:      deps.EducationService,
@@ -216,7 +213,6 @@ func (rs *Resource) Router() chi.Router {
 			rs.UsersService,
 			rs.ActiveService,
 			rs.ActivitiesService,
-			rs.ConfigService,
 			rs.FacilityService,
 			rs.EducationService,
 		)

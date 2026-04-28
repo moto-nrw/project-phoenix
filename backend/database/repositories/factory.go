@@ -113,7 +113,6 @@ type Factory struct {
 	Device iotModels.DeviceRepository
 
 	// Config domain
-	Setting      configModels.SettingRepository
 	SettingValue configModels.SettingValueRepository
 	SettingAudit configModels.SettingAuditRepository
 
@@ -224,7 +223,6 @@ func NewFactory(db *bun.DB) *Factory {
 		Device: iot.NewDeviceRepository(db),
 
 		// Config repositories
-		Setting:      config.NewSettingRepository(db),
 		SettingValue: config.NewSettingValueRepository(db),
 		SettingAudit: config.NewSettingAuditRepository(db),
 
