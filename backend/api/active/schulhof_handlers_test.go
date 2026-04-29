@@ -94,6 +94,10 @@ func (m *mockUserContextService) GetMyGroups(ctx context.Context) ([]*education.
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockUserContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockUserContextService) GetMyActivityGroups(ctx context.Context) ([]*activityModels.Group, error) {
 	return nil, errors.New("not implemented")
 }

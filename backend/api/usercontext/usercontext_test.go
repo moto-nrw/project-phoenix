@@ -44,12 +44,7 @@ func setupTestContext(t *testing.T) *testContext {
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
-	// Create usercontext resource with service and substitution repository
-	resource := usercontextAPI.NewResource(
-		serviceFactory.UserContext,
-		repoFactory.GroupSubstitution,
-		db,
-	)
+	resource := usercontextAPI.NewResource(serviceFactory.UserContext, db)
 
 	return &testContext{
 		db:       db,
