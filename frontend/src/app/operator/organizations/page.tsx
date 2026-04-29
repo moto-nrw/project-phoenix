@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { formatCount } from "~/lib/format-utils";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
@@ -24,10 +25,6 @@ import {
   RestoreConfirmationModal,
 } from "../provisioning/soft-delete-shared";
 
-function numberFormat(value: number): string {
-  return new Intl.NumberFormat("de-DE").format(value);
-}
-
 function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
@@ -35,7 +32,7 @@ function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
         {label}
       </div>
       <div className="mt-1 text-3xl font-bold text-gray-900">
-        {numberFormat(value)}
+        {formatCount(value)}
       </div>
     </div>
   );
@@ -159,28 +156,28 @@ export default function OperatorOrganizationsPage() {
         key: "schulen",
         header: "Schulen",
         align: "right",
-        render: (row) => numberFormat(row.schulenCount),
+        render: (row) => formatCount(row.schulenCount),
         sortValue: (row) => row.schulenCount,
       },
       {
         key: "konten",
         header: "Konten",
         align: "right",
-        render: (row) => numberFormat(row.kontenCount),
+        render: (row) => formatCount(row.kontenCount),
         sortValue: (row) => row.kontenCount,
       },
       {
         key: "geraete",
         header: "Geräte",
         align: "right",
-        render: (row) => numberFormat(row.geraeteCount),
+        render: (row) => formatCount(row.geraeteCount),
         sortValue: (row) => row.geraeteCount,
       },
       {
         key: "personen",
         header: "Personen",
         align: "right",
-        render: (row) => numberFormat(row.personenCount),
+        render: (row) => formatCount(row.personenCount),
         sortValue: (row) => row.personenCount,
       },
       {

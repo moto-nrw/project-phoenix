@@ -67,6 +67,7 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
 
 vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (dateStr: string) => `relative(${dateStr})`,
+  formatCount: (value: number) => new Intl.NumberFormat("de-DE").format(value),
 }));
 
 vi.mock("~/components/ui/page-header", () => ({

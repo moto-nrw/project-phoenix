@@ -32,6 +32,7 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import {
   CardSkeletons,
@@ -50,10 +51,6 @@ import {
 } from "~/app/operator/provisioning/soft-delete-shared";
 
 const logger = createLogger({ component: "OperatorOrganizationDetailPage" });
-
-function numberFormat(value: number): string {
-  return new Intl.NumberFormat("de-DE").format(value);
-}
 
 const TAB_ITEMS = [
   { id: "schulen", label: "Schulen" },
@@ -327,13 +324,13 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
         ? [
             {
               label: "Schulen",
-              value: numberFormat(organization.schulenCount),
+              value: formatCount(organization.schulenCount),
             },
-            { label: "Konten", value: numberFormat(organization.kontenCount) },
-            { label: "Geräte", value: numberFormat(organization.geraeteCount) },
+            { label: "Konten", value: formatCount(organization.kontenCount) },
+            { label: "Geräte", value: formatCount(organization.geraeteCount) },
             {
               label: "Personen",
-              value: numberFormat(organization.personenCount),
+              value: formatCount(organization.personenCount),
             },
           ]
         : [],
@@ -401,21 +398,21 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
         key: "konten",
         header: "Konten",
         align: "right",
-        render: (row) => numberFormat(row.kontenCount),
+        render: (row) => formatCount(row.kontenCount),
         sortValue: (row) => row.kontenCount,
       },
       {
         key: "geraete",
         header: "Geräte",
         align: "right",
-        render: (row) => numberFormat(row.geraeteCount),
+        render: (row) => formatCount(row.geraeteCount),
         sortValue: (row) => row.geraeteCount,
       },
       {
         key: "personen",
         header: "Personen",
         align: "right",
-        render: (row) => numberFormat(row.personenCount),
+        render: (row) => formatCount(row.personenCount),
         sortValue: (row) => row.personenCount,
       },
       {

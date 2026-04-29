@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { formatCount } from "~/lib/format-utils";
 import {
   operatorProvisioningService,
   revalidateTenantCache,
@@ -26,10 +27,6 @@ import {
   SoftDeleteConfirmationModal,
   RestoreConfirmationModal,
 } from "../provisioning/soft-delete-shared";
-
-function numberFormat(value: number): string {
-  return new Intl.NumberFormat("de-DE").format(value);
-}
 
 export default function OperatorSchoolsPage() {
   const { status } = useSession();
@@ -209,21 +206,21 @@ export default function OperatorSchoolsPage() {
         key: "konten",
         header: "Konten",
         align: "right",
-        render: (row) => numberFormat(row.kontenCount),
+        render: (row) => formatCount(row.kontenCount),
         sortValue: (row) => row.kontenCount,
       },
       {
         key: "geraete",
         header: "Geräte",
         align: "right",
-        render: (row) => numberFormat(row.geraeteCount),
+        render: (row) => formatCount(row.geraeteCount),
         sortValue: (row) => row.geraeteCount,
       },
       {
         key: "personen",
         header: "Personen",
         align: "right",
-        render: (row) => numberFormat(row.personenCount),
+        render: (row) => formatCount(row.personenCount),
         sortValue: (row) => row.personenCount,
       },
       {

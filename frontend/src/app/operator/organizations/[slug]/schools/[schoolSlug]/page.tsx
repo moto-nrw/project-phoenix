@@ -33,6 +33,7 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import { PlusIcon } from "~/app/operator/provisioning/provisioning-shared";
 import { EditSchoolModal } from "~/app/operator/provisioning/edit-school-modal";
@@ -46,10 +47,6 @@ import {
 } from "~/app/operator/provisioning/soft-delete-shared";
 
 const logger = createLogger({ component: "OperatorSchoolDetailPage" });
-
-function numberFormat(value: number): string {
-  return new Intl.NumberFormat("de-DE").format(value);
-}
 
 const TAB_ITEMS = [
   { id: "konten", label: "Konten" },
@@ -279,9 +276,9 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
     () =>
       school
         ? [
-            { label: "Konten", value: numberFormat(school.kontenCount) },
-            { label: "Geräte", value: numberFormat(school.geraeteCount) },
-            { label: "Personen", value: numberFormat(school.personenCount) },
+            { label: "Konten", value: formatCount(school.kontenCount) },
+            { label: "Geräte", value: formatCount(school.geraeteCount) },
+            { label: "Personen", value: formatCount(school.personenCount) },
           ]
         : [],
     [school],
