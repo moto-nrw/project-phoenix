@@ -11,38 +11,43 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // Resource bundles the handler methods + their dependencies.
 type Resource struct {
-	FormSchemaService enrollmentService.FormSchemaService
-	db                *bun.DB
+	FormSchemaService   enrollmentService.FormSchemaService
+	CareOfferingService enrollmentService.CareOfferingService
+	SchoolRepo          platformModels.SchoolRepository
+	db                  *bun.DB
 }
 
 // NewResource constructs the enrollment API resource.
-func NewResource(formSchemaSvc enrollmentService.FormSchemaService, db *bun.DB) *Resource {
+func NewResource(formSchemaSvc enrollmentService.FormSchemaService, careOfferingSvc enrollmentService.CareOfferingService, schoolRepo platformModels.SchoolRepository, db *bun.DB) *Resource {
 	return &Resource{
-		FormSchemaService: formSchemaSvc,
-		db:                db,
+		FormSchemaService:   formSchemaSvc,
+		CareOfferingService: careOfferingSvc,
+		SchoolRepo:          schoolRepo,
+		db:                  db,
 	}
 }
 
-// Router returns a chi router scoped to /enrollment. PR 5 only registers
-// the admin form-schema endpoints; later PRs add their own routes here.
+// Router returns a chi router scoped to /enrollment. PR 5 added the
+// admin form-schema endpoints; PR 6 adds care-offering admin CRUD +
+// the public open-window endpoint.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// All enrollment admin endpoints require a tenant JWT + the
-	// config:update permission (same as the operations-tab settings).
-	// Sensitive operations (publishing a new schema) elevate to
-	// config:manage.
+	// Public route: parent-facing care offerings. No JWT — slug-gated
+	// in the handler. Sits outside the auth group below so the JWT
+	// middleware doesn't reject anonymous requests.
+	r.Get("/care-offerings/public/{tenantSlug}", rs.listPublicCareOfferings)
+
+	// Authenticated admin endpoints.
 	tokenAuth := jwt.MustNewTokenAuth()
 	r.Group(func(r chi.Router) {
-		// Hook in the standard JWT chain. The base.go API setup wraps
-		// this router into the global tenant tx middleware via the
-		// /api mount.
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
@@ -52,6 +57,17 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("config:read")).Get("/versions", rs.listSchemaVersions)
 			r.With(authorize.RequiresPermission("config:read")).Get("/{id}", rs.getSchemaByID)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.publishSchema)
+		})
+
+		r.Route("/care-offerings", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listCareOfferings)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.createCareOffering)
+			r.Route("/{id}", func(r chi.Router) {
+				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getCareOffering)
+				r.With(authorize.RequiresPermission("config:manage")).Put("/", rs.updateCareOffering)
+				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deleteCareOffering)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/clone", rs.cloneCareOffering)
+			})
 		})
 	})
 

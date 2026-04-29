@@ -92,7 +92,8 @@ type Factory struct {
 	EmailTemplateRegistry *platform.TemplateRegistry
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema enrollment.FormSchemaService
+	EnrollmentFormSchema   enrollment.FormSchemaService
+	EnrollmentCareOffering enrollment.CareOfferingService
 }
 
 // NewFactory creates a new services factory
@@ -640,6 +641,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger: logger.With("service", "enrollment-form-schema"),
 	})
 
+	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
+		Repo:   repos.CareOffering,
+		Logger: logger.With("service", "enrollment-care-offering"),
+	})
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
@@ -711,6 +717,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EmailOutboxWorker:     emailOutboxWorker,
 		EmailTemplateRegistry: emailTemplateRegistry,
 
-		EnrollmentFormSchema: enrollmentFormSchemaService,
+		EnrollmentFormSchema:   enrollmentFormSchemaService,
+		EnrollmentCareOffering: enrollmentCareOfferingService,
 	}, nil
 }
