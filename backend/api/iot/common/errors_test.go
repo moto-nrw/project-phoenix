@@ -1,16 +1,19 @@
 package common_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Test Error Variables
@@ -265,4 +268,70 @@ func TestActivityCapacityErrorResponse_Render(t *testing.T) {
 
 	err := resp.Render(w, r)
 	assert.NoError(t, err)
+}
+
+// TestErrorStudentAlreadyActive_DegradedPathOmitsOptionalFields verifies
+// the contract documented on StudentAlreadyActiveError: when the
+// duplicate-visit lookup fails (race window between the failing INSERT
+// and the response build), the 409 body must contain ONLY student_id —
+// every other field carries the JSON `omitempty` semantics so kiosks
+// don't render a bogus zero-valued timestamp ("0001-01-01T00:00:00Z")
+// or a phantom existing_visit_id of 0.
+//
+// Issue #844 review feedback: the original implementation used
+// EntryTime time.Time, which encoding/json does NOT skip for the zero
+// value (omitempty only applies to nil pointers, empty strings/slices,
+// 0 numbers, and false booleans — NOT struct zero values). Switching
+// to *time.Time fixes the contract.
+func TestErrorStudentAlreadyActive_DegradedPathOmitsOptionalFields(t *testing.T) {
+	renderer := iotCommon.ErrorStudentAlreadyActive(int64(42), 0, nil, nil, "")
+	resp, ok := renderer.(*iotCommon.StudentAlreadyActiveErrorResponse)
+	require.True(t, ok)
+	require.NotNil(t, resp.Details)
+
+	body, err := json.Marshal(resp)
+	require.NoError(t, err)
+
+	var decoded map[string]interface{}
+	require.NoError(t, json.Unmarshal(body, &decoded))
+
+	assert.Equal(t, "STUDENT_ALREADY_ACTIVE", decoded["code"])
+	details, ok := decoded["details"].(map[string]interface{})
+	require.True(t, ok)
+
+	assert.EqualValues(t, 42, details["student_id"], "student_id is the only required field")
+
+	// All other fields must be omitted when not provided. A regression here
+	// re-introduces the bogus "0001-01-01T00:00:00Z" / 0-valued IDs that
+	// the cross-repo contract with PyrePortal explicitly forbids.
+	assert.NotContains(t, details, "existing_visit_id", "must be omitted when 0")
+	assert.NotContains(t, details, "entry_time", "must be omitted when nil — see *time.Time choice on the struct")
+	assert.NotContains(t, details, "room_id", "must be omitted when nil")
+	assert.NotContains(t, details, "room_name", "must be omitted when empty")
+}
+
+// TestErrorStudentAlreadyActive_FullPathPreservesAllFields verifies
+// that when the existing-visit lookup succeeds, every detail field is
+// serialized so the kiosk can render "Bereits angemeldet in <Raum>".
+func TestErrorStudentAlreadyActive_FullPathPreservesAllFields(t *testing.T) {
+	entryTime := time.Date(2026, 4, 29, 14, 16, 30, 0, time.UTC)
+	roomID := int64(7)
+	renderer := iotCommon.ErrorStudentAlreadyActive(int64(42), int64(101), &entryTime, &roomID, "Klassenzimmer 2")
+	resp, ok := renderer.(*iotCommon.StudentAlreadyActiveErrorResponse)
+	require.True(t, ok)
+
+	body, err := json.Marshal(resp)
+	require.NoError(t, err)
+
+	var decoded map[string]interface{}
+	require.NoError(t, json.Unmarshal(body, &decoded))
+
+	details, ok := decoded["details"].(map[string]interface{})
+	require.True(t, ok)
+
+	assert.EqualValues(t, 42, details["student_id"])
+	assert.EqualValues(t, 101, details["existing_visit_id"])
+	assert.Equal(t, "2026-04-29T14:16:30Z", details["entry_time"])
+	assert.EqualValues(t, 7, details["room_id"])
+	assert.Equal(t, "Klassenzimmer 2", details["room_name"])
 }

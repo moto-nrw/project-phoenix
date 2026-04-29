@@ -326,7 +326,7 @@ func (rs *Resource) loadCurrentVisitWithRoom(ctx context.Context, studentID int6
 func (rs *Resource) buildStudentAlreadyActiveResponse(ctx context.Context, studentID int64) render.Renderer {
 	existing := rs.loadCurrentVisitWithRoom(ctx, studentID)
 	if existing == nil {
-		return iotCommon.ErrorStudentAlreadyActive(studentID, 0, time.Time{}, nil, "")
+		return iotCommon.ErrorStudentAlreadyActive(studentID, 0, nil, nil, "")
 	}
 
 	var roomID *int64
@@ -338,7 +338,8 @@ func (rs *Resource) buildStudentAlreadyActiveResponse(ctx context.Context, stude
 			roomName = existing.ActiveGroup.Room.Name
 		}
 	}
-	return iotCommon.ErrorStudentAlreadyActive(studentID, existing.ID, existing.EntryTime, roomID, roomName)
+	entryTime := existing.EntryTime
+	return iotCommon.ErrorStudentAlreadyActive(studentID, existing.ID, &entryTime, roomID, roomName)
 }
 
 // processCheckout handles the checkout logic for a student with an active visit
