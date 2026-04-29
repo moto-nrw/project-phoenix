@@ -33,6 +33,7 @@ const {
   mockRestoreSchool,
   mockDeleteDevice,
   mockSoftDeletePerson,
+  mockListSchoolSummaries,
   mockPush,
   mockReplace,
 } = vi.hoisted(() => ({
@@ -53,6 +54,7 @@ const {
   mockRestoreSchool: vi.fn(),
   mockDeleteDevice: vi.fn(),
   mockSoftDeletePerson: vi.fn(),
+  mockListSchoolSummaries: vi.fn(),
   mockPush: vi.fn(),
   mockReplace: vi.fn(),
 }));
@@ -101,6 +103,7 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
     operatorProvisioningService: {
       listOrganizationSummaries: mockListOrganizationSummaries,
       listOrganizationSchools: mockListOrganizationSchools,
+      listSchoolSummaries: mockListSchoolSummaries,
       listSchoolAccounts: mockListSchoolAccounts,
       listSchoolDevices: mockListSchoolDevices,
       listSchoolPersons: mockListSchoolPersons,
@@ -623,5 +626,177 @@ describe("OperatorSchoolDetailPage", () => {
         "/operator/organizations/test-org?tab=schulen",
       );
     });
+  });
+
+  // --- Tab navigation (covers setActiveTab + handleTabValueChange) ---
+  // Tab clicks must mutate the URL via router.replace because the active tab
+  // is stored in ?tab=… so deep-links and back/forward both round-trip
+  // cleanly.
+
+  it("pushes ?tab=geraete when the Geräte tab is clicked", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    const tab = await screen.findByRole("tab", { name: "Geräte" });
+    // Radix Tabs activates on pointerdown + click; mirrors the sequence used
+    // by the shared Tabs unit tests in components/ui/tabs.test.tsx.
+    fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(tab, { button: 0 });
+    fireEvent.click(tab);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/operator/organizations/test-org/schools/test-school?tab=geraete",
+        { scroll: false },
+      );
+    });
+  });
+
+  it("clears ?tab=… when navigating back to the default Konten tab", async () => {
+    currentSearchParams = new URLSearchParams("tab=personen");
+    setupSWR();
+
+    await renderPage();
+
+    const tab = await screen.findByRole("tab", { name: "Konten" });
+    fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(tab, { button: 0 });
+    fireEvent.click(tab);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/operator/organizations/test-org/schools/test-school",
+        { scroll: false },
+      );
+    });
+  });
+
+  // --- Toggle school active error path (covers handleToggleSchoolActive
+  //     catch + slog) ---
+
+  it("surfaces an error message when toggling the school status fails", async () => {
+    setupSWR();
+    mockUpdateSchool.mockRejectedValue(new Error("network down"));
+
+    await renderPage();
+
+    fireEvent.click(await screen.findByLabelText("Deaktivieren"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // --- School not found / org not found redirect branches ---
+  // These exercise the early-return error states that render the back-link
+  // banner instead of the full drill-in.
+
+  it("renders 'Schule nicht gefunden' when schoolSlug doesn't match", async () => {
+    setupSWR({ schools: [{ ...mockSchool, slug: "other-school" }] });
+
+    await renderPage();
+
+    expect(
+      await screen.findByText("Schule nicht gefunden."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders 'Träger nicht gefunden' when slug doesn't match", async () => {
+    setupSWR({ orgs: [{ ...mockOrg, slug: "other-org" }] });
+
+    await renderPage();
+
+    expect(
+      await screen.findByText("Träger nicht gefunden."),
+    ).toBeInTheDocument();
+  });
+
+  // --- Tab action buttons (covers tabActions branches per tab) ---
+  // Each tab surfaces a different action button row. These click-tests pin
+  // that the right button is present on the right tab and that opening the
+  // modal flips the open state without throwing.
+
+  it("opens the Create Account modal from the Konten tab", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    fireEvent.click(await screen.findByText("Konto erstellen"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("modal")).toBeInTheDocument(),
+    );
+  });
+
+  it("opens the Invite Admin modal from the Konten tab", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    fireEvent.click(await screen.findByText("Admin einladen"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("modal")).toBeInTheDocument(),
+    );
+  });
+
+  // --- Edit school redirect (covers the EditSchoolModal.onUpdated branch) ---
+  // Pins the redirect path: when the user renames the school slug, the page
+  // calls listSchoolSummaries to re-resolve the canonical path and
+  // router.replace's to it. This exercises the dense block of refresh +
+  // organization-lookup + path-construction logic in the page.
+
+  it("redirects to the new path when the school slug is renamed via the edit modal", async () => {
+    const renamedSchool = {
+      ...mockSchool,
+      slug: "renamed-school",
+      subdomain: "renamed-school",
+    };
+    mockListOrganizationSchools.mockResolvedValue([renamedSchool]);
+    mockListSchoolSummaries.mockResolvedValue([renamedSchool]);
+    mockUpdateSchool.mockResolvedValue(renamedSchool);
+    mockMutateOrgs.mockResolvedValue([mockOrg]);
+    mockMutateSchools.mockResolvedValue([renamedSchool]);
+    setupSWR();
+
+    await renderPage();
+
+    fireEvent.click(await screen.findByText("Bearbeiten"));
+    await waitFor(() =>
+      expect(screen.getByTestId("modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.change(screen.getByLabelText(/Slug/), {
+      target: { value: "renamed-school" },
+    });
+    fireEvent.change(screen.getByLabelText(/Subdomain/), {
+      target: { value: "renamed-school" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/operator/organizations/test-org/schools/renamed-school",
+      );
+    });
+  });
+
+  it("opens the Create Device modal from the Geräte tab", async () => {
+    currentSearchParams = new URLSearchParams("tab=geraete");
+    setupSWR();
+
+    await renderPage();
+
+    fireEvent.click(await screen.findByText("Neues Gerät"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("modal")).toBeInTheDocument(),
+    );
   });
 });

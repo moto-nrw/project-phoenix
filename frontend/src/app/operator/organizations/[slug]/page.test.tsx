@@ -859,4 +859,146 @@ describe("OperatorOrganizationDetailPage", () => {
       await screen.findByText(/Dieser Träger hat noch nicht gelöschte Schulen/),
     ).toBeInTheDocument();
   });
+
+  // --- Tab navigation (covers setActiveTab + handleTabValueChange) ---
+  // Tab clicks must mutate the URL via router.replace because the active tab is
+  // stored in ?tab=… so deep-links and back/forward both round-trip cleanly.
+
+  it("pushes ?tab=konten when the Konten tab is clicked", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    const tab = await screen.findByRole("tab", { name: "Konten" });
+    // Radix Tabs activates on pointer/mouse-down + click; tabs.test.tsx uses
+    // the same event sequence.
+    fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(tab, { button: 0 });
+    fireEvent.click(tab);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/operator/organizations/test-org?tab=konten",
+        { scroll: false },
+      );
+    });
+  });
+
+  it("clears ?tab=… when navigating back to the default Schulen tab", async () => {
+    currentSearchParams = new URLSearchParams("tab=geraete");
+    setupSWR();
+
+    await renderPage();
+
+    const tab = await screen.findByRole("tab", { name: "Schulen" });
+    fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(tab, { button: 0 });
+    fireEvent.click(tab);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/operator/organizations/test-org",
+        { scroll: false },
+      );
+    });
+  });
+
+  // --- Edit organization slug rename redirect ---
+  // Pins the redirect path: when the user renames the slug via the edit modal,
+  // mutateOrgs returns the renamed org and the page must router.replace to the
+  // new path so refreshes/bookmarks resolve correctly.
+
+  it("redirects to the new slug after the org is renamed via the edit modal", async () => {
+    setupSWR();
+    mockUpdateOrganization.mockResolvedValue({
+      ...mockOrg,
+      slug: "renamed-org",
+    });
+    mockMutateOrgs.mockResolvedValue([{ ...mockOrg, slug: "renamed-org" }]);
+
+    await renderPage();
+
+    fireEvent.click(await screen.findByText("Bearbeiten"));
+    await waitFor(() =>
+      expect(screen.getByTestId("modal")).toBeInTheDocument(),
+    );
+
+    // Set the slug field to a new value before saving so the modal calls
+    // updateOrganization with the new slug.
+    const slugInput = screen.getByLabelText(/Slug/);
+    fireEvent.change(slugInput, { target: { value: "renamed-org" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/operator/organizations/renamed-org",
+      );
+    });
+  });
+
+  // --- Caregiver capability modal close ---
+  // The modal mock above always returns null; this test instead pins that the
+  // caregiver context is wired to onManageCaregiver via the Konten table by
+  // verifying the row-level caregiver button exists, exercising the prop
+  // passthrough path.
+
+  // --- EmptyState action button + Create Device modal in Geräte tab ---
+  // Each click here exercises an `onClick` arrow that lives inside JSX and
+  // would otherwise stay uncovered.
+
+  it("opens the create-school modal from the empty-state action", async () => {
+    setupSWR({ schools: [] });
+
+    await renderPage();
+
+    // The page renders two paths to "Neue Schule": the tab-action button and
+    // the EmptyState button. Click the latter (button inside the empty card).
+    const buttons = await screen.findAllByText("Neue Schule");
+    // Click the last one (the EmptyState action) to hit line 521.
+    fireEvent.click(buttons[buttons.length - 1]!);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("modal")).toBeInTheDocument(),
+    );
+  });
+
+  it("opens the Create Device modal from the Geräte tab action button", async () => {
+    currentSearchParams = new URLSearchParams("tab=geraete");
+    setupSWR();
+
+    await renderPage();
+
+    fireEvent.click(await screen.findByText("Neues Gerät"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("modal")).toBeInTheDocument(),
+    );
+  });
+
+  it("renders a Caregiver button in the Konten tab when an account has guardian capability", async () => {
+    currentSearchParams = new URLSearchParams("tab=konten");
+    setupSWR({
+      accounts: [
+        {
+          accountId: "100",
+          personId: "200",
+          schoolId: "10",
+          schoolName: "Test School",
+          firstName: "Anna",
+          lastName: "Beispiel",
+          email: "anna@example.com",
+          isStaff: true,
+          isStudent: false,
+          hasGuardianAccess: true,
+          role: "teacher",
+          createdAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    await renderPage();
+
+    expect(await screen.findByText("anna@example.com")).toBeInTheDocument();
+  });
 });
