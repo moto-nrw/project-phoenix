@@ -3265,9 +3265,14 @@ func TestDevicePickupQuery_PersonNeitherStudentNorStaffReturnsNotFound(t *testin
 //   - no-ops EndVisit so the existing pre-created visit stays open and the
 //     handler's response builder finds it for the body details
 //
-// This deterministically simulates the production race scenario where the
-// application-level read-then-write check passes but the database-level
-// unique partial index rejects the insert.
+// This stub exercises the **app-level rejection path** in the IoT handler:
+// the service has already determined the student has an active visit and
+// returns ErrStudentAlreadyActive without performing an INSERT. The
+// database-level partial unique index race is NOT reached here — that
+// path lives in the active service and is covered by the
+// repository-level test on the partial unique index (see
+// backend/database/repositories/active/visits_repository_test.go) plus
+// the unit test on isDuplicateActiveVisitViolation.
 type duplicateVisitActiveService struct {
 	activeSvc.Service
 }
@@ -3280,12 +3285,17 @@ func (d *duplicateVisitActiveService) EndVisit(ctx context.Context, id int64) er
 	return nil
 }
 
-func TestDeviceCheckin_DuplicateActiveVisit_Returns409(t *testing.T) {
-	// Verifies that when CreateVisit reports ErrStudentAlreadyActive, the
-	// IoT handler returns 409 Conflict with the structured
-	// STUDENT_ALREADY_ACTIVE body (Issue #844). Includes existing visit
-	// metadata (visit_id, room_id, room_name, entry_time) so the kiosk can
-	// surface "Bereits angemeldet in <Raum>" instead of a generic error.
+func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetails(t *testing.T) {
+	// Verifies that when CreateVisit reports ErrStudentAlreadyActive via the
+	// application-level read-then-write check, the IoT handler returns 409
+	// Conflict with the structured STUDENT_ALREADY_ACTIVE body (Issue #844).
+	// Includes existing visit metadata (visit_id, room_id, room_name,
+	// entry_time) so the kiosk can surface "Bereits angemeldet in <Raum>"
+	// instead of a generic error.
+	//
+	// The DB-race path (where visitRepo.Create itself trips the partial
+	// unique index from migration 1.15.45) is NOT exercised here — see
+	// the package note on duplicateVisitActiveService above.
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
