@@ -143,6 +143,40 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 		assert.True(t, errors.Is(err, facilities.ErrReservedColor))
 	})
 
+	t.Run("expands #RGB shorthand to #RRGGBB before storing", func(t *testing.T) {
+		// The unique index is on LOWER(color); without expansion, "#ABC"
+		// and "#AABBCC" persist as textually different rows even though
+		// they render the same CSS color. Native picker always emits 6
+		// digits, but a direct API call could send either form.
+		room := &facilities.Room{
+			Name:  "Shorthand",
+			Color: strPtr("#abc"),
+		}
+		require.NoError(t, room.Validate())
+		require.NotNil(t, room.Color)
+		assert.Equal(t, "#AABBCC", *room.Color)
+	})
+
+	t.Run("expands shorthand even when '#' prefix is missing", func(t *testing.T) {
+		// Validate() prepends "#" before regex-matching, so a bare "abc"
+		// must travel the same canonicalisation path as "#abc": prefix →
+		// expand to 6 digits → uppercase. This pins the storage form so
+		// the unique index on LOWER(color) cannot be sidestepped by
+		// posting the shorthand without a leading hash. None of the
+		// current reserved hexes are repeating-pair palindromes (e.g.
+		// #AABBCC), so we cannot also assert reserved-rejection on a
+		// shorthand input — that path is covered indirectly: expansion
+		// runs before IsReservedRoomColor, so any future reserved hex of
+		// that shape would trip the reserved check after expansion.
+		room := &facilities.Room{
+			Name:  "Shorthand prefix",
+			Color: strPtr("abc"), // missing # → adds # → expands → uppercases
+		}
+		require.NoError(t, room.Validate())
+		require.NotNil(t, room.Color)
+		assert.Equal(t, "#AABBCC", *room.Color)
+	})
+
 	t.Run("normalises mixed-case input to upper-case", func(t *testing.T) {
 		// The unique index lives on LOWER(color), so storage casing doesn't
 		// affect dedup — but audit log + API consumers expect a single

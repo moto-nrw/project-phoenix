@@ -69,6 +69,18 @@ func (r *Room) Validate() error {
 			return ErrInvalidColorFormat
 		}
 
+		// Expand #RGB → #RRGGBB before normalising case. The unique index
+		// lives on LOWER(color), so two rooms picking "#ABC" and "#AABBCC"
+		// would otherwise persist as textually different rows even though
+		// both render as the same CSS color. Native <input type="color">
+		// always emits the 6-digit form; this guards direct API callers
+		// (and any future UI surface that uses shorthand).
+		if len(*r.Color) == 4 {
+			s := *r.Color
+			expanded := string([]byte{'#', s[1], s[1], s[2], s[2], s[3], s[3]})
+			r.Color = &expanded
+		}
+
 		// Normalise case — the unique index is on LOWER(color), so two
 		// rooms posting "#A3D977" and "#a3d977" would otherwise persist
 		// as visually identical but textually different rows. Audit log

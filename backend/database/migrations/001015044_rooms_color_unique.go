@@ -10,7 +10,7 @@ import (
 
 const (
 	roomsColorUniqueVersion     = "1.15.44"
-	roomsColorUniqueDescription = "Add partial UNIQUE(tenant_id, lower(color)) on facilities.rooms; back up + clear legacy #4F46E5 bug-default into audit.room_color_migration_backup. Rollback drops the index but does NOT restore cleared colors — use the backup table for manual restore."
+	roomsColorUniqueDescription = "Add partial UNIQUE(tenant_id, lower(color)) on facilities.rooms; back up + clear legacy bug-defaults (#4F46E5 from rooms.config.tsx, #FFFFFF from the 1.1.1 NOT NULL DEFAULT) into audit.room_color_migration_backup. Rollback drops the index but does NOT restore cleared colors — use the backup table for manual restore."
 )
 
 func init() {
@@ -35,23 +35,34 @@ func init() {
 // roomsColorUniqueUp adds a partial unique index keyed by tenant + lowercase
 // color so two rooms inside the same school cannot share a hex code.
 //
-// Pre-step nulls every row carrying the legacy "#4F46E5" default. That value
-// was never user-chosen — it came from a bug in rooms.config.tsx
-// transformBeforeSubmit which stamped it onto every save regardless of admin
-// input, so production DBs almost certainly have many rooms with this exact
-// hex even though no Pflegekraft picked it. The previous LocationBadge
-// renderer ignored room.color and always rendered OTHER_ROOM blue, so the
-// stored "#4F46E5" was invisible. With Issue #1324 the badge starts honouring
-// room.color, so the legacy default would suddenly paint as a slightly
-// purple-ish blue, mixed with rooms that fall through to OTHER_ROOM blue —
-// visually inconsistent for no reason.
+// Pre-step nulls every row carrying one of two legacy bug-defaults:
 //
-// Clearing the bug-default at migration time gives every room a clean
-// baseline. Genuine admin-picked colors (anything other than #4F46E5) are
-// preserved untouched. Once cleared, the partial unique index can apply
-// without contention.
+//   - #4F46E5 — produced by a rooms.config.tsx transformBeforeSubmit bug that
+//     stamped this hex onto every save regardless of admin input, so
+//     production DBs almost certainly have many rooms with this exact hex
+//     even though no Pflegekraft picked it. The previous LocationBadge
+//     renderer ignored room.color and always rendered OTHER_ROOM blue, so
+//     the stored value was invisible. With Issue #1324 the badge starts
+//     honouring room.color, so the legacy default would suddenly paint as
+//     a slightly purple-ish blue, mixed with rooms that fall through to
+//     OTHER_ROOM blue — visually inconsistent for no reason.
+//
+//   - #FFFFFF — the original NOT NULL DEFAULT from migration 1.1.1
+//     (see 001001001_facilities_rooms.go). Migration 1.1.5 dropped the
+//     default + NOT NULL constraint but never nulled existing rows, so any
+//     tenant with two rooms created before 1.1.5 has duplicate "#FFFFFF"
+//     values today. The new partial UNIQUE(tenant_id, LOWER(color))
+//     WHERE color IS NOT NULL would refuse to create against those rows
+//     and break the deploy. Same provenance as #4F46E5: the value was
+//     never user-chosen, only inherited from a column default.
+//
+// Both go into the same audit.room_color_migration_backup table; the
+// `color` column on the backup row preserves the original value so a manual
+// restore knows exactly what to put back per row. Genuine admin-picked
+// colors (anything outside this set) are preserved untouched. Once cleared,
+// the partial unique index can apply without contention.
 func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.44: Backing up + clearing legacy #4F46E5 bug-default then adding partial unique index...")
+	fmt.Println("Migration 1.15.44: Backing up + clearing legacy bug-defaults (#4F46E5, #FFFFFF) then adding partial unique index...")
 
 	// Backup table: persists rows we're about to NULL so a manual restore
 	// is possible if our "no admin ever picked exactly #4F46E5" assumption
@@ -78,14 +89,16 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 	// the snapshot is consistent — if a concurrent writer slipped in
 	// between an enumerate and a clear, both would see the same set.
 	// NOW() comes from the row default; we just project the columns we
-	// need to be able to reverse-engineer the change.
+	// need to be able to reverse-engineer the change. The backup row's
+	// `color` column preserves the original hex per row so a manual
+	// restore knows whether to put back #4F46E5 or #FFFFFF.
 	backupRes, err := db.NewRaw(`
 		INSERT INTO audit.room_color_migration_backup
 			(room_id, tenant_id, name, color)
 		SELECT id, tenant_id, name, color
 		FROM facilities.rooms
 		WHERE color IS NOT NULL
-		  AND LOWER(color) = LOWER('#4F46E5');
+		  AND LOWER(color) IN (LOWER('#4F46E5'), LOWER('#FFFFFF'));
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed populating audit.room_color_migration_backup: %w", err)
@@ -94,20 +107,20 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 		fmt.Printf("Migration 1.15.44: backed up %d room(s) into audit.room_color_migration_backup before clearing\n", backed)
 	}
 
-	// NULL every room carrying the legacy bug-default. Case-insensitive
+	// NULL every room carrying either legacy bug-default. Case-insensitive
 	// compare in case anything posted lower-case before the model started
 	// uppercasing on write.
 	res, err := db.NewRaw(`
 		UPDATE facilities.rooms
 		SET color = NULL
 		WHERE color IS NOT NULL
-		  AND LOWER(color) = LOWER('#4F46E5');
+		  AND LOWER(color) IN (LOWER('#4F46E5'), LOWER('#FFFFFF'));
 	`).Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed clearing legacy room color default before unique index: %w", err)
+		return fmt.Errorf("failed clearing legacy room color defaults before unique index: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.44: cleared %d room(s) carrying the legacy #4F46E5 bug-default (audit.room_color_migration_backup retains the original values)\n", affected)
+		fmt.Printf("Migration 1.15.44: cleared %d room(s) carrying a legacy bug-default hex (#4F46E5 or #FFFFFF) (audit.room_color_migration_backup retains the original values)\n", affected)
 	}
 
 	createSQL := fmt.Sprintf(`
