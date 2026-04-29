@@ -138,6 +138,7 @@ type Factory struct {
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
+	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
 }
 
@@ -248,6 +249,7 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorAuditLog:         platformRepo.NewOperatorAuditLogRepository(db),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
+		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
 	}
 }

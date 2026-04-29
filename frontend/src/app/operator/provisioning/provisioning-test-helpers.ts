@@ -16,8 +16,13 @@ export const mockOrg = {
   name: "Test Org",
   slug: "test-org",
   active: true,
+  deletedAt: null,
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: "2025-01-01T00:00:00Z",
+  schulenCount: 1,
+  kontenCount: 2,
+  geraeteCount: 3,
+  personenCount: 4,
 };
 
 export const mockSchool = {
@@ -36,6 +41,10 @@ export const mockSchool = {
   deletedAt: null,
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: "2025-01-01T00:00:00Z",
+  organizationName: "Test Org",
+  kontenCount: 2,
+  geraeteCount: 3,
+  personenCount: 4,
   organization: { ...mockOrg },
 };
 
@@ -91,14 +100,30 @@ export function setupSWR(opts: SetupSWROptions): void {
     if (typeof key !== "string") {
       return { data: undefined, isLoading: false, mutate: () => undefined };
     }
-    if (key === "operator-organizations") {
+    if (
+      key === "operator-organizations" ||
+      key === "operator-organization-summaries"
+    ) {
       return {
         data: orgsLoading ? undefined : orgs,
         isLoading: orgsLoading,
         mutate: mutateOrgs,
       };
     }
-    if (key === "operator-schools") {
+    if (key === "operator-provisioning-stats") {
+      return {
+        data: {
+          traegerCount: orgs.length,
+          schulenCount: schools.length,
+          kontenCount: 0,
+          geraeteCount: 0,
+          personenCount: 0,
+        },
+        isLoading: false,
+        mutate: () => undefined,
+      };
+    }
+    if (key === "operator-schools" || key === "operator-school-summaries") {
       return {
         data: schoolsLoading ? undefined : schools,
         isLoading: schoolsLoading,

@@ -13,16 +13,22 @@ const {
   mockSetValue,
   mockResetValue,
   mockListSchools,
+  mockSearchParams,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockFetchSchema: vi.fn(),
   mockSetValue: vi.fn(),
   mockResetValue: vi.fn(),
   mockListSchools: vi.fn(),
+  mockSearchParams: { value: new URLSearchParams() },
 }));
 
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => mockSearchParams.value,
 }));
 
 vi.mock("next/link", () => ({
@@ -117,6 +123,7 @@ describe("OperatorSchoolSettingsPage", () => {
     vi.clearAllMocks();
     mockUseSession.mockReturnValue({ status: "authenticated" });
     mockListSchools.mockResolvedValue([]);
+    mockSearchParams.value = new URLSearchParams();
   });
 
   it("shows skeletons while loading", async () => {
@@ -289,5 +296,42 @@ describe("OperatorSchoolSettingsPage", () => {
         screen.getByText(/Keine Einstellungen für diese Schule verfügbar/),
       ).toBeDefined();
     });
+  });
+
+  // --- Back link ---
+
+  it("defaults the back link to the global schools list when ?back is absent", async () => {
+    mockFetchSchema.mockResolvedValue({ tabs: [] });
+
+    await renderPage();
+
+    const link = await screen.findByText("Zu den Schulen");
+    expect(link.closest("a")?.getAttribute("href")).toBe("/operator/schools");
+  });
+
+  it("uses ?back URL pointing back to the school drill-in", async () => {
+    mockFetchSchema.mockResolvedValue({ tabs: [] });
+    mockSearchParams.value = new URLSearchParams({
+      back: "/operator/organizations/test-org/schools/test-school",
+    });
+
+    await renderPage();
+
+    const link = await screen.findByText("Zurück zur Schule");
+    expect(link.closest("a")?.getAttribute("href")).toBe(
+      "/operator/organizations/test-org/schools/test-school",
+    );
+  });
+
+  it("falls back to /operator/schools when ?back points outside /operator (open-redirect guard)", async () => {
+    mockFetchSchema.mockResolvedValue({ tabs: [] });
+    mockSearchParams.value = new URLSearchParams({
+      back: "https://evil.example.com/path",
+    });
+
+    await renderPage();
+
+    const link = await screen.findByText("Zu den Schulen");
+    expect(link.closest("a")?.getAttribute("href")).toBe("/operator/schools");
   });
 });

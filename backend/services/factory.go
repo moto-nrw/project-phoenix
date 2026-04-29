@@ -580,6 +580,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
+		SummariesRepo:       repos.OperatorSummaries,
 		CategoryRepo:        repos.ActivityCategory,
 		DeviceRepo:          repos.Device,
 		RoleRepo:            repos.Role,

@@ -351,6 +351,30 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return "/students/search";
   };
 
+  // Operator drill-in highlight: hierarchy-based, not tab-based.
+  // The sidebar reflects WHERE in the tree the user is, not which tab they
+  // happen to have open. Tabs scope a view; they don't change the section.
+  //
+  // - Anywhere under /organizations or /organizations/{slug}      → Träger
+  // - Anywhere under /organizations/{slug}/schools/{schoolSlug}   → Schulen
+  //
+  // Pathname may include or omit the /operator prefix depending on host
+  // (operator subdomain strips it via operatorPath; tenant subdomains keep
+  // it). Both forms are matched.
+  const ORG_AREA_RE = /^(?:\/operator)?\/organizations(\/|$)/;
+  const SCHOOL_DRILLIN_RE =
+    /^(?:\/operator)?\/organizations\/[^/]+\/schools\/[^/]+/;
+
+  const getOperatorDrillInActiveHref = (): string | null => {
+    if (SCHOOL_DRILLIN_RE.test(pathname)) {
+      return operatorPath("/operator/schools");
+    }
+    if (ORG_AREA_RE.test(pathname)) {
+      return operatorPath("/operator/organizations");
+    }
+    return null;
+  };
+
   // Check if a navigation link should be highlighted as active
   const isActiveLink = (href: string) => {
     const isStudentDetailPage =
@@ -358,6 +382,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (isStudentDetailPage) {
       const from = searchParams.get("from");
       return getStudentDetailActiveHref(from) === href;
+    }
+    const operatorDrillInHref = getOperatorDrillInActiveHref();
+    if (operatorDrillInHref) {
+      return href === operatorDrillInHref;
     }
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);

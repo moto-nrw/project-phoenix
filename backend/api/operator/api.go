@@ -149,6 +149,7 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
 		r.Get("/roles", rs.provisioningResource.ListSystemRoles)
+		r.Get("/stats", rs.provisioningResource.GetProvisioningStats)
 		r.Route("/devices", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListAllDevices)
 			r.Post("/", rs.provisioningResource.CreateDevice)
@@ -158,16 +159,20 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Route("/organizations", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListOrganizations)
+			r.Get("/summaries", rs.provisioningResource.ListOrganizationSummaries)
 			r.Post("/", rs.provisioningResource.CreateOrganization)
 			r.Put("/{id}", rs.provisioningResource.UpdateOrganization)
 			r.Delete("/{id}", rs.provisioningResource.SoftDeleteOrganization)
 			r.Post("/{id}/restore", rs.provisioningResource.RestoreOrganization)
 			r.Get("/{id}/accounts", rs.provisioningResource.ListOrganizationAccounts)
 			r.Get("/{id}/devices", rs.provisioningResource.ListOrganizationDevices)
+			r.Get("/{id}/schools", rs.provisioningResource.ListOrganizationSchoolSummaries)
+			r.Get("/{id}/persons", rs.provisioningResource.ListOrganizationPersons)
 		})
 
 		r.Route("/schools", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListSchools)
+			r.Get("/summaries", rs.provisioningResource.ListSchoolSummaries)
 			r.Post("/", rs.provisioningResource.CreateSchool)
 			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
 			r.Delete("/{id}", rs.provisioningResource.SoftDeleteSchool)
