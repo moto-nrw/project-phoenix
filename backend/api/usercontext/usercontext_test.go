@@ -29,6 +29,13 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// init seeds JWT viper defaults before any test (and before setupTestContext
+// constructs a Resource via jwt.MustNewTokenAuth). CI runs without a .env so
+// AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
+func init() {
+	testutil.SeedTestJWTConfig()
+}
+
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
