@@ -16,6 +16,7 @@ import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -443,6 +444,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            authLogger,
 	})
 
+	// Email outbox (parent-enrollment PR 5). Declared here so the
+	// guardian invitation service can wire OutboxEnqueuer below.
+	emailTemplateRegistry := platform.NewTemplateRegistry()
+	emailOutboxService := platform.NewOutboxService(repos.EmailOutbox)
+	emailOutboxWorker := platform.NewOutboxWorker(platform.OutboxWorkerConfig{
+		Repo:        repos.EmailOutbox,
+		Registry:    emailTemplateRegistry,
+		Mailer:      mailer,
+		MaxAttempts: 6, // pushed by scheduler from settings each tick
+		Logger:      logger.With("service", "outbox"),
+		DB:          db,
+	})
+
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo:      repos.GuardianInvitation,
 		AccountRepo:         repos.Account,
@@ -454,6 +468,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SchoolRepo:          repos.School,
 		Mailer:              mailer,
 		Dispatcher:          dispatcher,
+		OutboxEnqueuer:      platform.NewAuthOutboxAdapter(emailOutboxService),
 		SettingsResolver:    settingsService,
 		FrontendURL:         frontendURL,
 		DefaultFrom:         defaultFrom,
@@ -461,6 +476,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                  db,
 		Logger:              authLogger.With("flow", "guardian_invitation"),
 	})
+
+	// Register the guardian_invitation renderer at startup so the outbox
+	// worker can dispatch enqueued rows. PRs 7 + 8 register their own
+	// kinds (enrollment_submitted, enrollment_decision_digest, etc.)
+	// alongside their service wiring.
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindGuardianInvitation,
+		platform.RendererFunc(auth.NewGuardianInvitationRenderer(auth.GuardianInvitationRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -607,18 +633,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AuditLogRepo:    repos.OperatorAuditLog,
 		DB:              db,
 		Logger:          platformLogger,
-	})
-
-	// Email outbox (parent-enrollment PR 5).
-	emailTemplateRegistry := platform.NewTemplateRegistry()
-	emailOutboxService := platform.NewOutboxService(repos.EmailOutbox)
-	emailOutboxWorker := platform.NewOutboxWorker(platform.OutboxWorkerConfig{
-		Repo:        repos.EmailOutbox,
-		Registry:    emailTemplateRegistry,
-		Mailer:      mailer,
-		MaxAttempts: 6, // pushed by scheduler from settings each tick
-		Logger:      logger.With("service", "outbox"),
-		DB:          db,
 	})
 
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{

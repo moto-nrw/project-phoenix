@@ -47,9 +47,32 @@ const guardianTokenExpiryFallback = 48 * time.Hour
 // dev parity.
 const guardianTokenEnvVar = "GUARDIAN_INVITATION_TOKEN_EXPIRY_HOURS"
 
+// OutboxEnqueuer is the narrow contract the guardian invitation service
+// needs from the platform outbox. Defined here so services/auth doesn't
+// import services/platform.
+type OutboxEnqueuer interface {
+	Enqueue(ctx context.Context, req OutboxEnqueueRequest) error
+}
+
+// OutboxEnqueueRequest mirrors platform.EnqueueRequest. The platform
+// package owns the canonical type; we redeclare a parallel one here to
+// avoid an import cycle.
+type OutboxEnqueueRequest struct {
+	Kind              string
+	Payload           map[string]any
+	RelatedEntityType string
+	RelatedEntityID   int64
+}
+
 // GuardianInvitationServiceConfig is the dependency injection bundle for
-// NewGuardianInvitationService. All fields except SettingsResolver and
-// Dispatcher are required.
+// NewGuardianInvitationService. All fields except SettingsResolver,
+// Dispatcher, and OutboxEnqueuer are required.
+//
+// OutboxEnqueuer (PR 5+) replaces the legacy Dispatcher path. When set,
+// invitation emails are written to platform.email_outbox and the worker
+// dispatches them. When nil, falls back to direct dispatch via
+// Dispatcher (kept for tests that don't wire the full outbox stack).
+// Production wiring always sets the enqueuer.
 type GuardianInvitationServiceConfig struct {
 	InvitationRepo      authModels.GuardianInvitationRepository
 	AccountRepo         authModels.AccountRepository
@@ -61,6 +84,7 @@ type GuardianInvitationServiceConfig struct {
 	SchoolRepo          platformModels.SchoolRepository
 	Mailer              email.Mailer
 	Dispatcher          *email.Dispatcher
+	OutboxEnqueuer      OutboxEnqueuer
 	SettingsResolver    GuardianSettingsResolver
 	FrontendURL         string
 	DefaultFrom         email.Email
@@ -79,6 +103,7 @@ type guardianInvitationService struct {
 	guardianProfileRepo userModels.GuardianProfileRepository
 	schoolRepo          platformModels.SchoolRepository
 	dispatcher          *email.Dispatcher
+	outboxEnqueuer      OutboxEnqueuer
 	settingsResolver    GuardianSettingsResolver
 	frontendURL         string
 	defaultFrom         email.Email
@@ -114,6 +139,7 @@ func NewGuardianInvitationService(cfg GuardianInvitationServiceConfig) GuardianI
 		guardianProfileRepo: cfg.GuardianProfileRepo,
 		schoolRepo:          cfg.SchoolRepo,
 		dispatcher:          dispatcher,
+		outboxEnqueuer:      cfg.OutboxEnqueuer,
 		settingsResolver:    cfg.SettingsResolver,
 		frontendURL:         strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
 		defaultFrom:         cfg.DefaultFrom,
@@ -203,7 +229,7 @@ func (s *guardianInvitationService) Create(ctx context.Context, req GuardianInvi
 	)
 
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.dispatchEmail(invitation, profile, schoolName)
+	s.enqueueEmail(ctx, invitation, profile, schoolName)
 
 	return invitation, nil
 }
@@ -401,7 +427,7 @@ func (s *guardianInvitationService) Resend(ctx context.Context, invitationID int
 	)
 
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.dispatchEmail(invitation, profile, schoolName)
+	s.enqueueEmail(ctx, invitation, profile, schoolName)
 	return nil
 }
 
@@ -458,6 +484,74 @@ var guardianInvitationEmailBackoff = []time.Duration{
 	time.Second,
 	5 * time.Second,
 	15 * time.Second,
+}
+
+// enqueueEmail is the unified send path. When an outbox enqueuer is
+// wired (production via factory.go since PR 5), the email is written
+// to platform.email_outbox and the worker dispatches asynchronously.
+// When the enqueuer is nil (older tests, mock setups), falls back to
+// the legacy direct-dispatch path through email.Dispatcher.
+//
+// The legacy path keeps email_sent_at / email_error / email_retry_count
+// up to date on auth.guardian_invitations via persistDeliveryResult.
+// The outbox path leaves those columns NULL and surfaces delivery
+// status from platform.email_outbox instead. Admin UIs that want
+// per-invitation delivery state should query the outbox by
+// (related_entity_type='guardian_invitation', related_entity_id=invitationID).
+func (s *guardianInvitationService) enqueueEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
+	if s.outboxEnqueuer != nil {
+		s.enqueueViaOutbox(ctx, invitation, profile, schoolName)
+		return
+	}
+	s.dispatchEmail(invitation, profile, schoolName)
+}
+
+// enqueueViaOutbox writes a guardian_invitation row to the platform
+// outbox. The renderer (services/auth/guardian_invitation_renderer.go)
+// turns the payload into an email.Message at dispatch time.
+func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
+	frontend := s.frontendURL
+	if frontend == "" {
+		frontend = "http://localhost:3000"
+	}
+	invitationURL := fmt.Sprintf("%s/accept-guardian-invite/%s", frontend, invitation.Token)
+	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontend)
+	expiryHours := int(time.Until(invitation.ExpiresAt) / time.Hour)
+	if expiryHours < 1 {
+		expiryHours = 1
+	}
+
+	recipientEmail := ""
+	firstName := ""
+	lastName := ""
+	if profile != nil {
+		if profile.Email != nil {
+			recipientEmail = strings.TrimSpace(*profile.Email)
+		}
+		firstName = strings.TrimSpace(profile.FirstName)
+		lastName = strings.TrimSpace(profile.LastName)
+	}
+
+	payload := map[string]any{
+		guardianPayloadRecipientEmail: recipientEmail,
+		guardianPayloadFirstName:      firstName,
+		guardianPayloadLastName:       lastName,
+		guardianPayloadInvitationURL:  invitationURL,
+		guardianPayloadLogoURL:        logoURL,
+		guardianPayloadSchoolName:     schoolName,
+		guardianPayloadExpiryHours:    expiryHours,
+	}
+
+	if err := s.outboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
+		Kind:              platformModels.EmailKindGuardianInvitation,
+		Payload:           payload,
+		RelatedEntityType: platformModels.EmailRelatedTypeGuardianInvitation,
+		RelatedEntityID:   invitation.ID,
+	}); err != nil {
+		s.getLogger().Error("guardian invitation: outbox enqueue failed",
+			slog.Int64("invitation_id", invitation.ID),
+			slog.String("error", err.Error()))
+	}
 }
 
 func (s *guardianInvitationService) dispatchEmail(invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
