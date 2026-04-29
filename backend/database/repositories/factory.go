@@ -144,9 +144,11 @@ type Factory struct {
 	EmailOutbox              platformModels.EmailOutboxRepository
 
 	// Enrollment domain (parent-enrollment PR 5+)
-	FormSchema   enrollmentModels.FormSchemaRepository
-	Request      enrollmentModels.RequestRepository
-	RequestChild enrollmentModels.RequestChildRepository
+	FormSchema           enrollmentModels.FormSchemaRepository
+	Request              enrollmentModels.RequestRepository
+	RequestChild         enrollmentModels.RequestChildRepository
+	CareOffering         enrollmentModels.CareOfferingRepository
+	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -260,8 +262,10 @@ func NewFactory(db *bun.DB) *Factory {
 		EmailOutbox:              platformRepo.NewEmailOutboxRepository(db),
 
 		// Enrollment repositories
-		FormSchema:   enrollment.NewFormSchemaRepository(db),
-		Request:      enrollment.NewRequestRepository(db),
-		RequestChild: enrollment.NewRequestChildRepository(db),
+		FormSchema:           enrollment.NewFormSchemaRepository(db),
+		Request:              enrollment.NewRequestRepository(db),
+		RequestChild:         enrollment.NewRequestChildRepository(db),
+		CareOffering:         enrollment.NewCareOfferingRepository(db),
+		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
 	}
 }
