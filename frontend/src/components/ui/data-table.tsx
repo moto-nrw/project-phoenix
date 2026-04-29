@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
-export type SortDirection = "asc" | "desc";
+type SortDirection = "asc" | "desc";
 
 export interface DataTableColumn<T> {
   key: string;
