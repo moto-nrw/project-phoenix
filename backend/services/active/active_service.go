@@ -508,7 +508,7 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 
 // isDuplicateActiveVisitViolation returns true when err carries PostgreSQL
 // error code 23505 (unique_violation) on the partial unique index
-// uniq_active_visits_open_per_student, defined in migration 1.15.45 on
+// uniq_active_visits_open_per_student, defined in migration 1.15.46 on
 // active.visits (tenant_id, student_id) WHERE exit_time IS NULL.
 //
 // We match by constraint name (Field 'n') rather than just the error code
