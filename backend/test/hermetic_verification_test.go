@@ -166,6 +166,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"invitations_test.go",                                    // Uses mocks for handler tests
 		"error_helpers_test.go",                                  // Internal unit tests for helper functions (no DB)
 		"api/iot/api_test.go",                                    // Uses mock SchoolRepo for unit testing handler
+		"api/iot/common/errors_test.go",                          // Pure JSON-marshal regression tests for error renderers; int64 literals are throwaway IDs, not DB rows
 		"api/iot/config_test.go",                                 // Uses mock settings service for unit testing config endpoint
 		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
 		"api/timetable/api_test.go",                              // Uses mock CalendarPeriodService for unit testing handlers
