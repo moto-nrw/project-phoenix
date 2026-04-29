@@ -99,6 +99,11 @@ const (
 	ClearModeEndOfDay    = "end_of_day"
 )
 
+// Invitations settings (auth flows).
+const (
+	KeyGuardianInvitationTokenExpiryHours = "invitations.guardian_token_expiry_hours"
+)
+
 // Timetable settings (WP-B7). Per-tenant configuration for the activity
 // template → instance materialization pipeline and the staff-facing
 // auto-start behaviour. All definitions live in defaults/timetable.go.

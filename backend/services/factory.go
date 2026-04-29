@@ -49,6 +49,7 @@ type Factory struct {
 	Schulhof                 facilities.SchulhofService
 	WC                       facilities.WCService
 	Invitation               auth.InvitationService
+	GuardianInvitation       auth.GuardianInvitationService
 	Feedback                 feedback.Service
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
@@ -430,6 +431,25 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            authLogger,
 	})
 
+	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
+		InvitationRepo:      repos.GuardianInvitation,
+		AccountRepo:         repos.Account,
+		AccountTenantRepo:   repos.AccountTenant,
+		AccountRoleRepo:     repos.AccountRole,
+		RoleRepo:            repos.Role,
+		PersonRepo:          repos.Person,
+		GuardianProfileRepo: repos.GuardianProfile,
+		SchoolRepo:          repos.School,
+		Mailer:              mailer,
+		Dispatcher:          dispatcher,
+		SettingsResolver:    settingsService,
+		FrontendURL:         frontendURL,
+		DefaultFrom:         defaultFrom,
+		FallbackExpiry:      invitationTokenExpiry,
+		DB:                  db,
+		Logger:              authLogger.With("flow", "guardian_invitation"),
+	})
+
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
 		AccountTenantRepo:      repos.AccountTenant,
@@ -626,6 +646,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Import:                   studentImportService, // Student import service
 		RealtimeHub:              realtimeHub,          // Expose SSE hub for API layer
 		Invitation:               invitationService,
+		GuardianInvitation:       guardianInvitationService,
 		Mailer:                   mailer,
 		DefaultFrom:              defaultFrom,
 		FrontendURL:              frontendURL,

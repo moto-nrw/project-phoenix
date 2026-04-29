@@ -59,6 +59,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"attendance.web_checkin_access",
 		// Parent-enrollment PR 2: activate-students scheduler interval.
 		"operations.student_activation_interval_minutes",
+		// Parent-enrollment PR 3: guardian invitation token expiry.
+		"invitations.guardian_token_expiry_hours",
 	}
 
 	for _, key := range expectedKeys {
@@ -243,6 +245,24 @@ func TestOperationsSettings_Types(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
 	}
+}
+
+// TestGuardianInvitationTokenExpiry guards the registry shape of the
+// guardian-invitation token TTL. Operator-only, default 48h, validation 1-168h.
+func TestGuardianInvitationTokenExpiry(t *testing.T) {
+	def := config.GetDefinition(config.KeyGuardianInvitationTokenExpiryHours)
+	require.NotNil(t, def, "invitations.guardian_token_expiry_hours should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 48, def.Default)
+	assert.Equal(t, "system", def.Tab)
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy,
+		"guardian token TTL is auth plumbing — operators only")
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(1), *def.Validation.Min)
+	assert.Equal(t, float64(168), *def.Validation.Max)
 }
 
 // TestStudentActivationInterval guards the registry shape of the activate-

@@ -1,0 +1,448 @@
+package auth_test
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// strongTestPassword is a password meeting the project's strength rules.
+// Test-only constant — reused across guardian invitation tests.
+const strongTestPassword = "GuardianTest!2026"
+
+// guardianTestEnv bundles the real-DB dependencies tests need.
+type guardianTestEnv struct {
+	db      *bun.DB
+	repos   *repositories.Factory
+	service authService.GuardianInvitationService
+	mailer  *email.MockMailer
+	cleanup func()
+}
+
+func setupGuardianInvitationTest(t *testing.T) *guardianTestEnv {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	testpkg.EnsureTestTenant(t, db, 1)
+
+	repoFactory := repositories.NewFactory(db)
+	mailer := email.NewMockMailer()
+	dispatcher := email.NewDispatcher(mailer, slog.Default())
+
+	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
+		InvitationRepo:      repoFactory.GuardianInvitation,
+		AccountRepo:         repoFactory.Account,
+		AccountTenantRepo:   repoFactory.AccountTenant,
+		AccountRoleRepo:     repoFactory.AccountRole,
+		RoleRepo:            repoFactory.Role,
+		PersonRepo:          repoFactory.Person,
+		GuardianProfileRepo: repoFactory.GuardianProfile,
+		SchoolRepo:          repoFactory.School,
+		Mailer:              mailer,
+		Dispatcher:          dispatcher,
+		FrontendURL:         "http://localhost:3000",
+		DefaultFrom:         email.NewEmail("Test", "no-reply@moto.local"),
+		FallbackExpiry:      48 * time.Hour,
+		DB:                  db,
+		Logger:              slog.Default(),
+	})
+
+	cleanup := func() {
+		_ = db.Close()
+	}
+
+	return &guardianTestEnv{
+		db:      db,
+		repos:   repoFactory,
+		service: service,
+		mailer:  mailer,
+		cleanup: cleanup,
+	}
+}
+
+// inviterAccountID creates an account to act as the invitation creator.
+// Tests that need a real created_by FK target use this helper.
+func (env *guardianTestEnv) inviterAccountID(t *testing.T) int64 {
+	t.Helper()
+	person, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Inviter", "Tester")
+	t.Cleanup(func() {
+		// Best-effort cleanup — schema FKs cascade most rows.
+		_, _ = env.db.NewDelete().
+			TableExpr("auth.accounts").
+			Where("id = ?", account.ID).
+			Exec(context.Background())
+		_, _ = env.db.NewDelete().
+			TableExpr("users.persons").
+			Where("id = ?", person.ID).
+			Exec(context.Background())
+	})
+	return account.ID
+}
+
+// cleanupInvitation removes a guardian invitation row plus its profile.
+func (env *guardianTestEnv) cleanupInvitation(t *testing.T, invitationID, profileID int64) {
+	t.Helper()
+	_, _ = env.db.NewDelete().
+		TableExpr("auth.guardian_invitations").
+		Where("id = ?", invitationID).
+		Exec(context.Background())
+	_, _ = env.db.NewDelete().
+		TableExpr("users.guardian_profiles").
+		Where("id = ?", profileID).
+		Exec(context.Background())
+}
+
+func TestGuardianInvitationService_Create_TokenAndExpiry(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "create-test")
+	creatorID := env.inviterAccountID(t)
+	defer func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("users.guardian_profiles").
+			Where("id = ?", profile.ID).
+			Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	assert.NotEmpty(t, invitation.Token, "token must be set")
+	assert.Equal(t, profile.ID, invitation.GuardianProfileID)
+	assert.Equal(t, creatorID, invitation.CreatedBy)
+	assert.True(t, invitation.ExpiresAt.After(time.Now().Add(46*time.Hour)),
+		"expiry should be at least 46 hours in the future (default 48h)")
+	assert.True(t, invitation.ExpiresAt.Before(time.Now().Add(50*time.Hour)),
+		"expiry should be at most 50 hours in the future")
+	assert.Nil(t, invitation.AcceptedAt, "fresh invitation must not be accepted")
+}
+
+func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	// Build a profile with no email — must use a raw insert because the
+	// fixture helper always sets one.
+	profile := &users.GuardianProfile{
+		FirstName:              "NoEmail",
+		LastName:               "Guardian",
+		PreferredContactMethod: "phone",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(1)
+	_, err := env.db.NewInsert().
+		Model(profile).
+		ModelTableExpr(`users.guardian_profiles`).
+		Returning("id").
+		Exec(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("users.guardian_profiles").
+			Where("id = ?", profile.ID).
+			Exec(context.Background())
+	}()
+
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	_, err = env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.Error(t, err, "Create must reject a profile with no email")
+}
+
+func TestGuardianInvitationService_Validate_ReturnsPublicInfo(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "validate-test")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	result, err := env.service.Validate(context.Background(), invitation.Token)
+	require.NoError(t, err)
+	assert.Equal(t, *profile.Email, result.Email)
+	assert.Equal(t, profile.FirstName, result.FirstName)
+	assert.Equal(t, profile.LastName, result.LastName)
+}
+
+func TestGuardianInvitationService_Validate_UnknownTokenReturns404Error(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	_, err := env.service.Validate(context.Background(), "nonexistent-token")
+	require.Error(t, err)
+	// Service wraps inner error in AuthError; the inner err is ErrInvitationNotFound.
+}
+
+func TestGuardianInvitationService_Validate_ExpiredTokenReturnsExpired(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "expired-test")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	// Expire the invitation by direct UPDATE.
+	_, err = env.db.NewUpdate().
+		TableExpr("auth.guardian_invitations").
+		Set("expires_at = ?", time.Now().Add(-1*time.Hour)).
+		Where("id = ?", invitation.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	_, err = env.service.Validate(context.Background(), invitation.Token)
+	require.Error(t, err)
+}
+
+func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "accept-test")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: strongTestPassword,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	assert.Equal(t, *profile.Email, account.Email)
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("auth.account_roles").
+			Where("account_id = ?", account.ID).
+			Exec(context.Background())
+		_, _ = env.db.NewDelete().
+			TableExpr("auth.account_tenants").
+			Where("account_id = ?", account.ID).
+			Exec(context.Background())
+		_, _ = env.db.NewDelete().
+			TableExpr("auth.accounts").
+			Where("id = ?", account.ID).
+			Exec(context.Background())
+	})
+
+	// Invitation must be marked accepted.
+	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, updated.AcceptedAt, "invitation should be marked accepted")
+
+	// Profile must point at the new account.
+	updatedProfile, err := env.repos.GuardianProfile.FindByID(context.Background(), profile.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updatedProfile.AccountID, "guardian_profile.account_id should be linked")
+	assert.Equal(t, account.ID, *updatedProfile.AccountID)
+	assert.True(t, updatedProfile.HasAccount, "guardian_profile.has_account should flip true")
+
+	// Account-tenant mapping must exist + be active.
+	exists, err := env.repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), account.ID, 1)
+	require.NoError(t, err)
+	assert.True(t, exists, "account_tenant mapping should be created on accept")
+
+	// Account must have the guardian role assigned.
+	roles, err := env.repos.Role.FindByAccountID(testpkg.TenantContext(1), account.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, roles, "account should have at least one role")
+	hasGuardian := false
+	for _, r := range roles {
+		if r.Name == "guardian" {
+			hasGuardian = true
+		}
+	}
+	assert.True(t, hasGuardian, "guardian role should be assigned")
+}
+
+func TestGuardianInvitationService_Accept_PasswordMismatch(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "mismatch-test")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: "DifferentP@ss!1",
+	})
+	require.Error(t, err)
+}
+
+func TestGuardianInvitationService_Accept_WeakPassword(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "weak-pw-test")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        "short",
+		ConfirmPassword: "short",
+	})
+	require.Error(t, err, "weak password must be rejected")
+}
+
+func TestGuardianInvitationService_Accept_AlreadyAccepted(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "double-accept-test")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: strongTestPassword,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("auth.account_roles").
+			Where("account_id = ?", account.ID).
+			Exec(context.Background())
+		_, _ = env.db.NewDelete().
+			TableExpr("auth.account_tenants").
+			Where("account_id = ?", account.ID).
+			Exec(context.Background())
+		_, _ = env.db.NewDelete().
+			TableExpr("auth.accounts").
+			Where("id = ?", account.ID).
+			Exec(context.Background())
+	})
+
+	// Second accept must fail.
+	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: strongTestPassword,
+	})
+	require.Error(t, err, "second accept must reject already-accepted token")
+}
+
+func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "resend-test")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	// Stamp a fake error so we can verify Resend clears it.
+	errMsg := "previous send failed"
+	now := time.Now()
+	require.NoError(t, env.repos.GuardianInvitation.UpdateEmailStatus(context.Background(), invitation.ID, &now, &errMsg, 2))
+
+	require.NoError(t, env.service.Resend(ctx, invitation.ID, creatorID))
+
+	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
+	require.NoError(t, err)
+	assert.Nil(t, updated.EmailSentAt, "email_sent_at must be cleared on resend")
+	assert.Nil(t, updated.EmailError, "email_error must be cleared on resend")
+}
+
+func TestGuardianInvitationService_CleanupExpired_RemovesExpired(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "cleanup-test")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("users.guardian_profiles").
+			Where("id = ?", profile.ID).
+			Exec(context.Background())
+	}()
+
+	// Push the invitation into the expired window.
+	_, err = env.db.NewUpdate().
+		TableExpr("auth.guardian_invitations").
+		Set("expires_at = ?", time.Now().Add(-1*time.Hour)).
+		Where("id = ?", invitation.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	count, err := env.service.CleanupExpired(context.Background())
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, count, 1, "expired invitation should be deleted")
+
+	// Confirm the row is gone.
+	_, err = env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
+	require.Error(t, err, "expired invitation should no longer exist after cleanup")
+	_ = authModels.GuardianInvitation{} // import retention
+}

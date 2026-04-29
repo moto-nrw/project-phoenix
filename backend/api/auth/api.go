@@ -50,6 +50,7 @@ const (
 type Resource struct {
 	AuthService                authService.AuthService
 	InvitationService          authService.InvitationService
+	GuardianInvitationService  authService.GuardianInvitationService
 	CaregiverCapabilityService usersService.CaregiverCapabilityService
 	SchoolRepo                 platform.SchoolRepository
 	// SettingsService is optional — when non-nil, resolveTenant enriches its
@@ -63,6 +64,14 @@ type Resource struct {
 // SetAuthRateLimiter sets the rate limiter middleware for auth endpoints (login, register, password-reset).
 func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.authRateLimiter = mw
+}
+
+// SetGuardianInvitationService injects the guardian invitation service.
+// Wired via setter (not constructor) so existing test call sites that pass 4
+// positional args keep compiling. When nil, the public guardian invitation
+// routes return 500 with errGuardianInvitationServiceUnavailable.
+func (rs *Resource) SetGuardianInvitationService(svc authService.GuardianInvitationService) {
+	rs.GuardianInvitationService = svc
 }
 
 // NewResource creates a new auth resource
@@ -96,6 +105,8 @@ func (rs *Resource) Router() chi.Router {
 	// Public routes (no rate limiting — these are read-only lookups)
 	r.Get("/invitations/{token}", rs.validateInvitation)
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
+	r.Get("/guardian-invitations/{token}", rs.validateGuardianInvitation)
+	r.Post("/guardian-invitations/{token}/accept", rs.acceptGuardianInvitation)
 	r.Get("/tenant/resolve", rs.resolveTenant)
 	r.Get("/tenants", rs.listTenants)
 
@@ -216,6 +227,17 @@ func (rs *Resource) Router() chi.Router {
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
 					r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeInvitation)
+				})
+			})
+
+			// Guardian invitations — public accept handled above; admins
+			// can resend a still-valid invitation. Create endpoint is
+			// deliberately omitted in PR 3 (per parent-enrollment plan):
+			// the decision service in PR 8 calls Service.Create directly
+			// when approving the first child.
+			r.Route("/guardian-invitations", func(r chi.Router) {
+				r.Route("/{id}", func(r chi.Router) {
+					r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendGuardianInvitation)
 				})
 			})
 
