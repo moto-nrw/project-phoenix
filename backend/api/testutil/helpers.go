@@ -106,6 +106,29 @@ func WithClaims(claims jwt.AppClaims) RequestOption {
 	}
 }
 
+// WithJWTBearer sets an Authorization: Bearer <token> header on the request.
+// Use together with MintTestJWT when exercising a Resource via Router(), where
+// the production JWT middleware chain (Verifier → Authenticator → TenantMiddleware)
+// runs and rejects requests that lack a real signed token.
+func WithJWTBearer(token string) RequestOption {
+	return func(req *http.Request) {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+}
+
+// MintTestJWT signs a JWT for the given claims using the same configuration as
+// production (jwt.NewTokenAuth reads the JWT secret from viper / env). Pair it
+// with WithJWTBearer when calling handlers through Resource.Router() so the
+// production auth middleware accepts the request.
+func MintTestJWT(t *testing.T, claims jwt.AppClaims) string {
+	t.Helper()
+	tokenAuth, err := jwt.NewTokenAuth()
+	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
+	token, err := tokenAuth.CreateJWT(claims)
+	require.NoError(t, err, "MintTestJWT: CreateJWT")
+	return token
+}
+
 // WithDeviceContext adds an IoT device to the request context.
 // This is used for testing device-authenticated endpoints.
 // Also injects the device's tenant_id so TenantTxMiddleware can create

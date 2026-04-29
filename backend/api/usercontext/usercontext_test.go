@@ -1,7 +1,10 @@
 // Package usercontext_test tests the usercontext API handlers with hermetic test pattern.
 //
-// These tests verify HTTP request/response handling, status codes, and error responses.
-// They use real services with a test database (no mocks).
+// These tests mount the production Resource.Router() and authenticate via real
+// signed JWTs (testutil.MintTestJWT + testutil.WithJWTBearer) so the full
+// middleware chain (Verifier → Authenticator → TenantMiddleware → TenantTxMiddleware)
+// runs exactly as it does in production. They verify HTTP request/response
+// handling, status codes, and error responses against a real test database.
 package usercontext_test
 
 import (
@@ -32,9 +35,11 @@ type testContext struct {
 	services *services.Factory
 	repos    *repositories.Factory
 	resource *usercontextAPI.Resource
+	router   chi.Router
 }
 
-// setupTestContext initializes test database, services, and resource.
+// setupTestContext initializes test database, services, resource, and a router
+// that serves the resource at the same paths it would in production.
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
@@ -51,6 +56,7 @@ func setupTestContext(t *testing.T) *testContext {
 		services: serviceFactory,
 		repos:    repoFactory,
 		resource: resource,
+		router:   resource.Router(),
 	}
 }
 
@@ -59,38 +65,29 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestGetCurrentUser_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	// Create a test account
-	account := testpkg.CreateTestAccount(t, ctx.db, "usercontext-test@example.com")
-
-	router := chi.NewRouter()
-	router.Get("/me", ctx.resource.GetCurrentUserHandler())
+	account := testpkg.CreateTestAccount(t, tc.db, "usercontext-test@example.com")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/me", nil,
-		testutil.WithClaims(claims),
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/", nil,
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestGetCurrentUser_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/me", ctx.resource.GetCurrentUserHandler())
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/", nil)
 
-	// Request without claims - simulates unauthenticated user
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/me", nil)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Handler should return 401 for missing authentication
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
 
@@ -99,35 +96,28 @@ func TestGetCurrentUser_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetCurrentProfile_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	// Create a test account with person
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Profile", "Test")
-
-	router := chi.NewRouter()
-	router.Get("/profile", ctx.resource.GetCurrentProfileHandler())
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Profile", "Test")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestGetCurrentProfile_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/profile", ctx.resource.GetCurrentProfileHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
@@ -137,13 +127,10 @@ func TestGetCurrentProfile_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestUpdateCurrentProfile_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Update", "ProfileTest")
-
-	router := chi.NewRouter()
-	router.Put("/profile", ctx.resource.UpdateCurrentProfileHandler())
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Update", "ProfileTest")
 
 	body := map[string]interface{}{
 		"first_name": "Updated",
@@ -152,50 +139,40 @@ func TestUpdateCurrentProfile_Success(t *testing.T) {
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/profile", body,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestUpdateCurrentProfile_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Put("/profile", ctx.resource.UpdateCurrentProfileHandler())
-
-	body := map[string]interface{}{
-		"first_name": "Updated",
-	}
-
+	body := map[string]interface{}{"first_name": "Updated"}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/profile", body)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
 
 func TestUpdateCurrentProfile_EmptyBody(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Empty", "Update")
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Empty", "Update")
 
-	router := chi.NewRouter()
-	router.Put("/profile", ctx.resource.UpdateCurrentProfileHandler())
-
-	// Empty body should still succeed (no fields to update)
 	body := map[string]interface{}{}
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/profile", body,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -205,56 +182,44 @@ func TestUpdateCurrentProfile_EmptyBody(t *testing.T) {
 // =============================================================================
 
 func TestGetCurrentStaff_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	// Create a test staff with account
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Staff", "Test")
-
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.GetCurrentStaffHandler())
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Staff", "Test")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestGetCurrentStaff_NotStaff(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	// Create account without staff role
-	account := testpkg.CreateTestAccount(t, ctx.db, "not-staff@example.com")
-
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.GetCurrentStaffHandler())
+	account := testpkg.CreateTestAccount(t, tc.db, "not-staff@example.com")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Should return 404 or 403 when user is not a staff member
 	assert.Contains(t, []int{http.StatusNotFound, http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
 }
 
 func TestGetCurrentStaff_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/staff", ctx.resource.GetCurrentStaffHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
@@ -264,54 +229,44 @@ func TestGetCurrentStaff_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetCurrentTeacher_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Teacher", "Test")
-
-	router := chi.NewRouter()
-	router.Get("/teacher", ctx.resource.GetCurrentTeacherHandler())
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Teacher", "Test")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/teacher", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestGetCurrentTeacher_NotTeacher(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	account := testpkg.CreateTestAccount(t, ctx.db, "not-teacher@example.com")
-
-	router := chi.NewRouter()
-	router.Get("/teacher", ctx.resource.GetCurrentTeacherHandler())
+	account := testpkg.CreateTestAccount(t, tc.db, "not-teacher@example.com")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/teacher", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Should return error when user is not a teacher
 	assert.Contains(t, []int{http.StatusNotFound, http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
 }
 
 func TestGetCurrentTeacher_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/teacher", ctx.resource.GetCurrentTeacherHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/teacher", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
@@ -321,34 +276,28 @@ func TestGetCurrentTeacher_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetMyGroups_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Groups", "Test")
-
-	router := chi.NewRouter()
-	router.Get("/groups", ctx.resource.GetMyGroupsHandler())
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Groups", "Test")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestGetMyGroups_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/groups", ctx.resource.GetMyGroupsHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
@@ -358,34 +307,28 @@ func TestGetMyGroups_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetMyActivityGroups_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Activity", "Groups")
-
-	router := chi.NewRouter()
-	router.Get("/groups/activity", ctx.resource.GetMyActivityGroupsHandler())
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Activity", "Groups")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/activity", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestGetMyActivityGroups_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/groups/activity", ctx.resource.GetMyActivityGroupsHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/activity", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
@@ -395,34 +338,28 @@ func TestGetMyActivityGroups_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetMyActiveGroups_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Active", "Groups")
-
-	router := chi.NewRouter()
-	router.Get("/groups/active", ctx.resource.GetMyActiveGroupsHandler())
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Active", "Groups")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/active", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestGetMyActiveGroups_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/groups/active", ctx.resource.GetMyActiveGroupsHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/active", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
@@ -432,34 +369,28 @@ func TestGetMyActiveGroups_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetMySupervisedGroups_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Supervised", "Groups")
-
-	router := chi.NewRouter()
-	router.Get("/groups/supervised", ctx.resource.GetMySupervisedGroupsHandler())
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Supervised", "Groups")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/supervised", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 func TestGetMySupervisedGroups_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/groups/supervised", ctx.resource.GetMySupervisedGroupsHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/supervised", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
@@ -469,38 +400,31 @@ func TestGetMySupervisedGroups_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudents_InvalidGroupID(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/groups/{groupID}/students", ctx.resource.GetGroupStudentsHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	claims := testutil.DefaultTestClaims()
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/students", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
 
 func TestGetGroupStudents_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	// Create fixture for active group instead of using hardcoded ID
-	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "GroupStudentsUnauth")
-	room := testpkg.CreateTestRoom(t, ctx.db, "GroupStudentsUnauthRoom")
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
-
-	router := chi.NewRouter()
-	router.Get("/groups/{groupID}/students", ctx.resource.GetGroupStudentsHandler())
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "GroupStudentsUnauth")
+	room := testpkg.CreateTestRoom(t, tc.db, "GroupStudentsUnauthRoom")
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", activeGroup.ID), nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
@@ -510,38 +434,31 @@ func TestGetGroupStudents_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupVisits_InvalidGroupID(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/groups/{groupID}/visits", ctx.resource.GetGroupVisitsHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	claims := testutil.DefaultTestClaims()
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/visits", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
 
 func TestGetGroupVisits_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	// Create fixture for active group instead of using hardcoded ID
-	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "GroupVisitsUnauth")
-	room := testpkg.CreateTestRoom(t, ctx.db, "GroupVisitsUnauthRoom")
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
-
-	router := chi.NewRouter()
-	router.Get("/groups/{groupID}/visits", ctx.resource.GetGroupVisitsHandler())
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "GroupVisitsUnauth")
+	room := testpkg.CreateTestRoom(t, tc.db, "GroupVisitsUnauthRoom")
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/visits", activeGroup.ID), nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
@@ -551,84 +468,67 @@ func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestDeleteAvatar_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Delete("/profile/avatar", ctx.resource.DeleteAvatarHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/profile/avatar", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
 
 func TestDeleteAvatar_NoAvatar(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoAvatar", "Test")
-
-	router := chi.NewRouter()
-	router.Delete("/profile/avatar", ctx.resource.DeleteAvatarHandler())
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NoAvatar", "Test")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/profile/avatar", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Should return 400 when no avatar exists
 	testutil.AssertBadRequest(t, rr)
 }
 
 func TestServeAvatar_MissingFilename(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Avatar", "Serve")
-
-	router := chi.NewRouter()
-	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Avatar", "Serve")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Should return 400 or 404 for missing filename
 	assert.Contains(t, []int{http.StatusBadRequest, http.StatusNotFound}, rr.Code)
 }
 
 func TestServeAvatar_Unauthenticated(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/test.jpg", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
 }
 
 func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Avatar", "GlobalFile")
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Avatar", "GlobalFile")
 
-	// Resolve the public directory the same way production code does,
-	// so the file is created where ServeImage will look for it.
 	publicDir, err := common.ResolvePublicDir()
 	if err != nil {
-		// No resolved public dir — create one relative to CWD so the resolver finds it.
 		publicDir = filepath.Join("public")
 	}
 	avatarDir := filepath.Join(publicDir, "uploads", "avatars", "global")
@@ -643,22 +543,19 @@ func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
 		_ = os.Remove(filePath)
 	})
 
-	_, err = ctx.db.ExecContext(context.Background(),
+	_, err = tc.db.ExecContext(context.Background(),
 		`UPDATE auth.accounts SET avatar = ? WHERE id = ?`,
 		"/uploads/avatars/global/"+filename,
 		account.ID,
 	)
 	require.NoError(t, err)
 
-	router := chi.NewRouter()
-	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
-
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/"+filename, nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, []byte("fake-image-data"), rr.Body.Bytes())
@@ -669,10 +566,10 @@ func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
 // =============================================================================
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	router := ctx.resource.Router()
+	router := tc.resource.Router()
 	assert.NotNil(t, router, "Router should not be nil")
 }
 
@@ -686,10 +583,6 @@ func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "FullUpdate", "ProfileTest")
 
-	router := chi.NewRouter()
-	router.Put("/profile", tc.resource.UpdateCurrentProfileHandler())
-
-	// Use unique username to avoid conflicts
 	uniqueUsername := fmt.Sprintf("user_%d", account.ID)
 	body := map[string]interface{}{
 		"first_name": "NewFirst",
@@ -700,10 +593,10 @@ func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/profile", body,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -713,28 +606,23 @@ func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupStudents", "Teacher")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupStudents", "Teacher")
 
-	// Create an active group
-	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "StudentAccessGroup")
-	room := testpkg.CreateTestRoom(t, ctx.db, "StudentAccessRoom")
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
-
-	router := chi.NewRouter()
-	router.Get("/groups/{groupID}/students", ctx.resource.GetGroupStudentsHandler())
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "StudentAccessGroup")
+	room := testpkg.CreateTestRoom(t, tc.db, "StudentAccessRoom")
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", activeGroup.ID), nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Should succeed or return access denied (depends on supervisor relationship)
 	assert.Contains(t, []int{http.StatusOK, http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
 }
 
@@ -743,28 +631,23 @@ func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupVisits_WithTeacherAccess(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupVisits", "Teacher")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupVisits", "Teacher")
 
-	// Create an active group
-	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "VisitsAccessGroup")
-	room := testpkg.CreateTestRoom(t, ctx.db, "VisitsAccessRoom")
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
-
-	router := chi.NewRouter()
-	router.Get("/groups/{groupID}/visits", ctx.resource.GetGroupVisitsHandler())
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "VisitsAccessGroup")
+	room := testpkg.CreateTestRoom(t, tc.db, "VisitsAccessRoom")
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/visits", activeGroup.ID), nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Should succeed or return access denied (depends on supervisor relationship)
 	assert.Contains(t, []int{http.StatusOK, http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
 }
 
@@ -773,44 +656,34 @@ func TestGetGroupVisits_WithTeacherAccess(t *testing.T) {
 // =============================================================================
 
 func TestServeAvatar_InvalidFilename(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "InvalidPath", "Avatar")
-
-	router := chi.NewRouter()
-	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "InvalidPath", "Avatar")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-
-	// Test with path traversal attempt
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/../../../etc/passwd", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Should return error for invalid path
 	assert.Contains(t, []int{http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound}, rr.Code)
 }
 
 func TestServeAvatar_NonExistentFile(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NonExistent", "Avatar")
-
-	router := chi.NewRouter()
-	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonExistent", "Avatar")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/nonexistent_file_12345.jpg", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Should return 403 or 404 for non-existent file
 	assert.Contains(t, []int{http.StatusForbidden, http.StatusNotFound}, rr.Code)
 }
 
@@ -822,35 +695,27 @@ func TestUploadAvatar_Unauthenticated(t *testing.T) {
 	tc := setupTestContext(t)
 	defer func() { _ = tc.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/profile/avatar", tc.resource.UploadAvatarHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/profile/avatar", nil)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Upload handler may return 400 (no file) before checking auth, or 401 if auth checked first
 	assert.Contains(t, []int{http.StatusBadRequest, http.StatusUnauthorized}, rr.Code,
 		"Expected 400 or 401 for unauthenticated request")
 }
 
 func TestUploadAvatar_NoFile(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoFile", "Upload")
-
-	router := chi.NewRouter()
-	router.Post("/profile/avatar", ctx.resource.UploadAvatarHandler())
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NoFile", "Upload")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/profile/avatar", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
-	// Should return 400 for missing file
 	testutil.AssertBadRequest(t, rr)
 }
 
@@ -859,9 +724,6 @@ func TestUploadAvatar_Success(t *testing.T) {
 	defer func() { _ = tc.db.Close() }()
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Upload", "Success")
-
-	router := chi.NewRouter()
-	router.Post("/profile/avatar", tc.resource.UploadAvatarHandler())
 
 	pngContent := string([]byte{
 		0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n',
@@ -876,10 +738,10 @@ func TestUploadAvatar_Success(t *testing.T) {
 	})
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewMultipartRequest(t, "POST", "/profile/avatar", "avatar", "avatar.png", pngContent,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
@@ -925,15 +787,12 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	router := chi.NewRouter()
-	router.Delete("/profile/avatar", tc.resource.DeleteAvatarHandler())
-
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/profile/avatar", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	_, err = os.Stat(avatarPath)
@@ -945,24 +804,20 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 // =============================================================================
 
 func TestGetMyGroups_WithSubstitution(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SubstGroups", "Teacher")
-
-	router := chi.NewRouter()
-	router.Get("/groups", ctx.resource.GetMyGroupsHandler())
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "SubstGroups", "Teacher")
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil,
-		testutil.WithClaims(claims),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(tc.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	// Verify response structure
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	assert.Equal(t, "success", response["status"])
 }
