@@ -409,8 +409,8 @@ All of these with German labels + descriptions. See §5.6 for the full table. Do
                 └──────────┬─────────┘
                            │
                 ┌──────────▼─────────┐
-                │ PR 6: care offer.  │  ←── may bundle calendar_periods
-                │   catalog + UI     │      emergency migration
+                │ PR 6: care offer.  │  ←── consumes shipped
+                │   catalog + UI     │      schedule.calendar_periods
                 └──────────┬─────────┘
                            │
                 ┌──────────▼─────────┐
