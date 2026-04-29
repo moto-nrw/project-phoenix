@@ -24,6 +24,7 @@ import (
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
@@ -88,6 +89,9 @@ type Factory struct {
 	EmailOutbox           *platform.OutboxService
 	EmailOutboxWorker     *platform.OutboxWorker
 	EmailTemplateRegistry *platform.TemplateRegistry
+
+	// Enrollment domain (parent-enrollment PR 5+).
+	EnrollmentFormSchema enrollment.FormSchemaService
 }
 
 // NewFactory creates a new services factory
@@ -617,6 +621,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:          db,
 	})
 
+	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
+		Repo:   repos.FormSchema,
+		Logger: logger.With("service", "enrollment-form-schema"),
+	})
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
@@ -687,5 +696,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EmailOutbox:           emailOutboxService,
 		EmailOutboxWorker:     emailOutboxWorker,
 		EmailTemplateRegistry: emailTemplateRegistry,
+
+		EnrollmentFormSchema: enrollmentFormSchemaService,
 	}, nil
 }

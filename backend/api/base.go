@@ -23,6 +23,7 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
@@ -68,6 +69,7 @@ type API struct {
 	Staff            *staffAPI.Resource
 	Feedback         *feedbackAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
+	Enrollment       *enrollmentAPI.Resource
 	Schedules        *schedulesAPI.Resource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
@@ -300,6 +302,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, db, logger.With("handler", "staff"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
+	api.Enrollment = enrollmentAPI.NewResource(api.Services.EnrollmentFormSchema, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
@@ -481,6 +484,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())
+
+		// Mount enrollment resources (parent-enrollment PR 5+)
+		r.Mount("/enrollment", a.Enrollment.Router())
 
 		// Mount suggestions resources
 		r.Mount("/suggestions", a.Suggestions.Router())
