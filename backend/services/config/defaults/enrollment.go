@@ -343,6 +343,23 @@ func registerEnrollmentSystem() {
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
+	minWorkerInterval := float64(10)
+	maxWorkerInterval := float64(600)
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentOutboxWorkerIntervalSeconds,
+		Label:           "E-Mail-Versand: Worker-Intervall (Sekunden)",
+		Description:     "Wie oft der Outbox-Worker neue ausstehende E-Mails aus der Warteschlange holt. Niedrige Werte = schnellerer Versand, höhere Datenbanklast.",
+		Type:            config.FieldNumber,
+		Default:         30,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "system",
+		Category:        "anmeldung",
+		SortOrder:       72,
+		Validation:      &config.ValidationRules{Min: &minWorkerInterval, Max: &maxWorkerInterval},
+		AccessPolicy:    config.AccessOperatorOnly,
+	})
+
 	minTokenTTL := float64(7)
 	maxTokenTTL := float64(1825)
 	config.Register(config.Definition{

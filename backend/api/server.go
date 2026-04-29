@@ -87,6 +87,10 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.repos != nil && api.repos.Student != nil {
 			srv.scheduler.SetStudentLifecycleRepo(api.repos.Student)
 		}
+		// Parent-enrollment PR 5: platform email outbox worker.
+		if api.Services.EmailOutboxWorker != nil {
+			srv.scheduler.SetOutboxWorker(api.Services.EmailOutboxWorker)
+		}
 	}
 
 	return srv, nil

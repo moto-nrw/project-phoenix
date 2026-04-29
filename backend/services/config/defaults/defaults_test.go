@@ -79,6 +79,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"enrollment.show_status_reason_to_parent",
 		"enrollment.notify_per_decision",
 		"enrollment.outbox_max_attempts",
+		"enrollment.outbox_worker_interval_seconds",
 		"enrollment.status_token_ttl_days",
 	}
 
@@ -397,6 +398,24 @@ func TestEnrollmentDateFields(t *testing.T) {
 		assert.Equalf(t, config.FieldDate, def.Type, "setting %q must be type date", key)
 		assert.Equalf(t, "", def.Default, "setting %q must default to empty (= unbounded)", key)
 	}
+}
+
+// TestEnrollmentOutboxWorkerInterval guards the registry shape of the
+// outbox worker polling interval setting (PR 5). Operator-only because
+// the cadence is platform plumbing, not tenant-tunable.
+func TestEnrollmentOutboxWorkerInterval(t *testing.T) {
+	def := config.GetDefinition(config.KeyEnrollmentOutboxWorkerIntervalSeconds)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 30, def.Default)
+	assert.Equal(t, "system", def.Tab)
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(10), *def.Validation.Min)
+	assert.Equal(t, float64(600), *def.Validation.Max)
 }
 
 // TestEnrollmentStatusTokenTTL_OperatorOnly guards the §11 rule that this

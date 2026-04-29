@@ -121,6 +121,23 @@ type Scheduler struct {
 	// Student lifecycle (parent-enrollment PR 2). Wired via SetStudentLifecycleRepo.
 	// Nil → activate-students task does not register.
 	studentLifecycleRepo StudentLifecycleRepository
+
+	// Outbox worker (parent-enrollment PR 5). Wired via SetOutboxWorker.
+	// Nil → outbox task does not register.
+	outboxWorker OutboxWorkerRunner
+}
+
+// OutboxWorkerRunner is the narrow contract the scheduler needs from the
+// platform outbox worker. Defined here so the scheduler doesn't import
+// services/platform.
+type OutboxWorkerRunner interface {
+	RunOnce(ctx context.Context, batchSize int) (int, error)
+	SetMaxAttempts(n int)
+}
+
+// SetOutboxWorker wires the outbox worker. Nil disables the outbox task.
+func (s *Scheduler) SetOutboxWorker(w OutboxWorkerRunner) {
+	s.outboxWorker = w
 }
 
 // overdueKey composites tenant + instance so the sync.Map key cannot collide
@@ -291,6 +308,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule per-tenant activate-students tick (parent-enrollment PR 2)
 	s.scheduleActivateStudentsTask()
+
+	// Schedule platform email outbox worker (parent-enrollment PR 5)
+	s.scheduleOutboxWorkerTask()
 }
 
 // Stop gracefully stops the scheduler

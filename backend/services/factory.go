@@ -80,6 +80,14 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	OperatorSuggestions  platform.OperatorSuggestionsService
+
+	// Email outbox (parent-enrollment PR 5) — shared across features.
+	// EmailOutbox enqueues from feature code; EmailOutboxWorker drains
+	// the table on a scheduler tick; EmailTemplateRegistry holds the
+	// kind→Renderer mapping populated at startup.
+	EmailOutbox           *platform.OutboxService
+	EmailOutboxWorker     *platform.OutboxWorker
+	EmailTemplateRegistry *platform.TemplateRegistry
 }
 
 // NewFactory creates a new services factory
@@ -597,6 +605,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:          platformLogger,
 	})
 
+	// Email outbox (parent-enrollment PR 5).
+	emailTemplateRegistry := platform.NewTemplateRegistry()
+	emailOutboxService := platform.NewOutboxService(repos.EmailOutbox)
+	emailOutboxWorker := platform.NewOutboxWorker(platform.OutboxWorkerConfig{
+		Repo:        repos.EmailOutbox,
+		Registry:    emailTemplateRegistry,
+		Mailer:      mailer,
+		MaxAttempts: 6, // pushed by scheduler from settings each tick
+		Logger:      logger.With("service", "outbox"),
+		DB:          db,
+	})
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
@@ -663,5 +683,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		OperatorSuggestions:  operatorSuggestionsService,
+
+		EmailOutbox:           emailOutboxService,
+		EmailOutboxWorker:     emailOutboxWorker,
+		EmailTemplateRegistry: emailTemplateRegistry,
 	}, nil
 }

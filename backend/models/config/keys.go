@@ -124,6 +124,7 @@ const (
 	KeyEnrollmentShowStatusReasonToParent    = "enrollment.show_status_reason_to_parent"
 	KeyEnrollmentNotifyPerDecision           = "enrollment.notify_per_decision"
 	KeyEnrollmentOutboxMaxAttempts           = "enrollment.outbox_max_attempts"
+	KeyEnrollmentOutboxWorkerIntervalSeconds = "enrollment.outbox_worker_interval_seconds"
 	KeyEnrollmentStatusTokenTTLDays          = "enrollment.status_token_ttl_days"
 )
 
