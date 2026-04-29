@@ -27,7 +27,12 @@ import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import {
+  useSWRAuth,
+  useTenantMutate,
+  useTenantMutateMatching,
+} from "~/lib/swr";
+import { ROOM_DERIVED_CACHE_KEY_FRAGMENTS } from "~/lib/swr/room-derived-caches";
 
 const logger = createLogger({ component: "DatabaseRoomsPage" });
 
@@ -77,6 +82,15 @@ export default function RoomsPage() {
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
   const tenantMutate = useTenantMutate();
+  // Other pages stamp room data (colour, name) into their cached student/
+  // visit rows, so a Room save has to invalidate them too — otherwise the
+  // badge colours stay stale until the user navigates away and back. The
+  // list of affected cache substrings lives in lib/swr/room-derived-caches.ts
+  // as a single source of truth — keep it there, not inline here, so future
+  // SWR consumers see the doc comment when they touch the file.
+  const refreshRoomConsumers = useTenantMutateMatching(
+    ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
+  );
 
   const {
     data: roomsData,
@@ -249,7 +263,12 @@ export default function RoomsPage() {
             selectedRoom.name,
           ),
         );
-        await tenantMutate("database-rooms-list");
+        await Promise.all([
+          tenantMutate("database-rooms-list"),
+          // Refetch every consumer that holds room-stamped data so badges
+          // pick up the new color without a manual reload.
+          refreshRoomConsumers(),
+        ]);
       } catch (updateError) {
         logger.error("failed to update room", {
           room_id: selectedRoom.id,
@@ -261,7 +280,7 @@ export default function RoomsPage() {
         throw updateError;
       }
     },
-    [selectedRoom, service, tenantMutate, toastSuccess],
+    [selectedRoom, service, tenantMutate, refreshRoomConsumers, toastSuccess],
   );
 
   const handleDeleteRoom = useCallback(async () => {

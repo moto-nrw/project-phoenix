@@ -235,9 +235,22 @@ vi.mock("@/components/ui/location-badge", () => ({
 }));
 
 // Mock StudentPresenceBadge — page-level wrapper that picks Location vs
-// PresenceBadge based on tenant presence mode.
+// PresenceBadge based on tenant presence mode. Exposes `current_room_color`
+// from the student prop as a data attribute so we can assert the BFF→state
+// pipeline doesn't drop the per-room color (regression guard for #1324).
 vi.mock("@/components/ui/student-presence-badge", () => ({
-  StudentPresenceBadge: () => <div data-testid="location-badge">Presence</div>,
+  StudentPresenceBadge: ({
+    student,
+  }: {
+    student?: { current_room_color?: string | null };
+  }) => (
+    <div
+      data-testid="location-badge"
+      data-room-color={student?.current_room_color ?? ""}
+    >
+      Presence
+    </div>
+  ),
 }));
 
 // Mock EmptyStudentResults
@@ -245,19 +258,23 @@ vi.mock("~/components/ui/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
-// Mock StudentCard — renders extraContent to exercise urgency icon rendering
+// Mock StudentCard — renders extraContent and locationBadge so tests can
+// assert downstream presence-badge props (e.g. current_room_color forwarding).
 vi.mock("~/components/students/student-card", () => ({
   StudentCard: ({
     firstName,
     lastName,
     extraContent,
+    locationBadge,
   }: {
     firstName: string;
     lastName: string;
     extraContent?: React.ReactNode;
+    locationBadge?: React.ReactNode;
   }) => (
     <div data-testid="student-card">
       {firstName} {lastName}
+      {locationBadge}
       {extraContent && <div data-testid="extra-content">{extraContent}</div>}
     </div>
   ),
@@ -1163,6 +1180,49 @@ describe("OGSGroupPage", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
       // Student name should render from first_name + last_name mapping
       expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
+    });
+  });
+
+  it("forwards current_room_color from BFF dashboard data to the badge", async () => {
+    // Regression guard: the dashboard-data → local-state mapping previously
+    // dropped current_room_color, so navigating away and back into a group
+    // reverted custom room badges to the OTHER_ROOM blue fallback.
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            school_class: "1a",
+            current_location: "Anwesend - Raum 101",
+            current_room_color: "#A3D977",
+          },
+        ],
+        roomStatus: null,
+        substitutions: [],
+        pickupTimes: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      const badge = screen.getByTestId("location-badge");
+      expect(badge).toHaveAttribute("data-room-color", "#A3D977");
     });
   });
 });

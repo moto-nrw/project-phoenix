@@ -62,8 +62,9 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 	// Add room info if available
 	if group.Room != nil {
 		response.Room = &RoomSimple{
-			ID:   group.Room.ID,
-			Name: group.Room.Name,
+			ID:    group.Room.ID,
+			Name:  group.Room.Name,
+			Color: group.Room.Color,
 		}
 	}
 

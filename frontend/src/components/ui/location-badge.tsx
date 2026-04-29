@@ -171,11 +171,12 @@ export function LocationBadge({
     );
     if (hasDetailedAccess) {
       // Own students - user can see full room details
-      // Green: OGS group room, Blue: other room, Orange: Schulhof, etc.
+      // Green: OGS group room, per-room hex when set, Blue otherwise; Orange: Schulhof, etc.
       color = getLocationColor(
         student.current_location,
         isGroupRoom,
         groupRooms,
+        student.current_room_color,
       );
     } else {
       // Foreign students - user sees limited info (only status, no room)
@@ -185,7 +186,12 @@ export function LocationBadge({
     }
   } else {
     // roomName mode - use full location for color
-    color = getLocationColor(student.current_location, isGroupRoom, groupRooms);
+    color = getLocationColor(
+      student.current_location,
+      isGroupRoom,
+      groupRooms,
+      student.current_room_color,
+    );
   }
 
   // Override for sick/excused/notArrival students at home: replace the base label

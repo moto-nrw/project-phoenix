@@ -63,10 +63,16 @@ type GroupSupervisorSimple struct {
 	Role    string `json:"role,omitempty"`
 }
 
-// RoomSimple represents simplified room info for active group response
+// RoomSimple represents simplified room info for active group response.
+//
+// Color is included so badge consumers (active-supervisions BFF, OGS dashboard
+// BFF) can paint per-room badges without a follow-up GET /rooms/{id} per
+// active group. omitempty keeps responses unchanged for rooms with no color
+// override; clients fall back to the OTHER_ROOM blue.
 type RoomSimple struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID    int64   `json:"id"`
+	Name  string  `json:"name"`
+	Color *string `json:"color,omitempty"`
 }
 
 // VisitResponse represents a visit API response

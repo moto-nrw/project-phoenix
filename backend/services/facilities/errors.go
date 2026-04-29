@@ -16,6 +16,8 @@ var (
 	ErrCategoryNotFound     = errors.New("category not found")
 	ErrRoomInUse            = errors.New("Raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet") //nolint:staticcheck // ST1005: user-facing German message
 	ErrSystemRoomProtected  = errors.New("Systemraum kann nicht gelöscht oder umbenannt werden")                                  //nolint:staticcheck // ST1005: user-facing German message
+	ErrColorAlreadyInUse    = errors.New("Diese Farbe ist bereits einem anderen Raum zugeordnet")                                 //nolint:staticcheck // ST1005: user-facing German message
+	ErrColorReserved        = errors.New("Diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // FacilitiesError represents a facilities-related error

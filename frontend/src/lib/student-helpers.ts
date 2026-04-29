@@ -50,6 +50,8 @@ export interface BackendStudent {
   school_class: string;
   current_location?: string | null;
   location_since?: string | null; // When student entered current location (ISO timestamp)
+  /** Hex color of the current room when set (Issue #1324). Drives badge color in LocationBadge. */
+  current_room_color?: string | null;
   bus?: boolean;
   sick?: boolean;
   sick_since?: string;
@@ -148,6 +150,8 @@ export interface Student {
   current_location: string;
   // When student entered current location (only for hasFullAccess users)
   location_since?: string;
+  /** Hex color of the current room when set (Issue #1324). Empty string treated as null. */
+  current_room_color?: string | null;
   // Transportation method (separate from attendance)
   takes_bus?: boolean;
   bus?: boolean; // Administrative permission flag (Buskind), not attendance status
@@ -216,6 +220,7 @@ export function mapStudentResponse(
     // New attendance-based system
     current_location,
     location_since: backendStudent.location_since ?? undefined,
+    current_room_color: backendStudent.current_room_color ?? null,
     takes_bus: undefined,
     bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
     sick: backendStudent.sick ?? false, // Sickness status

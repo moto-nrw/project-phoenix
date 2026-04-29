@@ -187,8 +187,9 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 	// Include room name for all authenticated staff (needed for supervised room checkout)
 	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
 		return common.StudentLocationInfo{
-			Location: fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
-			Since:    &currentVisit.EntryTime,
+			Location:  fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
+			Since:     &currentVisit.EntryTime,
+			RoomColor: activeGroup.Room.Color,
 		}
 	}
 
@@ -229,6 +230,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, services.ActiveService)
 		response.Location = locationInfo.Location
 		response.LocationSince = locationInfo.Since
+		response.RoomColor = locationInfo.RoomColor
 	}
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
@@ -265,6 +267,7 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	locationInfo := snapshot.ResolveLocationWithTime(student.ID, hasFullAccess)
 	response.Location = locationInfo.Location
 	response.LocationSince = locationInfo.Since
+	response.RoomColor = locationInfo.RoomColor
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 	populateSnapshotPublicFields(&response, student)

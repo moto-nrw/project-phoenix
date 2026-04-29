@@ -218,11 +218,9 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 		Color:    req.Color,
 	}
 
-	// Validate the room
-	if err := room.Validate(); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
+	// Validation runs inside CreateRoom — keeping it there as the single
+	// source of truth lets the service translate facilities.ErrReservedColor
+	// to the German service-level error which ErrorRenderer maps to 400.
 
 	// Create room using service
 	tenantID := tenant.FromContext(r.Context())
@@ -230,7 +228,7 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 		return rs.FacilityService.CreateRoom(ctx, room)
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -269,11 +267,8 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	room.Category = req.Category
 	room.Color = req.Color
 
-	// Validate the room
-	if err := room.Validate(); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
+	// Validation runs inside UpdateRoom; ErrorRenderer translates German
+	// ErrColorReserved / ErrColorAlreadyInUse to 400 / 409 respectively.
 
 	// Update room using service
 	tenantID := tenant.FromContext(r.Context())
@@ -281,7 +276,7 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 		return rs.FacilityService.UpdateRoom(ctx, room)
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 

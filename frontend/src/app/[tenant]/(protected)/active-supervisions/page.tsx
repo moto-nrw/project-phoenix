@@ -74,6 +74,8 @@ interface ActiveRoom {
   name: string;
   room_name?: string;
   room_id?: string;
+  /** Hex color of the room when set; drives the per-room badge color in LocationBadge. */
+  room_color?: string;
   student_count?: number;
   supervisor_name?: string;
   students?: StudentWithVisit[];
@@ -104,7 +106,7 @@ interface BFFDashboardResponse {
     id: string;
     name: string;
     room_id?: string;
-    room?: { id: string; name: string };
+    room?: { id: string; name: string; color?: string | null };
   }>;
   unclaimedGroups: Array<{
     id: string;
@@ -412,6 +414,7 @@ function MeinRaumPageContent() {
       roomId: string,
       roomName?: string,
       groupNameToId?: Map<string, string>,
+      roomColor?: string | null,
     ): Promise<StudentWithVisit[]> => {
       try {
         // Use bulk endpoint to fetch visits with display data for specific room
@@ -442,6 +445,7 @@ function MeinRaumPageContent() {
             second_name: lastName,
             school_class: visit.schoolClass ?? "",
             current_location: location,
+            current_room_color: roomColor ?? null,
             group_name: visit.groupName,
             group_id: groupId, // Add group_id for permission checking
             sick: visit.sick,
@@ -723,6 +727,7 @@ function MeinRaumPageContent() {
         name: group.name,
         room_name: group.room?.name,
         room_id: group.room_id,
+        room_color: group.room?.color ?? undefined,
         student_count: undefined,
         supervisor_name: undefined,
       }))
@@ -778,6 +783,7 @@ function MeinRaumPageContent() {
               second_name: lastName,
               school_class: visit.schoolClass ?? "",
               current_location: location,
+              current_room_color: firstRoom.room_color ?? null,
               group_name: visit.groupName,
               group_id: groupId,
               sick: visit.sick,
@@ -937,6 +943,7 @@ function MeinRaumPageContent() {
           second_name: lastName,
           school_class: visit.schoolClass ?? "",
           current_location: location,
+          current_room_color: currentRoom?.room_color ?? null,
           group_name: visit.groupName,
           group_id: groupId,
           sick: visit.sick,
@@ -1142,6 +1149,7 @@ function MeinRaumPageContent() {
         selectedRoom.id,
         selectedRoom.room_name,
         groupNameToIdMapRef.current,
+        selectedRoom.room_color,
       );
 
       // Set students state

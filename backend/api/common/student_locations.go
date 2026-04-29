@@ -9,10 +9,17 @@ import (
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
-// StudentLocationInfo contains resolved location data including timestamps
+// StudentLocationInfo contains resolved location data including timestamps.
+//
+// RoomColor carries the room's configured hex code (e.g. "#A3D977") when the
+// student is currently checked into a real room and that room has a color
+// override set. Frontend uses it to differentiate room badges instead of
+// rendering every "in some room" student blue. Nil for non-room statuses
+// (Schulhof / Unterwegs / Zuhause) and for rooms without a custom color.
 type StudentLocationInfo struct {
-	Location string
-	Since    *time.Time // When the student entered this location (nil if not in a room)
+	Location  string
+	Since     *time.Time // When the student entered this location (nil if not in a room)
+	RoomColor *string    // Hex color of the current room, nil when no room or no override set
 }
 
 // Mode constants for StudentLocationSnapshot.Mode. Kept as bare strings to
@@ -210,8 +217,9 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 
 	if group.Room != nil && group.Room.Name != "" {
 		return StudentLocationInfo{
-			Location: fmt.Sprintf("Anwesend - %s", group.Room.Name),
-			Since:    &visit.EntryTime,
+			Location:  fmt.Sprintf("Anwesend - %s", group.Room.Name),
+			Since:     &visit.EntryTime,
+			RoomColor: group.Room.Color,
 		}
 	}
 
