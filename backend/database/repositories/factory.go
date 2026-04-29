@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
+	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
@@ -21,6 +22,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
@@ -139,6 +141,12 @@ type Factory struct {
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	School                   platformModels.SchoolRepository
+	EmailOutbox              platformModels.EmailOutboxRepository
+
+	// Enrollment domain (parent-enrollment PR 5+)
+	FormSchema   enrollmentModels.FormSchemaRepository
+	Request      enrollmentModels.RequestRepository
+	RequestChild enrollmentModels.RequestChildRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -249,5 +257,11 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
+		EmailOutbox:              platformRepo.NewEmailOutboxRepository(db),
+
+		// Enrollment repositories
+		FormSchema:   enrollment.NewFormSchemaRepository(db),
+		Request:      enrollment.NewRequestRepository(db),
+		RequestChild: enrollment.NewRequestChildRepository(db),
 	}
 }
