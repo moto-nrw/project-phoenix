@@ -67,6 +67,17 @@ var pyreportalCheckinErrorStrings = []string{
 	"ACTIVITY_CAPACITY_EXCEEDED",
 	"activity capacity exceeded",
 
+	// Duplicate active visit (POST /checkin) — 409 Conflict path added in
+	// migration 1.15.45. PyrePortal substring-matches the code to surface
+	// "Schüler*in ist bereits angemeldet" instead of the generic conflict
+	// fallback. The English message phrasing is the canonical
+	// active-service error from services/active/errors.go and is
+	// surfaced both as the response Message and as the typed Error()
+	// string so existing PyrePortal builds without the new code mapping
+	// still display a sensible message.
+	"STUDENT_ALREADY_ACTIVE",
+	"student already has an active visit",
+
 	// RFID lookup (POST /checkin, POST /pickup-query)
 	"RFID tag not found",
 	"RFID tag not assigned",

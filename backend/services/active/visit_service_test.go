@@ -138,6 +138,42 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	// Duplicate-active-visit path (Issue #844). Two paths can produce
+	// ErrStudentAlreadyActive: the application-level read-then-write check
+	// in ensureStudentHasNoActiveVisit (covers the common single-thread
+	// case) and the partial unique index from migration 1.15.45 (catches
+	// concurrent races that slip past the app check). Both must produce
+	// the same typed error so the IoT handler can map either to a 409.
+	t.Run("returns ErrStudentAlreadyActive when student already has open visit", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, "dup-visit")
+		room := testpkg.CreateTestRoom(t, db, "Dup Visit Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, db, "Duplicate", "Visit", "1a")
+		staff := testpkg.CreateTestStaff(t, db, "Dup", "Staff")
+		iotDevice := testpkg.CreateTestDevice(t, db, "dup-visit-device")
+		existing := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-5*time.Minute), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, iotDevice.ID, existing.ID)
+
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+
+		duplicate := &activeModels.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: activeGroup.ID,
+			EntryTime:     time.Now(),
+		}
+
+		// ACT
+		err := service.CreateVisit(deviceCtx, duplicate)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, active.ErrStudentAlreadyActive),
+			"expected ErrStudentAlreadyActive, got %v", err)
+		assert.Equal(t, int64(0), duplicate.ID, "duplicate visit must not be persisted")
+	})
 }
 
 // =============================================================================

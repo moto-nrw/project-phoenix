@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -314,6 +315,32 @@ func (rs *Resource) loadCurrentVisitWithRoom(ctx context.Context, studentID int6
 	return currentVisit
 }
 
+// buildStudentAlreadyActiveResponse builds the 409 Conflict response body
+// for a duplicate-checkin attempt. It best-effort-loads the existing visit
+// so the kiosk can show "Bereits angemeldet in Raum X". The lookup is
+// deliberately tolerant: if it fails (race window between INSERT failure
+// and the response build, or the visit was just closed by another path),
+// we return the response with only StudentID set rather than upgrading the
+// 409 to a 500. The kiosk degrades to a generic "already checked in"
+// message in that case, which is still strictly better than the old 500.
+func (rs *Resource) buildStudentAlreadyActiveResponse(ctx context.Context, studentID int64) render.Renderer {
+	existing := rs.loadCurrentVisitWithRoom(ctx, studentID)
+	if existing == nil {
+		return iotCommon.ErrorStudentAlreadyActive(studentID, 0, time.Time{}, nil, "")
+	}
+
+	var roomID *int64
+	var roomName string
+	if existing.ActiveGroup != nil {
+		rid := existing.ActiveGroup.RoomID
+		roomID = &rid
+		if existing.ActiveGroup.Room != nil {
+			roomName = existing.ActiveGroup.Room.Name
+		}
+	}
+	return iotCommon.ErrorStudentAlreadyActive(studentID, existing.ID, existing.EntryTime, roomID, roomName)
+}
+
 // processCheckout handles the checkout logic for a student with an active visit
 // Returns: visitID, previousRoomName, error
 func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, currentVisit *active.Visit) (*int64, string, error) {
@@ -441,6 +468,21 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 		slog.Int64("active_group_id", selection.Group.ID),
 	)
 	if err := rs.ActiveService.CreateVisit(ctx, newVisit); err != nil {
+		// Duplicate active visit — race between two concurrent scans, or a
+		// previous checkout that didn't fully commit. Surface as 409 with
+		// the existing visit details so the kiosk can show "Bereits
+		// angemeldet in Raum X" instead of a generic error. The DB-level
+		// guard is migration 1.15.45's partial unique index; the
+		// application-level guard is ensureStudentHasNoActiveVisit in the
+		// active service. Either path translates to ErrStudentAlreadyActive.
+		if errors.Is(err, activeSvc.ErrStudentAlreadyActive) {
+			rs.getLogger().InfoContext(ctx, "duplicate active visit rejected",
+				slog.Int64("student_id", student.ID),
+				slog.String("error", err.Error()),
+			)
+			iotCommon.RenderError(w, r, rs.buildStudentAlreadyActiveResponse(ctx, student.ID))
+			return nil, nil, err
+		}
 		rs.getLogger().ErrorContext(ctx, "failed to create visit",
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
