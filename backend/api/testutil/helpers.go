@@ -106,6 +106,47 @@ func WithClaims(claims jwt.AppClaims) RequestOption {
 	}
 }
 
+// WithJWTBearer sets an Authorization: Bearer <token> header on the request.
+// Use together with MintTestJWT when exercising a Resource via Router(), where
+// the production JWT middleware chain (Verifier → Authenticator → TenantMiddleware)
+// runs and rejects requests that lack a real signed token.
+func WithJWTBearer(token string) RequestOption {
+	return func(req *http.Request) {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+}
+
+// MintTestJWT signs a JWT for the given claims using the same configuration as
+// production (jwt.NewTokenAuth reads the JWT secret from viper / env). Pair it
+// with WithJWTBearer when calling handlers through Resource.Router() so the
+// production auth middleware accepts the request.
+//
+// Callers must arrange for a non-empty auth_jwt_secret to be present before the
+// Resource is constructed (typically via SeedTestJWTConfig in init() or
+// TestMain). Without a secret, jwx refuses to HMAC-sign and this helper fails.
+func MintTestJWT(t *testing.T, claims jwt.AppClaims) string {
+	t.Helper()
+	tokenAuth, err := jwt.NewTokenAuth()
+	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
+	token, err := tokenAuth.CreateJWT(claims)
+	require.NoError(t, err, "MintTestJWT: CreateJWT")
+	return token
+}
+
+// SeedTestJWTConfig installs deterministic viper defaults for JWT auth so that
+// tests work in environments without a populated .env (e.g. CI). Use it from
+// init() or TestMain in test packages that build a Resource which calls
+// jwt.MustNewTokenAuth() and then use MintTestJWT to sign requests — both
+// callers must see the same secret.
+//
+// SetDefault leaves env-supplied values alone, so this is safe to call when
+// AUTH_JWT_SECRET is already set in the environment.
+func SeedTestJWTConfig() {
+	viper.SetDefault("auth_jwt_secret", "test-secret-for-unit-tests-minimum-32-chars")
+	viper.SetDefault("auth_jwt_expiry", "15m")
+	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
+}
+
 // WithDeviceContext adds an IoT device to the request context.
 // This is used for testing device-authenticated endpoints.
 // Also injects the device's tenant_id so TenantTxMiddleware can create
