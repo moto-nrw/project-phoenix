@@ -31,6 +31,7 @@ interface CalendarPeriodModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: (period: CalendarPeriod) => void;
+  onDeleted?: (period: CalendarPeriod) => void;
   /** Pass an existing period to enter edit mode. Omit/null for create. */
   initial?: CalendarPeriod | null;
   /** Optional defaults used when creating from a visible planner week. */
@@ -75,12 +76,15 @@ export function CalendarPeriodModal({
   isOpen,
   onClose,
   onSaved,
+  onDeleted,
   initial,
   createDefaults,
 }: CalendarPeriodModalProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const isEdit = Boolean(initial);
@@ -91,6 +95,7 @@ export function CalendarPeriodModal({
       initial ? formFromPeriod(initial) : { ...emptyForm(), ...createDefaults },
     );
     setValidationError(null);
+    setDeleteConfirm(false);
   }, [isOpen, initial, createDefaults]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -165,33 +170,87 @@ export function CalendarPeriodModal({
     }
   };
 
+  const handleDelete = async () => {
+    if (!initial) return;
+    if (!deleteConfirm) {
+      setDeleteConfirm(true);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await calendarPeriodService.delete(initial.id);
+      toastSuccess(`Periode "${initial.name}" gelöscht`);
+      onDeleted?.(initial);
+      onClose();
+    } catch (err) {
+      logger.error("period_delete_failed", {
+        period_id: initial.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Periode konnte nicht gelöscht werden";
+      setValidationError(msg);
+      toastError(msg);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={isEdit ? "Kalenderperiode bearbeiten" : "Kalenderperiode anlegen"}
       footer={
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={submitting}
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="submit"
-            form="calendar-period-form"
-            variant="primary"
-            size="sm"
-            isLoading={submitting}
-            loadingText="Speichere …"
-            disabled={!canSubmit}
-          >
-            {isEdit ? "Speichern" : "Anlegen"}
-          </Button>
+        <div className="flex w-full items-center justify-between gap-2">
+          <div>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="sm"
+                onClick={() => void handleDelete()}
+                isLoading={deleting}
+                loadingText="Lösche …"
+                disabled={submitting}
+              >
+                {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            {deleteConfirm && !deleting && (
+              <button
+                type="button"
+                className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                onClick={() => setDeleteConfirm(false)}
+              >
+                Löschen abbrechen
+              </button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={submitting || deleting}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="submit"
+              form="calendar-period-form"
+              variant="primary"
+              size="sm"
+              isLoading={submitting}
+              loadingText="Speichere …"
+              disabled={!canSubmit || deleting}
+            >
+              {isEdit ? "Speichern" : "Anlegen"}
+            </Button>
+          </div>
         </div>
       }
     >

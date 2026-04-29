@@ -320,6 +320,18 @@ export function createPutHandler<T, B = unknown>(
 }
 
 /**
+ * Wrapper function for handling PATCH API routes
+ * Uses the same response format as POST/PUT handlers.
+ * @param handler Function that handles the API request
+ * @returns Response from the handler or error response
+ */
+export function createPatchHandler<T, B = unknown>(
+  handler: WithBodyHandler<T, B>,
+) {
+  return createWithBodyHandler(handler, formatBodyHandlerResponse);
+}
+
+/**
  * Wrapper function for handling DELETE API routes
  * @param handler Function that handles the API request
  * @returns Response from the handler or error response

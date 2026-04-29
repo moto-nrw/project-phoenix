@@ -11,18 +11,28 @@ import { LOCATION_COLORS } from "./location-helper";
 import type {
   ActivityType,
   BackendCreateTemplateResult,
+  BackendAttendanceResponse,
+  BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
+  BackendGapsResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
+  BackendReplanWeekResult,
   BackendTemplatesResponse,
   BackendStartInstanceResult,
+  BackendSubstituteResponse,
   BackendWeeklyInstancesResponse,
+  AttendanceResponse,
   CreateTemplateResult,
   EnrichedInstance,
+  ExceptionConflictsResponse,
+  GapsResponse,
   InstanceStaffSummary,
   InstanceStatusResult,
   MaterializeResult,
+  ReplanWeekResult,
   StartInstanceResult,
+  SubstituteResponse,
   TemplatesResponse,
   WeeklyInstancesResponse,
 } from "./timetable-types";
@@ -328,6 +338,102 @@ export function mapMaterializeResult(
       message: w.message,
     })),
     durationMs: raw.duration_ms,
+  };
+}
+
+export function mapReplanWeekResult(
+  raw: BackendReplanWeekResult,
+): ReplanWeekResult {
+  return {
+    from: raw.from,
+    to: raw.to,
+    deletedInstances: raw.deleted_instances,
+    candidatesSkippedExisting: raw.candidates_skipped_existing,
+    instancesCreated: raw.instances_created,
+    instanceStudentsCreated: raw.instance_students_created,
+    instanceStaffCreated: raw.instance_staff_created,
+    warnings: (raw.warnings ?? []).map((w) => ({
+      code: w.code as ReplanWeekResult["warnings"][number]["code"],
+      message: w.message,
+    })),
+    durationMs: raw.duration_ms,
+  };
+}
+
+export function mapGaps(raw: BackendGapsResponse): GapsResponse {
+  return {
+    from: raw.from,
+    to: raw.to,
+    gaps: (raw.gaps ?? []).map((gap) => ({
+      instanceId: String(gap.instance_id),
+      date: gap.date,
+      title: gap.title,
+      startTime: gap.start_time,
+      endTime: gap.end_time,
+      roomId: String(gap.room_id),
+      status: gap.status,
+      assignedStaffCount: gap.assigned_staff_count,
+      absentStaffCount: gap.absent_staff_count,
+    })),
+  };
+}
+
+export function mapExceptionConflicts(
+  raw: BackendExceptionConflictsResponse,
+): ExceptionConflictsResponse {
+  return {
+    from: raw.from,
+    to: raw.to,
+    conflicts: (raw.conflicts ?? []).map((conflict) => ({
+      kind: conflict.kind,
+      date: conflict.date,
+      activityGroupId: String(conflict.activity_group_id),
+      instanceId: String(conflict.instance_id),
+      activityTitle: conflict.activity_title,
+      studentId: String(conflict.student_id),
+      expectedArrival: conflict.expected_arrival,
+      arrivalSource: conflict.arrival_source,
+      cancellationReason: conflict.cancellation_reason,
+      originalStartTime: conflict.original_start_time,
+      modifiedStartTime: conflict.modified_start_time,
+    })),
+  };
+}
+
+export function mapAttendance(
+  raw: BackendAttendanceResponse,
+): AttendanceResponse {
+  return {
+    id: String(raw.id),
+    instanceId: String(raw.instance_id),
+    studentId: String(raw.student_id),
+    status: raw.status,
+    substatus: raw.substatus,
+    note: raw.note,
+    updatedAt: raw.updated_at,
+  };
+}
+
+export function mapSubstitute(
+  raw: BackendSubstituteResponse,
+): SubstituteResponse {
+  return {
+    absentStaffId: String(raw.absent_staff_id),
+    substituteStaffId: String(raw.substitute_staff_id),
+    date: raw.date,
+    affectedInstances: (raw.affected_instances ?? []).map((item) => ({
+      instanceId: String(item.instance_id),
+      title: item.title,
+      startTime: item.start_time,
+      action: item.action,
+    })),
+    warnings: (raw.warnings ?? []).map((warning) => ({
+      instanceId: String(warning.instance_id),
+      title: warning.title,
+      date: warning.date,
+      startTime: warning.start_time,
+      endTime: warning.end_time,
+    })),
   };
 }
 

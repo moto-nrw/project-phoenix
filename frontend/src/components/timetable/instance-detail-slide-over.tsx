@@ -14,6 +14,7 @@
  */
 
 import { useState } from "react";
+import type React from "react";
 import {
   CheckCircle2,
   CircleX,
@@ -44,7 +45,11 @@ import {
   getGermanWeekdayLong,
   getStatusLabel,
 } from "~/lib/timetable-helpers";
-import type { EnrichedInstance, InstanceStatus } from "~/lib/timetable-types";
+import type {
+  AttendancePatchBody,
+  EnrichedInstance,
+  InstanceStatus,
+} from "~/lib/timetable-types";
 
 export type LifecycleAction = "start" | "complete" | "cancel";
 
@@ -53,6 +58,13 @@ interface InstanceDetailSlideOverProps {
   onClose: () => void;
   onLifecycleAction: (action: LifecycleAction) => Promise<void>;
   onEdit?: (instance: EnrichedInstance) => void;
+  staffNames?: Map<string, string>;
+  studentNames?: Map<string, string>;
+  onAttendancePatch?: (
+    instanceId: string,
+    studentId: string,
+    body: AttendancePatchBody,
+  ) => Promise<void>;
   /**
    * When true, edit + spontaneous-create UI surfaces are visible but
    * disabled with a tooltip. Default true until backend PUT/POST land.
@@ -98,11 +110,15 @@ export function InstanceDetailSlideOver({
   onClose,
   onLifecycleAction,
   onEdit,
+  staffNames = new Map(),
+  studentNames = new Map(),
+  onAttendancePatch,
   editDeferred = true,
 }: InstanceDetailSlideOverProps) {
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
   );
+  const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
 
   const handleLifecycle = async (action: LifecycleAction) => {
     setPendingAction(action);
@@ -110,6 +126,19 @@ export function InstanceDetailSlideOver({
       await onLifecycleAction(action);
     } finally {
       setPendingAction(null);
+    }
+  };
+
+  const handleAttendancePatch = async (
+    studentId: string,
+    body: AttendancePatchBody,
+  ) => {
+    if (!instance || !onAttendancePatch) return;
+    setPendingStudentId(studentId);
+    try {
+      await onAttendancePatch(instance.id, studentId, body);
+    } finally {
+      setPendingStudentId(null);
     }
   };
 
@@ -209,12 +238,87 @@ export function InstanceDetailSlideOver({
               )}
             </Section>
 
-            {editDeferred && (
-              <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-500">
-                Bearbeitung von Zeit, Raum und Personal kommt im nächsten
-                Update. Aktuell: Lifecycle (Starten, Beenden, Absagen) ist live.
-              </div>
-            )}
+            <Section title="Personal">
+              {instance.staff.length === 0 ? (
+                <EmptyLine>Kein Personal zugeordnet.</EmptyLine>
+              ) : (
+                <div className="space-y-1.5">
+                  {instance.staff.map((item) => (
+                    <PersonLine
+                      key={item.staffId}
+                      name={
+                        staffNames.get(item.staffId) ??
+                        `Personal #${item.staffId}`
+                      }
+                      meta={[
+                        item.isPrimary ? "Primär" : null,
+                        item.isAbsent ? "Abwesend" : null,
+                        item.isSubstitute ? "Ersatz" : null,
+                      ]}
+                      danger={item.isAbsent}
+                    />
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            <Section title="Kinder">
+              {instance.studentIds.length === 0 ? (
+                <EmptyLine>Keine Kinder geplant.</EmptyLine>
+              ) : (
+                <div className="space-y-1.5">
+                  {instance.studentIds.map((studentId) => (
+                    <div
+                      key={studentId}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-slate-900">
+                          {studentNames.get(studentId) ?? `Kind #${studentId}`}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Planstatus kann hier administrativ korrigiert werden.
+                        </div>
+                      </div>
+                      {onAttendancePatch && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            isLoading={pendingStudentId === studentId}
+                            disabled={pendingStudentId !== null}
+                            onClick={() =>
+                              void handleAttendancePatch(studentId, {
+                                status: "present",
+                                substatus: null,
+                              })
+                            }
+                          >
+                            Anwesend
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            isLoading={pendingStudentId === studentId}
+                            disabled={pendingStudentId !== null}
+                            onClick={() =>
+                              void handleAttendancePatch(studentId, {
+                                status: "absent",
+                                substatus: "no_show",
+                              })
+                            }
+                          >
+                            Fehlt
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
           </div>
 
           <SlideOverFooter>
@@ -305,6 +409,46 @@ export function InstanceDetailSlideOver({
         </SlideOverContent>
       )}
     </SlideOver>
+  );
+}
+
+function EmptyLine({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+      {children}
+    </div>
+  );
+}
+
+function PersonLine({
+  name,
+  meta,
+  danger,
+}: {
+  name: string;
+  meta: Array<string | null>;
+  danger?: boolean;
+}) {
+  const labels = meta.filter(Boolean);
+  return (
+    <div
+      className={`rounded-md border px-3 py-2 ${
+        danger
+          ? "border-[#FECACA] bg-[#FEF2F2]"
+          : "border-slate-200 bg-slate-50"
+      }`}
+    >
+      <div className="text-sm font-semibold text-slate-900">{name}</div>
+      {labels.length > 0 && (
+        <div
+          className={`mt-0.5 text-[11px] ${
+            danger ? "text-[#B91C1C]" : "text-slate-500"
+          }`}
+        >
+          {labels.join(" • ")}
+        </div>
+      )}
+    </div>
   );
 }
 

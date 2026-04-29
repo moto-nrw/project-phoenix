@@ -33,7 +33,7 @@ export interface ApiErrorResponse {
 /**
  * HTTP methods supported by the API helpers
  */
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /**
  * Options for server-side fetch requests
@@ -129,6 +129,9 @@ async function clientAxiosRequest<T>(
       case "PUT":
         response = await api.put<T>(endpoint, body, config);
         break;
+      case "PATCH":
+        response = await api.patch<T>(endpoint, body, config);
+        break;
       case "DELETE":
         response = await api.delete<T>(endpoint, config);
         break;
@@ -199,6 +202,24 @@ export async function apiPut<T, B = unknown>(
     return serverFetchWithRetry<T>(endpoint, token, { method: "PUT", body });
   }
   return clientAxiosRequest<T>("PUT", endpoint, token, body);
+}
+
+/**
+ * Make a PATCH request to the API
+ * @param endpoint API endpoint to request
+ * @param token Authentication token
+ * @param body Request body
+ * @returns Promise with the response data
+ */
+export async function apiPatch<T, B = unknown>(
+  endpoint: string,
+  token: string,
+  body?: B,
+): Promise<T> {
+  if (globalThis.window === undefined) {
+    return serverFetchWithRetry<T>(endpoint, token, { method: "PATCH", body });
+  }
+  return clientAxiosRequest<T>("PATCH", endpoint, token, body);
 }
 
 /**

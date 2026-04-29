@@ -66,6 +66,7 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const hasPendingArrivalScheduleEvent = useRef(false);
   const hasPendingStudentUpdateEvent = useRef(false);
+  const hasPendingTimetableEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
@@ -201,6 +202,20 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    if (hasPendingTimetableEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("timetable-") ||
+            key.includes("database-calendar-periods-list")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "timetable",
+        });
+      });
+    }
+
     // Reset pending state
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();
@@ -209,6 +224,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
     hasPendingStudentUpdateEvent.current = false;
+    hasPendingTimetableEvent.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -266,6 +282,15 @@ export function useGlobalSSE(): SSEHookState {
 
         case "arrival_schedule_changed": {
           hasPendingArrivalScheduleEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "instance_started":
+        case "instance_completed":
+        case "instance_cancelled":
+        case "instance_overdue": {
+          hasPendingTimetableEvent.current = true;
           scheduleFlush();
           break;
         }

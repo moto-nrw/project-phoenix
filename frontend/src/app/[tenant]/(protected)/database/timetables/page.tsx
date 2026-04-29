@@ -36,6 +36,7 @@ import {
 } from "~/components/timetable/instance-detail-slide-over";
 import { MaterializeButton } from "~/components/timetable/materialize-button";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
+import { PlanQualityPanel } from "~/components/timetable/plan-quality-panel";
 import { RecurringActivityModal } from "~/components/timetable/recurring-activity-modal";
 import { TemplateList } from "~/components/timetable/template-list";
 import { TimetableInstanceModal } from "~/components/timetable/timetable-instance-modal";
@@ -44,6 +45,8 @@ import { WeeklyPlannerGrid } from "~/components/timetable/weekly-planner-grid";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
+import { fetchStudents } from "~/lib/student-api";
+import { staffService } from "~/lib/staff-api";
 import {
   findPeriodForDate,
   mapPeriodsForDates,
@@ -234,9 +237,32 @@ function TimetablesContent() {
 
   const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}`;
   const shouldLoadInstances = view !== "templates";
+  const qualityFromISO = fromISO < todayISO ? todayISO : fromISO;
+  const shouldLoadPlanQuality = view === "week" && toISO >= todayISO;
+  const gapsSWRKey = `timetable-gaps-${qualityFromISO}-${toISO}`;
+  const exceptionConflictsSWRKey = `timetable-exception-conflicts-${qualityFromISO}-${toISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
     () => timetableService.getWeek(fetchFromISO, fetchToISO),
+  );
+  const { data: gapsData, isLoading: gapsLoading } = useSWRAuth(
+    status === "authenticated" && shouldLoadPlanQuality ? gapsSWRKey : null,
+    () => timetableService.getGaps(qualityFromISO, toISO),
+  );
+  const { data: exceptionConflictData, isLoading: conflictsLoading } =
+    useSWRAuth(
+      status === "authenticated" && shouldLoadPlanQuality
+        ? exceptionConflictsSWRKey
+        : null,
+      () => timetableService.getExceptionConflicts(qualityFromISO, toISO),
+    );
+  const { data: staffData } = useSWRAuth(
+    status === "authenticated" ? "timetable-staff-list" : null,
+    () => staffService.getAllStaff(),
+  );
+  const { data: studentData } = useSWRAuth(
+    status === "authenticated" ? "timetable-student-list" : null,
+    () => fetchStudents({ page_size: 500 }),
   );
   const {
     data: periods,
@@ -275,6 +301,24 @@ function TimetablesContent() {
   // when SWR returns the same response (the linter warns when arrays are
   // derived inline because `?? []` produces a new array each render).
   const instances = useMemo(() => data?.instances ?? [], [data?.instances]);
+  const gaps = useMemo(() => gapsData?.gaps ?? [], [gapsData?.gaps]);
+  const exceptionConflicts = useMemo(
+    () => exceptionConflictData?.conflicts ?? [],
+    [exceptionConflictData?.conflicts],
+  );
+  const staff = useMemo(() => staffData ?? [], [staffData]);
+  const students = useMemo(
+    () => studentData?.students ?? [],
+    [studentData?.students],
+  );
+  const staffNames = useMemo(
+    () => new Map(staff.map((item) => [item.id, item.name])),
+    [staff],
+  );
+  const studentNames = useMemo(
+    () => new Map(students.map((item) => [item.id, item.name])),
+    [students],
+  );
   const calendarPeriods = useMemo(() => periods ?? [], [periods]);
   const periodAssignments = useMemo(
     () => mapPeriodsForDates(calendarPeriods, periodContextDayISOs),
@@ -351,6 +395,8 @@ function TimetablesContent() {
           openPeriodCreate();
         }
         await tenantMutate(swrKey);
+        await tenantMutate(gapsSWRKey);
+        await tenantMutate(exceptionConflictsSWRKey);
         return;
       }
 
@@ -360,6 +406,8 @@ function TimetablesContent() {
         } angelegt`,
       );
       await tenantMutate(swrKey);
+      await tenantMutate(gapsSWRKey);
+      await tenantMutate(exceptionConflictsSWRKey);
     } catch (err) {
       logger.error("materialize_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -370,6 +418,8 @@ function TimetablesContent() {
     fromISO,
     toISO,
     swrKey,
+    gapsSWRKey,
+    exceptionConflictsSWRKey,
     toastSuccess,
     toastError,
     tenantMutate,
@@ -412,6 +462,106 @@ function TimetablesContent() {
       }
     },
     [selectedInstance, swrKey, tenantMutate, toastSuccess, toastError],
+  );
+
+  const handleReplanWeek = useCallback(async () => {
+    try {
+      const result = await timetableService.replanWeek(fromISO, toISO);
+      if (result.warnings.length > 0) {
+        for (const warning of result.warnings) {
+          toastError(warning.message);
+        }
+      } else {
+        toastSuccess(
+          `Woche neu berechnet: ${result.instancesCreated} Termine angelegt`,
+        );
+      }
+      await tenantMutate(swrKey);
+      await tenantMutate(gapsSWRKey);
+      await tenantMutate(exceptionConflictsSWRKey);
+    } catch (err) {
+      logger.error("replan_week_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toastError(
+        err instanceof Error
+          ? err.message
+          : "Woche konnte nicht neu berechnet werden",
+      );
+      throw err;
+    }
+  }, [
+    fromISO,
+    toISO,
+    swrKey,
+    gapsSWRKey,
+    exceptionConflictsSWRKey,
+    tenantMutate,
+    toastError,
+    toastSuccess,
+  ]);
+
+  const handleSubstitute = useCallback(
+    async (absentStaffId: string, substituteStaffId: string, date: string) => {
+      try {
+        const result = await timetableService.substitute(
+          absentStaffId,
+          substituteStaffId,
+          date,
+        );
+        toastSuccess(
+          `Ersatz eingetragen: ${result.affectedInstances.length} Termin(e) aktualisiert`,
+        );
+        if (result.warnings.length > 0) {
+          toastError(
+            `${result.warnings.length} mögliche Zeitüberschneidung(en) prüfen.`,
+          );
+        }
+        await tenantMutate(swrKey);
+        await tenantMutate(gapsSWRKey);
+      } catch (err) {
+        logger.error("substitute_failed", {
+          absent_staff_id: absentStaffId,
+          substitute_staff_id: substituteStaffId,
+          date,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toastError(
+          err instanceof Error
+            ? err.message
+            : "Ersatz konnte nicht eingetragen werden",
+        );
+        throw err;
+      }
+    },
+    [gapsSWRKey, swrKey, tenantMutate, toastError, toastSuccess],
+  );
+
+  const handleAttendancePatch = useCallback(
+    async (
+      instanceId: string,
+      studentId: string,
+      body: Parameters<typeof timetableService.patchAttendance>[2],
+    ) => {
+      try {
+        await timetableService.patchAttendance(instanceId, studentId, body);
+        toastSuccess("Kinderstatus aktualisiert");
+        await tenantMutate(swrKey);
+      } catch (err) {
+        logger.error("attendance_patch_failed", {
+          instance_id: instanceId,
+          student_id: studentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toastError(
+          err instanceof Error
+            ? err.message
+            : "Kinderstatus konnte nicht aktualisiert werden",
+        );
+        throw err;
+      }
+    },
+    [swrKey, tenantMutate, toastError, toastSuccess],
   );
 
   const openTemplateCreate = useCallback(() => {
@@ -599,6 +749,21 @@ function TimetablesContent() {
               </div>
             </div>
           )}
+
+          {instances.length > 0 && (
+            <PlanQualityPanel
+              instances={instances}
+              gaps={gaps}
+              conflicts={exceptionConflicts}
+              staff={staff}
+              loading={gapsLoading || conflictsLoading}
+              onSelectInstance={(instanceId) =>
+                updateUrlParams({ instance: instanceId })
+              }
+              onSubstitute={handleSubstitute}
+              onReplanWeek={handleReplanWeek}
+            />
+          )}
         </>
       )}
 
@@ -630,6 +795,9 @@ function TimetablesContent() {
           setEditingInstance(instance);
           setInstanceModalOpen(true);
         }}
+        staffNames={staffNames}
+        studentNames={studentNames}
+        onAttendancePatch={handleAttendancePatch}
         editDeferred={false}
       />
 
@@ -677,6 +845,10 @@ function TimetablesContent() {
         onSaved={() => {
           // Refresh both caches: the period header button and the week grid
           // can pick up the new state without a manual reload.
+          void tenantMutate("database-calendar-periods-list");
+          void tenantMutate(swrKey);
+        }}
+        onDeleted={() => {
           void tenantMutate("database-calendar-periods-list");
           void tenantMutate(swrKey);
         }}

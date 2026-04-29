@@ -113,6 +113,86 @@ export interface BackendWeeklyInstancesResponse {
   instances: BackendEnrichedInstance[];
 }
 
+export interface GapInstance {
+  instanceId: string;
+  date: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  roomId: string;
+  status: InstanceStatus;
+  assignedStaffCount: number;
+  absentStaffCount: number;
+}
+
+export interface GapsResponse {
+  from: string;
+  to: string;
+  gaps: GapInstance[];
+}
+
+export interface BackendGapInstance {
+  instance_id: number;
+  date: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  room_id: number;
+  status: InstanceStatus;
+  assigned_staff_count: number;
+  absent_staff_count: number;
+}
+
+export interface BackendGapsResponse {
+  from: string;
+  to: string;
+  gaps: BackendGapInstance[];
+}
+
+export type ExceptionConflictKind =
+  | "cancelled_instance_with_scheduled_arrivals"
+  | "modified_instance_time_mismatch";
+
+export interface ExceptionConflict {
+  kind: ExceptionConflictKind;
+  date: string;
+  activityGroupId: string;
+  instanceId: string;
+  activityTitle: string;
+  studentId: string;
+  expectedArrival?: string;
+  arrivalSource: string;
+  cancellationReason?: string;
+  originalStartTime?: string;
+  modifiedStartTime?: string;
+}
+
+export interface ExceptionConflictsResponse {
+  from: string;
+  to: string;
+  conflicts: ExceptionConflict[];
+}
+
+export interface BackendExceptionConflict {
+  kind: ExceptionConflictKind;
+  date: string;
+  activity_group_id: number;
+  instance_id: number;
+  activity_title: string;
+  student_id: number;
+  expected_arrival?: string;
+  arrival_source: string;
+  cancellation_reason?: string;
+  original_start_time?: string;
+  modified_start_time?: string;
+}
+
+export interface BackendExceptionConflictsResponse {
+  from: string;
+  to: string;
+  conflicts: BackendExceptionConflict[];
+}
+
 export interface TemplateSchedule {
   id: string;
   weekday: number;
@@ -209,6 +289,30 @@ export interface BackendMaterializeResult {
   duration_ms: number;
 }
 
+export interface ReplanWeekResult {
+  from: string;
+  to: string;
+  deletedInstances: number;
+  candidatesSkippedExisting: number;
+  instancesCreated: number;
+  instanceStudentsCreated: number;
+  instanceStaffCreated: number;
+  warnings: MaterializeWarning[];
+  durationMs: number;
+}
+
+export interface BackendReplanWeekResult {
+  from: string;
+  to: string;
+  deleted_instances: number;
+  candidates_skipped_existing: number;
+  instances_created: number;
+  instance_students_created: number;
+  instance_staff_created: number;
+  warnings?: { code: string; message: string }[];
+  duration_ms: number;
+}
+
 /**
  * Result of the lifecycle endpoints. Start returns warnings; complete and
  * cancel return only the new status.
@@ -244,6 +348,85 @@ export interface BackendInstanceStatusResult {
   instance_id: number;
   status: InstanceStatus;
   completed_at?: string;
+}
+
+export type InstanceAttendanceStatus = "expected" | "present" | "absent";
+export type InstanceAttendanceSubstatus =
+  | "late"
+  | "excused"
+  | "sick"
+  | "no_show";
+
+export interface AttendancePatchBody {
+  status?: InstanceAttendanceStatus;
+  substatus?: InstanceAttendanceSubstatus | null;
+  note?: string | null;
+}
+
+export interface AttendanceResponse {
+  id: string;
+  instanceId: string;
+  studentId: string;
+  status: InstanceAttendanceStatus;
+  substatus?: InstanceAttendanceSubstatus | null;
+  note?: string | null;
+  updatedAt: string;
+}
+
+export interface BackendAttendanceResponse {
+  id: number;
+  instance_id: number;
+  student_id: number;
+  status: InstanceAttendanceStatus;
+  substatus?: InstanceAttendanceSubstatus | null;
+  note?: string | null;
+  updated_at: string;
+}
+
+export interface SubstituteTimeConflict {
+  instanceId: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface SubstituteAffectedInstance {
+  instanceId: string;
+  title: string;
+  startTime: string;
+  action: "substituted" | "already_substituted" | "already_on_instance";
+}
+
+export interface SubstituteResponse {
+  absentStaffId: string;
+  substituteStaffId: string;
+  date: string;
+  affectedInstances: SubstituteAffectedInstance[];
+  warnings: SubstituteTimeConflict[];
+}
+
+export interface BackendSubstituteTimeConflict {
+  instance_id: number;
+  title: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface BackendSubstituteAffectedInstance {
+  instance_id: number;
+  title: string;
+  start_time: string;
+  action: "substituted" | "already_substituted" | "already_on_instance";
+}
+
+export interface BackendSubstituteResponse {
+  absent_staff_id: number;
+  substitute_staff_id: number;
+  date: string;
+  affected_instances: BackendSubstituteAffectedInstance[];
+  warnings: BackendSubstituteTimeConflict[];
 }
 
 /**

@@ -17,20 +17,31 @@ import { getSession } from "next-auth/react";
 import { createLogger } from "./logger";
 import type {
   BackendCreateTemplateResult,
+  BackendAttendanceResponse,
+  BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
+  BackendGapsResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
+  BackendReplanWeekResult,
   BackendStartInstanceResult,
+  BackendSubstituteResponse,
   BackendTimetableTemplate,
   BackendTemplatesResponse,
   BackendWeeklyInstancesResponse,
+  AttendancePatchBody,
+  AttendanceResponse,
   CreateInstanceBody,
   CreateTemplateBody,
   CreateTemplateResult,
   EnrichedInstance,
+  ExceptionConflictsResponse,
+  GapsResponse,
   InstanceStatusResult,
   MaterializeResult,
+  ReplanWeekResult,
   StartInstanceResult,
+  SubstituteResponse,
   TemplatesResponse,
   TimetableTemplate,
   UpdateTemplateBody,
@@ -38,10 +49,15 @@ import type {
 } from "./timetable-types";
 import {
   mapCreateTemplateResult,
+  mapAttendance,
+  mapExceptionConflicts,
+  mapGaps,
   mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
+  mapReplanWeekResult,
   mapStartInstanceResult,
+  mapSubstitute,
   mapTemplates,
   mapWeeklyInstances,
 } from "./timetable-helpers";
@@ -316,6 +332,102 @@ class TimetableService {
       created: raw.instances_created,
     });
     return mapMaterializeResult(raw);
+  }
+
+  async replanWeek(from: string, to: string): Promise<ReplanWeekResult> {
+    const response = await fetch("/api/timetable/instances/re-plan-week", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({ from_date: from, to_date: to }),
+    });
+
+    const raw = await unwrap<BackendReplanWeekResult>(response);
+    logger.info("week_replanned", {
+      from: raw.from,
+      to: raw.to,
+      deleted: raw.deleted_instances,
+      created: raw.instances_created,
+    });
+    return mapReplanWeekResult(raw);
+  }
+
+  async getGaps(from: string, to: string): Promise<GapsResponse> {
+    const params = new URLSearchParams({ date: from, date_to: to });
+    const response = await fetch(`/api/timetable/gaps?${params}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+
+    const raw = await unwrap<BackendGapsResponse>(response);
+    return mapGaps(raw);
+  }
+
+  async getExceptionConflicts(
+    from: string,
+    to: string,
+  ): Promise<ExceptionConflictsResponse> {
+    const params = new URLSearchParams({ date: from, date_to: to });
+    const response = await fetch(
+      `/api/timetable/exception-conflicts?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+
+    const raw = await unwrap<BackendExceptionConflictsResponse>(response);
+    return mapExceptionConflicts(raw);
+  }
+
+  async substitute(
+    absentStaffId: string,
+    substituteStaffId: string,
+    date: string,
+  ): Promise<SubstituteResponse> {
+    const response = await fetch("/api/timetable/substitute", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        absent_staff_id: Number(absentStaffId),
+        substitute_staff_id: Number(substituteStaffId),
+        date,
+      }),
+    });
+
+    const raw = await unwrap<BackendSubstituteResponse>(response);
+    return mapSubstitute(raw);
+  }
+
+  async patchAttendance(
+    instanceId: string,
+    studentId: string,
+    body: AttendancePatchBody,
+  ): Promise<AttendanceResponse> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/students/${studentId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      },
+    );
+
+    const raw = await unwrap<BackendAttendanceResponse>(response);
+    return mapAttendance(raw);
   }
 }
 

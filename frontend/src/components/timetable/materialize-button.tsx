@@ -46,7 +46,7 @@ export function MaterializeButton({
       {showConfirm && !isPending && (
         <span className="text-xs text-slate-600">
           Geplante Termine in <span className="font-semibold">{weekLabel}</span>
-          werden aus Vorlagen synchronisiert.
+          wird aus den Vorlagen als konkrete Termine angelegt.
         </span>
       )}
       <Button
@@ -62,10 +62,10 @@ export function MaterializeButton({
         <span className="inline-flex items-center gap-2">
           <CalendarPlus className="h-4 w-4" />
           {showConfirm
-            ? "Bestätigen"
+            ? "Planen bestätigen"
             : variant === "primary"
-              ? "Woche planen"
-              : "Aus Vorlagen synchronisieren"}
+              ? "Woche aus Vorlagen planen"
+              : "Aus Vorlagen planen"}
         </span>
       </Button>
       {showConfirm && !isPending && (
