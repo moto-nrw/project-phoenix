@@ -161,6 +161,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"handlers_unit_test.go",                                  // Unit tests for converters (no DB)
 		"http_middleware_test.go",                                // Uses nil *bun.DB for unit testing middleware
 		"operator_provisioning_service_test.go",                  // Uses mocks (sqlmock + stubs)
+		"operator_summaries_test.go",                             // Uses mockSummariesRepo + mockOrganizationRepo (no DB)
 		"operator_invitation_test.go",                            // Uses mocks (sqlmock + stubs)
 		"operator_invitation_dispatch_test.go",                   // Uses mocks for email dispatch tests
 		"invitations_test.go",                                    // Uses mocks for handler tests
