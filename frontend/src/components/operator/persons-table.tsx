@@ -126,6 +126,7 @@ export function PersonsTable({
       getRowKey={(row) => row.id}
       emptyState="Keine Personen vorhanden."
       defaultSortKey="name"
+      pageSize={50}
     />
   );
 }

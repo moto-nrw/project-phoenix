@@ -272,10 +272,12 @@ LEFT JOIN auth.accounts AS "a" ON "a".id = "p".account_id
 WHERE "p".deleted_at IS NULL
 `
 
-// PersonsBySchool returns non-deleted persons in a single school.
+// PersonsBySchool returns non-deleted persons in a single, non-deleted school.
+// Mirrors PersonsByOrganization in excluding soft-deleted schools so a Papierkorb
+// drill-in does not surface a populated Personen tab.
 func (r *OperatorSummariesRepository) PersonsBySchool(ctx context.Context, schoolID int64) ([]platform.OperatorPersonInfo, error) {
 	var result []platform.OperatorPersonInfo
-	q := operatorPersonBaseQuery + ` AND "p".tenant_id = ? ORDER BY "p".last_name, "p".first_name`
+	q := operatorPersonBaseQuery + ` AND "p".tenant_id = ? AND "s".deleted_at IS NULL ORDER BY "p".last_name, "p".first_name`
 	if err := base.GetDB(ctx, r.db).NewRaw(q, schoolID).Scan(ctx, &result); err != nil {
 		return nil, err
 	}

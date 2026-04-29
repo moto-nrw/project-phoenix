@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
@@ -28,6 +28,10 @@ interface DataTableProps<T> {
   rowClassName?: (row: T) => string;
   defaultSortKey?: string;
   defaultSortDirection?: SortDirection;
+  // When set, only the first N sorted rows render; a footer button reveals
+  // another N per click. Use on tables whose row count is unbounded
+  // (persons, accounts) — leave undefined on bounded views (orgs, devices).
+  pageSize?: number;
 }
 
 const alignClass: Record<
@@ -51,6 +55,7 @@ export function DataTable<T>({
   rowClassName,
   defaultSortKey,
   defaultSortDirection = "asc",
+  pageSize,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
 
@@ -80,11 +85,34 @@ export function DataTable<T>({
     return [...rows].sort((a, b) => {
       const av = getValue(a);
       const bv = getValue(b);
-      if (av < bv) return -dir;
-      if (av > bv) return dir;
-      return 0;
+      // Branch on type so mixed string/number columns don't fall back to
+      // lexicographic compare and so numeric sort doesn't run through the
+      // `<` operator (which coerces undefined to NaN and shuffles rows).
+      if (typeof av === "number" && typeof bv === "number") {
+        return (av - bv) * dir;
+      }
+      return String(av).localeCompare(String(bv)) * dir;
     });
   }, [rows, sort, columns]);
+
+  const [visibleCount, setVisibleCount] = useState(
+    pageSize ?? Number.POSITIVE_INFINITY,
+  );
+  // If the caller toggles pageSize on/off after mount, snap the visible window
+  // back to the new page size so we never strand the user on a stale slice.
+  const lastPageSize = useRef(pageSize);
+  if (lastPageSize.current !== pageSize) {
+    lastPageSize.current = pageSize;
+    setVisibleCount(pageSize ?? Number.POSITIVE_INFINITY);
+  }
+  const visibleRows = useMemo(() => {
+    if (visibleCount >= sortedRows.length) return sortedRows;
+    return sortedRows.slice(0, visibleCount);
+  }, [sortedRows, visibleCount]);
+  const hasMore = visibleCount < sortedRows.length;
+  const loadMore = useCallback(() => {
+    setVisibleCount((c) => c + (pageSize ?? sortedRows.length));
+  }, [pageSize, sortedRows.length]);
 
   return (
     <div className="w-full">
@@ -189,7 +217,7 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              sortedRows.map((row) => {
+              visibleRows.map((row) => {
                 const rowKey = getRowKey(row);
                 const rowClasses = [
                   "border-b border-gray-50 last:border-0 transition-colors",
@@ -233,6 +261,19 @@ export function DataTable<T>({
                   </tr>
                 );
               })
+            )}
+            {!isLoading && hasMore && (
+              <tr className="border-t border-gray-100">
+                <td colSpan={columns.length} className="px-5 py-3 text-center">
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                  >
+                    {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
+                  </button>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

@@ -7,6 +7,13 @@ import (
 
 // ProvisioningStats holds platform-wide aggregate counts for the operator
 // overview KPI strip. All counts exclude soft-deleted rows.
+//
+// KontenCount is DISTINCT account_id across all active account-tenant
+// memberships, so an account active in N schools counts once at the platform
+// level. That account still contributes one row to each of those N schools'
+// own KontenCount, so the platform total will not equal the sum of school
+// totals (and an organization's total will not equal the sum of its schools'
+// totals either). Do not derive parent counts by summing children.
 type ProvisioningStats struct {
 	TraegerCount int `bun:"traeger_count" json:"traeger_count"`
 	SchulenCount int `bun:"schulen_count" json:"schulen_count"`
@@ -16,6 +23,11 @@ type ProvisioningStats struct {
 
 // OrganizationSummary is an organization row enriched with aggregate counts
 // scoped to that organization. Counts reflect non-deleted child entities only.
+//
+// KontenCount uses DISTINCT account_id within the org's schools, so an account
+// active in multiple schools of the same org counts once for the org row but
+// once per school in SchoolSummary. Do not sum SchoolSummary.KontenCount to
+// reconstruct this value.
 type OrganizationSummary struct {
 	ID            int64      `bun:"id" json:"id"`
 	Name          string     `bun:"name" json:"name"`
@@ -34,6 +46,11 @@ type OrganizationSummary struct {
 // SchoolSummary is a school row enriched with aggregate counts scoped to that
 // school. Counts reflect non-deleted child entities only. OrganizationName is
 // denormalized from the parent for display in the global Schulen list.
+//
+// KontenCount is DISTINCT account_id within this school. The same account may
+// also appear in sibling schools, so summing KontenCount across schools
+// double-counts shared accounts and will exceed the parent organization's or
+// platform's KontenCount.
 type SchoolSummary struct {
 	ID               int64      `bun:"id" json:"id"`
 	OrganizationID   int64      `bun:"organization_id" json:"organization_id"`

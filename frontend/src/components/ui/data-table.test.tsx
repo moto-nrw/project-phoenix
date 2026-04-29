@@ -141,3 +141,85 @@ describe("DataTable keyboard navigation", () => {
     }
   });
 });
+
+describe("DataTable pagination", () => {
+  const manyRows: Row[] = Array.from({ length: 12 }, (_, i) => ({
+    id: String(i + 1),
+    name: `Row ${String(i + 1).padStart(2, "0")}`,
+  }));
+
+  it("renders only the first pageSize rows initially", () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={manyRows}
+        getRowKey={(row) => row.id}
+        pageSize={5}
+      />,
+    );
+
+    expect(screen.getByText("Row 01")).toBeInTheDocument();
+    expect(screen.getByText("Row 05")).toBeInTheDocument();
+    expect(screen.queryByText("Row 06")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Mehr laden \(5 von 12\)/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("reveals another pageSize chunk when 'Mehr laden' is clicked", () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={manyRows}
+        getRowKey={(row) => row.id}
+        pageSize={5}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Mehr laden \(5 von 12\)/ }),
+    );
+
+    expect(screen.getByText("Row 06")).toBeInTheDocument();
+    expect(screen.getByText("Row 10")).toBeInTheDocument();
+    expect(screen.queryByText("Row 11")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Mehr laden \(10 von 12\)/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the load-more button once all rows are visible", () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={manyRows}
+        getRowKey={(row) => row.id}
+        pageSize={5}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Mehr laden/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Mehr laden/ }));
+
+    expect(screen.getByText("Row 12")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Mehr laden/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders all rows and no button when pageSize is omitted", () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={manyRows}
+        getRowKey={(row) => row.id}
+      />,
+    );
+
+    expect(screen.getByText("Row 01")).toBeInTheDocument();
+    expect(screen.getByText("Row 12")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Mehr laden/ }),
+    ).not.toBeInTheDocument();
+  });
+});

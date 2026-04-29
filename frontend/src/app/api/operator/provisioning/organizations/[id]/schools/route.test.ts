@@ -95,4 +95,53 @@ describe("GET /api/operator/provisioning/organizations/[id]/schools", () => {
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(mockFetch).not.toHaveBeenCalled();
   });
+
+  // Negative paths — these used to be uncovered. The drill-in dashboard
+  // depends on 404 propagating verbatim so an org that was deleted in
+  // another tab surfaces a "not found" toast rather than a generic 500.
+  it("forwards a backend 404 with the same status code", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: async () => JSON.stringify({ error: "organization not found" }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/organizations/999/schools",
+    );
+    const response = await GET(request, contextWith("999"));
+
+    expect(response.status).toBe(404);
+    const json = (await response.json()) as { error?: string };
+    expect(json.error).toBe("organization not found");
+  });
+
+  it("forwards a backend 500 with the same status code", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: async () => "internal error",
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/organizations/42/schools",
+    );
+    const response = await GET(request, contextWith("42"));
+
+    expect(response.status).toBe(500);
+  });
+
+  it("returns 500 when fetch throws a network error", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockRejectedValue(new TypeError("fetch failed"));
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/organizations/42/schools",
+    );
+    const response = await GET(request, contextWith("42"));
+
+    expect(response.status).toBe(500);
+  });
 });

@@ -97,13 +97,16 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 	require.NoError(t, err)
 
 	// Two persons in schoolA1, one in schoolB1, plus one soft-deleted that must
-	// not contribute to any count.
+	// not contribute to any count. personATrash sits in the soft-deleted school
+	// so PersonsBySchool can assert that drilling into a Papierkorb school does
+	// not surface persons.
 	personA1 := testpkg.CreateTestPersonForTenant(t, db, schoolA1.ID, "Anna", fmt.Sprintf("AlphaOne-%d", now))
 	personA2 := testpkg.CreateTestPersonForTenant(t, db, schoolA2.ID, "Adam", fmt.Sprintf("AlphaTwo-%d", now))
 	personB1 := testpkg.CreateTestPersonForTenant(t, db, schoolB1.ID, "Bea", fmt.Sprintf("BetaOne-%d", now))
 	personDeleted := testpkg.CreateTestPersonForTenant(t, db, schoolA1.ID, "Ghost", fmt.Sprintf("Deleted-%d", now))
 	_, err = db.ExecContext(ctx, `UPDATE users.persons SET deleted_at = NOW() WHERE id = ?`, personDeleted.ID)
 	require.NoError(t, err)
+	personATrash := testpkg.CreateTestPersonForTenant(t, db, schoolADel.ID, "Trash", fmt.Sprintf("AlphaTrash-%d", now))
 
 	// Two accounts. Account 1 is mapped active to BOTH schoolA1 and schoolA2 to
 	// pin the DISTINCT-account semantics. Account 2 is mapped to schoolB1 only.
@@ -129,8 +132,8 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id IN (?, ?)`, acct1.ID, acct2.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id IN (?, ?)`, acct1.ID, acct2.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM iot.devices WHERE id IN (?, ?)`, devA1.ID, devB1.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM users.persons WHERE id IN (?, ?, ?, ?)`,
-			personA1.ID, personA2.ID, personB1.ID, personDeleted.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM users.persons WHERE id IN (?, ?, ?, ?, ?)`,
+			personA1.ID, personA2.ID, personB1.ID, personDeleted.ID, personATrash.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id IN (?, ?, ?, ?)`,
 			schoolA1.ID, schoolA2.ID, schoolB1.ID, schoolADel.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id IN (?, ?, ?)`,
@@ -298,25 +301,36 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 
 	fix := setupSummariesFixture(t, db)
 
-	rows, err := repo.PersonsBySchool(ctx, fix.SchoolA1.ID)
-	require.NoError(t, err)
+	t.Run("returns persons for active school with org context", func(t *testing.T) {
+		rows, err := repo.PersonsBySchool(ctx, fix.SchoolA1.ID)
+		require.NoError(t, err)
 
-	ids := map[int64]platformModels.OperatorPersonInfo{}
-	for _, p := range rows {
-		ids[p.ID] = p
-	}
+		ids := map[int64]platformModels.OperatorPersonInfo{}
+		for _, p := range rows {
+			ids[p.ID] = p
+		}
 
-	a1, ok := ids[fix.PersonA1.ID]
-	require.True(t, ok)
-	assert.Equal(t, fix.SchoolA1.ID, a1.SchoolID)
-	assert.Equal(t, fix.OrgA.ID, a1.OrganizationID)
-	assert.Equal(t, fix.OrgA.Name, a1.OrganizationName)
+		a1, ok := ids[fix.PersonA1.ID]
+		require.True(t, ok)
+		assert.Equal(t, fix.SchoolA1.ID, a1.SchoolID)
+		assert.Equal(t, fix.OrgA.ID, a1.OrganizationID)
+		assert.Equal(t, fix.OrgA.Name, a1.OrganizationName)
 
-	// Persons from other schools must not appear.
-	_, leaked := ids[fix.PersonA2.ID]
-	assert.False(t, leaked, "persons from sibling schools must not leak")
-	_, leakedB := ids[fix.PersonB1.ID]
-	assert.False(t, leakedB, "persons from other orgs must not leak")
+		// Persons from other schools must not appear.
+		_, leaked := ids[fix.PersonA2.ID]
+		assert.False(t, leaked, "persons from sibling schools must not leak")
+		_, leakedB := ids[fix.PersonB1.ID]
+		assert.False(t, leakedB, "persons from other orgs must not leak")
+	})
+
+	t.Run("returns empty for soft-deleted school", func(t *testing.T) {
+		// Drilling into a Papierkorb school must not surface persons, matching
+		// PersonsByOrganization which already excludes soft-deleted schools.
+		rows, err := repo.PersonsBySchool(ctx, fix.SchoolADeleted.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, rows, "must return [] not nil so JSON encodes as array")
+		assert.Empty(t, rows, "soft-deleted school must not surface its persons")
+	})
 }
 
 func TestOperatorSummariesRepository_PersonsByOrganization(t *testing.T) {

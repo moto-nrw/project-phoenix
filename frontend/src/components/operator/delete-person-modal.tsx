@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { createLogger } from "~/lib/logger";
+import { ConfirmDeleteModal } from "./confirm-delete-modal";
 
 const logger = createLogger({ component: "DeletePersonModal" });
 
@@ -19,12 +20,10 @@ export function DeletePersonModal({
   onClose,
   onDeleted,
 }: Readonly<DeletePersonModalProps>) {
-  const [confirmInput, setConfirmInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const close = useCallback(() => {
-    setConfirmInput("");
+  const handleClose = useCallback(() => {
     setError("");
     onClose();
   }, [onClose]);
@@ -36,7 +35,6 @@ export function DeletePersonModal({
     try {
       await operatorProvisioningService.softDeletePerson(person.id);
       await onDeleted();
-      setConfirmInput("");
       onClose();
     } catch (err) {
       logger.error("person_soft_delete_failed", {
@@ -50,21 +48,24 @@ export function DeletePersonModal({
     }
   }, [person, onClose, onDeleted]);
 
-  if (!person) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-        <h3 className="text-lg font-semibold text-gray-900">Person löschen</h3>
-        <p className="mt-2 text-sm text-gray-600">
-          Möchten Sie{" "}
-          <span className="font-medium">
-            {person.firstName} {person.lastName}
-          </span>{" "}
-          von <span className="font-medium">{person.schoolName}</span> wirklich
-          löschen?
-        </p>
-        <div className="mt-3 rounded-lg bg-[#EAB308]/10 px-3 py-2 text-sm text-[#854D0E]">
+    <ConfirmDeleteModal
+      isOpen={Boolean(person)}
+      title="Person löschen"
+      description={
+        person ? (
+          <p>
+            Möchten Sie{" "}
+            <span className="font-medium">
+              {person.firstName} {person.lastName}
+            </span>{" "}
+            von <span className="font-medium">{person.schoolName}</span>{" "}
+            wirklich löschen?
+          </p>
+        ) : null
+      }
+      warningSlot={
+        <div className="rounded-lg bg-[#EAB308]/10 px-3 py-2 text-sm text-[#854D0E]">
           <p className="font-medium">Folgende Aktionen werden ausgeführt:</p>
           <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
             <li>Account wird deaktiviert und Login gesperrt</li>
@@ -73,53 +74,28 @@ export function DeletePersonModal({
             <li>Diese Aktion kann nicht rückgängig gemacht werden</li>
           </ul>
         </div>
-
-        <div className="mt-4">
-          <label
-            htmlFor="delete-person-confirm-shared"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Geben Sie den vollständigen Namen ein:
-          </label>
-          <p className="mb-1 text-sm font-medium text-gray-900">
-            {person.fullName}
-          </p>
-          <input
-            id="delete-person-confirm-shared"
-            type="text"
-            value={confirmInput}
-            onChange={(event) => setConfirmInput(event.target.value)}
-            placeholder={person.fullName}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#FF3130] focus:ring-1 focus:ring-[#FF3130] focus:outline-none"
-            autoComplete="off"
-          />
-        </div>
-
-        {error && (
-          <div className="mt-3 rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
-            {error}
-          </div>
-        )}
-
-        <div className="mt-5 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={close}
-            disabled={loading}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleDelete()}
-            disabled={loading || confirmInput !== person.fullName}
-            className="rounded-lg bg-[#FF3130] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#CC2626] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? "Wird gelöscht..." : "Endgültig löschen"}
-          </button>
-        </div>
-      </div>
-    </div>
+      }
+      gate={
+        person
+          ? {
+              mode: "textConfirm",
+              expected: person.fullName,
+              inputId: "delete-person-confirm-shared",
+              label: "Geben Sie den vollständigen Namen ein:",
+              placeholder: person.fullName,
+              preview: person.fullName,
+            }
+          : {
+              mode: "textConfirm",
+              expected: "",
+              inputId: "delete-person-confirm-shared",
+              label: "",
+            }
+      }
+      onConfirm={handleDelete}
+      onClose={handleClose}
+      loading={loading}
+      error={error}
+    />
   );
 }

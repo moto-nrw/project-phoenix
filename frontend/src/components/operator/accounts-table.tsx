@@ -221,6 +221,7 @@ export function AccountsTable({
           : `${orgAccount?.schoolId ?? ""}-invited-${row.email}`;
       }}
       defaultSortKey={showSchool ? "schoolName" : "name"}
+      pageSize={50}
     />
   );
 }

@@ -180,6 +180,9 @@ type OperatorProvisioningServiceConfig struct {
 
 // NewOperatorProvisioningService creates a provisioning service.
 func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) OperatorProvisioningService {
+	if cfg.SummariesRepo == nil {
+		panic("operator provisioning service: SummariesRepo is required")
+	}
 	return &operatorProvisioningService{
 		organizationRepo:    cfg.OrganizationRepo,
 		schoolRepo:          cfg.SchoolRepo,

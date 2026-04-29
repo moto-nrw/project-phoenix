@@ -87,4 +87,35 @@ describe("GET /api/operator/provisioning/schools/summaries", () => {
     const json = (await response.json()) as { code?: string };
     expect(json.code).toBe("TOKEN_EXPIRED");
   });
+
+  // Negative paths — ensure non-401 backend errors propagate verbatim.
+  it("forwards a backend 500 with the same status code", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: async () => JSON.stringify({ error: "school summaries failed" }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/summaries",
+    );
+    const response = await GET(request, mockContext);
+
+    expect(response.status).toBe(500);
+    const json = (await response.json()) as { error?: string };
+    expect(json.error).toBe("school summaries failed");
+  });
+
+  it("returns 500 when fetch throws a network error", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockRejectedValue(new TypeError("fetch failed"));
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/summaries",
+    );
+    const response = await GET(request, mockContext);
+
+    expect(response.status).toBe(500);
+  });
 });
