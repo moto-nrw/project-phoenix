@@ -3,7 +3,7 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "FeedbackAPI" });
 
-export interface BackendFeedbackEntry {
+interface BackendFeedbackEntry {
   id: number;
   value: "positive" | "neutral" | "negative";
   day: string;

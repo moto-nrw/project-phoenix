@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -28,11 +29,13 @@ import {
   SchoolClassIcon,
   GroupIcon,
   PickupTimeRow,
+  ArrivalTimeRow,
 } from "~/components/students/student-card";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
-import { isHomeLocation } from "~/lib/location-helper";
-import { useMinuteClock, combinePickupNotes } from "~/lib/pickup-helpers";
+import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
+import type { BulkArrivalTime } from "~/lib/student-arrival-api";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { isAdmin, isCaregiver } from "~/lib/auth-utils";
@@ -46,6 +49,7 @@ import {
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
+import { combineTimeNotes } from "~/lib/student-time-status";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
@@ -120,6 +124,8 @@ interface BFFDashboardResponse {
     groupName: string;
     activeGroupId: string;
     checkInTime: string;
+    actualArrivalTime?: string;
+    actualPickupTime?: string;
     isActive: boolean;
     sick?: boolean;
     sickSince?: string;
@@ -442,6 +448,8 @@ function MeinRaumPageContent() {
             sick_since: visit.sickSince,
             excused: visit.excused,
             excused_since: visit.excusedSince,
+            actual_arrival_time: visit.actualArrivalTime,
+            actual_pickup_time: visit.actualPickupTime,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
           } as StudentWithVisit;
@@ -776,6 +784,8 @@ function MeinRaumPageContent() {
               sick_since: visit.sickSince,
               excused: visit.excused,
               excused_since: visit.excusedSince,
+              actual_arrival_time: visit.actualArrivalTime,
+              actual_pickup_time: visit.actualPickupTime,
               activeGroupId: visit.activeGroupId,
               checkInTime: new Date(visit.checkInTime),
             } as StudentWithVisit;
@@ -933,6 +943,8 @@ function MeinRaumPageContent() {
           sick_since: visit.sickSince,
           excused: visit.excused,
           excused_since: visit.excusedSince,
+          actual_arrival_time: visit.actualArrivalTime,
+          actual_pickup_time: visit.actualPickupTime,
           activeGroupId: visit.activeGroupId,
           checkInTime: visit.checkInTime,
         } as StudentWithVisit;
@@ -978,6 +990,17 @@ function MeinRaumPageContent() {
     async () => fetchBulkPickupTimes(trackingStudentIds),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
+
+  // Arrival times: fetch when student list or date changes
+  const { data: arrivalTimesRaw } = useSWRAuth<Map<string, BulkArrivalTime>>(
+    trackingStudentIds.length > 0 && currentRoomId
+      ? `arrival-supervisions-${todayKey}-${trackingStudentIds.join(",")}`
+      : null,
+    async () => fetchBulkArrivalTimes(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+  const arrivalTimesData: Map<string, BulkArrivalTime> | undefined =
+    arrivalTimesRaw instanceof Map ? arrivalTimesRaw : undefined;
 
   // Handle dashboard error
   useEffect(() => {
@@ -1291,6 +1314,9 @@ function MeinRaumPageContent() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
             {filteredStudents.map((student) => {
               const studentPickup = pickupTimesData?.get(student.id.toString());
+              const studentArrival = arrivalTimesData?.get(
+                student.id.toString(),
+              );
 
               return (
                 <StudentCard
@@ -1306,7 +1332,13 @@ function MeinRaumPageContent() {
                   }
                   locationBadge={
                     <LocationBadge
-                      student={student}
+                      student={{
+                        ...student,
+                        not_arrival_today:
+                          (studentArrival?.isException ?? false) &&
+                          !studentArrival?.expectedArrival,
+                        not_arrival_reason: studentArrival?.notes ?? null,
+                      }}
                       displayMode="contextAware"
                       userGroups={myGroupIds}
                       groupRooms={myGroupRooms}
@@ -1318,7 +1350,7 @@ function MeinRaumPageContent() {
                     <>
                       {student.school_class && (
                         <StudentInfoRow icon={<SchoolClassIcon />}>
-                          Klasse {student.school_class}
+                          {student.school_class}
                         </StudentInfoRow>
                       )}
                       {student.group_name && (
@@ -1326,18 +1358,36 @@ function MeinRaumPageContent() {
                           Gruppe: {student.group_name}
                         </StudentInfoRow>
                       )}
+                      <ArrivalTimeRow
+                        arrivalTime={studentArrival?.expectedArrival}
+                        actualTime={student.actual_arrival_time}
+                        isException={studentArrival?.isException ?? false}
+                        isAbsent={
+                          (studentArrival?.isException ?? false) &&
+                          !studentArrival?.expectedArrival
+                        }
+                        notes={
+                          studentArrival
+                            ? combineTimeNotes(
+                                studentArrival.notes,
+                                studentArrival.dayNotes,
+                              )
+                            : undefined
+                        }
+                        now={now}
+                      />
                       <PickupTimeRow
                         pickupTime={studentPickup?.pickupTime}
+                        actualTime={student.actual_pickup_time}
                         isException={studentPickup?.isException ?? false}
                         notes={
                           studentPickup
-                            ? combinePickupNotes(
+                            ? combineTimeNotes(
                                 studentPickup.notes,
                                 studentPickup.dayNotes,
                               )
                             : undefined
                         }
-                        isHome={isHomeLocation(student.current_location)}
                         now={now}
                       />
                     </>
@@ -1692,15 +1742,19 @@ function ActiveSupervisionGate({
   return <ForbiddenPage />;
 }
 
-// Main component with Suspense wrapper
+// Main component with Suspense wrapper. BinaryModeGuard runs first so
+// binary-mode tenants get a 404 before the supervision gate tries to load
+// data that depends on detailed-mode room visits.
 export default function MeinRaumPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <ActiveSupervisionGate>
-        <SSEErrorBoundary>
-          <MeinRaumPageContent />
-        </SSEErrorBoundary>
-      </ActiveSupervisionGate>
-    </Suspense>
+    <BinaryModeGuard>
+      <Suspense fallback={<Loading fullPage={false} />}>
+        <ActiveSupervisionGate>
+          <SSEErrorBoundary>
+            <MeinRaumPageContent />
+          </SSEErrorBoundary>
+        </ActiveSupervisionGate>
+      </Suspense>
+    </BinaryModeGuard>
   );
 }

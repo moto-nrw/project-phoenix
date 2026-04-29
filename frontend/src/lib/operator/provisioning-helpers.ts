@@ -450,10 +450,6 @@ export interface CreateDeviceRequest {
   api_key?: string;
 }
 
-export interface SetDeviceAPIKeyRequest {
-  api_key?: string;
-}
-
 // Device types for operator device listing
 
 export interface BackendOperatorDevice {

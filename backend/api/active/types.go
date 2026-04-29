@@ -91,6 +91,8 @@ type VisitWithDisplayDataResponse struct {
 	ActiveGroupID int64      `json:"active_group_id"`
 	CheckInTime   time.Time  `json:"check_in_time"`
 	CheckOutTime  *time.Time `json:"check_out_time,omitempty"`
+	ActualArrival *string    `json:"actual_arrival_time,omitempty"`
+	ActualPickup  *string    `json:"actual_pickup_time,omitempty"`
 	IsActive      bool       `json:"is_active"`
 	StudentName   string     `json:"student_name"`
 	SchoolClass   string     `json:"school_class"`
@@ -144,9 +146,9 @@ type GroupMappingResponse struct {
 
 // AnalyticsResponse represents analytics API response
 type AnalyticsResponse struct {
-	ActiveGroupsCount int `json:"active_groups_count,omitempty"`
-	TotalVisitsCount  int `json:"total_visits_count,omitempty"`
-	ActiveVisitsCount int `json:"active_visits_count,omitempty"`
+	ActiveGroupsCount int `json:"active_groups_count"`
+	TotalVisitsCount  int `json:"total_visits_count"`
+	ActiveVisitsCount int `json:"active_visits_count"`
 }
 
 // DashboardAnalyticsResponse represents dashboard analytics API response

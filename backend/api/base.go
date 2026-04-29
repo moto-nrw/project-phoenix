@@ -69,7 +69,6 @@ type API struct {
 	Feedback         *feedbackAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
 	Schedules        *schedulesAPI.Resource
-	Config           *configAPI.Resource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
 	IoT              *iotAPI.Resource
@@ -273,6 +272,7 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
+	api.Auth.SettingsService = api.Services.Settings
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          api.Services.Users,
@@ -289,6 +289,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AttendanceRepo:         repoFactory.Attendance,
 		VisitRepo:              repoFactory.ActiveVisit,
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
+		Broadcaster:            api.Services.RealtimeHub,
 		Logger:                 logger.With("handler", "students"),
 		DB:                     db,
 	})
@@ -300,7 +301,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
-	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
 	// Shared side-effect hook: when checkout.schulhof_enabled or
 	// checkout.wc_enabled flips on (regardless of who flipped it), make sure
@@ -331,7 +331,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		UsersService:          api.Services.Users,
 		ActiveService:         api.Services.Active,
 		ActivitiesService:     api.Services.Activities,
-		ConfigService:         api.Services.Config,
 		SettingsService:       api.Services.Settings,
 		FacilityService:       api.Services.Facilities,
 		EducationService:      api.Services.Education,
@@ -487,9 +486,6 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount schedule resources
 		r.Mount("/schedules", a.Schedules.Router())
-
-		// Mount config resources
-		r.Mount("/config", a.Config.Router())
 
 		// Mount settings resources (new schema-driven settings system)
 		r.Mount("/settings", a.Settings.SettingsRouter())

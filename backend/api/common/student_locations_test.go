@@ -568,3 +568,164 @@ func TestStudentLocationSnapshot_UnknownStatus(t *testing.T) {
 	// Unknown status should return "Abwesend"
 	assert.Equal(t, "Abwesend", location)
 }
+
+// =============================================================================
+// Binary mode + tri-state attendance tests
+// =============================================================================
+
+func TestBinaryMode_CheckedIn_ReturnsAnwesend(t *testing.T) {
+	checkinTime := time.Now().Add(-2 * time.Hour)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:   42,
+				Status:      "checked_in",
+				CheckInTime: &checkinTime,
+			},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Anwesend", info.Location)
+	require.NotNil(t, info.Since)
+	assert.Equal(t, checkinTime, *info.Since)
+}
+
+func TestBinaryMode_CheckedIn_NoFullAccess_OmitsTimestamp(t *testing.T) {
+	checkinTime := time.Now().Add(-2 * time.Hour)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:   42,
+				Status:      "checked_in",
+				CheckInTime: &checkinTime,
+			},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, false)
+
+	assert.Equal(t, "Anwesend", info.Location)
+	assert.Nil(t, info.Since, "non-full-access viewers should not receive timestamps")
+}
+
+func TestBinaryMode_OnYard_ReturnsSchulhof(t *testing.T) {
+	checkinTime := time.Now().Add(-3 * time.Hour)
+	yardSince := time.Now().Add(-15 * time.Minute)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:   42,
+				Status:      "on_yard",
+				CheckInTime: &checkinTime,
+				YardSince:   &yardSince,
+			},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Schulhof", info.Location)
+	require.NotNil(t, info.Since)
+	assert.Equal(t, yardSince, *info.Since, "Since should be the yard transition timestamp, not the earlier check-in")
+}
+
+func TestBinaryMode_CheckedOut_ReturnsAbwesend(t *testing.T) {
+	checkoutTime := time.Now().Add(-10 * time.Minute)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:    42,
+				Status:       "checked_out",
+				CheckOutTime: &checkoutTime,
+			},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Abwesend", info.Location)
+	require.NotNil(t, info.Since)
+	assert.Equal(t, checkoutTime, *info.Since)
+}
+
+func TestBinaryMode_NotCheckedIn_ReturnsAbwesend(t *testing.T) {
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {StudentID: 42, Status: "not_checked_in"},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Abwesend", info.Location)
+	assert.Nil(t, info.Since)
+}
+
+func TestBinaryMode_IgnoresVisitsAndGroups(t *testing.T) {
+	// Even if visit and group data somehow leak into a binary snapshot, the
+	// resolver must not consult them — binary semantics are attendance-only.
+	checkinTime := time.Now().Add(-1 * time.Hour)
+	entryTime := time.Now().Add(-30 * time.Minute)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:   42,
+				Status:      "checked_in",
+				CheckInTime: &checkinTime,
+			},
+		},
+		Visits: map[int64]*activeModels.Visit{
+			42: {StudentID: 42, ActiveGroupID: 99, EntryTime: entryTime},
+		},
+		Groups: map[int64]*activeModels.Group{
+			99: {RoomID: 1, Room: &facilities.Room{Name: "Art Room"}},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Anwesend", info.Location, "binary mode must not render room names from stray visit data")
+}
+
+func TestDetailedMode_OnYardStatusFallsThroughToAbwesend(t *testing.T) {
+	// In detailed mode yard_since is never written (yard is binary-only), but
+	// if the status somehow derives to "on_yard", the resolver treats it as
+	// not-checked-in — detailed mode has no Schulhof label path.
+	yardSince := time.Now().Add(-15 * time.Minute)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeDetailed,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {StudentID: 42, Status: "on_yard", YardSince: &yardSince},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Abwesend", info.Location, "detailed mode ignores yard state — only checked_in/checked_out drive the label")
+}
+
+func TestDefaultMode_EmptyModeBehavesAsDetailed(t *testing.T) {
+	// Old test fixtures construct a snapshot without setting Mode. The
+	// resolver must keep treating those as detailed-mode for backwards
+	// compatibility.
+	checkinTime := time.Now().Add(-1 * time.Hour)
+	snapshot := &common.StudentLocationSnapshot{
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {StudentID: 42, Status: "checked_in", CheckInTime: &checkinTime},
+		},
+		Visits: make(map[int64]*activeModels.Visit),
+		Groups: make(map[int64]*activeModels.Group),
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Unterwegs", info.Location, "empty Mode must default to detailed-mode rendering")
+}

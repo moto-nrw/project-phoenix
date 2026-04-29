@@ -1,94 +1,79 @@
 "use client";
 
-import { createLogger } from "~/lib/logger";
-import Image from "next/image";
-import { useState, useMemo, useCallback } from "react";
-import { getRoleDisplayName } from "~/lib/auth-helpers";
-
-const logger = createLogger({ component: "DatabaseTeachersPage" });
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
-
+import { redirect, useSearchParams } from "next/navigation";
+import { DatabaseCreateAction } from "~/components/database/database-create-action";
+import { DatabaseEmptyState } from "~/components/database/database-empty-state";
+import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import {
+  useGroupedItems,
+  type Grouper,
+} from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import {
   CaregiverCapabilityModal,
-  TeacherRoleManagementModal,
-  TeacherPermissionManagementModal,
+  StaffMasterDetail,
 } from "@/components/teachers";
-import { TeacherDetailModal } from "@/components/teachers/teacher-detail-modal";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { getDbOperationMessage } from "@/lib/use-notification";
+import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
+import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
-// Helper function to get teacher initials without nested ternary
-function getTeacherInitials(
-  firstName: string | undefined,
-  lastName: string | undefined,
-  fullName: string | undefined,
-): string {
-  if (firstName && lastName) {
-    return `${firstName[0]}${lastName[0]}`;
-  }
-  if (fullName) {
-    return fullName
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .substring(0, 2);
-  }
-  return "XX";
+const logger = createLogger({ component: "DatabaseTeachersPage" });
+
+type StaffGroupingMode = "none" | "role";
+
+const STAFF_GROUPING_DEFAULT: StaffGroupingMode = "role";
+
+const STAFF_GROUPING_OPTIONS: { value: StaffGroupingMode; label: string }[] = [
+  { value: "role", label: "Rolle" },
+  { value: "none", label: "Keine" },
+];
+
+function parseStaffGrouping(value: string | null): StaffGroupingMode {
+  if (value === "none") return value;
+  return STAFF_GROUPING_DEFAULT;
 }
 
 export default function TeachersPage() {
+  const searchParams = useSearchParams();
+  const updateUrlParams = useUpdateUrlParams();
+
+  const selectedId = searchParams.get("staff");
+  const grouping = parseStaffGrouping(searchParams.get("groupBy"));
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();
 
-  // Modal states
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [invitationRefreshKey, setInvitationRefreshKey] = useState<number>(
     Date.now(),
   );
 
-  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
+  const [savingTeacher, setSavingTeacher] = useState(false);
 
-  // Stable onClose handlers to prevent Modal animation-reset flicker
-  const handleCloseInviteModal = useCallback(
-    () => setShowInviteModal(false),
-    [],
-  );
-  const handleCloseDetailModal = useCallback(() => {
-    setShowDetailModal(false);
-    setSelectedTeacher(null);
-  }, []);
-  const handleCloseEditModal = useCallback(() => setShowEditModal(false), []);
-  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-
-  // Delete confirmation modal management
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(setShowDetailModal);
-
-  // Role and permission modals
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
-  const [permissionModalOpen, setPermissionModalOpen] = useState(false);
-  const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
+  } = useDeleteConfirmation();
 
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -99,11 +84,9 @@ export default function TeachersPage() {
     },
   });
 
-  // Create service instance
   const service = useMemo(() => createCrudService(teachersConfig), []);
   const tenantMutate = useTenantMutate();
 
-  // Fetch teachers with SWR (automatic caching, deduplication, revalidation)
   const {
     data: teachersData,
     isLoading: loading,
@@ -117,7 +100,6 @@ export default function TeachersPage() {
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."
     : null;
 
-  // Extract unique positions for autocomplete suggestions
   const existingPositions = useMemo(() => {
     const teachers = teachersData ?? [];
     const positions = new Set<string>();
@@ -127,12 +109,10 @@ export default function TeachersPage() {
     return [...positions].sort((a, b) => a.localeCompare(b, "de"));
   }, [teachersData]);
 
-  // Apply filters (use teachersData directly to avoid dependency issues)
   const filteredTeachers = useMemo(() => {
     const teachers = teachersData ?? [];
     let filtered = [...teachers];
 
-    // Search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -149,7 +129,6 @@ export default function TeachersPage() {
       );
     }
 
-    // Sort alphabetically by name
     filtered.sort((a, b) => {
       const nameA = a.name ?? `${a.first_name} ${a.last_name}`;
       const nameB = b.name ?? `${b.first_name} ${b.last_name}`;
@@ -159,10 +138,8 @@ export default function TeachersPage() {
     return filtered;
   }, [teachersData, searchTerm]);
 
-  // Prepare active filters
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const filters: ActiveFilter[] = [];
-
     if (searchTerm) {
       filters.push({
         id: "search",
@@ -170,110 +147,132 @@ export default function TeachersPage() {
         onRemove: () => setSearchTerm(""),
       });
     }
-
     return filters;
   }, [searchTerm]);
 
-  // Handle teacher selection
-  const handleSelectTeacher = async (teacher: Teacher) => {
-    setSelectedTeacher(teacher);
-    setShowDetailModal(true);
+  const selectedTeacher = useMemo(() => {
+    if (!selectedId) return null;
+    return (
+      (teachersData ?? []).find((teacher) => teacher.id === selectedId) ?? null
+    );
+  }, [teachersData, selectedId]);
 
-    try {
-      setDetailLoading(true);
-      // Use staff_id if available, otherwise fall back to id
-      const idToFetch = teacher.staff_id ?? teacher.id;
-      const freshData = await service.getOne(idToFetch);
-      setSelectedTeacher(freshData);
-    } catch (err) {
-      logger.error("failed to fetch teacher details", {
-        error: err instanceof Error ? err.message : String(err),
+  const handleSelectTeacher = useCallback(
+    (id: string | null) => {
+      updateUrlParams({ staff: id });
+    },
+    [updateUrlParams],
+  );
+
+  const handleGroupingChange = useCallback(
+    (next: StaffGroupingMode) => {
+      updateUrlParams({
+        groupBy: next === STAFF_GROUPING_DEFAULT ? null : next,
       });
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+    },
+    [updateUrlParams],
+  );
 
-  // Handle edit teacher
-  const handleEditTeacher = async (
-    data: Partial<Teacher> & { password?: string },
-  ) => {
-    if (!selectedTeacher) return;
+  const groupers = useMemo<
+    Partial<Record<StaffGroupingMode, Grouper<Teacher>>>
+  >(
+    () => ({
+      role: (teacher) => {
+        const role = teacher.account_role?.trim();
+        if (!role) {
+          return { id: "__no_role__", title: "Ohne Rolle", sortKey: "zzz" };
+        }
+        return { id: role, title: getRoleDisplayName(role) };
+      },
+    }),
+    [],
+  );
 
-    try {
-      setDetailLoading(true);
-      await service.update(selectedTeacher.id, data);
-      setShowEditModal(false);
-      setShowDetailModal(false);
-      toastSuccess(
-        getDbOperationMessage("update", teachersConfig.name.singular),
-      );
-      await tenantMutate("database-teachers-list");
-      setSelectedTeacher(null);
-    } catch (err) {
-      logger.error("failed to update teacher", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      throw err;
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+  const groupDefinitions = useGroupedItems(
+    filteredTeachers,
+    grouping,
+    groupers,
+    "Personal",
+  );
 
-  // Handle delete teacher
-  const handleDeleteTeacher = async () => {
-    if (!selectedTeacher) return;
+  const handleCloseInviteModal = useCallback(
+    () => setShowInviteModal(false),
+    [],
+  );
+  const handleCloseEditModal = useCallback(() => setShowEditModal(false), []);
+  const handleEditClick = useCallback(() => setShowEditModal(true), []);
+  const handleManageCaregiverClick = useCallback(
+    () => setCaregiverModalOpen(true),
+    [],
+  );
 
-    try {
-      setDetailLoading(true);
-      const deleteError = await service.delete(selectedTeacher.id);
-      if (deleteError) {
-        toastError(deleteError);
-        return;
+  const handleEditTeacher = useCallback(
+    async (data: Partial<Teacher> & { password?: string }) => {
+      if (!selectedTeacher) return;
+      try {
+        setSavingTeacher(true);
+        await service.update(selectedTeacher.id, data);
+        setShowEditModal(false);
+        toastSuccess(
+          getDbOperationMessage("update", teachersConfig.name.singular),
+        );
+        await tenantMutate("database-teachers-list");
+      } catch (err) {
+        logger.error("failed to update teacher", {
+          teacher_id: selectedTeacher.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      } finally {
+        setSavingTeacher(false);
       }
-      setShowDetailModal(false);
-      toastSuccess(
-        getDbOperationMessage("delete", teachersConfig.name.singular),
-      );
-      await tenantMutate("database-teachers-list");
-      setSelectedTeacher(null);
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+    },
+    [selectedTeacher, service, tenantMutate, toastSuccess],
+  );
 
-  // Handle inline notes update from detail modal
-  const handleUpdateNotes = async (notes: string) => {
+  const handleDeleteTeacher = useCallback(async () => {
     if (!selectedTeacher) return;
-
-    try {
-      await service.update(selectedTeacher.id, { staff_notes: notes });
-      setSelectedTeacher({ ...selectedTeacher, staff_notes: notes });
-      await tenantMutate("database-teachers-list");
-    } catch (err) {
-      logger.error("failed to update teacher notes", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      throw err;
+    const deleteError = await service.delete(selectedTeacher.id);
+    if (deleteError) {
+      toastError(deleteError);
+      return;
     }
-  };
+    toastSuccess(getDbOperationMessage("delete", teachersConfig.name.singular));
+    handleSelectTeacher(null);
+    await tenantMutate("database-teachers-list");
+  }, [
+    selectedTeacher,
+    service,
+    toastError,
+    toastSuccess,
+    handleSelectTeacher,
+    tenantMutate,
+  ]);
 
-  // Handle edit click from detail modal
-  const handleEditClick = () => {
-    setShowDetailModal(false);
-    setShowEditModal(true);
-  };
+  const handleUpdateNotes = useCallback(
+    async (notes: string) => {
+      if (!selectedTeacher) return;
+      try {
+        await service.update(selectedTeacher.id, { staff_notes: notes });
+        await tenantMutate("database-teachers-list");
+      } catch (err) {
+        logger.error("failed to update teacher notes", {
+          teacher_id: selectedTeacher.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    },
+    [selectedTeacher, service, tenantMutate],
+  );
 
-  const handleManageCaregiverClick = () => {
-    setShowDetailModal(false);
-    setCaregiverModalOpen(true);
-  };
+  const canShowDetail = !loading && filteredTeachers.length > 0;
 
   return (
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 w-full"
+      className="-mt-1.5 flex w-full flex-col"
     >
       <div className="mb-4">
         <PageHeaderWithSearch
@@ -308,88 +307,56 @@ export default function TeachersPage() {
             setSearchTerm("");
           }}
           actionButton={
-            !isMobile && (
-              <button
+            <div className="flex items-center gap-2">
+              {!isMobile ? (
+                <DatabaseGroupingToggle
+                  value={grouping}
+                  options={STAFF_GROUPING_OPTIONS}
+                  onChange={handleGroupingChange}
+                />
+              ) : null}
+              <DatabaseCreateAction
+                label="Personal"
+                ariaLabel="Personal hinzufügen"
                 onClick={() => setShowInviteModal(true)}
-                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgb(247, 140, 16) 0%, rgb(229, 122, 0) 100%)",
-                  willChange: "transform, opacity",
-                  WebkitTransform: "translateZ(0)",
-                  transform: "translateZ(0)",
-                }}
-                aria-label="Personal hinzufügen"
-              >
-                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-                <svg
-                  className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
-                </svg>
-                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-              </button>
-            )
+              />
+            </div>
           }
         />
       </div>
 
-      {/* Mobile FAB Create Button */}
-      <button
-        onClick={() => setShowInviteModal(true)}
-        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(247,140,16,0.3)] active:scale-95 md:hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, rgb(247, 140, 16) 0%, rgb(229, 122, 0) 100%)",
-          willChange: "transform, opacity",
-          WebkitTransform: "translateZ(0)",
-          transform: "translateZ(0)",
-        }}
-        aria-label="Personal hinzufügen"
-      >
-        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-        <svg
-          className="pointer-events-none relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 4.5v15m7.5-7.5h-15"
-          />
-        </svg>
-        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-      </button>
-
-      {/* Pending Invitations (above staff list) */}
       <RoleGuard variant="adminOnly">
         <div className="mb-4">
           <PendingInvitationsList refreshKey={invitationRefreshKey} />
         </div>
       </RoleGuard>
 
-      {/* Error Display */}
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
 
-      {/* Teacher List */}
-      {filteredTeachers.length === 0 ? (
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="text-center">
+      {canShowDetail ? (
+        <div className="min-h-0 flex-1 pb-4">
+          <StaffMasterDetail
+            groupDefinitions={groupDefinitions}
+            selectedId={selectedId}
+            selectedTeacher={selectedTeacher}
+            onSelect={handleSelectTeacher}
+            onEditClick={handleEditClick}
+            onDeleteClick={handleDeleteClick}
+            onUpdateNotes={handleUpdateNotes}
+            onManageCaregiver={
+              selectedTeacher?.account_id
+                ? handleManageCaregiverClick
+                : undefined
+            }
+          />
+        </div>
+      ) : !loading ? (
+        <DatabaseEmptyState
+          icon={
             <svg
               className="mx-auto h-12 w-12 text-gray-400"
               fill="none"
@@ -403,194 +370,18 @@ export default function TeachersPage() {
                 d="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
               />
             </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
-              {searchTerm
-                ? "Kein Personal gefunden"
-                : "Kein Personal vorhanden"}
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              {searchTerm
-                ? "Versuchen Sie andere Suchkriterien."
-                : "Es wurde noch kein Personal erstellt."}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredTeachers.map((teacher, index) => {
-            const initials = getTeacherInitials(
-              teacher.first_name,
-              teacher.last_name,
-              teacher.name,
-            );
-            const displayName =
-              teacher.name || `${teacher.first_name} ${teacher.last_name}`;
-            const hasAvatar = !!teacher.avatar;
-            const avatarUrl =
-              hasAvatar && teacher.staff_id
-                ? `/api/staff/${teacher.staff_id}/avatar`
-                : null;
+          }
+          title={
+            searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"
+          }
+          description={
+            searchTerm
+              ? "Versuchen Sie andere Suchkriterien."
+              : "Es wurde noch kein Personal erstellt."
+          }
+        />
+      ) : null}
 
-            const handleClick = () => handleSelectTeacher(teacher);
-            return (
-              <div
-                role="button"
-                tabIndex={0}
-                key={teacher.id}
-                onClick={handleClick}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleClick();
-                  }
-                }}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-orange-300/50 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
-                style={{
-                  animationName: "fadeInUp",
-                  animationDuration: "0.5s",
-                  animationTimingFunction: "ease-out",
-                  animationFillMode: "forwards",
-                  animationDelay: `${index * 0.03}s`,
-                  opacity: 0,
-                }}
-              >
-                {/* Modern gradient overlay */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-orange-50/80 to-amber-100/80 opacity-[0.03]"></div>
-                {/* Subtle inner glow */}
-                <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                {/* Modern border highlight */}
-                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-orange-200/60"></div>
-
-                <div className="relative flex items-center gap-4 p-5">
-                  {/* Avatar */}
-                  <div className="flex-shrink-0">
-                    <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-sm font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
-                      {avatarUrl ? (
-                        <Image
-                          src={avatarUrl}
-                          alt={displayName}
-                          fill
-                          className="object-cover"
-                          sizes="48px"
-                          unoptimized
-                        />
-                      ) : (
-                        initials.toUpperCase()
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Teacher Info */}
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-orange-600">
-                      {displayName}
-                    </h3>
-                    {(teacher.account_role || teacher.role) && (
-                      <p className="mt-0.5 text-sm text-gray-500">
-                        {(() => {
-                          const displayRole = teacher.account_role
-                            ? getRoleDisplayName(teacher.account_role)
-                            : null;
-                          const position =
-                            teacher.role &&
-                            teacher.role.toLowerCase() !==
-                              displayRole?.toLowerCase() &&
-                            teacher.role.toLowerCase() !==
-                              teacher.account_role?.toLowerCase()
-                              ? teacher.role
-                              : null;
-                          return [displayRole, position]
-                            .filter(Boolean)
-                            .join(" · ");
-                        })()}
-                      </p>
-                    )}
-                    {teacher.email && (
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <span className="truncate text-xs text-gray-400">
-                          {teacher.email}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard
-                              .writeText(teacher.email!)
-                              .then(() => toastSuccess("E-Mail kopiert"))
-                              .catch(() =>
-                                toastError("Kopieren fehlgeschlagen"),
-                              );
-                          }}
-                          className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                          aria-label="E-Mail kopieren"
-                          title="E-Mail kopieren"
-                        >
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"
-                            />
-                          </svg>
-                        </button>
-                        <a
-                          href={`mailto:${teacher.email}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                          aria-label="E-Mail senden"
-                          title="E-Mail senden"
-                        >
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
-                            />
-                          </svg>
-                        </a>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Arrow Icon */}
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-5 w-5 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-orange-500"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Glowing border effect on hover */}
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-orange-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Invite Modal */}
       <Modal
         isOpen={showInviteModal}
         onClose={handleCloseInviteModal}
@@ -605,24 +396,6 @@ export default function TeachersPage() {
         />
       </Modal>
 
-      {/* Teacher Detail Modal */}
-      {selectedTeacher && (
-        <TeacherDetailModal
-          isOpen={showDetailModal}
-          onClose={handleCloseDetailModal}
-          teacher={selectedTeacher}
-          onEdit={handleEditClick}
-          onDelete={handleDeleteTeacher}
-          onManageCaregiver={
-            selectedTeacher.account_id ? handleManageCaregiverClick : undefined
-          }
-          onUpdateNotes={handleUpdateNotes}
-          loading={detailLoading}
-          onDeleteClick={handleDeleteClick}
-        />
-      )}
-
-      {/* Delete Confirmation Modal */}
       {selectedTeacher && (
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
@@ -643,19 +416,17 @@ export default function TeachersPage() {
         </ConfirmationModal>
       )}
 
-      {/* Teacher Edit Modal */}
       {selectedTeacher && (
         <TeacherEditModal
           isOpen={showEditModal}
           onClose={handleCloseEditModal}
           teacher={selectedTeacher}
           onSave={handleEditTeacher}
-          loading={detailLoading}
+          loading={savingTeacher}
           existingPositions={existingPositions}
         />
       )}
 
-      {/* Role Management Modal */}
       {selectedTeacher && (
         <CaregiverCapabilityModal
           isOpen={caregiverModalOpen}
@@ -668,41 +439,6 @@ export default function TeachersPage() {
           }}
         />
       )}
-
-      {selectedTeacher && (
-        <TeacherRoleManagementModal
-          isOpen={roleModalOpen}
-          onClose={() => {
-            setRoleModalOpen(false);
-            setSelectedTeacher(null);
-          }}
-          teacher={selectedTeacher}
-          onUpdate={() => {
-            tenantMutate("database-teachers-list").catch(() => {
-              // Ignore revalidation errors
-            });
-          }}
-        />
-      )}
-
-      {/* Permission Management Modal */}
-      {selectedTeacher && (
-        <TeacherPermissionManagementModal
-          isOpen={permissionModalOpen}
-          onClose={() => {
-            setPermissionModalOpen(false);
-            setSelectedTeacher(null);
-          }}
-          teacher={selectedTeacher}
-          onUpdate={() => {
-            tenantMutate("database-teachers-list").catch(() => {
-              // Ignore revalidation errors
-            });
-          }}
-        />
-      )}
-
-      {/* Success toasts handled globally */}
     </DatabasePageLayout>
   );
 }

@@ -61,7 +61,6 @@ vi.mock("~/lib/logger", () => {
   });
   return {
     createLogger: vi.fn(() => createMockLogger()),
-    getLogger: vi.fn(() => createMockLogger()),
   };
 });
 
@@ -81,12 +80,18 @@ vi.mock("~/env", () => ({
 
 // Mock tenant provider globally so tenant-scoped components can render in tests.
 // Individual tests can override by calling vi.mocked(useTenant).mockReturnValue(...)
+// or `vi.unmock("~/components/tenant/tenant-provider")` when they need the real
+// context wired up (see `binary-mode-guard.test.tsx` for an example).
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenant: vi.fn(() => ({
     tenantSlug: "test-tenant",
     tenant: null,
   })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  // usePresenceMode defaults to "detailed" so components that decide between
+  // LocationBadge / PresenceBadge render the richer detailed variant in tests
+  // unless a specific test overrides the mock.
+  usePresenceMode: vi.fn(() => "detailed"),
   TenantProvider: ({
     children,
   }: {

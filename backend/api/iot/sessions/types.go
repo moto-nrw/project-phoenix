@@ -72,13 +72,6 @@ type SessionTimeoutResponse struct {
 	Message            string    `json:"message"`
 }
 
-// SessionTimeoutConfig represents timeout configuration for devices
-type SessionTimeoutConfig struct {
-	TimeoutMinutes       int `json:"timeout_minutes"`
-	WarningMinutes       int `json:"warning_minutes"`
-	CheckIntervalSeconds int `json:"check_interval_seconds"`
-}
-
 // SessionActivityRequest represents a session activity update request
 type SessionActivityRequest struct {
 	ActivityType string    `json:"activity_type"` // "rfid_scan", "button_press", "ui_interaction"

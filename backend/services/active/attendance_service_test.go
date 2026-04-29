@@ -845,3 +845,147 @@ func TestBroadcastDailyCheckout_NilBroadcaster(t *testing.T) {
 		svc.BroadcastDailyCheckout(context.Background(), 12345)
 	})
 }
+
+// =============================================================================
+// CheckInStudent / CheckOutStudent — action-explicit attendance Tests
+// =============================================================================
+//
+// These cover the contract the school-checkin web handler relies on after the
+// toggle-race fix: never re-read state and flip — always apply the explicit
+// action. The race-safety properties they encode:
+//
+//   - CheckInStudent always returns Action="checked_in", even on the conflict
+//     loser path (concurrent in/in race).
+//   - CheckOutStudent always returns Action="checked_out", even when the
+//     student wasn't checked in (idempotent close).
+
+func TestCheckInStudent_FreshCheckIn(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Action", "CheckIn", "5a")
+	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff")
+	device := testpkg.CreateTestDevice(t, db, "action-device-001")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
+
+	result, err := service.CheckInStudent(ctx, student.ID, staff.ID, device.ID, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_in", result.Action)
+	assert.Equal(t, student.ID, result.StudentID)
+	assert.NotZero(t, result.AttendanceID)
+}
+
+// TestCheckInStudent_AlreadyCheckedIn_ReturnsExistingRow ensures that the
+// in-conflict-loser path (a second concurrent "in") returns the already-open
+// row instead of erroring or flipping to a checkout.
+func TestCheckInStudent_AlreadyCheckedIn_ReturnsExistingRow(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Action", "AlreadyIn", "5b")
+	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff2")
+	device := testpkg.CreateTestDevice(t, db, "action-device-002")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
+
+	// Pre-populate an open row to simulate the winner of an in/in race.
+	checkInTime := time.Now().Add(-30 * time.Minute)
+	pre := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+
+	// Second "in" call must NOT flip to checkout — it must return success
+	// pointing at the already-open row.
+	result, err := service.CheckInStudent(ctx, student.ID, staff.ID, device.ID, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_in", result.Action, "must NOT flip to checked_out under race")
+	assert.Equal(t, pre.ID, result.AttendanceID, "must point at the already-open row")
+}
+
+func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Action", "CheckOut", "5c")
+	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff3")
+	device := testpkg.CreateTestDevice(t, db, "action-device-003")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
+
+	// Open row to be closed.
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	open := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+
+	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+	assert.Equal(t, open.ID, result.AttendanceID, "should point at the row we closed")
+
+	// Confirm the row is actually closed in the DB now.
+	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "checked_out", status.Status)
+	assert.NotNil(t, status.CheckOutTime)
+}
+
+// TestCheckOutStudent_NoOpenRow_IsIdempotent guards the state-checked UPDATE
+// path: when nothing is open (already checked out, or never checked in), the
+// service still returns Action="checked_out" with no error. This is the key
+// difference from the legacy Toggle which would error or flip incorrectly.
+func TestCheckOutStudent_NoOpenRow_IsIdempotent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Action", "Idempotent", "5d")
+	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff4")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID)
+
+	// Student has no attendance row at all today.
+	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+
+	require.NoError(t, err, "no open row must be a successful no-op, not an error")
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+	assert.Zero(t, result.AttendanceID, "no row was closed → no AttendanceID to surface")
+}
+
+// TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent covers the second
+// idempotent path: a closed row exists from earlier today, and we call
+// CheckOutStudent again. The state-checked WHERE filters out the closed row
+// (check_out_time IS NULL won't match), so we report idempotent success.
+func TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Action", "DoubleOut", "5e")
+	staff := testpkg.CreateTestStaff(t, db, "Action", "Staff5")
+	device := testpkg.CreateTestDevice(t, db, "action-device-005")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
+
+	// Pre-create a closed row.
+	checkInTime := time.Now().Add(-2 * time.Hour)
+	checkOutTime := time.Now().Add(-30 * time.Minute)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
+
+	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+}

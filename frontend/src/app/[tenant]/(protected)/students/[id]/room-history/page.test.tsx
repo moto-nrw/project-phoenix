@@ -61,7 +61,7 @@ function mockStudentResponse(overrides?: Record<string, unknown>) {
         first_name: "Test",
         second_name: "Student",
         name: "Test Student",
-        school_class: "2a",
+        school_class: "Klasse 2a",
         group_name: "Sterne",
         ...overrides,
       },

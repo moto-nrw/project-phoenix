@@ -13,7 +13,7 @@ import { LOCATION_STATUSES } from "~/lib/location-helper";
 /**
  * Backend student request structure
  */
-export interface BackendStudentRequest {
+interface BackendStudentRequest {
   first_name: string;
   last_name: string;
   school_class: string;

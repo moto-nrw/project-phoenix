@@ -33,7 +33,7 @@ export function getSchoolYear(schoolClass: string): string | null {
 }
 
 // Scheduled checkout information
-export interface ScheduledCheckoutInfo {
+interface ScheduledCheckoutInfo {
   id: number;
   scheduled_for: string;
   reason?: string;
@@ -70,6 +70,11 @@ export interface BackendStudent {
   pickup_time?: string; // Today's effective pickup time (HH:MM)
   pickup_is_exception?: boolean; // True if today's pickup time is an exception
   pickup_notes?: string; // Exception reason or schedule notes
+  arrival_time?: string; // Today's effective arrival time (HH:MM)
+  arrival_is_exception?: boolean; // True if today's arrival time is an exception
+  arrival_notes?: string; // Exception reason or schedule notes
+  actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
+  actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
   has_full_access?: boolean;
   created_at: string;
   updated_at: string;
@@ -177,6 +182,11 @@ export interface Student {
   pickup_time?: string; // Today's effective pickup time (HH:MM)
   pickup_is_exception?: boolean; // True if today's pickup time is an exception
   pickup_notes?: string; // Exception reason or schedule notes
+  arrival_time?: string; // Today's effective arrival time (HH:MM)
+  arrival_is_exception?: boolean; // True if today's arrival time is an exception
+  arrival_notes?: string; // Exception reason or schedule notes
+  actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
+  actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
 }
 
 // Mapping functions
@@ -225,6 +235,11 @@ export function mapStudentResponse(
     pickup_time: backendStudent.pickup_time,
     pickup_is_exception: backendStudent.pickup_is_exception,
     pickup_notes: backendStudent.pickup_notes,
+    arrival_time: backendStudent.arrival_time,
+    arrival_is_exception: backendStudent.arrival_is_exception,
+    arrival_notes: backendStudent.arrival_notes,
+    actual_arrival_time: backendStudent.actual_arrival_time,
+    actual_pickup_time: backendStudent.actual_pickup_time,
     has_full_access: backendStudent.has_full_access,
   };
 
@@ -317,18 +332,6 @@ export function prepareStudentForBackend(
 }
 
 // Request/Response types
-export interface CreateStudentRequest {
-  first_name?: string;
-  second_name?: string; // Will be mapped to last_name for backend
-  school_class?: string;
-  group_id?: number;
-  name_lg?: string; // Guardian name
-  contact_lg?: string; // Guardian contact
-  tag_id?: string; // Optional RFID
-  guardian_email?: string;
-  guardian_phone?: string;
-  extra_info?: string;
-}
 
 export interface UpdateStudentRequest {
   first_name?: string;

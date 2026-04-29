@@ -67,6 +67,8 @@ interface BackendVisitDisplay {
   active_group_id: number;
   check_in_time: string;
   check_out_time?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
   student_name?: string;
   school_class?: string;
   group_name?: string;
@@ -135,6 +137,8 @@ interface ActiveSupervisionDashboardResponse {
     groupName: string;
     activeGroupId: string;
     checkInTime: string;
+    actualArrivalTime?: string;
+    actualPickupTime?: string;
     isActive: boolean;
     sick?: boolean;
     sickSince?: string;
@@ -377,6 +381,8 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
             groupName: v.group_name ?? "",
             activeGroupId: v.active_group_id.toString(),
             checkInTime: v.check_in_time,
+            actualArrivalTime: v.actual_arrival_time,
+            actualPickupTime: v.actual_pickup_time,
             isActive: v.is_active,
             sick: v.sick,
             sickSince: v.sick_since,

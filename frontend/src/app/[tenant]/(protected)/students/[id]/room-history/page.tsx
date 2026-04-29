@@ -26,6 +26,7 @@ import {
   formatTime,
   mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
@@ -555,7 +556,18 @@ function HistoryTable({
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+// Binary-mode tenants don't record room visits, so the history chart is
+// always empty. Guard here so the tab 404s instead of rendering a charts
+// page with zero data.
 export default function StudentRoomHistoryPage() {
+  return (
+    <BinaryModeGuard>
+      <StudentRoomHistoryPageContent />
+    </BinaryModeGuard>
+  );
+}
+
+function StudentRoomHistoryPageContent() {
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -678,7 +690,7 @@ export default function StudentRoomHistoryPage() {
             {displayName}
           </h1>
           <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-            <span>Klasse {student.school_class}</span>
+            <span>{student.school_class}</span>
             {student.group_name && (
               <>
                 <span className="text-gray-300">·</span>

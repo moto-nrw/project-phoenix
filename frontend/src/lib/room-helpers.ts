@@ -142,25 +142,6 @@ export function prepareRoomForBackend(
 }
 
 // Request/Response types
-export interface CreateRoomRequest {
-  name: string;
-  building?: string;
-  floor?: number; // Optional
-  capacity?: number; // Optional
-  category?: string; // Optional
-  color?: string; // Optional
-  device_id?: string;
-}
-
-export interface UpdateRoomRequest {
-  name: string;
-  building?: string;
-  floor?: number; // Optional
-  capacity?: number; // Optional
-  category?: string; // Optional
-  color?: string; // Optional
-  device_id?: string;
-}
 
 // Helper functions
 export function formatFloor(floor: number | undefined): string {

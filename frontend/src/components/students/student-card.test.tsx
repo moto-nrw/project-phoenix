@@ -1,14 +1,14 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import {
-  StudentCard,
-  SchoolClassIcon,
-  GroupIcon,
-  StudentInfoRow,
-  PickupTimeIcon,
+  ArrivalTimeRow,
   ExceptionIcon,
+  GroupIcon,
+  PickupTimeIcon,
   PickupTimeRow,
-  renderPickupIcon,
+  SchoolClassIcon,
+  StudentCard,
+  StudentInfoRow,
 } from "./student-card";
 
 describe("StudentCard", () => {
@@ -97,7 +97,6 @@ describe("StudentCard", () => {
 
     expect(screen.getByTestId("tracking")).toBeInTheDocument();
     expect(screen.getByTestId("location-badge")).toBeInTheDocument();
-    // Both should be inside a flex-col wrapper
     const trackingEl = screen.getByTestId("tracking");
     const wrapper = trackingEl.parentElement;
     expect(wrapper?.className).toContain("flex");
@@ -108,8 +107,160 @@ describe("StudentCard", () => {
     const { container } = render(<StudentCard {...defaultProps} />);
 
     expect(screen.getByTestId("location-badge")).toBeInTheDocument();
-    // No tracking indicators present
     expect(container.querySelector("[data-testid='tracking']")).toBeNull();
+  });
+
+  // ── School check-in mode ───────────────────────────────────────────────
+  // The check-in mode flips the card into a mutation surface: tint by
+  // attendance state, click fires onCheckinClick instead of onClick, the
+  // hint copy changes, and a spinner overlays during pendingCount > 0.
+
+  it("uses navigation copy + onClick when checkinMode is false (default)", () => {
+    const onClick = vi.fn();
+    const onCheckinClick = vi.fn();
+    render(
+      <StudentCard
+        {...defaultProps}
+        onClick={onClick}
+        onCheckinClick={onCheckinClick}
+      />,
+    );
+    // Navigation hint copy.
+    expect(screen.getByText(/Tippen für mehr Infos/)).toBeInTheDocument();
+    // The default click goes to onClick, NOT onCheckinClick.
+    fireEvent.click(screen.getByRole("button"));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onCheckinClick).not.toHaveBeenCalled();
+  });
+
+  it("renders the tap-strip with state-specific copy when checkinMode is true", () => {
+    // Per StudentCheckinState the tap-strip flips copy: anwesend/schulhof
+    // → "Abmelden" (already present, tap checks out); abwesend → "Anmelden".
+    // The "An-/Abmelden" generic only shows up on the unknown state.
+    const onCheckinClick = vi.fn();
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        onCheckinClick={onCheckinClick}
+      />,
+    );
+    expect(screen.getByText(/Tippen zum Abmelden/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button"));
+    expect(onCheckinClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses Anmelden copy on absent students (tap = check in)", () => {
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="abwesend"
+        onCheckinClick={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Tippen zum Anmelden/)).toBeInTheDocument();
+  });
+
+  it("falls back to An-/Abmelden generic on unknown state", () => {
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="unknown"
+        onCheckinClick={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Tippen zum An-\/Abmelden/)).toBeInTheDocument();
+  });
+
+  it("routes click to onCheckinClick instead of onClick when in check-in mode", () => {
+    const onClick = vi.fn();
+    const onCheckinClick = vi.fn();
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        onClick={onClick}
+        onCheckinClick={onCheckinClick}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(onCheckinClick).toHaveBeenCalledTimes(1);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("falls back to onClick when checkinMode is true but onCheckinClick is omitted", () => {
+    // Defensive branch — partial adoption shouldn't break navigation.
+    const onClick = vi.fn();
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        onClick={onClick}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([["anwesend"], ["schulhof"], ["abwesend"], ["unknown"]])(
+    "exposes checkinState=%s on the data-checkin-state attribute when active",
+    (state) => {
+      render(
+        <StudentCard
+          {...defaultProps}
+          checkinMode
+          checkinState={
+            state as "anwesend" | "schulhof" | "abwesend" | "unknown"
+          }
+        />,
+      );
+      const btn = screen.getByRole("button");
+      expect(btn).toHaveAttribute("data-checkin-mode", "true");
+      expect(btn).toHaveAttribute("data-checkin-state", state);
+    },
+  );
+
+  it("renders the spinner inside the tap-strip and disables the button when isCheckinPending", () => {
+    const onCheckinClick = vi.fn();
+    const { container } = render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        isCheckinPending
+        onCheckinClick={onCheckinClick}
+      />,
+    );
+    // The tap-strip itself remains present (preserves card height under
+    // toggle), and the spinner replaces the action icon while pending.
+    const strip = container.querySelector("[data-checkin-tap-strip='true']");
+    expect(strip).not.toBeNull();
+    expect(strip?.querySelector(".animate-spin")).not.toBeNull();
+    const btn = screen.getByRole("button");
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    expect(btn).toBeDisabled();
+    // Disabled button must NOT fire onCheckinClick.
+    fireEvent.click(btn);
+    expect(onCheckinClick).not.toHaveBeenCalled();
+  });
+
+  it("hides the navigation arrow + 'mehr Infos' hint when checkinMode is true", () => {
+    // Affordances scoped to navigation mode only; the tap-strip carries
+    // the action signal in check-in mode instead.
+    render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        onCheckinClick={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/Tippen für mehr Infos/)).toBeNull();
   });
 });
 
@@ -117,8 +268,7 @@ describe("SchoolClassIcon", () => {
   it("renders an SVG icon", () => {
     const { container } = render(<SchoolClassIcon />);
 
-    const svg = container.querySelector("svg");
-    expect(svg).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
   it("has proper styling classes", () => {
@@ -135,8 +285,7 @@ describe("GroupIcon", () => {
   it("renders an SVG icon", () => {
     const { container } = render(<GroupIcon />);
 
-    const svg = container.querySelector("svg");
-    expect(svg).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
   it("has proper styling classes", () => {
@@ -152,6 +301,7 @@ describe("GroupIcon", () => {
 describe("PickupTimeIcon", () => {
   it("renders an SVG icon", () => {
     const { container } = render(<PickupTimeIcon />);
+
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 });
@@ -159,6 +309,7 @@ describe("PickupTimeIcon", () => {
 describe("ExceptionIcon", () => {
   it("renders an SVG icon with orange color", () => {
     const { container } = render(<ExceptionIcon />);
+
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
     expect(svg?.className).toContain("text-orange-500");
@@ -166,19 +317,10 @@ describe("ExceptionIcon", () => {
 });
 
 describe("PickupTimeRow", () => {
-  // Fixed "now" for deterministic urgency calculations.
-  // 14:00 means a pickup at 23:59 is "normal", at 14:15 is "soon", at 13:00 is "overdue".
   const now = new Date("2025-01-15T14:00:00");
 
-  it("renders pickup time with urgency icon when pickupTime is provided", () => {
-    render(
-      <PickupTimeRow
-        pickupTime="15:30"
-        isException={false}
-        isHome={false}
-        now={now}
-      />,
-    );
+  it("renders the planned pickup time", () => {
+    render(<PickupTimeRow pickupTime="15:30" isException={false} now={now} />);
 
     expect(screen.getByText(/Abholzeit:/)).toBeInTheDocument();
     expect(screen.getByText(/15:30 Uhr/)).toBeInTheDocument();
@@ -190,7 +332,6 @@ describe("PickupTimeRow", () => {
         pickupTime="15:30"
         isException={false}
         notes="Arzttermin"
-        isHome={false}
         now={now}
       />,
     );
@@ -199,31 +340,42 @@ describe("PickupTimeRow", () => {
     expect(screen.getByText("(Arzttermin)")).toBeInTheDocument();
   });
 
-  it("renders exception icon when isException is true and has pickup time", () => {
-    const { container } = render(
+  it("shows the actual time instead of the planned time once resolved", () => {
+    render(
       <PickupTimeRow
-        pickupTime="14:00"
-        isException={true}
-        isHome={false}
+        pickupTime="15:30"
+        actualTime="15:42"
+        isException={false}
+        notes="Arzttermin"
         now={now}
       />,
     );
 
-    // Exception icon is an orange SVG, not the urgency AlertTriangle
-    const orangeSvg = container.querySelector("svg.text-orange-500");
-    expect(orangeSvg).toBeInTheDocument();
-    // Should NOT render AlertTriangle (red)
-    expect(container.querySelector("svg.text-red-500")).not.toBeInTheDocument();
+    expect(screen.getByText(/15:42 Uhr/)).toBeInTheDocument();
+    expect(screen.queryByText(/15:30 Uhr/)).not.toBeInTheDocument();
+    expect(screen.getByText("(Arzttermin)")).toBeInTheDocument();
   });
 
-  it("renders exception reason when isException is true and no pickup time", () => {
+  it("renders a pulsing icon when the pickup is approaching", () => {
+    const { container } = render(
+      <PickupTimeRow pickupTime="14:15" isException={false} now={now} />,
+    );
+
+    expect(container.querySelector("svg.animate-pulse")).toBeInTheDocument();
+  });
+
+  it("renders exception icon when isException is true and has pickup time", () => {
+    const { container } = render(
+      <PickupTimeRow pickupTime="14:00" isException={true} now={now} />,
+    );
+
+    const orangeSvg = container.querySelector("svg.text-orange-500");
+    expect(orangeSvg).toBeInTheDocument();
+  });
+
+  it("renders exception text when there is no pickup time", () => {
     render(
-      <PickupTimeRow
-        isException={true}
-        notes="Ganztägig abwesend"
-        isHome={false}
-        now={now}
-      />,
+      <PickupTimeRow isException={true} notes="Ganztägig abwesend" now={now} />,
     );
 
     expect(screen.getByText("Ganztägig abwesend")).toBeInTheDocument();
@@ -231,56 +383,128 @@ describe("PickupTimeRow", () => {
   });
 
   it("renders 'Abwesend' fallback when isException is true but no notes", () => {
-    render(<PickupTimeRow isException={true} isHome={false} now={now} />);
+    render(<PickupTimeRow isException={true} now={now} />);
 
     expect(screen.getByText("Abwesend")).toBeInTheDocument();
   });
 
-  it("renders dash fallback when no pickup time and no exception", () => {
-    render(<PickupTimeRow isException={false} isHome={false} now={now} />);
+  it("renders the dash fallback when no pickup time exists", () => {
+    render(<PickupTimeRow isException={false} now={now} />);
 
     expect(screen.getByText("Abholzeit: —")).toBeInTheDocument();
   });
 
-  it("suppresses urgency for at-home students (isHome=true)", () => {
+  it("suppresses overdue urgency once an actual pickup time is recorded", () => {
+    // Plan was 13:00 (overdue against 14:00 now), but the student was actually
+    // picked up at 13:55 — row should resolve to a check icon, not a red warning.
     const { container } = render(
       <PickupTimeRow
         pickupTime="13:00"
+        actualTime="13:55"
         isException={false}
-        isHome={true}
         now={now}
       />,
     );
 
-    // 13:00 is overdue, but isHome=true should yield gray clock, not red triangle
-    expect(screen.getByText(/13:00 Uhr/)).toBeInTheDocument();
-    expect(container.querySelector("svg.text-red-500")).not.toBeInTheDocument();
-    // Should render gray PickupTimeIcon
-    expect(container.querySelector("svg.text-gray-400")).toBeInTheDocument();
+    expect(screen.getByText(/13:55 Uhr/)).toBeInTheDocument();
+    expect(
+      container.querySelector("svg.lucide-triangle-alert"),
+    ).not.toBeInTheDocument();
+    expect(container.querySelector("svg.lucide-check")).toBeInTheDocument();
   });
 });
 
-describe("renderPickupIcon", () => {
-  it("renders red AlertTriangle for overdue", () => {
-    const { container } = render(<>{renderPickupIcon("overdue")}</>);
-    expect(container.querySelector("svg.text-red-500")).toBeInTheDocument();
+describe("ArrivalTimeRow", () => {
+  const now = new Date("2025-01-15T08:00:00");
+
+  it("shows absence message with reason when absent", () => {
+    render(
+      <ArrivalTimeRow
+        isException={false}
+        isAbsent={true}
+        notes="Arzttermin"
+        now={now}
+      />,
+    );
+
+    expect(
+      screen.getByText("Kommt heute nicht (Arzttermin)"),
+    ).toBeInTheDocument();
   });
 
-  it("renders pulsing orange Clock for soon", () => {
-    const { container } = render(<>{renderPickupIcon("soon")}</>);
-    const clock = container.querySelector("svg.text-orange-500");
-    expect(clock).toBeInTheDocument();
-    expect(clock?.className).toContain("animate-pulse");
+  it("shows default absence message when isAbsent without notes", () => {
+    render(<ArrivalTimeRow isException={false} isAbsent={true} now={now} />);
+
+    expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
   });
 
-  it("renders gray PickupTimeIcon for normal", () => {
-    const { container } = render(<>{renderPickupIcon("normal")}</>);
-    expect(container.querySelector("svg.text-gray-400")).toBeInTheDocument();
+  it("shows arrival time when arrivalTime provided", () => {
+    render(
+      <ArrivalTimeRow
+        arrivalTime="08:00"
+        isException={false}
+        isAbsent={false}
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText(/08:00 Uhr/)).toBeInTheDocument();
   });
 
-  it("renders gray PickupTimeIcon for none", () => {
-    const { container } = render(<>{renderPickupIcon("none")}</>);
-    expect(container.querySelector("svg.text-gray-400")).toBeInTheDocument();
+  it("shows notes next to arrival time", () => {
+    render(
+      <ArrivalTimeRow
+        arrivalTime="08:00"
+        isException={false}
+        isAbsent={false}
+        notes="Testnote"
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText("(Testnote)")).toBeInTheDocument();
+  });
+
+  it("shows the actual arrival time instead of the planned time", () => {
+    render(
+      <ArrivalTimeRow
+        arrivalTime="08:00"
+        actualTime="08:07"
+        isException={false}
+        isAbsent={false}
+        notes="Testnote"
+        now={now}
+      />,
+    );
+
+    expect(screen.getByText(/08:07 Uhr/)).toBeInTheDocument();
+    expect(screen.queryByText(/08:00 Uhr/)).not.toBeInTheDocument();
+    expect(screen.getByText("(Testnote)")).toBeInTheDocument();
+  });
+
+  it("uses exception icon when isException and has arrivalTime", () => {
+    const { container } = render(
+      <ArrivalTimeRow
+        arrivalTime="08:15"
+        isException={true}
+        isAbsent={false}
+        now={now}
+      />,
+    );
+
+    expect(container.querySelector("svg.text-orange-500")).toBeInTheDocument();
+  });
+
+  it("renders the exception fallback when exception has no time", () => {
+    render(<ArrivalTimeRow isException={true} isAbsent={false} now={now} />);
+
+    expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
+  });
+
+  it("falls back to a dash when no arrival info exists", () => {
+    render(<ArrivalTimeRow isException={false} isAbsent={false} now={now} />);
+
+    expect(screen.getByText("Ankunftszeit: —")).toBeInTheDocument();
   });
 });
 

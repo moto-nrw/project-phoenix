@@ -119,14 +119,26 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-// Mock LocationBadge
+// Mock StudentPresenceBadge — wrapper the page now renders instead of
+// the bare LocationBadge, so binary-mode tenants can hide detailed labels.
+vi.mock("@/components/ui/student-presence-badge", () => ({
+  StudentPresenceBadge: ({
+    student,
+  }: {
+    student: { current_location: string };
+  }) => <span data-testid="location-badge">{student.current_location}</span>,
+}));
+
+// Mock LocationBadge (still referenced transitively by any non-mocked paths)
 vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: ({ student }: { student: { current_location: string } }) => (
     <span data-testid="location-badge">{student.current_location}</span>
   ),
 }));
 
-// Mock location helpers
+// Mock location helpers — LOCATION_COLORS is consumed by student-card.tsx
+// (check-in mode tint), so the mock must expose the brand palette even if
+// individual tests don't assert on colors.
 vi.mock("~/lib/location-helper", () => ({
   isHomeLocation: (loc: string) => loc === "Zuhause" || loc === "",
   isPresentLocation: (loc: string) =>
@@ -136,6 +148,44 @@ vi.mock("~/lib/location-helper", () => ({
     loc !== "Schulhof",
   isTransitLocation: (loc: string) => loc === "Unterwegs",
   isSchoolyardLocation: (loc: string) => loc === "Schulhof",
+  LOCATION_COLORS: {
+    GROUP_ROOM: "#83CD2D",
+    OTHER_ROOM: "#5080D8",
+    HOME: "#FF3130",
+    SCHOOLYARD: "#F78C10",
+    TRANSIT: "#D946EF",
+    UNKNOWN: "#6B7280",
+    SICK: "#EAB308",
+    EXCUSED: "#7C3AED",
+  },
+  LOCATION_STATUSES: {
+    PRESENT: "Anwesend",
+    HOME: "Zuhause",
+    SCHOOLYARD: "Schulhof",
+    TRANSIT: "Unterwegs",
+    UNKNOWN: "Unbekannt",
+    SICK: "Krank",
+    EXCUSED: "Entschuldigt",
+  },
+}));
+
+// Mock school-checkin FAB + hook so existing search tests aren't
+// responsible for the new floating mode trigger —
+// page.school-checkin.test.tsx covers it dedicatedly.
+vi.mock("~/components/students/school-checkin-fab", () => ({
+  SchoolCheckinFab: () => <div data-testid="school-checkin-fab" />,
+}));
+
+vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
+  useSchoolCheckinMode: () => ({
+    isActive: false,
+    toggleActive: vi.fn(),
+    deactivate: vi.fn(),
+    pendingIds: new Set<string>(),
+    successCount: 0,
+    toggle: vi.fn(),
+  }),
+  deriveCheckinState: () => "unknown",
 }));
 
 // Mock student-helpers
@@ -1439,6 +1489,29 @@ describe("StudentSearchPage", () => {
         // Redacted kid hidden — no tracking data AND has_full_access false.
         expect(screen.queryByText("Redacted")).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Arrival sort mode", () => {
+    it("re-sorts the list when switching sort=arrival", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+
+      // Flip to arrival sort mode — component should re-render without error.
+      fireEvent.change(screen.getByTestId("filter-sort"), {
+        target: { value: "arrival" },
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-sort")).toHaveValue("arrival"),
+      );
+
+      // All four default students still present post-sort.
+      expect(screen.getByText("Max")).toBeInTheDocument();
+      expect(screen.getByText("Anna")).toBeInTheDocument();
+      expect(screen.getByText("Tom")).toBeInTheDocument();
+      expect(screen.getByText("Lisa")).toBeInTheDocument();
     });
   });
 });

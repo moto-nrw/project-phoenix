@@ -79,7 +79,7 @@ type EffectiveArrivalTime struct {
 // ArrivalScheduleInput represents input for a single weekday's arrival schedule
 type ArrivalScheduleInput struct {
 	Weekday     int    `json:"weekday"`
-	ArrivalTime string `json:"arrival_time"` // HH:MM
+	ArrivalTime string `json:"expected_arrival"` // HH:MM
 }
 
 // BulkUpsertResult contains the result of a bulk class upsert operation
@@ -623,7 +623,7 @@ func (s *arrivalScheduleService) BulkUpsertBySchoolClass(ctx context.Context, sc
 	for _, input := range schedules {
 		t, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+input.ArrivalTime)
 		if err != nil {
-			return nil, &ScheduleError{Op: opBulkUpsertBySchoolClass, Err: fmt.Errorf("invalid arrival_time %q for weekday %d: %w", input.ArrivalTime, input.Weekday, err)}
+			return nil, &ScheduleError{Op: opBulkUpsertBySchoolClass, Err: fmt.Errorf("invalid expected_arrival %q for weekday %d: %w", input.ArrivalTime, input.Weekday, err)}
 		}
 		parsedTimes[input.Weekday] = t
 	}

@@ -156,11 +156,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/format-go.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-go.sh\""
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/format-typescript.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-typescript.sh\""
           }
         ]
       }
@@ -171,7 +171,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-commit-message.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-commit-message.sh\""
           }
         ]
       }
@@ -182,7 +182,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-env-files.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-env-files.sh\""
           }
         ]
       }

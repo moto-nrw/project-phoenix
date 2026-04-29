@@ -5,33 +5,28 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // studentListParams holds all query parameters for student listing
 type studentListParams struct {
-	schoolClass        string
-	guardianName       string
-	firstName          string
-	lastName           string
-	location           string
-	groupID            int64
-	search             string
-	page               int
-	pageSize           int
-	includePickupTimes bool
+	schoolClass         string
+	guardianName        string
+	firstName           string
+	lastName            string
+	location            string
+	groupID             int64
+	search              string
+	page                int
+	pageSize            int
+	includePickupTimes  bool
+	includeArrivalTimes bool
 }
 
-// studentAccessContext holds access control information for student listing
-type studentAccessContext struct {
-	isAdmin       bool
-	allStaffScope bool // true when gdpr.student_data_scope = all_staff
-	myGroupIDs    map[int64]struct{}
-}
+// studentAccessContext is an alias for the shared common.StudentAccessContext
+// so existing call sites in this package keep working unchanged.
+type studentAccessContext = common.StudentAccessContext
 
 // parseStudentListParams extracts query parameters from the request
 func parseStudentListParams(r *http.Request) *studentListParams {
@@ -53,6 +48,7 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 
 	// Parse optional includes
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
+	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
 
 	// Parse pagination
 	params.page, params.pageSize = common.ParsePagination(r)
@@ -97,52 +93,11 @@ func (p *studentListParams) buildCountOptions() *base.QueryOptions {
 	return countOptions
 }
 
-// determineStudentAccess determines access level and group IDs for the current user.
-// Resolves the tenant-configurable student_data_scope once per request so that
-// per-student access checks remain cheap when iterating a list of students.
+// determineStudentAccess resolves the access context for the current request.
+// Thin wrapper that injects this Resource's services into the shared common
+// helper so per-student access checks stay cheap when iterating a list.
 func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContext {
-	ctx := &studentAccessContext{
-		isAdmin: hasAdminPermissions(jwt.PermissionsFromCtx(r.Context())),
-	}
-
-	if !ctx.isAdmin {
-		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
-			// Resolve student_data_scope once; this governs read-access for non-admin staff.
-			// Only apply the all_staff scope if the caller is a verified staff member —
-			// other roles (guest, guardian) with users:read must NOT get unredacted access.
-			scope := configService.ResolveStringOrDefault(
-				r.Context(),
-				rs.SettingsService,
-				configModel.KeyStudentDataScope,
-				configModel.StudentDataScopeGroupSupervisorsOnly,
-				rs.Logger,
-			)
-			ctx.allStaffScope = scope == configModel.StudentDataScopeAllStaff
-
-			if educationGroups, err := rs.UserContextService.GetMyGroups(r.Context()); err == nil {
-				ctx.myGroupIDs = make(map[int64]struct{}, len(educationGroups))
-				for _, eduGroup := range educationGroups {
-					ctx.myGroupIDs[eduGroup.ID] = struct{}{}
-				}
-			}
-		}
-	}
-
-	return ctx
-}
-
-// hasFullAccessToStudent checks if user has full access to a specific student.
-// Returns true for admins, when the tenant-wide all_staff scope is enabled,
-// or when the user supervises the student's education group.
-func (ac *studentAccessContext) hasFullAccessToStudent(student *users.Student) bool {
-	if ac.isAdmin || ac.allStaffScope {
-		return true
-	}
-	if student.GroupID != nil && ac.myGroupIDs != nil {
-		_, ok := ac.myGroupIDs[*student.GroupID]
-		return ok
-	}
-	return false
+	return common.DetermineStudentAccess(r, rs.UserContextService, rs.SettingsService, rs.Logger)
 }
 
 // collectIDsFromStudents extracts IDs needed for bulk loading
@@ -223,4 +178,14 @@ func applyInMemoryPagination(responses []StudentResponse, page, pageSize int) ([
 	}
 
 	return responses[startIndex:endIndex], totalCount
+}
+
+func collectFullAccessStudentIDs(responses []StudentResponse) []int64 {
+	fullAccessIDs := make([]int64, 0, len(responses))
+	for i := range responses {
+		if responses[i].HasFullAccess {
+			fullAccessIDs = append(fullAccessIDs, responses[i].ID)
+		}
+	}
+	return fullAccessIDs
 }

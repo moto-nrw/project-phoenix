@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/render"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
@@ -20,7 +19,6 @@ type Resource struct {
 	UsersService      usersSvc.PersonService
 	ActiveService     activeSvc.Service
 	ActivitiesService activitiesSvc.ActivityService
-	ConfigService     configSvc.Service
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
 }
@@ -31,7 +29,6 @@ func NewResource(
 	usersService usersSvc.PersonService,
 	activeService activeSvc.Service,
 	activitiesService activitiesSvc.ActivityService,
-	configService configSvc.Service,
 	facilityService facilitiesSvc.Service,
 	educationService educationSvc.Service,
 ) *Resource {
@@ -40,7 +37,6 @@ func NewResource(
 		UsersService:      usersService,
 		ActiveService:     activeService,
 		ActivitiesService: activitiesService,
-		ConfigService:     configService,
 		FacilityService:   facilityService,
 		EducationService:  educationService,
 	}
@@ -62,7 +58,6 @@ func (rs *Resource) Router() chi.Router {
 
 	// Session timeout management
 	r.Post("/timeout", rs.processSessionTimeout)
-	r.Get("/timeout-config", rs.getSessionTimeoutConfig)
 	r.Post("/activity", rs.updateSessionActivity)
 	r.Post("/validate-timeout", rs.validateSessionTimeout)
 	r.Get("/timeout-info", rs.getSessionTimeoutInfo)
@@ -91,9 +86,6 @@ func (rs *Resource) UpdateSupervisorsHandler() http.HandlerFunc { return rs.upda
 
 // ProcessTimeoutHandler returns the processSessionTimeout handler
 func (rs *Resource) ProcessTimeoutHandler() http.HandlerFunc { return rs.processSessionTimeout }
-
-// GetTimeoutConfigHandler returns the getSessionTimeoutConfig handler
-func (rs *Resource) GetTimeoutConfigHandler() http.HandlerFunc { return rs.getSessionTimeoutConfig }
 
 // UpdateActivityHandler returns the updateSessionActivity handler
 func (rs *Resource) UpdateActivityHandler() http.HandlerFunc { return rs.updateSessionActivity }

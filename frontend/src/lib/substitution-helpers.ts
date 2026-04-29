@@ -20,7 +20,7 @@ export interface BackendStaff {
   staff_notes?: string;
 }
 
-export interface BackendGroup {
+interface BackendGroup {
   id: number;
   name: string;
   room_id?: number;
@@ -90,7 +90,7 @@ export interface Substitution {
 }
 
 // Frontend substitution info (for multiple substitutions per teacher)
-export interface SubstitutionInfo {
+interface SubstitutionInfo {
   id: string;
   groupId: string;
   groupName: string;

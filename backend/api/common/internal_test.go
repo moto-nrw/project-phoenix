@@ -249,15 +249,26 @@ func TestCoalesceGroupMap_BothNil(t *testing.T) {
 // =============================================================================
 
 func TestNewEmptyLocationSnapshot(t *testing.T) {
-	snapshot := newEmptyLocationSnapshot()
+	snapshot := newEmptyLocationSnapshot(PresenceModeDetailed)
 
 	assert.NotNil(t, snapshot)
+	assert.Equal(t, PresenceModeDetailed, snapshot.Mode)
 	assert.NotNil(t, snapshot.Attendances)
 	assert.NotNil(t, snapshot.Visits)
 	assert.NotNil(t, snapshot.Groups)
 	assert.Empty(t, snapshot.Attendances)
 	assert.Empty(t, snapshot.Visits)
 	assert.Empty(t, snapshot.Groups)
+}
+
+func TestNewEmptyLocationSnapshot_BinaryMode(t *testing.T) {
+	snapshot := newEmptyLocationSnapshot(PresenceModeBinary)
+	assert.Equal(t, PresenceModeBinary, snapshot.Mode)
+}
+
+func TestNewEmptyLocationSnapshot_EmptyModeDefaultsToDetailed(t *testing.T) {
+	snapshot := newEmptyLocationSnapshot("")
+	assert.Equal(t, PresenceModeDetailed, snapshot.Mode)
 }
 
 // =============================================================================

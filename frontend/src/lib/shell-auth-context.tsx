@@ -9,13 +9,13 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ShellAuthContext" });
 
-export interface ShellUser {
+interface ShellUser {
   name: string;
   email: string;
   roles: string[];
 }
 
-export interface ShellProfile {
+interface ShellProfile {
   firstName?: string;
   lastName?: string;
   avatar?: string;
@@ -25,7 +25,7 @@ type ShellStatus = "loading" | "authenticated" | "unauthenticated";
 
 type ShellMode = "teacher" | "operator";
 
-export interface ShellAuthContextType {
+interface ShellAuthContextType {
   user: ShellUser | null;
   profile: ShellProfile | null;
   status: ShellStatus;

@@ -78,7 +78,7 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visi
 	}
 
 	attendance.SetTenantID(tenant.FromContext(ctx))
-	if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
+	if _, err := s.attendanceRepo.CreateIfNoOpenForToday(ctx, attendance); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 	return nil

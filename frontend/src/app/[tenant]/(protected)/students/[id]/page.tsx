@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -16,6 +16,7 @@ import {
   useStudentData,
   type ExtendedStudent,
 } from "~/lib/hooks/use-student-data";
+import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   StudentDetailHeader,
@@ -33,12 +34,25 @@ import {
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
 import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "StudentDetailPage" });
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
+import { ArrivalScheduleManager } from "~/components/students/arrival-schedule-manager";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
+import { fetchArrivalData } from "~/lib/student-arrival-api";
+import {
+  getDayData as getArrivalDayData,
+  formatArrivalTime,
+} from "~/lib/arrival-schedule-helpers";
+
+type TodayArrival = {
+  time?: string;
+  note?: string;
+  isException?: boolean;
+  isAbsent?: boolean;
+};
+
+const logger = createLogger({ component: "StudentDetailPage" });
 
 // =============================================================================
 // MAIN COMPONENT
@@ -135,6 +149,12 @@ export default function StudentDetailPage() {
     isException?: boolean;
   }>({});
 
+  const { data: arrivalData } = useSWRAuth(
+    hasFullAccess && studentId ? `arrival-data-${studentId}` : null,
+    async () => fetchArrivalData(studentId),
+    { revalidateOnFocus: false },
+  );
+
   // Load active groups when check-in modal opens
   useEffect(() => {
     if (!showConfirmCheckin) {
@@ -201,6 +221,36 @@ export default function StudentDetailPage() {
 
     void loadTodayPickup();
   }, [hasFullAccess, studentId, student?.sick, student?.excused]);
+
+  const todayArrival = useMemo<TodayArrival>(() => {
+    if (!hasFullAccess || !arrivalData) return {};
+
+    const dayData = getArrivalDayData(
+      new Date(),
+      arrivalData.schedules,
+      arrivalData.exceptions,
+      arrivalData.notes,
+      student?.sick ?? false,
+      student?.excused ?? false,
+    );
+
+    if (dayData.isAbsent) {
+      return {
+        note: dayData.effectiveReason,
+        isException: dayData.isException,
+        isAbsent: true,
+      };
+    }
+    if (dayData.effectiveTime) {
+      return {
+        time: formatArrivalTime(dayData.effectiveTime),
+        note: dayData.effectiveReason,
+        isException: dayData.isException,
+        isAbsent: false,
+      };
+    }
+    return {};
+  }, [arrivalData, hasFullAccess, student?.excused, student?.sick]);
 
   // Show loading state
   if (loading) {
@@ -497,9 +547,15 @@ export default function StudentDetailPage() {
           myGroups={myGroups}
           myGroupRooms={myGroupRooms}
           mySupervisedRooms={mySupervisedRooms}
-          todayPickupTime={todayPickup.time}
+          todayPickupPlannedTime={todayPickup.time}
+          todayPickupActualTime={student.actual_pickup_time}
           todayPickupNote={todayPickup.note}
           isPickupException={todayPickup.isException}
+          todayArrivalPlannedTime={todayArrival.time}
+          todayArrivalActualTime={student.actual_arrival_time}
+          isArrivalException={todayArrival.isException}
+          todayArrivalNote={todayArrival.note}
+          isArrivalAbsent={todayArrival.isAbsent}
         />
 
         {hasFullAccess ? (
@@ -804,6 +860,12 @@ function FullAccessView({
       )}
 
       <div className="space-y-4 sm:space-y-6">
+        <ArrivalScheduleManager
+          studentId={studentId}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
+        />
+
         <PickupScheduleManager
           studentId={studentId}
           readOnly={!hasWriteAccess}

@@ -64,28 +64,8 @@ export interface BackendGuardianProfile {
 }
 
 // Student-Guardian Relationship
-export interface StudentGuardianRelationship {
-  guardianId: string;
-  relationshipId: string;
-  relationshipType: string;
-  isPrimary: boolean;
-  isEmergencyContact: boolean;
-  canPickup: boolean;
-  pickupNotes?: string;
-  emergencyPriority: number;
-}
 
 // Backend Student-Guardian Relationship
-export interface BackendStudentGuardianRelationship {
-  guardian_id: number;
-  relationship_id: number;
-  relationship_type: string;
-  is_primary: boolean;
-  is_emergency_contact: boolean;
-  can_pickup: boolean;
-  pickup_notes?: string;
-  emergency_priority: number;
-}
 
 // Guardian with Relationship (for student detail view)
 export interface GuardianWithRelationship extends Guardian {
@@ -126,7 +106,7 @@ export interface GuardianFormData {
 // Backend Guardian Create Request
 // preferred_contact_method and language_preference are optional — the backend
 // applies its own defaults ("phone" and "de") when omitted.
-export interface BackendGuardianCreateRequest {
+interface BackendGuardianCreateRequest {
   first_name: string;
   last_name: string;
   email?: string;
@@ -150,7 +130,7 @@ export interface StudentGuardianLinkRequest {
 }
 
 // Backend Student-Guardian Link Request
-export interface BackendStudentGuardianLinkRequest {
+interface BackendStudentGuardianLinkRequest {
   guardian_profile_id: number;
   relationship_type: string;
   is_primary: boolean;
@@ -332,14 +312,14 @@ export interface PhoneNumberUpdateRequest {
   label?: string;
 }
 
-export interface BackendPhoneNumberCreateRequest {
+interface BackendPhoneNumberCreateRequest {
   phone_number: string;
   phone_type: PhoneType;
   label?: string;
   is_primary?: boolean;
 }
 
-export interface BackendPhoneNumberUpdateRequest {
+interface BackendPhoneNumberUpdateRequest {
   phone_number?: string;
   phone_type?: PhoneType;
   label?: string;

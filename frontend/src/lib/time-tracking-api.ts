@@ -34,13 +34,6 @@ interface ErrorResponse {
 }
 
 /**
- * Check-in request body
- */
-export interface CheckInRequest {
-  status: "present" | "home_office";
-}
-
-/**
  * Update session request body
  */
 export interface UpdateSessionRequest {

@@ -6,6 +6,24 @@
  */
 
 import type { SWRConfiguration } from "swr";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "useSWRAuth" });
+
+/**
+ * Default error handler for useSWRAuth.
+ *
+ * SWR fires onError for every failed attempt (each retry counts), so a flaky
+ * endpoint logs multiple times — that retry behavior is itself useful signal.
+ * The cache key is the de-facto event identifier so dashboards can group
+ * failures by domain (e.g., "tenant-slug:database-devices-list").
+ */
+function logSWRError(error: unknown, key: string): void {
+  logger.error("swr_fetch_failed", {
+    key,
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
 
 /**
  * Default SWR configuration for the application.
@@ -36,6 +54,8 @@ export const swrConfig: SWRConfiguration = {
 
   // Keep previous data while revalidating (prevents loading flash)
   keepPreviousData: true,
+
+  onError: logSWRError,
 };
 
 /**
