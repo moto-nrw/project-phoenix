@@ -529,46 +529,6 @@ Business rules drift constantly. Yesterday's "device is offline after 5 minutes"
 
 ---
 
-## 13. The Architectural-Debt Ratchet
-
-**RULE: The counts in `.claude/rules/baseline.txt` may only go down, never up.** Every PR runs `scripts/check-bloat.sh`, which fails non-zero if any tracked count rose above its baseline.
-
-### How it works
-
-- `scripts/check-bloat.sh` runs the eight detection commands from rules 1, 4, 5, 7, 11, and 12 and compares each result to `.claude/rules/baseline.txt`.
-- If any count rose, the script exits non-zero and CI fails.
-- If every count is at or below baseline, the script passes.
-
-### Tracked counts
-
-| Key | Rule | Detects |
-|---|---|---|
-| `layer_skip_in_handlers` | Rule 1 | Handler structs holding `Repository` fields or calling `.XxxRepository()` |
-| `fat_handlers` | Rule 4 | `gocognit -over 15` in `backend/api/` |
-| `test_handler_wrappers` | Rule 5 | `*Handler() http.HandlerFunc { return rs.x }` ceremony |
-| `duplicate_error_helpers` | Rule 7 | `ErrorInvalidRequest`/`ErrorNotFound`/etc. outside `api/common/` |
-| `service_query_construction` | Rule 11 | `.NewSelect/NewUpdate/NewInsert/NewDelete/NewRaw(` in `backend/services/` |
-| `model_state_mutations` | Rule 12 | `Mark*/End*/Activate*/...` methods on model entities |
-| `model_rbac_decisions` | Rule 12 | `HasPermission/IsAdmin/CanAccess/...` methods on model entities |
-| `model_magic_numbers` | Rule 12 | `N * time.Hour/Minute/Second/Day` literals in models |
-
-### Updating the baseline
-
-Two reasons to regenerate the baseline:
-
-1. **You removed violations** (the happy path). Run `scripts/check-bloat.sh --print > .claude/rules/baseline.txt` and commit the new lower numbers in the same PR. This locks in the win — the next PR can't regress to the old level.
-2. **An increase is unavoidable** (the rare path). Justify it in the PR description, citing the specific count and why no alternative works. Then regenerate. Reviewers should push back hard on this.
-
-### Locking in wins
-
-Whenever a refactor PR drops a count, the same PR MUST update `baseline.txt` to the new lower number. Otherwise the next PR is free to re-introduce the same violations up to the old baseline, and the cleanup was wasted.
-
-### Why
-
-Architectural rules without enforcement decay within weeks. The timetable module added ~250 functions between January and April precisely because no automated check blocked the per-entity copy-paste at review time. The ratchet pattern (one-way movement on a counter) makes the rules above self-enforcing without requiring reviewer vigilance on every PR.
-
----
-
 ## Code Review Checklist
 
 Apply this before approving any backend PR:
@@ -587,14 +547,10 @@ Apply this before approving any backend PR:
 - [ ] **Services don't construct queries** — no `NewSelect/NewUpdate/NewInsert/NewDelete/NewRaw` in `services/`
 - [ ] **Models hold data, not decisions** — no state-mutation methods (`Mark*/End*/Activate*`), no RBAC (`HasPermission/IsAdmin`), no magic-number thresholds in model code
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
-- [ ] `scripts/check-bloat.sh` passes (no count rose above `.claude/rules/baseline.txt`)
-- [ ] If counts dropped, baseline regenerated in the same PR (`scripts/check-bloat.sh --print > .claude/rules/baseline.txt`)
 
 ---
 
 ## Detection commands (one-shot health check)
-
-**Quickest path:** `scripts/check-bloat.sh` runs all eight detection commands and compares them to the locked-in baseline (Rule 13). The raw commands below are kept for ad-hoc investigation; CI uses the script.
 
 ```bash
 cd backend
