@@ -260,9 +260,6 @@ func (s *stubActiveService) CleanupAbandonedSessions(_ context.Context, _ time.D
 func (s *stubActiveService) EndDailySessions(_ context.Context) (*activeSvc.DailySessionCleanupResult, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetActiveGroupsCount(_ context.Context) (int, error) { return 0, nil }
-func (s *stubActiveService) GetTotalVisitsCount(_ context.Context) (int, error)  { return 0, nil }
-func (s *stubActiveService) GetActiveVisitsCount(_ context.Context) (int, error) { return 0, nil }
 func (s *stubActiveService) GetDashboardAnalytics(_ context.Context) (*activeSvc.DashboardAnalytics, error) {
 	return nil, nil
 }

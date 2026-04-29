@@ -392,6 +392,13 @@ func TeacherTestClaims(accountID int) jwt.AppClaims {
 
 // AdminTestClaims returns JWT claims for an admin user.
 func AdminTestClaims(accountID int) jwt.AppClaims {
+	return AdminTestClaimsForTenant(accountID, 1)
+}
+
+// AdminTestClaimsForTenant returns admin JWT claims scoped to a specific tenant.
+// Use this for tests that run in an isolated tenant (e.g., to avoid cross-package
+// fixture interference) instead of the default test tenant id=1.
+func AdminTestClaimsForTenant(accountID int, tenantID int64) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:          accountID,
 		Sub:         "admin@example.com",
@@ -401,6 +408,6 @@ func AdminTestClaims(accountID int) jwt.AppClaims {
 		Roles:       []string{"admin"},
 		Permissions: []string{"admin:*"},
 		IsAdmin:     true,
-		TenantID:    1,
+		TenantID:    tenantID,
 	}
 }

@@ -95,12 +95,6 @@ export interface BackendGroupMapping {
   combined_name?: string;
 }
 
-export interface BackendAnalytics {
-  active_groups_count?: number;
-  total_visits_count?: number;
-  active_visits_count?: number;
-}
-
 // Frontend types
 // groupId: string | null — mirrors the nullable backend contract (WP-B6).
 // A null value means the session is spontaneous (no parent template).
@@ -185,12 +179,6 @@ export interface GroupMapping {
   combinedGroupId: string;
   groupName?: string;
   combinedName?: string;
-}
-
-export interface Analytics {
-  activeGroupsCount?: number;
-  totalVisitsCount?: number;
-  activeVisitsCount?: number;
 }
 
 // Transformation functions
@@ -297,16 +285,6 @@ export function mapGroupMappingResponse(
     combinedGroupId: String(backendGroupMapping.combined_group_id),
     groupName: backendGroupMapping.group_name,
     combinedName: backendGroupMapping.combined_name,
-  };
-}
-
-export function mapAnalyticsResponse(
-  backendAnalytics: BackendAnalytics,
-): Analytics {
-  return {
-    activeGroupsCount: backendAnalytics.active_groups_count,
-    totalVisitsCount: backendAnalytics.total_visits_count,
-    activeVisitsCount: backendAnalytics.active_visits_count,
   };
 }
 

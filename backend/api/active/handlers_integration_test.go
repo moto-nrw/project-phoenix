@@ -376,13 +376,6 @@ func TestAnalytics_Integration(t *testing.T) {
 	_, router := setupAnalyticsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
-	t.Run("get counts", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/counts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
 	t.Run("get dashboard analytics", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/dashboard", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1177,7 +1170,6 @@ func setupAnalyticsRouter(t *testing.T) (*testContext, chi.Router) {
 	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active/analytics", func(r chi.Router) {
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", tc.resource.GetCountsHandler())
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", tc.resource.GetDashboardAnalyticsHandler())
 	})
 

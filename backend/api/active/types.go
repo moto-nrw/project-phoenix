@@ -144,13 +144,6 @@ type GroupMappingResponse struct {
 	CombinedName    string `json:"combined_name,omitempty"`
 }
 
-// AnalyticsResponse represents analytics API response
-type AnalyticsResponse struct {
-	ActiveGroupsCount int `json:"active_groups_count"`
-	TotalVisitsCount  int `json:"total_visits_count"`
-	ActiveVisitsCount int `json:"active_visits_count"`
-}
-
 // DashboardAnalyticsResponse represents dashboard analytics API response
 type DashboardAnalyticsResponse struct {
 	// Student Overview
