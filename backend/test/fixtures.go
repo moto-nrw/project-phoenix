@@ -343,6 +343,10 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 // Pass activity group IDs, device IDs, room IDs, education group IDs, teacher IDs, or any combination.
 // This is typically called in a defer statement to ensure cleanup happens.
 //
+// Implicit tenant scope: deletes are confined to the default test tenant (id=1).
+// Tests that build fixtures in a different tenant must call
+// CleanupActivityFixturesForTenant instead.
+//
 // Example:
 //
 //	activity := CreateTestActivityGroup(t, db, "Test")
@@ -351,14 +355,29 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 //	defer CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 	tb.Helper()
+	CleanupActivityFixturesForTenant(tb, db, 1, ids...)
+}
+
+// CleanupActivityFixturesForTenant is the tenant-scoped variant of
+// CleanupActivityFixtures. Every DELETE is constrained to the supplied tenant_id,
+// so a test running in an isolated tenant cannot have its rows clobbered by a
+// concurrent test package whose call to CleanupActivityFixtures (tenant 1)
+// happens to pass an int64 that numerically matches one of this test's
+// auto-incremented fixture IDs.
+//
+// Use this together with the *ForTenant fixture builders when a test must run
+// in a non-default tenant for isolation reasons.
+func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64, ids ...int64) {
+	tb.Helper()
 
 	if len(ids) == 0 {
 		return
 	}
 
-	// Batch delete all fixtures matching the IDs
-	// This is a simple approach that deletes from any table with these IDs
-	// More sophisticated cleanup could track which table each ID belongs to
+	// Batch delete all fixtures matching the IDs.
+	// Each DELETE is paired with `tenant_id = ?` so cross-package raw-id
+	// collisions (e.g. tenant 1's staff_id == tenant 99001's active_group_id)
+	// cannot delete the wrong tenant's data.
 
 	for _, id := range ids {
 		// Try to delete from each table type
@@ -371,25 +390,29 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Delete from education.group_substitution (depends on group and staff)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("education.group_substitution").
-			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id),
+			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"education.group_substitution")
 
 		// Delete from education.group_teacher (depends on group and teacher)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("education.group_teacher").
-			Where("group_id = ? OR teacher_id = ?", id, id),
+			Where("group_id = ? OR teacher_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			"education.group_teacher")
 
 		// Delete from users.teachers (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr(tableUsersTeachers).
-			Where("id = ? OR staff_id = ?", id, id),
+			Where("id = ? OR staff_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			tableUsersTeachers)
 
 		// Delete from education.groups
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("education.groups").
-			Where(whereIDEquals, id),
+			Where(whereIDEquals, id).
+			Where("tenant_id = ?", tenantID),
 			"education.groups")
 
 		// ========================================
@@ -399,13 +422,15 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Delete from active.visits by direct ID, by student_id, or by active_group_id
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr(tableActiveVisits).
-			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id),
+			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			tableActiveVisits)
 
 		// Delete from active.visits (cascade cleanup via activities.groups reference)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr(tableActiveVisits).
-			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ?)", id),
+			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ? AND tenant_id = ?)", id, tenantID).
+			Where("tenant_id = ?", tenantID),
 			"active.visits (cascade)")
 
 		// Delete from active.groups by direct ID or by reference.
@@ -413,7 +438,8 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// without tripping fk_active_groups_room_tenant.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("active.groups").
-			Where("id = ? OR group_id = ? OR device_id = ? OR room_id = ?", id, id, id, id),
+			Where("id = ? OR group_id = ? OR device_id = ? OR room_id = ?", id, id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"active.groups")
 
 		// ========================================
@@ -423,7 +449,8 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Delete from activities.student_enrollments (depends on activities.groups)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("activities.student_enrollments").
-			Where("activity_group_id = ?", id),
+			Where("activity_group_id = ?", id).
+			Where("tenant_id = ?", tenantID),
 			"activities.student_enrollments")
 
 		// Delete from activities.groups by ID, by category_id, or by created_by.
@@ -431,13 +458,15 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// tripping fk_activity_groups_created_by_tenant.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("activities.groups").
-			Where("id = ? OR category_id = ? OR created_by = ?", id, id, id),
+			Where("id = ? OR category_id = ? OR created_by = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"activities.groups")
 
 		// Delete from activities.categories (now safe after groups referencing them are deleted)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("activities.categories").
-			Where(whereIDEquals, id),
+			Where(whereIDEquals, id).
+			Where("tenant_id = ?", tenantID),
 			"activities.categories")
 
 		// ========================================
@@ -451,7 +480,8 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("iot.devices").
 			Where(whereIDEquals, id).
-			Where("device_id != ?", "WEB-MANUAL-001"),
+			Where("device_id != ?", "WEB-MANUAL-001").
+			Where("tenant_id = ?", tenantID),
 			"iot.devices")
 
 		// ========================================
@@ -463,7 +493,8 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("facilities.rooms").
 			Where(whereIDEquals, id).
-			Where("id != ?", 1),
+			Where("id != ?", 1).
+			Where("tenant_id = ?", tenantID),
 			"facilities.rooms")
 
 		// ========================================
@@ -473,13 +504,15 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Delete from users.guests (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("users.guests").
-			Where("id = ? OR staff_id = ?", id, id),
+			Where("id = ? OR staff_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			"users.guests")
 
 		// Delete from users.profiles (depends on account)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("users.profiles").
-			Where(whereIDOrAccountID, id, id),
+			Where(whereIDOrAccountID, id, id).
+			Where("tenant_id = ?", tenantID),
 			"users.profiles")
 
 		// Delete from active.attendance by student_id or device_id.
@@ -487,13 +520,15 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// tripping fk_attendance_device_tenant.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("active.attendance").
-			Where("student_id = ? OR device_id = ?", id, id),
+			Where("student_id = ? OR device_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			"active.attendance")
 
 		// Delete from users.students
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("users.students").
-			Where(whereIDEquals, id),
+			Where(whereIDEquals, id).
+			Where("tenant_id = ?", tenantID),
 			"users.students")
 
 		// Delete from users.staff, but never the system staff fixture
@@ -501,7 +536,8 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr(tableUsersStaff).
 			Where(whereIDEquals, id).
-			Where("id != ?", 1),
+			Where("id != ?", 1).
+			Where("tenant_id = ?", tenantID),
 			tableUsersStaff)
 
 		// Delete from users.persons (last, as it's referenced by students and staff).
@@ -510,7 +546,8 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr(tableUsersPersons).
 			Where(whereIDEquals, id).
-			Where("id != ?", 1),
+			Where("id != ?", 1).
+			Where("tenant_id = ?", tenantID),
 			tableUsersPersons)
 
 		// ========================================
@@ -520,7 +557,8 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Delete from active.group_supervisors
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("active.group_supervisors").
-			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id),
+			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"active.group_supervisors")
 
 		// NOTE: Auth domain cleanup intentionally omitted here.
@@ -535,25 +573,29 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Delete from users.privacy_consents (by student_id)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("users.privacy_consents").
-			Where("id = ? OR student_id = ?", id, id),
+			Where("id = ? OR student_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			"users.privacy_consents")
 
 		// Delete from users.persons_guardians (by person_id or guardian_account_id)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("users.persons_guardians").
-			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id),
+			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"users.persons_guardians")
 
 		// Delete from users.guardian_profiles
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("users.guardian_profiles").
-			Where(whereIDEquals, id),
+			Where(whereIDEquals, id).
+			Where("tenant_id = ?", tenantID),
 			"users.guardian_profiles")
 
 		// Delete from users.rfid_cards (note: string ID, but try as int64)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr(tableUsersRFIDCards).
-			Where(whereIDEquals, fmt.Sprintf("%d", id)),
+			Where(whereIDEquals, fmt.Sprintf("%d", id)).
+			Where("tenant_id = ?", tenantID),
 			tableUsersRFIDCards)
 	}
 }
@@ -2317,6 +2359,36 @@ func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *
 		ModelTableExpr(`active.groups`).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test active group for tenant")
+
+	return activeGroup
+}
+
+// CreateTestActiveGroupWithIDsForTenant creates an active group bound to
+// caller-supplied activity group and room IDs in the given tenant. Use this
+// when the test owns the room and activity group fixtures (so it can clean
+// them up explicitly) rather than letting CreateTestActiveGroupForTenant
+// auto-create and leak them.
+func CreateTestActiveGroupWithIDsForTenant(tb testing.TB, db *bun.DB, tenantID, activityGroupID, roomID int64) *active.Group {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	activeGroup := &active.Group{
+		GroupID:        &activityGroupID,
+		RoomID:         roomID,
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+	}
+	activeGroup.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test active group with explicit IDs for tenant")
 
 	return activeGroup
 }
