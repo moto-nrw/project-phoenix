@@ -10,26 +10,44 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// StudentStatus represents the lifecycle status of a student.
+// Set on creation by the parent-enrollment flow; transitions are driven by
+// the activate-students scheduler tick (pending→active when enrolled_from
+// arrives, active→inactive when enrolled_until passes). The "alumnus" value
+// is reserved for future graduation/leaver flows — no scheduler logic
+// transitions to it as of PR 2.
+type StudentStatus string
+
+const (
+	StudentStatusPending  StudentStatus = "pending"
+	StudentStatusActive   StudentStatus = "active"
+	StudentStatusInactive StudentStatus = "inactive"
+	StudentStatusAlumnus  StudentStatus = "alumnus"
+)
+
 // Student represents a student in the system
 type Student struct {
 	base.Model `bun:"schema:users,table:students"`
 	base.TenantModel
-	PersonID        int64      `bun:"person_id,notnull" json:"person_id"`
-	SchoolClass     string     `bun:"school_class,notnull" json:"school_class"`
-	GuardianName    *string    `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
-	GuardianContact *string    `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
-	GuardianEmail   *string    `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone   *string    `bun:"guardian_phone" json:"guardian_phone,omitempty"`
-	GroupID         *int64     `bun:"group_id" json:"group_id,omitempty"`
-	ExtraInfo       *string    `bun:"extra_info" json:"extra_info,omitempty"`
-	SupervisorNotes *string    `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
-	HealthInfo      *string    `bun:"health_info" json:"health_info,omitempty"`
-	PickupStatus    *string    `bun:"pickup_status" json:"pickup_status,omitempty"`
-	Bus             *bool      `bun:"bus" json:"bus,omitempty"`                     // Administrative permission flag (Buskind)
-	Sick            *bool      `bun:"sick" json:"sick,omitempty"`                   // true = currently sick
-	SickSince       *time.Time `bun:"sick_since" json:"sick_since,omitempty"`       // When sickness was reported
-	Excused         *bool      `bun:"excused" json:"excused,omitempty"`             // true = currently excused (not attending today)
-	ExcusedSince    *time.Time `bun:"excused_since" json:"excused_since,omitempty"` // When excused status was reported
+	PersonID        int64         `bun:"person_id,notnull" json:"person_id"`
+	SchoolClass     string        `bun:"school_class,notnull" json:"school_class"`
+	GuardianName    *string       `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
+	GuardianContact *string       `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
+	GuardianEmail   *string       `bun:"guardian_email" json:"guardian_email,omitempty"`
+	GuardianPhone   *string       `bun:"guardian_phone" json:"guardian_phone,omitempty"`
+	GroupID         *int64        `bun:"group_id" json:"group_id,omitempty"`
+	ExtraInfo       *string       `bun:"extra_info" json:"extra_info,omitempty"`
+	SupervisorNotes *string       `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
+	HealthInfo      *string       `bun:"health_info" json:"health_info,omitempty"`
+	PickupStatus    *string       `bun:"pickup_status" json:"pickup_status,omitempty"`
+	Bus             *bool         `bun:"bus" json:"bus,omitempty"`                     // Administrative permission flag (Buskind)
+	Sick            *bool         `bun:"sick" json:"sick,omitempty"`                   // true = currently sick
+	SickSince       *time.Time    `bun:"sick_since" json:"sick_since,omitempty"`       // When sickness was reported
+	Excused         *bool         `bun:"excused" json:"excused,omitempty"`             // true = currently excused (not attending today)
+	ExcusedSince    *time.Time    `bun:"excused_since" json:"excused_since,omitempty"` // When excused status was reported
+	Status          StudentStatus `bun:"status,notnull,default:'active'" json:"status"`
+	EnrolledFrom    *time.Time    `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
+	EnrolledUntil   *time.Time    `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`

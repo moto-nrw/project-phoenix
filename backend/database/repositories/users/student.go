@@ -4,6 +4,7 @@ package users
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -630,6 +631,84 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name and class",
+			Err: err,
+		}
+	}
+
+	return students, nil
+}
+
+// UpdateStatus changes the lifecycle status of a single student. Tenant-scoped
+// via context. Returns an error if no row was affected (wrong tenant or
+// missing student).
+func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, newStatus users.StudentStatus) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		Set("status = ?", string(newStatus)).
+		Set("updated_at = NOW()").
+		Where(`"student".id = ?`, studentID)
+
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update student status",
+			Err: err,
+		}
+	}
+
+	return base.AssertRowsAffected(result, 1, "update student status")
+}
+
+// FindPendingDueForActivation returns students whose status='pending' and
+// enrolled_from <= asOf within the current tenant context. Drives the
+// pending→active half of the activate-students scheduler tick.
+func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asOf time.Time) ([]*users.Student, error) {
+	var students []*users.Student
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&students).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Where(`"student".status = ?`, string(users.StudentStatusPending)).
+		Where(`"student".enrolled_from IS NOT NULL`).
+		Where(`"student".enrolled_from <= ?`, asOf)
+
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find pending students due for activation",
+			Err: err,
+		}
+	}
+
+	return students, nil
+}
+
+// FindActiveDueForDeactivation returns students whose status='active' and
+// enrolled_until <= asOf within the current tenant context. Drives the
+// active→inactive half of the activate-students scheduler tick.
+func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, asOf time.Time) ([]*users.Student, error) {
+	var students []*users.Student
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&students).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Where(`"student".status = ?`, string(users.StudentStatusActive)).
+		Where(`"student".enrolled_until IS NOT NULL`).
+		Where(`"student".enrolled_until <= ?`, asOf)
+
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active students due for deactivation",
 			Err: err,
 		}
 	}

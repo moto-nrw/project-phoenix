@@ -57,6 +57,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_checkin_access",
+		// Parent-enrollment PR 2: activate-students scheduler interval.
+		"operations.student_activation_interval_minutes",
 	}
 
 	for _, key := range expectedKeys {
@@ -70,7 +72,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 	// 28 pre-WP-B7 settings + 7 timetable settings + 2 sick/excused clear-mode
 	// settings == 37 minimum. The `>=` is intentional so later work packages can
 	// add more settings without retrofitting this assertion.
-	assert.GreaterOrEqual(t, len(all), 37, "at least 37 settings should be registered (28 existing + 7 timetable + 2 clear-mode)")
+	assert.GreaterOrEqual(t, len(all), 37, "at least 37 settings should be registered (28 existing + 7 timetable + 2 clear-mode + parent-enrollment additions)")
 }
 
 func TestPresenceModeSetting(t *testing.T) {
@@ -241,6 +243,23 @@ func TestOperationsSettings_Types(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
 	}
+}
+
+// TestStudentActivationInterval guards the registry shape of the activate-
+// students scheduler interval. Default 60 minutes, validation 5–1440.
+func TestStudentActivationInterval(t *testing.T) {
+	def := config.GetDefinition(config.KeyStudentActivationIntervalMin)
+	require.NotNil(t, def, "operations.student_activation_interval_minutes should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 60, def.Default)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(5), *def.Validation.Min)
+	assert.Equal(t, float64(1440), *def.Validation.Max)
+	assert.Nil(t, def.DependsOn, "activate-students interval is independent of other settings")
 }
 
 // TestStatusFlagClearMode_Defaults guards that the clear-mode settings

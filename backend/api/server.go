@@ -83,6 +83,10 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.repos != nil && api.Services.RealtimeHub != nil {
 			srv.scheduler.SetInstanceOverdueDeps(api.repos.ActivityInstance, api.Services.RealtimeHub)
 		}
+		// Parent-enrollment PR 2: activate-students tick.
+		if api.repos != nil && api.repos.Student != nil {
+			srv.scheduler.SetStudentLifecycleRepo(api.repos.Student)
+		}
 	}
 
 	return srv, nil

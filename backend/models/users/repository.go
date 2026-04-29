@@ -134,6 +134,19 @@ type StudentRepository interface {
 
 	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
 	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*Student, error)
+
+	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
+	UpdateStatus(ctx context.Context, studentID int64, newStatus StudentStatus) error
+
+	// FindPendingDueForActivation returns students whose status='pending' AND
+	// enrolled_from <= asOf within the current tenant context. Used by the
+	// activate-students scheduler tick.
+	FindPendingDueForActivation(ctx context.Context, asOf time.Time) ([]*Student, error)
+
+	// FindActiveDueForDeactivation returns students whose status='active' AND
+	// enrolled_until <= asOf within the current tenant context. Used by the
+	// activate-students scheduler tick to flip rows to 'inactive'.
+	FindActiveDueForDeactivation(ctx context.Context, asOf time.Time) ([]*Student, error)
 }
 
 // StaffRepository defines operations for managing staff members

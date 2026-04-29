@@ -117,6 +117,10 @@ type Scheduler struct {
 	overdueEmitted      sync.Map // overdueKey{tenantID, instanceID} → time.Time
 	overdueEmittedDay   time.Time
 	overdueEmittedDayMu sync.Mutex
+
+	// Student lifecycle (parent-enrollment PR 2). Wired via SetStudentLifecycleRepo.
+	// Nil → activate-students task does not register.
+	studentLifecycleRepo StudentLifecycleRepository
 }
 
 // overdueKey composites tenant + instance so the sync.Map key cannot collide
@@ -284,6 +288,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule minute-polled overdue instance tick (WP-B9)
 	s.scheduleInstanceOverdueTask()
+
+	// Schedule per-tenant activate-students tick (parent-enrollment PR 2)
+	s.scheduleActivateStudentsTask()
 }
 
 // Stop gracefully stops the scheduler
