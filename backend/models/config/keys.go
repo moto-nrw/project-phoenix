@@ -104,6 +104,42 @@ const (
 	KeyGuardianInvitationTokenExpiryHours = "invitations.guardian_token_expiry_hours"
 )
 
+// Parent-enrollment settings (PR 4 plumbing — values are not yet consumed
+// by code outside the registry. Consumers come online in PRs 5-8).
+const (
+	KeyEnrollmentEnabled                     = "enrollment.enabled"
+	KeyEnrollmentOpenWindowStart             = "enrollment.open_window_start"
+	KeyEnrollmentOpenWindowEnd               = "enrollment.open_window_end"
+	KeyEnrollmentCollectGradeLevel           = "enrollment.collect_grade_level"
+	KeyEnrollmentCareOfferingsEnabled        = "enrollment.care_offerings_enabled"
+	KeyEnrollmentCareOfferingsRequired       = "enrollment.care_offerings_required"
+	KeyEnrollmentDefaultActivationMode       = "enrollment.default_activation_mode"
+	KeyEnrollmentNotificationEmails          = "enrollment.notification_emails"
+	KeyEnrollmentAutoInviteGuardianOnApprove = "enrollment.auto_invite_guardian_on_approval"
+	KeyEnrollmentDuplicateHandling           = "enrollment.duplicate_handling"
+	KeyEnrollmentAllowSubmissionEdit         = "enrollment.allow_submission_edit"
+	KeyEnrollmentRequireCaptcha              = "enrollment.require_captcha"
+	KeyEnrollmentRejectedRetentionDays       = "enrollment.rejected_retention_days"
+	KeyEnrollmentWaitlistEnabled             = "enrollment.waitlist_enabled"
+	KeyEnrollmentShowStatusReasonToParent    = "enrollment.show_status_reason_to_parent"
+	KeyEnrollmentNotifyPerDecision           = "enrollment.notify_per_decision"
+	KeyEnrollmentOutboxMaxAttempts           = "enrollment.outbox_max_attempts"
+	KeyEnrollmentStatusTokenTTLDays          = "enrollment.status_token_ttl_days"
+)
+
+// Enrollment select-option values.
+const (
+	EnrollmentActivationModeImmediate = "immediate"
+	EnrollmentActivationModeScheduled = "scheduled"
+
+	EnrollmentDuplicateHandlingBlock  = "block"
+	EnrollmentDuplicateHandlingWarn   = "warn"
+	EnrollmentDuplicateHandlingIgnore = "ignore"
+
+	EnrollmentNotifyPerDecisionDigest    = "digest"
+	EnrollmentNotifyPerDecisionImmediate = "immediate"
+)
+
 // Timetable settings (WP-B7). Per-tenant configuration for the activity
 // template → instance materialization pipeline and the staff-facing
 // auto-start behaviour. All definitions live in defaults/timetable.go.

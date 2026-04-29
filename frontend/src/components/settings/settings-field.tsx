@@ -7,6 +7,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
 import { TimeField } from "./fields/time-field";
+import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
@@ -322,6 +323,16 @@ function renderField(
           onBlur={onBlur}
           disabled={disabled}
           emptyLabel={setting.default === "" ? "Jederzeit" : undefined}
+        />
+      );
+    case "date":
+      return (
+        <DateField
+          value={toStr(localValue)}
+          onChange={onLocalChange}
+          onBlur={onBlur}
+          disabled={disabled}
+          emptyLabel={setting.default === "" ? "Kein Datum" : undefined}
         />
       );
     case "text":
