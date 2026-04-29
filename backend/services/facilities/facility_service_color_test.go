@@ -85,7 +85,7 @@ func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
 }
 
 // TestFacilitiesService_UpdateRoom_RejectsDuplicateColor exercises the partial
-// unique index from migration 1.15.44. Two rooms in the same school cannot
+// unique index from migration 1.15.45. Two rooms in the same school cannot
 // share a color; the service translates the 23505 to ErrColorAlreadyInUse so
 // the frontend toast can surface the German message instead of a 500.
 func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {

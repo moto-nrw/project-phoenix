@@ -44,7 +44,7 @@ func (r *RoomRepository) Create(ctx context.Context, room *facilities.Room) erro
 	// facility_service.go CreateRoom/UpdateRoom. The repo previously
 	// re-validated here, which collided with the system-room legacy-colour
 	// preserve path: that flow re-attaches an existing #4F46E5 (now
-	// reserved per migration 1.15.44) right before the repo write, and a
+	// reserved per migration 1.15.45) right before the repo write, and a
 	// second Validate would reject it. Keep validation in one place.
 
 	// Use the base Create method which now uses ModelTableExpr

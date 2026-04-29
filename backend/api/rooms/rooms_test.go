@@ -194,7 +194,7 @@ func TestCreateRoom(t *testing.T) {
 		floor := 2
 		// Hex stays deterministic — the row gets cleaned up below, so
 		// repeated runs no longer collide on the (tenant_id, lower(color))
-		// unique index from migration 1.15.44. Earlier crashed/cancelled
+		// unique index from migration 1.15.45. Earlier crashed/cancelled
 		// runs may have left a #FF5733 row behind that the deferred
 		// cleanup never ran on; sweep it up here to keep the test
 		// hermetic.

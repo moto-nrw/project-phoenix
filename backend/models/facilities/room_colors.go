@@ -3,7 +3,7 @@ package facilities
 import "strings"
 
 // RoomColorUniqueConstraintName is the index name created by migration
-// 1.15.44. Service layer matches it via pgdriver.Error.Field('n') so a
+// 1.15.45. Service layer matches it via pgdriver.Error.Field('n') so a
 // generic ErrDuplicateRoom doesn't shadow the more specific
 // ErrColorAlreadyInUse for the colour-conflict path. Migration uses the same
 // name so both ends stay in sync from a single source.
@@ -18,7 +18,7 @@ const RoomColorUniqueConstraintName = "uniq_facilities_rooms_tenant_color"
 //
 // One entry — #4F46E5 — is reserved for a different reason: it was the
 // forced default produced by the rooms.config.tsx transformBeforeSubmit bug,
-// stamped onto every saved room before Issue #1324. Migration 1.15.44 NULLs
+// stamped onto every saved room before Issue #1324. Migration 1.15.45 NULLs
 // every row carrying this hex (audit.room_color_migration_backup keeps the
 // originals). Allowing an admin to re-pick the same hex afterwards would
 // recreate the same situation the migration just cleaned up — and would also
@@ -41,7 +41,7 @@ var reservedRoomColors = map[string]struct{}{
 	"#EAB308":           {}, // SICK (Krank)
 	"#7C3AED":           {}, // EXCUSED (Entschuldigt)
 	"#6B7280":           {}, // UNKNOWN / NOT_ARRIVAL (grau)
-	legacyBugDefaultHex: {}, // see migration 1.15.44 / room_colors.go header comment
+	legacyBugDefaultHex: {}, // see migration 1.15.45 / room_colors.go header comment
 }
 
 // legacyBugDefaultHex is the colour the rooms.config.tsx forced-default bug

@@ -154,7 +154,7 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 func TestReservedRoomColors_LegacyBugDefault(t *testing.T) {
 	require.True(t, facilities.IsReservedRoomColor("#4F46E5"),
 		"legacy bug-default #4F46E5 must remain reserved — see "+
-			"migration 1.15.44 / room_colors.go for the rationale")
+			"migration 1.15.45 / room_colors.go for the rationale")
 }
 
 func setDiff(a, b map[string]struct{}) []string {

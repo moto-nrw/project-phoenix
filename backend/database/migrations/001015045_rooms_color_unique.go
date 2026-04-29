@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	roomsColorUniqueVersion     = "1.15.44"
+	roomsColorUniqueVersion     = "1.15.45"
 	roomsColorUniqueDescription = "Add partial UNIQUE(tenant_id, lower(color)) on facilities.rooms; back up + clear legacy bug-defaults (#4F46E5 from rooms.config.tsx, #FFFFFF from the 1.1.1 NOT NULL DEFAULT) into audit.room_color_migration_backup. Rollback drops the index but does NOT restore cleared colors — use the backup table for manual restore."
 )
 
@@ -62,7 +62,7 @@ func init() {
 // colors (anything outside this set) are preserved untouched. Once cleared,
 // the partial unique index can apply without contention.
 func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.44: Backing up + clearing legacy bug-defaults (#4F46E5, #FFFFFF) then adding partial unique index...")
+	fmt.Println("Migration 1.15.45: Backing up + clearing legacy bug-defaults (#4F46E5, #FFFFFF) then adding partial unique index...")
 
 	// Backup table: persists rows we're about to NULL so a manual restore
 	// is possible if our "no admin ever picked exactly #4F46E5" assumption
@@ -104,7 +104,7 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed populating audit.room_color_migration_backup: %w", err)
 	}
 	if backed, raErr := backupRes.RowsAffected(); raErr == nil && backed > 0 {
-		fmt.Printf("Migration 1.15.44: backed up %d room(s) into audit.room_color_migration_backup before clearing\n", backed)
+		fmt.Printf("Migration 1.15.45: backed up %d room(s) into audit.room_color_migration_backup before clearing\n", backed)
 	}
 
 	// NULL every room carrying either legacy bug-default. Case-insensitive
@@ -120,7 +120,7 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed clearing legacy room color defaults before unique index: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.44: cleared %d room(s) carrying a legacy bug-default hex (#4F46E5 or #FFFFFF) (audit.room_color_migration_backup retains the original values)\n", affected)
+		fmt.Printf("Migration 1.15.45: cleared %d room(s) carrying a legacy bug-default hex (#4F46E5 or #FFFFFF) (audit.room_color_migration_backup retains the original values)\n", affected)
 	}
 
 	createSQL := fmt.Sprintf(`
@@ -152,7 +152,7 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 // record of what was cleared on a panicky rollback is exactly the kind of
 // foot-gun this whole table exists to prevent.
 func roomsColorUniqueDown(ctx context.Context, db *bun.DB) error {
-	fmt.Printf("Rolling back migration 1.15.44: dropping %s (cleared colours not auto-restored — see audit.room_color_migration_backup)...\n",
+	fmt.Printf("Rolling back migration 1.15.45: dropping %s (cleared colours not auto-restored — see audit.room_color_migration_backup)...\n",
 		facilities.RoomColorUniqueConstraintName)
 
 	dropSQL := fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, facilities.RoomColorUniqueConstraintName)

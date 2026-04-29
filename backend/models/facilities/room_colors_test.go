@@ -54,7 +54,7 @@ func TestIsReservedRoomColor(t *testing.T) {
 
 	t.Run("allows arbitrary non-status colors", func(t *testing.T) {
 		// #4F46E5 used to live in this list as "non-reserved". It now sits
-		// in the reserved set on purpose — see migration 1.15.44 / the
+		// in the reserved set on purpose — see migration 1.15.45 / the
 		// header comment in room_colors.go for why allowing admins to
 		// re-pick the legacy bug-default would defeat the migration's
 		// invariant. The test below asserts it's reserved.
@@ -68,7 +68,7 @@ func TestIsReservedRoomColor(t *testing.T) {
 	})
 
 	t.Run("rejects legacy bug-default #4F46E5", func(t *testing.T) {
-		// Migration 1.15.44 NULLs every row carrying this hex; the audit
+		// Migration 1.15.45 NULLs every row carrying this hex; the audit
 		// backup table relies on "any #4F46E5 row in facilities.rooms
 		// must have come from the bug" as a restore invariant. Letting an
 		// admin pick the same hex afterwards would break that. Both
