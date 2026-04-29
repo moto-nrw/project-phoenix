@@ -27,7 +27,7 @@ import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
-import type { DataTableColumn } from "~/components/ui/data-table";
+import { buildSchoolColumns } from "~/lib/operator/school-table-columns";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers";
@@ -45,10 +45,12 @@ import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-mod
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
   DeletedEntityCard,
-  RestoreConfirmationModal,
-  SoftDeleteConfirmationModal,
   useSoftDeletable,
 } from "~/app/operator/provisioning/soft-delete-shared";
+import {
+  OrgSoftDeleteModal,
+  SchoolRestoreModal,
+} from "~/app/operator/provisioning/operator-entity-modals";
 
 const logger = createLogger({ component: "OperatorOrganizationDetailPage" });
 
@@ -372,58 +374,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
     [handleToggleOrgActive, orgDelete, organization],
   );
 
-  const schoolColumns: DataTableColumn<SchoolSummary>[] = useMemo(
-    () => [
-      {
-        key: "name",
-        header: "Schule",
-        render: (row) => (
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900">{row.name}</span>
-              {row.hidden && (
-                <span className="rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#854D0E]">
-                  Verborgen
-                </span>
-              )}
-            </div>
-            <div className="font-mono text-xs text-gray-500">
-              {row.subdomain}
-            </div>
-          </div>
-        ),
-        sortValue: (row) => row.name.toLowerCase(),
-      },
-      {
-        key: "konten",
-        header: "Konten",
-        align: "right",
-        render: (row) => formatCount(row.kontenCount),
-        sortValue: (row) => row.kontenCount,
-      },
-      {
-        key: "geraete",
-        header: "Geräte",
-        align: "right",
-        render: (row) => formatCount(row.geraeteCount),
-        sortValue: (row) => row.geraeteCount,
-      },
-      {
-        key: "personen",
-        header: "Personen",
-        align: "right",
-        render: (row) => formatCount(row.personenCount),
-        sortValue: (row) => row.personenCount,
-      },
-      {
-        key: "status",
-        header: "Status",
-        render: (row) => <DataTableStatusBadge active={row.active} />,
-        sortValue: (row) => (row.active ? 0 : 1),
-      },
-    ],
-    [],
-  );
+  const schoolColumns = useMemo(() => buildSchoolColumns(), []);
 
   const organizationSchoolsForDeviceModal = useMemo(
     () => activeSchools.map(summaryToSchool),
@@ -652,16 +603,8 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
       ) : null}
 
       {orgDelete.deleteTarget && (
-        <SoftDeleteConfirmationModal
+        <OrgSoftDeleteModal
           target={orgDelete.deleteTarget}
-          entityLabel="Träger"
-          entityArticleAccusative="den Träger"
-          nameLabel="Geben Sie den Trägernamen ein:"
-          warningTitle="Hinweis:"
-          warningBullets={[
-            "Alle Schulen des Trägers müssen vorher gelöscht werden",
-            "Der Träger kann später wiederhergestellt werden",
-          ]}
           inputId="delete-org-confirm-detail"
           confirmInput={orgDelete.deleteConfirmInput}
           onConfirmInputChange={orgDelete.setDeleteConfirmInput}
@@ -674,13 +617,9 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
         />
       )}
 
-      <RestoreConfirmationModal
+      <SchoolRestoreModal
         target={schoolDelete.restoreTarget}
         setTarget={schoolDelete.setRestoreTarget}
-        entityLabel="Schule"
-        entityArticleAccusative="die Schule"
-        entityPronounNominative="Die Schule"
-        entityPossessiveAccusative="ihren"
         onConfirm={() => void schoolDelete.handleRestore()}
         isProcessing={schoolDelete.isProcessing}
         errorMessage={schoolDelete.softDeleteError}

@@ -41,10 +41,8 @@ import { InviteAdminModal } from "~/app/operator/provisioning/invite-admin-modal
 import { CreateAccountModal } from "~/app/operator/provisioning/create-account-modal";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
-import {
-  SoftDeleteConfirmationModal,
-  useSoftDeletable,
-} from "~/app/operator/provisioning/soft-delete-shared";
+import { useSoftDeletable } from "~/app/operator/provisioning/soft-delete-shared";
+import { SchoolSoftDeleteModal } from "~/app/operator/provisioning/operator-entity-modals";
 
 const logger = createLogger({ component: "OperatorSchoolDetailPage" });
 
@@ -541,17 +539,8 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
       ) : null}
 
       {schoolDelete.deleteTarget && (
-        <SoftDeleteConfirmationModal
+        <SchoolSoftDeleteModal
           target={schoolDelete.deleteTarget}
-          entityLabel="Schule"
-          entityArticleAccusative="die Schule"
-          nameLabel="Geben Sie den Schulnamen ein:"
-          warningTitle="Folgende Aktionen werden ausgeführt:"
-          warningBullets={[
-            "Die Schule wird deaktiviert",
-            "Alle Zugänge dieser Schule werden gesperrt",
-            "Die Schule kann später wiederhergestellt werden",
-          ]}
           inputId="delete-school-confirm-detail"
           confirmInput={schoolDelete.deleteConfirmInput}
           onConfirmInputChange={schoolDelete.setDeleteConfirmInput}

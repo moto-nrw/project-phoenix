@@ -21,9 +21,11 @@ import { CreateOrganizationModal } from "../provisioning/create-organization-mod
 import {
   useSoftDeletable,
   DeletedEntityCard,
-  SoftDeleteConfirmationModal,
-  RestoreConfirmationModal,
 } from "../provisioning/soft-delete-shared";
+import {
+  OrgRestoreModal,
+  OrgSoftDeleteModal,
+} from "../provisioning/operator-entity-modals";
 
 function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
@@ -267,16 +269,8 @@ export default function OperatorOrganizationsPage() {
       )}
 
       {orgDelete.deleteTarget && (
-        <SoftDeleteConfirmationModal
+        <OrgSoftDeleteModal
           target={orgDelete.deleteTarget}
-          entityLabel="Träger"
-          entityArticleAccusative="den Träger"
-          nameLabel="Geben Sie den Trägernamen ein:"
-          warningTitle="Hinweis:"
-          warningBullets={[
-            "Alle Schulen des Trägers müssen vorher gelöscht werden",
-            "Der Träger kann später wiederhergestellt werden",
-          ]}
           inputId="delete-org-confirm"
           confirmInput={orgDelete.deleteConfirmInput}
           onConfirmInputChange={orgDelete.setDeleteConfirmInput}
@@ -289,13 +283,9 @@ export default function OperatorOrganizationsPage() {
         />
       )}
 
-      <RestoreConfirmationModal
+      <OrgRestoreModal
         target={orgDelete.restoreTarget}
         setTarget={orgDelete.setRestoreTarget}
-        entityLabel="Träger"
-        entityArticleAccusative="den Träger"
-        entityPronounNominative="Der Träger"
-        entityPossessiveAccusative="seinen"
         extraMessage="Gelöschte Schulen dieses Trägers müssen separat wiederhergestellt werden."
         onConfirm={() => void orgDelete.handleRestore()}
         isProcessing={orgDelete.isProcessing}

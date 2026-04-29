@@ -7,14 +7,13 @@ import useSWR from "swr";
 import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { formatCount } from "~/lib/format-utils";
 import {
   operatorProvisioningService,
   revalidateTenantCache,
 } from "~/lib/operator/provisioning-api";
 import type { SchoolSummary } from "~/lib/operator/provisioning-helpers";
-import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
-import type { DataTableColumn } from "~/components/ui/data-table";
+import { buildSchoolColumns } from "~/lib/operator/school-table-columns";
+import { DataTable } from "~/components/ui/data-table";
 import {
   EmptyState,
   PlusIcon,
@@ -24,9 +23,11 @@ import { CreateSchoolModal } from "../provisioning/create-school-modal";
 import {
   useSoftDeletable,
   DeletedEntityCard,
-  SoftDeleteConfirmationModal,
-  RestoreConfirmationModal,
 } from "../provisioning/soft-delete-shared";
+import {
+  SchoolRestoreModal,
+  SchoolSoftDeleteModal,
+} from "../provisioning/operator-entity-modals";
 
 export default function OperatorSchoolsPage() {
   const { status } = useSession();
@@ -172,64 +173,8 @@ export default function OperatorSchoolsPage() {
     [orgSlugById, router],
   );
 
-  const columns: DataTableColumn<SchoolSummary>[] = useMemo(
-    () => [
-      {
-        key: "name",
-        header: "Schule",
-        render: (row) => (
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900">{row.name}</span>
-              {row.hidden && (
-                <span className="rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#854D0E]">
-                  Verborgen
-                </span>
-              )}
-            </div>
-            <div className="font-mono text-xs text-gray-500">
-              {row.subdomain}
-            </div>
-          </div>
-        ),
-        sortValue: (row) => row.name.toLowerCase(),
-      },
-      {
-        key: "traeger",
-        header: "Träger",
-        render: (row) => (
-          <span className="text-gray-700">{row.organizationName}</span>
-        ),
-        sortValue: (row) => row.organizationName.toLowerCase(),
-      },
-      {
-        key: "konten",
-        header: "Konten",
-        align: "right",
-        render: (row) => formatCount(row.kontenCount),
-        sortValue: (row) => row.kontenCount,
-      },
-      {
-        key: "geraete",
-        header: "Geräte",
-        align: "right",
-        render: (row) => formatCount(row.geraeteCount),
-        sortValue: (row) => row.geraeteCount,
-      },
-      {
-        key: "personen",
-        header: "Personen",
-        align: "right",
-        render: (row) => formatCount(row.personenCount),
-        sortValue: (row) => row.personenCount,
-      },
-      {
-        key: "status",
-        header: "Status",
-        render: (row) => <DataTableStatusBadge active={row.active} />,
-        sortValue: (row) => (row.active ? 0 : 1),
-      },
-    ],
+  const columns = useMemo(
+    () => buildSchoolColumns({ showOrgColumn: true }),
     [],
   );
 
@@ -306,17 +251,8 @@ export default function OperatorSchoolsPage() {
           )}
 
           {schoolDelete.deleteTarget && (
-            <SoftDeleteConfirmationModal
+            <SchoolSoftDeleteModal
               target={schoolDelete.deleteTarget}
-              entityLabel="Schule"
-              entityArticleAccusative="die Schule"
-              nameLabel="Geben Sie den Schulnamen ein:"
-              warningTitle="Folgende Aktionen werden ausgeführt:"
-              warningBullets={[
-                "Die Schule wird deaktiviert",
-                "Alle Zugänge dieser Schule werden gesperrt",
-                "Die Schule kann später wiederhergestellt werden",
-              ]}
               inputId="delete-school-confirm"
               confirmInput={schoolDelete.deleteConfirmInput}
               onConfirmInputChange={schoolDelete.setDeleteConfirmInput}
@@ -327,13 +263,9 @@ export default function OperatorSchoolsPage() {
             />
           )}
 
-          <RestoreConfirmationModal
+          <SchoolRestoreModal
             target={schoolDelete.restoreTarget}
             setTarget={schoolDelete.setRestoreTarget}
-            entityLabel="Schule"
-            entityArticleAccusative="die Schule"
-            entityPronounNominative="Die Schule"
-            entityPossessiveAccusative="ihren"
             onConfirm={() => void schoolDelete.handleRestore()}
             isProcessing={schoolDelete.isProcessing}
             errorMessage={schoolDelete.softDeleteError}
