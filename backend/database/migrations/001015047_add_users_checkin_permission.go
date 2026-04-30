@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	addUsersCheckinPermissionVersion     = "1.15.40"
+	addUsersCheckinPermissionVersion     = "1.15.47"
 	addUsersCheckinPermissionDescription = "Add users:checkin permission for web-based student school check-in/out"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func addUsersCheckinPermissionUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.40: Adding users:checkin permission and granting to user role...")
+	fmt.Println("Migration 1.15.47: Adding users:checkin permission and granting to user role...")
 
 	// Insert the permission. auth.permissions requires resource+action (see
 	// 001000005_auth_permissions.go) and has a unique index on (resource, action)
@@ -69,7 +69,7 @@ func addUsersCheckinPermissionUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addUsersCheckinPermissionDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.40: Removing users:checkin permission...")
+	fmt.Println("Rolling back migration 1.15.47: Removing users:checkin permission...")
 
 	// role_permissions rows cascade on permission delete.
 	_, err := db.NewRaw(`DELETE FROM auth.permissions WHERE name = 'users:checkin';`).Exec(ctx)
