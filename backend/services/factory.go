@@ -213,6 +213,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
 		AttendanceRepo:     repos.Attendance,
+		StudentStatusRepo:  repos.StudentStatusDay,
 		CrossTenantRepo:    activeRepo.NewCrossTenantRepository(db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,

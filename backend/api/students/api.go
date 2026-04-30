@@ -55,6 +55,7 @@ type Resource struct {
 	SchoolRepo             platform.SchoolRepository
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
+	StudentStatusDayRepo   active.StudentStatusDayRepository
 	VisitRepo              active.VisitRepository
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
@@ -77,6 +78,7 @@ type ResourceConfig struct {
 	SchoolRepo             platform.SchoolRepository
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
+	StudentStatusDayRepo   active.StudentStatusDayRepository
 	VisitRepo              active.VisitRepository
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
@@ -99,6 +101,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		SchoolRepo:             cfg.SchoolRepo,
 		SettingsService:        cfg.SettingsService,
 		AttendanceRepo:         cfg.AttendanceRepo,
+		StudentStatusDayRepo:   cfg.StudentStatusDayRepo,
 		VisitRepo:              cfg.VisitRepo,
 		DataAccessLogRepo:      cfg.DataAccessLogRepo,
 		Broadcaster:            cfg.Broadcaster,
@@ -888,6 +891,10 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	wasSick := boolPtrValue(student.Sick)
+	wasExcused := boolPtrValue(student.Excused)
+	statusHistoryNow := time.Now()
+
 	// Update student fields using helper function
 	applyStudentFieldUpdates(req, student)
 
@@ -898,6 +905,10 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 			if err := rs.PersonService.Update(ctx, person); err != nil {
 				return err
 			}
+		}
+		if err := rs.persistStudentStatusHistory(ctx, student, wasSick, wasExcused, statusHistoryNow); err != nil {
+			rs.logStatusHistoryError(student.ID, err)
+			return err
 		}
 		return rs.StudentRepo.Update(ctx, student)
 	}); err != nil {

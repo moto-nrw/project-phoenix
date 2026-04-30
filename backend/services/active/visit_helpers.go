@@ -168,6 +168,9 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 		return
 	}
 
+	now := time.Now()
+	s.recordStudentStatusForClear(ctx, studentID, active.StudentStatusDaySick, student.SickSince, now, active.StudentStatusSourceNextCheckin)
+
 	falseVal := false
 	student.Sick = &falseVal
 	student.SickSince = nil
@@ -202,6 +205,9 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 		return
 	}
 
+	now := time.Now()
+	s.recordStudentStatusForClear(ctx, studentID, active.StudentStatusDayExcused, student.ExcusedSince, now, active.StudentStatusSourceNextCheckin)
+
 	falseVal := false
 	student.Excused = &falseVal
 	student.ExcusedSince = nil
@@ -217,6 +223,38 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 	s.getLogger().Info("auto-cleared excused on student check-in",
 		slog.Int64("student_id", studentID),
 	)
+}
+
+func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int64, status string, since *time.Time, now time.Time, source string) {
+	if s.studentStatusRepo == nil {
+		return
+	}
+	reportedAt := now
+	if since != nil {
+		reportedAt = *since
+	}
+	today := timezone.DateOfUTC(now)
+	if err := s.studentStatusRepo.UpsertReported(ctx, &active.StudentStatusDay{
+		StudentID:  studentID,
+		Date:       today,
+		Status:     status,
+		ReportedAt: reportedAt,
+		Source:     source,
+	}); err != nil {
+		s.getLogger().Warn("failed to record student status before auto-clear",
+			slog.Int64("student_id", studentID),
+			slog.String("status", status),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if err := s.studentStatusRepo.MarkCleared(ctx, studentID, status, today, now, source); err != nil {
+		s.getLogger().Warn("failed to close student status history on auto-clear",
+			slog.Int64("student_id", studentID),
+			slog.String("status", status),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // broadcastVisitCreated sends SSE event for visit creation.
