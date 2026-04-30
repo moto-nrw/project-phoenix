@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Operation name constants to avoid string duplication
@@ -135,7 +136,7 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 	// Validate room data
 	if err := room.Validate(); err != nil {
-		return &FacilitiesError{Op: opCreateRoom, Err: err}
+		return &FacilitiesError{Op: opCreateRoom, Err: translateValidationError(err)}
 	}
 
 	// Set tenant ID from context
@@ -151,17 +152,66 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 
 	// Create the room
 	if err := s.roomRepo.Create(ctx, room); err != nil {
+		if isUniqueColorViolation(err) {
+			return &FacilitiesError{Op: opCreateRoom, Err: ErrColorAlreadyInUse}
+		}
 		return &FacilitiesError{Op: opCreateRoom, Err: err}
 	}
 
 	return nil
 }
 
+// translateValidationError maps Validate() sentinels to the service-level
+// errors that the API layer can render with the correct HTTP status. Any
+// other validation error is forwarded unchanged so the existing
+// ErrorInvalidRequest path renders 400.
+func translateValidationError(err error) error {
+	if errors.Is(err, facilities.ErrReservedColor) {
+		return ErrColorReserved
+	}
+	return err
+}
+
+// isUniqueColorViolation reports whether err is a PostgreSQL 23505 raised by
+// the partial unique index on facilities.rooms (tenant_id, lower(color)). The
+// constraint name is checked so other future unique indexes on the table do
+// not accidentally surface as "color already in use" toasts.
+func isUniqueColorViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *base.DatabaseError
+	if errors.As(err, &dbErr) {
+		err = dbErr.Err
+	}
+	var pgErr pgdriver.Error
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	if pgErr.Field('C') != "23505" {
+		return false
+	}
+	return pgErr.Field('n') == facilities.RoomColorUniqueConstraintName
+}
+
+// equalStringPtr compares two *string for equality treating nil as "no value"
+// — used to detect "color actually changed" without false-positives from the
+// nil/empty distinction.
+func equalStringPtr(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
 // UpdateRoom updates an existing room
 func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 	// Validate room data
 	if err := room.Validate(); err != nil {
-		return &FacilitiesError{Op: opUpdateRoom, Err: err}
+		return &FacilitiesError{Op: opUpdateRoom, Err: translateValidationError(err)}
 	}
 
 	// Check if room exists
@@ -175,6 +225,44 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 		return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
 	}
 
+	// System-room color handling.
+	//
+	// The frontend strips the color picker for Schulhof/WC, so a benign edit
+	// (e.g. changing capacity) arrives with room.Color == nil regardless of
+	// what's persisted. If we treated nil as "user wants to clear", every
+	// non-color edit on a Schulhof that still carries the legacy #4F46E5
+	// bug-default would 403 — the migration covers most cases but not all
+	// (e.g. a tenant that hasn't run migrations yet, or a system room
+	// imported with a colour later).
+	//
+	// Strategy: treat a nil incoming colour as "request did not touch the
+	// colour field" and silently preserve the existing value. Only block
+	// when the request explicitly sets a different non-nil colour — that's
+	// the path a malicious or buggy direct API call would take, and the one
+	// the rule actually exists to stop.
+	//
+	// Side-effect of this strategy: a system room cannot have its colour
+	// *cleared* via the API. If a Schulhof somehow carries a stale colour
+	// (legacy bug-default that escaped migration cleanup, or an imported
+	// dataset), the only way to drop it is direct SQL. Acceptable trade-off
+	// — system rooms shouldn't have admin-set colours anyway, and the
+	// alternative is admins losing the ability to edit any other field.
+	//
+	// Why both `room.Color != nil` AND equalStringPtr?
+	//   - Inline `*room.Color != *existingRoom.Color` would NPE when the
+	//     existing colour is nil and the request sets a new one (case A).
+	//   - Dropping the outer guard would re-block benign updates whose
+	//     incoming colour is nil but existing is non-nil (the very bug
+	//     this comment block exists to fix).
+	// Both checks together give: "block only when the request explicitly
+	// names a different non-nil colour, ignore colour-field absence".
+	if constants.IsSystemRoomName(existingRoom.Name) {
+		if room.Color != nil && !equalStringPtr(room.Color, existingRoom.Color) {
+			return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
+		}
+		room.Color = existingRoom.Color
+	}
+
 	// If name is changing, check for duplicates
 	if existingRoom.Name != room.Name {
 		existing, err := s.roomRepo.FindByName(ctx, room.Name)
@@ -185,6 +273,9 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 
 	// Update the room
 	if err := s.roomRepo.Update(ctx, room); err != nil {
+		if isUniqueColorViolation(err) {
+			return &FacilitiesError{Op: opUpdateRoom, Err: ErrColorAlreadyInUse}
+		}
 		return &FacilitiesError{Op: opUpdateRoom, Err: err}
 	}
 

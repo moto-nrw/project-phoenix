@@ -11,14 +11,15 @@ export interface BackendAttendanceHistoryResponse {
   caps: { attendance_days: number; room_detail_days: number };
 }
 
-export interface BackendAttendanceHistoryDay {
+interface BackendAttendanceHistoryDay {
   date: string;
   attendance: BackendAttendanceRecord | null;
+  status_entries?: BackendAttendanceStatusEntry[] | null;
   room_detail_available: boolean;
   visits: BackendAttendanceVisit[] | null;
 }
 
-export interface BackendAttendanceRecord {
+interface BackendAttendanceRecord {
   check_in_time: string;
   check_out_time?: string | null;
   duration_minutes?: number | null;
@@ -27,12 +28,19 @@ export interface BackendAttendanceRecord {
   device_id: number;
 }
 
-export interface BackendAttendanceVisit {
+interface BackendAttendanceVisit {
   room_id?: number | null;
   room_name?: string;
   entry_time: string;
   exit_time?: string | null;
   duration_minutes?: number | null;
+}
+
+interface BackendAttendanceStatusEntry {
+  status: string;
+  label: string;
+  reported_at: string;
+  cleared_at?: string | null;
 }
 
 // --- UI-friendly shapes ---
@@ -48,11 +56,12 @@ export interface AttendanceHistory {
 export interface AttendanceHistoryDay {
   date: string; // YYYY-MM-DD
   attendance: AttendanceRecord | null;
+  statusEntries: AttendanceStatusEntry[];
   roomDetailAvailable: boolean;
   visits: AttendanceVisit[];
 }
 
-export interface AttendanceRecord {
+interface AttendanceRecord {
   checkInTime: Date;
   checkOutTime: Date | null;
   durationMinutes: number | null;
@@ -61,12 +70,19 @@ export interface AttendanceRecord {
   deviceId: number;
 }
 
-export interface AttendanceVisit {
+interface AttendanceVisit {
   roomId: number | null;
   roomName: string;
   entryTime: Date;
   exitTime: Date | null;
   durationMinutes: number | null;
+}
+
+interface AttendanceStatusEntry {
+  status: string;
+  label: string;
+  reportedAt: Date;
+  clearedAt: Date | null;
 }
 
 export function mapAttendanceHistoryResponse(
@@ -93,6 +109,7 @@ function mapAttendanceHistoryDay(
   return {
     date: day.date,
     attendance: day.attendance ? mapAttendanceRecord(day.attendance) : null,
+    statusEntries: (day.status_entries ?? []).map(mapAttendanceStatusEntry),
     roomDetailAvailable: day.room_detail_available,
     visits: (day.visits ?? []).map(mapAttendanceVisit),
   };
@@ -116,6 +133,17 @@ function mapAttendanceVisit(v: BackendAttendanceVisit): AttendanceVisit {
     entryTime: new Date(v.entry_time),
     exitTime: v.exit_time ? new Date(v.exit_time) : null,
     durationMinutes: v.duration_minutes ?? null,
+  };
+}
+
+function mapAttendanceStatusEntry(
+  entry: BackendAttendanceStatusEntry,
+): AttendanceStatusEntry {
+  return {
+    status: entry.status,
+    label: entry.label,
+    reportedAt: new Date(entry.reported_at),
+    clearedAt: entry.cleared_at ? new Date(entry.cleared_at) : null,
   };
 }
 

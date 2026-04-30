@@ -11,9 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -35,19 +33,17 @@ func (req *ProfileUpdateRequest) Bind(_ *http.Request) error {
 
 // Resource handles the user context-related endpoints
 type Resource struct {
-	service          usercontext.UserContextService
-	substitutionRepo education.GroupSubstitutionRepository
-	router           chi.Router
-	db               *bun.DB
+	service usercontext.UserContextService
+	router  chi.Router
+	db      *bun.DB
 }
 
 // NewResource creates a new user context resource
-func NewResource(service usercontext.UserContextService, substitutionRepo education.GroupSubstitutionRepository, db *bun.DB) *Resource {
+func NewResource(service usercontext.UserContextService, db *bun.DB) *Resource {
 	r := &Resource{
-		service:          service,
-		substitutionRepo: substitutionRepo,
-		router:           chi.NewRouter(),
-		db:               db,
+		service: service,
+		router:  chi.NewRouter(),
+		db:      db,
 	}
 
 	// Create JWT auth instance for middleware
@@ -197,8 +193,10 @@ func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staff, staffErr := res.service.GetCurrentStaff(r.Context())
-	substitutedGroupIDs := res.getSubstitutedGroupIDs(r.Context(), staff, staffErr)
+	// Best-effort: a substitution-lookup failure should not hide the primary
+	// group list. Reads from a nil map yield false, so the response renders
+	// with ViaSubstitution=false for every group when this errors.
+	substitutedGroupIDs, _ := res.service.GetSubstitutedGroupIDs(r.Context())
 
 	response := make([]GroupWithMetadata, 0, len(groups))
 	for _, group := range groups {
@@ -210,28 +208,6 @@ func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusOK)
 	common.RenderError(w, r, common.NewResponse(response, "Educational groups retrieved successfully"))
-}
-
-// getSubstitutedGroupIDs returns a map of group IDs that the user has access to via substitution
-func (res *Resource) getSubstitutedGroupIDs(ctx context.Context, staff *users.Staff, staffErr error) map[int64]bool {
-	result := make(map[int64]bool)
-	if staff == nil || staffErr != nil {
-		return result
-	}
-
-	today := timezone.TodayUTC()
-
-	activeSubs, err := res.substitutionRepo.FindActiveBySubstitute(ctx, staff.ID, today)
-	if err != nil {
-		return result
-	}
-
-	for _, sub := range activeSubs {
-		if sub.RegularStaffID == nil {
-			result[sub.GroupID] = true
-		}
-	}
-	return result
 }
 
 // getMyActivityGroups returns the activity groups associated with the current user
@@ -422,49 +398,3 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 
 	common.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")
 }
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// GetCurrentUserHandler returns the getCurrentUser handler
-func (r *Resource) GetCurrentUserHandler() http.HandlerFunc { return r.getCurrentUser }
-
-// GetCurrentProfileHandler returns the getCurrentProfile handler
-func (r *Resource) GetCurrentProfileHandler() http.HandlerFunc { return r.getCurrentProfile }
-
-// UpdateCurrentProfileHandler returns the updateCurrentProfile handler
-func (r *Resource) UpdateCurrentProfileHandler() http.HandlerFunc { return r.updateCurrentProfile }
-
-// UploadAvatarHandler returns the uploadAvatar handler
-func (r *Resource) UploadAvatarHandler() http.HandlerFunc { return r.uploadAvatar }
-
-// DeleteAvatarHandler returns the deleteAvatar handler
-func (r *Resource) DeleteAvatarHandler() http.HandlerFunc { return r.deleteAvatar }
-
-// ServeAvatarHandler returns the serveAvatar handler
-func (r *Resource) ServeAvatarHandler() http.HandlerFunc { return r.serveAvatar }
-
-// GetCurrentStaffHandler returns the getCurrentStaff handler
-func (r *Resource) GetCurrentStaffHandler() http.HandlerFunc { return r.getCurrentStaff }
-
-// GetCurrentTeacherHandler returns the getCurrentTeacher handler
-func (r *Resource) GetCurrentTeacherHandler() http.HandlerFunc { return r.getCurrentTeacher }
-
-// GetMyGroupsHandler returns the getMyGroups handler
-func (r *Resource) GetMyGroupsHandler() http.HandlerFunc { return r.getMyGroups }
-
-// GetMyActivityGroupsHandler returns the getMyActivityGroups handler
-func (r *Resource) GetMyActivityGroupsHandler() http.HandlerFunc { return r.getMyActivityGroups }
-
-// GetMyActiveGroupsHandler returns the getMyActiveGroups handler
-func (r *Resource) GetMyActiveGroupsHandler() http.HandlerFunc { return r.getMyActiveGroups }
-
-// GetMySupervisedGroupsHandler returns the getMySupervisedGroups handler
-func (r *Resource) GetMySupervisedGroupsHandler() http.HandlerFunc { return r.getMySupervisedGroups }
-
-// GetGroupStudentsHandler returns the getGroupStudents handler
-func (r *Resource) GetGroupStudentsHandler() http.HandlerFunc { return r.getGroupStudents }
-
-// GetGroupVisitsHandler returns the getGroupVisits handler
-func (r *Resource) GetGroupVisitsHandler() http.HandlerFunc { return r.getGroupVisits }

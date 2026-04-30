@@ -18,7 +18,6 @@ import (
 	repoActivities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	repoConfig "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	repoFacilities "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	repoFeedback "github.com/moto-nrw/project-phoenix/database/repositories/feedback"
@@ -229,56 +228,6 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	_, err = repo.FindByID(ctx43, tfA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A timeframe %d", tfA.ID)
-}
-
-// ============================================================================
-// Config Domain
-// ============================================================================
-
-func TestTenantIsolation_SettingVisibility(t *testing.T) {
-	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
-
-	setA := CreateTestSettingForTenant(t, db, tenantA, "test_key_a", "valueA", "general")
-	setB := CreateTestSettingForTenant(t, db, tenantB, "test_key_b", "valueB", "general")
-
-	repo := repoConfig.NewSettingRepository(db)
-
-	// --- Tenant A ---
-	ctx42 := ctxForTenant(tenantA)
-
-	settings, err := repo.List(ctx42, nil)
-	require.NoError(t, err)
-
-	for _, s := range settings {
-		assert.Equal(t, tenantA, s.TenantID,
-			"cross-tenant leak: tenant B setting visible to tenant A (List)")
-	}
-
-	// SettingRepository.FindByID returns (nil, nil) on not-found instead of error
-	result, err := repo.FindByID(ctx42, setB.ID)
-	assert.NoError(t, err, "SettingRepository.FindByID returns nil on not-found, not error")
-	assert.Nil(t, result,
-		"cross-tenant FindByID should return nil: tenant A must not see tenant B setting %d", setB.ID)
-
-	// --- Tenant B ---
-	ctx43 := ctxForTenant(tenantB)
-
-	settings, err = repo.List(ctx43, nil)
-	require.NoError(t, err)
-
-	for _, s := range settings {
-		assert.Equal(t, tenantB, s.TenantID,
-			"cross-tenant leak: tenant A setting visible to tenant B (List)")
-	}
-
-	result, err = repo.FindByID(ctx43, setA.ID)
-	assert.NoError(t, err)
-	assert.Nil(t, result,
-		"cross-tenant FindByID should return nil: tenant B must not see tenant A setting %d", setA.ID)
 }
 
 // ============================================================================

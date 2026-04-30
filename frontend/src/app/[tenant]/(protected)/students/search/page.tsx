@@ -12,7 +12,7 @@ import { studentService, groupService } from "~/lib/api";
 import type { Student, Group } from "~/lib/api";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { Loading } from "~/components/ui/loading";
-import { LocationBadge } from "@/components/ui/location-badge";
+import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   isHomeLocation,
   isPresentLocation,
@@ -32,12 +32,22 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
 } from "~/components/students/student-card";
-import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
+import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
+import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import {
+  deriveCheckinState,
+  useSchoolCheckinMode,
+} from "~/lib/hooks/use-school-checkin-mode";
+import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
+import {
+  getStudentTimeStatus,
+  getTimeStatusSortRank,
+} from "~/lib/student-time-status";
 import {
   matchesTrackingFilter,
   resolveTrackingFilterAfterLabelChange,
@@ -67,6 +77,7 @@ function SearchPageContent() {
     "abwesend",
     "unterwegs",
     "schulhof",
+    "krank",
   ];
   const initialAttendanceFilter = validStatuses.includes(initialStatus)
     ? initialStatus
@@ -93,6 +104,16 @@ function SearchPageContent() {
   const myGroups = userContext?.educationalGroupIds ?? [];
   const myGroupRooms = userContext?.educationalGroupRoomNames ?? [];
   const mySupervisedRooms = userContext?.supervisedRoomNames ?? [];
+
+  // Page-level school check-in/out mode. When active, clicking a card toggles
+  // the student's attendance instead of navigating to the detail page.
+  //
+  // Only exposed in binary-mode tenants — detailed-mode schools check
+  // students in via the RFID kiosk and a parallel web button would create
+  // confusing divergent state.
+  const presenceMode = usePresenceMode();
+  const isBinaryMode = presenceMode === "binary";
+  const schoolCheckin = useSchoolCheckinMode();
 
   // Debounce search term for SWR key (prevents excessive API calls while typing)
   useEffect(() => {
@@ -263,6 +284,7 @@ function SearchPageContent() {
           { value: "abwesend", label: "Zuhause" },
           { value: "unterwegs", label: "Unterwegs" },
           { value: "schulhof", label: "Schulhof" },
+          { value: "krank", label: "Krank" },
         ],
       },
       {
@@ -355,6 +377,7 @@ function SearchPageContent() {
         abwesend: "Zuhause",
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
+        krank: "Krank",
       };
       filters.push({
         id: "attendance",
@@ -432,6 +455,11 @@ function SearchPageContent() {
       ) {
         return false;
       }
+
+      // Filter for "Krank" status specifically — independent of location
+      if (attendanceFilter === "krank" && !student.sick) {
+        return false;
+      }
     }
 
     // Apply year filter - extract year from school_class (e.g., "Klasse 3a" → year 3)
@@ -464,13 +492,6 @@ function SearchPageContent() {
   const sortedStudents = useMemo(() => {
     if (sortMode !== "arrival") return filteredStudents;
 
-    const urgencyRank: Record<string, number> = {
-      overdue: 0,
-      soon: 1,
-      normal: 2,
-      none: 3,
-    };
-
     const compareByName = (a: Student, b: Student) => {
       const lastCmp = (a.second_name ?? "").localeCompare(
         b.second_name ?? "",
@@ -489,10 +510,18 @@ function SearchPageContent() {
 
       const timeA = a.arrival_time;
       const timeB = b.arrival_time;
-      const urgencyA = getArrivalUrgency(timeA, now, aHome);
-      const urgencyB = getArrivalUrgency(timeB, now, bHome);
-      const rankA = urgencyRank[urgencyA] ?? 3;
-      const rankB = urgencyRank[urgencyB] ?? 3;
+      const statusA = getStudentTimeStatus({
+        plannedTime: timeA,
+        actualTime: a.actual_arrival_time,
+        now,
+      });
+      const statusB = getStudentTimeStatus({
+        plannedTime: timeB,
+        actualTime: b.actual_arrival_time,
+        now,
+      });
+      const rankA = getTimeStatusSortRank(statusA);
+      const rankB = getTimeStatusSortRank(statusB);
 
       if (rankA !== rankB) return rankA - rankB;
 
@@ -513,203 +542,271 @@ function SearchPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {/* PageHeaderWithSearch - With Suche title */}
-      <PageHeaderWithSearch
-        title="Suche"
-        badge={{
-          icon: (
-            <svg
-              className="h-5 w-5 text-gray-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+      {/* Page header — scrolls with the rest of the page (no sticky).
+          Active filters surface as a count badge on the filter pill. The
+          check-in/out trigger lives in a floating FAB rendered at the
+          bottom of this component on mobile/tablet, or inline in the
+          header on desktop via primaryAction. */}
+      <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
+        <PageHeaderWithSearch
+          title="Suche"
+          badge={{
+            icon: (
+              <svg
+                className="h-5 w-5 text-gray-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                />
+              </svg>
+            ),
+            count: filteredStudents.length,
+          }}
+          primaryAction={
+            isBinaryMode ? (
+              <SchoolCheckinFab
+                variant="inline"
+                isActive={schoolCheckin.isActive}
+                onToggle={schoolCheckin.toggleActive}
+                successCount={schoolCheckin.successCount}
+                pendingCount={schoolCheckin.pendingIds.size}
               />
-            </svg>
-          ),
-          count: filteredStudents.length,
-        }}
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Name suchen...",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setSelectedGroup("");
-          setSelectedYear("all");
-          setAttendanceFilter("all");
-          setPickupTimeFilter("all");
-          setTrackingFilter("all");
-        }}
-      />
+            ) : undefined
+          }
+          // 6 filters overflow the inline desktop row at iPad-class
+          // viewports — switch to the mobile sheet pattern up to xl
+          // (1280px). Matches Stripe / Airbnb / Slack pattern for
+          // filter-heavy pages.
+          desktopFiltersFrom="xl"
+          activeFilterDisplay="count"
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Name suchen...",
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setSelectedGroup("");
+            setSelectedYear("all");
+            setAttendanceFilter("all");
+            setPickupTimeFilter("all");
+            setTrackingFilter("all");
+          }}
+        />
+      </div>
 
-      {/* Mobile Error Display */}
+      {/* Mobile Error Display — outside the sticky stack so it doesn't
+          push everything down on small screens. */}
       {errorMessage && (
         <div className="mb-4 md:hidden">
           <Alert type="error" message={errorMessage} />
         </div>
       )}
 
-      {/* Student Grid - Mobile Optimized with Playful Design */}
-      {(() => {
-        // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
-        if (isSearching && !hasFetchedOnce) {
-          return <Loading fullPage={false} />;
-        }
-        if (errorMessage) {
-          return (
-            <div className="py-12 text-center">
-              <div className="flex flex-col items-center gap-4">
-                <svg
-                  className="h-12 w-12 text-red-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-                <div>
-                  {/* Fix P3: Use errorType instead of substring matching */}
-                  <h3 className="text-lg font-medium text-gray-900">
-                    {errorType === "permission"
-                      ? "Keine Berechtigung"
-                      : "Fehler"}
-                  </h3>
-                  <p className="text-gray-600">{errorMessage}</p>
-                </div>
-              </div>
-            </div>
-          );
-        }
-        // Fix P2: Only show empty state if we've fetched at least once
-        if (filteredStudents.length === 0 && hasFetchedOnce) {
-          return (
-            <div className="py-12 text-center">
-              <div className="flex flex-col items-center gap-4">
-                <svg
-                  className="h-12 w-12 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Keine Schüler gefunden
-                  </h3>
-                  <p className="text-gray-600">
-                    Versuche deine Suchkriterien anzupassen.
-                  </p>
-                </div>
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {sortedStudents.map((student) => {
-                const isHome = isHomeLocation(student.current_location);
+      {/* Mobile (<md) check-in mode trigger — inline pill / sticky bar. */}
+      {isBinaryMode && (
+        <div className="mb-3 md:hidden">
+          <SchoolCheckinModeMobile
+            isActive={schoolCheckin.isActive}
+            onToggle={schoolCheckin.toggleActive}
+            successCount={schoolCheckin.successCount}
+            pendingCount={schoolCheckin.pendingIds.size}
+          />
+        </div>
+      )}
 
-                return (
-                  <StudentCard
-                    key={student.id}
-                    studentId={student.id}
-                    firstName={student.first_name}
-                    lastName={student.second_name}
-                    onClick={() =>
-                      router.push(
-                        `/students/${student.id}?from=/students/search`,
-                      )
-                    }
-                    locationBadge={
-                      <LocationBadge
-                        student={{
-                          ...student,
-                          not_arrival_today:
-                            (student.arrival_is_exception ?? false) &&
-                            !student.arrival_time,
-                          not_arrival_reason: student.arrival_notes ?? null,
-                        }}
-                        displayMode="contextAware"
-                        userGroups={myGroups}
-                        groupRooms={myGroupRooms}
-                        supervisedRooms={mySupervisedRooms}
-                        variant="modern"
-                        size="md"
-                      />
-                    }
-                    extraContent={
-                      <>
-                        <StudentInfoRow icon={<SchoolClassIcon />}>
-                          {student.school_class}
-                        </StudentInfoRow>
-                        {student.group_name && (
-                          <StudentInfoRow icon={<GroupIcon />}>
-                            Gruppe: {student.group_name}
-                          </StudentInfoRow>
-                        )}
-                        {student.has_full_access !== false && (
-                          <>
-                            <ArrivalTimeRow
-                              arrivalTime={student.arrival_time}
-                              isException={
-                                student.arrival_is_exception ?? false
-                              }
-                              isAbsent={
-                                (student.arrival_is_exception ?? false) &&
-                                !student.arrival_time
-                              }
-                              notes={student.arrival_notes}
-                              isHome={isHome}
-                              now={now}
-                            />
-                            <PickupTimeRow
-                              pickupTime={student.pickup_time ?? undefined}
-                              isException={student.pickup_is_exception ?? false}
-                              notes={student.pickup_notes}
-                              isHome={isHome}
-                              now={now}
-                            />
-                          </>
-                        )}
-                      </>
-                    }
-                    trackingIndicators={
-                      trackingData?.labels?.length &&
-                      student.has_full_access !== false ? (
-                        <TrackingIndicators
-                          labels={trackingData.labels}
-                          results={trackingData.results[student.id] ?? []}
+      {/* Student Grid. Bottom padding reserves room for the mobile sticky
+          bar / tablet floating FAB; desktop has neither. */}
+      <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
+        {(() => {
+          // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
+          if (isSearching && !hasFetchedOnce) {
+            return <Loading fullPage={false} />;
+          }
+          if (errorMessage) {
+            return (
+              <div className="py-12 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <svg
+                    className="h-12 w-12 text-red-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                  <div>
+                    {/* Fix P3: Use errorType instead of substring matching */}
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {errorType === "permission"
+                        ? "Keine Berechtigung"
+                        : "Fehler"}
+                    </h3>
+                    <p className="text-gray-600">{errorMessage}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          // Fix P2: Only show empty state if we've fetched at least once
+          if (filteredStudents.length === 0 && hasFetchedOnce) {
+            return (
+              <div className="py-12 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <svg
+                    className="h-12 w-12 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Keine Schüler gefunden
+                    </h3>
+                    <p className="text-gray-600">
+                      Versuche deine Suchkriterien anzupassen.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                {sortedStudents.map((student) => {
+                  const checkinState = deriveCheckinState(
+                    student.current_location,
+                  );
+                  const studentIdStr = student.id.toString();
+                  return (
+                    <StudentCard
+                      key={student.id}
+                      studentId={student.id}
+                      firstName={student.first_name}
+                      lastName={student.second_name}
+                      onClick={() =>
+                        router.push(
+                          `/students/${student.id}?from=/students/search`,
+                        )
+                      }
+                      checkinMode={isBinaryMode && schoolCheckin.isActive}
+                      checkinState={checkinState}
+                      isCheckinPending={schoolCheckin.pendingIds.has(
+                        studentIdStr,
+                      )}
+                      onCheckinClick={() =>
+                        void schoolCheckin.toggle(studentIdStr, checkinState)
+                      }
+                      locationBadge={
+                        <StudentPresenceBadge
+                          student={{
+                            ...student,
+                            not_arrival_today:
+                              (student.arrival_is_exception ?? false) &&
+                              !student.arrival_time,
+                            not_arrival_reason: student.arrival_notes ?? null,
+                          }}
+                          displayMode="contextAware"
+                          userGroups={myGroups}
+                          groupRooms={myGroupRooms}
+                          supervisedRooms={mySupervisedRooms}
+                          variant="modern"
+                          size="md"
                         />
-                      ) : undefined
-                    }
-                  />
-                );
-              })}
+                      }
+                      extraContent={
+                        <>
+                          <StudentInfoRow icon={<SchoolClassIcon />}>
+                            {student.school_class}
+                          </StudentInfoRow>
+                          {student.group_name && (
+                            <StudentInfoRow icon={<GroupIcon />}>
+                              Gruppe: {student.group_name}
+                            </StudentInfoRow>
+                          )}
+                          {student.has_full_access !== false && (
+                            <>
+                              <ArrivalTimeRow
+                                arrivalTime={student.arrival_time}
+                                actualTime={student.actual_arrival_time}
+                                isException={
+                                  student.arrival_is_exception ?? false
+                                }
+                                isAbsent={
+                                  (student.arrival_is_exception ?? false) &&
+                                  !student.arrival_time
+                                }
+                                notes={student.arrival_notes}
+                                now={now}
+                              />
+                              <PickupTimeRow
+                                pickupTime={student.pickup_time ?? undefined}
+                                actualTime={student.actual_pickup_time}
+                                isException={
+                                  student.pickup_is_exception ?? false
+                                }
+                                notes={student.pickup_notes}
+                                now={now}
+                              />
+                            </>
+                          )}
+                        </>
+                      }
+                      trackingIndicators={
+                        trackingData?.labels?.length &&
+                        student.has_full_access !== false ? (
+                          <TrackingIndicators
+                            labels={trackingData.labels}
+                            results={trackingData.results[student.id] ?? []}
+                          />
+                        ) : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
+      </div>
+
+      {/* Tablet (md..xl) check-in mode trigger — floating FAB. Tablet
+          range is bumped to `xl` here to stay aligned with the header's
+          desktopFiltersFrom="xl" — both the filter sheet and the FAB
+          live under the same boundary so iPad Air gets the consistent
+          tablet UX. */}
+      {isBinaryMode && (
+        <div className="hidden md:block xl:hidden">
+          <SchoolCheckinFab
+            variant="floating"
+            isActive={schoolCheckin.isActive}
+            onToggle={schoolCheckin.toggleActive}
+            successCount={schoolCheckin.successCount}
+            pendingCount={schoolCheckin.pendingIds.size}
+          />
+        </div>
+      )}
     </div>
   );
 }

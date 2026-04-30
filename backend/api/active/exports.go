@@ -52,7 +52,6 @@ func (rs *Resource) GetAllActiveSupervisionsHandler() http.HandlerFunc {
 }
 
 // Analytics Handlers
-func (rs *Resource) GetCountsHandler() http.HandlerFunc { return rs.getCounts }
 func (rs *Resource) GetDashboardAnalyticsHandler() http.HandlerFunc {
 	return rs.getDashboardAnalytics
 }

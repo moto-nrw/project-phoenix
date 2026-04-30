@@ -41,6 +41,10 @@ func (m *mockAvatarUserContextService) GetMyGroups(context.Context) ([]*educatio
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockAvatarUserContextService) GetSubstitutedGroupIDs(context.Context) (map[int64]bool, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockAvatarUserContextService) GetMyActivityGroups(context.Context) ([]*activityModels.Group, error) {
 	return nil, errors.New("not implemented")
 }

@@ -15,7 +15,7 @@ defaults:
     shell: bash
 
 jobs:
-  backend-format:
+  backend-quality:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
@@ -28,6 +28,12 @@ jobs:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
+
+      - name: Install Go quality tools
+        run: |
+          go install golang.org/x/tools/cmd/deadcode@latest
+          go install github.com/google/go-licenses@latest
+
       - name: Check Go formatting
         working-directory: backend
         run: |
@@ -45,21 +51,14 @@ jobs:
             echo "All Go files are properly formatted"
           fi
 
-  backend-deadcode:
-    if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: Setup Go with cache
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
-        with:
-          go-version-file: backend/go.mod
-          cache: true
-          cache-dependency-path: backend/go.sum
-      - name: Install deadcode
-        run: go install golang.org/x/tools/cmd/deadcode@latest
+      - name: Validate migration dependencies
+        working-directory: backend
+        run: go run main.go migrate validate
+
+      - name: Check for migration version collisions
+        working-directory: backend
+        run: go test ./database/migrations/ -run TestNoDuplicateMigrationVersions -v
+
       - name: Run dead code detection
         working-directory: backend
         run: |
@@ -124,6 +123,25 @@ jobs:
             echo "No dead code detected"
           fi
 
+      - name: Check Go dependency licenses
+        working-directory: backend
+        run: |
+          echo "🔍 Checking Go dependency licenses..."
+
+          # Disallowed licenses for a source-available project (copyleft / network-copyleft)
+          DISALLOWED="AGPL-3.0,GPL-3.0,LGPL-3.0,SSPL-1.0,EUPL-1.2"
+
+          # go-licenses check exits non-zero if disallowed licenses are found
+          go-licenses check ./... --disallowed_types=restricted,reciprocal 2>&1 || {
+            echo ""
+            echo "❌ Disallowed licenses found in Go dependencies."
+            echo "Source-available project cannot use restricted or reciprocal licenses."
+            echo "Review the output above and replace the offending dependency."
+            exit 1
+          }
+
+          echo "All Go dependency licenses are compatible"
+
   backend-lint:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -144,102 +162,9 @@ jobs:
           args: --timeout 10m
           working-directory: backend
 
-  backend-migration-validate:
-    if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: Setup Go with cache
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
-        with:
-          go-version-file: backend/go.mod
-          cache: true
-          cache-dependency-path: backend/go.sum
-      - name: Validate migration dependencies
-        working-directory: backend
-        run: go run main.go migrate validate
-      - name: Check for migration version collisions
-        working-directory: backend
-        run: go test ./database/migrations/ -run TestNoDuplicateMigrationVersions -v
-
-  backend-licenses:
-    if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: Setup Go with cache
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
-        with:
-          go-version-file: backend/go.mod
-          cache: true
-          cache-dependency-path: backend/go.sum
-      - name: Install go-licenses
-        run: go install github.com/google/go-licenses@latest
-      - name: Check Go dependency licenses
-        working-directory: backend
-        run: |
-          echo "🔍 Checking Go dependency licenses..."
-
-          # Disallowed licenses for a source-available project (copyleft / network-copyleft)
-          DISALLOWED="AGPL-3.0,GPL-3.0,LGPL-3.0,SSPL-1.0,EUPL-1.2"
-
-          # go-licenses check exits non-zero if disallowed licenses are found
-          go-licenses check ./... --disallowed_types=restricted,reciprocal 2>&1 || {
-            echo ""
-            echo "❌ Disallowed licenses found in Go dependencies."
-            echo "Source-available project cannot use restricted or reciprocal licenses."
-            echo "Review the output above and replace the offending dependency."
-            exit 1
-          }
-
-          echo "All Go dependency licenses are compatible"
-
-  frontend-licenses:
+  frontend-quality:
     if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: "frontend/pnpm-lock.yaml"
-
-      - name: Install dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
-
-      - name: Check npm dependency licenses
-        working-directory: frontend
-        run: |
-          echo "🔍 Checking npm dependency licenses..."
-
-          npx license-checker --production --failOn \
-            "AGPL-1.0-only;AGPL-1.0-or-later;AGPL-3.0-only;AGPL-3.0-or-later;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0-only;GPL-3.0-or-later;LGPL-2.0-only;LGPL-2.0-or-later;LGPL-2.1-only;LGPL-2.1-or-later;LGPL-3.0-only;LGPL-3.0-or-later;SSPL-1.0;EUPL-1.2" \
-            --summary || {
-            echo ""
-            echo "❌ Disallowed licenses found in npm dependencies."
-            echo "Source-available project cannot use restricted or reciprocal licenses."
-            echo "Review the output above and replace the offending dependency."
-            exit 1
-          }
-
-          echo "All npm dependency licenses are compatible"
-
-  frontend-lint:
-    if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
     env:
@@ -266,63 +191,30 @@ jobs:
         working-directory: frontend
         run: pnpm run lint --max-warnings 0
 
-  frontend-typecheck:
-    if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    permissions:
-      contents: read
-    env:
-      NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
-      SKIP_ENV_VALIDATION: "true" # Skip validation during linting
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: "frontend/pnpm-lock.yaml"
-
-      - name: Install dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
-
       - name: Run typecheck
         working-directory: frontend
         run: pnpm run typecheck
 
-  frontend-knip:
-    if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    permissions:
-      contents: read
-    env:
-      NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
-      SKIP_ENV_VALIDATION: "true" # Skip validation during linting
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: "frontend/pnpm-lock.yaml"
-
-      - name: Install dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
-
       - name: Check for unused code
         working-directory: frontend
         run: pnpm knip
+
+      - name: Check npm dependency licenses
+        working-directory: frontend
+        run: |
+          echo "🔍 Checking npm dependency licenses..."
+
+          npx license-checker --production --failOn \
+            "AGPL-1.0-only;AGPL-1.0-or-later;AGPL-3.0-only;AGPL-3.0-or-later;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0-only;GPL-3.0-or-later;LGPL-2.0-only;LGPL-2.0-or-later;LGPL-2.1-only;LGPL-2.1-or-later;LGPL-3.0-only;LGPL-3.0-or-later;SSPL-1.0;EUPL-1.2" \
+            --summary || {
+            echo ""
+            echo "❌ Disallowed licenses found in npm dependencies."
+            echo "Source-available project cannot use restricted or reciprocal licenses."
+            echo "Review the output above and replace the offending dependency."
+            exit 1
+          }
+
+          echo "All npm dependency licenses are compatible"
 
   frontend-build:
     if: ${{ inputs.run-frontend }}

@@ -78,6 +78,56 @@ jobs:
             -coverprofile=coverage.out \
             -covermode=atomic
 
+      - name: Drop flaky retries from junit.xml
+        working-directory: backend
+        if: always()
+        run: |
+          if [ ! -f junit.xml ]; then
+            echo "junit.xml not found, skipping dedupe"
+            exit 0
+          fi
+          python3 - <<'PYEOF'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          # gotestsum --rerun-fails records every attempt of a retried test as a
+          # separate <testcase> with the same (classname, name). The first (failed)
+          # entry stays in junit.xml even after a passing rerun, so the JUnit
+          # reporter check goes red despite gotestsum exiting 0. This step keeps
+          # only the latest non-failed entry per test, matching the job's exit
+          # code semantics.
+          tree = ET.parse("junit.xml")
+          root = tree.getroot()
+          seen = {}
+          removed = 0
+          for ts in root.iter("testsuite"):
+              for tc in list(ts.findall("testcase")):
+                  key = (tc.get("classname"), tc.get("name"))
+                  cur_failed = tc.find("failure") is not None or tc.find("error") is not None
+                  prev = seen.get(key)
+                  if prev is None:
+                      seen[key] = (ts, tc)
+                      continue
+                  prev_ts, prev_tc = prev
+                  prev_failed = prev_tc.find("failure") is not None or prev_tc.find("error") is not None
+                  if prev_failed and not cur_failed:
+                      prev_ts.remove(prev_tc)
+                      seen[key] = (ts, tc)
+                  else:
+                      ts.remove(tc)
+                  removed += 1
+
+          # Refresh testsuite-level counters so they match the surviving testcases.
+          for ts in root.iter("testsuite"):
+              cases = ts.findall("testcase")
+              ts.set("tests", str(len(cases)))
+              ts.set("failures", str(sum(1 for tc in cases if tc.find("failure") is not None)))
+              ts.set("errors", str(sum(1 for tc in cases if tc.find("error") is not None)))
+
+          tree.write("junit.xml", xml_declaration=True, encoding="utf-8")
+          print(f"Removed {removed} duplicate <testcase> entries from junit.xml", file=sys.stderr)
+          PYEOF
+
       - name: Fix Go coverage paths for SonarCloud
         run: |
           # Transform Go module paths to relative paths

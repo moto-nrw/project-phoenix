@@ -119,7 +119,7 @@ func (r *GroupRepository) FindAllTemplates(ctx context.Context) ([]*activities.G
 
 // FindWithEnrollmentCounts returns groups with their current enrollment counts
 func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*activities.Group, map[int64]int, error) {
-	var groups []*activities.Group
+	groups := make([]*activities.Group, 0)
 	groupQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp)
@@ -424,7 +424,7 @@ func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) e
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Group, error) {
-	var groups []*activities.Group
+	groups := make([]*activities.Group, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).

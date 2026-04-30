@@ -9,39 +9,6 @@ import (
 
 // ===== Analytics Handlers =====
 
-// getCounts handles getting various counts for analytics
-func (rs *Resource) getCounts(w http.ResponseWriter, r *http.Request) {
-	// Get active groups count
-	activeGroupsCount, err := rs.ActiveService.GetActiveGroupsCount(r.Context())
-	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	// Get total visits count
-	totalVisitsCount, err := rs.ActiveService.GetTotalVisitsCount(r.Context())
-	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	// Get active visits count
-	activeVisitsCount, err := rs.ActiveService.GetActiveVisitsCount(r.Context())
-	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	// Build response
-	response := AnalyticsResponse{
-		ActiveGroupsCount: activeGroupsCount,
-		TotalVisitsCount:  totalVisitsCount,
-		ActiveVisitsCount: activeVisitsCount,
-	}
-
-	common.Respond(w, r, http.StatusOK, response, "Counts retrieved successfully")
-}
-
 // getDashboardAnalytics handles getting dashboard analytics data
 func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request) {
 	// Get dashboard analytics
@@ -57,6 +24,7 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 		StudentsInTransit:    analytics.StudentsInTransit,
 		StudentsOnPlayground: analytics.StudentsOnPlayground,
 		StudentsInRooms:      analytics.StudentsInRooms,
+		StudentsSick:         analytics.StudentsSick,
 		ActiveActivities:     analytics.ActiveActivities,
 		FreeRooms:            analytics.FreeRooms,
 		TotalRooms:           analytics.TotalRooms,

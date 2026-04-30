@@ -340,6 +340,36 @@ func (s *userContextService) addSubstitutionGroups(ctx context.Context, staffID 
 	return partialErr
 }
 
+// GetSubstitutedGroupIDs returns the set of education group IDs the current
+// staff member can access via an active substitution where the regular staff
+// slot is unassigned (RegularStaffID == nil). Returns an empty set when the
+// user is not staff or has no active substitutions; only unexpected errors
+// are propagated.
+func (s *userContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error) {
+	result := make(map[int64]bool)
+
+	staff, err := s.GetCurrentStaff(ctx)
+	if err != nil {
+		if isExpectedLinkageError(err) {
+			return result, nil
+		}
+		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}
+	}
+
+	today := timezone.TodayUTC()
+	activeSubs, err := s.substitutionRepo.FindActiveBySubstitute(ctx, staff.ID, today)
+	if err != nil {
+		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}
+	}
+
+	for _, sub := range activeSubs {
+		if sub.RegularStaffID == nil {
+			result[sub.GroupID] = true
+		}
+	}
+	return result, nil
+}
+
 // resolveSubstitutionGroup gets the group from substitution, with fallback lookup
 func (s *userContextService) resolveSubstitutionGroup(ctx context.Context, sub *education.GroupSubstitution) (*education.Group, error) {
 	if sub.Group != nil {

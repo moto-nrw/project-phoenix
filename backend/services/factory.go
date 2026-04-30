@@ -52,7 +52,6 @@ type Factory struct {
 	Feedback                 feedback.Service
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
-	Config                   config.Service
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
@@ -214,6 +213,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
 		AttendanceRepo:     repos.Attendance,
+		StudentStatusRepo:  repos.StudentStatusDay,
 		CrossTenantRepo:    activeRepo.NewCrossTenantRepository(db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
@@ -257,12 +257,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Initialize IoT service
 	iotService := iot.NewService(
 		repos.Device,
-		db,
-	)
-
-	// Initialize config service
-	configService := config.NewService(
-		repos.Setting,
 		db,
 	)
 
@@ -587,6 +581,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
+		SummariesRepo:       repos.OperatorSummaries,
 		CategoryRepo:        repos.ActivityCategory,
 		DeviceRepo:          repos.Device,
 		RoleRepo:            repos.Role,
@@ -618,7 +613,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Feedback:                 feedbackService,
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
-		Config:                   configService,
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,

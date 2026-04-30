@@ -87,24 +87,16 @@ type OperatorProvisioningService interface {
 	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 	ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error)
 	SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error
+	GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error)
+	ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error)
+	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
+	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
+	ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
 }
 
-// OperatorPersonInfo holds person information with school/org context for operator views.
-type OperatorPersonInfo struct {
-	ID               int64     `bun:"id" json:"id"`
-	FirstName        string    `bun:"first_name" json:"first_name"`
-	LastName         string    `bun:"last_name" json:"last_name"`
-	HasAccount       bool      `bun:"has_account" json:"has_account"`
-	AccountEmail     *string   `bun:"account_email" json:"account_email,omitempty"`
-	HasRFIDCard      bool      `bun:"has_rfid_card" json:"has_rfid_card"`
-	IsStaff          bool      `bun:"is_staff" json:"is_staff"`
-	IsStudent        bool      `bun:"is_student" json:"is_student"`
-	SchoolID         int64     `bun:"school_id" json:"school_id"`
-	SchoolName       string    `bun:"school_name" json:"school_name"`
-	OrganizationID   int64     `bun:"organization_id" json:"organization_id"`
-	OrganizationName string    `bun:"organization_name" json:"organization_name"`
-	CreatedAt        time.Time `bun:"created_at" json:"created_at"`
-}
+// OperatorPersonInfo aliases the model type so existing service callers keep
+// referencing platformSvc.OperatorPersonInfo.
+type OperatorPersonInfo = platform.OperatorPersonInfo
 
 // OperatorDeviceInfo holds device information with school/org context for operator views.
 type OperatorDeviceInfo struct {
@@ -151,6 +143,7 @@ func enrichDeviceInfo(devices []OperatorDeviceInfo) []OperatorDeviceInfo {
 type operatorProvisioningService struct {
 	organizationRepo    platform.OrganizationRepository
 	schoolRepo          platform.SchoolRepository
+	summariesRepo       platform.OperatorSummariesRepository
 	categoryRepo        activityModels.CategoryRepository
 	deviceRepo          iotModels.DeviceRepository
 	roleRepo            authModels.RoleRepository
@@ -171,6 +164,7 @@ type operatorProvisioningService struct {
 type OperatorProvisioningServiceConfig struct {
 	OrganizationRepo    platform.OrganizationRepository
 	SchoolRepo          platform.SchoolRepository
+	SummariesRepo       platform.OperatorSummariesRepository
 	CategoryRepo        activityModels.CategoryRepository
 	DeviceRepo          iotModels.DeviceRepository
 	RoleRepo            authModels.RoleRepository
@@ -189,9 +183,13 @@ type OperatorProvisioningServiceConfig struct {
 
 // NewOperatorProvisioningService creates a provisioning service.
 func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) OperatorProvisioningService {
+	if cfg.SummariesRepo == nil {
+		panic("operator provisioning service: SummariesRepo is required")
+	}
 	return &operatorProvisioningService{
 		organizationRepo:    cfg.OrganizationRepo,
 		schoolRepo:          cfg.SchoolRepo,
+		summariesRepo:       cfg.SummariesRepo,
 		categoryRepo:        cfg.CategoryRepo,
 		deviceRepo:          cfg.DeviceRepo,
 		roleRepo:            cfg.RoleRepo,
@@ -1083,29 +1081,6 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 	})
 }
 
-// operatorPersonQuery is the shared query for listing persons with school/org context.
-const operatorPersonQuery = `
-SELECT
-	"p".id,
-	"p".first_name,
-	"p".last_name,
-	("p".account_id IS NOT NULL) AS has_account,
-	"a".email AS account_email,
-	(EXISTS (SELECT 1 FROM users.staff WHERE person_id = "p".id)) AS is_staff,
-	(EXISTS (SELECT 1 FROM users.students WHERE person_id = "p".id)) AS is_student,
-	("p".tag_id IS NOT NULL) AS has_rfid_card,
-	"s".id AS school_id,
-	"s".name AS school_name,
-	"o".id AS organization_id,
-	"o".name AS organization_name,
-	"p".created_at
-FROM users.persons AS "p"
-INNER JOIN platform.schools AS "s" ON "s".id = "p".tenant_id
-INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
-LEFT JOIN auth.accounts AS "a" ON "a".id = "p".account_id
-WHERE "p".deleted_at IS NULL
-`
-
 func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
@@ -1120,18 +1095,11 @@ func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, sch
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
 
-		var db bun.IDB = s.txHandler.DB
-		if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
-			db = tx
-		}
-
-		q := operatorPersonQuery + ` AND "p".tenant_id = ? ORDER BY "p".last_name, "p".first_name`
-		if scanErr := db.NewRaw(q, schoolID).Scan(adminCtx, &result); scanErr != nil {
+		persons, scanErr := s.summariesRepo.PersonsBySchool(adminCtx, schoolID)
+		if scanErr != nil {
 			return scanErr
 		}
-		if result == nil {
-			result = []OperatorPersonInfo{}
-		}
+		result = persons
 		return nil
 	})
 	return result, err

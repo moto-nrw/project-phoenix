@@ -567,4 +567,19 @@ describe("OperatorDevicesPage", () => {
       expect(screen.getByText("API-Key ändern")).toBeInTheDocument();
     });
   });
+
+  it("opens the create-device modal when the desktop 'Neues Gerät' button is clicked", async () => {
+    withDefaultSWR({ allDevices: [mockDevice] });
+
+    render(<OperatorDevicesPage />);
+
+    // The desktop button has visible text "Neues Gerät"
+    const button = screen.getAllByText("Neues Gerät")[0];
+    expect(button).toBeDefined();
+    if (button) fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+  });
 });

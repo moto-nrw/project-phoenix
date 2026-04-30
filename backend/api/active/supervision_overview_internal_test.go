@@ -91,6 +91,7 @@ func (s *stubActiveService) GetTrackingIndicators(_ context.Context, _ []int64, 
 	return map[int64][]bool{}, nil
 }
 func (s *stubActiveService) SetSettingsService(_ activeSvc.SettingsResolver) {}
+func (s *stubActiveService) GetPresenceMode(_ context.Context) string        { return "detailed" }
 func (s *stubActiveService) GetActiveGroup(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }
@@ -259,9 +260,6 @@ func (s *stubActiveService) CleanupAbandonedSessions(_ context.Context, _ time.D
 func (s *stubActiveService) EndDailySessions(_ context.Context) (*activeSvc.DailySessionCleanupResult, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetActiveGroupsCount(_ context.Context) (int, error) { return 0, nil }
-func (s *stubActiveService) GetTotalVisitsCount(_ context.Context) (int, error)  { return 0, nil }
-func (s *stubActiveService) GetActiveVisitsCount(_ context.Context) (int, error) { return 0, nil }
 func (s *stubActiveService) GetDashboardAnalytics(_ context.Context) (*activeSvc.DashboardAnalytics, error) {
 	return nil, nil
 }
@@ -275,6 +273,12 @@ func (s *stubActiveService) GetStudentsAttendanceStatuses(_ context.Context, _ [
 	return nil, nil
 }
 func (s *stubActiveService) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (s *stubActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (s *stubActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
 func (s *stubActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {

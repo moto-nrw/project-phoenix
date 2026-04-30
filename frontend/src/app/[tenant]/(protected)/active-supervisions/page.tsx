@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -34,8 +35,7 @@ import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
-import { isHomeLocation } from "~/lib/location-helper";
-import { useMinuteClock, combinePickupNotes } from "~/lib/pickup-helpers";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { isAdmin, isCaregiver } from "~/lib/auth-utils";
@@ -49,6 +49,7 @@ import {
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
+import { combineTimeNotes } from "~/lib/student-time-status";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
@@ -73,6 +74,8 @@ interface ActiveRoom {
   name: string;
   room_name?: string;
   room_id?: string;
+  /** Hex color of the room when set; drives the per-room badge color in LocationBadge. */
+  room_color?: string;
   student_count?: number;
   supervisor_name?: string;
   students?: StudentWithVisit[];
@@ -103,7 +106,7 @@ interface BFFDashboardResponse {
     id: string;
     name: string;
     room_id?: string;
-    room?: { id: string; name: string };
+    room?: { id: string; name: string; color?: string | null };
   }>;
   unclaimedGroups: Array<{
     id: string;
@@ -123,6 +126,8 @@ interface BFFDashboardResponse {
     groupName: string;
     activeGroupId: string;
     checkInTime: string;
+    actualArrivalTime?: string;
+    actualPickupTime?: string;
     isActive: boolean;
     sick?: boolean;
     sickSince?: string;
@@ -409,6 +414,7 @@ function MeinRaumPageContent() {
       roomId: string,
       roomName?: string,
       groupNameToId?: Map<string, string>,
+      roomColor?: string | null,
     ): Promise<StudentWithVisit[]> => {
       try {
         // Use bulk endpoint to fetch visits with display data for specific room
@@ -439,12 +445,15 @@ function MeinRaumPageContent() {
             second_name: lastName,
             school_class: visit.schoolClass ?? "",
             current_location: location,
+            current_room_color: roomColor ?? null,
             group_name: visit.groupName,
             group_id: groupId, // Add group_id for permission checking
             sick: visit.sick,
             sick_since: visit.sickSince,
             excused: visit.excused,
             excused_since: visit.excusedSince,
+            actual_arrival_time: visit.actualArrivalTime,
+            actual_pickup_time: visit.actualPickupTime,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
           } as StudentWithVisit;
@@ -718,6 +727,7 @@ function MeinRaumPageContent() {
         name: group.name,
         room_name: group.room?.name,
         room_id: group.room_id,
+        room_color: group.room?.color ?? undefined,
         student_count: undefined,
         supervisor_name: undefined,
       }))
@@ -773,12 +783,15 @@ function MeinRaumPageContent() {
               second_name: lastName,
               school_class: visit.schoolClass ?? "",
               current_location: location,
+              current_room_color: firstRoom.room_color ?? null,
               group_name: visit.groupName,
               group_id: groupId,
               sick: visit.sick,
               sick_since: visit.sickSince,
               excused: visit.excused,
               excused_since: visit.excusedSince,
+              actual_arrival_time: visit.actualArrivalTime,
+              actual_pickup_time: visit.actualPickupTime,
               activeGroupId: visit.activeGroupId,
               checkInTime: new Date(visit.checkInTime),
             } as StudentWithVisit;
@@ -930,12 +943,15 @@ function MeinRaumPageContent() {
           second_name: lastName,
           school_class: visit.schoolClass ?? "",
           current_location: location,
+          current_room_color: currentRoom?.room_color ?? null,
           group_name: visit.groupName,
           group_id: groupId,
           sick: visit.sick,
           sick_since: visit.sickSince,
           excused: visit.excused,
           excused_since: visit.excusedSince,
+          actual_arrival_time: visit.actualArrivalTime,
+          actual_pickup_time: visit.actualPickupTime,
           activeGroupId: visit.activeGroupId,
           checkInTime: visit.checkInTime,
         } as StudentWithVisit;
@@ -1133,6 +1149,7 @@ function MeinRaumPageContent() {
         selectedRoom.id,
         selectedRoom.room_name,
         groupNameToIdMapRef.current,
+        selectedRoom.room_color,
       );
 
       // Set students state
@@ -1308,7 +1325,6 @@ function MeinRaumPageContent() {
               const studentArrival = arrivalTimesData?.get(
                 student.id.toString(),
               );
-              const isHome = isHomeLocation(student.current_location);
 
               return (
                 <StudentCard
@@ -1352,6 +1368,7 @@ function MeinRaumPageContent() {
                       )}
                       <ArrivalTimeRow
                         arrivalTime={studentArrival?.expectedArrival}
+                        actualTime={student.actual_arrival_time}
                         isException={studentArrival?.isException ?? false}
                         isAbsent={
                           (studentArrival?.isException ?? false) &&
@@ -1359,27 +1376,26 @@ function MeinRaumPageContent() {
                         }
                         notes={
                           studentArrival
-                            ? combinePickupNotes(
+                            ? combineTimeNotes(
                                 studentArrival.notes,
                                 studentArrival.dayNotes,
                               )
                             : undefined
                         }
-                        isHome={isHome}
                         now={now}
                       />
                       <PickupTimeRow
                         pickupTime={studentPickup?.pickupTime}
+                        actualTime={student.actual_pickup_time}
                         isException={studentPickup?.isException ?? false}
                         notes={
                           studentPickup
-                            ? combinePickupNotes(
+                            ? combineTimeNotes(
                                 studentPickup.notes,
                                 studentPickup.dayNotes,
                               )
                             : undefined
                         }
-                        isHome={isHome}
                         now={now}
                       />
                     </>
@@ -1734,15 +1750,19 @@ function ActiveSupervisionGate({
   return <ForbiddenPage />;
 }
 
-// Main component with Suspense wrapper
+// Main component with Suspense wrapper. BinaryModeGuard runs first so
+// binary-mode tenants get a 404 before the supervision gate tries to load
+// data that depends on detailed-mode room visits.
 export default function MeinRaumPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <ActiveSupervisionGate>
-        <SSEErrorBoundary>
-          <MeinRaumPageContent />
-        </SSEErrorBoundary>
-      </ActiveSupervisionGate>
-    </Suspense>
+    <BinaryModeGuard>
+      <Suspense fallback={<Loading fullPage={false} />}>
+        <ActiveSupervisionGate>
+          <SSEErrorBoundary>
+            <MeinRaumPageContent />
+          </SSEErrorBoundary>
+        </ActiveSupervisionGate>
+      </Suspense>
+    </BinaryModeGuard>
   );
 }

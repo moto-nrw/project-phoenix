@@ -68,6 +68,13 @@ type overdueSetup struct {
 	ctx   context.Context
 	spy   *spyBroadcaster
 	room  int64
+	// now is a fixed wall-clock anchor (noon UTC today) used by both seedPlanned
+	// and the test calls to runOverdueForTenant. Anchoring at noon keeps any
+	// reasonable backstep inside the same UTC day, so fixtures that subtract
+	// `minutesAgo` from this anchor cannot cross midnight UTC and produce a
+	// StartTime that lands tomorrow (which would compute as ~23.5h in the future
+	// and silently drop the broadcast).
+	now time.Time
 }
 
 func buildOverdue(t *testing.T) *overdueSetup {
@@ -88,25 +95,29 @@ func buildOverdue(t *testing.T) *overdueSetup {
 	sched.SetInstanceOverdueDeps(repoFactory.ActivityInstance, spy)
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("OVR-Room-%d", time.Now().UnixNano()))
+	today := time.Now().UTC()
+	anchor := time.Date(today.Year(), today.Month(), today.Day(), 12, 0, 0, 0, time.UTC)
 	return &overdueSetup{
 		sched: sched,
 		db:    db,
 		ctx:   testpkg.TenantContext(1),
 		spy:   spy,
 		room:  room.ID,
+		now:   anchor,
 	}
 }
 
 // seedPlanned inserts one planned activity_instance with a StartTime of
-// `minutesAgo` minutes before now, so callers can control the overdue
-// margin relative to the default 5-minute threshold.
+// `minutesAgo` minutes before s.now, so callers can control the overdue
+// margin relative to the default 5-minute threshold. Uses s.now (noon UTC
+// anchor) rather than time.Now() to keep the fixture deterministic
+// regardless of when the suite runs — see overdueSetup.now.
 func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) *scheduleModels.ActivityInstance {
 	t.Helper()
-	now := time.Now().UTC()
-	start := now.Add(-time.Duration(minutesAgo) * time.Minute)
+	start := s.now.Add(-time.Duration(minutesAgo) * time.Minute)
 
 	ai := &scheduleModels.ActivityInstance{
-		Date:          time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC),
+		Date:          time.Date(s.now.Year(), s.now.Month(), s.now.Day(), 0, 0, 0, 0, time.UTC),
 		Title:         fmt.Sprintf("OVR-%d", time.Now().UnixNano()),
 		StartTime:     time.Date(1, 1, 1, start.Hour(), start.Minute(), start.Second(), 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 23, 59, 0, 0, time.UTC),
@@ -148,7 +159,7 @@ func TestOverdueTick_BroadcastsOncePerInstance(t *testing.T) {
 	// 30 minutes past — well beyond the 5-minute default threshold.
 	ai := seedPlanned(t, s, 30)
 
-	s.sched.runOverdueForTenant(s.ctx, 1, 5, time.Now())
+	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
 
 	assert.Equal(t, 1, spyFilter(s.spy, ai.ID), "one broadcast for the seeded instance expected")
 
@@ -164,8 +175,8 @@ func TestOverdueTick_ReFireGuard(t *testing.T) {
 
 	ai := seedPlanned(t, s, 30)
 
-	s.sched.runOverdueForTenant(s.ctx, 1, 5, time.Now())
-	s.sched.runOverdueForTenant(s.ctx, 1, 5, time.Now())
+	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
+	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
 
 	assert.Equal(t, 1, spyFilter(s.spy, ai.ID), "second tick on same instance must be suppressed")
 }
@@ -176,7 +187,7 @@ func TestOverdueTick_ActiveInstancesNotBroadcast(t *testing.T) {
 	ai := seedPlanned(t, s, 30)
 	setStatus(t, s, ai.ID, scheduleModels.InstanceStatusActive)
 
-	s.sched.runOverdueForTenant(s.ctx, 1, 5, time.Now())
+	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
 
 	assert.Equal(t, 0, spyFilter(s.spy, ai.ID), "active instances must not trigger overdue broadcast")
 }

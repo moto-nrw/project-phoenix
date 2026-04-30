@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -151,11 +152,20 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 	return common.StudentLocationInfo{Location: "Abwesend"}
 }
 
-// resolveStudentLocationWithTime determines a student's current location with timestamp
+// resolveStudentLocationWithTime determines a student's current location with timestamp.
+//
+// Binary-mode tenants short-circuit to ResolveBinaryLocation — web check-ins
+// write only attendance (no room visit), so falling through to
+// presentOrTransit() would always yield "Unterwegs", contradicting the
+// simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
 func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) common.StudentLocationInfo {
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil || attendanceStatus == nil {
 		return common.StudentLocationInfo{Location: "Abwesend"}
+	}
+
+	if activeService.GetPresenceMode(ctx) == common.PresenceModeBinary {
+		return common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
 	}
 
 	// Handle non-checked-in states (checked_out or other)
@@ -177,8 +187,9 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 	// Include room name for all authenticated staff (needed for supervised room checkout)
 	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
 		return common.StudentLocationInfo{
-			Location: fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
-			Since:    &currentVisit.EntryTime,
+			Location:  fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
+			Since:     &currentVisit.EntryTime,
+			RoomColor: activeGroup.Room.Color,
 		}
 	}
 
@@ -219,6 +230,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, services.ActiveService)
 		response.Location = locationInfo.Location
 		response.LocationSince = locationInfo.Since
+		response.RoomColor = locationInfo.RoomColor
 	}
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
@@ -255,6 +267,7 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	locationInfo := snapshot.ResolveLocationWithTime(student.ID, hasFullAccess)
 	response.Location = locationInfo.Location
 	response.LocationSince = locationInfo.Since
+	response.RoomColor = locationInfo.RoomColor
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 	populateSnapshotPublicFields(&response, student)
@@ -387,4 +400,26 @@ func buildArrivalNotes(eat *schedule.EffectiveArrivalTime) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+func applyActualTimesFromAttendance(response *StudentResponse, status *activeService.AttendanceStatus) {
+	if response == nil || status == nil {
+		return
+	}
+
+	response.ActualArrivalTime = timezone.FormatBerlinClock(status.CheckInTime)
+	response.ActualPickupTime = timezone.FormatBerlinClock(status.CheckOutTime)
+}
+
+func applyActualTimesFromSnapshot(response *StudentResponse, snapshot *common.StudentDataSnapshot) {
+	if response == nil || snapshot == nil || snapshot.LocationSnapshot == nil {
+		return
+	}
+
+	status, ok := snapshot.LocationSnapshot.Attendances[response.ID]
+	if !ok || status == nil {
+		return
+	}
+
+	applyActualTimesFromAttendance(response, status)
 }

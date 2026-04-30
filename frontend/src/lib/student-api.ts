@@ -294,6 +294,85 @@ export async function updateStudent(
   }
 }
 
+// ─── School check-in/out (web UI) ───────────────────────────────────────────
+
+/** Action accepted by POST /api/students/{id}/school-checkin. */
+export type SchoolCheckinAction = "in" | "out";
+
+/**
+ * Response shape mirrors `AttendanceStatus` on the backend plus the resolved
+ * presence label so the UI can update a PresenceBadge optimistically without
+ * a follow-up fetch.
+ */
+export interface SchoolCheckinResponse {
+  /**
+   * Backend int64 IDs are converted to string at the API boundary
+   * (CLAUDE.md §4) so consumers don't lose precision in JSON/JS number land.
+   */
+  studentId: string;
+  status: "checked_in" | "on_yard" | "checked_out" | "not_checked_in";
+  checkInTime?: string;
+  checkOutTime?: string;
+  yardSince?: string;
+  location: "Anwesend" | "Schulhof" | "Abwesend";
+  /** false when the call was a no-op because the student was already in the target state. */
+  changed: boolean;
+}
+
+interface BackendSchoolCheckinResponse {
+  student_id: number;
+  status: "checked_in" | "on_yard" | "checked_out" | "not_checked_in";
+  check_in_time?: string;
+  check_out_time?: string;
+  yard_since?: string;
+  location: "Anwesend" | "Schulhof" | "Abwesend";
+  changed: boolean;
+}
+
+/**
+ * Check a student in or out of school via the web UI.
+ * Mode-agnostic: always writes active.attendance; room visits stay the
+ * exclusive responsibility of the IoT kiosk flow.
+ *
+ * Throws on 4xx/5xx — callers typically handle 403 (no permission / not a
+ * group supervisor) separately from other errors for tailored UI messaging.
+ */
+export async function schoolCheckinStudent(
+  studentId: string,
+  action: SchoolCheckinAction,
+): Promise<SchoolCheckinResponse> {
+  const url = `/api/students/${studentId}/school-checkin`;
+  try {
+    const session = await getCachedSession();
+    const response = await authFetch<
+      ApiResponse<BackendSchoolCheckinResponse> | BackendSchoolCheckinResponse
+    >(url, {
+      method: "POST",
+      body: { action },
+      token: session?.user?.token,
+    });
+
+    const data = extractApiData<BackendSchoolCheckinResponse>(response);
+    return {
+      // Convert int64 -> string at the boundary per CLAUDE.md §4.
+      studentId: data.student_id.toString(),
+      status: data.status,
+      checkInTime: data.check_in_time,
+      checkOutTime: data.check_out_time,
+      yardSince: data.yard_since,
+      location: data.location,
+      changed: data.changed,
+    };
+  } catch (error) {
+    logger.error("school_checkin_failed", {
+      student_id: studentId,
+      action,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
 // Delete a student
 export async function deleteStudent(id: string): Promise<void> {
   const useProxy = isBrowserContext();

@@ -40,11 +40,14 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 		// Use timezone.Today() for consistent Europe/Berlin timezone handling
 		today := timezone.Today()
 
-		// Earlier check-in for student1
+		// Earlier check-in/out cycle for student1 — closed so the partial
+		// unique index on (student_id, date) WHERE check_out_time IS NULL
+		// permits a second open row at 08:00.
+		earlyCheckout := today.Add(7*time.Hour + 30*time.Minute)
 		_ = testpkg.CreateTestAttendance(t, db, student1.ID, staff.ID, device.ID,
-			today.Add(7*time.Hour), nil) // 07:00
+			today.Add(7*time.Hour), &earlyCheckout) // 07:00 → 07:30
 
-		// Later check-in for student1 (this should be returned)
+		// Later check-in for student1 (open — this is the row that should be returned)
 		attendance1 := testpkg.CreateTestAttendance(t, db, student1.ID, staff.ID, device.ID,
 			today.Add(8*time.Hour), nil) // 08:00
 

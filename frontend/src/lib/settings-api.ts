@@ -21,7 +21,7 @@ export interface SchemaCategory {
   items: ResolvedSetting[];
 }
 
-export type AccessPolicy = "shared" | "admin_only" | "operator_only";
+type AccessPolicy = "shared" | "admin_only" | "operator_only";
 
 export interface ResolvedSetting {
   key: string;

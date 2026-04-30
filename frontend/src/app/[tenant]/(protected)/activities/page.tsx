@@ -21,6 +21,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { Loading } from "~/components/ui/loading";
 import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 
 const logger = createLogger({ component: "ActivitiesPage" });
 
@@ -34,7 +35,18 @@ interface ActivitiesPageData {
   currentStaff: Staff | null;
 }
 
+// Binary-mode tenants can't meaningfully start activities (no active groups,
+// no visits). Wrap the real content so the guard runs before any hooks in the
+// page's main function — React rules forbid conditional hooks.
 export default function ActivitiesPage() {
+  return (
+    <BinaryModeGuard>
+      <ActivitiesPageContent />
+    </BinaryModeGuard>
+  );
+}
+
+function ActivitiesPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [myActivitiesFilter, setMyActivitiesFilter] = useState(false);

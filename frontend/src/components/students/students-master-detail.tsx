@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, MoreVertical } from "lucide-react";
+import { AlertCircle, CalendarClock, MoreVertical } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -9,26 +9,29 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { MasterDetailLayout } from "~/components/database/master-detail-layout";
-import {
-  GroupedList,
-  type GroupDefinition,
-} from "~/components/database/grouped-list";
+import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
+import { DatabaseListItem } from "~/components/database/database-list-item";
 import {
   DetailPanel,
   type DetailTab,
 } from "~/components/database/detail-panel";
 import { EmptyDetailState } from "~/components/database/empty-detail-state";
+import { GroupedList } from "~/components/database/grouped-list";
+import { MasterDetailLayout } from "~/components/database/master-detail-layout";
+import {
+  useGroupedItems,
+  type GroupDecorator,
+  type Grouper,
+} from "~/components/database/use-grouped-items";
 import { ClassBulkArrivalModal } from "./class-bulk-arrival-modal";
 import { ArrivalScheduleManager } from "./arrival-schedule-manager";
 import { StudentAbholungTab } from "./student-abholung-tab";
-import { StudentDetailHeader } from "./student-detail-header";
 import { StudentGuardiansTab } from "./student-guardians-tab";
 import { StudentHistorieTab } from "./student-historie-tab";
-import { StudentListItem } from "./student-list-item";
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
-import type { GroupingMode } from "./students-grouping-toggle";
 import type { Student } from "~/lib/api";
+
+export type GroupingMode = "class" | "group" | "none";
 
 interface StudentsMasterDetailProps {
   students: Student[];
@@ -43,7 +46,6 @@ interface StudentsMasterDetailProps {
   detailActions?: ReactNode;
 }
 
-const UNGROUPED_KEY = "__none__";
 const UNKNOWN_CLASS_LABEL = "Ohne Klasse";
 const UNKNOWN_GROUP_LABEL = "Ohne Gruppe";
 
@@ -51,16 +53,24 @@ function keyForStudent(student: Student): string {
   return String(student.id);
 }
 
-function groupValueFor(student: Student, mode: GroupingMode): string {
-  if (mode === "none") return UNGROUPED_KEY;
-  if (mode === "class") {
-    return student.school_class?.trim() || UNKNOWN_CLASS_LABEL;
+function formatStudentName(student: Student): string {
+  if (student.first_name && student.second_name) {
+    return `${student.first_name} ${student.second_name}`;
   }
-  return student.group_name?.trim() || UNKNOWN_GROUP_LABEL;
+  return student.name || "Unbekannt";
 }
 
-function sortGroupIds(ids: string[]): string[] {
-  return [...ids].sort((a, b) => a.localeCompare(b, "de"));
+function getStudentInitials(student: Student): string {
+  const first = (student.first_name?.[0] ?? "").toUpperCase();
+  const last = (student.second_name?.[0] ?? "").toUpperCase();
+  return `${first}${last}` || "?";
+}
+
+function buildHeaderSubtitle(student: Student): string {
+  const parts: string[] = [];
+  if (student.school_class) parts.push(student.school_class);
+  if (student.group_name) parts.push(student.group_name);
+  return parts.join(" · ") || "Keine Klasse hinterlegt";
 }
 
 export function StudentsMasterDetail({
@@ -78,53 +88,53 @@ export function StudentsMasterDetail({
   const [activeTab, setActiveTab] = useState<string>("master-data");
   const [bulkClass, setBulkClass] = useState<string | null>(null);
 
-  const groupDefinitions: GroupDefinition<Student>[] = useMemo(() => {
-    const buckets = new Map<string, Student[]>();
-    for (const student of students) {
-      const key = groupValueFor(student, grouping);
-      const list = buckets.get(key) ?? [];
-      list.push(student);
-      buckets.set(key, list);
-    }
+  const groupers = useMemo<
+    Partial<Record<Exclude<GroupingMode, "none">, Grouper<Student>>>
+  >(
+    () => ({
+      class: (student) => {
+        const value = student.school_class?.trim() || UNKNOWN_CLASS_LABEL;
+        return { id: value, title: value };
+      },
+      group: (student) => {
+        const value = student.group_name?.trim() || UNKNOWN_GROUP_LABEL;
+        return { id: value, title: value };
+      },
+    }),
+    [],
+  );
 
-    if (grouping === "none") {
-      const flat = buckets.get(UNGROUPED_KEY) ?? [];
-      if (flat.length === 0) return [];
-      return [
-        {
-          id: UNGROUPED_KEY,
-          title: `Alle Schüler (${flat.length})`,
-          items: flat,
-        },
-      ];
-    }
+  const decorateGroup = useCallback<GroupDecorator<Student>>(
+    (group) => {
+      // Flat group ("none" mode) keeps default formatting; only per-class/group
+      // buckets get the missing-arrival warning + bulk action.
+      if (group.id === "__flat__") return {};
 
-    const sortedIds = sortGroupIds(Array.from(buckets.keys()));
-    return sortedIds.map<GroupDefinition<Student>>((id) => {
-      const items = buckets.get(id) ?? [];
-      const missing = items.filter(
+      const missing = group.items.filter(
         (item) => !studentsWithArrival.has(keyForStudent(item)),
       );
       const variant = missing.length > 0 ? "warning" : "neutral";
       const countSuffix =
         missing.length > 0 ? `· ${missing.length} offen` : undefined;
       const bulkAction =
-        grouping === "class" && id !== UNKNOWN_CLASS_LABEL ? (
+        grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL ? (
           <ClassActionsMenu
-            schoolClass={id}
-            onEditArrival={() => setBulkClass(id)}
+            schoolClass={group.id}
+            onEditArrival={() => setBulkClass(group.id)}
           />
         ) : null;
-      return {
-        id,
-        title: id,
-        items,
-        variant,
-        countSuffix,
-        bulkAction,
-      };
-    });
-  }, [grouping, students, studentsWithArrival]);
+      return { variant, countSuffix, bulkAction };
+    },
+    [grouping, studentsWithArrival],
+  );
+
+  const groupDefinitions = useGroupedItems(
+    students,
+    grouping,
+    groupers,
+    "Schüler",
+    decorateGroup,
+  );
 
   const selectedStudent = useMemo(
     () =>
@@ -154,13 +164,37 @@ export function StudentsMasterDetail({
 
   const renderItem = (student: Student) => {
     const id = keyForStudent(student);
+    const hasArrival = studentsWithArrival.has(id);
+    const arrivalSummary = arrivalSummaryById.get(id);
+
+    const subtitleParts: string[] = [];
+    if (student.group_name) subtitleParts.push(student.group_name);
+    if (arrivalSummary) {
+      subtitleParts.push(arrivalSummary);
+    } else if (!hasArrival) {
+      subtitleParts.push("keine Ankunft");
+    }
+    const subtitleText = subtitleParts.join(" · ") || "—";
+    const subtitle = !hasArrival ? (
+      <span className="font-medium text-[#F78C10]">{subtitleText}</span>
+    ) : (
+      subtitleText
+    );
+
     return (
-      <StudentListItem
-        student={student}
+      <DatabaseListItem
+        title={formatStudentName(student)}
+        subtitle={subtitle}
         isSelected={selectedId === id}
         onSelect={() => onSelect(id)}
-        hasArrival={studentsWithArrival.has(id)}
-        arrivalSummary={arrivalSummaryById.get(id)}
+        trailingAccessory={
+          !hasArrival ? (
+            <AlertCircle
+              className="h-4 w-4 shrink-0 text-[#F78C10]"
+              aria-label="Ankunft fehlt"
+            />
+          ) : null
+        }
       />
     );
   };
@@ -181,8 +215,10 @@ export function StudentsMasterDetail({
   const detailNode = selectedStudent ? (
     <DetailPanel
       header={
-        <StudentDetailHeader
-          student={selectedStudent}
+        <DatabaseDetailHeader
+          avatar={getStudentInitials(selectedStudent)}
+          title={formatStudentName(selectedStudent)}
+          subtitle={buildHeaderSubtitle(selectedStudent)}
           warning={
             studentsWithArrival.has(keyForStudent(selectedStudent))
               ? null
@@ -216,10 +252,7 @@ export function StudentsMasterDetail({
         onDeselect={() => onSelect(null)}
         unselectedBehavior="expand"
         mobileDrawerTitle={
-          selectedStudent
-            ? `${selectedStudent.second_name ?? ""} ${selectedStudent.first_name ?? ""}`.trim() ||
-              "Schüler"
-            : "Schüler"
+          selectedStudent ? formatStudentName(selectedStudent) : "Schüler"
         }
       />
       {bulkClass ? (

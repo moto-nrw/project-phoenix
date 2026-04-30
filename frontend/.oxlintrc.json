@@ -23,7 +23,8 @@
     "import/no-named-as-default": "off",
     "jsx-a11y/autocomplete-valid": "off",
     "jsx-a11y/no-autofocus": "off",
-    "jsx-a11y/prefer-tag-over-role": "off"
+    "jsx-a11y/prefer-tag-over-role": "off",
+    "no-underscore-dangle": "off"
   },
   "ignorePatterns": [
     "node_modules",

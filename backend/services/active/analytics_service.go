@@ -5,51 +5,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Analytics and statistics
-
-func (s *service) GetActiveGroupsCount(ctx context.Context) (int, error) {
-	// Implementation would count active groups without end time
-	// This is a simplified implementation
-	groups, err := s.groupRepo.List(ctx, nil)
-	if err != nil {
-		return 0, &ActiveError{Op: "GetActiveGroupsCount", Err: ErrDatabaseOperation}
-	}
-
-	count := 0
-	for _, group := range groups {
-		if group.IsActive() {
-			count++
-		}
-	}
-
-	return count, nil
-}
-
-func (s *service) GetTotalVisitsCount(ctx context.Context) (int, error) {
-	visits, err := s.visitRepo.List(ctx, nil)
-	if err != nil {
-		return 0, &ActiveError{Op: "GetTotalVisitsCount", Err: ErrDatabaseOperation}
-	}
-	return len(visits), nil
-}
-
-func (s *service) GetActiveVisitsCount(ctx context.Context) (int, error) {
-	visits, err := s.visitRepo.List(ctx, nil)
-	if err != nil {
-		return 0, &ActiveError{Op: "GetActiveVisitsCount", Err: ErrDatabaseOperation}
-	}
-
-	count := 0
-	for _, visit := range visits {
-		if visit.IsActive() {
-			count++
-		}
-	}
-
-	return count, nil
-}
 
 func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error) {
 	analytics := &DashboardAnalytics{
@@ -71,6 +30,12 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.TotalRooms = len(baseData.allRooms)
 	analytics.ActivityCategories = baseData.activityCategories
 	analytics.SupervisorsToday = baseData.supervisorsToday
+
+	sickOpts := modelBase.NewQueryOptions()
+	sickOpts.Filter.Equal("sick", true)
+	if sickCount, err := s.studentRepo.CountWithOptions(ctx, sickOpts); err == nil {
+		analytics.StudentsSick = sickCount
+	}
 
 	// Phase 3: Build room lookup maps
 	roomData := s.buildRoomLookupMaps(baseData.allRooms)

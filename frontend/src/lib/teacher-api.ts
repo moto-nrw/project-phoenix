@@ -7,7 +7,7 @@ import type { Activity } from "./activity-helpers";
 const logger = createLogger({ component: "TeacherAPI" });
 
 /** Result of a createTeacher call — either success or a prompt to link an existing account. */
-export type CreateTeacherResult =
+type CreateTeacherResult =
   | { status: "created"; data: TeacherWithCredentials }
   | { status: "account_exists"; email: string };
 

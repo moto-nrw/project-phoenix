@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -130,6 +131,55 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 		VALUES (1, 1, 'Default Room', 'Default')
 		ON CONFLICT (id) DO NOTHING`)
 
+	// Ensure default system staff exists (person ID 1, staff ID 1) for legacy
+	// tests that hardcode CreatedBy: 1 to satisfy created_by FK constraints on
+	// schedule/activity tables. Same convention as rooms.id=1 and schools.id=1.
+	// Fail fast: if the fixture insert breaks (schema drift, missing schools FK),
+	// downstream tests would otherwise fail with cryptic "missing staff" errors.
+	//
+	// Wrap both inserts in a transaction so they're atomic from the perspective
+	// of parallel test packages. Otherwise a concurrent CleanupActivityFixtures
+	// could delete the persons row between the two inserts, leaving the staff
+	// FK to fail. Use unconstrained ON CONFLICT DO NOTHING (rather than
+	// ON CONFLICT (id)) because users.persons also carries
+	// idx_persons_tenant_pk UNIQUE(tenant_id, id) and Postgres reports that
+	// index first under load, so a column-targeted ON CONFLICT leaks the error.
+	// After the upserts, reconcile any wrong-tenant row so the system fixture
+	// always ends up at (tenant_id=1, id=1).
+	ctx := context.Background()
+	require.NoError(t, db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// Serialize concurrent fixture setup across parallel test packages.
+		// pg_advisory_xact_lock is released automatically on commit/rollback,
+		// so other packages wait at this line instead of racing the inserts
+		// below. Constant must stay identical wherever this lock is taken.
+		if _, e := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(914735691)`); e != nil {
+			return fmt.Errorf("acquire system fixture advisory lock: %w", e)
+		}
+		if _, e := tx.ExecContext(ctx, `
+			INSERT INTO users.persons (id, tenant_id, first_name, last_name)
+			VALUES (1, 1, 'System', 'Test')
+			ON CONFLICT DO NOTHING`); e != nil {
+			return fmt.Errorf("ensure system person fixture (id=1): %w", e)
+		}
+		if _, e := tx.ExecContext(ctx, `
+			UPDATE users.persons SET tenant_id = 1, first_name = 'System', last_name = 'Test'
+			WHERE id = 1 AND tenant_id <> 1`); e != nil {
+			return fmt.Errorf("reconcile system person tenant_id (id=1): %w", e)
+		}
+		if _, e := tx.ExecContext(ctx, `
+			INSERT INTO users.staff (id, tenant_id, person_id)
+			VALUES (1, 1, 1)
+			ON CONFLICT DO NOTHING`); e != nil {
+			return fmt.Errorf("ensure system staff fixture (id=1): %w", e)
+		}
+		if _, e := tx.ExecContext(ctx, `
+			UPDATE users.staff SET tenant_id = 1, person_id = 1
+			WHERE id = 1 AND (tenant_id <> 1 OR person_id <> 1)`); e != nil {
+			return fmt.Errorf("reconcile system staff tenant_id (id=1): %w", e)
+		}
+		return nil
+	}), "SetupTestDB: failed to ensure system person/staff fixtures (id=1)")
+
 	// Advance the BIGSERIAL sequence past any explicitly-inserted IDs.
 	// Uses nextval (atomic, never goes backwards) instead of setval to avoid
 	// races when parallel test packages call SetupTestDB concurrently.
@@ -138,6 +188,10 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 		BEGIN
 			SELECT COALESCE(MAX(id), 0) INTO max_id FROM facilities.rooms;
 			WHILE nextval('facilities.rooms_id_seq') < max_id LOOP END LOOP;
+			SELECT COALESCE(MAX(id), 0) INTO max_id FROM users.persons;
+			WHILE nextval('users.persons_id_seq') < max_id LOOP END LOOP;
+			SELECT COALESCE(MAX(id), 0) INTO max_id FROM users.staff;
+			WHILE nextval('users.staff_id_seq') < max_id LOOP END LOOP;
 		END $$`)
 
 	return db

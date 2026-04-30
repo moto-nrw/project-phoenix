@@ -595,4 +595,73 @@ describe("LocationBadge", () => {
       expect(screen.getByText(LOCATION_STATUSES.SICK)).toBeInTheDocument();
     });
   });
+
+  // ===========================================================================
+  // Per-room color (Issue #1324) — make sure the badge actually paints the
+  // configured hex when student.current_room_color is set, and falls back to
+  // OTHER_ROOM blue otherwise. Drives the differentiation users will see.
+  // ===========================================================================
+  describe("per-room color (current_room_color)", () => {
+    it("paints the per-room color when set in roomName mode", () => {
+      const student = createStudent({
+        current_location: "Anwesend - Bibliothek",
+        current_room_color: "#A3D977",
+      });
+      render(<LocationBadge student={student} displayMode="roomName" />);
+      const badgeContainer = screen.getByText("Bibliothek").closest("span");
+      // Tailwind keeps style serialized as the literal value we pass in;
+      // jsdom compares colors as written, so the assertion is exact.
+      expect(badgeContainer).toHaveStyle({ backgroundColor: "#A3D977" });
+    });
+
+    it("falls back to OTHER_ROOM blue when no per-room color is set", () => {
+      const student = createStudent({
+        current_location: "Anwesend - Bibliothek",
+        current_room_color: null,
+      });
+      render(<LocationBadge student={student} displayMode="roomName" />);
+      const badgeContainer = screen.getByText("Bibliothek").closest("span");
+      expect(badgeContainer).toHaveStyle({
+        backgroundColor: LOCATION_COLORS.OTHER_ROOM,
+      });
+    });
+
+    it("keeps GROUP_ROOM green when room is the viewer's own group room (hard constraint)", () => {
+      // Per-room color must NOT override the eigener-Gruppenraum green —
+      // see Issue #1324 discussion: all non-blue colors keep their meaning.
+      const student = createStudent({
+        current_location: "Anwesend - Raum A",
+        current_room_color: "#A3D977",
+      });
+      render(
+        <LocationBadge
+          student={student}
+          displayMode="roomName"
+          groupRooms={["Raum A"]}
+        />,
+      );
+      const badgeContainer = screen.getByText("Raum A").closest("span");
+      expect(badgeContainer).toHaveStyle({
+        backgroundColor: LOCATION_COLORS.GROUP_ROOM,
+      });
+    });
+
+    it("renders correctly when current_room_color key is absent (forward compat)", () => {
+      // Old backend builds (rolled back during a deploy or older PyrePortal
+      // proxy in the request path) won't include current_room_color in their
+      // payload at all — TypeScript represents that as `undefined`. The
+      // badge must fall back to OTHER_ROOM blue without crashing or
+      // rendering an empty backgroundColor.
+      const student: StudentLocationContext = {
+        current_location: "Anwesend - Bibliothek",
+        location_since: "2024-01-15T10:00:00Z",
+        // current_room_color intentionally omitted
+      };
+      render(<LocationBadge student={student} displayMode="roomName" />);
+      const badgeContainer = screen.getByText("Bibliothek").closest("span");
+      expect(badgeContainer).toHaveStyle({
+        backgroundColor: LOCATION_COLORS.OTHER_ROOM,
+      });
+    });
+  });
 });

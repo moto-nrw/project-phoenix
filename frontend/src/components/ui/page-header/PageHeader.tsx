@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import { OverflowMenu } from "./OverflowMenu";
 import type { PageHeaderProps } from "./types";
 
 export function PageHeader({
@@ -8,8 +8,10 @@ export function PageHeader({
   badge,
   statusIndicator,
   actionButton,
+  overflowMenu,
   className = "",
 }: Readonly<PageHeaderProps>) {
+  const hasOverflowMenu = overflowMenu !== undefined && overflowMenu.length > 0;
   const getStatusColor = (color: "green" | "yellow" | "red" | "gray") => {
     switch (color) {
       case "green":
@@ -37,8 +39,8 @@ export function PageHeader({
         </div>
 
         {/* Action Button OR Badge and Status */}
-        {(actionButton ?? statusIndicator ?? badge) && (
-          <div className="mr-4 flex flex-shrink-0 items-center gap-3">
+        {(actionButton ?? statusIndicator ?? badge ?? hasOverflowMenu) && (
+          <div className="mr-2 flex flex-shrink-0 items-center gap-2">
             {/* Action Button (priority over badge/status) */}
             {actionButton ?? (
               <>
@@ -68,6 +70,8 @@ export function PageHeader({
                 )}
               </>
             )}
+
+            {hasOverflowMenu ? <OverflowMenu items={overflowMenu} /> : null}
           </div>
         )}
       </div>

@@ -24,14 +24,14 @@ export interface ProfileSettings {
   privacy?: PrivacySettings;
 }
 
-export interface NotificationSettings {
+interface NotificationSettings {
   email?: boolean;
   push?: boolean;
   activities?: boolean;
   roomChanges?: boolean;
 }
 
-export interface PrivacySettings {
+interface PrivacySettings {
   showEmail?: boolean;
   showProfile?: boolean;
 }

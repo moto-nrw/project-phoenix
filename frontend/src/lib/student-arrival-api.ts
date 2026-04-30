@@ -146,7 +146,7 @@ export async function bulkUpsertArrivalByClass(
   return parseResponse<unknown>(response);
 }
 
-export interface ArrivalExceptionInput {
+interface ArrivalExceptionInput {
   exception_date: string;
   expected_arrival: string | null;
   reason?: string | null;
@@ -207,7 +207,7 @@ export async function deleteArrivalException(
   }
 }
 
-export interface ArrivalNoteInput {
+interface ArrivalNoteInput {
   note_date: string;
   content: string;
 }
@@ -269,7 +269,7 @@ interface BulkArrivalDayNoteResponse {
   content: string;
 }
 
-export interface BulkArrivalDayNote {
+interface BulkArrivalDayNote {
   id: string;
   content: string;
 }

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  countCheckedInStudents,
+  formatGroupLabelWithAttendance,
+  isStudentCheckedIn,
   isStudentInGroupRoom,
   matchesSearchFilter,
   matchesAttendanceFilter,
@@ -89,6 +92,49 @@ describe("isStudentInGroupRoom", () => {
     const student = makeStudent({ current_location: "Anwesend - Raum 2" });
     const group = makeGroup({ room_name: "Raum 1", room_id: undefined });
     expect(isStudentInGroupRoom(student, group)).toBe(false);
+  });
+});
+
+describe("attendance count helpers", () => {
+  it("counts present, transit, and schoolyard students as checked in", () => {
+    const students = [
+      makeStudent({ current_location: "Anwesend - Raum 1" }),
+      makeStudent({ current_location: "Unterwegs" }),
+      makeStudent({ current_location: "Schulhof" }),
+      makeStudent({ current_location: "Zuhause" }),
+      makeStudent({ current_location: "Unbekannt" }),
+      makeStudent({ current_location: undefined }),
+    ];
+
+    expect(countCheckedInStudents(students)).toBe(3);
+  });
+
+  it("does not count home, unknown, or empty locations as checked in", () => {
+    expect(
+      isStudentCheckedIn(makeStudent({ current_location: "Zuhause" })),
+    ).toBe(false);
+    expect(
+      isStudentCheckedIn(makeStudent({ current_location: "Unbekannt" })),
+    ).toBe(false);
+    expect(
+      isStudentCheckedIn(makeStudent({ current_location: undefined })),
+    ).toBe(false);
+  });
+
+  it("formats group labels with checked-in and total counts", () => {
+    const group = makeGroup({
+      name: "Eulen",
+      present_count: 12,
+      student_count: 18,
+    });
+
+    expect(formatGroupLabelWithAttendance(group)).toBe("Eulen 12/18");
+  });
+
+  it("keeps the plain group label before counts are loaded", () => {
+    expect(formatGroupLabelWithAttendance(makeGroup({ name: "Eulen" }))).toBe(
+      "Eulen",
+    );
   });
 });
 

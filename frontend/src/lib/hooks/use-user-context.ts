@@ -72,8 +72,3 @@ export function useUserContext(): UseUserContextReturn {
     isReady: data !== undefined || error !== undefined,
   };
 }
-
-/**
- * Type export for consumers who need the response shape
- */
-export type { UserContextResponse } from "~/app/api/user-context/route";

@@ -11,7 +11,6 @@ import {
   mapSupervisorResponse,
   mapCombinedGroupResponse,
   mapGroupMappingResponse,
-  mapAnalyticsResponse,
   mapSchulhofStatusResponse,
   mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
@@ -24,7 +23,6 @@ import {
   type Supervisor,
   type CombinedGroup,
   type GroupMapping,
-  type Analytics,
   type SchulhofStatus,
   type ToggleSupervisionResponse,
   type BackendActiveGroup,
@@ -32,7 +30,6 @@ import {
   type BackendSupervisor,
   type BackendCombinedGroup,
   type BackendGroupMapping,
-  type BackendAnalytics,
   type BackendSchulhofStatus,
   type BackendToggleSupervisionResponse,
   type CreateActiveGroupInput,
@@ -811,16 +808,6 @@ export const activeService = {
       "/active/mappings/remove",
       backendData,
       "Remove group from combination",
-    );
-  },
-
-  // Analytics
-  getAnalyticsCounts: async (): Promise<Analytics> => {
-    return proxyGet<BackendAnalytics, Analytics>(
-      "/api/active/analytics/counts",
-      "/active/analytics/counts",
-      mapAnalyticsResponse,
-      "Get analytics counts",
     );
   },
 

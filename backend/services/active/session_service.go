@@ -1011,6 +1011,18 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 
 // EndDailySessions ends all active sessions at the end of the day using bulk UPDATEs
 func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupResult, error) {
+	// Binary-mode tenants don't open activity sessions or visits (L3.1 gates
+	// CreateVisit/EndVisit to no-ops), so this job has nothing to close for
+	// them. Returning early saves a handful of per-tenant queries on every
+	// scheduler tick and keeps the result shape unchanged for callers.
+	if s.GetPresenceMode(ctx) == "binary" {
+		return &DailySessionCleanupResult{
+			ExecutedAt: time.Now(),
+			Success:    true,
+			Errors:     make([]string, 0),
+		}, nil
+	}
+
 	result := &DailySessionCleanupResult{
 		ExecutedAt: time.Now(),
 		Success:    true,

@@ -1138,9 +1138,6 @@ func (m *mockActiveService) ValidateSessionTimeout(_ context.Context, _ int64, _
 func (m *mockActiveService) GetSessionTimeoutInfo(_ context.Context, _ int64) (*activeService.SessionTimeoutInfo, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetActiveGroupsCount(_ context.Context) (int, error) { return 0, nil }
-func (m *mockActiveService) GetTotalVisitsCount(_ context.Context) (int, error)  { return 0, nil }
-func (m *mockActiveService) GetActiveVisitsCount(_ context.Context) (int, error) { return 0, nil }
 func (m *mockActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
@@ -1162,6 +1159,12 @@ func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, _ [
 func (m *mockActiveService) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
 	return nil, nil
 }
+func (m *mockActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
 func (m *mockActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }
@@ -1179,6 +1182,7 @@ func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, 
 	return nil, nil
 }
 func (m *mockActiveService) SetSettingsService(_ activeService.SettingsResolver) {}
+func (m *mockActiveService) GetPresenceMode(_ context.Context) string            { return "detailed" }
 
 // =============================================================================
 // Mock Cleanup Service for Execute Tests

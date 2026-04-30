@@ -1,0 +1,231 @@
+import * as React from "react";
+
+import type { StudentLocationContext } from "@/lib/location-helper";
+import {
+  LOCATION_COLORS,
+  LOCATION_STATUSES,
+  getLocationGlowEffect,
+  isHomeLocation,
+  isSchoolyardLocation,
+  parseLocation,
+} from "@/lib/location-helper";
+
+/**
+ * PresenceBadge — simplified binary-mode counterpart to LocationBadge.
+ *
+ * Renders only three visual states: Anwesend (green), Schulhof (orange),
+ * Abwesend (red). No room details, no "Unterwegs", no display-mode switching.
+ * Sick / excused overlays mirror LocationBadge so those students still look
+ * right in binary-mode tenants.
+ *
+ * Consumers should usually import {@link StudentPresenceBadge} instead —
+ * that wrapper routes detailed-mode tenants to LocationBadge automatically
+ * via `usePresenceMode()`. Use PresenceBadge directly only when you want
+ * to force the binary visual regardless of tenant mode (e.g. in a
+ * mode-agnostic compact list view).
+ */
+
+/**
+ * Compute the binary presence state from the same `current_location` string
+ * that LocationBadge consumes. Binary-mode backends emit these exact labels;
+ * for safety we also collapse detailed-mode outputs (Unterwegs, room names)
+ * into "anwesend" when this component is reached via the wrapper in
+ * unexpected circumstances.
+ */
+function derivePresenceState(
+  location?: string | null,
+): "anwesend" | "schulhof" | "abwesend" {
+  if (!location || isHomeLocation(location)) {
+    return "abwesend";
+  }
+  if (isSchoolyardLocation(location)) {
+    return "schulhof";
+  }
+  return "anwesend";
+}
+
+function formatLocationSince(
+  isoTimestamp: string | null | undefined,
+): string | null {
+  if (!isoTimestamp) return null;
+  try {
+    const date = new Date(isoTimestamp);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleTimeString("de-DE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return null;
+  }
+}
+
+interface PresenceBadgeProps {
+  readonly student: StudentLocationContext;
+  readonly variant?: "simple" | "modern";
+  readonly size?: "sm" | "md" | "lg";
+  /** Show "seit XX:XX Uhr" under the badge. Default: false. */
+  readonly showLocationSince?: boolean;
+}
+
+const MODERN_BASE_CLASS =
+  "inline-flex items-center rounded-full font-bold text-white backdrop-blur-sm";
+const SIMPLE_BASE_CLASS = "inline-flex items-center rounded-full font-semibold";
+
+const SIZE_MAP = {
+  sm: {
+    modern: "px-2 py-0.5 text-[11px]",
+    simple: "px-2 py-0.5 text-[11px]",
+    dot: "mr-1.5 h-1 w-1",
+  },
+  md: {
+    modern: "px-3 py-1.5 text-xs",
+    simple: "px-2.5 py-0.5 text-xs",
+    dot: "mr-2 h-1.5 w-1.5",
+  },
+  lg: {
+    modern: "px-4 py-2 text-sm",
+    simple: "px-3 py-1 text-sm",
+    dot: "mr-2.5 h-2 w-2",
+  },
+} as const;
+
+const DEFAULT_SIZE = "md";
+
+// Sick/excused status takes visual precedence over absence (a sick student
+// at home reads as "Krank", not "Abwesend") — matches LocationBadge behaviour.
+function resolveBadgeStyle(
+  state: "anwesend" | "schulhof" | "abwesend",
+  student: StudentLocationContext,
+): { label: string; color: string } {
+  const atHome = state === "abwesend";
+  if (student.sick && atHome) {
+    return { label: LOCATION_STATUSES.SICK, color: LOCATION_COLORS.SICK };
+  }
+  if (student.excused && atHome) {
+    return { label: LOCATION_STATUSES.EXCUSED, color: LOCATION_COLORS.EXCUSED };
+  }
+
+  switch (state) {
+    case "anwesend":
+      return {
+        label: LOCATION_STATUSES.PRESENT,
+        color: LOCATION_COLORS.GROUP_ROOM,
+      };
+    case "schulhof":
+      return {
+        label: LOCATION_STATUSES.SCHOOLYARD,
+        color: LOCATION_COLORS.SCHOOLYARD,
+      };
+    default:
+      return { label: LOCATION_STATUSES.HOME, color: LOCATION_COLORS.HOME };
+  }
+}
+
+export function PresenceBadge({
+  student,
+  variant = "modern",
+  size = DEFAULT_SIZE,
+  showLocationSince = false,
+}: PresenceBadgeProps) {
+  const state = derivePresenceState(student.current_location);
+  const { label, color } = resolveBadgeStyle(state, student);
+
+  const sizeKey = size ?? DEFAULT_SIZE;
+  const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
+  const glowEffect = getLocationGlowEffect(color);
+
+  // "Additional" sick/excused overlays — only when the student is present
+  // (not already shown as Krank/Entschuldigt via the replace path above).
+  const showSickOverlay = student.sick && state !== "abwesend";
+  const showExcusedOverlay =
+    student.excused && state !== "abwesend" && !showSickOverlay;
+
+  // "seit XX:XX" label: prefer sick/excused timestamp when replace mode
+  // triggered, else fall back to generic location_since. Mirrors LocationBadge
+  // semantics for cross-mode visual consistency.
+  const replaceTimeSource =
+    student.sick && state === "abwesend"
+      ? (student.sick_since ?? student.location_since)
+      : student.excused && state === "abwesend"
+        ? (student.excused_since ?? student.location_since)
+        : null;
+  const timeSource = replaceTimeSource ?? student.location_since;
+  const formattedTime = formatLocationSince(timeSource);
+  const showSinceTime = showLocationSince && formattedTime !== null;
+
+  const dataStatus = parseLocation(student.current_location).status;
+
+  const Pill = () =>
+    variant === "simple" ? (
+      <span
+        className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
+        style={{ backgroundColor: color, color: "#fff" }}
+        data-location-status={dataStatus}
+        data-presence-state={state}
+      >
+        {label}
+      </span>
+    ) : (
+      <span
+        className={`${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
+        style={{ backgroundColor: color, boxShadow: glowEffect }}
+        data-location-status={dataStatus}
+        data-presence-state={state}
+      >
+        <span
+          className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+        />
+        {label}
+      </span>
+    );
+
+  const Overlay = ({
+    overlayLabel,
+    overlayColor,
+    dataAttr,
+  }: {
+    overlayLabel: string;
+    overlayColor: string;
+    dataAttr: string;
+  }) => (
+    <span
+      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
+      style={{
+        backgroundColor: overlayColor,
+        boxShadow: getLocationGlowEffect(overlayColor),
+      }}
+      {...{ [dataAttr]: "true" }}
+    >
+      <span
+        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+      />
+      {overlayLabel}
+    </span>
+  );
+
+  return (
+    <div className="flex flex-col items-center">
+      <Pill />
+      {showSinceTime && (
+        <span className="mt-0.5 text-[10px] text-gray-500">
+          seit {formattedTime} Uhr
+        </span>
+      )}
+      {showSickOverlay && (
+        <Overlay
+          overlayLabel={LOCATION_STATUSES.SICK}
+          overlayColor={LOCATION_COLORS.SICK}
+          dataAttr="data-sick-indicator"
+        />
+      )}
+      {showExcusedOverlay && (
+        <Overlay
+          overlayLabel={LOCATION_STATUSES.EXCUSED}
+          overlayColor={LOCATION_COLORS.EXCUSED}
+          dataAttr="data-excused-indicator"
+        />
+      )}
+    </div>
+  );
+}

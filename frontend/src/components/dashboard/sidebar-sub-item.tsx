@@ -6,7 +6,7 @@ interface SidebarSubItemProps {
   readonly href: string;
   readonly label: string;
   readonly isActive: boolean;
-  readonly count?: number;
+  readonly count?: number | string;
 }
 
 export function SidebarSubItem({

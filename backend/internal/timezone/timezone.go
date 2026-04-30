@@ -88,6 +88,17 @@ func EndOfDay(t time.Time) time.Time {
 	)
 }
 
+// FormatBerlinClock formats a timestamp as "HH:MM" in Europe/Berlin.
+// Returns nil when the input is nil so callers can pass straight into
+// optional JSON fields without a manual nil check.
+func FormatBerlinClock(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	formatted := t.In(Berlin).Format("15:04")
+	return &formatted
+}
+
 // WallClock returns a new time.Time at year 0001-01-01 UTC with t's own
 // wall-clock Hour/Minute/Second/Nanosecond preserved in t's existing
 // Location.

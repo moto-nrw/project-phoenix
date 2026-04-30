@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -51,8 +52,12 @@ type Resource struct {
 	InvitationService          authService.InvitationService
 	CaregiverCapabilityService usersService.CaregiverCapabilityService
 	SchoolRepo                 platform.SchoolRepository
-	db                         *bun.DB
-	authRateLimiter            func(http.Handler) http.Handler
+	// SettingsService is optional — when non-nil, resolveTenant enriches its
+	// response with tenant-scoped presence_mode so the frontend can decide
+	// between PresenceBadge and LocationBadge without a second fetch.
+	SettingsService configSvc.SettingsService
+	db              *bun.DB
+	authRateLimiter func(http.Handler) http.Handler
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for auth endpoints (login, register, password-reset).
@@ -240,6 +245,11 @@ type TenantResolveResponse struct {
 	OrganizationID   int64           `json:"organization_id"`
 	OrganizationName string          `json:"organization_name"`
 	Settings         json.RawMessage `json:"settings"`
+	// PresenceMode is the tenant's resolved operations.presence_mode setting
+	// ("detailed" | "binary"). Included so the frontend can render the right
+	// badge component (PresenceBadge vs LocationBadge) without a second call.
+	// Defaults to "detailed" if SettingsService is unavailable.
+	PresenceMode string `json:"presence_mode"`
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -277,6 +287,11 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		orgName = school.Organization.Name
 	}
 
+	// Resolve presence mode in the school's tenant context. resolveTenant is
+	// unauthenticated, so we don't have a tenant in the request context — use
+	// the ForTenant variant which opens its own tenant transaction.
+	presenceMode := configSvc.ResolvePresenceModeForTenant(r.Context(), rs.SettingsService, school.ID, nil)
+
 	resp := &TenantResolveResponse{
 		TenantID:         school.ID,
 		Slug:             school.Slug,
@@ -285,6 +300,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		OrganizationID:   school.OrganizationID,
 		OrganizationName: orgName,
 		Settings:         settings,
+		PresenceMode:     presenceMode,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")

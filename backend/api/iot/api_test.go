@@ -109,7 +109,6 @@ func TestNewResource(t *testing.T) {
 		UsersService:      nil,
 		ActiveService:     nil,
 		ActivitiesService: nil,
-		ConfigService:     nil,
 		FacilityService:   nil,
 		EducationService:  nil,
 		FeedbackService:   nil,
@@ -122,7 +121,6 @@ func TestNewResource(t *testing.T) {
 	assert.Nil(t, resource.UsersService)
 	assert.Nil(t, resource.ActiveService)
 	assert.Nil(t, resource.ActivitiesService)
-	assert.Nil(t, resource.ConfigService)
 	assert.Nil(t, resource.FacilityService)
 	assert.Nil(t, resource.EducationService)
 	assert.Nil(t, resource.FeedbackService)
@@ -140,7 +138,6 @@ func TestServiceDependencies_Struct(t *testing.T) {
 	assert.Nil(t, deps.UsersService)
 	assert.Nil(t, deps.ActiveService)
 	assert.Nil(t, deps.ActivitiesService)
-	assert.Nil(t, deps.ConfigService)
 	assert.Nil(t, deps.FacilityService)
 	assert.Nil(t, deps.EducationService)
 	assert.Nil(t, deps.FeedbackService)
@@ -158,7 +155,6 @@ func TestResource_Struct(t *testing.T) {
 	assert.Nil(t, resource.UsersService)
 	assert.Nil(t, resource.ActiveService)
 	assert.Nil(t, resource.ActivitiesService)
-	assert.Nil(t, resource.ConfigService)
 	assert.Nil(t, resource.FacilityService)
 	assert.Nil(t, resource.EducationService)
 	assert.Nil(t, resource.FeedbackService)
