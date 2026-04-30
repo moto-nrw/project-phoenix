@@ -187,6 +187,9 @@ vi.mock("~/lib/location-helper", () => ({
     GROUP_ROOM: "#83CD2D",
   },
   LOCATION_STATUSES: { PRESENT: "Anwesend" },
+  isPresentLocation: vi.fn((location?: string | null) =>
+    (location ?? "").startsWith("Anwesend"),
+  ),
   isHomeLocation: vi.fn(() => false),
   isSchoolyardLocation: vi.fn(() => false),
   isTransitLocation: vi.fn(() => false),
