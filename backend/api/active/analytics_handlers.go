@@ -24,6 +24,7 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 		StudentsInTransit:    analytics.StudentsInTransit,
 		StudentsOnPlayground: analytics.StudentsOnPlayground,
 		StudentsInRooms:      analytics.StudentsInRooms,
+		StudentsSick:         analytics.StudentsSick,
 		ActiveActivities:     analytics.ActiveActivities,
 		FreeRooms:            analytics.FreeRooms,
 		TotalRooms:           analytics.TotalRooms,

@@ -157,6 +157,7 @@ type DashboardAnalyticsResponse struct {
 	StudentsInTransit    int `json:"students_in_transit"` // Students present but not in any active visit
 	StudentsOnPlayground int `json:"students_on_playground"`
 	StudentsInRooms      int `json:"students_in_rooms"` // Students in indoor rooms (excluding playground)
+	StudentsSick         int `json:"students_sick"`     // Students currently flagged as sick
 
 	// Activities & Rooms
 	ActiveActivities    int     `json:"active_activities"`
