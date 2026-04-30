@@ -55,31 +55,58 @@ runs:
           DISPLAY_ENV="$(echo "$ENV" | sed 's/./\U&/')"
         fi
 
-        # Map (job_status, exit_code) to (emoji, headline)
+        # Map (job_status, exit_code) to (emoji, headline). Use Unicode emoji so
+        # rendering doesn't depend on Slack's :shortcode: → emoji conversion.
         if [ "$JOB_STATUS" = "success" ]; then
-          EMOJI=":white_check_mark:"
+          EMOJI="✅"
           HEADLINE="$DISPLAY_ENV deploy succeeded"
         elif [ "$JOB_STATUS" = "cancelled" ]; then
-          EMOJI=":no_entry_sign:"
+          EMOJI="🚫"
           HEADLINE="$DISPLAY_ENV deploy cancelled"
         elif [ "$EXIT_CODE" = "11" ]; then
-          EMOJI=":rotating_light:"
+          EMOJI="🚨"
           HEADLINE="$DISPLAY_ENV deploy + rollback FAILED — manual intervention required"
         elif [ "$EXIT_CODE" = "10" ]; then
-          EMOJI=":warning:"
+          EMOJI="⚠️"
           HEADLINE="$DISPLAY_ENV deploy failed — rolled back to previous version"
         elif [ "$EXIT_CODE" = "1" ]; then
-          EMOJI=":warning:"
+          EMOJI="⚠️"
           HEADLINE="$DISPLAY_ENV deploy aborted — no changes applied"
         else
-          EMOJI=":x:"
+          EMOJI="❌"
           HEADLINE="$DISPLAY_ENV deploy failed"
         fi
 
-        TEXT="${EMOJI} *${HEADLINE}*\nCommit: <${COMMIT_URL}|\`${SHORT_SHA}\`> by ${ACTOR}\n<${RUN_URL}|View run →>"
-
+        # Build the payload entirely inside jq so newlines and JSON escaping are
+        # handled in one pass. Block Kit guarantees mrkdwn rendering for bold
+        # text and <url|label> links, which the bare {text: ...} field does not
+        # render reliably for newer webhook apps.
         # Best-effort: notification failures must never mask the real deploy outcome.
-        if ! PAYLOAD=$(jq -n --arg text "$TEXT" '{text: $text}' 2>&1); then
+        if ! PAYLOAD=$(jq -n \
+          --arg emoji "$EMOJI" \
+          --arg headline "$HEADLINE" \
+          --arg commit_url "$COMMIT_URL" \
+          --arg sha "$SHORT_SHA" \
+          --arg actor "$ACTOR" \
+          --arg run_url "$RUN_URL" \
+          '{
+            text: "\($emoji) \($headline) — commit \($sha)",
+            blocks: [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: "\($emoji) *\($headline)*\nCommit: <\($commit_url)|`\($sha)`> by *\($actor)*"
+                }
+              },
+              {
+                type: "context",
+                elements: [
+                  { type: "mrkdwn", text: "<\($run_url)|View run →>" }
+                ]
+              }
+            ]
+          }' 2>&1); then
           echo "::warning::Failed to build Slack payload (non-critical): $PAYLOAD"
           exit 0
         fi
