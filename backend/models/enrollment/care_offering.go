@@ -42,16 +42,16 @@ type CareOffering struct {
 	Name                   string     `bun:"name,notnull" json:"name"`
 	Description            *string    `bun:"description" json:"description,omitempty"`
 	DaysOfWeekMode         string     `bun:"days_of_week_mode,notnull,default:'fixed'" json:"days_of_week_mode"`
-	AvailableDays          []string   `bun:"available_days,type:jsonb,notnull,default:'[\"mon\",\"tue\",\"wed\",\"thu\",\"fri\"]'" json:"available_days"`
-	IncludesHolidayCare    bool       `bun:"includes_holiday_care,notnull,default:false" json:"includes_holiday_care"`
-	IncludesLunch          bool       `bun:"includes_lunch,notnull,default:false" json:"includes_lunch"`
+	AvailableDays          []string   `bun:"available_days,type:jsonb,notnull" json:"available_days"`
+	IncludesHolidayCare    bool       `bun:"includes_holiday_care,notnull" json:"includes_holiday_care"`
+	IncludesLunch          bool       `bun:"includes_lunch,notnull" json:"includes_lunch"`
 	Capacity               *int       `bun:"capacity" json:"capacity,omitempty"`
 	PriceCents             *int       `bun:"price_cents" json:"price_cents,omitempty"`
 	ApplicationWindowStart *time.Time `bun:"application_window_start" json:"application_window_start,omitempty"`
 	ApplicationWindowEnd   *time.Time `bun:"application_window_end" json:"application_window_end,omitempty"`
 	ServiceStartDate       *time.Time `bun:"service_start_date,type:date" json:"service_start_date,omitempty"`
 	ServiceEndDate         *time.Time `bun:"service_end_date,type:date" json:"service_end_date,omitempty"`
-	IsActive               bool       `bun:"is_active,notnull,default:true" json:"is_active"`
+	IsActive               bool       `bun:"is_active,notnull" json:"is_active"`
 	SortOrder              int        `bun:"sort_order,notnull,default:0" json:"sort_order"`
 }
 
