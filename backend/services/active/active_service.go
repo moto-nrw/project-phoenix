@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Broadcaster interface (re-exported from realtime for convenience)
@@ -479,7 +480,15 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 
 	// Create the visit record
 	visit.SetTenantID(tenant.FromContext(ctx))
-	if s.visitRepo.Create(ctx, visit) != nil {
+	if err := s.visitRepo.Create(ctx, visit); err != nil {
+		// The partial unique index uniq_active_visits_open_per_student is the
+		// race-safety net behind ensureStudentHasNoActiveVisit above. When
+		// two concurrent requests both pass the read-then-write check, the
+		// loser hits 23505 here. Translate to ErrStudentAlreadyActive so the
+		// IoT handler maps it to 409 Conflict instead of 500.
+		if isDuplicateActiveVisitViolation(err) {
+			return &ActiveError{Op: "CreateVisit", Err: ErrStudentAlreadyActive}
+		}
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
 
@@ -498,6 +507,30 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 	s.broadcastVisitCreated(ctx, visit, snapshot)
 
 	return nil
+}
+
+// isDuplicateActiveVisitViolation returns true when err carries PostgreSQL
+// error code 23505 (unique_violation) on the partial unique index
+// uniq_active_visits_open_per_student, defined in migration 1.15.46 on
+// active.visits (tenant_id, student_id) WHERE exit_time IS NULL.
+//
+// We match by constraint name (Field 'n') rather than just the error code
+// so a future unrelated unique index on active.visits doesn't accidentally
+// translate into ErrStudentAlreadyActive.
+func isDuplicateActiveVisitViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *base.DatabaseError
+	if errors.As(err, &dbErr) {
+		err = dbErr.Err
+	}
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.Field('C') == "23505" &&
+			pgErr.Field('n') == "uniq_active_visits_open_per_student"
+	}
+	return false
 }
 
 // isNotFoundError checks if an error is due to "not found" (sql.ErrNoRows) vs. other database errors
