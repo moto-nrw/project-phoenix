@@ -16,6 +16,7 @@
 - **2026-04-23 (Iteration 6):** E2E-Sweep-Findings nachgezogen. §6.1 praezisiert die Evaluation-Reihenfolge (Exception schlaegt existing-row-Dedupe, E2E-B1). §10 ergaenzt Query-Budget-Semantik (Handler-Ebene vs. End-to-End, E2E-C2). Siehe `backend/test/e2e/timetable/E2E_FINDINGS.md`.
 - **2026-04-24 (Iteration 7):** F-Track gestartet. WP-F1 (Arrival Schedule Editor) shipped via #1306, gebuendelt mit Master-Detail-Refactor der Database-Studenten-Page und B1/B2-Polish (Listen-Enrichment via `include_arrival_times`, neue SSE-Events `student_updated` + `arrival_schedule_changed`, LocationBadge-Status "Kommt heute nicht", Bulk-DTO-Fix `arrival_time` → `expected_arrival`). Naechster Einstieg: F2/F3/F4 parallelisierbar.
 - **2026-04-24 (Iteration 7, Klarstellung):** SSE-Backend-Emission fuer `instance_started/completed/cancelled/overdue` wurde bereits in B9 (#1294) mitgeliefert (in `instance_service.go` und `scheduler.go::runOverdueForTenant`). F7 reduziert sich damit auf reines Frontend-Wiring (sse-types + use-sse-Handler + Badge-Bindung) — kein neuer Backend-Code noetig.
+- **2026-04-30 (Iteration 8):** F2-Realitaetscheck nach erstem Klicktest. Admin planner ist funktional weitgehend da (Monat/Woche, Perioden, Vorlagen, Termine, Start/Complete/Cancel, Konflikte), braucht aber UI-Polish vor Abschluss. Operativer Betreuer-Wert wird als Folge-WP geschnitten: geplante Instanzen in `/active-supervisions`, "Jetzt starten" im ±15-Minuten-Fenster, erwartete Kinder in der Aufsicht und SSE-Refresh ohne manuellen Reload.
 
 ---
 
@@ -571,23 +572,44 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
   - **LocationBadge:** Neuer State "Kommt heute nicht" ersetzt das Home-Badge wenn `arrival_exception` mit `expected_arrival=NULL` fuer heute existiert. Sortierung nach Ankunftszeit in OGS-Groups + Student-Search ergaenzt.
   - **Out-of-scope-Bundled (nicht im F-Plan, aber im selben PR):** Master-Detail-Refactor der Database-Studenten-Page (`MasterDetailLayout`, `GroupedList`, `GroupHeader`, `DetailPanel`, `EmptyDetailState`) als wiederverwendbare Primitiven fuer kommende Database-Refactors (Groups, Rooms). Ersetzt das alte Modal-Editor-Muster durch tabbed Detail-Panel mit URL-Sync (`?student=ID&groupBy=class|group|none`). Tab-Strip horizontal scrollbar fuer Viewports < 640px. Redundantes "Klasse "-Prefix in Listen entfernt (Backend liefert bereits "Klasse 1a").
 
-#### F2 — Admin planner + Staff daily UI
+#### F2 — Admin planner (current PR)
 
-- [ ] **WP-F2** — Admin weekly planner UI (grid view, instance CRUD)
-- [ ] **WP-F3** — Staff "My Day" view + passive auto-start indicators (E19 level 1)
-- [ ] **WP-F4** — Instance detail view with check-in list (expected / present / missing)
-- [ ] **WP-F5** — Spontaneous activity creation (staff-facing)
+- [ ] **WP-F2** — Admin weekly planner UI (current branch, in progress: polish before shipping)
+  - **Already functional:** month view, week view, calendar-period CRUD, recurring template CRUD/archive, manual materialization, one-off instance CRUD, instance start/complete/cancel, conflict warnings, staff gaps, substitute action, re-plan-week.
+  - **Remaining for WP-F2 completion:** UI/UX polish only. Tighten wording, simplify the header/period dropdown, close dropdowns on outside click, make empty/loading states calmer, improve action labels (`Starten`, `Beenden`, `Absagen`) and make conflicts easier to understand.
+  - **Non-goal for WP-F2:** staff-facing operational flow. That belongs to F3-F6 plus F8 below.
 
-#### F3 — Rollover + live updates
+#### F3 — Staff operations from the plan
 
-- [ ] **WP-F6** — Semester rollover UI + enrollment validity management
-- [ ] **WP-F7** — SSE events for overdue instances (E19 level 2) — **nur Frontend-Wiring offen.** Backend-Emission ist via WP-B9 (#1294) shipped: `EventInstanceOverdue` aus dem Scheduler plus `EventInstanceStarted/Completed/Cancelled` aus `instance_service.go`. Offen: `frontend/src/lib/sse-types.ts` um die vier Instance-Event-Typen erweitern, `use-sse.ts` Handler ergaenzen, "Ueberfaellig"-Badge in der F3-My-Day-Card binden.
+- [ ] **WP-F3** — Planned items in `/active-supervisions` ("Jetzt geplant")
+  - Show planned instances for today in an operational window: `now - 15min` through `now + 15min`, plus overdue planned instances.
+  - Cards show title, time, room, assigned staff, expected child count, conflict/gap status and a clear **Jetzt starten** action.
+  - Prefer instances assigned to the current staff member; admins may see all when supervision overview is enabled.
+- [ ] **WP-F4** — Start planned instance from `/active-supervisions`
+  - **Jetzt starten** calls `POST /api/timetable/instances/{id}/start`.
+  - The resulting live `active.group` appears in the current supervision UI without requiring navigation back to the admin timetable.
+  - Prevent confusing duplicate starts: when a matching planned instance exists, the staff flow should start that instance instead of creating an unlinked live group.
+- [ ] **WP-F5** — Instance detail/check-in list in active supervision
+  - After start, show expected children from `instance_students` alongside live visits.
+  - Support quick status changes: expected, present, absent, substatus/note where needed.
+  - Surface unplanned children separately instead of hiding them.
+- [ ] **WP-F6** — Spontaneous activity creation (staff-facing)
+  - Staff can create and immediately start an ad-hoc activity from `/active-supervisions`.
+  - The flow creates a spontaneous timetable instance when useful for reporting, then bridges it to `active.groups`.
 
-#### F4 — Frontend roadmap
+#### F4 — Rollover + live updates
 
-- [ ] **WP-F8** — Calendar period admin UI
-- [ ] **WP-F9** — Student day view in frontend (currently API-only)
-- [ ] **WP-F10** — Automatic auto-start (E19 level 3)
+- [ ] **WP-F7** — Semester rollover UI + enrollment validity management
+- [ ] **WP-F8** — Timetable/active-supervision SSE wiring (E19 level 2)
+  - Backend emission is already shipped via WP-B9: `EventInstanceOverdue` from the scheduler plus `EventInstanceStarted/Completed/Cancelled` from `instance_service.go`.
+  - Frontend work: extend `frontend/src/lib/sse-types.ts`, update global SSE handlers, invalidate timetable and active-supervision SWR keys, and bind overdue/started state to the operational cards.
+  - Acceptance: starting a planned instance in the timetable updates `/active-supervisions` without browser refresh; starting/completing in active supervision updates the timetable card.
+
+#### F5 — Frontend roadmap
+
+- [ ] **WP-F9** — Calendar period admin UI beyond the planner header
+- [ ] **WP-F10** — Student day view in frontend (currently API-only)
+- [ ] **WP-F11** — Automatic auto-start (E19 level 3)
 
 ### Backend dependency map
 
@@ -605,11 +627,13 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 **F-Track ist gestartet.** WP-F1 (Arrival Schedule Editor) ist via #1306 shipped. Damit ist der erste sichtbare Admin-Mehrwert live und das Master-Detail-Layout-Pattern als wiederverwendbare Primitive etabliert.
 
-**Naechste F-WPs sind parallelisierbar:** F2 (Admin Weekly Planner, konsumiert B5/B8/B9), F3 (Staff "My Day", konsumiert B11), F4 (Instance Detail mit Check-in-Liste, konsumiert B10/B11). Logische Reihenfolge fuer ersten Aufschlag: **F2 zuerst** (Admin sieht den materialisierten Plan, validiert B8/B9), dann **F3 + F4 zusammen** (Staff-Workflow End-to-End: My Day → Instance Detail → Check-in). F5 (Spontane Aktivitaet) kann parallel zu F4 laufen, weil dieselben Detail-Komponenten verwendet werden.
+**Aktueller Fokus:** WP-F2 in diesem Branch fertig polieren. Danach ist der Admin-Stundenplan als Planungswerkzeug nutzbar.
 
-**F7 ist ein Quick-Win nach F3:** Die Backend-SSE-Emission fuer `instance_started/completed/cancelled/overdue` ist via B9 bereits live. Sobald F3 die My-Day-Card hat, ist F7 nur noch ein Frontend-Wiring (sse-types + use-sse-Handler + Badge-Bindung) — kein neuer Backend-Code noetig.
+**Naechster Produktwert:** WP-F3/F4/F5/F8 zusammen machen den Stundenplan operativ: geplante Aktivitaeten erscheinen in `/active-supervisions`, koennen dort gestartet werden, zeigen erwartete Kinder und aktualisieren ohne manuellen Refresh.
 
-**F10 (Automatic Auto-Start)** kommt zuletzt, weil es die Scheduler-Erweiterung um automatisches `active.group`-Anlegen voraussetzt (E19 Level 3) und auf der UI-Indikator-Schicht aus F3 aufbaut.
+**F8 ist ein Quick-Win nach F3:** Die Backend-SSE-Emission fuer `instance_started/completed/cancelled/overdue` ist via B9 bereits live. Sobald F3 die operational cards hat, ist F8 nur noch Frontend-Wiring (sse-types + globaler SSE-Handler + SWR-Invalidierung + Badge-Bindung).
+
+**F11 (Automatic Auto-Start)** kommt zuletzt, weil es die Scheduler-Erweiterung um automatisches `active.group`-Anlegen voraussetzt (E19 Level 3) und auf der UI-Indikator-Schicht aus F3 aufbaut.
 
 **Alternative Backend-Arbeit** falls jemand auf dem Backend bleiben will: B15 ist die logische Fortsetzung von B12 (Staff-Absence als persistente Entity statt Ad-hoc-Flag). B16 kann parallel zu F-Track laufen, wenn die Schule Ferienbetreuung konkret anfragt.
 

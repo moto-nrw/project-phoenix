@@ -8,7 +8,7 @@
  */
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -91,16 +91,25 @@ function weekOffsetForDate(dateISO: string): number {
 
 function TimetablesContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { status } = useSession({ required: true });
   const { success: toastSuccess, error: toastError } = useToast();
   const tenantMutate = useTenantMutate();
 
-  const view = parseView(searchParams.get("view"));
-  const weekOffset = parseWeekOffset(searchParams.get("week"));
-  const monthDate = parseMonth(searchParams.get("month"));
-  const selectedInstanceId = searchParams.get("instance");
-  const selectedDay = searchParams.get("day");
+  const [view, setView] = useState<TimetableView>(() =>
+    parseView(searchParams.get("view")),
+  );
+  const [weekOffset, setWeekOffset] = useState(() =>
+    parseWeekOffset(searchParams.get("week")),
+  );
+  const [monthDate, setMonthDate] = useState(() =>
+    parseMonth(searchParams.get("month")),
+  );
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(
+    () => searchParams.get("instance"),
+  );
+  const [selectedDay, setSelectedDay] = useState<string | null>(() =>
+    searchParams.get("day"),
+  );
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [instanceModalOpen, setInstanceModalOpen] = useState(false);
   const [editingInstance, setEditingInstance] =
@@ -126,7 +135,10 @@ function TimetablesContent() {
 
   const updateUrlParams = useCallback(
     (patch: Record<string, string | null>) => {
-      const next = new URLSearchParams(searchParams.toString());
+      const next =
+        typeof window === "undefined"
+          ? new URLSearchParams(searchParams.toString())
+          : new URLSearchParams(window.location.search);
       for (const [key, value] of Object.entries(patch)) {
         if (value === null || value === "") {
           next.delete(key);
@@ -135,10 +147,35 @@ function TimetablesContent() {
         }
       }
       const qs = next.toString();
-      router.replace(qs ? `?${qs}` : "?", { scroll: false });
+      setView(parseView(next.get("view")));
+      setWeekOffset(parseWeekOffset(next.get("week")));
+      setMonthDate(parseMonth(next.get("month")));
+      setSelectedInstanceId(next.get("instance"));
+      setSelectedDay(next.get("day"));
+
+      if (typeof window !== "undefined") {
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}${qs ? `?${qs}` : ""}`,
+        );
+      }
     },
-    [router, searchParams],
+    [searchParams],
   );
+
+  useEffect(() => {
+    const syncFromLocation = () => {
+      const next = new URLSearchParams(window.location.search);
+      setView(parseView(next.get("view")));
+      setWeekOffset(parseWeekOffset(next.get("week")));
+      setMonthDate(parseMonth(next.get("month")));
+      setSelectedInstanceId(next.get("instance"));
+      setSelectedDay(next.get("day"));
+    };
+    window.addEventListener("popstate", syncFromLocation);
+    return () => window.removeEventListener("popstate", syncFromLocation);
+  }, []);
 
   const handleWeekChange = useCallback(
     (newOffset: number) => {
@@ -364,6 +401,7 @@ function TimetablesContent() {
     () => instances.find((inst) => inst.id === selectedInstanceId) ?? null,
     [instances, selectedInstanceId],
   );
+  const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
 
   const handleMaterialize = useCallback(async () => {
     try {
@@ -610,7 +648,7 @@ function TimetablesContent() {
     [templatePeriodID, tenantMutate, toastError, toastSuccess],
   );
 
-  if (status === "loading" || (shouldLoadInstances && isLoading)) {
+  if (status === "loading") {
     return (
       <div className="p-6">
         <Loading />
@@ -701,30 +739,41 @@ function TimetablesContent() {
         <ConflictWarningsBanner conflictCount={conflictCount} />
       )}
 
-      {view === "month" && (
-        <MonthPlannerGrid
-          days={monthDays}
-          monthDate={monthDate}
-          instances={instances}
-          todayISO={todayISO}
-          onDayClick={openWeekForDay}
-          onPlanWeek={(dateISO) => {
-            openWeekForDay(dateISO);
-          }}
-        />
-      )}
+      {view === "month" &&
+        (isInstanceDataLoading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-8">
+            <Loading />
+          </div>
+        ) : (
+          <MonthPlannerGrid
+            days={monthDays}
+            monthDate={monthDate}
+            instances={instances}
+            todayISO={todayISO}
+            onDayClick={openWeekForDay}
+            onPlanWeek={(dateISO) => {
+              openWeekForDay(dateISO);
+            }}
+          />
+        ))}
 
       {view === "week" && (
         <>
-          <WeeklyPlannerGrid
-            weekDays={weekDays}
-            instances={instances}
-            selectedId={selectedInstanceId}
-            onInstanceClick={handleSelectInstance}
-            todayISO={todayISO}
-          />
+          {isInstanceDataLoading ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-8">
+              <Loading />
+            </div>
+          ) : (
+            <WeeklyPlannerGrid
+              weekDays={weekDays}
+              instances={instances}
+              selectedId={selectedInstanceId}
+              onInstanceClick={handleSelectInstance}
+              todayISO={todayISO}
+            />
+          )}
 
-          {instances.length === 0 && !error && (
+          {!isInstanceDataLoading && instances.length === 0 && !error && (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
               <h3 className="text-base font-bold text-slate-900">
                 Diese Woche hat noch keine Termine
