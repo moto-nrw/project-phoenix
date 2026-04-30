@@ -207,17 +207,25 @@ export function CalendarPeriodModal({
         <div className="flex w-full items-center justify-between gap-2">
           <div>
             {isEdit && (
-              <Button
-                type="button"
-                variant="outline_danger"
-                size="sm"
-                onClick={() => void handleDelete()}
-                isLoading={deleting}
-                loadingText="Lösche …"
-                disabled={submitting}
-              >
-                {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
-              </Button>
+              <div className="flex max-w-sm flex-col gap-1">
+                <Button
+                  type="button"
+                  variant="outline_danger"
+                  size="sm"
+                  onClick={() => void handleDelete()}
+                  isLoading={deleting}
+                  loadingText="Lösche …"
+                  disabled={submitting}
+                >
+                  {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
+                </Button>
+                {deleteConfirm && !deleting && (
+                  <p className="text-xs text-[#991B1B]">
+                    Löschen klappt nur, wenn diese Periode nicht mehr von
+                    Vorlagen oder Terminen verwendet wird.
+                  </p>
+                )}
+              </div>
             )}
           </div>
           <div className="flex items-center justify-end gap-2">

@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
@@ -51,6 +52,9 @@ func buildListSetup(t *testing.T) *listSetup {
 		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
 		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
 		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
+		ActiveGroupRepo:      activeRepo.NewGroupRepository(db),
+		SupervisorRepo:       activeRepo.NewGroupSupervisorRepository(db),
+		VisitRepo:            activeRepo.NewVisitRepository(db),
 		RoomRepo:             facilitiesRepo.NewRoomRepository(db),
 		ActivityGroupRepo:    activitiesRepo.NewGroupRepository(db),
 		DB:                   db,
@@ -147,6 +151,8 @@ func TestListInstances_HappyPath(t *testing.T) {
 	assert.Equal(t, s.roomID, item.RoomID)
 	assert.NotEmpty(t, item.RoomName, "room name should resolve via RoomRepo")
 	assert.Empty(t, item.Staff)
+	assert.Empty(t, item.Students)
+	assert.Empty(t, item.ConflictWarnings)
 	assert.Equal(t, 0, item.StaffCount)
 	assert.Equal(t, 0, item.ExpectedStudentsCount)
 	assert.Equal(t, 0, item.PresentStudentsCount)
@@ -204,6 +210,67 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	assert.True(t, staffByID[staff1.ID].IsPrimary)
 	assert.False(t, staffByID[staff1.ID].IsAbsent)
 	assert.True(t, staffByID[staff2.ID].IsAbsent)
+	assert.ElementsMatch(t, []int64{student1.ID, student2.ID}, item.StudentIDs)
+	require.Len(t, item.Students, 2)
+	studentByID := map[int64]instanceStudentSummary{}
+	for _, row := range item.Students {
+		studentByID[row.StudentID] = row
+	}
+	require.Contains(t, studentByID, student1.ID)
+	require.Contains(t, studentByID, student2.ID)
+	assert.Equal(t, schedule.AttendanceStatusExpected, studentByID[student1.ID].Status)
+	assert.Equal(t, schedule.AttendanceStatusPresent, studentByID[student2.ID].Status)
+}
+
+func TestListInstances_IncludesPlannedConflictWarnings(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(0)
+	to, _ := listFutureDate(7)
+
+	suffix := time.Now().UnixNano()
+	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("Conflict-Category-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, s.db, "Conflict", fmt.Sprintf("Creator-%d", suffix))
+	group := &activitiesModels.Group{
+		Name:            fmt.Sprintf("Conflict-Group-%d", suffix),
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      category.ID,
+		CreatedBy:       &staff.ID,
+	}
+	group.SetTenantID(1)
+	_, err := s.db.NewInsert().
+		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	activeGroup := testpkg.CreateTestActiveGroup(t, s.db, group.ID, s.roomID)
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "15:00", EndHHMM: "16:00", Title: "Room-Conflict-List-Test",
+	})
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", activeGroup.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.categories", category.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.staff", staff.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.persons", staff.PersonID)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	warnings := got.Instances[0].ConflictWarnings
+	require.Len(t, warnings, 1)
+	assert.Equal(t, "room", warnings[0].Kind)
+	assert.Equal(t, s.roomID, warnings[0].ResourceID)
+	assert.True(t, warnings[0].CanOverride)
 }
 
 func TestListInstances_DateValidation(t *testing.T) {

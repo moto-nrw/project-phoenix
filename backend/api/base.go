@@ -359,6 +359,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ActivityExceptionRepo:  repoFactory.ActivityException,
 		ActivityScheduleRepo:   repoFactory.ActivitySchedule,
 		InstanceStaffRepo:      repoFactory.InstanceStaff,
+		ActiveGroupRepo:        repoFactory.ActiveGroup,
 		SupervisorRepo:         repoFactory.GroupSupervisor,
 		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
 		ArrivalExceptionRepo:   repoFactory.StudentArrivalException,

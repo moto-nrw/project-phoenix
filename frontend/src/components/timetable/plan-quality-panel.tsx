@@ -26,6 +26,7 @@ interface PlanQualityPanelProps {
   staff: Staff[];
   loading: boolean;
   onSelectInstance: (instanceId: string) => void;
+  onEditInstance: (instanceId: string) => void;
   onSubstitute: (
     absentStaffId: string,
     substituteStaffId: string,
@@ -58,6 +59,7 @@ export function PlanQualityPanel({
   staff,
   loading,
   onSelectInstance,
+  onEditInstance,
   onSubstitute,
   onReplanWeek,
 }: PlanQualityPanelProps) {
@@ -66,6 +68,7 @@ export function PlanQualityPanel({
   const [substituteByGap, setSubstituteByGap] = useState<
     Record<string, string>
   >({});
+  const [absentByGap, setAbsentByGap] = useState<Record<string, string>>({});
   const [submittingGapId, setSubmittingGapId] = useState<string | null>(null);
 
   const conflictCount = instances.reduce(
@@ -87,6 +90,10 @@ export function PlanQualityPanel({
     () => staff.filter((item) => item.workStatus !== "checked_out"),
     [staff],
   );
+  const staffNameById = useMemo(
+    () => new Map(staff.map((item) => [item.id, item.name])),
+    [staff],
+  );
 
   const handleReplan = () => {
     if (!replanConfirm) {
@@ -104,7 +111,12 @@ export function PlanQualityPanel({
     const substituteStaffId = substituteByGap[gap.instanceId];
     if (!substituteStaffId) return;
     const instance = instances.find((item) => item.id === gap.instanceId);
-    const absentStaff = instance?.staff.find((item) => item.isAbsent);
+    const absentRows = instance?.staff.filter((item) => item.isAbsent) ?? [];
+    const absentStaffId =
+      absentByGap[gap.instanceId] ?? absentRows[0]?.staffId ?? null;
+    const absentStaff = absentRows.find(
+      (item) => item.staffId === absentStaffId,
+    );
     if (!absentStaff) return;
 
     setSubmittingGapId(gap.instanceId);
@@ -199,9 +211,9 @@ export function PlanQualityPanel({
                   const instance = instances.find(
                     (item) => item.id === gap.instanceId,
                   );
-                  const canSubstitute = instance?.staff.some(
-                    (item) => item.isAbsent,
-                  );
+                  const absentRows =
+                    instance?.staff.filter((item) => item.isAbsent) ?? [];
+                  const canSubstitute = absentRows.length > 0;
                   return (
                     <div
                       key={gap.instanceId}
@@ -219,8 +231,49 @@ export function PlanQualityPanel({
                           ? "Kein Personal zugeordnet."
                           : `${gap.absentStaffCount} von ${gap.assignedStaffCount} zugeordneten Personen abwesend.`}
                       </div>
+                      {gap.assignedStaffCount === 0 && (
+                        <div className="mt-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onEditInstance(gap.instanceId)}
+                          >
+                            Personal zuordnen
+                          </Button>
+                        </div>
+                      )}
                       {canSubstitute && (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {absentRows.length === 1 ? (
+                            <span className="text-xs font-semibold text-[#991B1B]">
+                              Abwesend:{" "}
+                              {staffNameById.get(absentRows[0]!.staffId) ??
+                                `Personal #${absentRows[0]!.staffId}`}
+                            </span>
+                          ) : (
+                            <select
+                              value={
+                                absentByGap[gap.instanceId] ??
+                                absentRows[0]?.staffId ??
+                                ""
+                              }
+                              onChange={(e) =>
+                                setAbsentByGap((prev) => ({
+                                  ...prev,
+                                  [gap.instanceId]: e.target.value,
+                                }))
+                              }
+                              className="min-w-48 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                            >
+                              {absentRows.map((item) => (
+                                <option key={item.staffId} value={item.staffId}>
+                                  {staffNameById.get(item.staffId) ??
+                                    `Personal #${item.staffId}`}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                           <select
                             value={substituteByGap[gap.instanceId] ?? ""}
                             onChange={(e) =>

@@ -28,6 +28,7 @@ import type {
   ExceptionConflictsResponse,
   GapsResponse,
   InstanceStaffSummary,
+  InstanceStudentSummary,
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
@@ -281,6 +282,17 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     isAbsent: s.is_absent,
     isSubstitute: s.is_substitute,
   }));
+  const students: InstanceStudentSummary[] = (raw.students ?? []).map((s) => ({
+    studentId: String(s.student_id),
+    status: s.status,
+    substatus: s.substatus,
+    note: s.note,
+    checkedInAt: s.checked_in_at,
+  }));
+  const studentIds =
+    students.length > 0
+      ? students.map((student) => student.studentId)
+      : (raw.student_ids ?? []).map(String);
 
   return {
     id: String(raw.id),
@@ -301,14 +313,18 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     roomId: String(raw.room_id),
     roomName: raw.room_name,
     staff,
-    studentIds: (raw.student_ids ?? []).map(String),
+    studentIds,
+    students,
     staffCount: raw.staff_count,
     absentStaffCount: raw.absent_staff_count,
     expectedStudentsCount: raw.expected_students_count,
     presentStudentsCount: raw.present_students_count,
-    // Backend GET /instances does not yet embed conflict warnings.
-    // Always return [] so consumers can iterate without nil guards.
-    conflictWarnings: [],
+    conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({
+      kind: warning.kind,
+      resourceId: String(warning.resource_id),
+      message: warning.message,
+      canOverride: warning.can_override,
+    })),
   };
 }
 
@@ -410,7 +426,7 @@ export function mapAttendance(
     status: raw.status,
     substatus: raw.substatus,
     note: raw.note,
-    updatedAt: raw.updated_at,
+    checkedInAt: raw.checked_in_at,
   };
 }
 

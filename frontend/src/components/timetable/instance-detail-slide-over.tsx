@@ -4,16 +4,11 @@
  * InstanceDetailSlideOver — right-side slide-over showing the full state
  * of a clicked instance plus lifecycle action buttons.
  *
- * Read-only MVP scope:
- * - All field rows are read-only display widgets (no editable inputs)
- * - Lifecycle actions (Starten / Beenden / Absagen) are wired to the
- *   real backend endpoints — they exist already (WP-B9)
- * - Edit (PUT /instances/{id}) and Spontan-Create (POST /instances) are
- *   shown as disabled buttons with German tooltips so the surface is
- *   visible but obviously inactive. Wiring these is the follow-up PR.
+ * Shows the operational state of one timetable instance: lifecycle,
+ * assigned staff, children, attendance state, and admin corrections.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type React from "react";
 import {
   CheckCircle2,
@@ -48,6 +43,7 @@ import {
 import type {
   AttendancePatchBody,
   EnrichedInstance,
+  InstanceStudentSummary,
   InstanceStatus,
 } from "~/lib/timetable-types";
 
@@ -105,6 +101,35 @@ function StatusBadge({ status }: StatusBadgeProps) {
   );
 }
 
+function attendanceLabel(status: InstanceStudentSummary["status"]): string {
+  switch (status) {
+    case "expected":
+      return "Erwartet";
+    case "present":
+      return "Anwesend";
+    case "absent":
+      return "Fehlt";
+  }
+}
+
+function attendanceTone(status: InstanceStudentSummary["status"]): string {
+  switch (status) {
+    case "present":
+      return "border-[#BBF7D0] bg-[#F0FDF4] text-[#15803D]";
+    case "absent":
+      return "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]";
+    case "expected":
+      return "border-slate-200 bg-slate-50 text-slate-600";
+  }
+}
+
+function fallbackStudentRows(studentIds: string[]): InstanceStudentSummary[] {
+  return studentIds.map((studentId) => ({
+    studentId,
+    status: "expected",
+  }));
+}
+
 export function InstanceDetailSlideOver({
   instance,
   onClose,
@@ -119,6 +144,23 @@ export function InstanceDetailSlideOver({
     null,
   );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
+  const students = useMemo(
+    () =>
+      instance
+        ? instance.students.length > 0
+          ? instance.students
+          : fallbackStudentRows(instance.studentIds)
+        : [],
+    [instance],
+  );
+  const groupedStudents = useMemo(
+    () => ({
+      expected: students.filter((student) => student.status === "expected"),
+      present: students.filter((student) => student.status === "present"),
+      absent: students.filter((student) => student.status === "absent"),
+    }),
+    [students],
+  );
 
   const handleLifecycle = async (action: LifecycleAction) => {
     setPendingAction(action);
@@ -263,58 +305,26 @@ export function InstanceDetailSlideOver({
             </Section>
 
             <Section title="Kinder">
-              {instance.studentIds.length === 0 ? (
+              {students.length === 0 ? (
                 <EmptyLine>Keine Kinder geplant.</EmptyLine>
               ) : (
-                <div className="space-y-1.5">
-                  {instance.studentIds.map((studentId) => (
-                    <div
-                      key={studentId}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-slate-900">
-                          {studentNames.get(studentId) ?? `Kind #${studentId}`}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          Planstatus kann hier administrativ korrigiert werden.
-                        </div>
-                      </div>
-                      {onAttendancePatch && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            isLoading={pendingStudentId === studentId}
-                            disabled={pendingStudentId !== null}
-                            onClick={() =>
-                              void handleAttendancePatch(studentId, {
-                                status: "present",
-                                substatus: null,
-                              })
-                            }
-                          >
-                            Anwesend
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            isLoading={pendingStudentId === studentId}
-                            disabled={pendingStudentId !== null}
-                            onClick={() =>
-                              void handleAttendancePatch(studentId, {
-                                status: "absent",
-                                substatus: "no_show",
-                              })
-                            }
-                          >
-                            Fehlt
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                <div className="space-y-3">
+                  {(
+                    [
+                      ["expected", groupedStudents.expected],
+                      ["present", groupedStudents.present],
+                      ["absent", groupedStudents.absent],
+                    ] as const
+                  ).map(([status, rows]) => (
+                    <StudentGroup
+                      key={status}
+                      status={status}
+                      students={rows}
+                      studentNames={studentNames}
+                      pendingStudentId={pendingStudentId}
+                      onAttendancePatch={onAttendancePatch}
+                      handleAttendancePatch={handleAttendancePatch}
+                    />
                   ))}
                 </div>
               )}
@@ -409,6 +419,111 @@ export function InstanceDetailSlideOver({
         </SlideOverContent>
       )}
     </SlideOver>
+  );
+}
+
+function StudentGroup({
+  status,
+  students,
+  studentNames,
+  pendingStudentId,
+  onAttendancePatch,
+  handleAttendancePatch,
+}: {
+  status: InstanceStudentSummary["status"];
+  students: InstanceStudentSummary[];
+  studentNames: Map<string, string>;
+  pendingStudentId: string | null;
+  onAttendancePatch?: InstanceDetailSlideOverProps["onAttendancePatch"];
+  handleAttendancePatch: (
+    studentId: string,
+    body: AttendancePatchBody,
+  ) => Promise<void>;
+}) {
+  if (students.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-slate-400 uppercase">
+        <span>{attendanceLabel(status)}</span>
+        <span>{students.length}</span>
+      </div>
+      {students.map((student) => (
+        <div
+          key={student.studentId}
+          className={`flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 ${attendanceTone(
+            student.status,
+          )}`}
+        >
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-slate-900">
+              {studentNames.get(student.studentId) ??
+                `Kind #${student.studentId}`}
+            </div>
+            <div className="text-[11px] text-slate-500">
+              {attendanceLabel(student.status)}
+              {student.substatus ? ` • ${student.substatus}` : ""}
+              {student.note ? ` • ${student.note}` : ""}
+            </div>
+          </div>
+          {onAttendancePatch && (
+            <div className="flex items-center gap-1">
+              {student.status !== "present" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  isLoading={pendingStudentId === student.studentId}
+                  disabled={pendingStudentId !== null}
+                  onClick={() =>
+                    void handleAttendancePatch(student.studentId, {
+                      status: "present",
+                      substatus: null,
+                    })
+                  }
+                >
+                  Anwesend
+                </Button>
+              )}
+              {student.status !== "absent" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  isLoading={pendingStudentId === student.studentId}
+                  disabled={pendingStudentId !== null}
+                  onClick={() =>
+                    void handleAttendancePatch(student.studentId, {
+                      status: "absent",
+                      substatus: null,
+                    })
+                  }
+                >
+                  Fehlt
+                </Button>
+              )}
+              {student.status !== "expected" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  isLoading={pendingStudentId === student.studentId}
+                  disabled={pendingStudentId !== null}
+                  onClick={() =>
+                    void handleAttendancePatch(student.studentId, {
+                      status: "expected",
+                      substatus: null,
+                      note: null,
+                    })
+                  }
+                >
+                  Zurücksetzen
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 

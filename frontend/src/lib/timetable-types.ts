@@ -36,6 +36,22 @@ export interface InstanceStaffSummary {
   isSubstitute: boolean;
 }
 
+export type InstanceAttendanceStatus = "expected" | "present" | "absent";
+export type InstanceAttendanceSubstatus =
+  | "late"
+  | "excused"
+  | "sick"
+  | "field_trip"
+  | "other";
+
+export interface InstanceStudentSummary {
+  studentId: string;
+  status: InstanceAttendanceStatus;
+  substatus?: InstanceAttendanceSubstatus | null;
+  note?: string | null;
+  checkedInAt?: string | null;
+}
+
 /**
  * One activity instance enriched with everything the weekly grid needs:
  * room name, activity-group type (drives the colour key), staff list, and
@@ -59,6 +75,7 @@ export interface EnrichedInstance {
   roomName: string;
   staff: InstanceStaffSummary[];
   studentIds: string[];
+  students: InstanceStudentSummary[];
   staffCount: number;
   absentStaffCount: number;
   expectedStudentsCount: number;
@@ -84,6 +101,14 @@ export interface BackendInstanceStaffSummary {
   is_substitute: boolean;
 }
 
+export interface BackendInstanceStudentSummary {
+  student_id: number;
+  status: InstanceAttendanceStatus;
+  substatus?: InstanceAttendanceSubstatus | null;
+  note?: string | null;
+  checked_in_at?: string | null;
+}
+
 export interface BackendEnrichedInstance {
   id: number;
   date: string;
@@ -101,10 +126,17 @@ export interface BackendEnrichedInstance {
   room_name: string;
   staff: BackendInstanceStaffSummary[];
   student_ids?: number[];
+  students?: BackendInstanceStudentSummary[];
   staff_count: number;
   absent_staff_count: number;
   expected_students_count: number;
   present_students_count: number;
+  conflict_warnings?: Array<{
+    kind: ConflictKind;
+    resource_id: number;
+    message: string;
+    can_override: boolean;
+  }>;
 }
 
 export interface BackendWeeklyInstancesResponse {
@@ -350,13 +382,6 @@ export interface BackendInstanceStatusResult {
   completed_at?: string;
 }
 
-export type InstanceAttendanceStatus = "expected" | "present" | "absent";
-export type InstanceAttendanceSubstatus =
-  | "late"
-  | "excused"
-  | "sick"
-  | "no_show";
-
 export interface AttendancePatchBody {
   status?: InstanceAttendanceStatus;
   substatus?: InstanceAttendanceSubstatus | null;
@@ -370,7 +395,7 @@ export interface AttendanceResponse {
   status: InstanceAttendanceStatus;
   substatus?: InstanceAttendanceSubstatus | null;
   note?: string | null;
-  updatedAt: string;
+  checkedInAt?: string | null;
 }
 
 export interface BackendAttendanceResponse {
@@ -380,7 +405,7 @@ export interface BackendAttendanceResponse {
   status: InstanceAttendanceStatus;
   substatus?: InstanceAttendanceSubstatus | null;
   note?: string | null;
-  updated_at: string;
+  checked_in_at?: string | null;
 }
 
 export interface SubstituteTimeConflict {

@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // maxInstanceListRangeDays caps the /instances list window. 56 days = 8 weeks
@@ -43,6 +44,17 @@ type instanceStaffSummary struct {
 	IsSubstitute bool  `json:"is_substitute"`
 }
 
+// instanceStudentSummary carries the editable attendance state for one child.
+// The legacy student_ids array stays in the payload for older clients, but new
+// planner UI should use Students so it can group expected/present/absent rows.
+type instanceStudentSummary struct {
+	StudentID   int64   `json:"student_id"`
+	Status      string  `json:"status"`
+	Substatus   *string `json:"substatus,omitempty"`
+	Note        *string `json:"note,omitempty"`
+	CheckedInAt *string `json:"checked_in_at,omitempty"`
+}
+
 // enrichedInstance is the per-instance payload returned in the list response.
 //
 // Status values mirror scheduleModel.InstanceStatus* constants:
@@ -52,26 +64,28 @@ type instanceStaffSummary struct {
 // "activity" | "care" | "external". Spontaneous instances without a template
 // fall back to "activity" so the frontend has a deterministic colour key.
 type enrichedInstance struct {
-	ID                    int64                  `json:"id"`
-	Date                  string                 `json:"date"`
-	StartTime             string                 `json:"start_time"`
-	EndTime               string                 `json:"end_time"`
-	Title                 string                 `json:"title"`
-	Description           *string                `json:"description,omitempty"`
-	Notes                 *string                `json:"notes,omitempty"`
-	Status                string                 `json:"status"`
-	IsSpontaneous         bool                   `json:"is_spontaneous"`
-	IsLive                bool                   `json:"is_live"`
-	ActivityGroupID       *int64                 `json:"activity_group_id,omitempty"`
-	ActivityType          string                 `json:"activity_type"`
-	RoomID                int64                  `json:"room_id"`
-	RoomName              string                 `json:"room_name"`
-	Staff                 []instanceStaffSummary `json:"staff"`
-	StudentIDs            []int64                `json:"student_ids"`
-	StaffCount            int                    `json:"staff_count"`
-	AbsentStaffCount      int                    `json:"absent_staff_count"`
-	ExpectedStudentsCount int                    `json:"expected_students_count"`
-	PresentStudentsCount  int                    `json:"present_students_count"`
+	ID                    int64                                 `json:"id"`
+	Date                  string                                `json:"date"`
+	StartTime             string                                `json:"start_time"`
+	EndTime               string                                `json:"end_time"`
+	Title                 string                                `json:"title"`
+	Description           *string                               `json:"description,omitempty"`
+	Notes                 *string                               `json:"notes,omitempty"`
+	Status                string                                `json:"status"`
+	IsSpontaneous         bool                                  `json:"is_spontaneous"`
+	IsLive                bool                                  `json:"is_live"`
+	ActivityGroupID       *int64                                `json:"activity_group_id,omitempty"`
+	ActivityType          string                                `json:"activity_type"`
+	RoomID                int64                                 `json:"room_id"`
+	RoomName              string                                `json:"room_name"`
+	Staff                 []instanceStaffSummary                `json:"staff"`
+	StudentIDs            []int64                               `json:"student_ids"`
+	Students              []instanceStudentSummary              `json:"students"`
+	StaffCount            int                                   `json:"staff_count"`
+	AbsentStaffCount      int                                   `json:"absent_staff_count"`
+	ExpectedStudentsCount int                                   `json:"expected_students_count"`
+	PresentStudentsCount  int                                   `json:"present_students_count"`
+	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
 }
 
 // weeklyInstancesResponse is the 200 body for GET /instances.
@@ -208,8 +222,21 @@ func (rs *Resource) enrichInstance(
 	expected := 0
 	present := 0
 	studentIDs := make([]int64, 0, len(studentRows))
+	students := make([]instanceStudentSummary, 0, len(studentRows))
 	for _, row := range studentRows {
 		studentIDs = append(studentIDs, row.StudentID)
+		var checkedInAt *string
+		if row.CheckedInAt != nil {
+			formatted := row.CheckedInAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+			checkedInAt = &formatted
+		}
+		students = append(students, instanceStudentSummary{
+			StudentID:   row.StudentID,
+			Status:      row.Status,
+			Substatus:   row.Substatus,
+			Note:        row.Note,
+			CheckedInAt: checkedInAt,
+		})
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:
 			expected++
@@ -235,11 +262,42 @@ func (rs *Resource) enrichInstance(
 		RoomName:              roomName,
 		Staff:                 staff,
 		StudentIDs:            studentIDs,
+		Students:              students,
 		StaffCount:            len(staffRows),
 		AbsentStaffCount:      absentCount,
 		ExpectedStudentsCount: expected,
 		PresentStudentsCount:  present,
+		ConflictWarnings:      rs.instanceConflictWarnings(ctx, inst),
 	}, nil
+}
+
+func (rs *Resource) instanceConflictWarnings(
+	ctx context.Context,
+	inst *scheduleModel.ActivityInstance,
+) []scheduleSvc.InstanceConflictWarning {
+	if inst == nil || inst.Status != scheduleModel.InstanceStatusPlanned {
+		return []scheduleSvc.InstanceConflictWarning{}
+	}
+	if !timezone.DateOfUTC(inst.Date).Equal(timezone.TodayUTC()) {
+		return []scheduleSvc.InstanceConflictWarning{}
+	}
+	if rs.activeGroupRepo == nil || rs.supervisorRepo == nil ||
+		rs.visitRepo == nil || rs.instanceStaffRepo == nil ||
+		rs.instanceStudentRepo == nil {
+		return []scheduleSvc.InstanceConflictWarning{}
+	}
+	return scheduleSvc.DetectStartConflicts(
+		ctx,
+		scheduleSvc.ConflictDependencies{
+			GroupRepo:         rs.activeGroupRepo,
+			SupervisorRepo:    rs.supervisorRepo,
+			VisitRepo:         rs.visitRepo,
+			InstanceStaffRepo: rs.instanceStaffRepo,
+			InstanceStudents:  rs.instanceStudentRepo,
+		},
+		inst,
+		rs.getLogger(),
+	)
 }
 
 // lookupRoomName resolves a room id to its display name, with per-request

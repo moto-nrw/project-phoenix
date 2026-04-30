@@ -3,20 +3,8 @@
 /**
  * /database/timetables — admin weekly planner.
  *
- * Read-only MVP scope:
- * - Fetches one week of materialized instances via GET /api/timetable/instances
- * - Click on a card opens a right-side slide-over with the full state
- * - Lifecycle actions (Starten, Beenden, Absagen) wired to the existing
- *   POST /instances/{id}/{action} endpoints
- * - "Plan aktualisieren" runs POST /api/timetable/materialize for the
- *   visible week
- *
- * Deferred to a follow-up PR (matching the Read+Edit+Spontan plan):
- * - Editing time/room/staff (PUT /instances/{id})
- * - Spontaneous instance create (POST /instances)
- * - Per-page SSE wiring for instance_* events (today the global SSE
- *   handler does not invalidate timetable caches — lifecycle actions
- *   trigger refetch manually)
+ * Planner surface for calendar periods, templates, materialized instances,
+ * manual one-off appointments, lifecycle actions, and plan-quality checks.
  */
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -447,6 +435,8 @@ function TimetablesContent() {
           toastSuccess("Aktivität abgesagt");
         }
         await tenantMutate(swrKey);
+        await tenantMutate(gapsSWRKey);
+        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("lifecycle_action_failed", {
           action,
@@ -461,7 +451,15 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [selectedInstance, swrKey, tenantMutate, toastSuccess, toastError],
+    [
+      selectedInstance,
+      swrKey,
+      gapsSWRKey,
+      exceptionConflictsSWRKey,
+      tenantMutate,
+      toastSuccess,
+      toastError,
+    ],
   );
 
   const handleReplanWeek = useCallback(async () => {
@@ -519,6 +517,7 @@ function TimetablesContent() {
         }
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
+        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("substitute_failed", {
           absent_staff_id: absentStaffId,
@@ -534,7 +533,14 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [gapsSWRKey, swrKey, tenantMutate, toastError, toastSuccess],
+    [
+      exceptionConflictsSWRKey,
+      gapsSWRKey,
+      swrKey,
+      tenantMutate,
+      toastError,
+      toastSuccess,
+    ],
   );
 
   const handleAttendancePatch = useCallback(
@@ -547,6 +553,7 @@ function TimetablesContent() {
         await timetableService.patchAttendance(instanceId, studentId, body);
         toastSuccess("Kinderstatus aktualisiert");
         await tenantMutate(swrKey);
+        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("attendance_patch_failed", {
           instance_id: instanceId,
@@ -561,7 +568,7 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [swrKey, tenantMutate, toastError, toastSuccess],
+    [exceptionConflictsSWRKey, swrKey, tenantMutate, toastError, toastSuccess],
   );
 
   const openTemplateCreate = useCallback(() => {
@@ -760,6 +767,14 @@ function TimetablesContent() {
               onSelectInstance={(instanceId) =>
                 updateUrlParams({ instance: instanceId })
               }
+              onEditInstance={(instanceId) => {
+                const instance = instances.find(
+                  (item) => item.id === instanceId,
+                );
+                if (!instance) return;
+                setEditingInstance(instance);
+                setInstanceModalOpen(true);
+              }}
               onSubstitute={handleSubstitute}
               onReplanWeek={handleReplanWeek}
             />
@@ -808,6 +823,8 @@ function TimetablesContent() {
         initialInstance={editingInstance}
         onSaved={(instance) => {
           void tenantMutate(swrKey);
+          void tenantMutate(gapsSWRKey);
+          void tenantMutate(exceptionConflictsSWRKey);
           if (instance.id) {
             updateUrlParams({ instance: instance.id });
           }

@@ -44,6 +44,7 @@ type Resource struct {
 	activityExceptionRepo  schedule.ActivityExceptionRepository
 	activityScheduleRepo   activities.ScheduleRepository
 	instanceStaffRepo      schedule.InstanceStaffRepository
+	activeGroupRepo        active.GroupRepository
 	supervisorRepo         active.GroupSupervisorRepository
 	arrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
 	arrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
@@ -78,6 +79,7 @@ type Dependencies struct {
 	ActivityExceptionRepo  schedule.ActivityExceptionRepository
 	ActivityScheduleRepo   activities.ScheduleRepository
 	InstanceStaffRepo      schedule.InstanceStaffRepository
+	ActiveGroupRepo        active.GroupRepository
 	SupervisorRepo         active.GroupSupervisorRepository
 	ArrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
 	ArrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
@@ -112,6 +114,7 @@ func NewResource(deps Dependencies) *Resource {
 		activityExceptionRepo:  deps.ActivityExceptionRepo,
 		activityScheduleRepo:   deps.ActivityScheduleRepo,
 		instanceStaffRepo:      deps.InstanceStaffRepo,
+		activeGroupRepo:        deps.ActiveGroupRepo,
 		supervisorRepo:         deps.SupervisorRepo,
 		arrivalScheduleRepo:    deps.ArrivalScheduleRepo,
 		arrivalExceptionRepo:   deps.ArrivalExceptionRepo,
