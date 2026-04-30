@@ -108,22 +108,6 @@ func TestFixedSeeder_SeedRooms(t *testing.T) {
 	assert.Len(t, fs.roomIDs, len(DemoRooms))
 }
 
-func TestFixedSeeder_SeedPersons(t *testing.T) {
-	srv := apiMock(t)
-	defer srv.Close()
-
-	client := NewClient(srv.URL, false)
-	client.token = "test-token"
-
-	fs := NewFixedSeeder(client, true, "")
-	result := &FixedResult{}
-
-	err := fs.seedPersons(context.TODO(), result)
-	require.NoError(t, err)
-	assert.Equal(t, len(DemoStaff), result.PersonCount)
-	assert.Len(t, fs.personIDs, len(DemoStaff))
-}
-
 func TestFixedSeeder_SeedStaff(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
@@ -439,18 +423,6 @@ func TestFixedSeeder_SeedStaffAccounts_MissingGuestRole(t *testing.T) {
 	assert.Contains(t, err.Error(), "guest role not found")
 }
 
-func TestFixedSeeder_SeedStaffAccounts_MissingPerson(t *testing.T) {
-	fs := NewFixedSeeder(nil, false, "")
-	fs.roleIDs["admin"] = 1
-	fs.roleIDs["user"] = 2
-	fs.roleIDs["guest"] = 3
-	// personIDs empty
-	result := &FixedResult{}
-	err := fs.seedStaffAccounts(context.TODO(), result)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "person not found")
-}
-
 func TestFixedSeeder_SwitchToStaffAccount(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
@@ -626,23 +598,6 @@ func TestFixedSeeder_SeedRooms_APIError(t *testing.T) {
 	err := fs.seedRooms(context.TODO(), result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create room")
-}
-
-func TestFixedSeeder_SeedPersons_APIError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
-	}))
-	defer srv.Close()
-
-	client := NewClient(srv.URL, false)
-	client.token = "test"
-
-	fs := NewFixedSeeder(client, false, "")
-	result := &FixedResult{}
-	err := fs.seedPersons(context.TODO(), result)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create person")
 }
 
 func TestFixedSeeder_SeedDevices_APIError(t *testing.T) {

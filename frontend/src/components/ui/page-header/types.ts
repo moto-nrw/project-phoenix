@@ -96,7 +96,7 @@ export interface PageHeaderWithSearchProps {
   readonly className?: string;
 }
 
-export interface TabItem {
+interface TabItem {
   readonly id: string;
   readonly label: string;
   readonly count?: number;
@@ -113,7 +113,7 @@ export interface FilterConfig {
   readonly className?: string;
 }
 
-export interface FilterOption {
+interface FilterOption {
   readonly value: string;
   readonly label: string;
   readonly icon?: string; // SVG path data for grid-style buttons

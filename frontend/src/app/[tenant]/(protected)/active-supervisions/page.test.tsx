@@ -142,6 +142,12 @@ vi.mock("~/components/ui/empty-student-results", () => ({
 
 // Mock location-helper
 vi.mock("~/lib/location-helper", () => ({
+  LOCATION_COLORS: {
+    UNKNOWN: "#6B7280",
+    SCHOOLYARD: "#F78C10",
+    HOME: "#FF3130",
+    GROUP_ROOM: "#83CD2D",
+  },
   LOCATION_STATUSES: { PRESENT: "Anwesend" },
   isHomeLocation: vi.fn(() => false),
   isSchoolyardLocation: vi.fn(() => false),
@@ -152,7 +158,6 @@ vi.mock("~/lib/location-helper", () => ({
 // Mock pickup-helpers
 vi.mock("~/lib/pickup-helpers", () => ({
   useMinuteClock: () => new Date("2026-01-15T12:00:00"),
-  combinePickupNotes: () => undefined,
 }));
 
 // Mock pickup-schedule-api

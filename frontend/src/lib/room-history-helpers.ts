@@ -14,7 +14,7 @@ export interface BackendRoomHistoryEntry {
 }
 
 // Frontend types
-export interface RoomHistoryEntry {
+interface RoomHistoryEntry {
   id: string;
   roomId: string;
   date: string;

@@ -137,14 +137,16 @@ vi.mock("./student-abholung-tab", () => ({
   ),
 }));
 
-vi.mock("./student-detail-header", () => ({
-  StudentDetailHeader: (props: {
+vi.mock("~/components/database/database-detail-header", () => ({
+  DatabaseDetailHeader: (props: {
+    avatar: string;
+    title: string;
+    subtitle: string;
     warning?: string | null;
     actions?: React.ReactNode;
-    student: Student;
   }) => (
     <div data-testid="detail-header-inner" data-warning={props.warning ?? ""}>
-      {props.student.first_name}
+      {props.title}
       {props.actions}
     </div>
   ),
@@ -158,25 +160,32 @@ vi.mock("./student-historie-tab", () => ({
   StudentHistorieTab: () => <div data-testid="historie-tab" />,
 }));
 
-vi.mock("./student-list-item", () => ({
-  StudentListItem: (props: {
-    student: Student;
+vi.mock("~/components/database/database-list-item", () => ({
+  DatabaseListItem: (props: {
+    title: string;
+    subtitle: React.ReactNode;
     isSelected: boolean;
     onSelect: () => void;
-    hasArrival?: boolean;
-    arrivalSummary?: string;
-  }) => (
-    <button
-      type="button"
-      data-testid={`student-${props.student.id}`}
-      data-selected={props.isSelected}
-      data-has-arrival={props.hasArrival}
-      data-summary={props.arrivalSummary ?? ""}
-      onClick={props.onSelect}
-    >
-      {props.student.first_name} {props.student.second_name}
-    </button>
-  ),
+    trailingAccessory?: React.ReactNode;
+  }) => {
+    // Test fixtures use names like "First1 Last1"; derive the id back so
+    // assertions written against the pre-migration `student-1` testid keep
+    // working without changing the assertion shape.
+    const idMatch = /First(\S+)/.exec(props.title);
+    const idSlug = idMatch ? idMatch[1] : props.title;
+    return (
+      <button
+        type="button"
+        data-testid={`student-${idSlug}`}
+        data-selected={props.isSelected}
+        data-trailing={props.trailingAccessory ? "true" : ""}
+        onClick={props.onSelect}
+      >
+        {props.title}
+        <span data-testid="list-item-subtitle">{props.subtitle}</span>
+      </button>
+    );
+  },
 }));
 
 vi.mock("./student-stammdaten-tab", () => ({
@@ -248,8 +257,8 @@ describe("StudentsMasterDetail", () => {
       />,
     );
 
-    expect(screen.getByTestId("group-title-__none__")).toHaveTextContent(
-      "Alle Schüler (2)",
+    expect(screen.getByTestId("group-title-__flat__")).toHaveTextContent(
+      "Alle Schüler",
     );
   });
 
@@ -318,13 +327,17 @@ describe("StudentsMasterDetail", () => {
       />,
     );
 
+    // With-arrival student: subtitle carries the formatted summary, no
+    // trailing warning icon.
     const one = screen.getByTestId("student-1");
-    expect(one).toHaveAttribute("data-has-arrival", "true");
-    expect(one).toHaveAttribute("data-summary", "Mo-Fr 08:00");
+    expect(one).toHaveAttribute("data-trailing", "");
+    expect(one).toHaveTextContent("Mo-Fr 08:00");
 
+    // Without-arrival student: subtitle says "keine Ankunft" and the
+    // trailing accessory (AlertCircle) is set.
     const two = screen.getByTestId("student-2");
-    expect(two).toHaveAttribute("data-has-arrival", "false");
-    expect(two).toHaveAttribute("data-summary", "");
+    expect(two).toHaveAttribute("data-trailing", "true");
+    expect(two).toHaveTextContent("keine Ankunft");
   });
 
   it("calls onSelect when a list item is clicked", () => {

@@ -265,9 +265,7 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
 }));
 
 vi.mock("~/lib/pickup-helpers", () => ({
-  getPickupUrgency: () => "none",
   useMinuteClock: () => new Date(),
-  combinePickupNotes: () => undefined,
 }));
 
 vi.mock("~/lib/active-api", () => ({
@@ -297,6 +295,16 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 vi.mock("./ogs-group-helpers", () => ({
+  countCheckedInStudents: (students: Array<{ current_location?: string }>) =>
+    students.filter((student) => student.current_location !== "Zuhause").length,
+  formatGroupLabelWithAttendance: (group: {
+    name: string;
+    present_count?: number;
+    student_count?: number;
+  }) =>
+    group.student_count === undefined
+      ? group.name
+      : `${group.name} ${group.present_count ?? 0}/${group.student_count}`,
   isStudentInGroupRoom: () => true,
   matchesSearchFilter: () => true,
   matchesAttendanceFilter: () => true,

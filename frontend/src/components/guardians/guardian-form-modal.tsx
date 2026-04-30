@@ -29,7 +29,7 @@ export interface RelationshipFormData {
 
 // Phone entry type for the form
 // Exported for testing
-export interface PhoneEntry {
+interface PhoneEntry {
   id: string;
   phoneNumber: string;
   phoneType: PhoneType;

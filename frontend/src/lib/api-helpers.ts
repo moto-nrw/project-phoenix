@@ -353,19 +353,10 @@ export { isBrowserContext };
 /**
  * Options for authenticated fetch requests
  */
-export interface AuthFetchOptions {
+interface AuthFetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   token?: string;
-}
-
-/**
- * Response from authenticated fetch
- */
-export interface AuthFetchResult<T> {
-  data: T;
-  ok: boolean;
-  status: number;
 }
 
 /**
@@ -442,7 +433,7 @@ export async function authFetch<T>(
 /**
  * Options for fetch with retry
  */
-export interface FetchWithRetryOptions {
+interface FetchWithRetryOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   onAuthFailure?: () => Promise<boolean>;
@@ -563,7 +554,7 @@ interface RoomApiResponseData {
 /**
  * BackendRoom interface for type conversion
  */
-export interface BackendRoomType {
+interface BackendRoomType {
   id: number;
   name: string;
   building?: string;

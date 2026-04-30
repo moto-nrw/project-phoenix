@@ -94,9 +94,6 @@ type Service interface {
 	EndDailySessions(ctx context.Context) (*DailySessionCleanupResult, error)
 
 	// Analytics and statistics
-	GetActiveGroupsCount(ctx context.Context) (int, error)
-	GetTotalVisitsCount(ctx context.Context) (int, error)
-	GetActiveVisitsCount(ctx context.Context) (int, error)
 	GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error)
 	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error)
 
@@ -151,6 +148,7 @@ type DashboardAnalytics struct {
 	StudentsInTransit    int // Students present but not in any active visit
 	StudentsOnPlayground int
 	StudentsInRooms      int // Students in indoor rooms (excluding playground)
+	StudentsSick         int // Students currently flagged as sick
 
 	// Activities & Rooms
 	ActiveActivities    int

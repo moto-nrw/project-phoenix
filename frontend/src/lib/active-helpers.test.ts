@@ -5,7 +5,6 @@ import {
   mapSupervisorResponse,
   mapCombinedGroupResponse,
   mapGroupMappingResponse,
-  mapAnalyticsResponse,
   mapSchulhofStatusResponse,
   mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
@@ -18,7 +17,6 @@ import {
   type BackendSupervisor,
   type BackendCombinedGroup,
   type BackendGroupMapping,
-  type BackendAnalytics,
   type BackendSchulhofStatus,
   type BackendToggleSupervisionResponse,
   type ActiveGroup,
@@ -93,12 +91,6 @@ const sampleBackendGroupMapping: BackendGroupMapping = {
   combined_group_id: 300,
   group_name: "Class 3A",
   combined_name: "Combined Morning",
-};
-
-const sampleBackendAnalytics: BackendAnalytics = {
-  active_groups_count: 5,
-  total_visits_count: 150,
-  active_visits_count: 45,
 };
 
 describe("active-helpers", () => {
@@ -191,6 +183,40 @@ describe("active-helpers", () => {
       expect(result.schoolClass).toBeUndefined();
       expect(result.groupName).toBeUndefined();
       expect(result.activeGroupName).toBeUndefined();
+      expect(result.actualArrivalTime).toBeUndefined();
+      expect(result.actualPickupTime).toBeUndefined();
+    });
+
+    it("preserves actual_arrival_time and actual_pickup_time as HH:MM strings", () => {
+      // The backend sends the wall-clock string already formatted in Berlin
+      // time (`timezone.FormatBerlinClock`). The mapper must NOT parse it
+      // into a Date — that would re-anchor it to today's local TZ and
+      // break diff calculations against `plannedTime` strings.
+      const visit = buildBackendVisit({
+        actual_arrival_time: "08:30",
+        actual_pickup_time: "16:05",
+      });
+
+      const result = mapVisitResponse(visit);
+
+      expect(result.actualArrivalTime).toBe("08:30");
+      expect(result.actualPickupTime).toBe("16:05");
+      expect(typeof result.actualArrivalTime).toBe("string");
+    });
+
+    it("threads only actual_arrival_time when student is still checked in", () => {
+      const visit = buildBackendVisit({
+        actual_arrival_time: "08:00",
+        actual_pickup_time: undefined,
+        check_out_time: undefined,
+        is_active: true,
+      });
+
+      const result = mapVisitResponse(visit);
+
+      expect(result.actualArrivalTime).toBe("08:00");
+      expect(result.actualPickupTime).toBeUndefined();
+      expect(result.checkOutTime).toBeUndefined();
     });
   });
 
@@ -286,38 +312,6 @@ describe("active-helpers", () => {
 
       expect(result.groupName).toBeUndefined();
       expect(result.combinedName).toBeUndefined();
-    });
-  });
-
-  describe("mapAnalyticsResponse", () => {
-    it("maps all fields correctly from backend to frontend format", () => {
-      const result = mapAnalyticsResponse(sampleBackendAnalytics);
-
-      expect(result.activeGroupsCount).toBe(5);
-      expect(result.totalVisitsCount).toBe(150);
-      expect(result.activeVisitsCount).toBe(45);
-    });
-
-    it("handles undefined optional fields", () => {
-      const emptyAnalytics: BackendAnalytics = {};
-
-      const result = mapAnalyticsResponse(emptyAnalytics);
-
-      expect(result.activeGroupsCount).toBeUndefined();
-      expect(result.totalVisitsCount).toBeUndefined();
-      expect(result.activeVisitsCount).toBeUndefined();
-    });
-
-    it("handles partial analytics data", () => {
-      const partialAnalytics: BackendAnalytics = {
-        active_groups_count: 3,
-      };
-
-      const result = mapAnalyticsResponse(partialAnalytics);
-
-      expect(result.activeGroupsCount).toBe(3);
-      expect(result.totalVisitsCount).toBeUndefined();
-      expect(result.activeVisitsCount).toBeUndefined();
     });
   });
 

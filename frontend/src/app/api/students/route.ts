@@ -32,6 +32,10 @@ interface StudentResponseFromBackend {
   tag_id?: string;
   school_class: string;
   current_location?: string | null;
+  // Hex of the student's current room when set (Issue #1324). The proxy
+  // forwards it untouched; mapStudentResponse threads it into the Student
+  // type that powers LocationBadge.
+  current_room_color?: string | null;
   bus: boolean;
   guardian_name: string;
   guardian_contact: string;

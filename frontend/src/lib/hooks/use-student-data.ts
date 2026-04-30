@@ -95,6 +95,12 @@ function mapStudentResponse(
     excused_since: hasAccess
       ? (mappedStudent.excused_since ?? undefined)
       : undefined,
+    actual_arrival_time: hasAccess
+      ? (mappedStudent.actual_arrival_time ?? undefined)
+      : undefined,
+    actual_pickup_time: hasAccess
+      ? (mappedStudent.actual_pickup_time ?? undefined)
+      : undefined,
     has_full_access: hasAccess,
   };
 }

@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-export interface BreadcrumbData {
+interface BreadcrumbData {
   studentName?: string;
   roomName?: string;
   activityName?: string;

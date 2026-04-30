@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { handleApiError } from "../api-helpers";
 import {
   type RouteContext,
-  buildQueryString,
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
@@ -231,15 +230,6 @@ export function createOperatorDeleteHandler<T>(handler: NoBodyHandler<T>) {
   });
 }
 
-export function createOperatorProxyGetHandler<T>(backendEndpoint: string) {
-  return createOperatorGetHandler<T>(
-    async (request: NextRequest, token: string) => {
-      const endpoint = `${backendEndpoint}${buildQueryString(request)}`;
-      return operatorApiGet<T>(endpoint, token);
-    },
-  );
-}
-
 /**
  * Forwards a backend Response to a NextResponse verbatim:
  * - 204 → empty-body NextResponse with status 204
@@ -282,7 +272,7 @@ async function forwardBackendResponse(
 /**
  * Creates a POST route handler that proxies the backend response verbatim
  * (preserving status codes and error messages) while adding 401 retry logic.
- * Mirrors createOperatorProxyGetHandler but for POST with a JSON body.
+ * Used for POST routes that need verbatim status/error forwarding with a JSON body.
  */
 export function createOperatorProxyPostHandler(backendEndpoint: string) {
   return async (

@@ -26,15 +26,13 @@ import {
   parseLocation,
 } from "~/lib/location-helper";
 import {
+  countCheckedInStudents,
+  formatGroupLabelWithAttendance,
   isStudentInGroupRoom,
   matchesSearchFilter,
   matchesAttendanceFilter,
 } from "./ogs-group-helpers";
-import {
-  getPickupUrgency,
-  useMinuteClock,
-  combinePickupNotes,
-} from "~/lib/pickup-helpers";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import type { OGSGroup } from "./ogs-group-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
@@ -43,6 +41,7 @@ import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
+import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
 import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
@@ -62,10 +61,14 @@ import { buildGroupOverflowItems } from "./components/group-overflow-items";
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
-import { getArrivalUrgency } from "~/lib/arrival-schedule-helpers";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
+import {
+  combineTimeNotes,
+  getStudentTimeStatus,
+  getTimeStatusSortRank,
+} from "~/lib/student-time-status";
 
 import { createLogger } from "~/lib/logger";
 
@@ -91,6 +94,7 @@ interface BackendStudentFromBFF {
   name?: string;
   school_class?: string;
   current_location?: string;
+  current_room_color?: string | null;
   sick?: boolean;
   sick_since?: string;
   sick_until?: string;
@@ -102,6 +106,8 @@ interface BackendStudentFromBFF {
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
 }
 
 // BFF response type for dashboard data
@@ -143,6 +149,36 @@ interface OGSDashboardBFFResponse {
   firstGroupId: string | null;
 }
 
+function mapStudentForOgsPage(
+  student: Student | BackendStudentFromBFF,
+): Student {
+  if ("last_name" in student) {
+    return {
+      id: student.id.toString(),
+      name: `${student.first_name} ${student.last_name}`.trim(),
+      first_name: student.first_name,
+      second_name: student.last_name,
+      school_class: student.school_class ?? "",
+      current_location: student.current_location ?? "",
+      current_room_color: student.current_room_color ?? null,
+      sick: student.sick ?? false,
+      sick_since: student.sick_since,
+      excused: student.excused ?? false,
+      excused_since: student.excused_since,
+      location_since: student.location_since,
+      group_id: student.group_id?.toString(),
+      group_name: student.group_name,
+      arrival_time: student.arrival_time,
+      arrival_is_exception: student.arrival_is_exception,
+      arrival_notes: student.arrival_notes,
+      actual_arrival_time: student.actual_arrival_time,
+      actual_pickup_time: student.actual_pickup_time,
+    };
+  }
+
+  return student;
+}
+
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -155,6 +191,7 @@ function OGSGroupPageContent() {
 
   const { success: showSuccessToast } = useToast();
   const { userContext } = useUserContext();
+  const { setGroupAttendanceCount } = useGroupAttendanceCounts();
 
   // Only binary-mode tenants expose the web check-in toggle; in detailed
   // mode the kiosk owns check-in/out and a parallel web button would
@@ -294,6 +331,11 @@ function OGSGroupPageContent() {
     // Update student count on the first sorted group (BFF pre-loads data for it)
     if (ogsGroups[0]) {
       ogsGroups[0].student_count = studentsData.length;
+      ogsGroups[0].present_count = countCheckedInStudents(studentsData);
+      setGroupAttendanceCount(ogsGroups[0].id, {
+        present: ogsGroups[0].present_count,
+        total: ogsGroups[0].student_count,
+      });
     }
 
     setAllGroups(ogsGroups);
@@ -319,24 +361,7 @@ function OGSGroupPageContent() {
       }
 
       // Map backend students to frontend format (last_name → second_name)
-      const mappedStudents: Student[] = studentsData.map((s) => ({
-        id: s.id.toString(),
-        name: `${s.first_name} ${s.last_name}`.trim(),
-        first_name: s.first_name,
-        second_name: s.last_name, // Backend uses last_name
-        school_class: s.school_class ?? "",
-        current_location: s.current_location ?? "",
-        sick: s.sick ?? false,
-        sick_since: s.sick_since,
-        excused: s.excused ?? false,
-        excused_since: s.excused_since,
-        location_since: s.location_since,
-        group_id: s.group_id?.toString(),
-        group_name: s.group_name,
-        arrival_time: s.arrival_time,
-        arrival_is_exception: s.arrival_is_exception,
-        arrival_notes: s.arrival_notes,
-      }));
+      const mappedStudents = studentsData.map(mapStudentForOgsPage);
       setStudents(mappedStudents);
 
       // Set pickup times from BFF response (prevents loading flash)
@@ -381,7 +406,7 @@ function OGSGroupPageContent() {
     setActiveTransfers(transfers);
     setError(null);
     setIsLoading(false);
-  }, [dashboardData, selectedGroupId]);
+  }, [dashboardData, selectedGroupId, setGroupAttendanceCount]);
 
   // Sync selected group with URL param.
   // The sidebar navigates with the correct ?group= param at click-time,
@@ -460,6 +485,7 @@ function OGSGroupPageContent() {
   // Only fetches when hasAccess is confirmed and we have a group ID.
   // Includes room status and pickup times to prevent "loading flash" on student cards.
   const { data: swrStudentsData } = useSWRAuth<{
+    groupId: string;
     students: Student[];
     roomStatus?: Record<
       string,
@@ -536,6 +562,7 @@ function OGSGroupPageContent() {
       }
 
       return {
+        groupId: currentGroupId!,
         students,
         roomStatus: roomStatusResponse ?? undefined,
         pickupTimes: pickupTimesMap,
@@ -551,8 +578,31 @@ function OGSGroupPageContent() {
   // Sync SWR student data with local state
   // Also syncs room status and pickup times to keep UI in sync and prevent loading flash
   useEffect(() => {
+    if (swrStudentsData?.groupId !== currentGroupId) {
+      return;
+    }
+
     if (swrStudentsData?.students) {
-      setStudents(swrStudentsData.students);
+      const mappedStudents = swrStudentsData.students.map(mapStudentForOgsPage);
+      setStudents(mappedStudents);
+      if (currentGroupId) {
+        const presentCount = countCheckedInStudents(mappedStudents);
+        setGroupAttendanceCount(currentGroupId, {
+          present: presentCount,
+          total: mappedStudents.length,
+        });
+        setAllGroups((prev) =>
+          prev.map((group) =>
+            group.id === currentGroupId
+              ? {
+                  ...group,
+                  student_count: mappedStudents.length,
+                  present_count: presentCount,
+                }
+              : group,
+          ),
+        );
+      }
     }
     if (swrStudentsData?.roomStatus) {
       setRoomStatus(swrStudentsData.roomStatus);
@@ -562,7 +612,7 @@ function OGSGroupPageContent() {
     if (swrStudentsData?.pickupTimes instanceof Map) {
       setPickupTimes(swrStudentsData.pickupTimes);
     }
-  }, [swrStudentsData]);
+  }, [swrStudentsData, currentGroupId, setGroupAttendanceCount]);
 
   // Ref to track current group without triggering unnecessary re-renders
   const currentGroupRef = useRef<OGSGroup | null>(null);
@@ -769,14 +819,23 @@ function OGSGroupPageContent() {
         token: session?.user?.token,
       });
       const studentsData = studentsResponse.students || [];
+      const presentCount = countCheckedInStudents(studentsData);
 
       setStudents(studentsData);
+      setGroupAttendanceCount(groupId, {
+        present: presentCount,
+        total: studentsData.length,
+      });
 
       // Update group with actual student count
       setAllGroups((prev) =>
         prev.map((group) =>
           group.id === groupId
-            ? { ...group, student_count: studentsData.length }
+            ? {
+                ...group,
+                student_count: studentsData.length,
+                present_count: presentCount,
+              }
             : group,
         ),
       );
@@ -817,14 +876,6 @@ function OGSGroupPageContent() {
     };
 
     if (sortMode === "pickup") {
-      // Urgency rank: overdue (0) → soon (1) → normal (2) → none/no time (3) → zuhause (4)
-      const urgencyRank: Record<string, number> = {
-        overdue: 0,
-        soon: 1,
-        normal: 2,
-        none: 3,
-      };
-
       return sorted.sort((a, b) => {
         const aHome = isHomeLocation(a.current_location);
         const bHome = isHomeLocation(b.current_location);
@@ -837,10 +888,18 @@ function OGSGroupPageContent() {
         // Beide anwesend: nach Urgency-Gruppe sortieren
         const timeA = pickupTimes.get(a.id.toString())?.pickupTime;
         const timeB = pickupTimes.get(b.id.toString())?.pickupTime;
-        const urgencyA = getPickupUrgency(timeA, now);
-        const urgencyB = getPickupUrgency(timeB, now);
-        const rankA = urgencyRank[urgencyA] ?? 3;
-        const rankB = urgencyRank[urgencyB] ?? 3;
+        const statusA = getStudentTimeStatus({
+          plannedTime: timeA,
+          actualTime: a.actual_pickup_time,
+          now,
+        });
+        const statusB = getStudentTimeStatus({
+          plannedTime: timeB,
+          actualTime: b.actual_pickup_time,
+          now,
+        });
+        const rankA = getTimeStatusSortRank(statusA);
+        const rankB = getTimeStatusSortRank(statusB);
 
         // Verschiedene Urgency-Gruppen: überzogen zuerst
         if (rankA !== rankB) return rankA - rankB;
@@ -856,14 +915,6 @@ function OGSGroupPageContent() {
     }
 
     if (sortMode === "arrival") {
-      // Urgency rank for arrival: verspätet (0) → bald (1) → normal (2) → none/angekommen (3)
-      const urgencyRank: Record<string, number> = {
-        overdue: 0,
-        soon: 1,
-        normal: 2,
-        none: 3,
-      };
-
       return sorted.sort((a, b) => {
         const aHome = isHomeLocation(a.current_location);
         const bHome = isHomeLocation(b.current_location);
@@ -875,10 +926,18 @@ function OGSGroupPageContent() {
         // Beide zu Hause: nach Ankunfts-Urgency sortieren
         const timeA = a.arrival_time;
         const timeB = b.arrival_time;
-        const urgencyA = getArrivalUrgency(timeA, now, aHome);
-        const urgencyB = getArrivalUrgency(timeB, now, bHome);
-        const rankA = urgencyRank[urgencyA] ?? 3;
-        const rankB = urgencyRank[urgencyB] ?? 3;
+        const statusA = getStudentTimeStatus({
+          plannedTime: timeA,
+          actualTime: a.actual_arrival_time,
+          now,
+        });
+        const statusB = getStudentTimeStatus({
+          plannedTime: timeB,
+          actualTime: b.actual_arrival_time,
+          now,
+        });
+        const rankA = getTimeStatusSortRank(statusA);
+        const rankB = getTimeStatusSortRank(statusB);
 
         if (rankA !== rankB) return rankA - rankB;
 
@@ -1168,7 +1227,6 @@ function OGSGroupPageContent() {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
-              const isHome = isHomeLocation(student.current_location);
 
               const checkinState = deriveCheckinState(student.current_location);
               const studentIdStr = student.id.toString();
@@ -1207,27 +1265,27 @@ function OGSGroupPageContent() {
                     <>
                       <ArrivalTimeRow
                         arrivalTime={student.arrival_time}
+                        actualTime={student.actual_arrival_time}
                         isException={student.arrival_is_exception ?? false}
                         isAbsent={
                           (student.arrival_is_exception ?? false) &&
                           !student.arrival_time
                         }
                         notes={student.arrival_notes}
-                        isHome={isHome}
                         now={now}
                       />
                       <PickupTimeRow
                         pickupTime={studentPickup?.pickupTime}
+                        actualTime={student.actual_pickup_time}
                         isException={studentPickup?.isException ?? false}
                         notes={
                           studentPickup
-                            ? combinePickupNotes(
+                            ? combineTimeNotes(
                                 studentPickup.notes,
                                 studentPickup.dayNotes,
                               )
                             : undefined
                         }
-                        isHome={isHome}
                         now={now}
                       />
                     </>
@@ -1270,7 +1328,9 @@ function OGSGroupPageContent() {
           <PageHeaderWithSearch
             title={
               isMobile && allGroups.length === 1
-                ? (currentGroup?.name ?? "Meine Gruppe")
+                ? currentGroup
+                  ? formatGroupLabelWithAttendance(currentGroup)
+                  : "Meine Gruppe"
                 : "" // No title when multiple groups (tabs show group names) or on desktop
             }
             actionButton={renderSubstitutionBadge("desktop")}
@@ -1293,8 +1353,7 @@ function OGSGroupPageContent() {
                 ? {
                     items: allGroups.map((group) => ({
                       id: group.id,
-                      label: group.name,
-                      count: group.student_count,
+                      label: formatGroupLabelWithAttendance(group),
                     })),
                     activeTab: currentGroup?.id ?? "",
                     onTabChange: (tabId) => {

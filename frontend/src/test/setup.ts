@@ -61,7 +61,6 @@ vi.mock("~/lib/logger", () => {
   });
   return {
     createLogger: vi.fn(() => createMockLogger()),
-    getLogger: vi.fn(() => createMockLogger()),
   };
 });
 

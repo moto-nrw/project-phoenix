@@ -806,18 +806,18 @@ func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []i
 	accessCtx := rs.determineStudentAccess(r)
 
 	// Admins and all_staff scope see all requested students
-	if accessCtx.isAdmin || accessCtx.allStaffScope {
+	if accessCtx.IsAdmin || accessCtx.AllStaffScope {
 		return requestedIDs, nil
 	}
 
 	// No supervised groups → no access
-	if len(accessCtx.myGroupIDs) == 0 {
+	if len(accessCtx.MyGroupIDs) == 0 {
 		return []int64{}, nil
 	}
 
 	// Extract group IDs from access context
-	groupIDs := make([]int64, 0, len(accessCtx.myGroupIDs))
-	for gid := range accessCtx.myGroupIDs {
+	groupIDs := make([]int64, 0, len(accessCtx.MyGroupIDs))
+	for gid := range accessCtx.MyGroupIDs {
 		groupIDs = append(groupIDs, gid)
 	}
 

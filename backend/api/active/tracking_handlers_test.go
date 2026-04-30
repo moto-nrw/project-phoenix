@@ -280,15 +280,6 @@ func (m *trackingMockActiveService) CleanupAbandonedSessions(ctx context.Context
 func (m *trackingMockActiveService) EndDailySessions(ctx context.Context) (*activeSvc.DailySessionCleanupResult, error) {
 	return nil, nil
 }
-func (m *trackingMockActiveService) GetActiveGroupsCount(ctx context.Context) (int, error) {
-	return 0, nil
-}
-func (m *trackingMockActiveService) GetTotalVisitsCount(ctx context.Context) (int, error) {
-	return 0, nil
-}
-func (m *trackingMockActiveService) GetActiveVisitsCount(ctx context.Context) (int, error) {
-	return 0, nil
-}
 func (m *trackingMockActiveService) GetDashboardAnalytics(ctx context.Context) (*activeSvc.DashboardAnalytics, error) {
 	return nil, nil
 }

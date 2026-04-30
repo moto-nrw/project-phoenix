@@ -92,6 +92,7 @@ vi.mock("~/components/ui/page-header", () => ({
     search,
     filters,
     onClearAllFilters,
+    actionButton,
   }: {
     search: { value: string; onChange: (v: string) => void };
     filters: Array<{
@@ -101,6 +102,7 @@ vi.mock("~/components/ui/page-header", () => ({
       options?: Array<{ value: string; label: string }>;
     }>;
     onClearAllFilters: () => void;
+    actionButton?: ReactNode;
   }) => (
     <div data-testid="page-header">
       <input
@@ -125,6 +127,7 @@ vi.mock("~/components/ui/page-header", () => ({
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
         Clear
       </button>
+      {actionButton}
     </div>
   ),
 }));
@@ -199,8 +202,8 @@ vi.mock("@/components/students/students-master-detail", () => ({
   ),
 }));
 
-vi.mock("@/components/students/students-grouping-toggle", () => ({
-  StudentsGroupingToggle: () => <div data-testid="grouping-toggle" />,
+vi.mock("~/components/database/database-grouping-toggle", () => ({
+  DatabaseGroupingToggle: () => <div data-testid="grouping-toggle" />,
 }));
 
 vi.mock("@/components/students/student-create-modal", () => ({
@@ -470,7 +473,7 @@ describe("StudentsPage", () => {
   it("opens create modal when create button is clicked", async () => {
     render(<StudentsPage />);
 
-    const createButton = screen.getByLabelText("Schüler erstellen");
+    const createButton = screen.getAllByLabelText("Schüler erstellen")[0]!;
     fireEvent.click(createButton);
 
     await waitFor(() => {
@@ -531,7 +534,7 @@ describe("StudentsPage", () => {
     render(<StudentsPage />);
 
     // Open create modal
-    const createButton = screen.getByLabelText("Schüler erstellen");
+    const createButton = screen.getAllByLabelText("Schüler erstellen")[0]!;
     fireEvent.click(createButton);
 
     await waitFor(() => {
