@@ -1,5 +1,6 @@
 import type { Student } from "~/lib/api";
 import {
+  isPresentLocation,
   isHomeLocation,
   isSchoolyardLocation,
   isTransitLocation,
@@ -13,9 +14,38 @@ export interface OGSGroup {
   room_name?: string;
   room_id?: string;
   student_count?: number;
+  present_count?: number;
   supervisor_name?: string;
   students?: Student[];
   viaSubstitution?: boolean;
+}
+
+type StudentLocationLike = {
+  readonly current_location?: string | null;
+};
+
+export function isStudentCheckedIn(student: StudentLocationLike): boolean {
+  return (
+    isPresentLocation(student.current_location) ||
+    isSchoolyardLocation(student.current_location) ||
+    isTransitLocation(student.current_location)
+  );
+}
+
+export function countCheckedInStudents(
+  students: readonly StudentLocationLike[],
+): number {
+  return students.filter(isStudentCheckedIn).length;
+}
+
+export function formatGroupAttendanceCount(group?: OGSGroup | null): string {
+  if (!group || group.student_count === undefined) return "";
+  return `${group.present_count ?? 0}/${group.student_count}`;
+}
+
+export function formatGroupLabelWithAttendance(group: OGSGroup): string {
+  const attendanceCount = formatGroupAttendanceCount(group);
+  return attendanceCount ? `${group.name} ${attendanceCount}` : group.name;
 }
 
 export function isStudentInGroupRoom(

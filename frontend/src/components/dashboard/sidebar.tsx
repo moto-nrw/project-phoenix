@@ -17,6 +17,7 @@ import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
+import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
@@ -326,6 +327,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const userIsCaregiver = isCaregiver(session);
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
+  const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
+  const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
+
+  const formatGroupAttendanceCount = (groupId: string | number) => {
+    if (!canShowGroupAttendanceCounts) return undefined;
+    const count = groupAttendanceCounts[groupId.toString()];
+    return count ? `${count.present}/${count.total}` : undefined;
+  };
 
   // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
   // concepts with no operational meaning when the tenant only tracks
@@ -727,7 +736,16 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {showStaffAccordions && (
             <SidebarAccordionSection
               icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-              label={groups.length > 1 ? "Meine Gruppen" : "Meine Gruppe"}
+              label={
+                groups.length > 1
+                  ? "Meine Gruppen"
+                  : [
+                      "Meine Gruppe",
+                      formatGroupAttendanceCount(groups[0]?.id ?? ""),
+                    ]
+                      .filter(Boolean)
+                      .join(" ")
+              }
               activeColor="text-[#83CD2D]"
               isExpanded={expanded === "groups"}
               onToggle={handleGroupsToggle}
@@ -749,6 +767,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   key={group.id}
                   href={`/ogs-groups?group=${group.id}`}
                   label={group.name}
+                  count={formatGroupAttendanceCount(group.id)}
                   isActive={isGroupSubItemActive(
                     childGroupId,
                     group.id.toString(),
