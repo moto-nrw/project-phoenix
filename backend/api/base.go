@@ -287,6 +287,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SchoolRepo:             repoFactory.School,
 		SettingsService:        api.Services.Settings,
 		AttendanceRepo:         repoFactory.Attendance,
+		StudentStatusDayRepo:   repoFactory.StudentStatusDay,
 		VisitRepo:              repoFactory.ActiveVisit,
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
 		Broadcaster:            api.Services.RealtimeHub,

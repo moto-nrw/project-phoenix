@@ -77,6 +77,7 @@ function SearchPageContent() {
     "abwesend",
     "unterwegs",
     "schulhof",
+    "krank",
   ];
   const initialAttendanceFilter = validStatuses.includes(initialStatus)
     ? initialStatus
@@ -283,6 +284,7 @@ function SearchPageContent() {
           { value: "abwesend", label: "Zuhause" },
           { value: "unterwegs", label: "Unterwegs" },
           { value: "schulhof", label: "Schulhof" },
+          { value: "krank", label: "Krank" },
         ],
       },
       {
@@ -375,6 +377,7 @@ function SearchPageContent() {
         abwesend: "Zuhause",
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
+        krank: "Krank",
       };
       filters.push({
         id: "attendance",
@@ -450,6 +453,11 @@ function SearchPageContent() {
         attendanceFilter === "schulhof" &&
         !isSchoolyardLocation(student.current_location)
       ) {
+        return false;
+      }
+
+      // Filter for "Krank" status specifically — independent of location
+      if (attendanceFilter === "krank" && !student.sick) {
         return false;
       }
     }

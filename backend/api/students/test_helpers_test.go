@@ -68,6 +68,7 @@ func setupTestContext(t *testing.T) *testContext {
 		SchoolRepo:             repoFactory.School,
 		SettingsService:        svc.Settings,
 		AttendanceRepo:         repoFactory.Attendance,
+		StudentStatusDayRepo:   repoFactory.StudentStatusDay,
 		VisitRepo:              repoFactory.ActiveVisit,
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
 		Broadcaster:            broadcaster,

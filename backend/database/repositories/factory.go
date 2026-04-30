@@ -102,6 +102,7 @@ type Factory struct {
 	CombinedGroup    activeModels.CombinedGroupRepository
 	GroupMapping     activeModels.GroupMappingRepository
 	Attendance       activeModels.AttendanceRepository
+	StudentStatusDay activeModels.StudentStatusDayRepository
 	WorkSession      activeModels.WorkSessionRepository
 	WorkSessionBreak activeModels.WorkSessionBreakRepository
 	StaffAbsence     activeModels.StaffAbsenceRepository
@@ -213,6 +214,7 @@ func NewFactory(db *bun.DB) *Factory {
 		CombinedGroup:    active.NewCombinedGroupRepository(db),
 		GroupMapping:     active.NewGroupMappingRepository(db),
 		Attendance:       active.NewAttendanceRepository(db),
+		StudentStatusDay: active.NewStudentStatusDayRepository(db),
 		WorkSession:      active.NewWorkSessionRepository(db),
 		WorkSessionBreak: active.NewWorkSessionBreakRepository(db),
 		StaffAbsence:     active.NewStaffAbsenceRepository(db),

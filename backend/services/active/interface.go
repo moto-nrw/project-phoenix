@@ -148,6 +148,7 @@ type DashboardAnalytics struct {
 	StudentsInTransit    int // Students present but not in any active visit
 	StudentsOnPlayground int
 	StudentsInRooms      int // Students in indoor rooms (excluding playground)
+	StudentsSick         int // Students currently flagged as sick
 
 	// Activities & Rooms
 	ActiveActivities    int

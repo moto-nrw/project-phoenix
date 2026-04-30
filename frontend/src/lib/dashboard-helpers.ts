@@ -5,6 +5,7 @@ export interface DashboardAnalytics {
   studentsInTransit: number; // Students present but not in any active visit
   studentsOnPlayground: number;
   studentsInRooms: number; // Students in indoor rooms (excluding playground)
+  studentsSick: number; // Students currently flagged as sick
 
   // Activities & Rooms
   activeActivities: number;
@@ -62,6 +63,7 @@ export interface DashboardAnalyticsResponse {
   students_in_transit: number; // Students present but not in any active visit
   students_on_playground: number;
   students_in_rooms: number; // Students in indoor rooms (excluding playground)
+  students_sick: number;
   active_activities: number;
   free_rooms: number;
   total_rooms: number;
@@ -104,6 +106,7 @@ export function mapDashboardAnalyticsResponse(
     studentsInTransit: data.students_in_transit,
     studentsOnPlayground: data.students_on_playground,
     studentsInRooms: data.students_in_rooms,
+    studentsSick: data.students_sick ?? 0,
     activeActivities: data.active_activities,
     freeRooms: data.free_rooms,
     totalRooms: data.total_rooms,

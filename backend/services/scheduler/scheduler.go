@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -1390,11 +1393,34 @@ func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn
 	if s.db == nil {
 		return 0, fmt.Errorf("scheduler db not configured")
 	}
-	query := fmt.Sprintf(
+	status, err := statusForFlagColumn(flagColumn)
+	if err != nil {
+		return 0, err
+	}
+	now := time.Now()
+	today := timezone.TodayUTC()
+	db := repoBase.GetDB(ctx, s.db)
+
+	upsertQuery := fmt.Sprintf(`
+		INSERT INTO active.student_status_days
+			(tenant_id, student_id, date, status, reported_at, cleared_at, source)
+		SELECT tenant_id, id, ?, ?, COALESCE(%s, ?), ?, ?
+		FROM users.students
+		WHERE %s = TRUE
+		ON CONFLICT (tenant_id, student_id, date, status) DO UPDATE
+		SET reported_at = EXCLUDED.reported_at,
+		    cleared_at = EXCLUDED.cleared_at,
+		    source = EXCLUDED.source;
+	`, sinceColumn, flagColumn)
+	if _, err := db.NewRaw(upsertQuery, today, status, now, now, activeModel.StudentStatusSourceEndOfDay).Exec(ctx); err != nil {
+		return 0, err
+	}
+
+	clearQuery := fmt.Sprintf(
 		`UPDATE users.students SET %s = FALSE, %s = NULL WHERE %s = TRUE`,
 		flagColumn, sinceColumn, flagColumn,
 	)
-	res, err := s.db.NewRaw(query).Exec(ctx)
+	res, err := db.NewRaw(clearQuery).Exec(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -1403,6 +1429,17 @@ func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn
 		return 0, err
 	}
 	return affected, nil
+}
+
+func statusForFlagColumn(flagColumn string) (string, error) {
+	switch flagColumn {
+	case "sick":
+		return activeModel.StudentStatusDaySick, nil
+	case "excused":
+		return activeModel.StudentStatusDayExcused, nil
+	default:
+		return "", fmt.Errorf("unsupported status flag column %q", flagColumn)
+	}
 }
 
 // --- Timetable materialization (WP-B8) ---

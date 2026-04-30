@@ -66,6 +66,7 @@ type ServiceDependencies struct {
 	CombinedGroupRepo active.CombinedGroupRepository
 	GroupMappingRepo  active.GroupMappingRepository
 	AttendanceRepo    active.AttendanceRepository
+	StudentStatusRepo active.StudentStatusDayRepository
 
 	// Cross-tenant query repository (optional - nil-safe)
 	CrossTenantRepo CrossTenantRepo
@@ -124,11 +125,12 @@ type service struct {
 	deviceRepo         iotModels.DeviceRepository
 
 	// New dependencies for attendance tracking
-	attendanceRepo   active.AttendanceRepository
-	educationService education.Service
-	usersService     users.PersonService
-	teacherRepo      userModels.TeacherRepository
-	staffRepo        userModels.StaffRepository
+	attendanceRepo    active.AttendanceRepository
+	studentStatusRepo active.StudentStatusDayRepository
+	educationService  education.Service
+	usersService      users.PersonService
+	teacherRepo       userModels.TeacherRepository
+	staffRepo         userModels.StaffRepository
 
 	db *bun.DB
 
@@ -206,6 +208,7 @@ func NewService(deps ServiceDependencies) Service {
 		personRepo:         deps.PersonRepo,
 		deviceRepo:         deps.DeviceRepo,
 		attendanceRepo:     deps.AttendanceRepo,
+		studentStatusRepo:  deps.StudentStatusRepo,
 		educationService:   deps.EducationService,
 		usersService:       deps.UsersService,
 		teacherRepo:        deps.TeacherRepo,
