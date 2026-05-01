@@ -142,7 +142,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 	// Duplicate-active-visit path (Issue #844). Two paths can produce
 	// ErrStudentAlreadyActive: the application-level read-then-write check
 	// in ensureStudentHasNoActiveVisit (covers the common single-thread
-	// case) and the partial unique index from migration 1.15.46 (catches
+	// case) and the partial unique index from migration 1.15.47 (catches
 	// concurrent races that slip past the app check). Both must produce
 	// the same typed error so the IoT handler can map either to a 409.
 	t.Run("returns ErrStudentAlreadyActive when student already has open visit", func(t *testing.T) {

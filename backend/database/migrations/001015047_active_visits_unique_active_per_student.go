@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	activeVisitsUniqueActivePerStudentVersion     = "1.15.46"
+	activeVisitsUniqueActivePerStudentVersion     = "1.15.47"
 	activeVisitsUniqueActivePerStudentDescription = "Add partial UNIQUE(tenant_id, student_id) WHERE exit_time IS NULL on active.visits to block duplicate-active-visit races"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func activeVisitsUniqueActivePerStudentUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.46: Closing duplicate active visits then adding partial unique index...")
+	fmt.Println("Migration 1.15.47: Closing duplicate active visits then adding partial unique index...")
 
 	// Pre-step: dedupe. CREATE UNIQUE INDEX would fail outright on any DB
 	// where the old race left more than one open visit per
@@ -68,7 +68,7 @@ func activeVisitsUniqueActivePerStudentUp(ctx context.Context, db *bun.DB) error
 		return fmt.Errorf("failed deduping open visits before unique index: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.46: closed %d duplicate active visit(s) before applying unique index\n", affected)
+		fmt.Printf("Migration 1.15.47: closed %d duplicate active visit(s) before applying unique index\n", affected)
 	}
 
 	// Two concurrent checkin requests (kiosk + web, retry, race after a
@@ -90,7 +90,7 @@ func activeVisitsUniqueActivePerStudentUp(ctx context.Context, db *bun.DB) error
 }
 
 func activeVisitsUniqueActivePerStudentDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.46: dropping uniq_active_visits_open_per_student...")
+	fmt.Println("Rolling back migration 1.15.47: dropping uniq_active_visits_open_per_student...")
 
 	// Cleanup of duplicate visits is intentionally NOT reversed — the closed
 	// rows were always invalid and re-opening them would corrupt active

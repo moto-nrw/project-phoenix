@@ -80,10 +80,35 @@ jobs:
             echo "✅ Release - will build and deploy to production"
           fi
 
+  validate-migrations:
+    runs-on: ubuntu-latest
+    needs: [check-environment]
+    if: needs.check-environment.outputs.should_deploy == 'true'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Go with cache
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Validate migration registry
+        working-directory: backend
+        run: go run main.go migrate validate
+
+      - name: Check migration version collisions
+        working-directory: backend
+        run: go test ./database/migrations/ -run TestNoDuplicateMigrationVersions -v
+
   # Build and push backend image
   build-backend:
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    needs: [check-environment]
+    needs: [check-environment, validate-migrations]
     if: needs.check-environment.outputs.should_deploy == 'true'
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
     # have their own concurrency groups, so they are NOT affected.
@@ -144,7 +169,7 @@ jobs:
   # Build and push frontend image
   build-frontend:
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    needs: [check-environment]
+    needs: [check-environment, validate-migrations]
     if: needs.check-environment.outputs.should_deploy == 'true'
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
     # have their own concurrency groups, so they are NOT affected.
@@ -418,17 +443,18 @@ jobs:
   # Summary job for branch protection
   build-status:
     runs-on: ubuntu-latest
-    needs: [check-environment, build-backend, build-frontend]
+    needs: [check-environment, validate-migrations, build-backend, build-frontend]
     if: always() && needs.check-environment.outputs.should_deploy == 'true'
     steps:
       - name: Check build status
         run: |
-          if [[ "${{ needs.build-backend.result }}" == "success" && "${{ needs.build-frontend.result }}" == "success" ]]; then
+          if [[ "${{ needs.validate-migrations.result }}" == "success" && "${{ needs.build-backend.result }}" == "success" && "${{ needs.build-frontend.result }}" == "success" ]]; then
             echo "✅ All images built and pushed successfully"
             echo "Backend: ${{ env.BACKEND_IMAGE }}"
             echo "Frontend: ${{ env.FRONTEND_IMAGE }}"
           else
             echo "❌ Build failed"
+            echo "Migrations: ${{ needs.validate-migrations.result }}"
             echo "Backend: ${{ needs.build-backend.result }}"
             echo "Frontend: ${{ needs.build-frontend.result }}"
             exit 1
