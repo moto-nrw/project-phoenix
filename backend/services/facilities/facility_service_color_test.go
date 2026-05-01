@@ -123,8 +123,9 @@ func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
 // Schulhof has a semantically fixed status badge color, not a per-room one.
 //
 // We use createRoomWithExactName to produce an actual "Schulhof" record
-// (constants.IsSystemRoomName matches by exact name); CreateTestRoom would
-// suffix a timestamp and dodge the check.
+// (constants.IsSystemRoomName matches Schulhof by exact name and the WC
+// aliases case-insensitively); CreateTestRoom would suffix a timestamp
+// and dodge the check.
 func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

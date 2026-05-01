@@ -637,8 +637,8 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 	// Determine which activity group to use based on room name
 	var activityGroup *activities.Group
 	var err error
-	switch room.Name {
-	case constants.SchulhofRoomName:
+	switch {
+	case room.Name == constants.SchulhofRoomName:
 		rs.getLogger().InfoContext(ctx, "auto-creating Schulhof active group",
 			slog.Int64("room_id", room.ID),
 		)
@@ -650,7 +650,7 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("schulhof activity not configured")))
 			return nil, err
 		}
-	case constants.WCRoomName:
+	case constants.IsWCRoomName(room.Name):
 		rs.getLogger().InfoContext(ctx, "auto-creating WC active group",
 			slog.Int64("room_id", room.ID),
 		)
@@ -689,10 +689,10 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 			slog.String("room_name", room.Name),
 			slog.String("error", err.Error()),
 		)
-		switch room.Name {
-		case constants.SchulhofRoomName:
+		switch {
+		case room.Name == constants.SchulhofRoomName:
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create Schulhof session")))
-		case constants.WCRoomName:
+		case constants.IsWCRoomName(room.Name):
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create WC session")))
 		default:
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create session")))

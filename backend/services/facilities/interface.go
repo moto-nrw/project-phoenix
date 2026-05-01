@@ -19,6 +19,17 @@ type Service interface {
 	DeleteRoom(ctx context.Context, id int64) error
 	ListRooms(ctx context.Context, options *base.QueryOptions) ([]RoomWithOccupancy, error)
 	FindRoomByName(ctx context.Context, name string) (*facilities.Room, error)
+	// FindToiletRoom returns the first existing toilet special room whose
+	// name matches a canonical alias (WC, then Toilette) case-insensitively,
+	// preferring earlier entries. Returns ErrRoomNotFound (wrapped in
+	// FacilitiesError) when no alias exists.
+	//
+	// excludeRoomID > 0 skips the row with that ID and continues searching
+	// the remaining aliases — used by update-time alias-collision checks
+	// where the row currently being updated must not count as its own
+	// duplicate. It does NOT short-circuit the loop, so a tenant with both
+	// aliases will still surface the non-excluded one.
+	FindToiletRoom(ctx context.Context, excludeRoomID int64) (*facilities.Room, error)
 	FindRoomsByBuilding(ctx context.Context, building string) ([]*facilities.Room, error)
 	FindRoomsByCategory(ctx context.Context, category string) ([]*facilities.Room, error)
 	FindRoomsByFloor(ctx context.Context, building string, floor int) ([]*facilities.Room, error)
