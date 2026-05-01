@@ -94,6 +94,7 @@ type Factory struct {
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema   enrollment.FormSchemaService
 	EnrollmentCareOffering enrollment.CareOfferingService
+	EnrollmentCaptcha      enrollment.CaptchaService
 }
 
 // NewFactory creates a new services factory
@@ -658,6 +659,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger: logger.With("service", "enrollment-care-offering"),
 	})
 
+	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
+		Settings: settingsService,
+		Logger:   logger.With("service", "enrollment-captcha"),
+	})
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
@@ -731,5 +737,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 		EnrollmentFormSchema:   enrollmentFormSchemaService,
 		EnrollmentCareOffering: enrollmentCareOfferingService,
+		EnrollmentCaptcha:      enrollmentCaptchaService,
 	}, nil
 }
