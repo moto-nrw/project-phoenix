@@ -324,10 +324,8 @@ jobs:
           job_status: ${{ job.status }}
           environment: staging
           exit_code: ${{ steps.deploy.outputs.deploy_exit }}
-          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
           sha: ${{ github.sha }}
-          actor: ${{ github.actor }}
 
   # Deploy to production with automatic rollback on failure
   # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
@@ -414,10 +412,8 @@ jobs:
           job_status: ${{ job.status }}
           environment: production
           exit_code: ${{ steps.deploy.outputs.deploy_exit }}
-          run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
           sha: ${{ github.sha }}
-          actor: ${{ github.actor }}
 
   # Summary job for branch protection
   build-status:

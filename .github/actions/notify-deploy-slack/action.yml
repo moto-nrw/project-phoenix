@@ -15,17 +15,11 @@ inputs:
     description: "Exit code from deploy script (0=ok, 1=pre-deploy abort, 10=rolled back, 11=rollback failed). Empty for non-deploy notifications."
     required: false
     default: ""
-  run_url:
-    description: "Full URL to the GitHub Actions run"
-    required: true
   commit_url:
     description: "Full URL to the commit"
     required: true
   sha:
     description: "Commit SHA (truncated to 7 chars for display)"
-    required: true
-  actor:
-    description: "GitHub actor who triggered the workflow"
     required: true
 
 runs:
@@ -37,10 +31,8 @@ runs:
         JOB_STATUS: ${{ inputs.job_status }}
         ENV: ${{ inputs.environment }}
         EXIT_CODE: ${{ inputs.exit_code }}
-        RUN_URL: ${{ inputs.run_url }}
         COMMIT_URL: ${{ inputs.commit_url }}
         INPUT_SHA: ${{ inputs.sha }}
-        ACTOR: ${{ inputs.actor }}
       run: |
         if [ -z "$WEBHOOK_URL" ]; then
           echo "::warning::SLACK_DEPLOY_WEBHOOK secret not set, skipping Slack notification"
@@ -55,26 +47,26 @@ runs:
           DISPLAY_ENV="$(echo "$ENV" | sed 's/./\U&/')"
         fi
 
-        # Map (job_status, exit_code) to (emoji, headline). Use Unicode emoji so
+        # Map (job_status, exit_code) to (emoji, status). Use Unicode emoji so
         # rendering doesn't depend on Slack's :shortcode: → emoji conversion.
         if [ "$JOB_STATUS" = "success" ]; then
           EMOJI="✅"
-          HEADLINE="$DISPLAY_ENV deploy succeeded"
+          STATUS="deployed"
         elif [ "$JOB_STATUS" = "cancelled" ]; then
           EMOJI="🚫"
-          HEADLINE="$DISPLAY_ENV deploy cancelled"
+          STATUS="cancelled"
         elif [ "$EXIT_CODE" = "11" ]; then
           EMOJI="🚨"
-          HEADLINE="$DISPLAY_ENV deploy + rollback FAILED — manual intervention required"
+          STATUS="deploy + rollback failed"
         elif [ "$EXIT_CODE" = "10" ]; then
           EMOJI="⚠️"
-          HEADLINE="$DISPLAY_ENV deploy failed — rolled back to previous version"
+          STATUS="rolled back"
         elif [ "$EXIT_CODE" = "1" ]; then
           EMOJI="⚠️"
-          HEADLINE="$DISPLAY_ENV deploy aborted — no changes applied"
+          STATUS="aborted"
         else
           EMOJI="❌"
-          HEADLINE="$DISPLAY_ENV deploy failed"
+          STATUS="failed"
         fi
 
         # Build the payload entirely inside jq so newlines and JSON escaping are
@@ -84,26 +76,19 @@ runs:
         # Best-effort: notification failures must never mask the real deploy outcome.
         if ! PAYLOAD=$(jq -n \
           --arg emoji "$EMOJI" \
-          --arg headline "$HEADLINE" \
+          --arg env "$DISPLAY_ENV" \
+          --arg status "$STATUS" \
           --arg commit_url "$COMMIT_URL" \
           --arg sha "$SHORT_SHA" \
-          --arg actor "$ACTOR" \
-          --arg run_url "$RUN_URL" \
           '{
-            text: "\($emoji) \($headline) — commit \($sha)",
+            text: "\($emoji) Deployments: Phoenix \($env) \($status) \($sha)",
             blocks: [
               {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: "\($emoji) *\($headline)*\nCommit: <\($commit_url)|`\($sha)`> by *\($actor)*"
+                  text: "\($emoji) *Deployments:* Phoenix \($env) \($status) <\($commit_url)|`\($sha)`>"
                 }
-              },
-              {
-                type: "context",
-                elements: [
-                  { type: "mrkdwn", text: "<\($run_url)|View run →>" }
-                ]
               }
             ]
           }' 2>&1); then
