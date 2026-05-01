@@ -3294,7 +3294,7 @@ func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetai
 	// instead of a generic error.
 	//
 	// The DB-race path (where visitRepo.Create itself trips the partial
-	// unique index from migration 1.15.46) is NOT exercised here — see
+	// unique index from migration 1.15.47) is NOT exercised here — see
 	// the package note on duplicateVisitActiveService above.
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()

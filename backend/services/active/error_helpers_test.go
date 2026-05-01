@@ -56,7 +56,7 @@ func TestIsNotFoundError(t *testing.T) {
 // Tests for isDuplicateActiveVisitViolation helper (Issue #844).
 //
 // This is the only test that exercises the partial unique index from
-// migration 1.15.46 end-to-end: it inserts one open visit, then attempts
+// migration 1.15.47 end-to-end: it inserts one open visit, then attempts
 // a second open visit for the same (tenant_id, student_id) so PostgreSQL
 // raises 23505 on uniq_active_visits_open_per_student. The captured error
 // chain (*base.DatabaseError → bun → pgdriver.Error) is then fed into
@@ -113,7 +113,7 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		}
 		err := repo.Create(ctx, duplicate)
 
-		require.Error(t, err, "partial unique index from migration 1.15.46 must reject the second open visit")
+		require.Error(t, err, "partial unique index from migration 1.15.47 must reject the second open visit")
 		assert.Equal(t, int64(0), duplicate.ID, "rejected insert must not assign an ID")
 		assert.True(t, isDuplicateActiveVisitViolation(err),
 			"detection helper must recognise the 23505 on uniq_active_visits_open_per_student so service.CreateVisit returns ErrStudentAlreadyActive (Issue #844). got: %v", err)

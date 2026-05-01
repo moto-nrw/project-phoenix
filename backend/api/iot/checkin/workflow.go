@@ -473,7 +473,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 		// previous checkout that didn't fully commit. Surface as 409 with
 		// the existing visit details so the kiosk can show "Bereits
 		// angemeldet in Raum X" instead of a generic error. The DB-level
-		// guard is migration 1.15.46's partial unique index; the
+		// guard is migration 1.15.47's partial unique index; the
 		// application-level guard is ensureStudentHasNoActiveVisit in the
 		// active service. Either path translates to ErrStudentAlreadyActive.
 		if errors.Is(err, activeSvc.ErrStudentAlreadyActive) {
