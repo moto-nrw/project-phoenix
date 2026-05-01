@@ -21,8 +21,9 @@ import (
 
 // Operation name constants to avoid string duplication
 const (
-	opCreateRoom = "create room"
-	opUpdateRoom = "update room"
+	opCreateRoom     = "create room"
+	opUpdateRoom     = "update room"
+	opFindToiletRoom = "find toilet room"
 )
 
 // service implements the facilities.Service interface
@@ -31,6 +32,12 @@ type service struct {
 	activeGroupRepo active.GroupRepository
 	db              *bun.DB
 }
+
+// wcRoomAliasNames lists the accepted canonical toilet-room aliases in
+// canonical-first order. The WC infrastructure only treats these exact names
+// as special rooms; non-canonical case variants remain regular rooms. Fixed
+// array (not a slice) so a future caller can't append to a package global.
+var wcRoomAliasNames = [...]string{constants.WCRoomName, constants.WCRoomAliasName}
 
 // NewService creates a new facilities service
 func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.GroupRepository, db *bun.DB) Service {
@@ -144,6 +151,16 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 		room.SetTenantID(tenantID)
 	}
 
+	if constants.IsWCRoomName(room.Name) {
+		existingAlias, err := s.FindToiletRoom(ctx, 0)
+		if err != nil && !errors.Is(err, ErrRoomNotFound) {
+			return &FacilitiesError{Op: opCreateRoom, Err: err}
+		}
+		if existingAlias != nil {
+			return &FacilitiesError{Op: opCreateRoom, Err: ErrDuplicateRoom}
+		}
+	}
+
 	// Check if a room with the same name already exists
 	existing, err := s.roomRepo.FindByName(ctx, room.Name)
 	if err == nil && existing != nil {
@@ -152,6 +169,9 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 
 	// Create the room
 	if err := s.roomRepo.Create(ctx, room); err != nil {
+		if isUniqueWCAliasViolation(err) {
+			return &FacilitiesError{Op: opCreateRoom, Err: ErrDuplicateRoom}
+		}
 		if isUniqueColorViolation(err) {
 			return &FacilitiesError{Op: opCreateRoom, Err: ErrColorAlreadyInUse}
 		}
@@ -177,6 +197,22 @@ func translateValidationError(err error) error {
 // constraint name is checked so other future unique indexes on the table do
 // not accidentally surface as "color already in use" toasts.
 func isUniqueColorViolation(err error) bool {
+	return isUniqueViolationOnIndex(err, facilities.RoomColorUniqueConstraintName)
+}
+
+// isUniqueWCAliasViolation reports whether err is a PostgreSQL 23505 raised
+// by the partial unique index that enforces "at most one WC/Toilette alias
+// per tenant". Hit only on the TOCTOU race the application-level guard in
+// CreateRoom/UpdateRoom can't close — see migration 1.15.47.
+func isUniqueWCAliasViolation(err error) bool {
+	return isUniqueViolationOnIndex(err, facilities.RoomWCAliasUniqueConstraintName)
+}
+
+// isUniqueViolationOnIndex reports whether err is a PostgreSQL 23505 raised
+// by the named partial unique index. Pulled out of isUniqueColorViolation
+// because we now have two such indexes on facilities.rooms and the matching
+// logic is identical — only the index name differs.
+func isUniqueViolationOnIndex(err error, indexName string) bool {
 	if err == nil {
 		return false
 	}
@@ -191,7 +227,7 @@ func isUniqueColorViolation(err error) bool {
 	if pgErr.Field('C') != "23505" {
 		return false
 	}
-	return pgErr.Field('n') == facilities.RoomColorUniqueConstraintName
+	return pgErr.Field('n') == indexName
 }
 
 // equalStringPtr compares two *string for equality treating nil as "no value"
@@ -205,6 +241,30 @@ func equalStringPtr(a, b *string) bool {
 		return false
 	}
 	return *a == *b
+}
+
+// FindToiletRoom iterates wcRoomAliasNames in canonical-first order and
+// returns the first room found via RoomRepository.FindByName (which has
+// always matched case-insensitively via LOWER(name) = LOWER(?)). Used by
+// the auto-create flow and by the create/update guards that prevent a
+// tenant from ending up with both canonical aliases at once. Returns
+// ErrRoomNotFound (wrapped in FacilitiesError) when no alias exists.
+func (s *service) FindToiletRoom(ctx context.Context, excludeRoomID int64) (*facilities.Room, error) {
+	for _, roomName := range wcRoomAliasNames {
+		room, err := s.roomRepo.FindByName(ctx, roomName)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, &FacilitiesError{Op: opFindToiletRoom, Err: err}
+		}
+		if excludeRoomID > 0 && room.ID == excludeRoomID {
+			continue
+		}
+		return room, nil
+	}
+
+	return nil, &FacilitiesError{Op: opFindToiletRoom, Err: ErrRoomNotFound}
 }
 
 // UpdateRoom updates an existing room
@@ -265,6 +325,16 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 
 	// If name is changing, check for duplicates
 	if existingRoom.Name != room.Name {
+		if constants.IsWCRoomName(room.Name) {
+			existingAlias, err := s.FindToiletRoom(ctx, room.ID)
+			if err != nil && !errors.Is(err, ErrRoomNotFound) {
+				return &FacilitiesError{Op: opUpdateRoom, Err: err}
+			}
+			if existingAlias != nil {
+				return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateRoom}
+			}
+		}
+
 		existing, err := s.roomRepo.FindByName(ctx, room.Name)
 		if err == nil && existing != nil && existing.ID != room.ID {
 			return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateRoom}
@@ -273,6 +343,9 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 
 	// Update the room
 	if err := s.roomRepo.Update(ctx, room); err != nil {
+		if isUniqueWCAliasViolation(err) {
+			return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateRoom}
+		}
 		if isUniqueColorViolation(err) {
 			return &FacilitiesError{Op: opUpdateRoom, Err: ErrColorAlreadyInUse}
 		}

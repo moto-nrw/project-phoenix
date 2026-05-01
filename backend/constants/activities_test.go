@@ -14,6 +14,7 @@ func TestIsSystemRoomName(t *testing.T) {
 	}{
 		{"Schulhof is system room", SchulhofRoomName, true},
 		{"WC is system room", WCRoomName, true},
+		{"Toilette alias is system room", WCRoomAliasName, true},
 		{"regular room is not system", "Gruppenraum 1", false},
 		{"empty string is not system", "", false},
 		{"case sensitive - lowercase schulhof", "schulhof", false},

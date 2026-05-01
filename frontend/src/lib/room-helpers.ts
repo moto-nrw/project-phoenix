@@ -45,10 +45,13 @@ export interface Room {
 }
 
 // System room names that cannot be deleted or renamed.
-// Must stay in sync with backend constants/activities.go.
-const SYSTEM_ROOM_NAMES = ["Schulhof", "WC"] as const;
+// Must stay in sync with backend constants/activities.go
+// (SchulhofRoomName, WCRoomName, WCRoomAliasName) and PyrePortal
+// src/services/api.ts (WC_ROOM_ALIASES). Matching is exact-case to mirror
+// the backend's `name == SchulhofRoomName || IsWCRoomName(name)` check.
+const SYSTEM_ROOM_NAMES = ["Schulhof", "WC", "Toilette"] as const;
 
-/** Returns true if the room is a system room (Schulhof, WC). */
+/** Returns true if the room is a system room (Schulhof, WC, Toilette). */
 export function isSystemRoom(room: Room | null | undefined): boolean {
   if (!room) return false;
   return SYSTEM_ROOM_NAMES.includes(
