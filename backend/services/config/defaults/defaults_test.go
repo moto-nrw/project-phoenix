@@ -81,6 +81,11 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"enrollment.outbox_max_attempts",
 		"enrollment.outbox_worker_interval_seconds",
 		"enrollment.status_token_ttl_days",
+		// PR 7: public form additions.
+		"enrollment.captcha_site_key",
+		"enrollment.captcha_secret_key",
+		"enrollment.grade_level_max",
+		"enrollment.care_overflow_mode",
 	}
 
 	for _, key := range expectedKeys {

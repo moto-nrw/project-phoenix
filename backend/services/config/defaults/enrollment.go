@@ -31,6 +31,7 @@ func init() {
 	registerEnrollmentSafety()
 	registerEnrollmentLifecycle()
 	registerEnrollmentSystem()
+	registerEnrollmentPublicForm() // PR 7
 }
 
 func registerEnrollmentMaster() {
@@ -375,5 +376,100 @@ func registerEnrollmentSystem() {
 		SortOrder:       71,
 		Validation:      &config.ValidationRules{Min: &minTokenTTL, Max: &maxTokenTTL},
 		AccessPolicy:    config.AccessOperatorOnly,
+	})
+}
+
+// registerEnrollmentPublicForm wires PR 7's settings — captcha keys,
+// grade-level cap, care-offering overflow mode. These are consumed by
+// the public submission flow.
+func registerEnrollmentPublicForm() {
+	dependsOnEnabled := &config.Dependency{
+		Key:       config.KeyEnrollmentEnabled,
+		Condition: "eq",
+		Value:     true,
+	}
+
+	// Captcha site key — public, tenant-scoped. Embedded in the
+	// public form HTML so the parent's browser can challenge.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentCaptchaSiteKey,
+		Label:           "Captcha Site-Key (Cloudflare Turnstile)",
+		Description:     "Öffentlicher Schlüssel des Bot-Schutz-Anbieters (Cloudflare Turnstile). Wird in das Anmeldeformular eingebettet.",
+		Type:            config.FieldText,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "sicherheit",
+		SortOrder:       54,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	// Captcha secret key — server-side only. Sent to Turnstile's
+	// /siteverify endpoint along with the parent's token. Operator-
+	// only because the secret rotates outside tenant ops.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentCaptchaSecretKey,
+		Label:           "Captcha Secret-Key (Cloudflare Turnstile)",
+		Description:     "Geheimer Schlüssel des Bot-Schutz-Anbieters. Wird serverseitig zur Verifikation verwendet und ist niemals für Eltern sichtbar.",
+		Type:            config.FieldPassword,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "sicherheit",
+		SortOrder:       55,
+		DependsOn:       dependsOnEnabled,
+		AccessPolicy:    config.AccessOperatorOnly,
+	})
+
+	// Grade level cap on the public form. Default 4 (OGS norm); a
+	// Gymnasium can extend up to 13.
+	minGrade := float64(1)
+	maxGrade := float64(13)
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentGradeLevelMax,
+		Label:           "Höchste Klassenstufe im Formular",
+		Description:     "Eltern können Klassenstufen 1 bis zu diesem Wert auswählen. Standard ist 4 (OGS-Schuljahre 1–4); Schulen mit weiterführenden Stufen erhöhen den Wert entsprechend.",
+		Type:            config.FieldNumber,
+		Default:         4,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "formular",
+		SortOrder:       22,
+		Validation:      &config.ValidationRules{Min: &minGrade, Max: &maxGrade},
+		DependsOn: &config.Dependency{
+			Key:       config.KeyEnrollmentCollectGradeLevel,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
+	// Care offering overflow behaviour — controls what happens when
+	// a parent picks an offering whose capacity is full.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentCareOverflowMode,
+		Label:           "Verhalten bei voller Betreuung",
+		Description:     "Wenn ein gewähltes Betreuungsangebot bereits ausgebucht ist: auf Warteliste setzen (empfohlen), Anmeldung blockieren oder ohne Hinweis akzeptieren (Verwaltung sieht die Überbuchung).",
+		Type:            config.FieldSelect,
+		Default:         config.EnrollmentCareOverflowWaitlist,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "betreuungsangebote",
+		SortOrder:       32,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyEnrollmentCareOfferingsEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Auf Warteliste setzen", Value: config.EnrollmentCareOverflowWaitlist},
+				{Label: "Anmeldung blockieren", Value: config.EnrollmentCareOverflowReject},
+				{Label: "Ohne Hinweis akzeptieren", Value: config.EnrollmentCareOverflowAllow},
+			},
+		},
 	})
 }

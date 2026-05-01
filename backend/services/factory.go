@@ -479,12 +479,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	// Register the guardian_invitation renderer at startup so the outbox
-	// worker can dispatch enqueued rows. PRs 7 + 8 register their own
-	// kinds (enrollment_submitted, enrollment_decision_digest, etc.)
-	// alongside their service wiring.
+	// worker can dispatch enqueued rows. PR 7 adds enrollment_submitted +
+	// enrollment_admin_notification renderers below; PR 8 will add the
+	// decision-digest renderer alongside its service wiring.
 	emailTemplateRegistry.Register(
 		platformModels.EmailKindGuardianInvitation,
 		platform.RendererFunc(auth.NewGuardianInvitationRenderer(auth.GuardianInvitationRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentSubmitted,
+		platform.RendererFunc(enrollment.NewEnrollmentSubmittedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentAdminNotify,
+		platform.RendererFunc(enrollment.NewEnrollmentAdminNotificationRenderer(enrollment.EmailRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
 	)

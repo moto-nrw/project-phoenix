@@ -126,6 +126,12 @@ const (
 	KeyEnrollmentOutboxMaxAttempts           = "enrollment.outbox_max_attempts"
 	KeyEnrollmentOutboxWorkerIntervalSeconds = "enrollment.outbox_worker_interval_seconds"
 	KeyEnrollmentStatusTokenTTLDays          = "enrollment.status_token_ttl_days"
+
+	// Parent-enrollment PR 7 — public form additions.
+	KeyEnrollmentCaptchaSiteKey   = "enrollment.captcha_site_key"
+	KeyEnrollmentCaptchaSecretKey = "enrollment.captcha_secret_key"
+	KeyEnrollmentGradeLevelMax    = "enrollment.grade_level_max"
+	KeyEnrollmentCareOverflowMode = "enrollment.care_overflow_mode"
 )
 
 // Enrollment select-option values.
@@ -139,6 +145,11 @@ const (
 
 	EnrollmentNotifyPerDecisionDigest    = "digest"
 	EnrollmentNotifyPerDecisionImmediate = "immediate"
+
+	// Care overflow mode values for KeyEnrollmentCareOverflowMode.
+	EnrollmentCareOverflowWaitlist = "waitlist"
+	EnrollmentCareOverflowReject   = "reject"
+	EnrollmentCareOverflowAllow    = "allow"
 )
 
 // Timetable settings (WP-B7). Per-tenant configuration for the activity
