@@ -60,8 +60,15 @@ func (r *RequestChildRepository) UpdateStatus(ctx context.Context, id int64, new
 		Set("status = ?", newStatus).
 		Set("status_reason = ?", reason).
 		Set("reviewed_at = ?", now).
-		Set("reviewed_by = ?", reviewedBy).
 		Where(`"request_child".id = ?`, id)
+	if reviewedBy > 0 {
+		q = q.Set("reviewed_by = ?", reviewedBy)
+	} else {
+		// Parent-initiated transitions (e.g., self-withdraw) carry no
+		// reviewer. Setting NULL avoids a FK violation against
+		// auth.accounts(id).
+		q = q.Set("reviewed_by = NULL")
+	}
 
 	res, err := q.Exec(ctx)
 	if err != nil {
