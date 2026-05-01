@@ -95,6 +95,7 @@ type Factory struct {
 	EnrollmentFormSchema   enrollment.FormSchemaService
 	EnrollmentCareOffering enrollment.CareOfferingService
 	EnrollmentCaptcha      enrollment.CaptchaService
+	EnrollmentRequest      enrollment.RequestService
 }
 
 // NewFactory creates a new services factory
@@ -664,6 +665,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:   logger.With("service", "enrollment-captcha"),
 	})
 
+	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
+		SchoolRepo:               repos.School,
+		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		Settings:                 settingsService,
+		FrontendURL:              frontendURL,
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-request"),
+	})
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
@@ -738,5 +753,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentFormSchema:   enrollmentFormSchemaService,
 		EnrollmentCareOffering: enrollmentCareOfferingService,
 		EnrollmentCaptcha:      enrollmentCaptchaService,
+		EnrollmentRequest:      enrollmentRequestService,
 	}, nil
 }
