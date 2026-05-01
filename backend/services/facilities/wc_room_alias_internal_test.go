@@ -2,6 +2,7 @@ package facilities
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -99,13 +100,23 @@ func TestWCService_ensureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
 // that scenario structurally impossible — duplicates per tenant are now
 // rejected at the DB layer. The canonical-iteration order in
 // FindToiletRoom is still exercised by the migration's own
-// TestRoomsWCAliasUniqueUp_PrefersCanonicalWC plus the lowercase-reuse
-// test below.
+// TestRoomsWCAliasUniqueUp_PrefersCanonicalWC.
 
-func TestWCService_ensureWCRoom_ReusesLowercaseWCRoom(t *testing.T) {
-	// Pre-existing tenants with a lowercase "wc" room have always reached
-	// the toilet flow because RoomRepository.FindByName matches via
-	// LOWER(name) = LOWER(?). FindToiletRoom must preserve that contract.
+func TestWCService_ensureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
+	// Contract per issue #1184 review: only the exact-case names "WC" and
+	// "Toilette" are toilet system rooms. A lowercase "wc" must NOT be
+	// silently adopted by FindToiletRoom — otherwise it would be used as
+	// the WC special-room while remaining unprotected against rename/delete
+	// (constants.IsSystemRoomName is exact-case) and invisible to the IoT
+	// scan-fallback switch in api/iot/checkin/workflow.go (also exact-case).
+	//
+	// Practical consequence for tenants with a pre-existing lowercase room:
+	// FindToiletRoom skips it and ensureWCRoom proceeds to create canonical
+	// "WC", which then fails the case-insensitive duplicate guard in
+	// CreateRoom (LOWER(name) = LOWER(?)). The result is a stuck state
+	// surfaced as an error — the admin must rename the lowercase room
+	// before the IoT WC button works. That's acceptable: no silent data
+	// adoption, no invisible cross-layer drift.
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -117,7 +128,39 @@ func TestWCService_ensureWCRoom_ReusesLowercaseWCRoom(t *testing.T) {
 
 	room, err := service.ensureWCRoom(testpkg.TenantContext(1))
 
+	require.Error(t, err, "ensureWCRoom must not silently reuse lowercase wc and must surface the duplicate-name collision when auto-creating canonical WC")
+	assert.Nil(t, room)
+
+	// Lowercase room is untouched: its name stays "wc" and it remains a
+	// regular admin-managed room (deletable/renamable via the rooms admin).
+	var nameAfter string
+	err = db.NewSelect().
+		Table("facilities.rooms").
+		Column("name").
+		Where("id = ?", lowercaseWC.ID).
+		Scan(testpkg.TenantContext(1), &nameAfter)
 	require.NoError(t, err)
-	require.NotNil(t, room)
-	assert.Equal(t, lowercaseWC.ID, room.ID)
+	assert.Equal(t, "wc", nameAfter)
+}
+
+// TestFindToiletRoom_SkipsLowercaseWCRoom asserts the contract directly at
+// the FindToiletRoom layer: case-variants are skipped, ErrRoomNotFound is
+// returned. Companion to the ensureWCRoom test above — that one asserts the
+// downstream side-effect, this one asserts the lookup primitive.
+func TestFindToiletRoom_SkipsLowercaseWCRoom(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	cleanupWCRoomAliasArtifactsInternal(t, db)
+	defer cleanupWCRoomAliasArtifactsInternal(t, db)
+
+	service := setupWCServiceInternal(t, db)
+	_ = createWCRoomAliasRoomInternal(t, db, "wc")
+	_ = createWCRoomAliasRoomInternal(t, db, "toilette")
+
+	room, err := service.facilityService.FindToiletRoom(testpkg.TenantContext(1), 0)
+
+	require.Error(t, err)
+	assert.Nil(t, room)
+	assert.True(t, errors.Is(err, ErrRoomNotFound))
 }

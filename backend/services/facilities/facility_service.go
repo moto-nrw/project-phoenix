@@ -34,9 +34,14 @@ type service struct {
 }
 
 // wcRoomAliasNames lists the accepted canonical toilet-room aliases in
-// canonical-first order. The WC infrastructure only treats these exact names
-// as special rooms; non-canonical case variants remain regular rooms. Fixed
-// array (not a slice) so a future caller can't append to a package global.
+// canonical-first order. Only the exact-case names "WC" and "Toilette" are
+// treated as the toilet system room — case variants like "wc" or "toilette"
+// remain regular admin-managed rooms and are NOT auto-reused as the toilet
+// special-room. This keeps the contract aligned across all layers
+// (constants.IsWCRoomName, IsSystemRoomName, the rename/delete guards, the
+// IoT scan-fallback switch in api/iot/checkin/workflow.go, and the partial
+// unique index from migration 1.15.48 — all exact-case). Fixed array (not a
+// slice) so a future caller can't append to a package global.
 var wcRoomAliasNames = [...]string{constants.WCRoomName, constants.WCRoomAliasName}
 
 // NewService creates a new facilities service
@@ -244,11 +249,29 @@ func equalStringPtr(a, b *string) bool {
 }
 
 // FindToiletRoom iterates wcRoomAliasNames in canonical-first order and
-// returns the first room found via RoomRepository.FindByName (which has
-// always matched case-insensitively via LOWER(name) = LOWER(?)). Used by
-// the auto-create flow and by the create/update guards that prevent a
-// tenant from ending up with both canonical aliases at once. Returns
-// ErrRoomNotFound (wrapped in FacilitiesError) when no alias exists.
+// returns the first room whose name exactly matches one of the canonical
+// aliases ("WC" or "Toilette"). Used by the auto-create flow and by the
+// create/update guards that prevent a tenant from ending up with both
+// canonical aliases at once. Returns ErrRoomNotFound (wrapped in
+// FacilitiesError) when no canonical alias exists.
+//
+// Why the explicit IsWCRoomName re-check after FindByName: the repository
+// matches case-insensitively via LOWER(name) = LOWER(?) — that CI behavior
+// is required by the duplicate-name guard in CreateRoom and we don't want to
+// change it. But the system-room contract is exact-case everywhere else
+// (constants.IsWCRoomName, the partial unique index from migration 1.15.48,
+// the IoT scan-fallback switch in api/iot/checkin/workflow.go). Without the
+// re-check a lowercase "wc" room would be silently adopted as the toilet
+// special-room here while remaining unprotected against rename/delete and
+// invisible to the IoT scan path — exactly the split contract issue #1184
+// review flagged. Skipping non-canonical rows keeps every layer aligned.
+//
+// Edge case: if a tenant somehow has both lowercase "wc" AND canonical "WC"
+// (DB-level write that bypassed CreateRoom's CI duplicate guard), the
+// FindByName CI lookup may return either row. If it returns the lowercase
+// row we skip and try "Toilette" next; the canonical "WC" then goes
+// undiscovered and the auto-create path will hit the CI duplicate guard.
+// That stuck state requires DB cleanup but is not silent corruption.
 func (s *service) FindToiletRoom(ctx context.Context, excludeRoomID int64) (*facilities.Room, error) {
 	for _, roomName := range wcRoomAliasNames {
 		room, err := s.roomRepo.FindByName(ctx, roomName)
@@ -257,6 +280,9 @@ func (s *service) FindToiletRoom(ctx context.Context, excludeRoomID int64) (*fac
 				continue
 			}
 			return nil, &FacilitiesError{Op: opFindToiletRoom, Err: err}
+		}
+		if !constants.IsWCRoomName(room.Name) {
+			continue
 		}
 		if excludeRoomID > 0 && room.ID == excludeRoomID {
 			continue

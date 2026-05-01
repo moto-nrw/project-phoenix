@@ -111,15 +111,24 @@ func TestEnsureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
 // that scenario structurally impossible — duplicates per tenant are now
 // rejected at the DB layer. The canonical-iteration order in
 // FindToiletRoom is still exercised by the migration's own
-// TestRoomsWCAliasUniqueUp_PrefersCanonicalWC plus the lowercase-reuse
-// test below.
+// TestRoomsWCAliasUniqueUp_PrefersCanonicalWC.
 
-func TestEnsureWCRoom_ReusesLowercaseWCRoom(t *testing.T) {
-	// Pre-existing tenants with a lowercase "wc" room have always reached
-	// the toilet flow because RoomRepository.FindByName matches via
-	// LOWER(name) = LOWER(?). FindToiletRoom must preserve that contract —
-	// IsWCRoomName is exact-case, but the underlying lookup is not, and
-	// silently changing that would break those tenants.
+func TestEnsureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
+	// Contract per issue #1184 review: only exact-case "WC" and "Toilette"
+	// are toilet system rooms. The IoT auto-create path in this package
+	// (ensureWCRoom) goes through services/facilities.FindToiletRoom which
+	// re-filters via IsWCRoomName, so a lowercase "wc" must not be silently
+	// adopted here either.
+	//
+	// Practical consequence: ensureWCRoom does not return the lowercase
+	// row, falls through to CreateRoom("WC"), and CreateRoom's
+	// case-insensitive duplicate guard (LOWER(name) = LOWER(?)) rejects
+	// because "wc" already exists. The retry path then calls
+	// FindToiletRoom again — still skips the lowercase row — and surfaces
+	// the original create error. Stuck state requiring admin cleanup, no
+	// silent cross-layer drift. See companion test
+	// TestWCService_ensureWCRoom_IgnoresLowercaseWCRoom in
+	// services/facilities for the same assertion at the service layer.
 	tc := setupInternalTestResource(t)
 	defer func() { _ = tc.db.Close() }()
 
@@ -130,7 +139,16 @@ func TestEnsureWCRoom_ReusesLowercaseWCRoom(t *testing.T) {
 
 	room, err := tc.rs.ensureWCRoom(tenant.WithTenantID(context.Background(), 1))
 
+	require.Error(t, err, "ensureWCRoom must not silently reuse lowercase wc; the duplicate-name collision must surface as an error")
+	assert.Nil(t, room)
+
+	// Lowercase room is untouched.
+	var nameAfter string
+	err = tc.db.NewSelect().
+		Table("facilities.rooms").
+		Column("name").
+		Where("id = ?", lowercaseWC.ID).
+		Scan(tenant.WithTenantID(context.Background(), 1), &nameAfter)
 	require.NoError(t, err)
-	require.NotNil(t, room)
-	assert.Equal(t, lowercaseWC.ID, room.ID)
+	assert.Equal(t, "wc", nameAfter)
 }
