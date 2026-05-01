@@ -115,7 +115,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 
-		serviceReq, parseErr := buildServiceRequest(wireReq, school.ID)
+		serviceReq, parseErr := buildServiceRequest(wireReq, school.ID, remoteIP)
 		if parseErr != nil {
 			submitErr = parseErr
 			return nil
@@ -149,10 +149,11 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 
 // buildServiceRequest converts the wire request into the service-layer
 // shape. Parses date strings; surfaces a typed error on bad input.
-func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64) (enrollmentService.SubmitRequest, error) {
+func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remoteIP string) (enrollmentService.SubmitRequest, error) {
 	out := enrollmentService.SubmitRequest{
 		TenantID:          tenantID,
 		CalendarPeriodID:  wireReq.CalendarPeriodID,
+		RemoteIP:          remoteIP,
 		GuardianFirstName: wireReq.GuardianFirstName,
 		GuardianLastName:  wireReq.GuardianLastName,
 		GuardianEmail:     wireReq.GuardianEmail,
@@ -187,6 +188,16 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, enrollmentService.ErrCareOfferingFull):
+		// 409 Conflict: the request is well-formed but a selected
+		// offering is at capacity and the tenant's overflow mode is
+		// 'reject'. Parents should re-pick or wait.
+		http.Error(w, err.Error(), http.StatusConflict)
+	case errors.Is(err, enrollmentService.ErrRateLimited):
+		// 429 Too Many Requests. Hard-coded retry hint avoids leaking
+		// the exact remaining seconds.
+		w.Header().Set("Retry-After", "3600")
+		http.Error(w, err.Error(), http.StatusTooManyRequests)
 	default:
 		// Capture captcha-shaped errors built with fmt.Errorf above.
 		if strings.Contains(err.Error(), "captcha") {

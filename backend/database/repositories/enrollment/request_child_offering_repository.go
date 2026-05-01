@@ -52,3 +52,24 @@ func (r *RequestChildOfferingRepository) ListByRequestChildID(ctx context.Contex
 	}
 	return rows, nil
 }
+
+// CountActiveByCareOffering returns the count of children currently
+// holding (or competing for) a slot in the given care offering. Joins
+// to enrollment.request_children and filters out terminal statuses
+// (rejected, withdrawn) so the count reflects what the admin is
+// actually managing. Tenant-scoped via RLS on both tables.
+func (r *RequestChildOfferingRepository) CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(requestChildOfferingTableExpr).
+		Join(`INNER JOIN enrollment.request_children AS "child" ON "child".id = "request_child_offering".request_child_id`).
+		Where(`"request_child_offering".care_offering_id = ?`, careOfferingID).
+		Where(`"child".status NOT IN (?)`, bun.In([]string{
+			enrollment.ChildStatusRejected,
+			enrollment.ChildStatusWithdrawn,
+		})).
+		Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count active children for care offering %d: %w", careOfferingID, err)
+	}
+	return count, nil
+}

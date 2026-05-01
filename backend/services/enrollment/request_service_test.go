@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -137,6 +138,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		CareOfferingRepo:         repoFactory.CareOffering,
 		FormSchemaRepo:           repoFactory.FormSchema,
 		SchoolRepo:               repoFactory.School,
+		RateLimitRepo:            repoFactory.SubmissionRateLimit,
 		OutboxEnqueuer:           outbox,
 		Settings:                 settings,
 		FrontendURL:              "http://localhost:3000",
@@ -183,6 +185,13 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 
 	cleanup := func() {
 		bg := context.Background()
+		// Wipe rate-limit rows so a follow-on test in the same run gets
+		// a fresh bucket. The table is keyed (tenant_id, key_type,
+		// key_value) and tests share tenant_id=1.
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.submission_rate_limits").
+			Where("tenant_id = ?", 1).
+			Exec(bg)
 		// Children + offerings + requests cascade together; delete
 		// requests first to keep RLS-aware test runs simple.
 		_, _ = db.NewDelete().
@@ -497,4 +506,277 @@ func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
 	err = env.svc.Withdraw(ctx, result.Request.StatusToken, result.Children[0].ID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrWithdrawNotAllowed))
+}
+
+// --- Rate limiting ---
+
+// TestRequestService_Submit_RateLimitsByEmail walks the configured
+// per-email threshold (5 submissions / 24h). The 6th attempt for the
+// same email must return ErrRateLimited even when the IP varies.
+func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Use distinct IPs so we hit the email bucket, not the IP one.
+	for i := 0; i < 5; i++ {
+		req := validSubmission(env.periodID)
+		req.RemoteIP = "10.0.0." + strconv.Itoa(i+1)
+		_, err := env.svc.Submit(ctx, req)
+		require.NoError(t, err, "attempt %d should succeed", i+1)
+	}
+
+	// 6th attempt → over the email threshold.
+	req := validSubmission(env.periodID)
+	req.RemoteIP = "10.0.0.99"
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrRateLimited),
+		"6th submission with same email must hit ErrRateLimited; got %v", err)
+}
+
+// TestRequestService_Submit_RateLimitsByIP walks the per-IP threshold
+// (10 submissions / 1h). Email is varied so we don't hit that bucket
+// first.
+func TestRequestService_Submit_RateLimitsByIP(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	const sharedIP = "203.0.113.7"
+	for i := 0; i < 10; i++ {
+		req := validSubmission(env.periodID)
+		req.RemoteIP = sharedIP
+		req.GuardianEmail = "anna+" + strconv.Itoa(i) + "@example.com"
+		_, err := env.svc.Submit(ctx, req)
+		require.NoError(t, err, "IP attempt %d should succeed", i+1)
+	}
+
+	// 11th request → over the IP threshold.
+	req := validSubmission(env.periodID)
+	req.RemoteIP = sharedIP
+	req.GuardianEmail = "anna+over@example.com"
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrRateLimited),
+		"11th submission from same IP must hit ErrRateLimited; got %v", err)
+}
+
+// TestRequestService_Submit_RateLimitTenantIsolation verifies that one
+// tenant burning through its bucket can't rate-limit another tenant.
+// The bucket key is (tenant_id, key_type, key_value).
+func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Tenant 1 burns through its email bucket.
+	for i := 0; i < 5; i++ {
+		req := validSubmission(env.periodID)
+		req.RemoteIP = "10.0.0." + strconv.Itoa(i+1)
+		_, err := env.svc.Submit(ctx, req)
+		require.NoError(t, err)
+	}
+
+	// Tenant 1 hits the limit.
+	overReq := validSubmission(env.periodID)
+	overReq.RemoteIP = "10.0.0.99"
+	_, err := env.svc.Submit(ctx, overReq)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, enrollmentService.ErrRateLimited))
+
+	// A submission with a different tenant_id must NOT be limited by
+	// tenant 1's counter. Direct repo call asserts the upsert keys on
+	// (tenant_id, key_type, key_value). Tenant 2 needs to exist in
+	// platform.schools to satisfy the FK; EnsureTestTenant is idempotent.
+	testpkg.EnsureTestTenant(t, env.db, 2)
+	repoFactory := repositories.NewFactory(env.db)
+	state, err := repoFactory.SubmissionRateLimit.IncrementAttempts(
+		ctx, 2, enrollmentModels.SubmissionRateLimitKeyTypeEmail, "anna@example.com", 24*time.Hour,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 1, state.Attempts,
+		"a different tenant's bucket must start fresh, got %d", state.Attempts)
+	// Cleanup the bucket row we just inserted for tenant 2.
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("enrollment.submission_rate_limits").
+			Where("tenant_id = ?", 2).
+			Exec(context.Background())
+	})
+}
+
+// --- Capacity overflow ---
+
+func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity int) *enrollmentModels.CareOffering {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+	cap := capacity
+	periodID := env.periodID
+	offering := &enrollmentModels.CareOffering{
+		CalendarPeriodID:    &periodID,
+		Name:                "Capacity test slot",
+		DaysOfWeekMode:      enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:       []string{"mon", "tue", "wed", "thu", "fri"},
+		IncludesHolidayCare: false,
+		IncludesLunch:       true,
+		Capacity:            &cap,
+		IsActive:            true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	return offering
+}
+
+// TestRequestService_Submit_CapacityOverflowWaitlist verifies that when
+// the offering is at capacity AND the tenant mode is 'waitlist', the
+// new child lands as 'waitlisted' instead of 'submitted'.
+func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentCareOverflowMode] =
+		configModel.EnrollmentCareOverflowWaitlist
+
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	// Fill the slot via a normal submission.
+	req1 := validSubmission(env.periodID)
+	req1.GuardianEmail = "first@example.com"
+	req1.Children[0].OfferingIDs = []int64{offering.ID}
+	r1, err := env.svc.Submit(ctx, req1)
+	require.NoError(t, err)
+	require.Equal(t, enrollmentModels.ChildStatusSubmitted, r1.Children[0].Status)
+
+	// Second parent picks the same now-full offering → should be waitlisted.
+	req2 := validSubmission(env.periodID)
+	req2.GuardianEmail = "second@example.com"
+	req2.Children[0].OfferingIDs = []int64{offering.ID}
+	r2, err := env.svc.Submit(ctx, req2)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, r2.Children[0].Status,
+		"over-capacity child must be persisted as waitlisted under mode=waitlist")
+}
+
+// TestRequestService_Submit_CapacityOverflowReject verifies that
+// mode=reject aborts the submission with ErrCareOfferingFull instead
+// of writing rows.
+func TestRequestService_Submit_CapacityOverflowReject(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentCareOverflowMode] =
+		configModel.EnrollmentCareOverflowReject
+
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	req1 := validSubmission(env.periodID)
+	req1.GuardianEmail = "first@example.com"
+	req1.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, req1)
+	require.NoError(t, err)
+
+	req2 := validSubmission(env.periodID)
+	req2.GuardianEmail = "second@example.com"
+	req2.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err = env.svc.Submit(ctx, req2)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingFull),
+		"over-capacity submission must return ErrCareOfferingFull under mode=reject; got %v", err)
+}
+
+// TestRequestService_Submit_CapacityOverflowAllow verifies that mode=allow
+// preserves the default 'submitted' status even when the offering is at
+// or over capacity. The admin sorts it out via PR 8 review.
+func TestRequestService_Submit_CapacityOverflowAllow(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentCareOverflowMode] =
+		configModel.EnrollmentCareOverflowAllow
+
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	req1 := validSubmission(env.periodID)
+	req1.GuardianEmail = "first@example.com"
+	req1.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, req1)
+	require.NoError(t, err)
+
+	req2 := validSubmission(env.periodID)
+	req2.GuardianEmail = "second@example.com"
+	req2.Children[0].OfferingIDs = []int64{offering.ID}
+	r2, err := env.svc.Submit(ctx, req2)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, r2.Children[0].Status,
+		"over-capacity child must remain 'submitted' under mode=allow")
+}
+
+// TestRequestService_Submit_CapacityIntraSubmissionCounting verifies the
+// "earlier child in the same submission counts" rule. Two siblings in
+// one form selecting the same offering with capacity=1 must trigger
+// the overflow path for the second sibling, not silently pass through.
+func TestRequestService_Submit_CapacityIntraSubmissionCounting(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentCareOverflowMode] =
+		configModel.EnrollmentCareOverflowReject
+
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	req := validSubmission(env.periodID)
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	req.Children = append(req.Children, enrollmentService.SubmitChild{
+		FirstName:   "Tom",
+		LastName:    "Beispiel",
+		DateOfBirth: time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC),
+		OfferingIDs: []int64{offering.ID},
+	})
+
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingFull),
+		"two siblings claiming the same single slot must trigger overflow; got %v", err)
+}
+
+// TestRequestService_Submit_CapacityNullMeansUnlimited verifies that an
+// offering with NULL capacity never triggers overflow regardless of how
+// many children claim it.
+func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentCareOverflowMode] =
+		configModel.EnrollmentCareOverflowReject
+
+	repoFactory := repositories.NewFactory(env.db)
+	periodID := env.periodID
+	offering := &enrollmentModels.CareOffering{
+		CalendarPeriodID:    &periodID,
+		Name:                "Unlimited slot",
+		DaysOfWeekMode:      enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:       []string{"mon"},
+		IncludesHolidayCare: false,
+		IncludesLunch:       false,
+		Capacity:            nil, // unlimited
+		IsActive:            true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+
+	for i := 0; i < 3; i++ {
+		req := validSubmission(env.periodID)
+		req.GuardianEmail = "u" + strconv.Itoa(i) + "@example.com"
+		req.RemoteIP = "10.1.0." + strconv.Itoa(i+1)
+		req.Children[0].OfferingIDs = []int64{offering.ID}
+		_, err := env.svc.Submit(ctx, req)
+		require.NoError(t, err, "unlimited capacity must accept all submissions")
+	}
 }

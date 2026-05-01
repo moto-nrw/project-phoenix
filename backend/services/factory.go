@@ -672,6 +672,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CareOfferingRepo:         repos.CareOffering,
 		FormSchemaRepo:           repos.FormSchema,
 		SchoolRepo:               repos.School,
+		RateLimitRepo:            repos.SubmissionRateLimit,
 		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
 		Settings:                 settingsService,
 		FrontendURL:              frontendURL,

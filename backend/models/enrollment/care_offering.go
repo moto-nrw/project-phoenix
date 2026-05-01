@@ -162,4 +162,12 @@ func (r *RequestChildOffering) TableName() string {
 type RequestChildOfferingRepository interface {
 	Create(ctx context.Context, row *RequestChildOffering) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
+
+	// CountActiveByCareOffering returns the number of children currently
+	// holding (or competing for) a slot in the given care offering.
+	// Counts non-terminal statuses on the joined request_children row:
+	// submitted, under_review, approved, waitlisted. Excludes rejected
+	// and withdrawn. Used for capacity-overflow enforcement at submit
+	// time.
+	CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
 }

@@ -26,9 +26,22 @@ var (
 	ErrEnrollmentWindowClosed = errors.New("enrollment window is closed")
 	ErrInvalidSubmission      = errors.New("invalid submission")
 	ErrCareOfferingClosed     = errors.New("one or more selected care offerings are not currently accepting applications")
+	ErrCareOfferingFull       = errors.New("one or more selected care offerings are at capacity")
+	ErrRateLimited            = errors.New("too many submission attempts; please retry later")
 	ErrRequestNotFound        = errors.New("enrollment request not found")
 	ErrEditNotAllowed         = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed     = errors.New("child cannot be withdrawn in its current state")
+)
+
+// Rate-limit thresholds. Hardcoded for now — if individual schools
+// need different limits we can promote these to settings, but the
+// defaults need to work for "small school with families of 3 kids
+// submitting once" without ever needing tuning.
+const (
+	rateLimitWindowIP        = time.Hour
+	rateLimitWindowEmail     = 24 * time.Hour
+	rateLimitMaxAttemptsIP   = 10
+	rateLimitMaxAttemptsMail = 5
 )
 
 // SubmitRequest is the data the public submission handler hands to the
@@ -37,6 +50,12 @@ var (
 type SubmitRequest struct {
 	TenantID         int64
 	CalendarPeriodID int64
+
+	// RemoteIP is the parent's source IP (handler resolves X-Forwarded-For
+	// when set, falls back to RemoteAddr). Empty disables IP-based rate
+	// limiting for that submission — emit it from the handler when at
+	// all possible.
+	RemoteIP string
 
 	GuardianFirstName string
 	GuardianLastName  string
@@ -103,6 +122,7 @@ type RequestServiceConfig struct {
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
 	SchoolRepo               platformModels.SchoolRepository
+	RateLimitRepo            enrollmentModels.SubmissionRateLimitRepository
 	OutboxEnqueuer           OutboxEnqueuer
 	Settings                 RequestSettingsResolver
 	FrontendURL              string
@@ -132,6 +152,7 @@ type requestService struct {
 	careOfferingRepo         enrollmentModels.CareOfferingRepository
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
 	schoolRepo               platformModels.SchoolRepository
+	rateLimitRepo            enrollmentModels.SubmissionRateLimitRepository
 	outboxEnqueuer           OutboxEnqueuer
 	settings                 RequestSettingsResolver
 	frontendURL              string
@@ -154,6 +175,7 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 		careOfferingRepo:         cfg.CareOfferingRepo,
 		formSchemaRepo:           cfg.FormSchemaRepo,
 		schoolRepo:               cfg.SchoolRepo,
+		rateLimitRepo:            cfg.RateLimitRepo,
 		outboxEnqueuer:           cfg.OutboxEnqueuer,
 		settings:                 cfg.Settings,
 		frontendURL:              strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
@@ -167,6 +189,9 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 // child rows, all care-offering selections, and enqueues the two
 // confirmation emails. Either everything lands or nothing does.
 func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error) {
+	if err := s.enforceRateLimit(ctx, req); err != nil {
+		return nil, err
+	}
 	if err := s.validateSubmission(ctx, req); err != nil {
 		return nil, err
 	}
@@ -181,6 +206,16 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		openByID[o.ID] = o
 	}
 	if err := validateOfferingSelections(req.Children, openByID); err != nil {
+		return nil, err
+	}
+
+	// Decide per-child overflow status before opening the write tx.
+	// childStatusOverrides[i] is set when capacity logic forces a
+	// non-default status (e.g. waitlisted under mode=waitlist). When the
+	// mode is 'reject' an over-capacity offering aborts the whole
+	// submission with ErrCareOfferingFull.
+	childStatusOverrides, err := s.applyCapacityOverflow(ctx, req.Children, openByID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -220,6 +255,10 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		createdRequest = request
 
 		for i, child := range req.Children {
+			status := enrollmentModels.ChildStatusSubmitted
+			if override, ok := childStatusOverrides[i]; ok {
+				status = override
+			}
 			row := &enrollmentModels.RequestChild{
 				RequestID:        request.ID,
 				FirstName:        strings.TrimSpace(child.FirstName),
@@ -227,7 +266,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				DateOfBirth:      child.DateOfBirth,
 				TargetGradeLevel: child.TargetGradeLevel,
 				CustomData:       child.CustomData,
-				Status:           enrollmentModels.ChildStatusSubmitted,
+				Status:           status,
 				ActivationMode:   enrollmentModels.ChildActivationScheduled,
 				SortOrder:        i,
 			}
@@ -645,4 +684,156 @@ func (s *requestService) lookupSchoolName(ctx context.Context, tenantID int64) s
 		return ""
 	}
 	return school.Name
+}
+
+// applyCapacityOverflow inspects each selected offering's capacity vs
+// current claimants. Per the configured tenant mode it either rejects
+// the whole submission, returns per-child status overrides (waitlist),
+// or lets everything pass through unchanged (allow / mode unset).
+//
+// The map[childIndex]status return is intentionally sparse — entries
+// only appear for children that need a non-default status. Callers
+// fall back to ChildStatusSubmitted when the index isn't in the map.
+//
+// Counting model: a child counts when EITHER it already has a
+// non-terminal status in the DB, OR it appears earlier in the same
+// submission selecting the same offering. The earlier-in-submission
+// case prevents one large family from sneaking past a tight capacity
+// because the per-offering DB count was taken once at the top of the
+// loop.
+func (s *requestService) applyCapacityOverflow(
+	ctx context.Context,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+) (map[int]string, error) {
+	overrides := make(map[int]string)
+	if s.requestChildOfferingRepo == nil || len(children) == 0 {
+		return overrides, nil
+	}
+
+	mode := s.resolveOverflowMode(ctx)
+
+	// Cache per-offering current count + capacity. Avoid hitting the DB
+	// once per (child, offering) pair when one offering is shared.
+	type slot struct {
+		capacity *int // nil = unlimited
+		current  int  // pre-existing claimants (DB)
+		queued   int  // count from earlier children in this submission
+	}
+	slots := make(map[int64]*slot)
+
+	getSlot := func(offeringID int64) (*slot, error) {
+		if cached, ok := slots[offeringID]; ok {
+			return cached, nil
+		}
+		offering, ok := openByID[offeringID]
+		if !ok {
+			// Should be impossible (validateOfferingSelections ran first).
+			return nil, fmt.Errorf("submit: offering %d not in open catalog", offeringID)
+		}
+		count, err := s.requestChildOfferingRepo.CountActiveByCareOffering(ctx, offeringID)
+		if err != nil {
+			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
+		}
+		s := &slot{capacity: offering.Capacity, current: count}
+		slots[offeringID] = s
+		return s, nil
+	}
+
+	for childIdx, child := range children {
+		childOver := false
+		for _, offeringID := range child.OfferingIDs {
+			sl, err := getSlot(offeringID)
+			if err != nil {
+				return nil, err
+			}
+			if sl.capacity == nil {
+				sl.queued++
+				continue
+			}
+			if sl.current+sl.queued+1 > *sl.capacity {
+				childOver = true
+				if mode == configModel.EnrollmentCareOverflowReject {
+					return nil, fmt.Errorf("%w: offering %d", ErrCareOfferingFull, offeringID)
+				}
+			}
+			sl.queued++
+		}
+		if childOver && mode == configModel.EnrollmentCareOverflowWaitlist {
+			overrides[childIdx] = enrollmentModels.ChildStatusWaitlisted
+		}
+	}
+
+	return overrides, nil
+}
+
+// resolveOverflowMode reads enrollment.care_overflow_mode. Defaults to
+// 'waitlist' when no tenant override is set or the value is unknown —
+// matches the registered default and is the gentlest user experience
+// (parents still get a confirmation, admins triage).
+func (s *requestService) resolveOverflowMode(ctx context.Context) string {
+	const defaultMode = configModel.EnrollmentCareOverflowWaitlist
+	if s.settings == nil {
+		return defaultMode
+	}
+	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentCareOverflowMode)
+	if err != nil || !has {
+		return defaultMode
+	}
+	v, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentCareOverflowMode)
+	if err != nil || v == "" {
+		return defaultMode
+	}
+	switch v {
+	case configModel.EnrollmentCareOverflowReject,
+		configModel.EnrollmentCareOverflowWaitlist,
+		configModel.EnrollmentCareOverflowAllow:
+		return v
+	default:
+		return defaultMode
+	}
+}
+
+// enforceRateLimit increments the per-IP and per-email buckets and
+// returns ErrRateLimited as soon as either crosses its threshold. The
+// repository is optional — when not wired, this is a no-op (mainly for
+// tests that don't care about rate limiting). Tenant-scoped: each
+// school owns its own counters.
+func (s *requestService) enforceRateLimit(ctx context.Context, req SubmitRequest) error {
+	if s.rateLimitRepo == nil || req.TenantID <= 0 {
+		return nil
+	}
+
+	ip := strings.TrimSpace(req.RemoteIP)
+	email := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
+
+	if ip != "" {
+		state, err := s.rateLimitRepo.IncrementAttempts(ctx, req.TenantID, enrollmentModels.SubmissionRateLimitKeyTypeIP, ip, rateLimitWindowIP)
+		if err != nil {
+			s.logger.Warn("enrollment submit: rate-limit IP increment failed; allowing through",
+				slog.String("error", err.Error()))
+		} else if state.Attempts > rateLimitMaxAttemptsIP {
+			s.logger.Info("enrollment submit rate-limited",
+				slog.String("key_type", enrollmentModels.SubmissionRateLimitKeyTypeIP),
+				slog.Int("attempts", state.Attempts),
+				slog.Int64("tenant_id", req.TenantID))
+			return ErrRateLimited
+		}
+	}
+
+	if email != "" {
+		state, err := s.rateLimitRepo.IncrementAttempts(ctx, req.TenantID, enrollmentModels.SubmissionRateLimitKeyTypeEmail, email, rateLimitWindowEmail)
+		if err != nil {
+			s.logger.Warn("enrollment submit: rate-limit email increment failed; allowing through",
+				slog.String("error", err.Error()))
+		} else if state.Attempts > rateLimitMaxAttemptsMail {
+			s.logger.Info("enrollment submit rate-limited",
+				slog.String("key_type", enrollmentModels.SubmissionRateLimitKeyTypeEmail),
+				slog.Int("attempts", state.Attempts),
+				slog.Int64("tenant_id", req.TenantID))
+			return ErrRateLimited
+		}
+	}
+
+	return nil
 }

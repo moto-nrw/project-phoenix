@@ -149,6 +149,7 @@ type Factory struct {
 	RequestChild         enrollmentModels.RequestChildRepository
 	CareOffering         enrollmentModels.CareOfferingRepository
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
+	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -267,5 +268,6 @@ func NewFactory(db *bun.DB) *Factory {
 		RequestChild:         enrollment.NewRequestChildRepository(db),
 		CareOffering:         enrollment.NewCareOfferingRepository(db),
 		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
+		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
 	}
 }
