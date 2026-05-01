@@ -15,7 +15,7 @@ import (
 
 // dropWCAliasIndex removes the partial unique index so a test can pre-seed
 // duplicate alias rows before re-running the up migration. SetupTestDB has
-// already run every migration including 1.15.47, so the index exists at the
+// already run every migration including 1.15.48, so the index exists at the
 // start of every test in this file. The cleanup branch puts it back.
 func dropWCAliasIndex(t *testing.T, db *bun.DB) {
 	t.Helper()
@@ -150,7 +150,7 @@ func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
 	require.NoError(t, roomsWCAliasUniqueUp(context.Background(), db))
 
 	assert.Equal(t, "Toilette", roomNameByID(t, db, toiletteID), "active-usage row should keep its alias name")
-	assert.Contains(t, roomNameByID(t, db, wcID), "(archiviert v1.15.47", "loser should be renamed out of the alias namespace")
+	assert.Contains(t, roomNameByID(t, db, wcID), "(archiviert v1.15.48", "loser should be renamed out of the alias namespace")
 	assert.Equal(t, 1, countAliasRows(t, db, tenantID), "exactly one alias row must remain per tenant")
 
 	// Backup row must capture the original name so a manual restore is possible.
@@ -182,7 +182,7 @@ func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
 	require.NoError(t, roomsWCAliasUniqueUp(context.Background(), db))
 
 	assert.Equal(t, "WC", roomNameByID(t, db, wcID), "canonical WC should win when group counts tie")
-	assert.Contains(t, roomNameByID(t, db, toiletteID), "(archiviert v1.15.47", "Toilette must be archived when WC also exists")
+	assert.Contains(t, roomNameByID(t, db, toiletteID), "(archiviert v1.15.48", "Toilette must be archived when WC also exists")
 	assert.Equal(t, 1, countAliasRows(t, db, tenantID))
 }
 

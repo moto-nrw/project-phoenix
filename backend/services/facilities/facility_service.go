@@ -203,7 +203,7 @@ func isUniqueColorViolation(err error) bool {
 // isUniqueWCAliasViolation reports whether err is a PostgreSQL 23505 raised
 // by the partial unique index that enforces "at most one WC/Toilette alias
 // per tenant". Hit only on the TOCTOU race the application-level guard in
-// CreateRoom/UpdateRoom can't close — see migration 1.15.47.
+// CreateRoom/UpdateRoom can't close — see migration 1.15.48.
 func isUniqueWCAliasViolation(err error) bool {
 	return isUniqueViolationOnIndex(err, facilities.RoomWCAliasUniqueConstraintName)
 }

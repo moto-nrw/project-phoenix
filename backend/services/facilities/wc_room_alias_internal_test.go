@@ -95,7 +95,7 @@ func TestWCService_ensureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
 }
 
 // Note: a "prefers canonical when both aliases coexist" test used to live
-// here. Migration 1.15.47 (uniq_facilities_rooms_tenant_wc_alias) makes
+// here. Migration 1.15.48 (uniq_facilities_rooms_tenant_wc_alias) makes
 // that scenario structurally impossible — duplicates per tenant are now
 // rejected at the DB layer. The canonical-iteration order in
 // FindToiletRoom is still exercised by the migration's own

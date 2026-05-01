@@ -10,7 +10,7 @@ import "strings"
 const RoomColorUniqueConstraintName = "uniq_facilities_rooms_tenant_color"
 
 // RoomWCAliasUniqueConstraintName is the partial unique index created by
-// migration 1.15.47 to enforce "at most one canonical toilet alias per
+// migration 1.15.48 to enforce "at most one canonical toilet alias per
 // tenant" — predicate is `name IN ('WC','Toilette')`, mirroring
 // constants.IsWCRoomName. The application-level guard in
 // CreateRoom/UpdateRoom closes the common path; this index closes the

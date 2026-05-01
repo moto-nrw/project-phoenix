@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	roomsWCAliasUniqueVersion     = "1.15.47"
+	roomsWCAliasUniqueVersion     = "1.15.48"
 	roomsWCAliasUniqueDescription = "Add partial UNIQUE(tenant_id) WHERE name IN ('WC','Toilette') on facilities.rooms; archive losers when a tenant already has both aliases. Backup of every renamed row goes to audit.wc_alias_migration_backup. Rollback drops the index but does NOT restore archived names — see backup table for manual restore."
 )
 
@@ -47,7 +47,7 @@ func init() {
 // production data ahead of a deploy (operators don't run ad-hoc queries
 // against staging/prod), the migration assumes duplicates exist and cleans
 // them up in the same transaction the index is built in. Mirrors the
-// pattern from 1.15.42 (attendance) and 1.15.46 (active visits) — cleanup
+// pattern from 1.15.42 (attendance) and 1.15.47 (active visits) — cleanup
 // + index in one tx so the framework rolls everything back together if
 // the index build fails.
 //
@@ -61,7 +61,7 @@ func init() {
 //     services/facilities.wcRoomAliasNames.
 //  3. Oldest id — final deterministic tiebreaker.
 //
-// Losers are renamed to "<original> (archiviert v1.15.47 id=<id>)". The id
+// Losers are renamed to "<original> (archiviert v1.15.48 id=<id>)". The id
 // suffix guarantees the archived name is unique within the tenant. The
 // archived name no longer matches name IN ('WC','Toilette'), so the row
 // falls out of the alias namespace and the partial unique index can build
@@ -73,10 +73,10 @@ func init() {
 //
 // Idempotency: re-running this migration after a partial failure is safe.
 // The cleanup CTE only matches rows where name IN ('WC','Toilette'), and
-// archived rows have names like "Toilette (archiviert v1.15.47 id=7)"
+// archived rows have names like "Toilette (archiviert v1.15.48 id=7)"
 // which don't match the filter.
 func roomsWCAliasUniqueUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.47: Archiving duplicate WC/Toilette aliases then adding partial unique index...")
+	fmt.Println("Migration 1.15.48: Archiving duplicate WC/Toilette aliases then adding partial unique index...")
 
 	// Backup table: persists every row we're about to rename so a manual
 	// restore is possible if the auto-picked winner turns out to be wrong
@@ -143,7 +143,7 @@ func roomsWCAliasUniqueUp(ctx context.Context, db *bun.DB) error {
 		),
 		archived AS (
 			UPDATE facilities.rooms r
-			SET name = l.name || ' (archiviert v1.15.47 id=' || l.id || ')',
+			SET name = l.name || ' (archiviert v1.15.48 id=' || l.id || ')',
 			    updated_at = NOW()
 			FROM losers l
 			WHERE r.id = l.id
@@ -158,7 +158,7 @@ func roomsWCAliasUniqueUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed archiving duplicate WC/Toilette aliases before unique index: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.47: archived %d duplicate WC/Toilette alias row(s) (originals preserved in audit.wc_alias_migration_backup)\n", affected)
+		fmt.Printf("Migration 1.15.48: archived %d duplicate WC/Toilette alias row(s) (originals preserved in audit.wc_alias_migration_backup)\n", affected)
 	}
 
 	// Build the partial unique index. After the cleanup above, every tenant
@@ -197,7 +197,7 @@ func roomsWCAliasUniqueUp(ctx context.Context, db *bun.DB) error {
 // only be run after first deciding which row should keep the alias and
 // renaming the other one out of the namespace by hand.
 func roomsWCAliasUniqueDown(ctx context.Context, db *bun.DB) error {
-	fmt.Printf("Rolling back migration 1.15.47: dropping %s (archived names not auto-restored — see audit.wc_alias_migration_backup)...\n",
+	fmt.Printf("Rolling back migration 1.15.48: dropping %s (archived names not auto-restored — see audit.wc_alias_migration_backup)...\n",
 		facilities.RoomWCAliasUniqueConstraintName)
 
 	dropSQL := fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, facilities.RoomWCAliasUniqueConstraintName)
