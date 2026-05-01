@@ -302,7 +302,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, db, logger.With("handler", "staff"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
-	api.Enrollment = enrollmentAPI.NewResource(api.Services.EnrollmentFormSchema, api.Services.EnrollmentCareOffering, repoFactory.School, db)
+	api.Enrollment = enrollmentAPI.NewResource(
+		api.Services.EnrollmentFormSchema,
+		api.Services.EnrollmentCareOffering,
+		api.Services.EnrollmentRequest,
+		api.Services.EnrollmentCaptcha,
+		repoFactory.School,
+		db,
+	)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)

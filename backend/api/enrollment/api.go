@@ -19,15 +19,27 @@ import (
 type Resource struct {
 	FormSchemaService   enrollmentService.FormSchemaService
 	CareOfferingService enrollmentService.CareOfferingService
+	RequestService      enrollmentService.RequestService
+	CaptchaService      enrollmentService.CaptchaService
 	SchoolRepo          platformModels.SchoolRepository
 	db                  *bun.DB
 }
 
-// NewResource constructs the enrollment API resource.
-func NewResource(formSchemaSvc enrollmentService.FormSchemaService, careOfferingSvc enrollmentService.CareOfferingService, schoolRepo platformModels.SchoolRepository, db *bun.DB) *Resource {
+// NewResource constructs the enrollment API resource. PR 7 added the
+// RequestService + CaptchaService for the public submission flow.
+func NewResource(
+	formSchemaSvc enrollmentService.FormSchemaService,
+	careOfferingSvc enrollmentService.CareOfferingService,
+	requestSvc enrollmentService.RequestService,
+	captchaSvc enrollmentService.CaptchaService,
+	schoolRepo platformModels.SchoolRepository,
+	db *bun.DB,
+) *Resource {
 	return &Resource{
 		FormSchemaService:   formSchemaSvc,
 		CareOfferingService: careOfferingSvc,
+		RequestService:      requestSvc,
+		CaptchaService:      captchaSvc,
 		SchoolRepo:          schoolRepo,
 		db:                  db,
 	}
@@ -40,10 +52,14 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Public route: parent-facing care offerings. No JWT — slug-gated
-	// in the handler. Sits outside the auth group below so the JWT
-	// middleware doesn't reject anonymous requests.
+	// Public routes: parent-facing endpoints. No JWT — slug-gated or
+	// status-token-gated in the handler. Sit outside the auth group
+	// below so the JWT middleware doesn't reject anonymous requests.
 	r.Get("/care-offerings/public/{tenantSlug}", rs.listPublicCareOfferings)
+	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)
+	r.Get("/requests/{statusToken}", rs.getStatus)
+	r.Patch("/requests/{statusToken}", rs.patchStatus)
+	r.Post("/requests/{statusToken}/withdraw", rs.withdrawStatus)
 
 	// Authenticated admin endpoints.
 	tokenAuth := jwt.MustNewTokenAuth()
