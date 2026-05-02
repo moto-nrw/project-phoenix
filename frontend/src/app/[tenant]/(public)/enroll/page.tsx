@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
-  listCalendarPeriods,
-  type CalendarPeriodSummary,
-} from "~/lib/care-offering-api";
+  fetchPublicCalendarPeriods,
+  type PublicCalendarPeriod,
+} from "~/lib/enrollment-submission-api";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { createLogger } from "~/lib/logger";
 
@@ -33,7 +33,7 @@ const logger = createLogger({ component: "EnrollPage" });
 export default function EnrollPage() {
   const { tenantSlug, tenant } = useTenant();
   const router = useRouter();
-  const [periods, setPeriods] = useState<CalendarPeriodSummary[]>([]);
+  const [periods, setPeriods] = useState<PublicCalendarPeriod[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +44,8 @@ export default function EnrollPage() {
       setLoading(true);
       setError(null);
       try {
-        const list = await listCalendarPeriods();
+        const schoolYears = await fetchPublicCalendarPeriods(tenantSlug);
         if (cancelled) return;
-        const schoolYears = list.filter((p) => p.period_type === "school_year");
         setPeriods(schoolYears);
         if (schoolYears.length > 0 && !selectedPeriod) {
           setSelectedPeriod(schoolYears[0]?.id ?? "");

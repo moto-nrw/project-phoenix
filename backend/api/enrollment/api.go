@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -22,6 +23,7 @@ type Resource struct {
 	RequestService      enrollmentService.RequestService
 	CaptchaService      enrollmentService.CaptchaService
 	SchoolRepo          platformModels.SchoolRepository
+	CalendarPeriodRepo  scheduleModels.CalendarPeriodRepository
 	db                  *bun.DB
 }
 
@@ -33,6 +35,7 @@ func NewResource(
 	requestSvc enrollmentService.RequestService,
 	captchaSvc enrollmentService.CaptchaService,
 	schoolRepo platformModels.SchoolRepository,
+	calendarPeriodRepo scheduleModels.CalendarPeriodRepository,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
@@ -41,6 +44,7 @@ func NewResource(
 		RequestService:      requestSvc,
 		CaptchaService:      captchaSvc,
 		SchoolRepo:          schoolRepo,
+		CalendarPeriodRepo:  calendarPeriodRepo,
 		db:                  db,
 	}
 }
@@ -56,6 +60,7 @@ func (rs *Resource) Router() chi.Router {
 	// status-token-gated in the handler. Sit outside the auth group
 	// below so the JWT middleware doesn't reject anonymous requests.
 	r.Get("/care-offerings/public/{tenantSlug}", rs.listPublicCareOfferings)
+	r.Get("/calendar-periods/public/{tenantSlug}", rs.listPublicCalendarPeriods)
 	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)
 	r.Get("/requests/{statusToken}", rs.getStatus)
 	r.Patch("/requests/{statusToken}", rs.patchStatus)

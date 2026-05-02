@@ -103,6 +103,35 @@ export async function fetchPublicCareOfferings(
   return Array.isArray(list) ? list : [];
 }
 
+export interface PublicCalendarPeriod {
+  id: string;
+  name: string;
+  period_type: "school_year" | "semester" | "holiday" | "custom";
+  start_date: string;
+  end_date: string;
+}
+
+/**
+ * Fetches the active school-year calendar periods for a given tenant
+ * slug. Public route — no JWT required. The parent enrollment form's
+ * school-year picker uses this; the previous /api/timetable/periods
+ * call required authentication and broke the unauthenticated parent
+ * flow with 401.
+ */
+export async function fetchPublicCalendarPeriods(
+  tenantSlug: string,
+): Promise<PublicCalendarPeriod[]> {
+  const response = await fetch(
+    `/api/enrollment/calendar-periods/public/${encodeURIComponent(tenantSlug)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Schuljahre konnten nicht geladen werden");
+  }
+  const list = await readJSON<PublicCalendarPeriod[]>(response);
+  return Array.isArray(list) ? list : [];
+}
+
 /**
  * Submits an enrollment for the given tenant slug. The backend handles
  * captcha verification, schema pinning, and outbox enqueueing.

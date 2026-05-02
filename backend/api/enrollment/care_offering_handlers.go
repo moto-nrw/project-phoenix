@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -356,3 +357,72 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 // We deliberately don't expose enrollmentService here — it is already
 // referenced via *Resource.CareOfferingService.
 var _ = enrollmentService.ErrCareOfferingNotFound
+
+// PublicCalendarPeriod is the slim, parent-safe shape returned by the
+// public calendar-periods endpoint. Intentionally smaller than the
+// admin CalendarPeriodResponse — no week_cycle_anchor, no created_by,
+// nothing the parent form doesn't render.
+type PublicCalendarPeriod struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	PeriodType string `json:"period_type"`
+	StartDate  string `json:"start_date"`
+	EndDate    string `json:"end_date"`
+}
+
+// listPublicCalendarPeriods returns the active school-year periods for
+// the given tenant slug. No JWT — same slug-gating pattern as
+// listPublicCareOfferings. The frontend's school-year picker on the
+// public enrollment form is the only consumer.
+//
+// Filtered to period_type='school_year' AND is_active=true. The
+// enrollment Submit path enforces the configured open-window bounds
+// separately, so we don't filter by date here — admins might want
+// "next year" visible while still inside this year.
+func (rs *Resource) listPublicCalendarPeriods(w http.ResponseWriter, r *http.Request) {
+	if rs.SchoolRepo == nil || rs.CalendarPeriodRepo == nil || rs.db == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public calendar-periods endpoint not wired")))
+		return
+	}
+
+	slug := chi.URLParam(r, "tenantSlug")
+	if slug == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
+		return
+	}
+
+	var periods []*scheduleModels.CalendarPeriod
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		if schoolErr != nil || school == nil || school.IsDeleted() {
+			return errors.New("tenant not found")
+		}
+		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
+		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+			list, listErr := rs.CalendarPeriodRepo.FindActiveByTenantID(txCtx)
+			periods = list
+			return listErr
+		})
+	})
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(err))
+		return
+	}
+
+	out := make([]PublicCalendarPeriod, 0, len(periods))
+	for _, p := range periods {
+		// Hide non-school-year periods (semester, holiday, custom). The
+		// parent form only enrolls into school years.
+		if p.PeriodType != "school_year" {
+			continue
+		}
+		out = append(out, PublicCalendarPeriod{
+			ID:         strconv.FormatInt(p.ID, 10),
+			Name:       p.Name,
+			PeriodType: p.PeriodType,
+			StartDate:  p.StartDate.Format("2006-01-02"),
+			EndDate:    p.EndDate.Format("2006-01-02"),
+		})
+	}
+	common.Respond(w, r, http.StatusOK, out, "Public calendar periods retrieved")
+}
