@@ -90,7 +90,12 @@ func (r *EmailOutboxRepository) ClaimDuePending(ctx context.Context, limit int, 
 		WHERE o.id = due.id
 		RETURNING o.*
 	`
-	err := r.db.NewRaw(query, now, limit).Scan(ctx, &rows)
+	// Use base.GetDB so the query runs inside the caller's tx (which
+	// holds SET LOCAL ROLE phoenix_admin). Bypassing it would grab a
+	// fresh phoenix_auth connection from the pool and fail with
+	// "permission denied" — phoenix_auth has no direct grants on
+	// platform.email_outbox.
+	err := base.GetDB(ctx, r.db).NewRaw(query, now, limit).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to claim due pending rows: %w", err)
 	}
@@ -99,7 +104,7 @@ func (r *EmailOutboxRepository) ClaimDuePending(ctx context.Context, limit int, 
 
 // MarkSent transitions a claimed row to 'sent'.
 func (r *EmailOutboxRepository) MarkSent(ctx context.Context, id int64, sentAt time.Time) error {
-	res, err := r.db.NewUpdate().
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.EmailOutbox)(nil)).
 		ModelTableExpr(tableExprAlias).
 		Set("status = ?", platform.EmailOutboxStatusSent).
@@ -119,7 +124,7 @@ func (r *EmailOutboxRepository) MarkSent(ctx context.Context, id int64, sentAt t
 
 // MarkRetry pushes a claimed row back to pending with delayed next_retry_at.
 func (r *EmailOutboxRepository) MarkRetry(ctx context.Context, id int64, attempts int, lastErr string, nextRetryAt time.Time) error {
-	res, err := r.db.NewUpdate().
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.EmailOutbox)(nil)).
 		ModelTableExpr(tableExprAlias).
 		Set("status = ?", platform.EmailOutboxStatusPending).
@@ -140,7 +145,7 @@ func (r *EmailOutboxRepository) MarkRetry(ctx context.Context, id int64, attempt
 
 // MarkFailed transitions a claimed row to 'failed' (terminal).
 func (r *EmailOutboxRepository) MarkFailed(ctx context.Context, id int64, attempts int, lastErr string) error {
-	res, err := r.db.NewUpdate().
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.EmailOutbox)(nil)).
 		ModelTableExpr(tableExprAlias).
 		Set("status = ?", platform.EmailOutboxStatusFailed).
