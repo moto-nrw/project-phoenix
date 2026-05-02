@@ -345,6 +345,12 @@ All of these with German labels + descriptions. See §5.6 for the full table. Do
 - API endpoints per plan §5.3 (admin section)
 - Email delivery status panel on the detail page (reads `email_outbox`)
 - Resend button → re-enqueues outbox row
+- **Guardian-invitation link surfacing**: when an approval triggers a guardian
+  invite, render the resulting `/accept-guardian-invite/{token}` URL on the
+  enrollment detail page in an info field with a copy button — mirrors the
+  existing staff `InvitationForm.successInfo.link` affordance and lets
+  admins hand-deliver the link in dev (no SMTP) or for parents who didn't
+  receive the email
 - XLSX export endpoint (could be split to a PR 9 if PR 8 gets too big)
 
 **Tests:**

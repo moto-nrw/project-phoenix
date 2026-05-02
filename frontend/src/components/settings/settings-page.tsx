@@ -13,6 +13,7 @@ import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
 import { PersonalizationTab } from "./personalization-tab";
+import { EnrollmentLinkPanel } from "./enrollment-link-panel";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
@@ -33,6 +34,7 @@ interface SettingsTabContentProps {
 function SettingsTabContent({ tab, onSave, onReset }: SettingsTabContentProps) {
   return (
     <div className="space-y-6">
+      {tab.key === "enrollment" && <EnrollmentLinkPanel tab={tab} />}
       {tab.categories.map((category) => (
         <SettingsCategory
           key={category.key}
