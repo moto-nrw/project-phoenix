@@ -61,6 +61,7 @@ func (rs *Resource) Router() chi.Router {
 	// below so the JWT middleware doesn't reject anonymous requests.
 	r.Get("/care-offerings/public/{tenantSlug}", rs.listPublicCareOfferings)
 	r.Get("/calendar-periods/public/{tenantSlug}", rs.listPublicCalendarPeriods)
+	r.Get("/schema/public/{tenantSlug}", rs.listPublicActiveSchema)
 	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)
 	r.Get("/requests/{statusToken}", rs.getStatus)
 	r.Patch("/requests/{statusToken}", rs.patchStatus)

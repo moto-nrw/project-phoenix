@@ -55,6 +55,66 @@ func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// PublicFormSchemaResponse is the slim, parent-safe shape returned by
+// the public schema endpoint. We deliberately drop CreatedBy and
+// internal version metadata that parents don't need to render the
+// form. The fields array carries everything the dynamic renderer
+// consumes (label, type, options, validation).
+type PublicFormSchemaResponse struct {
+	ID      string                       `json:"id"`
+	Version int                          `json:"version"`
+	Fields  []enrollmentModels.FormField `json:"fields"`
+}
+
+// listPublicActiveSchema returns the active form schema's custom
+// fields for the resolved tenant. No JWT — same slug-gating pattern
+// as listPublicCareOfferings / listPublicCalendarPeriods. The
+// parent-facing enrollment form uses this so admin-defined custom
+// fields render alongside the hardcoded core fields. Returns 404
+// when the tenant has never published a schema (form falls back to
+// core fields only).
+func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Request) {
+	if rs.FormSchemaService == nil || rs.SchoolRepo == nil || rs.db == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public schema endpoint not wired")))
+		return
+	}
+
+	slug := chi.URLParam(r, "tenantSlug")
+	if slug == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
+		return
+	}
+
+	var schema *enrollmentModels.FormSchema
+	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		if schoolErr != nil || school == nil || school.IsDeleted() {
+			return errors.New("tenant not found")
+		}
+		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
+		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+			s, innerErr := rs.FormSchemaService.GetActive(txCtx)
+			schema = s
+			return innerErr
+		})
+	})
+	if resolveErr != nil {
+		if errors.Is(resolveErr, enrollmentService.ErrNoActiveSchema) {
+			common.RenderError(w, r, common.ErrorNotFound(resolveErr))
+			return
+		}
+		common.RenderError(w, r, common.ErrorNotFound(resolveErr))
+		return
+	}
+
+	out := PublicFormSchemaResponse{
+		ID:      strconv.FormatInt(schema.ID, 10),
+		Version: schema.Version,
+		Fields:  schema.Fields,
+	}
+	common.Respond(w, r, http.StatusOK, out, "Public active form schema retrieved")
+}
+
 // getActiveSchema returns the currently-active schema or 404 if none
 // has been published yet for this tenant.
 func (rs *Resource) getActiveSchema(w http.ResponseWriter, r *http.Request) {

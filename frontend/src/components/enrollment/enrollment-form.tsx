@@ -9,8 +9,8 @@ import {
   type SubmitChildPayload,
 } from "~/lib/enrollment-submission-api";
 import {
-  fetchActiveSchema,
-  type FormSchema,
+  fetchPublicActiveSchema,
+  type PublicFormSchema,
 } from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
 
@@ -59,7 +59,7 @@ export function EnrollmentForm({
   onSubmitted,
 }: Props) {
   const { tenantSlug } = useTenant();
-  const [schema, setSchema] = useState<FormSchema | null>(null);
+  const [schema, setSchema] = useState<PublicFormSchema | null>(null);
   const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -83,7 +83,7 @@ export function EnrollmentForm({
       setError(null);
       try {
         const [schemaResult, offeringsResult] = await Promise.all([
-          fetchActiveSchema().catch(() => null),
+          fetchPublicActiveSchema(tenantSlug).catch(() => null),
           fetchPublicCareOfferings(tenantSlug),
         ]);
         if (cancelled) return;
@@ -481,7 +481,7 @@ function Consent({
 }
 
 interface CustomFieldInputProps {
-  readonly field: FormSchema["fields"][number];
+  readonly field: PublicFormSchema["fields"][number];
   readonly value: unknown;
   readonly onChange: (v: unknown) => void;
 }

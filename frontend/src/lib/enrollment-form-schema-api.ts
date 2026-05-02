@@ -86,6 +86,42 @@ export async function fetchActiveSchema(): Promise<FormSchema | null> {
 }
 
 /**
+ * Public variant of fetchActiveSchema for the parent enrollment form.
+ * Slug-gated, no JWT — backend resolves the tenant from the URL param
+ * and returns only the active schema's fields. Returns null when no
+ * schema has been published yet (404), letting the form fall back to
+ * core fields only without erroring out.
+ */
+export interface PublicFormSchema {
+  id: string;
+  version: number;
+  fields: FormField[];
+}
+
+export async function fetchPublicActiveSchema(
+  tenantSlug: string,
+): Promise<PublicFormSchema | null> {
+  const response = await fetch(
+    `/api/enrollment/schema/public/${encodeURIComponent(tenantSlug)}`,
+    { cache: "no-store" },
+  );
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error("public_schema_fetch_failed", {
+      status: response.status,
+      error: errorText,
+    });
+    throw new Error(
+      `Failed to load public form schema (HTTP ${response.status})`,
+    );
+  }
+  return readJSON<PublicFormSchema>(response);
+}
+
+/**
  * Publishes a new schema version with the given fields, marking it
  * active and deactivating the previous version. Returns the newly
  * created schema row.
