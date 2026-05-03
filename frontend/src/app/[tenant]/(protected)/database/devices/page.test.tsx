@@ -886,6 +886,64 @@ describe("DevicesPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
+  it("logs the stringified value when create rejects with a non-Error", async () => {
+    // Exercises the `err instanceof Error : false` ternary branch in the
+    // create catch — handler logs `String(err)` and re-throws the fallback.
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce("plain-string-error");
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Eingang Kiosk")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Gerät registrieren")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("device-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("device_create_failed", {
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
+  it("logs the stringified value when update rejects with a non-Error", async () => {
+    setSelectedDevice("1");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockUpdate.mockRejectedValueOnce("plain-string-error");
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("failed to update device", {
+        device_id: "1",
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
   it("matches duplicate-ID errors on update via the HTTP 409 branch", async () => {
     setSelectedDevice("1");
     mockUpdate.mockRejectedValueOnce(

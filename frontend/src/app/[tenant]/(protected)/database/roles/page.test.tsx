@@ -441,6 +441,35 @@ describe("RolesPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
+  it("re-throws stringified non-Error rejections from create unchanged", async () => {
+    // Exercises the `createError instanceof Error : false` ternary branch.
+    // The page logs `String(createError)` and rethrows the original value.
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce("plain-string-error");
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("role_create_failed", {
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
   it("matches duplicate-key conflicts via the 23505 SQLSTATE branch on update", async () => {
     setSelectedRole("1");
     mockUpdate.mockRejectedValueOnce(
@@ -491,6 +520,35 @@ describe("RolesPage", () => {
     });
     expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
     expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("re-throws stringified non-Error rejections from update unchanged", async () => {
+    setSelectedRole("1");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockUpdate.mockRejectedValueOnce("plain-string-error");
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("role_update_failed", {
+        role_id: "1",
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
   });
 
   it("syncs role selection into the URL when a row is clicked", async () => {
