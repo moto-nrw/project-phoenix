@@ -886,6 +886,35 @@ describe("DevicesPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
+  it("matches duplicate-ID errors on update via the HTTP 409 branch", async () => {
+    setSelectedDevice("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error("Request failed with status 409"),
+    );
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit-duplicate"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /bereits vergeben/,
+      );
+    });
+    // Modal stays open so the user can correct the ID.
+    expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
   it("surfaces a German duplicate-ID hint that includes the rejected device_id", async () => {
     mockCreate.mockRejectedValueOnce(
       new Error(

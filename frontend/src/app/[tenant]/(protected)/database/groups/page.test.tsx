@@ -423,6 +423,31 @@ describe("GroupsPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
+  it("logs the stringified value when create rejects with a non-Error", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    // Reject with a plain string — exercises the `String(createError)` branch
+    // of the `createError instanceof Error ? ... : ...` ternary in the catch.
+    mockCreate.mockRejectedValueOnce("plain-string-error");
+
+    render(<GroupsPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Gruppe erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("failed to create group", {
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
   it("syncs group selection into the URL when a row is clicked", async () => {
     render(<GroupsPage />);
 

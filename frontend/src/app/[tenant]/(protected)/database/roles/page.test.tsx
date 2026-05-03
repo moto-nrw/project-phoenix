@@ -390,6 +390,109 @@ describe("RolesPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
+  it("matches duplicate-key conflicts via the 23505 SQLSTATE branch on create", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error("constraint violation 23505 on auth.roles_unique"),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Neue Rolle" existiert bereits/,
+      );
+    });
+  });
+
+  it("re-throws the original error when create fails for a non-duplicate reason", async () => {
+    mockCreate.mockRejectedValueOnce(new Error("network unreachable"));
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        "network unreachable",
+      );
+    });
+    // Modal stays open and toast is not fired on failure.
+    expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("matches duplicate-key conflicts via the 23505 SQLSTATE branch on update", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error("23505 duplicate role for tenant"),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Updated" existiert bereits/,
+      );
+    });
+  });
+
+  it("re-throws the original error when update fails for a non-duplicate reason", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockRejectedValueOnce(new Error("server timeout"));
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        "server timeout",
+      );
+    });
+    expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
   it("syncs role selection into the URL when a row is clicked", async () => {
     render(<RolesPage />);
 

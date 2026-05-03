@@ -448,6 +448,29 @@ describe("ActivitiesPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
+  it("logs the stringified value when create rejects with a non-Error", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce("plain-string-error");
+
+    render(<ActivitiesPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Aktivität erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("failed to create activity", {
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
   it("syncs activity selection into the URL when a row is clicked", async () => {
     render(<ActivitiesPage />);
 

@@ -426,6 +426,29 @@ describe("RoomsPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
+  it("logs the stringified value when create rejects with a non-Error", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce("plain-string-error");
+
+    render(<RoomsPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Raum erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("room-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("failed to create room", {
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
   it("syncs room selection into the URL when a row is clicked", async () => {
     render(<RoomsPage />);
 
