@@ -18,10 +18,10 @@ var (
 	ErrAccountInactive = errors.New("account is inactive")
 
 	// ErrEmailAlreadyExists returned when email is already registered
-	ErrEmailAlreadyExists = errors.New("email already exists")
+	ErrEmailAlreadyExists = errors.New("Diese E-Mail-Adresse ist bereits registriert") //nolint:staticcheck // ST1005: user-facing German message
 
 	// ErrUsernameAlreadyExists returned when username is already taken
-	ErrUsernameAlreadyExists = errors.New("username already exists")
+	ErrUsernameAlreadyExists = errors.New("Dieser Benutzername ist bereits vergeben") //nolint:staticcheck // ST1005: user-facing German message
 
 	// ErrInvalidToken returned when token format is invalid
 	ErrInvalidToken = errors.New("invalid token format")

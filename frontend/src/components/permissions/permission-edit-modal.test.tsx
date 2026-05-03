@@ -163,30 +163,13 @@ describe("PermissionEditModal", () => {
     });
   });
 
-  it("shows loading state when loading prop is true", async () => {
+  it("renders the database form", async () => {
     render(
       <PermissionEditModal
         isOpen={true}
         onClose={mockOnClose}
         permission={mockPermission}
         onSave={mockOnSave}
-        loading={true}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Daten werden geladen...")).toBeInTheDocument();
-    });
-  });
-
-  it("renders the database form when not loading", async () => {
-    render(
-      <PermissionEditModal
-        isOpen={true}
-        onClose={mockOnClose}
-        permission={mockPermission}
-        onSave={mockOnSave}
-        loading={false}
       />,
     );
 
@@ -217,24 +200,6 @@ describe("PermissionEditModal", () => {
         resource: "users",
         action: "read",
       });
-    });
-  });
-
-  it("displays error message when error prop is provided", async () => {
-    const errorMessage = "Test error message";
-
-    render(
-      <PermissionEditModal
-        isOpen={true}
-        onClose={mockOnClose}
-        permission={mockPermission}
-        onSave={mockOnSave}
-        error={errorMessage}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("form-error")).toHaveTextContent(errorMessage);
     });
   });
 

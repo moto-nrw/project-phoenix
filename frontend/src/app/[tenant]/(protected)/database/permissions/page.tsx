@@ -46,9 +46,6 @@ export default function PermissionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [editError, setEditError] = useState<string | null>(null);
   const [savingPermission, setSavingPermission] = useState(false);
 
   const {
@@ -159,23 +156,18 @@ export default function PermissionsPage() {
   );
 
   const handleEditClick = useCallback(() => {
-    setEditError(null);
     setShowEditModal(true);
   }, []);
   const handleCloseEditModal = useCallback(() => {
     setShowEditModal(false);
-    setEditError(null);
   }, []);
   const handleCloseCreateModal = useCallback(() => {
     setShowCreateModal(false);
-    setCreateError(null);
   }, []);
 
   const handleCreatePermission = useCallback(
     async (data: Partial<Permission>) => {
       try {
-        setCreateLoading(true);
-        setCreateError(null);
         const payload = permissionsConfig.form.transformBeforeSubmit
           ? permissionsConfig.form.transformBeforeSubmit(data)
           : data;
@@ -192,22 +184,22 @@ export default function PermissionsPage() {
         await fetchPermissions();
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error("permission_create_failed", { error: errorMessage });
         if (
           errorMessage.includes("duplicate key") ||
           errorMessage.includes("23505")
         ) {
-          setCreateError(
+          throw new Error(
             `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
               `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
               `Bitte wählen Sie eine andere Kombination.`,
-          );
-        } else {
-          setCreateError(
-            "Fehler beim Erstellen der Berechtigung. Bitte versuchen Sie es erneut.",
+            { cause: err },
           );
         }
-      } finally {
-        setCreateLoading(false);
+        throw new Error(
+          "Fehler beim Erstellen der Berechtigung. Bitte versuchen Sie es erneut.",
+          { cause: err },
+        );
       }
     },
     [service, fetchPermissions, toastSuccess],
@@ -218,7 +210,6 @@ export default function PermissionsPage() {
       if (!selectedPermission) return;
       try {
         setSavingPermission(true);
-        setEditError(null);
         const payload = permissionsConfig.form.transformBeforeSubmit
           ? permissionsConfig.form.transformBeforeSubmit(data)
           : data;
@@ -235,20 +226,25 @@ export default function PermissionsPage() {
         await fetchPermissions();
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error("permission_update_failed", {
+          permission_id: selectedPermission.id,
+          error: errorMessage,
+        });
         if (
           errorMessage.includes("duplicate key") ||
           errorMessage.includes("23505")
         ) {
-          setEditError(
+          throw new Error(
             `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
               `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
               `Bitte wählen Sie eine andere Kombination.`,
-          );
-        } else {
-          setEditError(
-            "Fehler beim Aktualisieren der Berechtigung. Bitte versuchen Sie es erneut.",
+            { cause: err },
           );
         }
+        throw new Error(
+          "Fehler beim Aktualisieren der Berechtigung. Bitte versuchen Sie es erneut.",
+          { cause: err },
+        );
       } finally {
         setSavingPermission(false);
       }
@@ -379,8 +375,6 @@ export default function PermissionsPage() {
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
         onCreate={handleCreatePermission}
-        loading={createLoading}
-        error={createError}
       />
 
       {selectedPermission && (
@@ -410,7 +404,6 @@ export default function PermissionsPage() {
           permission={selectedPermission}
           onSave={handleUpdatePermission}
           loading={savingPermission}
-          error={editError}
         />
       )}
     </DatabasePageLayout>

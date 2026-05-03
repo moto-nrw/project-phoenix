@@ -115,28 +115,12 @@ describe("ActivityCreateModal", () => {
     });
   });
 
-  it("shows loading state when loading prop is true", async () => {
+  it("renders DatabaseForm", async () => {
     render(
       <ActivityCreateModal
         isOpen={true}
         onClose={mockOnClose}
         onCreate={mockOnCreate}
-        loading={true}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Daten werden geladen...")).toBeInTheDocument();
-    });
-  });
-
-  it("renders DatabaseForm when not loading", async () => {
-    render(
-      <ActivityCreateModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onCreate={mockOnCreate}
-        loading={false}
       />,
     );
 

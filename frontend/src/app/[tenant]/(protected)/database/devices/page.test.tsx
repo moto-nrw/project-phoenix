@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DevicesPage from "./page";
 
@@ -107,33 +107,46 @@ vi.mock("@/components/devices", () => ({
     isOpen,
     onClose,
     onCreate,
-    error,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { device_id: string }) => Promise<void>;
-    error?: string | null;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors what DatabaseForm does in production: catches the rejection
+    // from onCreate and renders the message inline. Tests assert against the
+    // resulting message, not the transport mechanism.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { device_id: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    const handleClose = () => {
+      setError(null);
+      onClose();
+    };
+    return isOpen ? (
       <div data-testid="device-create-modal">
         {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
-          onClick={() => void onCreate({ device_id: "new-device" })}
+          onClick={() => submit({ device_id: "new-device" })}
         >
           Submit
         </button>
         <button
           data-testid="submit-create-duplicate"
-          onClick={() => void onCreate({ device_id: "duplicate-id" })}
+          onClick={() => submit({ device_id: "duplicate-id" })}
         >
           Submit Duplicate
         </button>
-        <button data-testid="close-create-modal" onClick={onClose}>
+        <button data-testid="close-create-modal" onClick={handleClose}>
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   DeviceEditModal: ({
     isOpen,
     onClose,
@@ -141,26 +154,40 @@ vi.mock("@/components/devices", () => ({
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+    onSave: (data: { name: string; device_id?: string }) => Promise<void>;
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onSave and renders the
+    // message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string; device_id?: string }) => {
+      setError(null);
+      void onSave(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="device-edit-modal">
+        {error ? <span data-testid="edit-error">{error}</span> : null}
         <button
           data-testid="submit-edit"
-          onClick={() => {
-            // The real DeviceEditModal swallows rejections internally so it can
-            // surface its own error UI. Mirror that here so tests can assert on
-            // failure paths without unhandled-rejection noise.
-            onSave({ name: "Updated Device" }).catch(() => {});
-          }}
+          onClick={() => submit({ name: "Updated Device" })}
         >
           Save
+        </button>
+        <button
+          data-testid="submit-edit-duplicate"
+          onClick={() =>
+            submit({ name: "Updated Device", device_id: "duplicate-id" })
+          }
+        >
+          Save Duplicate
         </button>
         <button data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   DevicesMasterDetail: ({
     groupDefinitions,
     selectedId,
@@ -828,9 +855,42 @@ describe("DevicesPage", () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
+  it("translates duplicate-ID conflicts on update into a German hint and renders inline (Issue #1356)", async () => {
+    setSelectedDevice("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error(
+        "IoT service error in UpdateDevice: Diese Geräte-ID ist bereits vergeben",
+      ),
+    );
+
+    render(<DevicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("device-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit-duplicate"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /Die Geräte-ID "duplicate-id" ist bereits vergeben/,
+      );
+    });
+    // The modal must NOT close on a duplicate so the user can correct the ID.
+    expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
   it("surfaces a German duplicate-ID hint that includes the rejected device_id", async () => {
     mockCreate.mockRejectedValueOnce(
-      new Error("backend says: duplicate device ID rejected"),
+      new Error(
+        "IoT service error in CreateDevice: Diese Geräte-ID ist bereits vergeben",
+      ),
     );
 
     render(<DevicesPage />);

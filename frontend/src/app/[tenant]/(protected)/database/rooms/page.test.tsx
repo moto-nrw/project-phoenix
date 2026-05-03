@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RoomsPage from "./page";
 
@@ -134,12 +134,22 @@ vi.mock("@/components/rooms", () => ({
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="room-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
-          onClick={() => void onCreate({ name: "Neuer Raum" })}
+          onClick={() => submit({ name: "Neuer Raum" })}
         >
           Submit
         </button>
@@ -147,7 +157,8 @@ vi.mock("@/components/rooms", () => ({
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   RoomsMasterDetail: ({
     groupDefinitions,
     selectedId,
@@ -386,6 +397,33 @@ describe("RoomsPage", () => {
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalled();
     });
+  });
+
+  it("re-throws create errors so the form can render them inline (Issue #1356)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error(
+        "facilities error during CreateRoom: Ein Raum mit diesem Namen existiert bereits",
+      ),
+    );
+
+    render(<RoomsPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Raum erstellen")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
+    });
+    // The modal must NOT close on a duplicate so the user can correct the name.
+    expect(screen.getByTestId("room-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
   it("syncs room selection into the URL when a row is clicked", async () => {

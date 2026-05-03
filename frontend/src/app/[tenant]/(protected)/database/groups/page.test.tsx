@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GroupsPage from "./page";
 
@@ -131,12 +131,22 @@ vi.mock("@/components/groups", () => ({
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="group-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
-          onClick={() => void onCreate({ name: "Neue Gruppe" })}
+          onClick={() => submit({ name: "Neue Gruppe" })}
         >
           Submit
         </button>
@@ -144,7 +154,8 @@ vi.mock("@/components/groups", () => ({
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   GroupsMasterDetail: ({
     groups,
     selectedId,
@@ -383,6 +394,33 @@ describe("GroupsPage", () => {
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalled();
     });
+  });
+
+  it("re-throws create errors so the form can render them inline (Issue #1356)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error(
+        "education error during CreateGroup: Eine Gruppe mit diesem Namen existiert bereits",
+      ),
+    );
+
+    render(<GroupsPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Gruppe erstellen")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
+    });
+    // The modal must NOT close on a duplicate so the user can correct the name.
+    expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
   it("syncs group selection into the URL when a row is clicked", async () => {

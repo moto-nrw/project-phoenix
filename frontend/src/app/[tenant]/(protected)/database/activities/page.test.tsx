@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ActivitiesPage from "./page";
 
@@ -131,12 +131,22 @@ vi.mock("@/components/activities", () => ({
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="activity-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
-          onClick={() => void onCreate({ name: "Neue AG" })}
+          onClick={() => submit({ name: "Neue AG" })}
         >
           Submit
         </button>
@@ -144,7 +154,8 @@ vi.mock("@/components/activities", () => ({
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   ActivitiesMasterDetail: ({
     activities,
     selectedId,
@@ -159,39 +170,54 @@ vi.mock("@/components/activities", () => ({
     onSelect: (id: string | null) => void;
     onSaveActivity: (data: { name: string }) => Promise<void>;
     onDeleteClick: () => void;
-  }) => (
-    <div data-testid="activities-master-detail">
-      {activities.map((activity) => (
-        <button
-          key={activity.id}
-          data-testid={`activity-row-${activity.id}`}
-          onClick={() => onSelect(activity.id)}
-        >
-          {activity.name}
-        </button>
-      ))}
-      {selectedId ? (
-        <div data-testid="activity-detail-panel">
-          <span data-testid="detail-selected-id">{selectedId}</span>
-          <span data-testid="detail-activity-name">
-            {selectedActivity?.name ?? "unbekannt"}
-          </span>
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onSaveActivity and
+    // renders the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const save = (data: { name: string }) => {
+      setError(null);
+      void onSaveActivity(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return (
+      <div data-testid="activities-master-detail">
+        {activities.map((activity) => (
           <button
-            data-testid="trigger-update"
-            onClick={() => void onSaveActivity({ name: "Updated AG" })}
+            key={activity.id}
+            data-testid={`activity-row-${activity.id}`}
+            onClick={() => onSelect(activity.id)}
           >
-            Save
+            {activity.name}
           </button>
-          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
-            Close
-          </button>
-          <button data-testid="trigger-delete" onClick={onDeleteClick}>
-            Delete
-          </button>
-        </div>
-      ) : null}
-    </div>
-  ),
+        ))}
+        {selectedId ? (
+          <div data-testid="activity-detail-panel">
+            {error ? <span data-testid="update-error">{error}</span> : null}
+            <span data-testid="detail-selected-id">{selectedId}</span>
+            <span data-testid="detail-activity-name">
+              {selectedActivity?.name ?? "unbekannt"}
+            </span>
+            <button
+              data-testid="trigger-update"
+              onClick={() => save({ name: "Updated AG" })}
+            >
+              Save
+            </button>
+            <button
+              data-testid="trigger-deselect"
+              onClick={() => onSelect(null)}
+            >
+              Close
+            </button>
+            <button data-testid="trigger-delete" onClick={onDeleteClick}>
+              Delete
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  },
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -395,6 +421,33 @@ describe("ActivitiesPage", () => {
     });
   });
 
+  it("re-throws create errors so the form can render them inline (Issue #1356)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error(
+        "activities error during CreateActivity: Eine Aktivität mit diesem Namen existiert bereits",
+      ),
+    );
+
+    render(<ActivitiesPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Aktivität erstellen")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
+    });
+    // The modal must NOT close on a duplicate so the user can correct the name.
+    expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
   it("syncs activity selection into the URL when a row is clicked", async () => {
     render(<ActivitiesPage />);
 
@@ -456,6 +509,32 @@ describe("ActivitiesPage", () => {
         expect.objectContaining({ name: "Updated AG" }),
       );
     });
+  });
+
+  it("re-throws update errors so the inline form can render them (Issue #1356)", async () => {
+    setSelectedActivity("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error(
+        "activities error during UpdateActivity: Eine Aktivität mit diesem Namen existiert bereits",
+      ),
+    );
+
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-update"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("update-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
+    });
+    // The detail panel must stay mounted so the user can correct the name.
+    expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
   it("calls delete service after confirming deletion from the detail panel", async () => {

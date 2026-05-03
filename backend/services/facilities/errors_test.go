@@ -97,7 +97,7 @@ func TestFacilitiesError_AllOperations(t *testing.T) {
 			name: "create operation",
 			op:   "CreateRoom",
 			err:  ErrDuplicateRoom,
-			want: "facilities error during CreateRoom: room with this name already exists",
+			want: "facilities error during CreateRoom: Ein Raum mit diesem Namen existiert bereits",
 		},
 		{
 			name: "read operation",

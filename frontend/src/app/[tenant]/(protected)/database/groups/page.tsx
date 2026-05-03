@@ -36,7 +36,6 @@ export default function GroupsPage() {
   const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
@@ -151,7 +150,6 @@ export default function GroupsPage() {
   const handleCreateGroup = useCallback(
     async (data: Partial<Group>) => {
       try {
-        setCreateLoading(true);
         const payload = groupsConfig.form.transformBeforeSubmit
           ? groupsConfig.form.transformBeforeSubmit(data)
           : data;
@@ -165,8 +163,14 @@ export default function GroupsPage() {
         );
         setShowCreateModal(false);
         await tenantMutate("database-groups-list");
-      } finally {
-        setCreateLoading(false);
+      } catch (createError) {
+        logger.error("failed to create group", {
+          error:
+            createError instanceof Error
+              ? createError.message
+              : String(createError),
+        });
+        throw createError;
       }
     },
     [service, tenantMutate, toastSuccess],
@@ -330,7 +334,6 @@ export default function GroupsPage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateGroup}
-        loading={createLoading}
       />
 
       {selectedGroup && (

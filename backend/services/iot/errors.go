@@ -9,7 +9,7 @@ import (
 var (
 	ErrDeviceNotFound    = errors.New("device not found")
 	ErrInvalidDeviceData = errors.New("invalid device data")
-	ErrDuplicateDeviceID = errors.New("duplicate device ID")
+	ErrDuplicateDeviceID = errors.New("Diese Geräte-ID ist bereits vergeben") //nolint:staticcheck // ST1005: user-facing German message
 	ErrInvalidStatus     = errors.New("invalid device status")
 	ErrDeviceOffline     = errors.New("device is offline")
 	ErrNetworkScanFailed = errors.New("network scan failed")
@@ -51,7 +51,7 @@ type DuplicateDeviceIDError struct {
 }
 
 func (e *DuplicateDeviceIDError) Error() string {
-	return fmt.Sprintf("duplicate device ID: %s", e.DeviceID)
+	return fmt.Sprintf("Die Geräte-ID %q ist bereits vergeben", e.DeviceID)
 }
 
 func (e *DuplicateDeviceIDError) Unwrap() error {

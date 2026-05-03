@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RolesPage from "./page";
 
@@ -105,12 +105,22 @@ vi.mock("@/components/roles", () => ({
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="role-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
-          onClick={() => void onCreate({ name: "Neue Rolle" })}
+          onClick={() => submit({ name: "Neue Rolle" })}
         >
           Submit
         </button>
@@ -118,7 +128,8 @@ vi.mock("@/components/roles", () => ({
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   RoleEditModal: ({
     isOpen,
     onClose,
@@ -127,12 +138,22 @@ vi.mock("@/components/roles", () => ({
     isOpen: boolean;
     onClose: () => void;
     onSave: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onSave and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onSave(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="role-edit-modal">
+        {error ? <span data-testid="edit-error">{error}</span> : null}
         <button
           data-testid="submit-edit"
-          onClick={() => void onSave({ name: "Updated" })}
+          onClick={() => submit({ name: "Updated" })}
         >
           Save
         </button>
@@ -140,7 +161,8 @@ vi.mock("@/components/roles", () => ({
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   RolesMasterDetail: ({
     roles,
     selectedId,
@@ -333,6 +355,41 @@ describe("RolesPage", () => {
     });
   });
 
+  it("translates duplicate-key conflicts into a German message and renders inline (Issue #1356)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error(
+        "auth error during CreateRole: duplicate key value violates unique constraint",
+      ),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Neue Rolle" existiert bereits/,
+      );
+    });
+    // Raw Postgres internals must not leak to the user.
+    expect(screen.getByTestId("create-error")).not.toHaveTextContent(
+      /duplicate key/,
+    );
+    // The modal must NOT close so the user can correct the name.
+    expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
   it("syncs role selection into the URL when a row is clicked", async () => {
     render(<RolesPage />);
 
@@ -417,6 +474,41 @@ describe("RolesPage", () => {
         expect.objectContaining({ name: "Updated" }),
       );
     });
+  });
+
+  it("translates duplicate-key conflicts on update into a German message and renders inline (Issue #1356)", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error(
+        "auth error during UpdateRole: duplicate key value violates unique constraint",
+      ),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Updated" existiert bereits/,
+      );
+    });
+    // Raw Postgres internals must not leak to the user.
+    expect(screen.getByTestId("edit-error")).not.toHaveTextContent(
+      /duplicate key/,
+    );
+    // The modal must NOT close so the user can correct the name.
+    expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
   it("calls delete service after confirming deletion from the detail panel", async () => {
