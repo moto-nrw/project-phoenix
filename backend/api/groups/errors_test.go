@@ -33,12 +33,30 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_ConflictErrors(t *testing.T) {
-	eduErr := &education.EducationError{Err: education.ErrDuplicateGroup}
-	renderer := groupsAPI.ErrorRenderer(eduErr)
-	resp, ok := renderer.(*groupsAPI.ErrorResponse)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	tests := []struct {
+		name    string
+		baseErr error
+		wantMsg string
+	}{
+		{"ErrDuplicateGroup", education.ErrDuplicateGroup, "Eine Gruppe mit diesem Namen"},
+		{"ErrGroupHasStudents", education.ErrGroupHasStudents, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eduErr := &education.EducationError{Op: "DeleteGroup", Err: tt.baseErr}
+			renderer := groupsAPI.ErrorRenderer(eduErr)
+			resp, ok := renderer.(*groupsAPI.ErrorResponse)
+			assert.True(t, ok)
+			assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+			assert.Equal(t, "error", resp.Status)
+			if tt.wantMsg != "" {
+				assert.Contains(t, resp.ErrorText, tt.wantMsg)
+			}
+			assert.NotContains(t, resp.ErrorText, "education:",
+				"renderer must surface the inner sentinel, not the EducationError wrapper prefix")
+		})
+	}
 }
 
 func TestErrorRenderer_InvalidRequestErrors(t *testing.T) {

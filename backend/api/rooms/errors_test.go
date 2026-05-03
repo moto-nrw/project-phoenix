@@ -48,3 +48,29 @@ func TestErrorRenderer_SystemRoomProtected(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
 	assert.Contains(t, resp.ErrorText, "Systemraum")
 }
+
+func TestErrorRenderer_DuplicateToiletRoom(t *testing.T) {
+	facErr := &facilities.FacilitiesError{
+		Op:  "CreateRoom",
+		Err: facilities.ErrDuplicateToiletRoom,
+	}
+	renderer := rooms.ErrorRenderer(facErr)
+	resp, ok := renderer.(*common.ErrResponse)
+	assert.True(t, ok, "expected *common.ErrResponse")
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "Toilettenraum")
+	assert.NotContains(t, resp.ErrorText, "facilities error during",
+		"renderer must surface the inner sentinel, not the FacilitiesError wrapper prefix")
+}
+
+func TestErrorRenderer_DuplicateRoom(t *testing.T) {
+	facErr := &facilities.FacilitiesError{
+		Op:  "CreateRoom",
+		Err: facilities.ErrDuplicateRoom,
+	}
+	renderer := rooms.ErrorRenderer(facErr)
+	resp, ok := renderer.(*common.ErrResponse)
+	assert.True(t, ok, "expected *common.ErrResponse")
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "Ein Raum mit diesem Namen")
+}

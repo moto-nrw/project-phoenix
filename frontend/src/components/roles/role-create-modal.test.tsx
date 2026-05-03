@@ -126,28 +126,12 @@ describe("RoleCreateModal", () => {
     });
   });
 
-  it("shows loading state when loading prop is true", async () => {
+  it("renders the database form", async () => {
     render(
       <RoleCreateModal
         isOpen={true}
         onClose={mockOnClose}
         onCreate={mockOnCreate}
-        loading={true}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Daten werden geladen...")).toBeInTheDocument();
-    });
-  });
-
-  it("renders the database form when not loading", async () => {
-    render(
-      <RoleCreateModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onCreate={mockOnCreate}
-        loading={false}
       />,
     );
 

@@ -162,7 +162,7 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 			return &FacilitiesError{Op: opCreateRoom, Err: err}
 		}
 		if existingAlias != nil {
-			return &FacilitiesError{Op: opCreateRoom, Err: ErrDuplicateRoom}
+			return &FacilitiesError{Op: opCreateRoom, Err: ErrDuplicateToiletRoom}
 		}
 	}
 
@@ -175,7 +175,7 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 	// Create the room
 	if err := s.roomRepo.Create(ctx, room); err != nil {
 		if isUniqueWCAliasViolation(err) {
-			return &FacilitiesError{Op: opCreateRoom, Err: ErrDuplicateRoom}
+			return &FacilitiesError{Op: opCreateRoom, Err: ErrDuplicateToiletRoom}
 		}
 		if isUniqueColorViolation(err) {
 			return &FacilitiesError{Op: opCreateRoom, Err: ErrColorAlreadyInUse}
@@ -357,7 +357,7 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 				return &FacilitiesError{Op: opUpdateRoom, Err: err}
 			}
 			if existingAlias != nil {
-				return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateRoom}
+				return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateToiletRoom}
 			}
 		}
 
@@ -370,7 +370,7 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 	// Update the room
 	if err := s.roomRepo.Update(ctx, room); err != nil {
 		if isUniqueWCAliasViolation(err) {
-			return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateRoom}
+			return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateToiletRoom}
 		}
 		if isUniqueColorViolation(err) {
 			return &FacilitiesError{Op: opUpdateRoom, Err: ErrColorAlreadyInUse}

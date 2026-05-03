@@ -138,30 +138,13 @@ describe("DeviceEditModal", () => {
     });
   });
 
-  it("shows loading state when loading prop is true", async () => {
+  it("renders DatabaseForm", async () => {
     render(
       <DeviceEditModal
         isOpen={true}
         onClose={mockOnClose}
         device={mockDevice}
         onSave={mockOnSave}
-        loading={true}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Daten werden geladen...")).toBeInTheDocument();
-    });
-  });
-
-  it("renders DatabaseForm when not loading", async () => {
-    render(
-      <DeviceEditModal
-        isOpen={true}
-        onClose={mockOnClose}
-        device={mockDevice}
-        onSave={mockOnSave}
-        loading={false}
       />,
     );
 

@@ -68,7 +68,7 @@ func TestFacilitiesService_CreateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 		err := service.CreateRoom(ctx, aliasRoom)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, facilitiesSvc.ErrDuplicateRoom))
+		assert.True(t, errors.Is(err, facilitiesSvc.ErrDuplicateToiletRoom))
 	})
 
 	t.Run("rejects WC when Toilette already exists", func(t *testing.T) {
@@ -79,7 +79,7 @@ func TestFacilitiesService_CreateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 		err := service.CreateRoom(ctx, aliasRoom)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, facilitiesSvc.ErrDuplicateRoom))
+		assert.True(t, errors.Is(err, facilitiesSvc.ErrDuplicateToiletRoom))
 	})
 }
 
@@ -101,7 +101,7 @@ func TestFacilitiesService_UpdateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 		err := service.UpdateRoom(ctx, room)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, facilitiesSvc.ErrDuplicateRoom))
+		assert.True(t, errors.Is(err, facilitiesSvc.ErrDuplicateToiletRoom))
 	})
 
 	t.Run("rejects renaming to WC when Toilette already exists", func(t *testing.T) {
@@ -115,6 +115,6 @@ func TestFacilitiesService_UpdateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 		err := service.UpdateRoom(ctx, room)
 
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, facilitiesSvc.ErrDuplicateRoom))
+		assert.True(t, errors.Is(err, facilitiesSvc.ErrDuplicateToiletRoom))
 	})
 }
