@@ -1,4 +1,10 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  within,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import RoomDetailPage from "./page";
 
@@ -410,8 +416,13 @@ describe("RoomDetailPage", () => {
     render(<RoomDetailPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/15/)).toBeInTheDocument();
-      expect(screen.getByText(/Kinder/)).toBeInTheDocument();
+      // Scope to the existing "Aktuell anwesend" InfoItem so the assertion
+      // pins down the room-info-card badge specifically. The new live
+      // "Kinder im Raum" section also contains the word "Kinder", so an
+      // unscoped getByText(/Kinder/) would now match multiple nodes.
+      const infoItem = screen.getByTestId("info-item-Aktuell anwesend");
+      expect(within(infoItem).getByText(/15/)).toBeInTheDocument();
+      expect(within(infoItem).getByText(/Kinder/)).toBeInTheDocument();
     });
   });
 
