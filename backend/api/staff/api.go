@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -551,18 +552,31 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Resolve presence/work-status/absence to keep detail consistent with the list view.
+	// These maps cover all staff today; we just look up our single ID.
+	wasPresentToday := false
+	if presentIDs, presentErr := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(r.Context()); presentErr == nil {
+		wasPresentToday = slices.Contains(presentIDs, staff.ID)
+	} else {
+		rs.getLogger().Warn("failed to fetch present staff IDs",
+			slog.Int64("staff_id", staff.ID),
+			slog.String("error", presentErr.Error()))
+	}
+	workStatus := rs.loadWorkStatusMap(r.Context())[staff.ID]
+	absenceType := rs.loadAbsenceMap(r.Context())[staff.ID]
+
 	// Check if this staff member is also a teacher
 	isTeacher := false
 	var teacher *users.Teacher
 
 	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		response := newTeacherResponse(staff, teacher, false, "", "", accountRole, accountEmail, accountAvatar)
+		response := newTeacherResponse(staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
-	response := newStaffResponse(staff, isTeacher, false, "", "", accountRole, accountEmail, accountAvatar)
+	response := newStaffResponse(staff, isTeacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 

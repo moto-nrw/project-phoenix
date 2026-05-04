@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -300,6 +301,76 @@ func TestGetStaff_InvalidID(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertBadRequest(t, rr)
+}
+
+// TestGetStaff_WorkStatusConsistentWithList covers the regression where the
+// detail endpoint returned an empty work_status while the list endpoint
+// resolved it correctly, making the location badge flip-flop between views.
+func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Consistent", "Status")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	tenantID := int64(testutil.DefaultTestClaims().TenantID)
+	tenantCtx := testpkg.TenantContext(tenantID)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	session := &active.WorkSession{
+		StaffID:     staff.ID,
+		Date:        today,
+		Status:      active.WorkSessionStatusPresent,
+		CheckInTime: time.Now(),
+		CreatedBy:   staff.ID,
+	}
+	session.SetTenantID(tenantID)
+	_, err := ctx.db.NewInsert().Model(session).Exec(tenantCtx)
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, ctx.db, "active.work_sessions", session.ID)
+
+	router := chi.NewRouter()
+	router.Get("/staff", ctx.resource.ListStaffHandler())
+	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
+
+	listReq := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+	listRR := testutil.ExecuteRequest(router, listReq)
+	testutil.AssertSuccessResponse(t, listRR, http.StatusOK)
+
+	listResp := testutil.ParseJSONResponse(t, listRR.Body.Bytes())
+	listData, ok := listResp["data"].([]interface{})
+	require.True(t, ok, "list response should contain data array")
+
+	var listWorkStatus string
+	for _, item := range listData {
+		entry, _ := item.(map[string]interface{})
+		idFloat, _ := entry["id"].(float64)
+		if int64(idFloat) == staff.ID {
+			if ws, hasWS := entry["work_status"].(string); hasWS {
+				listWorkStatus = ws
+			}
+			break
+		}
+	}
+	require.Equal(t, string(active.WorkSessionStatusPresent), listWorkStatus,
+		"list endpoint should expose the open work session as present")
+
+	detailReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+	detailRR := testutil.ExecuteRequest(router, detailReq)
+	testutil.AssertSuccessResponse(t, detailRR, http.StatusOK)
+
+	detailResp := testutil.ParseJSONResponse(t, detailRR.Body.Bytes())
+	detailData, ok := detailResp["data"].(map[string]interface{})
+	require.True(t, ok, "detail response should contain data object")
+
+	detailWorkStatus, _ := detailData["work_status"].(string)
+	assert.Equal(t, listWorkStatus, detailWorkStatus,
+		"detail endpoint must report the same work_status as the list endpoint")
 }
 
 // =============================================================================
