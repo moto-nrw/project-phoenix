@@ -17,6 +17,7 @@ import {
 import { formatFloor } from "~/lib/room-helpers";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { StudentsInRoomSection } from "~/components/rooms/students-in-room-section";
 
 const logger = createLogger({ component: "RoomDetailPage" });
 
@@ -531,6 +532,9 @@ function RoomDetailPageContent() {
             </>
           )}
         </InfoCard>
+
+        {/* Live "Kinder im Raum" — see docs/room-students-present-plan.md (#1323) */}
+        <StudentsInRoomSection roomId={room.id} roomName={room.name} />
 
         {/* Room History */}
         <InfoCard
