@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import type React from "react";
 import {
   CalendarClock,
-  RefreshCw,
   ShieldAlert,
   TriangleAlert,
   UserPlus,
@@ -32,7 +31,6 @@ interface PlanQualityPanelProps {
     substituteStaffId: string,
     date: string,
   ) => Promise<void>;
-  onReplanWeek: () => Promise<void>;
 }
 
 function dateLabel(iso: string): string {
@@ -61,10 +59,7 @@ export function PlanQualityPanel({
   onSelectInstance,
   onEditInstance,
   onSubstitute,
-  onReplanWeek,
 }: PlanQualityPanelProps) {
-  const [replanConfirm, setReplanConfirm] = useState(false);
-  const [replanning, setReplanning] = useState(false);
   const [substituteByGap, setSubstituteByGap] = useState<
     Record<string, string>
   >({});
@@ -95,18 +90,6 @@ export function PlanQualityPanel({
     [staff],
   );
 
-  const handleReplan = () => {
-    if (!replanConfirm) {
-      setReplanConfirm(true);
-      return;
-    }
-    setReplanning(true);
-    void onReplanWeek().finally(() => {
-      setReplanning(false);
-      setReplanConfirm(false);
-    });
-  };
-
   const handleSubstitute = (gap: GapInstance) => {
     const substituteStaffId = substituteByGap[gap.instanceId];
     if (!substituteStaffId) return;
@@ -127,48 +110,15 @@ export function PlanQualityPanel({
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-bold text-slate-900">Planstatus</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {loading
-              ? "Prüfe Personal, Konflikte und Ausnahmen …"
-              : issueCount === 0
-                ? "Diese Ansicht hat keine offenen Planungsprobleme."
-                : `${issueCount} Punkt(e), die vor dem Betrieb geprüft werden sollten.`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {replanConfirm && !replanning && (
-            <span className="text-xs text-slate-600">
-              Ersetzt nur sichere geplante Vorlagen-Termine.
-            </span>
-          )}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={handleReplan}
-            isLoading={replanning}
-            loadingText="Berechne …"
-          >
-            <span className="inline-flex items-center gap-2">
-              <RefreshCw className="h-4 w-4" />
-              {replanConfirm
-                ? "Neu berechnen bestätigen"
-                : "Woche neu berechnen"}
-            </span>
-          </Button>
-          {replanConfirm && !replanning && (
-            <button
-              type="button"
-              className="text-xs font-semibold text-slate-500 hover:text-slate-700"
-              onClick={() => setReplanConfirm(false)}
-            >
-              Abbrechen
-            </button>
-          )}
-        </div>
+      <div>
+        <h2 className="text-sm font-bold text-slate-900">Planstatus</h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {loading
+            ? "Prüfe Personal, Konflikte und Ausnahmen …"
+            : issueCount === 0
+              ? "Diese Ansicht hat keine offenen Planungsprobleme."
+              : `${issueCount} Punkt(e), die vor dem Betrieb geprüft werden sollten.`}
+        </p>
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-4">

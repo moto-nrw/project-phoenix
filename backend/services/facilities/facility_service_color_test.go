@@ -30,7 +30,8 @@ func TestFacilitiesService_CreateRoom_RejectsReservedColor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	tenantID := createFacilityTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
 
 	cases := []struct {
 		label    string
@@ -66,7 +67,8 @@ func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	tenantID := createFacilityTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
 
 	color := "#A3D977"
 	room := &facilities.Room{
@@ -93,7 +95,8 @@ func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	tenantID := createFacilityTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
 
 	// ARRANGE — Room A claims the color first.
 	colorA := "#A3D977"
@@ -130,11 +133,12 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	tenantID := createFacilityTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
 
 	t.Run("rejects color change on Schulhof", func(t *testing.T) {
-		room := createRoomWithExactName(t, db, "Schulhof")
-		defer cleanupRoom(t, db, room.ID)
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// Try to add a color to a system room — should be blocked.
 		newColor := "#A3D977"
@@ -147,8 +151,8 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 	})
 
 	t.Run("rejects color change on WC", func(t *testing.T) {
-		room := createRoomWithExactName(t, db, "WC")
-		defer cleanupRoom(t, db, room.ID)
+		room := createRoomWithExactName(t, db, tenantID, "WC")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newColor := "#A3D977"
 		room.Color = &newColor
@@ -163,8 +167,8 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		// field*, not on every system-room update. Editing Capacity must
 		// still succeed, otherwise admins lose the ability to change any
 		// non-name field on Schulhof.
-		room := createRoomWithExactName(t, db, "Schulhof")
-		defer cleanupRoom(t, db, room.ID)
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newCapacity := 200
 		room.Capacity = &newCapacity
@@ -176,8 +180,8 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		// If a system room somehow had Color=nil already, sending nil again
 		// should not be flagged as a change. equalStringPtr handles this —
 		// without it, every update on a colorless system room would 403.
-		room := createRoomWithExactName(t, db, "Schulhof")
-		defer cleanupRoom(t, db, room.ID)
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Color = nil // unchanged
 		room.Building = "Updated"
@@ -192,8 +196,8 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		// nil ≠ &"#4F46E5" as a forbidden colour change and 403'd every such
 		// edit. Now the service preserves the existing colour for system
 		// rooms when the request omits it.
-		room := createRoomWithExactName(t, db, "Schulhof")
-		defer cleanupRoom(t, db, room.ID)
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// Bypass Validate() (would reject the reserved colour) by writing
 		// the legacy hex directly with a raw UPDATE — this matches what a
@@ -242,7 +246,8 @@ func TestFacilitiesService_UpdateRoom_AllowsClearingColor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	tenantID := createFacilityTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
 
 	// ARRANGE — start with a custom color
 	color := "#1ABC9C"

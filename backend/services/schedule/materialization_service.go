@@ -492,10 +492,25 @@ func (s *materializationService) copySupervisors(
 	periodID int64,
 	result *MaterializationResult,
 ) error {
+	// `unique_instance_staff (instance_id, staff_id)` rejects the same staff
+	// on the same instance twice. Same staff on *different* instances at the
+	// same time is a separate concept — surfaced by the conflict_warnings
+	// system, not blocked here. Dedupe the input so a duplicate supervisor
+	// row in `supervisors_planned` does not crash the whole materialization.
+	seen := make(map[int64]struct{}, len(supervisors))
 	for _, sup := range supervisors {
 		if !isSupervisorValidOn(sup, date, periodID) {
 			continue
 		}
+		if _, dup := seen[sup.StaffID]; dup {
+			s.getLogger().Warn("supervisor listed twice on template — skipping duplicate",
+				slog.Int64("instance_id", instanceID),
+				slog.Int64("staff_id", sup.StaffID),
+				slog.String("date", date.Format("2006-01-02")),
+			)
+			continue
+		}
+		seen[sup.StaffID] = struct{}{}
 		row := &schedule.InstanceStaff{
 			InstanceID:   instanceID,
 			StaffID:      sup.StaffID,

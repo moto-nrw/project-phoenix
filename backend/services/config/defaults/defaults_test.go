@@ -54,6 +54,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
 		"gdpr.timetable_retention_days",
+		// Display range for the admin weekly calendar (Apple-style grid).
+		"timetable.day_start_time",
+		"timetable.day_end_time",
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_checkin_access",
@@ -67,10 +70,11 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	// 28 pre-WP-B7 settings + 7 timetable settings + 2 sick/excused clear-mode
-	// settings == 37 minimum. The `>=` is intentional so later work packages can
-	// add more settings without retrofitting this assertion.
-	assert.GreaterOrEqual(t, len(all), 37, "at least 37 settings should be registered (28 existing + 7 timetable + 2 clear-mode)")
+	// 28 pre-WP-B7 settings + 7 WP-B7 timetable settings + 2 sick/excused
+	// clear-mode settings + 2 timetable display-range settings == 39 minimum.
+	// The `>=` is intentional so later work packages can add more settings
+	// without retrofitting this assertion.
+	assert.GreaterOrEqual(t, len(all), 39, "at least 39 settings should be registered (28 existing + 7 WP-B7 timetable + 2 clear-mode + 2 display-range)")
 }
 
 func TestPresenceModeSetting(t *testing.T) {

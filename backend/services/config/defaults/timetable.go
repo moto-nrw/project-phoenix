@@ -152,4 +152,36 @@ func init() {
 			Value:     true,
 		},
 	})
+
+	// --- Display range (operations tab) ---
+
+	// The admin weekly calendar (Apple-style grid) renders hour rows between
+	// these two HH:MM times by default. Events outside the window are still
+	// rendered and become reachable via scroll. Defaults match the typical
+	// OGS day (09:00 Schulende → 17:00 Abholung).
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableDayStartTime,
+		Label:           "Tagesansicht Beginn",
+		Description:     "Standardmäßig sichtbarer Tagesbeginn in der Wochenansicht des Stundenplans. Termine vor dieser Uhrzeit bleiben sichtbar (per Scroll erreichbar).",
+		Type:            config.FieldTime,
+		Default:         "09:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       40,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableDayEndTime,
+		Label:           "Tagesansicht Ende",
+		Description:     "Standardmäßig sichtbares Tagesende in der Wochenansicht des Stundenplans. Termine nach dieser Uhrzeit bleiben sichtbar (per Scroll erreichbar).",
+		Type:            config.FieldTime,
+		Default:         "17:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       41,
+	})
 }

@@ -137,6 +137,39 @@ export function getWeekRange(
 }
 
 /**
+ * Splits an inclusive date range into windows of at most `maxDays` civil
+ * days each. Used to apply a template across a multi-month calendar
+ * period when the backend caps a single materialize call at 56 days.
+ *
+ * Returns ISO date strings (YYYY-MM-DD), suitable to pass straight into
+ * `timetableService.materialize(from, to)`. The window is inclusive on
+ * both ends, so a 56-day chunk runs from day N through day N+55.
+ */
+export function chunkDateRange(
+  fromISO: string,
+  toISO: string,
+  maxDays: number,
+): Array<{ from: string; to: string }> {
+  const start = new Date(`${fromISO}T00:00:00`);
+  const end = new Date(`${toISO}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+  if (end < start) return [];
+
+  const chunks: Array<{ from: string; to: string }> = [];
+  const totalDays =
+    Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  for (let dayOffset = 0; dayOffset < totalDays; dayOffset += maxDays) {
+    const chunkStart = new Date(start);
+    chunkStart.setDate(start.getDate() + dayOffset);
+    const chunkEnd = new Date(start);
+    const lastOffset = Math.min(dayOffset + maxDays - 1, totalDays - 1);
+    chunkEnd.setDate(start.getDate() + lastOffset);
+    chunks.push({ from: toISODate(chunkStart), to: toISODate(chunkEnd) });
+  }
+  return chunks;
+}
+
+/**
  * Formats a Date as YYYY-MM-DD using local-time fields. Avoids
  * `toISOString().slice(0,10)` which round-trips through UTC and rolls back
  * a day for late-evening Berlin times in winter.
@@ -548,4 +581,144 @@ export function groupInstancesByDate(
     map.set(inst.date, list);
   }
   return map;
+}
+
+// ---------------------------------------------------------------------------
+// Apple-Calendar-style grid math.
+//
+// The Wochenansicht renders events as absolutely-positioned blocks within
+// hour rows. These helpers convert the backend "HH:MM" strings into the
+// pixel coordinates the grid component reads.
+// ---------------------------------------------------------------------------
+
+const MIN_BLOCK_HEIGHT_PX = 24;
+
+/**
+ * "09:30" → 570. Returns NaN for malformed input — callers must guard.
+ */
+export function parseTimeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  if (
+    typeof h !== "number" ||
+    typeof m !== "number" ||
+    Number.isNaN(h) ||
+    Number.isNaN(m)
+  ) {
+    return NaN;
+  }
+  return h * 60 + m;
+}
+
+/**
+ * Pixel coordinates for a single event block within a day column.
+ *
+ * - `top` is offset from the grid's hour 0 line (i.e. the `dayStartHour`
+ *   gridline). May be negative if the event starts before `dayStartHour` —
+ *   the grid is expected to clip with overflow:auto and let the user scroll.
+ * - `height` is clamped to `MIN_BLOCK_HEIGHT_PX` so 5-minute events stay
+ *   tappable.
+ */
+export function getEventBlockPosition(
+  startTime: string,
+  endTime: string,
+  hourHeightPx: number,
+  dayStartHour: number,
+): { top: number; height: number } {
+  const startMin = parseTimeToMinutes(startTime);
+  const endMin = parseTimeToMinutes(endTime);
+  const startOffsetMin = startMin - dayStartHour * 60;
+  const durationMin = Math.max(endMin - startMin, 0);
+  return {
+    top: (startOffsetMin / 60) * hourHeightPx,
+    height: Math.max((durationMin / 60) * hourHeightPx, MIN_BLOCK_HEIGHT_PX),
+  };
+}
+
+/**
+ * Y offset (px) for the "now" indicator line. Returns null if the current
+ * wall-clock time is outside the visible window — the caller hides the
+ * line. Pure-time math; no timezone gymnastics: the browser's local time
+ * is the source of truth, matching the backend's Berlin-local "HH:MM".
+ */
+export function getCurrentTimeOffset(
+  hourHeightPx: number,
+  dayStartHour: number,
+  dayEndHour: number,
+  now: Date = new Date(),
+): number | null {
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  const minutesStart = dayStartHour * 60;
+  const minutesEnd = dayEndHour * 60;
+  if (minutesNow < minutesStart || minutesNow > minutesEnd) return null;
+  return ((minutesNow - minutesStart) / 60) * hourHeightPx;
+}
+
+export interface LanedInstance {
+  instance: EnrichedInstance;
+  lane: number; // 0-indexed lane within the overlap cluster
+  laneCount: number; // total lanes in this cluster (column-width divisor)
+}
+
+/**
+ * Lane assignment for overlapping events in a single day column.
+ *
+ * Strategy:
+ * 1. Sort by startTime ascending.
+ * 2. Walk events in order; maintain the current "overlap cluster" — the
+ *    set of events whose time-windows transitively overlap.
+ * 3. For each new event, pick the lowest free lane in the cluster (a lane
+ *    is free if its previous event has already ended).
+ * 4. When a new event starts after every cluster member has ended, flush
+ *    the cluster and start a new one. On flush, every member gets the
+ *    cluster's final lane count so they all render at the same width.
+ *
+ * Result: visually parallel events show side-by-side in equal slices,
+ * matching Apple Calendar's behaviour. Non-overlapping events stay
+ * full-width.
+ */
+export function assignBlockLanes(
+  instances: EnrichedInstance[],
+): LanedInstance[] {
+  if (instances.length === 0) return [];
+
+  const sorted = [...instances].sort(
+    (a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime),
+  );
+
+  const result: LanedInstance[] = [];
+  let cluster: LanedInstance[] = [];
+  let clusterMaxEnd = -Infinity;
+
+  const flushCluster = (): void => {
+    if (cluster.length === 0) return;
+    const lanesUsed = cluster.reduce((m, c) => Math.max(m, c.lane), 0) + 1;
+    for (const c of cluster) c.laneCount = lanesUsed;
+    cluster = [];
+    clusterMaxEnd = -Infinity;
+  };
+
+  for (const inst of sorted) {
+    const startMin = parseTimeToMinutes(inst.startTime);
+    const endMin = parseTimeToMinutes(inst.endTime);
+
+    if (startMin >= clusterMaxEnd) {
+      flushCluster();
+    }
+
+    const activeLanes = new Set(
+      cluster
+        .filter((c) => parseTimeToMinutes(c.instance.endTime) > startMin)
+        .map((c) => c.lane),
+    );
+    let lane = 0;
+    while (activeLanes.has(lane)) lane++;
+
+    const laned: LanedInstance = { instance: inst, lane, laneCount: 1 };
+    cluster.push(laned);
+    result.push(laned);
+    clusterMaxEnd = Math.max(clusterMaxEnd, endMin);
+  }
+
+  flushCluster();
+  return result;
 }

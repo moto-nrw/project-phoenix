@@ -1,14 +1,13 @@
 "use client";
 
 /**
- * ConflictWarningsBanner — top-of-page yellow banner summarising the soft
- * planning conflicts (room overlap, staff double-booking, student
- * double-booking) detected for the visible week.
+ * ConflictWarningsBanner — slim top-of-page hint summarising soft planning
+ * conflicts (room overlap, staff double-booking, student double-booking)
+ * detected for the visible week.
  *
- * The MVP backend GET /instances returns conflict_warnings as an empty
- * array (embedding is deferred to a follow-up PR). This banner stays in
- * the layout so wiring the real conflict counts later requires no UI
- * changes — it just hides when count is 0.
+ * Style follows the shadcn idiom used elsewhere on this page: hairline
+ * border, no shadow, subtle amber tint reserved for the icon dot. The
+ * banner collapses to nothing when conflictCount is 0.
  */
 
 import { TriangleAlert } from "lucide-react";
@@ -25,18 +24,20 @@ export function ConflictWarningsBanner({
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
-      <TriangleAlert className="h-5 w-5 shrink-0 text-[#A16207]" />
-      <div className="flex-1">
-        <div className="text-sm font-bold text-[#713F12]">
-          {conflictCount} {conflictCount === 1 ? "Konflikt" : "Konflikte"} diese
-          Woche
-        </div>
-        <div className="text-xs text-[#A16207]">
-          Doppelt belegte Räume, Personal oder Schüler. Klicke einen markierten
-          Termin zur Detailansicht.
-        </div>
-      </div>
+    <div
+      role="status"
+      className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2"
+    >
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-50">
+        <TriangleAlert className="h-3.5 w-3.5 text-amber-600" aria-hidden />
+      </span>
+      <p className="min-w-0 flex-1 text-[12px] text-slate-600">
+        <span className="font-semibold text-slate-900">
+          {conflictCount} {conflictCount === 1 ? "Konflikt" : "Konflikte"}
+        </span>{" "}
+        diese Woche · doppelt belegte Räume, Personal oder Kinder. Klicke einen
+        markierten Termin für die Details.
+      </p>
     </div>
   );
 }

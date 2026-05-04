@@ -10,9 +10,11 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  CalendarDays as CalendarDaysIcon,
+  CalendarPlus as CalendarPlusIcon,
+} from "lucide-react";
 
-import { CalendarPeriodHeaderButton } from "~/components/timetable/calendar-period-header-button";
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { Loading } from "~/components/ui/loading";
 import { useToast } from "~/contexts/ToastContext";
@@ -22,14 +24,21 @@ import {
   InstanceDetailSlideOver,
   type LifecycleAction,
 } from "~/components/timetable/instance-detail-slide-over";
-import { MaterializeButton } from "~/components/timetable/materialize-button";
+import { PlanningMenu } from "~/components/timetable/planning-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
+import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { PlanQualityPanel } from "~/components/timetable/plan-quality-panel";
 import { RecurringActivityModal } from "~/components/timetable/recurring-activity-modal";
 import { TemplateList } from "~/components/timetable/template-list";
 import { TimetableInstanceModal } from "~/components/timetable/timetable-instance-modal";
-import { WeekNavigator } from "~/components/timetable/week-navigator";
-import { WeeklyPlannerGrid } from "~/components/timetable/weekly-planner-grid";
+import {
+  DENSITY_TO_HOUR_HEIGHT_PX,
+  TimetableToolbar,
+  type TimetableView,
+  type WeekDensity,
+} from "~/components/timetable/timetable-toolbar";
+import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
+import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
@@ -42,6 +51,7 @@ import {
 } from "~/lib/calendar-period-helpers";
 import { timetableService } from "~/lib/timetable-api";
 import {
+  chunkDateRange,
   formatWeekLabel,
   formatMonthLabel,
   getMonthDays,
@@ -52,12 +62,12 @@ import {
 } from "~/lib/timetable-helpers";
 import type {
   EnrichedInstance,
+  MaterializeWarning,
   TimetableTemplate,
 } from "~/lib/timetable-types";
 
 const logger = createLogger({ component: "DatabaseTimetablesPage" });
 const PERIODS_SWR_KEY = "database-calendar-periods-list";
-type TimetableView = "month" | "week" | "templates";
 
 function parseWeekOffset(raw: string | null): number {
   if (raw === null) return 0;
@@ -117,12 +127,16 @@ function TimetablesContent() {
   const [editingTemplate, setEditingTemplate] =
     useState<TimetableTemplate | null>(null);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] =
-    useState<TimetableTemplate | null>(null);
   // null = create mode (no active period yet); otherwise edit the named period.
   const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
     null,
   );
+  // Density picker for the week grid (Kompakt/Normal/Komfortabel maps to
+  // 60/90/120 px per hour). Local-only — not synced to URL because density
+  // is a cosmetic preference, and we never expose pixel values in the UI.
+  const [density, setDensity] = useState<WeekDensity>("normal");
+  const hourHeightPx = DENSITY_TO_HOUR_HEIGHT_PX[density];
+  const { dayStartHour, dayEndHour } = useTimetableDayHours();
 
   const openPeriodCreate = useCallback(() => {
     setEditingPeriod(null);
@@ -224,6 +238,48 @@ function TimetablesContent() {
     },
     [updateUrlParams],
   );
+
+  const jumpToPeriod = useCallback(
+    (period: CalendarPeriod) => {
+      const todayISOlocal = toISODate(new Date());
+      const target =
+        period.startDate > todayISOlocal ? period.startDate : todayISOlocal;
+      const targetISO =
+        target < period.startDate
+          ? period.startDate
+          : target > period.endDate
+            ? period.endDate
+            : target;
+      const offset = weekOffsetForDate(targetISO);
+      updateUrlParams({
+        view: "week",
+        week: offset === 0 ? null : String(offset),
+        day: null,
+        instance: null,
+      });
+    },
+    [updateUrlParams],
+  );
+
+  const handleToolbarPrev = useCallback(() => {
+    if (view === "week") handleWeekChange(weekOffset - 1);
+    else if (view === "month") handleMonthChange(-1);
+  }, [view, weekOffset, handleWeekChange, handleMonthChange]);
+  const handleToolbarNext = useCallback(() => {
+    if (view === "week") handleWeekChange(weekOffset + 1);
+    else if (view === "month") handleMonthChange(1);
+  }, [view, weekOffset, handleWeekChange, handleMonthChange]);
+  const handleToolbarToday = useCallback(() => {
+    if (view === "week") {
+      handleWeekChange(0);
+    } else if (view === "month") {
+      const now = new Date();
+      updateUrlParams({
+        month: monthParam(new Date(now.getFullYear(), now.getMonth(), 1)),
+        instance: null,
+      });
+    }
+  }, [view, handleWeekChange, updateUrlParams]);
 
   const handleSelectInstance = useCallback(
     (instance: EnrichedInstance | null) => {
@@ -624,28 +680,88 @@ function TimetablesContent() {
     setInstanceModalOpen(true);
   }, []);
 
-  const handleArchiveTemplate = useCallback(
+  const handleApplyTemplate = useCallback(
     async (template: TimetableTemplate) => {
+      // Resolve which calendar period the template's schedules belong to.
+      // Falls back to the period currently in scope (defaultTemplatePeriod)
+      // — if none is active, ask the admin to create one before continuing.
+      const scheduleWithPeriod = template.schedules.find(
+        (s) => s.calendarPeriodId,
+      );
+      const periodId =
+        scheduleWithPeriod?.calendarPeriodId ?? defaultTemplatePeriod?.id;
+      const period = periodId
+        ? calendarPeriods.find((p) => p.id === periodId)
+        : null;
+      if (!period) {
+        toastError(
+          "Keine aktive Planungsperiode — Vorlage kann nicht angewendet werden.",
+        );
+        openPeriodCreate();
+        return;
+      }
+      // Backend caps a single materialize call at 56 days. School-year
+      // periods are ~365 days, so split into 56-day windows and aggregate.
+      const chunks = chunkDateRange(period.startDate, period.endDate, 56);
       try {
-        await timetableService.archiveTemplate(template.id);
-        toastSuccess(`Vorlage "${template.name}" archiviert`);
-        setSelectedTemplate(null);
-        if (templatePeriodID) {
-          await tenantMutate(`timetable-templates-${templatePeriodID}`);
+        let totalCreated = 0;
+        const warningsByCode = new Map<string, MaterializeWarning>();
+        for (const chunk of chunks) {
+          const result = await timetableService.materialize(
+            chunk.from,
+            chunk.to,
+          );
+          totalCreated += result.instancesCreated;
+          for (const warning of result.warnings) {
+            warningsByCode.set(warning.code, warning);
+          }
+          // A precondition like "no_active_period" applies to every chunk —
+          // stop hammering the backend once we've seen one.
+          if (result.warnings.some((w) => w.code === "no_active_period")) {
+            break;
+          }
         }
+        const warnings = Array.from(warningsByCode.values());
+        if (warnings.length > 0) {
+          for (const warning of warnings) {
+            toastError(warning.message);
+          }
+          if (warnings.some((w) => w.code === "no_active_period")) {
+            openPeriodCreate();
+          }
+        } else {
+          toastSuccess(
+            `${totalCreated} ${
+              totalCreated === 1 ? "Termin" : "Termine"
+            } für "${template.name}" angelegt`,
+          );
+        }
+        await tenantMutate(swrKey);
+        await tenantMutate(gapsSWRKey);
+        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
-        logger.error("template_archive_failed", {
+        logger.error("template_apply_failed", {
           template_id: template.id,
           error: err instanceof Error ? err.message : String(err),
         });
         toastError(
           err instanceof Error
             ? err.message
-            : "Vorlage konnte nicht archiviert werden",
+            : "Vorlage konnte nicht angewendet werden",
         );
       }
     },
-    [templatePeriodID, tenantMutate, toastError, toastSuccess],
+    [
+      calendarPeriods,
+      defaultTemplatePeriod,
+      exceptionConflictsSWRKey,
+      gapsSWRKey,
+      openPeriodCreate,
+      swrKey,
+      tenantMutate,
+      toastError,
+      toastSuccess,
+    ],
   );
 
   if (status === "loading") {
@@ -656,84 +772,52 @@ function TimetablesContent() {
     );
   }
 
+  const isOnToday =
+    view === "week"
+      ? weekOffset === 0 && !selectedDay
+      : view === "month"
+        ? monthDate.getFullYear() === new Date().getFullYear() &&
+          monthDate.getMonth() === new Date().getMonth()
+        : true;
+
   return (
     <div className="flex flex-col gap-4 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-slate-900">Stundenplan</h1>
-          <p className="text-sm text-slate-500">
-            {view === "month"
-              ? `Monatsüberblick • ${monthLabel}`
-              : view === "templates"
-                ? "Vorlagen für wiederkehrende Aktivitäten"
-                : `Wochenplan • ${weekLabel}`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <CalendarPeriodHeaderButton
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-slate-900">Stundenplan</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <PeriodSwitcherDropdown
             periods={calendarPeriods}
             weekDays={periodContextDays}
             isLoading={periodsLoading}
             onCreate={openPeriodCreate}
             onEdit={openPeriodEdit}
+            onSelect={jumpToPeriod}
           />
           {view === "week" && instances.length > 0 && (
-            <MaterializeButton
+            <PlanningMenu
               onMaterialize={handleMaterialize}
+              onReplan={handleReplanWeek}
               weekLabel={weekLabel}
-              variant="secondary"
+              emphasis="secondary"
             />
           )}
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <ViewToggle value={view} onChange={handleViewChange} />
-        {view === "month" ? (
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-1.5">
-            <button
-              type="button"
-              onClick={() => handleMonthChange(-1)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
-              aria-label="Vorheriger Monat"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="px-2 text-sm font-semibold text-slate-900">
-              {monthLabel}
-            </span>
-            <button
-              type="button"
-              onClick={() => handleMonthChange(1)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
-              aria-label="Nächster Monat"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        ) : view === "week" ? (
-          <WeekNavigator
-            weekOffset={weekOffset}
-            weekRange={weekRange}
-            onChange={handleWeekChange}
-          />
-        ) : null}
-        <div className="flex-1" />
-        <button
-          type="button"
-          onClick={openInstanceCreate}
-          className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-100"
-        >
-          + Termin
-        </button>
-        <button
-          type="button"
-          onClick={openTemplateCreate}
-          className="inline-flex items-center gap-2 rounded-md border border-[#5080D8] bg-[#5080D8] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#4070c8]"
-        >
-          + Vorlage
-        </button>
-      </div>
+      <TimetableToolbar
+        view={view}
+        onViewChange={handleViewChange}
+        rangeLabel={view === "month" ? monthLabel : weekLabel}
+        onPrev={handleToolbarPrev}
+        onNext={handleToolbarNext}
+        onToday={handleToolbarToday}
+        isOnToday={isOnToday}
+        navDisabled={view === "templates"}
+        density={density}
+        onDensityChange={setDensity}
+        onAddInstance={openInstanceCreate}
+        onAddTemplate={openTemplateCreate}
+      />
 
       {shouldLoadInstances && (
         <ConflictWarningsBanner conflictCount={conflictCount} />
@@ -751,9 +835,6 @@ function TimetablesContent() {
             instances={instances}
             todayISO={todayISO}
             onDayClick={openWeekForDay}
-            onPlanWeek={(dateISO) => {
-              openWeekForDay(dateISO);
-            }}
           />
         ))}
 
@@ -764,41 +845,57 @@ function TimetablesContent() {
               <Loading />
             </div>
           ) : (
-            <WeeklyPlannerGrid
+            <WeeklyCalendarGrid
               weekDays={weekDays}
               instances={instances}
               selectedId={selectedInstanceId}
               onInstanceClick={handleSelectInstance}
               todayISO={todayISO}
+              dayStartHour={dayStartHour}
+              dayEndHour={dayEndHour}
+              hourHeightPx={hourHeightPx}
             />
           )}
 
           {!isInstanceDataLoading && instances.length === 0 && !error && (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-              <h3 className="text-base font-bold text-slate-900">
-                Diese Woche hat noch keine Termine
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Plane die Woche aus den Vorlagen oder lege zuerst eine Vorlage
-                für Mensa, Lernzeit, AGs oder externe Angebote an.
-              </p>
-              <div className="mt-4 flex flex-wrap justify-center gap-3">
-                <MaterializeButton
-                  onMaterialize={handleMaterialize}
-                  weekLabel={weekLabel}
-                  variant="primary"
+            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-6 py-16 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+                <CalendarDaysIcon
+                  className="h-6 w-6 text-slate-400"
+                  aria-hidden
                 />
+              </div>
+              <div className="flex flex-col gap-1">
+                <h3 className="text-base font-semibold text-slate-900">
+                  Diese Woche hat noch keine Termine
+                </h3>
+                <p className="max-w-sm text-sm text-slate-500">
+                  Plane die Woche aus den Vorlagen oder lege zuerst eine Vorlage
+                  für Mensa, Lernzeit, AGs oder externe Angebote an.
+                </p>
+              </div>
+              <div className="mt-2 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleMaterialize();
+                  }}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
+                >
+                  <CalendarPlusIcon className="h-3.5 w-3.5" aria-hidden />
+                  Aus Vorlagen planen
+                </button>
                 <button
                   type="button"
                   onClick={openTemplateCreate}
-                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 >
                   Vorlage anlegen
                 </button>
                 <button
                   type="button"
                   onClick={openInstanceCreate}
-                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 >
                   Termin hinzufügen
                 </button>
@@ -825,7 +922,6 @@ function TimetablesContent() {
                 setInstanceModalOpen(true);
               }}
               onSubstitute={handleSubstitute}
-              onReplanWeek={handleReplanWeek}
             />
           )}
         </>
@@ -838,14 +934,12 @@ function TimetablesContent() {
           ) : (
             <TemplateList
               templates={templates}
-              selectedId={selectedTemplate?.id ?? templates[0]?.id ?? null}
-              onSelect={setSelectedTemplate}
               onCreate={openTemplateCreate}
               onEdit={(template) => {
                 setEditingTemplate(template);
                 setCreateModalOpen(true);
               }}
-              onArchive={(template) => void handleArchiveTemplate(template)}
+              onApply={(template) => void handleApplyTemplate(template)}
             />
           )}
         </>
@@ -920,38 +1014,6 @@ function TimetablesContent() {
         }}
         createDefaults={periodCreateDefaults}
       />
-    </div>
-  );
-}
-
-function ViewToggle({
-  value,
-  onChange,
-}: {
-  value: TimetableView;
-  onChange: (view: TimetableView) => void;
-}) {
-  const items: Array<{ value: TimetableView; label: string }> = [
-    { value: "month", label: "Monat" },
-    { value: "week", label: "Woche" },
-    { value: "templates", label: "Vorlagen" },
-  ];
-  return (
-    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
-      {items.map((item) => (
-        <button
-          key={item.value}
-          type="button"
-          onClick={() => onChange(item.value)}
-          className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
-            value === item.value
-              ? "bg-[#5080D8] text-white"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          {item.label}
-        </button>
-      ))}
     </div>
   );
 }

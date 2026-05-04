@@ -109,4 +109,9 @@ const (
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
 	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
 	KeyGDPRTimetableRetentionDays         = "gdpr.timetable_retention_days"
+	// Display range for the admin weekly calendar (Apple-style grid).
+	// Both are HH:MM strings; the UI renders the visible window between them
+	// and scrolls if events fall outside.
+	KeyTimetableDayStartTime = "timetable.day_start_time"
+	KeyTimetableDayEndTime   = "timetable.day_end_time"
 )
