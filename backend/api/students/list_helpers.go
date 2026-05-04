@@ -17,6 +17,7 @@ type studentListParams struct {
 	lastName            string
 	location            string
 	groupID             int64
+	roomID              int64
 	search              string
 	page                int
 	pageSize            int
@@ -43,6 +44,16 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 	if groupIDStr := r.URL.Query().Get("group_id"); groupIDStr != "" {
 		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
 			params.groupID = groupID
+		}
+	}
+
+	// Parse room ID if provided. Filters the list to students currently
+	// checked-in to any active group taking place in this room (joins via
+	// active.visits → active.groups). Used by the "In Kindersuche öffnen"
+	// link from the room detail page (#1323).
+	if roomIDStr := r.URL.Query().Get("room_id"); roomIDStr != "" {
+		if roomID, err := strconv.ParseInt(roomIDStr, 10, 64); err == nil {
+			params.roomID = roomID
 		}
 	}
 

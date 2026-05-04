@@ -389,6 +389,37 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListParams) ([]*users.Student, int, error) {
 	ctx := r.Context()
 
+	// If specific room filter requested — return students currently in any
+	// active group in the room. The visit join lives in the active service
+	// (rule 11: services own queries, not handlers); we just collect the
+	// student ids and bulk-load the person records the rest of this handler
+	// expects. A student has at most one open visit at a time, so the
+	// per-student person filters downstream still work correctly.
+	if params.roomID > 0 {
+		visits, err := rs.ActiveService.ListStudentsPresentInRoom(ctx, params.roomID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(visits) == 0 {
+			return []*users.Student{}, 0, nil
+		}
+		studentIDs := make([]int64, 0, len(visits))
+		for _, v := range visits {
+			studentIDs = append(studentIDs, v.StudentID)
+		}
+		studentMap, err := rs.StudentRepo.FindByIDs(ctx, studentIDs)
+		if err != nil {
+			return nil, 0, err
+		}
+		students := make([]*users.Student, 0, len(studentMap))
+		for _, id := range studentIDs {
+			if s, ok := studentMap[id]; ok {
+				students = append(students, s)
+			}
+		}
+		return students, len(students), nil
+	}
+
 	// If specific group filter requested
 	if params.groupID > 0 {
 		students, err := rs.StudentRepo.FindByGroupIDs(ctx, []int64{params.groupID})
