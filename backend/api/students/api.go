@@ -395,16 +395,12 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 	// The visit join lives in the active service (rule 11: services own
 	// queries, not handlers).
 	if params.roomID > 0 {
-		visits, err := rs.ActiveService.ListStudentsPresentInRoom(ctx, params.roomID)
+		ids, err := rs.ActiveService.ListStudentsPresentInRoom(ctx, params.roomID)
 		if err != nil {
 			return nil, 0, err
 		}
-		if len(visits) == 0 {
+		if len(ids) == 0 {
 			return []*users.Student{}, 0, nil
-		}
-		ids := make([]int64, 0, len(visits))
-		for _, v := range visits {
-			ids = append(ids, v.StudentID)
 		}
 		// When both room_id and group_id are supplied, intersect with the
 		// student's group_id so the response stays consistent with the

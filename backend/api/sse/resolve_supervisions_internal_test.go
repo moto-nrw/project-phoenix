@@ -169,7 +169,7 @@ func (m *mockActiveSvcForSSE) CountActiveVisitsByRoomID(_ context.Context, _ int
 func (m *mockActiveSvcForSSE) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
-func (m *mockActiveSvcForSSE) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]*activeModel.StudentInRoomVisit, error) {
+func (m *mockActiveSvcForSSE) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) GetGroupSupervisor(_ context.Context, _ int64) (*activeModel.GroupSupervisor, error) {

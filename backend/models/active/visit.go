@@ -88,27 +88,6 @@ type VisitGroupNames struct {
 	RoomName          string
 }
 
-// StudentInRoomVisit is a denormalised row representing one student currently
-// checked-in to an active group that takes place in a given room. Returned by
-// VisitRepository.ListActiveByRoomID. EducationGroupID is the student's
-// education group (users.students.group_id); the handler uses it to drive
-// GDPR redaction via api/common.StudentAccessContext.HasFullAccessByGroupID.
-//
-// EducationGroupName is the human-readable Stammgruppe name (e.g.
-// "Sternengruppe"). The room-detail "Kinder im Raum" UI surfaces this so the
-// label matches the convention on the Kindersuche page (Gruppe = Stammgruppe,
-// not the active activity). Empty when the student has no education group
-// assignment, in which case the handler omits the field from the response.
-type StudentInRoomVisit struct {
-	StudentID          int64
-	FirstName          string
-	LastName           string
-	EducationGroupID   *int64
-	EducationGroupName string
-	ActiveGroupID      int64
-	EntryTime          time.Time
-}
-
 // IsActive returns whether this visit is currently active
 func (v *Visit) IsActive() bool {
 	return v.ExitTime == nil

@@ -39,7 +39,7 @@ type Service interface {
 	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error)
 	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
-	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]*active.StudentInRoomVisit, error)
+	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
