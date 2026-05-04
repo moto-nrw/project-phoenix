@@ -48,8 +48,8 @@ const (
 // service. PR 7's HTTP layer translates the JSON wire shape into this
 // struct.
 type SubmitRequest struct {
-	TenantID         int64
-	CalendarPeriodID int64
+	TenantID int64
+	PhaseID  int64
 
 	// RemoteIP is the parent's source IP (handler resolves X-Forwarded-For
 	// when set, falls back to RemoteAddr). Empty disables IP-based rate
@@ -121,6 +121,7 @@ type RequestServiceConfig struct {
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
+	PhaseRepo                enrollmentModels.PhaseRepository
 	SchoolRepo               platformModels.SchoolRepository
 	RateLimitRepo            enrollmentModels.SubmissionRateLimitRepository
 	OutboxEnqueuer           OutboxEnqueuer
@@ -151,6 +152,7 @@ type requestService struct {
 	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	careOfferingRepo         enrollmentModels.CareOfferingRepository
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
+	phaseRepo                enrollmentModels.PhaseRepository
 	schoolRepo               platformModels.SchoolRepository
 	rateLimitRepo            enrollmentModels.SubmissionRateLimitRepository
 	outboxEnqueuer           OutboxEnqueuer
@@ -174,6 +176,7 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
 		careOfferingRepo:         cfg.CareOfferingRepo,
 		formSchemaRepo:           cfg.FormSchemaRepo,
+		phaseRepo:                cfg.PhaseRepo,
 		schoolRepo:               cfg.SchoolRepo,
 		rateLimitRepo:            cfg.RateLimitRepo,
 		outboxEnqueuer:           cfg.OutboxEnqueuer,
@@ -188,6 +191,10 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 // Submit is the workhorse. One DB transaction writes the request, all
 // child rows, all care-offering selections, and enqueues the two
 // confirmation emails. Either everything lands or nothing does.
+//
+// Phase-model: req.PhaseID identifies the parent's chosen phase. The
+// phase carries its own enrollment window, form-schema reference, and
+// care-overflow mode — all the things that used to be tenant-wide.
 func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error) {
 	if err := s.enforceRateLimit(ctx, req); err != nil {
 		return nil, err
@@ -196,10 +203,18 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		return nil, err
 	}
 
-	now := time.Now()
-	openOfferings, err := s.careOfferingRepo.ListPublicOpenWindow(ctx, now)
+	phase, err := s.loadPhaseForSubmission(ctx, req.PhaseID)
 	if err != nil {
-		return nil, fmt.Errorf("submit: load open offerings: %w", err)
+		return nil, err
+	}
+	now := time.Now()
+	if !phase.IsEnrollmentWindowOpen(now) {
+		return nil, ErrEnrollmentWindowClosed
+	}
+
+	openOfferings, err := s.careOfferingRepo.ListActiveByPhase(ctx, phase.ID)
+	if err != nil {
+		return nil, fmt.Errorf("submit: load phase offerings: %w", err)
 	}
 	openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
 	for _, o := range openOfferings {
@@ -213,15 +228,18 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	// childStatusOverrides[i] is set when capacity logic forces a
 	// non-default status (e.g. waitlisted under mode=waitlist). When the
 	// mode is 'reject' an over-capacity offering aborts the whole
-	// submission with ErrCareOfferingFull.
-	childStatusOverrides, err := s.applyCapacityOverflow(ctx, req.Children, openByID)
+	// submission with ErrCareOfferingFull. Mode comes from the phase row.
+	childStatusOverrides, err := s.applyCapacityOverflow(ctx, phase, req.Children, openByID)
 	if err != nil {
 		return nil, err
 	}
 
-	schema, err := s.formSchemaRepo.FindActive(ctx)
+	// Pin the schema version to whichever schema the phase points at,
+	// or the tenant's currently-active schema if the phase has no
+	// override (Phase.FormSchemaID == nil).
+	schema, err := s.resolveSubmissionSchema(ctx, phase)
 	if err != nil {
-		return nil, fmt.Errorf("submit: load active schema: %w", err)
+		return nil, fmt.Errorf("submit: load schema: %w", err)
 	}
 
 	statusToken, err := newStatusToken()
@@ -238,7 +256,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
 		request := &enrollmentModels.Request{
 			SchemaID:           schema.ID,
-			CalendarPeriodID:   req.CalendarPeriodID,
+			PhaseID:            phase.ID,
 			GuardianFirstName:  strings.TrimSpace(req.GuardianFirstName),
 			GuardianLastName:   strings.TrimSpace(req.GuardianLastName),
 			GuardianEmail:      strings.ToLower(strings.TrimSpace(req.GuardianEmail)),
@@ -313,11 +331,11 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 	if !s.isEnrollmentEnabled(ctx) {
 		return ErrEnrollmentDisabled
 	}
-	if !s.isWithinOpenWindow(ctx, time.Now()) {
-		return ErrEnrollmentWindowClosed
-	}
-	if req.CalendarPeriodID <= 0 {
-		return fmt.Errorf("%w: calendar_period_id is required", ErrInvalidSubmission)
+	// Phase-window enforcement happens after we load the phase row in
+	// Submit(). The here check used to enforce a tenant-wide window —
+	// that setting is gone in the phase model.
+	if req.PhaseID <= 0 {
+		return fmt.Errorf("%w: phase_id is required", ErrInvalidSubmission)
 	}
 	if strings.TrimSpace(req.GuardianFirstName) == "" {
 		return fmt.Errorf("%w: guardian first name is required", ErrInvalidSubmission)
@@ -554,6 +572,47 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 
 // --- helpers ---
 
+// loadPhaseForSubmission fetches the phase the parent selected and
+// validates it's enabled. Returns ErrEnrollmentDisabled when the phase
+// is inactive (admin marked it hidden) and ErrInvalidSubmission when
+// the id is unknown. The window check happens in Submit() — kept
+// separate so error mapping in the handler stays specific.
+func (s *requestService) loadPhaseForSubmission(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
+	if s.phaseRepo == nil {
+		return nil, fmt.Errorf("submit: phase repo not wired")
+	}
+	phase, err := s.phaseRepo.FindByID(ctx, phaseID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: phase %d not found", ErrInvalidSubmission, phaseID)
+	}
+	if !phase.IsActive {
+		return nil, ErrEnrollmentDisabled
+	}
+	return phase, nil
+}
+
+// resolveSubmissionSchema returns the phase's pinned form schema, or
+// the tenant's currently-active schema when the phase has none. Errors
+// only when neither resolves (admin must publish at least one schema
+// before parents can submit).
+func (s *requestService) resolveSubmissionSchema(ctx context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.FormSchema, error) {
+	if phase.FormSchemaID != nil {
+		schema, err := s.formSchemaRepo.FindByID(ctx, *phase.FormSchemaID)
+		if err == nil && schema != nil {
+			return schema, nil
+		}
+		// fall through to active schema if the pinned id has gone away
+		s.logger.Warn("phase form_schema_id resolution failed; falling back to active schema",
+			slog.Int64("phase_id", phase.ID),
+			slog.Int64("form_schema_id", *phase.FormSchemaID))
+	}
+	schema, err := s.formSchemaRepo.FindActive(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return schema, nil
+}
+
 func newStatusToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -581,27 +640,6 @@ func (s *requestService) isEnrollmentEnabled(ctx context.Context) bool {
 		}
 	}
 	return false
-}
-
-func (s *requestService) isWithinOpenWindow(ctx context.Context, now time.Time) bool {
-	if s.settings == nil {
-		return true
-	}
-	startStr := s.resolveSettingString(ctx, configModel.KeyEnrollmentOpenWindowStart, "")
-	endStr := s.resolveSettingString(ctx, configModel.KeyEnrollmentOpenWindowEnd, "")
-	if startStr != "" {
-		if t, err := time.Parse("2006-01-02", startStr); err == nil && now.Before(t) {
-			return false
-		}
-	}
-	if endStr != "" {
-		if t, err := time.Parse("2006-01-02", endStr); err == nil && now.After(t.AddDate(0, 0, 1)) {
-			// End-of-day inclusive: treat the configured date as
-			// "accept until end-of-day on this date".
-			return false
-		}
-	}
-	return true
 }
 
 func (s *requestService) resolveGradeMax(ctx context.Context) int {
@@ -687,9 +725,9 @@ func (s *requestService) lookupSchoolName(ctx context.Context, tenantID int64) s
 }
 
 // applyCapacityOverflow inspects each selected offering's capacity vs
-// current claimants. Per the configured tenant mode it either rejects
-// the whole submission, returns per-child status overrides (waitlist),
-// or lets everything pass through unchanged (allow / mode unset).
+// current claimants. Per the phase's care_overflow_mode it either
+// rejects the whole submission, returns per-child status overrides
+// (waitlist), or lets everything pass through unchanged (allow).
 //
 // The map[childIndex]status return is intentionally sparse — entries
 // only appear for children that need a non-default status. Callers
@@ -703,6 +741,7 @@ func (s *requestService) lookupSchoolName(ctx context.Context, tenantID int64) s
 // loop.
 func (s *requestService) applyCapacityOverflow(
 	ctx context.Context,
+	phase *enrollmentModels.Phase,
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) (map[int]string, error) {
@@ -711,7 +750,10 @@ func (s *requestService) applyCapacityOverflow(
 		return overrides, nil
 	}
 
-	mode := s.resolveOverflowMode(ctx)
+	mode := phase.CareOverflowMode
+	if mode == "" {
+		mode = enrollmentModels.PhaseCareOverflowWaitlist
+	}
 
 	// Cache per-offering current count + capacity. Avoid hitting the DB
 	// once per (child, offering) pair when one offering is shared.
@@ -753,45 +795,18 @@ func (s *requestService) applyCapacityOverflow(
 			}
 			if sl.current+sl.queued+1 > *sl.capacity {
 				childOver = true
-				if mode == configModel.EnrollmentCareOverflowReject {
+				if mode == enrollmentModels.PhaseCareOverflowReject {
 					return nil, fmt.Errorf("%w: offering %d", ErrCareOfferingFull, offeringID)
 				}
 			}
 			sl.queued++
 		}
-		if childOver && mode == configModel.EnrollmentCareOverflowWaitlist {
+		if childOver && mode == enrollmentModels.PhaseCareOverflowWaitlist {
 			overrides[childIdx] = enrollmentModels.ChildStatusWaitlisted
 		}
 	}
 
 	return overrides, nil
-}
-
-// resolveOverflowMode reads enrollment.care_overflow_mode. Defaults to
-// 'waitlist' when no tenant override is set or the value is unknown —
-// matches the registered default and is the gentlest user experience
-// (parents still get a confirmation, admins triage).
-func (s *requestService) resolveOverflowMode(ctx context.Context) string {
-	const defaultMode = configModel.EnrollmentCareOverflowWaitlist
-	if s.settings == nil {
-		return defaultMode
-	}
-	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentCareOverflowMode)
-	if err != nil || !has {
-		return defaultMode
-	}
-	v, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentCareOverflowMode)
-	if err != nil || v == "" {
-		return defaultMode
-	}
-	switch v {
-	case configModel.EnrollmentCareOverflowReject,
-		configModel.EnrollmentCareOverflowWaitlist,
-		configModel.EnrollmentCareOverflowAllow:
-		return v
-	default:
-		return defaultMode
-	}
 }
 
 // enforceRateLimit increments the per-IP and per-email buckets and

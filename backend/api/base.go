@@ -307,8 +307,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentCareOffering,
 		api.Services.EnrollmentRequest,
 		api.Services.EnrollmentCaptcha,
+		api.Services.EnrollmentPhase,
 		repoFactory.School,
-		repoFactory.CalendarPeriod,
+		repoFactory.Phase,
 		db,
 	)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)

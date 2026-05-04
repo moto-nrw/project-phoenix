@@ -33,11 +33,12 @@ type SubmitChildRequest struct {
 	OfferingIDs      []int64        `json:"offering_ids,omitempty"`
 }
 
-// SubmitEnrollmentRequest is the public submit body. CalendarPeriodID
-// comes from the parent's chosen school year on the form. CaptchaToken
-// is the Turnstile widget output; verified before any DB write.
+// SubmitEnrollmentRequest is the public submit body. PhaseID identifies
+// the parent's chosen enrollment phase (school year, holiday window,
+// etc.). CaptchaToken is the Turnstile widget output; verified before
+// any DB write.
 type SubmitEnrollmentRequest struct {
-	CalendarPeriodID  int64                `json:"calendar_period_id"`
+	PhaseID           int64                `json:"phase_id"`
 	GuardianFirstName string               `json:"guardian_first_name"`
 	GuardianLastName  string               `json:"guardian_last_name"`
 	GuardianEmail     string               `json:"guardian_email"`
@@ -152,7 +153,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remoteIP string) (enrollmentService.SubmitRequest, error) {
 	out := enrollmentService.SubmitRequest{
 		TenantID:          tenantID,
-		CalendarPeriodID:  wireReq.CalendarPeriodID,
+		PhaseID:           wireReq.PhaseID,
 		RemoteIP:          remoteIP,
 		GuardianFirstName: wireReq.GuardianFirstName,
 		GuardianLastName:  wireReq.GuardianLastName,

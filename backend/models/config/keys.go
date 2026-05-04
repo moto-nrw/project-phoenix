@@ -104,12 +104,11 @@ const (
 	KeyGuardianInvitationTokenExpiryHours = "invitations.guardian_token_expiry_hours"
 )
 
-// Parent-enrollment settings (PR 4 plumbing — values are not yet consumed
-// by code outside the registry. Consumers come online in PRs 5-8).
+// Parent-enrollment settings. Tenant-wide behavioural toggles only —
+// per-phase overrides (open window, form schema, overflow mode, status-
+// reason visibility) live on enrollment.phases columns.
 const (
 	KeyEnrollmentEnabled                     = "enrollment.enabled"
-	KeyEnrollmentOpenWindowStart             = "enrollment.open_window_start"
-	KeyEnrollmentOpenWindowEnd               = "enrollment.open_window_end"
 	KeyEnrollmentCollectGradeLevel           = "enrollment.collect_grade_level"
 	KeyEnrollmentCareOfferingsEnabled        = "enrollment.care_offerings_enabled"
 	KeyEnrollmentCareOfferingsRequired       = "enrollment.care_offerings_required"
@@ -121,17 +120,13 @@ const (
 	KeyEnrollmentRequireCaptcha              = "enrollment.require_captcha"
 	KeyEnrollmentRejectedRetentionDays       = "enrollment.rejected_retention_days"
 	KeyEnrollmentWaitlistEnabled             = "enrollment.waitlist_enabled"
-	KeyEnrollmentShowStatusReasonToParent    = "enrollment.show_status_reason_to_parent"
 	KeyEnrollmentNotifyPerDecision           = "enrollment.notify_per_decision"
 	KeyEnrollmentOutboxMaxAttempts           = "enrollment.outbox_max_attempts"
 	KeyEnrollmentOutboxWorkerIntervalSeconds = "enrollment.outbox_worker_interval_seconds"
 	KeyEnrollmentStatusTokenTTLDays          = "enrollment.status_token_ttl_days"
-
-	// Parent-enrollment PR 7 — public form additions.
-	KeyEnrollmentCaptchaSiteKey   = "enrollment.captcha_site_key"
-	KeyEnrollmentCaptchaSecretKey = "enrollment.captcha_secret_key"
-	KeyEnrollmentGradeLevelMax    = "enrollment.grade_level_max"
-	KeyEnrollmentCareOverflowMode = "enrollment.care_overflow_mode"
+	KeyEnrollmentCaptchaSiteKey              = "enrollment.captcha_site_key"
+	KeyEnrollmentCaptchaSecretKey            = "enrollment.captcha_secret_key"
+	KeyEnrollmentGradeLevelMax               = "enrollment.grade_level_max"
 )
 
 // Enrollment select-option values.
@@ -145,11 +140,6 @@ const (
 
 	EnrollmentNotifyPerDecisionDigest    = "digest"
 	EnrollmentNotifyPerDecisionImmediate = "immediate"
-
-	// Care overflow mode values for KeyEnrollmentCareOverflowMode.
-	EnrollmentCareOverflowWaitlist = "waitlist"
-	EnrollmentCareOverflowReject   = "reject"
-	EnrollmentCareOverflowAllow    = "allow"
 )
 
 // Timetable settings (WP-B7). Per-tenant configuration for the activity

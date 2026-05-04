@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
@@ -15,27 +14,23 @@ import (
 var ErrCareOfferingNotFound = errors.New("care offering not found")
 
 // CareOfferingService manages the per-tenant care-offering catalog.
-// Admin endpoints (PR 6) read + write all offerings; the public endpoint
-// (PR 7 consumer) calls ListPublicOpenWindow.
+// Admin endpoints (PR 6) read + write all offerings; the public form
+// fetches the active offerings for a parent-selected phase.
 type CareOfferingService interface {
 	List(ctx context.Context) ([]*enrollmentModels.CareOffering, error)
-	ListByCalendarPeriod(ctx context.Context, calendarPeriodID int64) ([]*enrollmentModels.CareOffering, error)
-	ListPublic(ctx context.Context, now time.Time) ([]*enrollmentModels.CareOffering, error)
+	ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
+	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
 	GetByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error)
 	Create(ctx context.Context, offering *enrollmentModels.CareOffering) (*enrollmentModels.CareOffering, error)
 	Update(ctx context.Context, offering *enrollmentModels.CareOffering) error
 	Delete(ctx context.Context, id int64) error
 
-	// Clone copies an existing offering into a new row scoped to the
-	// target calendar period. All fields except id / tenant_id are
-	// preserved; date fields (application window, service dates) are
-	// shifted by daysOffset (use 0 for an exact copy). The new
-	// offering's calendar_period_id is set to the target.
-	//
-	// Use case: end of school year, admin clones the prior year's
-	// catalog with daysOffset=365 to spin up next year's offerings
-	// quickly. Admin then trims / edits the result.
-	Clone(ctx context.Context, sourceID int64, targetCalendarPeriodID int64, daysOffset int) (*enrollmentModels.CareOffering, error)
+	// Clone copies an existing offering into a new row scoped to a
+	// target phase. All offering-level fields (capacity, days, lunch,
+	// price, etc.) are preserved; the source row's ID is reset and
+	// phase_id is set to the target. Use case: cloning last year's
+	// catalog into this year's phase, then editing what changed.
+	Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error)
 }
 
 // CareOfferingServiceConfig is the dep-injection bundle.
@@ -65,18 +60,18 @@ func (s *careOfferingService) List(ctx context.Context) ([]*enrollmentModels.Car
 	return s.repo.ListByTenant(ctx)
 }
 
-func (s *careOfferingService) ListByCalendarPeriod(ctx context.Context, calendarPeriodID int64) ([]*enrollmentModels.CareOffering, error) {
-	if calendarPeriodID <= 0 {
-		return nil, fmt.Errorf("calendar_period_id must be positive")
+func (s *careOfferingService) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
+	if phaseID <= 0 {
+		return nil, fmt.Errorf("phase_id must be positive")
 	}
-	return s.repo.ListByCalendarPeriod(ctx, calendarPeriodID)
+	return s.repo.ListByPhase(ctx, phaseID)
 }
 
-func (s *careOfferingService) ListPublic(ctx context.Context, now time.Time) ([]*enrollmentModels.CareOffering, error) {
-	if now.IsZero() {
-		now = time.Now()
+func (s *careOfferingService) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
+	if phaseID <= 0 {
+		return nil, fmt.Errorf("phase_id must be positive")
 	}
-	return s.repo.ListPublicOpenWindow(ctx, now)
+	return s.repo.ListActiveByPhase(ctx, phaseID)
 }
 
 func (s *careOfferingService) GetByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
@@ -125,16 +120,15 @@ func (s *careOfferingService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// Clone implements the next-year duplication helper. Date shifting uses
-// AddDate(0, 0, daysOffset) so DST boundaries are handled consistently.
-// daysOffset == 0 produces an exact copy (still useful when admin wants
-// to pivot an offering across periods without shifting dates).
-func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetCalendarPeriodID int64, daysOffset int) (*enrollmentModels.CareOffering, error) {
+// Clone copies a care offering into a new row scoped to a target phase.
+// All offering-level fields are preserved; ID is reset so the DB
+// assigns a fresh BIGSERIAL, and phase_id is repointed at the target.
+func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error) {
 	if sourceID <= 0 {
 		return nil, fmt.Errorf("source id must be positive")
 	}
-	if targetCalendarPeriodID <= 0 {
-		return nil, fmt.Errorf("target calendar period id must be positive")
+	if targetPhaseID <= 0 {
+		return nil, fmt.Errorf("target phase id must be positive")
 	}
 
 	source, err := s.repo.FindByID(ctx, sourceID)
@@ -144,22 +138,7 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetC
 
 	clone := *source
 	clone.ID = 0 // BIGSERIAL — let the DB assign
-	clone.SortOrder = source.SortOrder
-	clone.CalendarPeriodID = &targetCalendarPeriodID
-
-	if daysOffset != 0 {
-		shiftDay := func(t *time.Time) *time.Time {
-			if t == nil {
-				return nil
-			}
-			out := t.AddDate(0, 0, daysOffset)
-			return &out
-		}
-		clone.ApplicationWindowStart = shiftDay(clone.ApplicationWindowStart)
-		clone.ApplicationWindowEnd = shiftDay(clone.ApplicationWindowEnd)
-		clone.ServiceStartDate = shiftDay(clone.ServiceStartDate)
-		clone.ServiceEndDate = shiftDay(clone.ServiceEndDate)
-	}
+	clone.PhaseID = targetPhaseID
 
 	if err := s.repo.Create(ctx, &clone); err != nil {
 		return nil, fmt.Errorf("clone: create: %w", err)
@@ -167,7 +146,6 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetC
 	s.logger.Info("care offering cloned",
 		slog.Int64("source_id", sourceID),
 		slog.Int64("clone_id", clone.ID),
-		slog.Int64("target_period_id", targetCalendarPeriodID),
-		slog.Int("days_offset", daysOffset))
+		slog.Int64("target_phase_id", targetPhaseID))
 	return &clone, nil
 }

@@ -96,6 +96,7 @@ type Factory struct {
 	EnrollmentCareOffering enrollment.CareOfferingService
 	EnrollmentCaptcha      enrollment.CaptchaService
 	EnrollmentRequest      enrollment.RequestService
+	EnrollmentPhase        enrollment.PhaseService
 }
 
 // NewFactory creates a new services factory
@@ -671,6 +672,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		FormSchemaRepo:           repos.FormSchema,
+		PhaseRepo:                repos.Phase,
 		SchoolRepo:               repos.School,
 		RateLimitRepo:            repos.SubmissionRateLimit,
 		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
@@ -678,6 +680,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		FrontendURL:              frontendURL,
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-request"),
+	})
+
+	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
+		Repo:             repos.Phase,
+		RequestRepo:      repos.Request,
+		CareOfferingRepo: repos.CareOffering,
+		Logger:           logger.With("service", "enrollment-phase"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
@@ -755,5 +764,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentCareOffering: enrollmentCareOfferingService,
 		EnrollmentCaptcha:      enrollmentCaptchaService,
 		EnrollmentRequest:      enrollmentRequestService,
+		EnrollmentPhase:        enrollmentPhaseService,
 	}, nil
 }

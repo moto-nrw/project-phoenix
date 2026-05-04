@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -59,9 +58,13 @@ func (r *CareOfferingRepository) FindByID(ctx context.Context, id int64) (*enrol
 	return offering, nil
 }
 
-// Update writes a full row to disk. Concurrency is naive — first
-// writer wins. Acceptable for an admin catalog editor with single-
-// editor expectations.
+// Update writes a full row to disk. Every editable column is set
+// explicitly — chaining a single .Set("updated_at = NOW()") onto a
+// Model() update makes bun emit ONLY that SET, which silently dropped
+// every other column change before the phase model rewrite.
+//
+// Concurrency is naive — first writer wins. Acceptable for an admin
+// catalog editor with single-editor expectations.
 func (r *CareOfferingRepository) Update(ctx context.Context, offering *enrollment.CareOffering) error {
 	if err := offering.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -70,6 +73,18 @@ func (r *CareOfferingRepository) Update(ctx context.Context, offering *enrollmen
 	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(offering).
 		ModelTableExpr(careOfferingTableExpr).
+		Set("phase_id = ?", offering.PhaseID).
+		Set("activity_group_id = ?", offering.ActivityGroupID).
+		Set("name = ?", offering.Name).
+		Set("description = ?", offering.Description).
+		Set("days_of_week_mode = ?", offering.DaysOfWeekMode).
+		Set("available_days = ?", offering.AvailableDays).
+		Set("includes_holiday_care = ?", offering.IncludesHolidayCare).
+		Set("includes_lunch = ?", offering.IncludesLunch).
+		Set("capacity = ?", offering.Capacity).
+		Set("price_cents = ?", offering.PriceCents).
+		Set("is_active = ?", offering.IsActive).
+		Set("sort_order = ?", offering.SortOrder).
 		Set("updated_at = NOW()").
 		Where(`"care_offering".id = ?`, offering.ID).
 		Exec(ctx)
@@ -116,36 +131,37 @@ func (r *CareOfferingRepository) ListByTenant(ctx context.Context) ([]*enrollmen
 	return offerings, nil
 }
 
-func (r *CareOfferingRepository) ListByCalendarPeriod(ctx context.Context, calendarPeriodID int64) ([]*enrollment.CareOffering, error) {
+// ListByPhase returns every care offering for a given phase, sorted
+// by sort_order. Admin pages use this once a phase is selected.
+func (r *CareOfferingRepository) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollment.CareOffering, error) {
 	var offerings []*enrollment.CareOffering
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&offerings).
 		ModelTableExpr(careOfferingTableExpr).
-		Where(`"care_offering".calendar_period_id = ?`, calendarPeriodID).
+		Where(`"care_offering".phase_id = ?`, phaseID).
 		OrderExpr(`"care_offering".sort_order, "care_offering".id`).
 		Scan(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list care offerings by period: %w", err)
+		return nil, fmt.Errorf("failed to list care offerings by phase: %w", err)
 	}
 	return offerings, nil
 }
 
-// ListPublicOpenWindow returns offerings the public form should expose:
-// is_active=true AND `now` falls within (or NULL bounds replace) the
-// application window. NULL bounds mean unbounded — passing those rows
-// through is intentional.
-func (r *CareOfferingRepository) ListPublicOpenWindow(ctx context.Context, now time.Time) ([]*enrollment.CareOffering, error) {
+// ListActiveByPhase returns is_active=true offerings for the phase.
+// The phase's enrollment window is enforced one layer up (handler
+// rejects the parent before this query runs), so this method only
+// has to filter on the soft-disable flag.
+func (r *CareOfferingRepository) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollment.CareOffering, error) {
 	var offerings []*enrollment.CareOffering
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&offerings).
 		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".phase_id = ?`, phaseID).
 		Where(`"care_offering".is_active = TRUE`).
-		Where(`("care_offering".application_window_start IS NULL OR "care_offering".application_window_start <= ?)`, now).
-		Where(`("care_offering".application_window_end IS NULL OR "care_offering".application_window_end > ?)`, now).
 		OrderExpr(`"care_offering".sort_order, "care_offering".id`).
 		Scan(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list open-window care offerings: %w", err)
+		return nil, fmt.Errorf("failed to list active offerings by phase: %w", err)
 	}
 	return offerings, nil
 }

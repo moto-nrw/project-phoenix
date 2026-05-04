@@ -66,15 +66,12 @@ type PublicFormSchemaResponse struct {
 	Fields  []enrollmentModels.FormField `json:"fields"`
 }
 
-// listPublicActiveSchema returns the active form schema's custom
-// fields for the resolved tenant. No JWT — same slug-gating pattern
-// as listPublicCareOfferings / listPublicCalendarPeriods. The
-// parent-facing enrollment form uses this so admin-defined custom
-// fields render alongside the hardcoded core fields. Returns 404
-// when the tenant has never published a schema (form falls back to
-// core fields only).
+// listPublicActiveSchema returns the form schema for a (tenant, phase)
+// pair. The phase's pinned form_schema_id wins; if the phase has none,
+// we fall back to the tenant's currently-active schema; if neither
+// exists, 404 → form falls back to core fields only.
 func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Request) {
-	if rs.FormSchemaService == nil || rs.SchoolRepo == nil || rs.db == nil {
+	if rs.FormSchemaService == nil || rs.PhaseRepo == nil || rs.SchoolRepo == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public schema endpoint not wired")))
 		return
 	}
@@ -82,6 +79,11 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 	slug := chi.URLParam(r, "tenantSlug")
 	if slug == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
+		return
+	}
+	phaseID, err := strconv.ParseInt(chi.URLParam(r, "phaseId"), 10, 64)
+	if err != nil || phaseID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
 		return
 	}
 
@@ -93,6 +95,18 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		}
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+			phase, phaseErr := rs.PhaseRepo.FindByID(txCtx, phaseID)
+			if phaseErr != nil {
+				return errors.New("phase not found")
+			}
+			if phase.FormSchemaID != nil {
+				s, innerErr := rs.FormSchemaService.GetByID(txCtx, *phase.FormSchemaID)
+				if innerErr == nil && s != nil {
+					schema = s
+					return nil
+				}
+				// fall through to active schema if pinned id has gone away
+			}
 			s, innerErr := rs.FormSchemaService.GetActive(txCtx)
 			schema = s
 			return innerErr

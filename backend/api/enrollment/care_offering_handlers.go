@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -21,50 +20,39 @@ import (
 // CareOfferingResponse is the wire shape for a single offering. IDs
 // stringified so the frontend keeps its int64-as-string convention.
 type CareOfferingResponse struct {
-	ID                     string     `json:"id"`
-	CalendarPeriodID       *string    `json:"calendar_period_id,omitempty"`
-	ActivityGroupID        *string    `json:"activity_group_id,omitempty"`
-	Name                   string     `json:"name"`
-	Description            *string    `json:"description,omitempty"`
-	DaysOfWeekMode         string     `json:"days_of_week_mode"`
-	AvailableDays          []string   `json:"available_days"`
-	IncludesHolidayCare    bool       `json:"includes_holiday_care"`
-	IncludesLunch          bool       `json:"includes_lunch"`
-	Capacity               *int       `json:"capacity,omitempty"`
-	PriceCents             *int       `json:"price_cents,omitempty"`
-	ApplicationWindowStart *time.Time `json:"application_window_start,omitempty"`
-	ApplicationWindowEnd   *time.Time `json:"application_window_end,omitempty"`
-	ServiceStartDate       *time.Time `json:"service_start_date,omitempty"`
-	ServiceEndDate         *time.Time `json:"service_end_date,omitempty"`
-	IsActive               bool       `json:"is_active"`
-	SortOrder              int        `json:"sort_order"`
-	CreatedAt              time.Time  `json:"created_at"`
-	UpdatedAt              time.Time  `json:"updated_at"`
+	ID                  string    `json:"id"`
+	PhaseID             string    `json:"phase_id"`
+	ActivityGroupID     *string   `json:"activity_group_id,omitempty"`
+	Name                string    `json:"name"`
+	Description         *string   `json:"description,omitempty"`
+	DaysOfWeekMode      string    `json:"days_of_week_mode"`
+	AvailableDays       []string  `json:"available_days"`
+	IncludesHolidayCare bool      `json:"includes_holiday_care"`
+	IncludesLunch       bool      `json:"includes_lunch"`
+	Capacity            *int      `json:"capacity,omitempty"`
+	PriceCents          *int      `json:"price_cents,omitempty"`
+	IsActive            bool      `json:"is_active"`
+	SortOrder           int       `json:"sort_order"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingResponse {
 	resp := CareOfferingResponse{
-		ID:                     strconv.FormatInt(o.ID, 10),
-		Name:                   o.Name,
-		Description:            o.Description,
-		DaysOfWeekMode:         o.DaysOfWeekMode,
-		AvailableDays:          o.AvailableDays,
-		IncludesHolidayCare:    o.IncludesHolidayCare,
-		IncludesLunch:          o.IncludesLunch,
-		Capacity:               o.Capacity,
-		PriceCents:             o.PriceCents,
-		ApplicationWindowStart: o.ApplicationWindowStart,
-		ApplicationWindowEnd:   o.ApplicationWindowEnd,
-		ServiceStartDate:       o.ServiceStartDate,
-		ServiceEndDate:         o.ServiceEndDate,
-		IsActive:               o.IsActive,
-		SortOrder:              o.SortOrder,
-		CreatedAt:              o.CreatedAt,
-		UpdatedAt:              o.UpdatedAt,
-	}
-	if o.CalendarPeriodID != nil {
-		s := strconv.FormatInt(*o.CalendarPeriodID, 10)
-		resp.CalendarPeriodID = &s
+		ID:                  strconv.FormatInt(o.ID, 10),
+		PhaseID:             strconv.FormatInt(o.PhaseID, 10),
+		Name:                o.Name,
+		Description:         o.Description,
+		DaysOfWeekMode:      o.DaysOfWeekMode,
+		AvailableDays:       o.AvailableDays,
+		IncludesHolidayCare: o.IncludesHolidayCare,
+		IncludesLunch:       o.IncludesLunch,
+		Capacity:            o.Capacity,
+		PriceCents:          o.PriceCents,
+		IsActive:            o.IsActive,
+		SortOrder:           o.SortOrder,
+		CreatedAt:           o.CreatedAt,
+		UpdatedAt:           o.UpdatedAt,
 	}
 	if o.ActivityGroupID != nil {
 		s := strconv.FormatInt(*o.ActivityGroupID, 10)
@@ -75,22 +63,18 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 
 // CareOfferingRequest is the wire shape POST + PUT accept.
 type CareOfferingRequest struct {
-	CalendarPeriodID       *int64     `json:"calendar_period_id,omitempty"`
-	ActivityGroupID        *int64     `json:"activity_group_id,omitempty"`
-	Name                   string     `json:"name"`
-	Description            *string    `json:"description,omitempty"`
-	DaysOfWeekMode         string     `json:"days_of_week_mode"`
-	AvailableDays          []string   `json:"available_days"`
-	IncludesHolidayCare    bool       `json:"includes_holiday_care"`
-	IncludesLunch          bool       `json:"includes_lunch"`
-	Capacity               *int       `json:"capacity,omitempty"`
-	PriceCents             *int       `json:"price_cents,omitempty"`
-	ApplicationWindowStart *time.Time `json:"application_window_start,omitempty"`
-	ApplicationWindowEnd   *time.Time `json:"application_window_end,omitempty"`
-	ServiceStartDate       *time.Time `json:"service_start_date,omitempty"`
-	ServiceEndDate         *time.Time `json:"service_end_date,omitempty"`
-	IsActive               bool       `json:"is_active"`
-	SortOrder              int        `json:"sort_order"`
+	PhaseID             int64    `json:"phase_id"`
+	ActivityGroupID     *int64   `json:"activity_group_id,omitempty"`
+	Name                string   `json:"name"`
+	Description         *string  `json:"description,omitempty"`
+	DaysOfWeekMode      string   `json:"days_of_week_mode"`
+	AvailableDays       []string `json:"available_days"`
+	IncludesHolidayCare bool     `json:"includes_holiday_care"`
+	IncludesLunch       bool     `json:"includes_lunch"`
+	Capacity            *int     `json:"capacity,omitempty"`
+	PriceCents          *int     `json:"price_cents,omitempty"`
+	IsActive            bool     `json:"is_active"`
+	SortOrder           int      `json:"sort_order"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -104,22 +88,18 @@ func (req *CareOfferingRequest) Bind(_ *http.Request) error {
 
 func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.CareOffering {
 	o := &enrollmentModels.CareOffering{
-		CalendarPeriodID:       req.CalendarPeriodID,
-		ActivityGroupID:        req.ActivityGroupID,
-		Name:                   req.Name,
-		Description:            req.Description,
-		DaysOfWeekMode:         req.DaysOfWeekMode,
-		AvailableDays:          req.AvailableDays,
-		IncludesHolidayCare:    req.IncludesHolidayCare,
-		IncludesLunch:          req.IncludesLunch,
-		Capacity:               req.Capacity,
-		PriceCents:             req.PriceCents,
-		ApplicationWindowStart: req.ApplicationWindowStart,
-		ApplicationWindowEnd:   req.ApplicationWindowEnd,
-		ServiceStartDate:       req.ServiceStartDate,
-		ServiceEndDate:         req.ServiceEndDate,
-		IsActive:               req.IsActive,
-		SortOrder:              req.SortOrder,
+		PhaseID:             req.PhaseID,
+		ActivityGroupID:     req.ActivityGroupID,
+		Name:                req.Name,
+		Description:         req.Description,
+		DaysOfWeekMode:      req.DaysOfWeekMode,
+		AvailableDays:       req.AvailableDays,
+		IncludesHolidayCare: req.IncludesHolidayCare,
+		IncludesLunch:       req.IncludesLunch,
+		Capacity:            req.Capacity,
+		PriceCents:          req.PriceCents,
+		IsActive:            req.IsActive,
+		SortOrder:           req.SortOrder,
 	}
 	o.ID = existingID
 	return o
@@ -127,8 +107,7 @@ func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.Care
 
 // CloneCareOfferingRequest is the body POST /{id}/clone accepts.
 type CloneCareOfferingRequest struct {
-	TargetCalendarPeriodID int64 `json:"target_calendar_period_id"`
-	DaysOffset             int   `json:"days_offset"`
+	TargetPhaseID int64 `json:"target_phase_id"`
 }
 
 func (req *CloneCareOfferingRequest) Bind(_ *http.Request) error { return nil }
@@ -139,19 +118,19 @@ func (rs *Resource) listCareOfferings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	periodFilter := r.URL.Query().Get("calendar_period_id")
+	phaseFilter := r.URL.Query().Get("phase_id")
 	var (
 		offerings []*enrollmentModels.CareOffering
 		err       error
 	)
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		var listErr error
-		if periodFilter != "" {
-			id, parseErr := strconv.ParseInt(periodFilter, 10, 64)
+		if phaseFilter != "" {
+			id, parseErr := strconv.ParseInt(phaseFilter, 10, 64)
 			if parseErr != nil || id <= 0 {
-				return errors.New("invalid calendar_period_id")
+				return errors.New("invalid phase_id")
 			}
-			offerings, listErr = rs.CareOfferingService.ListByCalendarPeriod(ctx, id)
+			offerings, listErr = rs.CareOfferingService.ListByPhase(ctx, id)
 			return listErr
 		}
 		offerings, listErr = rs.CareOfferingService.List(ctx)
@@ -293,7 +272,7 @@ func (rs *Resource) cloneCareOffering(w http.ResponseWriter, r *http.Request) {
 
 	var clone *enrollmentModels.CareOffering
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		c, e := rs.CareOfferingService.Clone(ctx, sourceID, req.TargetCalendarPeriodID, req.DaysOffset)
+		c, e := rs.CareOfferingService.Clone(ctx, sourceID, req.TargetPhaseID)
 		clone = c
 		return e
 	})
@@ -305,8 +284,10 @@ func (rs *Resource) cloneCareOffering(w http.ResponseWriter, r *http.Request) {
 }
 
 // listPublicCareOfferings is the parent-facing endpoint. No JWT — the
-// {tenantSlug} path param resolves to a tenant whose context we set
-// for the lookup. Window-filtered to active + currently-open offerings.
+// {tenantSlug} resolves to a tenant; {phaseId} narrows the offering set
+// to one phase. The phase model owns the enrollment window, so the
+// per-offering window check shipped in PR 6 is gone — the handler trusts
+// the phase-level gate run by the caller (or by Submit on its own).
 func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Request) {
 	if rs.CareOfferingService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
@@ -322,22 +303,21 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
 		return
 	}
+	phaseID, err := strconv.ParseInt(chi.URLParam(r, "phaseId"), 10, 64)
+	if err != nil || phaseID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
+		return
+	}
 
 	var offerings []*enrollmentModels.CareOffering
-	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if schoolErr != nil {
+		if schoolErr != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}
-		if school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
-
-		// Switch into the resolved tenant context for the query so
-		// RLS narrows to the tenant's offerings.
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
-			list, listErr := rs.CareOfferingService.ListPublic(txCtx, time.Now())
+			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
 			offerings = list
 			return listErr
 		})
@@ -358,30 +338,25 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 // referenced via *Resource.CareOfferingService.
 var _ = enrollmentService.ErrCareOfferingNotFound
 
-// PublicCalendarPeriod is the slim, parent-safe shape returned by the
-// public calendar-periods endpoint. Intentionally smaller than the
-// admin CalendarPeriodResponse — no week_cycle_anchor, no created_by,
-// nothing the parent form doesn't render.
-type PublicCalendarPeriod struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	PeriodType string `json:"period_type"`
-	StartDate  string `json:"start_date"`
-	EndDate    string `json:"end_date"`
+// PublicPhase is the parent-safe shape returned by the public phases
+// endpoint. Intentionally slim — no created_by, no audit metadata.
+type PublicPhase struct {
+	ID                       string `json:"id"`
+	Name                     string `json:"name"`
+	Kind                     string `json:"kind"`
+	ServiceStartDate         string `json:"service_start_date"`
+	ServiceEndDate           string `json:"service_end_date"`
+	EnrollmentOpenAt         string `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt        string `json:"enrollment_close_at,omitempty"`
+	ShowStatusReasonToParent bool   `json:"show_status_reason_to_parent"`
 }
 
-// listPublicCalendarPeriods returns the active school-year periods for
-// the given tenant slug. No JWT — same slug-gating pattern as
-// listPublicCareOfferings. The frontend's school-year picker on the
-// public enrollment form is the only consumer.
-//
-// Filtered to period_type='school_year' AND is_active=true. The
-// enrollment Submit path enforces the configured open-window bounds
-// separately, so we don't filter by date here — admins might want
-// "next year" visible while still inside this year.
-func (rs *Resource) listPublicCalendarPeriods(w http.ResponseWriter, r *http.Request) {
-	if rs.SchoolRepo == nil || rs.CalendarPeriodRepo == nil || rs.db == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public calendar-periods endpoint not wired")))
+// listPublicPhases returns the currently-open phases for the given
+// tenant slug. No JWT — slug-gated. The parent landing page renders
+// these as cards / pickers; clicking one routes the parent to the form.
+func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
+	if rs.SchoolRepo == nil || rs.PhaseRepo == nil || rs.db == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public phases endpoint not wired")))
 		return
 	}
 
@@ -391,7 +366,7 @@ func (rs *Resource) listPublicCalendarPeriods(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var periods []*scheduleModels.CalendarPeriod
+	var phases []*enrollmentModels.Phase
 	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
 		if schoolErr != nil || school == nil || school.IsDeleted() {
@@ -399,8 +374,8 @@ func (rs *Resource) listPublicCalendarPeriods(w http.ResponseWriter, r *http.Req
 		}
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
-			list, listErr := rs.CalendarPeriodRepo.FindActiveByTenantID(txCtx)
-			periods = list
+			list, listErr := rs.PhaseRepo.ListPublicOpen(txCtx, time.Now())
+			phases = list
 			return listErr
 		})
 	})
@@ -409,20 +384,23 @@ func (rs *Resource) listPublicCalendarPeriods(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	out := make([]PublicCalendarPeriod, 0, len(periods))
-	for _, p := range periods {
-		// Hide non-school-year periods (semester, holiday, custom). The
-		// parent form only enrolls into school years.
-		if p.PeriodType != "school_year" {
-			continue
+	out := make([]PublicPhase, 0, len(phases))
+	for _, p := range phases {
+		entry := PublicPhase{
+			ID:                       strconv.FormatInt(p.ID, 10),
+			Name:                     p.Name,
+			Kind:                     p.Kind,
+			ServiceStartDate:         p.ServiceStartDate.Format("2006-01-02"),
+			ServiceEndDate:           p.ServiceEndDate.Format("2006-01-02"),
+			ShowStatusReasonToParent: p.ShowStatusReasonToParent,
 		}
-		out = append(out, PublicCalendarPeriod{
-			ID:         strconv.FormatInt(p.ID, 10),
-			Name:       p.Name,
-			PeriodType: p.PeriodType,
-			StartDate:  p.StartDate.Format("2006-01-02"),
-			EndDate:    p.EndDate.Format("2006-01-02"),
-		})
+		if p.EnrollmentOpenAt != nil {
+			entry.EnrollmentOpenAt = p.EnrollmentOpenAt.Format(time.RFC3339)
+		}
+		if p.EnrollmentCloseAt != nil {
+			entry.EnrollmentCloseAt = p.EnrollmentCloseAt.Format(time.RFC3339)
+		}
+		out = append(out, entry)
 	}
-	common.Respond(w, r, http.StatusOK, out, "Public calendar periods retrieved")
+	common.Respond(w, r, http.StatusOK, out, "Public phases retrieved")
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -37,22 +36,18 @@ var canonicalDaySet = map[string]bool{
 type CareOffering struct {
 	base.Model `bun:"schema:enrollment,table:care_offerings"`
 	base.TenantModel
-	CalendarPeriodID       *int64     `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
-	ActivityGroupID        *int64     `bun:"activity_group_id" json:"activity_group_id,omitempty"`
-	Name                   string     `bun:"name,notnull" json:"name"`
-	Description            *string    `bun:"description" json:"description,omitempty"`
-	DaysOfWeekMode         string     `bun:"days_of_week_mode,notnull,default:'fixed'" json:"days_of_week_mode"`
-	AvailableDays          []string   `bun:"available_days,type:jsonb,notnull" json:"available_days"`
-	IncludesHolidayCare    bool       `bun:"includes_holiday_care,notnull" json:"includes_holiday_care"`
-	IncludesLunch          bool       `bun:"includes_lunch,notnull" json:"includes_lunch"`
-	Capacity               *int       `bun:"capacity" json:"capacity,omitempty"`
-	PriceCents             *int       `bun:"price_cents" json:"price_cents,omitempty"`
-	ApplicationWindowStart *time.Time `bun:"application_window_start" json:"application_window_start,omitempty"`
-	ApplicationWindowEnd   *time.Time `bun:"application_window_end" json:"application_window_end,omitempty"`
-	ServiceStartDate       *time.Time `bun:"service_start_date,type:date" json:"service_start_date,omitempty"`
-	ServiceEndDate         *time.Time `bun:"service_end_date,type:date" json:"service_end_date,omitempty"`
-	IsActive               bool       `bun:"is_active,notnull" json:"is_active"`
-	SortOrder              int        `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	PhaseID             int64    `bun:"phase_id,notnull" json:"phase_id"`
+	ActivityGroupID     *int64   `bun:"activity_group_id" json:"activity_group_id,omitempty"`
+	Name                string   `bun:"name,notnull" json:"name"`
+	Description         *string  `bun:"description" json:"description,omitempty"`
+	DaysOfWeekMode      string   `bun:"days_of_week_mode,notnull,default:'fixed'" json:"days_of_week_mode"`
+	AvailableDays       []string `bun:"available_days,type:jsonb,notnull" json:"available_days"`
+	IncludesHolidayCare bool     `bun:"includes_holiday_care,notnull" json:"includes_holiday_care"`
+	IncludesLunch       bool     `bun:"includes_lunch,notnull" json:"includes_lunch"`
+	Capacity            *int     `bun:"capacity" json:"capacity,omitempty"`
+	PriceCents          *int     `bun:"price_cents" json:"price_cents,omitempty"`
+	IsActive            bool     `bun:"is_active,notnull" json:"is_active"`
+	SortOrder           int      `bun:"sort_order,notnull,default:0" json:"sort_order"`
 }
 
 // TableName returns the schema-qualified table name.
@@ -61,12 +56,16 @@ func (c *CareOffering) TableName() string {
 }
 
 // Validate enforces the column-level CHECK constraints in app code so
-// we fail fast before the round-trip. Mirrors the CHECK clauses on the
-// table from migration 1.15.52.
+// we fail fast before the round-trip. Service / application windows
+// moved to the owning Phase; this struct only owns offering-level
+// fields now (capacity, days, lunch, etc.).
 func (c *CareOffering) Validate() error {
 	c.Name = strings.TrimSpace(c.Name)
 	if c.Name == "" {
 		return errors.New("care offering name is required")
+	}
+	if c.PhaseID == 0 {
+		return errors.New("phase_id is required")
 	}
 	if c.DaysOfWeekMode == "" {
 		c.DaysOfWeekMode = DaysOfWeekModeFixed
@@ -85,30 +84,7 @@ func (c *CareOffering) Validate() error {
 	if c.PriceCents != nil && *c.PriceCents < 0 {
 		return errors.New("price_cents must be non-negative")
 	}
-	if c.ApplicationWindowStart != nil && c.ApplicationWindowEnd != nil &&
-		!c.ApplicationWindowEnd.After(*c.ApplicationWindowStart) {
-		return errors.New("application_window_end must be after application_window_start")
-	}
-	if c.ServiceStartDate != nil && c.ServiceEndDate != nil &&
-		c.ServiceEndDate.Before(*c.ServiceStartDate) {
-		return errors.New("service_end_date must be on or after service_start_date")
-	}
 	return nil
-}
-
-// IsApplicationWindowOpen returns true when `now` falls within the
-// application window (NULL bounds = unbounded). Used by the parent-
-// facing endpoint and as a defense-in-depth check on submission.
-func (c *CareOffering) IsApplicationWindowOpen(now time.Time) bool {
-	if c.ApplicationWindowStart != nil && now.Before(*c.ApplicationWindowStart) {
-		return false
-	}
-	if c.ApplicationWindowEnd != nil && !now.Before(*c.ApplicationWindowEnd) {
-		// `!now.Before(end)` == `now >= end` — the window is half-open;
-		// the moment `end` arrives, the offering is closed.
-		return false
-	}
-	return true
 }
 
 // HasUnlimitedCapacity returns true when the capacity field is NULL,
@@ -128,16 +104,16 @@ type CareOfferingRepository interface {
 	// context, sorted by sort_order. Admin endpoint uses this.
 	ListByTenant(ctx context.Context) ([]*CareOffering, error)
 
-	// ListByCalendarPeriod returns offerings filtered to a single
-	// calendar period — admin pages typically pivot on the period
-	// dropdown.
-	ListByCalendarPeriod(ctx context.Context, calendarPeriodID int64) ([]*CareOffering, error)
+	// ListByPhase returns offerings filtered to a single phase —
+	// admin pages pivot on the phase dropdown, and the public-form
+	// endpoint uses it after resolving the parent's selected phase.
+	ListByPhase(ctx context.Context, phaseID int64) ([]*CareOffering, error)
 
-	// ListPublicOpenWindow returns offerings the public form should
-	// expose: is_active=true AND the application window includes `now`.
-	// Used by the parent-facing endpoint; defense-in-depth for the
-	// submission service in PR 7.
-	ListPublicOpenWindow(ctx context.Context, now time.Time) ([]*CareOffering, error)
+	// ListActiveByPhase returns is_active=true offerings for a phase.
+	// Used by the parent-facing endpoint; the phase's own enrollment
+	// window gates the surrounding flow, so individual offerings
+	// don't need their own time filter.
+	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*CareOffering, error)
 }
 
 // RequestChildOffering is a row in enrollment.request_child_offerings —

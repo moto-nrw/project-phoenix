@@ -61,10 +61,11 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.student_activation_interval_minutes",
 		// Parent-enrollment PR 3: guardian invitation token expiry.
 		"invitations.guardian_token_expiry_hours",
-		// Parent-enrollment PR 4: enrollment registry plumbing.
+		// Parent-enrollment registry plumbing. open_window_*,
+		// show_status_reason_to_parent, and care_overflow_mode moved
+		// to per-phase columns on enrollment.phases — they're no
+		// longer tenant-wide settings.
 		"enrollment.enabled",
-		"enrollment.open_window_start",
-		"enrollment.open_window_end",
 		"enrollment.collect_grade_level",
 		"enrollment.care_offerings_enabled",
 		"enrollment.care_offerings_required",
@@ -76,7 +77,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"enrollment.require_captcha",
 		"enrollment.rejected_retention_days",
 		"enrollment.waitlist_enabled",
-		"enrollment.show_status_reason_to_parent",
 		"enrollment.notify_per_decision",
 		"enrollment.outbox_max_attempts",
 		"enrollment.outbox_worker_interval_seconds",
@@ -85,7 +85,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"enrollment.captcha_site_key",
 		"enrollment.captcha_secret_key",
 		"enrollment.grade_level_max",
-		"enrollment.care_overflow_mode",
 	}
 
 	for _, key := range expectedKeys {
@@ -280,8 +279,6 @@ func TestOperationsSettings_Types(t *testing.T) {
 func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 	enrollmentTabKeys := []string{
 		config.KeyEnrollmentEnabled,
-		config.KeyEnrollmentOpenWindowStart,
-		config.KeyEnrollmentOpenWindowEnd,
 		config.KeyEnrollmentCollectGradeLevel,
 		config.KeyEnrollmentCareOfferingsEnabled,
 		config.KeyEnrollmentCareOfferingsRequired,
@@ -293,7 +290,6 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 		config.KeyEnrollmentRequireCaptcha,
 		config.KeyEnrollmentRejectedRetentionDays,
 		config.KeyEnrollmentWaitlistEnabled,
-		config.KeyEnrollmentShowStatusReasonToParent,
 		config.KeyEnrollmentNotifyPerDecision,
 	}
 	for _, key := range enrollmentTabKeys {
@@ -332,8 +328,6 @@ func TestEnrollmentEnabled_DefaultsOff(t *testing.T) {
 // pure plumbing and nothing renders in the parent UI until enabled.
 func TestEnrollmentSettings_DependencyOnEnabled(t *testing.T) {
 	gatedOnEnabled := []string{
-		config.KeyEnrollmentOpenWindowStart,
-		config.KeyEnrollmentOpenWindowEnd,
 		config.KeyEnrollmentCollectGradeLevel,
 		config.KeyEnrollmentCareOfferingsEnabled,
 		config.KeyEnrollmentDefaultActivationMode,
@@ -343,7 +337,6 @@ func TestEnrollmentSettings_DependencyOnEnabled(t *testing.T) {
 		config.KeyEnrollmentAllowSubmissionEdit,
 		config.KeyEnrollmentRequireCaptcha,
 		config.KeyEnrollmentWaitlistEnabled,
-		config.KeyEnrollmentShowStatusReasonToParent,
 		config.KeyEnrollmentNotifyPerDecision,
 	}
 	for _, key := range gatedOnEnabled {
@@ -393,17 +386,9 @@ func TestEnrollmentSelectOptions_AreCanonical(t *testing.T) {
 	assert.Contains(t, notifyValues, config.EnrollmentNotifyPerDecisionImmediate)
 }
 
-// TestEnrollmentDateFields guards that the two anmeldefenster settings are
-// FieldDate and default to "" (= unbounded). Drift to FieldText would break
-// the date-picker render path on the frontend.
-func TestEnrollmentDateFields(t *testing.T) {
-	for _, key := range []string{config.KeyEnrollmentOpenWindowStart, config.KeyEnrollmentOpenWindowEnd} {
-		def := config.GetDefinition(key)
-		require.NotNilf(t, def, "setting %q should exist", key)
-		assert.Equalf(t, config.FieldDate, def.Type, "setting %q must be type date", key)
-		assert.Equalf(t, "", def.Default, "setting %q must default to empty (= unbounded)", key)
-	}
-}
+// (TestEnrollmentDateFields removed: the open-window settings moved to
+// per-phase columns on enrollment.phases — no tenant-wide date pickers
+// remain.)
 
 // TestEnrollmentOutboxWorkerInterval guards the registry shape of the
 // outbox worker polling interval setting (PR 5). Operator-only because

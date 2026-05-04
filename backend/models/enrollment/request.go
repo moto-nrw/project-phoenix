@@ -17,7 +17,7 @@ type Request struct {
 	base.Model `bun:"schema:enrollment,table:requests"`
 	base.TenantModel
 	SchemaID           int64          `bun:"schema_id,notnull" json:"schema_id"`
-	CalendarPeriodID   int64          `bun:"calendar_period_id,notnull" json:"calendar_period_id"`
+	PhaseID            int64          `bun:"phase_id,notnull" json:"phase_id"`
 	GuardianFirstName  string         `bun:"guardian_first_name,notnull" json:"guardian_first_name"`
 	GuardianLastName   string         `bun:"guardian_last_name,notnull" json:"guardian_last_name"`
 	GuardianEmail      string         `bun:"guardian_email,notnull" json:"guardian_email"`

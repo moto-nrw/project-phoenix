@@ -56,33 +56,9 @@ func registerEnrollmentForm() {
 		Value:     true,
 	}
 
-	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentOpenWindowStart,
-		Label:           "Anmeldefenster Beginn",
-		Description:     "Datum, ab dem das Anmeldeformular Einreichungen entgegennimmt. Leer = sofort.",
-		Type:            config.FieldDate,
-		Default:         "",
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "enrollment",
-		Category:        "anmeldefenster",
-		SortOrder:       10,
-		DependsOn:       dependsOnEnabled,
-	})
-
-	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentOpenWindowEnd,
-		Label:           "Anmeldefenster Ende",
-		Description:     "Datum, ab dem keine neuen Anmeldungen mehr angenommen werden. Leer = unbegrenzt.",
-		Type:            config.FieldDate,
-		Default:         "",
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "enrollment",
-		Category:        "anmeldefenster",
-		SortOrder:       11,
-		DependsOn:       dependsOnEnabled,
-	})
+	// enrollment.open_window_start / end were tenant-wide tunables in
+	// the pre-phase model. Phases now own the open/close window per
+	// row — see migration 1.15.56 + 1.15.57.
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentCollectGradeLevel,
@@ -195,19 +171,9 @@ func registerEnrollmentNotifications() {
 		},
 	})
 
-	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentShowStatusReasonToParent,
-		Label:           "Begründung für Eltern sichtbar",
-		Description:     "Wenn aktiviert, sehen Eltern die von der Verwaltung hinterlegte Begründung (z. B. bei Ablehnung oder Warteliste) in der Status-E-Mail und auf der Statusseite.",
-		Type:            config.FieldBoolean,
-		Default:         true,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "enrollment",
-		Category:        "benachrichtigung",
-		SortOrder:       42,
-		DependsOn:       dependsOnEnabled,
-	})
+	// enrollment.show_status_reason_to_parent moved to per-phase column —
+	// each phase decides whether parents see admin-provided reason
+	// strings on the status page.
 }
 
 func registerEnrollmentSafety() {
@@ -446,30 +412,8 @@ func registerEnrollmentPublicForm() {
 		},
 	})
 
-	// Care offering overflow behaviour — controls what happens when
-	// a parent picks an offering whose capacity is full.
-	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentCareOverflowMode,
-		Label:           "Verhalten bei voller Betreuung",
-		Description:     "Wenn ein gewähltes Betreuungsangebot bereits ausgebucht ist: auf Warteliste setzen (empfohlen), Anmeldung blockieren oder ohne Hinweis akzeptieren (Verwaltung sieht die Überbuchung).",
-		Type:            config.FieldSelect,
-		Default:         config.EnrollmentCareOverflowWaitlist,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "enrollment",
-		Category:        "betreuungsangebote",
-		SortOrder:       32,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyEnrollmentCareOfferingsEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
-		Options: &config.SelectOptions{
-			Static: []config.SelectOption{
-				{Label: "Auf Warteliste setzen", Value: config.EnrollmentCareOverflowWaitlist},
-				{Label: "Anmeldung blockieren", Value: config.EnrollmentCareOverflowReject},
-				{Label: "Ohne Hinweis akzeptieren", Value: config.EnrollmentCareOverflowAllow},
-			},
-		},
-	})
+	// enrollment.care_overflow_mode moved to per-phase column — each
+	// phase carries its own waitlist/reject/allow setting now. The
+	// constants live on enrollmentModels.PhaseCareOverflow*; the
+	// service reads phase.CareOverflowMode at submit time.
 }

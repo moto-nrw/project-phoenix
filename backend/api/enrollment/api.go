@@ -11,8 +11,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -22,20 +22,24 @@ type Resource struct {
 	CareOfferingService enrollmentService.CareOfferingService
 	RequestService      enrollmentService.RequestService
 	CaptchaService      enrollmentService.CaptchaService
+	PhaseService        enrollmentService.PhaseService
 	SchoolRepo          platformModels.SchoolRepository
-	CalendarPeriodRepo  scheduleModels.CalendarPeriodRepository
+	PhaseRepo           enrollmentModels.PhaseRepository
 	db                  *bun.DB
 }
 
 // NewResource constructs the enrollment API resource. PR 7 added the
 // RequestService + CaptchaService for the public submission flow.
+// PR A of the phase model wires PhaseService + PhaseRepo so the public
+// + admin endpoints can resolve phase rows.
 func NewResource(
 	formSchemaSvc enrollmentService.FormSchemaService,
 	careOfferingSvc enrollmentService.CareOfferingService,
 	requestSvc enrollmentService.RequestService,
 	captchaSvc enrollmentService.CaptchaService,
+	phaseSvc enrollmentService.PhaseService,
 	schoolRepo platformModels.SchoolRepository,
-	calendarPeriodRepo scheduleModels.CalendarPeriodRepository,
+	phaseRepo enrollmentModels.PhaseRepository,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
@@ -43,8 +47,9 @@ func NewResource(
 		CareOfferingService: careOfferingSvc,
 		RequestService:      requestSvc,
 		CaptchaService:      captchaSvc,
+		PhaseService:        phaseSvc,
 		SchoolRepo:          schoolRepo,
-		CalendarPeriodRepo:  calendarPeriodRepo,
+		PhaseRepo:           phaseRepo,
 		db:                  db,
 	}
 }
@@ -59,9 +64,9 @@ func (rs *Resource) Router() chi.Router {
 	// Public routes: parent-facing endpoints. No JWT — slug-gated or
 	// status-token-gated in the handler. Sit outside the auth group
 	// below so the JWT middleware doesn't reject anonymous requests.
-	r.Get("/care-offerings/public/{tenantSlug}", rs.listPublicCareOfferings)
-	r.Get("/calendar-periods/public/{tenantSlug}", rs.listPublicCalendarPeriods)
-	r.Get("/schema/public/{tenantSlug}", rs.listPublicActiveSchema)
+	r.Get("/phases/public/{tenantSlug}", rs.listPublicPhases)
+	r.Get("/care-offerings/public/{tenantSlug}/{phaseId}", rs.listPublicCareOfferings)
+	r.Get("/schema/public/{tenantSlug}/{phaseId}", rs.listPublicActiveSchema)
 	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)
 	r.Get("/requests/{statusToken}", rs.getStatus)
 	r.Patch("/requests/{statusToken}", rs.patchStatus)
