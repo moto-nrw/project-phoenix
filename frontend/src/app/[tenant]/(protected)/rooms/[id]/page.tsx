@@ -533,7 +533,6 @@ function RoomDetailPageContent() {
           )}
         </InfoCard>
 
-        {/* Live "Kinder im Raum" — see docs/room-students-present-plan.md (#1323) */}
         <StudentsInRoomSection roomId={room.id} roomName={room.name} />
 
         {/* Room History */}

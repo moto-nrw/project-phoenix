@@ -112,12 +112,12 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("tracking-supervisions-") ||
             key.includes("tracking-indicators-") ||
             // Live "Kinder im Raum" view on /rooms/{id}. Cache key shape is
-            // "rooms-students-present-{roomId}" — see
+            // "room-students-{roomId}" — see
             // components/rooms/students-in-room-section.tsx. Student
             // checkin/checkout events do not carry room_id, so we cannot
             // narrow further here; refetching the section's SWR key is
             // cheap and gives the page live data without polling.
-            key.includes("rooms-students-present-")),
+            key.includes("room-students-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),

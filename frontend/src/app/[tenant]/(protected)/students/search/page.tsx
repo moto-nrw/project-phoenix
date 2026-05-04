@@ -331,6 +331,34 @@ function SearchPageContent() {
           { value: "none", label: "Keine Abholzeit" },
         ],
       },
+      // Room (#1323): only surfaces when a deep-link from a room detail
+      // page set ?room_id=…. Following the established pattern of this
+      // page (every active filter must be clearable through the filter
+      // sheet, since activeFilterDisplay="count" hides chips), the room
+      // appears here with two options — its own value plus "Alle Räume"
+      // to clear. Same UX a user would use to clear a Dashboard "Krank"
+      // deep-link via the Anwesenheit dropdown.
+      ...(selectedRoomId
+        ? [
+            {
+              id: "room",
+              label: "Raum",
+              type: "dropdown" as const,
+              value: selectedRoomId,
+              onChange: (value: string | string[]) => {
+                const v = Array.isArray(value) ? value[0] : value;
+                if (!v) clearRoomFilter();
+              },
+              options: [
+                {
+                  value: selectedRoomId,
+                  label: selectedRoomName || `Raum #${selectedRoomId}`,
+                },
+                { value: "", label: "Alle Räume" },
+              ],
+            },
+          ]
+        : []),
       ...(trackingLabels && trackingLabels.length > 0
         ? [
             {
@@ -362,6 +390,8 @@ function SearchPageContent() {
       groups,
       studentsData,
       sortMode,
+      selectedRoomId,
+      selectedRoomName,
     ],
   );
 
