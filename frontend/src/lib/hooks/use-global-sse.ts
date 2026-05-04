@@ -117,9 +117,10 @@ export function useGlobalSSE(): SSEHookState {
             // checkin/checkout events do not carry room_id, so we cannot
             // narrow further here; refetching the section's SWR key is
             // cheap and gives the page live data without polling.
-            // startsWith (not includes) so a future cache key that merely
-            // contains the substring won't be invalidated by accident.
-            key.startsWith("room-students-")),
+            // NOTE: includes() (not startsWith) — useSWRAuth prefixes keys
+            // with the tenant slug, so the real key is
+            // "<tenant>:room-students-1" and startsWith would never match.
+            key.includes("room-students-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
