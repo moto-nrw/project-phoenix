@@ -51,8 +51,12 @@ type StudentPresentResponse struct {
 	HasFullAccess bool       `json:"has_full_access"`
 }
 
-// listStudentsPresent handles GET /api/rooms/{id}/students-present.
-func (rs *Resource) listStudentsPresent(w http.ResponseWriter, r *http.Request) {
+// ListStudentsPresent handles GET /api/rooms/{id}/students-present.
+//
+// Exported so tests in package rooms_test can invoke the handler directly
+// against a router without a thin *Handler() wrapper (see backend conventions
+// rule 5).
+func (rs *Resource) ListStudentsPresent(w http.ResponseWriter, r *http.Request) {
 	roomID, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))

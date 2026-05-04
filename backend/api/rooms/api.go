@@ -84,7 +84,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}", rs.getRoom)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/by-category", rs.getRoomsByCategory)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.getRoomHistory)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/students-present", rs.listStudentsPresent)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/students-present", rs.ListStudentsPresent)
 
 		// Write operations require specific permissions
 		r.With(authorize.RequiresPermission(permissions.RoomsCreate), withTx).Post("/", rs.createRoom)
