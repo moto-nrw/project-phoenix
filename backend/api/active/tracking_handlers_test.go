@@ -168,6 +168,9 @@ func (m *trackingMockActiveService) CountActiveVisitsByRoomID(ctx context.Contex
 func (m *trackingMockActiveService) CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error) {
 	return 0, nil
 }
+func (m *trackingMockActiveService) ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]*activeModel.StudentInRoomVisit, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) GetGroupSupervisor(ctx context.Context, id int64) (*activeModel.GroupSupervisor, error) {
 	return nil, nil
 }

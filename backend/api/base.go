@@ -273,7 +273,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
-	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
+	api.Rooms = roomsAPI.NewResource(
+		api.Services.Facilities,
+		api.Services.Active,
+		api.Services.UserContext,
+		api.Services.Settings,
+		db,
+		logger.With("handler", "rooms"),
+	)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          api.Services.Users,
 		StudentRepo:            repoFactory.Student,

@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -16,23 +17,51 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	facilityService "github.com/moto-nrw/project-phoenix/services/facilities"
+	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 // Resource defines the rooms API resource
 type Resource struct {
-	FacilityService facilityService.Service
-	db              *bun.DB
+	FacilityService    facilityService.Service
+	ActiveService      activeService.Service
+	UserContextService usercontext.UserContextService
+	SettingsService    configService.SettingsService
+	db                 *bun.DB
+	logger             *slog.Logger
 }
 
-// NewResource creates a new rooms resource
-func NewResource(facilityService facilityService.Service, db *bun.DB) *Resource {
+// NewResource creates a new rooms resource. ActiveService, UserContextService,
+// SettingsService and logger are required by the /students-present endpoint
+// for GDPR-aware redaction; the legacy CRUD handlers ignore them.
+func NewResource(
+	facilityService facilityService.Service,
+	activeService activeService.Service,
+	userContextService usercontext.UserContextService,
+	settingsService configService.SettingsService,
+	db *bun.DB,
+	logger *slog.Logger,
+) *Resource {
 	return &Resource{
-		FacilityService: facilityService,
-		db:              db,
+		FacilityService:    facilityService,
+		ActiveService:      activeService,
+		UserContextService: userContextService,
+		SettingsService:    settingsService,
+		db:                 db,
+		logger:             logger,
 	}
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default().
+func (rs *Resource) getLogger() *slog.Logger {
+	if rs.logger != nil {
+		return rs.logger
+	}
+	return slog.Default()
 }
 
 // Router returns a configured router for room endpoints
@@ -55,6 +84,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}", rs.getRoom)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/by-category", rs.getRoomsByCategory)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.getRoomHistory)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/students-present", rs.listStudentsPresent)
 
 		// Write operations require specific permissions
 		r.With(authorize.RequiresPermission(permissions.RoomsCreate), withTx).Post("/", rs.createRoom)

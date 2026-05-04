@@ -42,7 +42,14 @@ func setupTestContext(t *testing.T) *testContext {
 	svc, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
-	resource := roomsAPI.NewResource(svc.Facilities, db)
+	resource := roomsAPI.NewResource(
+		svc.Facilities,
+		svc.Active,
+		svc.UserContext,
+		svc.Settings,
+		db,
+		slog.Default(),
+	)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
