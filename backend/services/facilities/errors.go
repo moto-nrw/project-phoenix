@@ -9,7 +9,8 @@ import (
 // Common facilities errors
 var (
 	ErrRoomNotFound         = errors.New("room not found")
-	ErrDuplicateRoom        = errors.New("room with this name already exists")
+	ErrDuplicateRoom        = errors.New("Ein Raum mit diesem Namen existiert bereits")               //nolint:staticcheck // ST1005: user-facing German message
+	ErrDuplicateToiletRoom  = errors.New("Es existiert bereits ein Toilettenraum (WC oder Toilette)") //nolint:staticcheck // ST1005: user-facing German message
 	ErrInvalidRoomData      = errors.New("invalid room data")
 	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
 	ErrBuildingNotFound     = errors.New("building not found")

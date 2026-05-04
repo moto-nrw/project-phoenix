@@ -24,6 +24,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -3253,4 +3254,127 @@ func TestDevicePickupQuery_PersonNeitherStudentNorStaffReturnsNotFound(t *testin
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertNotFound(t, rr)
+}
+
+// =============================================================================
+// DUPLICATE ACTIVE VISIT (409 CONFLICT) TESTS — Issue #844
+// =============================================================================
+
+// duplicateVisitActiveService wraps the real Active service and:
+//   - returns ErrStudentAlreadyActive on CreateVisit (without persisting)
+//   - no-ops EndVisit so the existing pre-created visit stays open and the
+//     handler's response builder finds it for the body details
+//
+// This stub exercises the **app-level rejection path** in the IoT handler:
+// the service has already determined the student has an active visit and
+// returns ErrStudentAlreadyActive without performing an INSERT. The
+// database-level partial unique index race is NOT reached here — that
+// path lives in the active service and is covered by the
+// repository-level test on the partial unique index (see
+// backend/database/repositories/active/visits_repository_test.go) plus
+// the unit test on isDuplicateActiveVisitViolation.
+type duplicateVisitActiveService struct {
+	activeSvc.Service
+}
+
+func (d *duplicateVisitActiveService) CreateVisit(ctx context.Context, visit *active.Visit) error {
+	return &activeSvc.ActiveError{Op: "CreateVisit", Err: activeSvc.ErrStudentAlreadyActive}
+}
+
+func (d *duplicateVisitActiveService) EndVisit(ctx context.Context, id int64) error {
+	return nil
+}
+
+func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetails(t *testing.T) {
+	// Verifies that when CreateVisit reports ErrStudentAlreadyActive via the
+	// application-level read-then-write check, the IoT handler returns 409
+	// Conflict with the structured STUDENT_ALREADY_ACTIVE body (Issue #844).
+	// Includes existing visit metadata (visit_id, room_id, room_name,
+	// entry_time) so the kiosk can surface "Bereits angemeldet in <Raum>"
+	// instead of a generic error.
+	//
+	// The DB-race path (where visitRepo.Create itself trips the partial
+	// unique index from migration 1.15.47) is NOT exercised here — see
+	// the package note on duplicateVisitActiveService above.
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "dup-409")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Dup", "ConflictStaff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Dup", "ConflictStudent", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("DUP409%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	roomA := testpkg.CreateTestRoom(t, ctx.db, "Conflict Room A")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, roomA.ID)
+	roomB := testpkg.CreateTestRoom(t, ctx.db, "Conflict Room B")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, roomB.ID)
+
+	activityA := testpkg.CreateTestActivityGroup(t, ctx.db, "Conflict Activity A")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activityA.ID)
+	activityB := testpkg.CreateTestActivityGroup(t, ctx.db, "Conflict Activity B")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activityB.ID)
+
+	activeGroupA := testpkg.CreateTestActiveGroup(t, ctx.db, activityA.ID, roomA.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroupA.ID)
+	activeGroupB := testpkg.CreateTestActiveGroup(t, ctx.db, activityB.ID, roomB.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroupB.ID)
+
+	// Pre-create an active visit in Room A. Once the CreateVisit-overriding
+	// wrapper kicks in (see below), EndVisit is also a no-op, so this visit
+	// stays open and the response builder loads it for the 409 body.
+	existingEntry := time.Now().Add(-5 * time.Minute)
+	existingVisit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroupA.ID, existingEntry, nil)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, existingVisit.ID)
+
+	// Build a Resource that injects the duplicate-visit failure path.
+	wrappedResource := checkinAPI.NewResource(
+		ctx.services.IoT,
+		ctx.services.Users,
+		&duplicateVisitActiveService{Service: ctx.services.Active},
+		ctx.services.Facilities,
+		ctx.services.Activities,
+		ctx.services.Education,
+		ctx.services.PickupSchedule,
+		nil,
+		slog.Default(),
+	)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/checkin/checkin", wrappedResource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      roomB.ID,
+	}
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	require.Equal(t, http.StatusConflict, rr.Code, "expected 409 Conflict. Body: %s", rr.Body.String())
+
+	resp := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "STUDENT_ALREADY_ACTIVE", resp["code"], "machine-readable code is the contract for PyrePortal mapping")
+	assert.Contains(t, resp["message"], "student already has an active visit",
+		"PyrePortal substring-matches this string for the German UI fallback")
+
+	details, ok := resp["details"].(map[string]interface{})
+	require.True(t, ok, "expected details object in 409 body. Body: %s", rr.Body.String())
+	assert.EqualValues(t, student.ID, details["student_id"], "student_id must surface so the kiosk can display context")
+	assert.EqualValues(t, existingVisit.ID, details["existing_visit_id"], "existing_visit_id must point to the still-open visit")
+	assert.EqualValues(t, roomA.ID, details["room_id"], "room_id must reflect the room of the existing visit, not the requested target room")
+	assert.Equal(t, roomA.Name, details["room_name"], "room_name must reflect the existing-visit's room")
 }

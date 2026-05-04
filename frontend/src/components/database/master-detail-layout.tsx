@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useModal } from "~/components/dashboard/modal-context";
 import { cn } from "~/lib/utils";
 import {
   Drawer,
@@ -40,6 +41,7 @@ export function MasterDetailLayout({
   unselectedBehavior = "placeholder",
 }: MasterDetailLayoutProps) {
   const isMobile = useIsMobile();
+  const { isModalOpen } = useModal();
   const containerRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<string>("100dvh");
 
@@ -77,7 +79,21 @@ export function MasterDetailLayout({
             if (!open) onDeselect();
           }}
         >
-          <DrawerContent className="max-h-[90vh]" aria-describedby={undefined}>
+          <DrawerContent
+            className="max-h-[90vh]"
+            aria-describedby={undefined}
+            // Modals (Edit/Confirmation) portal to document.body and therefore
+            // live outside the drawer's DOM. Without these guards Vaul's
+            // DismissableLayer treats every tap inside an open modal as an
+            // outside-click and closes the drawer — which unmounts the modal
+            // before the user can interact with it. See issue #1358.
+            onInteractOutside={(event) => {
+              if (isModalOpen) event.preventDefault();
+            }}
+            onEscapeKeyDown={(event) => {
+              if (isModalOpen) event.preventDefault();
+            }}
+          >
             <DrawerHeader className="sr-only">
               <DrawerTitle>{mobileDrawerTitle}</DrawerTitle>
             </DrawerHeader>

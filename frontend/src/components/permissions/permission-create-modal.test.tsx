@@ -129,50 +129,17 @@ describe("PermissionCreateModal", () => {
     });
   });
 
-  it("shows loading state when loading prop is true", async () => {
+  it("renders the database form", async () => {
     render(
       <PermissionCreateModal
         isOpen={true}
         onClose={mockOnClose}
         onCreate={mockOnCreate}
-        loading={true}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Daten werden geladen...")).toBeInTheDocument();
-    });
-  });
-
-  it("renders the database form when not loading", async () => {
-    render(
-      <PermissionCreateModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onCreate={mockOnCreate}
-        loading={false}
       />,
     );
 
     await waitFor(() => {
       expect(screen.getByTestId("database-form")).toBeInTheDocument();
-    });
-  });
-
-  it("displays error message when error prop is provided", async () => {
-    const errorMessage = "Test error message";
-
-    render(
-      <PermissionCreateModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onCreate={mockOnCreate}
-        error={errorMessage}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("form-error")).toHaveTextContent(errorMessage);
     });
   });
 

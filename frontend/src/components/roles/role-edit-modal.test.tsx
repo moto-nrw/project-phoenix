@@ -154,30 +154,13 @@ describe("RoleEditModal", () => {
     });
   });
 
-  it("shows loading state when loading prop is true", async () => {
+  it("renders the database form", async () => {
     render(
       <RoleEditModal
         isOpen={true}
         onClose={mockOnClose}
         role={mockRole}
         onSave={mockOnSave}
-        loading={true}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Daten werden geladen...")).toBeInTheDocument();
-    });
-  });
-
-  it("renders the database form when not loading", async () => {
-    render(
-      <RoleEditModal
-        isOpen={true}
-        onClose={mockOnClose}
-        role={mockRole}
-        onSave={mockOnSave}
-        loading={false}
       />,
     );
 

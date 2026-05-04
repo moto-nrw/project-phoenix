@@ -19,7 +19,7 @@ func TestEducationErrorVariables(t *testing.T) {
 		{"ErrGroupTeacherNotFound", ErrGroupTeacherNotFound, "group-teacher relationship not found"},
 		{"ErrSubstitutionNotFound", ErrSubstitutionNotFound, "substitution not found"},
 		{"ErrRoomNotFound", ErrRoomNotFound, "room not found"},
-		{"ErrDuplicateGroup", ErrDuplicateGroup, "a group with this name already exists"},
+		{"ErrDuplicateGroup", ErrDuplicateGroup, "Eine Gruppe mit diesem Namen existiert bereits"},
 		{"ErrDuplicateTeacherInGroup", ErrDuplicateTeacherInGroup, "this teacher is already assigned to the group"},
 		{"ErrSubstitutionConflict", ErrSubstitutionConflict, "substitution conflicts with an existing one"},
 		{"ErrSameTeacherSubstitution", ErrSameTeacherSubstitution, "regular staff and substitute staff cannot be the same"},

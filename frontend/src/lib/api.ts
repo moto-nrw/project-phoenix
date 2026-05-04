@@ -439,7 +439,9 @@ function parseSingleStudentResponse(
 }
 
 // Create an Axios instance
-const api = axios.create({
+// oxlint-disable-next-line import/no-named-as-default-member -- Axios exposes create on the default export at runtime, but not as a TypeScript named export.
+const createAxios = axios["create"];
+const api = createAxios({
   baseURL: env.NEXT_PUBLIC_API_URL,
   headers: {
     "Content-Type": "application/json",

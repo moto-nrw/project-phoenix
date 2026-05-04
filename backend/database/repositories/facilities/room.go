@@ -81,7 +81,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 	return base.AssertRowsAffected(result, 1, "update room")
 }
 
-// FindByName retrieves a room by its name
+// FindByName retrieves a room by its name (case-insensitive).
 func (r *RoomRepository) FindByName(ctx context.Context, name string) (*facilities.Room, error) {
 	room := new(facilities.Room)
 	query := base.GetDB(ctx, r.db).NewSelect().

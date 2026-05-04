@@ -39,7 +39,6 @@ export default function ActivitiesPage() {
   const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
   const [selectedActivityDetail, setSelectedActivityDetail] =
     useState<Activity | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -208,7 +207,6 @@ export default function ActivitiesPage() {
   const handleCreateActivity = useCallback(
     async (data: Partial<Activity>) => {
       try {
-        setCreateLoading(true);
         const payload = activitiesConfig.form.transformBeforeSubmit
           ? activitiesConfig.form.transformBeforeSubmit(data)
           : data;
@@ -222,8 +220,14 @@ export default function ActivitiesPage() {
         );
         setShowCreateModal(false);
         await tenantMutate("database-activities-list");
-      } finally {
-        setCreateLoading(false);
+      } catch (createError) {
+        logger.error("failed to create activity", {
+          error:
+            createError instanceof Error
+              ? createError.message
+              : String(createError),
+        });
+        throw createError;
       }
     },
     [service, tenantMutate, toastSuccess],
@@ -233,7 +237,6 @@ export default function ActivitiesPage() {
     async (data: Partial<Activity>) => {
       if (!selectedActivity) return;
       try {
-        setDetailLoading(true);
         const payload = activitiesConfig.form.transformBeforeSubmit
           ? activitiesConfig.form.transformBeforeSubmit(data)
           : data;
@@ -258,8 +261,6 @@ export default function ActivitiesPage() {
               : String(updateError),
         });
         throw updateError;
-      } finally {
-        setDetailLoading(false);
       }
     },
     [selectedActivity, service, tenantMutate, toastSuccess],
@@ -402,7 +403,6 @@ export default function ActivitiesPage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateActivity}
-        loading={createLoading}
       />
 
       {selectedActivity && (

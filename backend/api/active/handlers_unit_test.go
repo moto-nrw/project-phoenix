@@ -2,6 +2,7 @@ package active
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -791,12 +792,19 @@ func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
 }
 
 func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
+	// 409 Conflict, not 400 Bad Request: the duplicate-active-visit
+	// translation introduced for Issue #844 means this error now
+	// surfaces from the DB-level unique index on every CreateVisit
+	// caller, not just the IoT checkin flow. Mapping it to 400 would
+	// contradict both the IoT path (which already returns 409) and
+	// the HTTP semantics — a duplicate visit is a state conflict,
+	// not a malformed request.
 	err := activeSvc.ErrStudentAlreadyActive
 	renderer := ErrorRenderer(err)
 
 	errResp, ok := renderer.(*ErrResponse)
 	assert.True(t, ok)
-	assert.Equal(t, 400, errResp.HTTPStatusCode)
+	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
 	assert.Equal(t, "Student Already Has Active Visit", errResp.StatusText)
 }
 

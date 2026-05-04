@@ -128,11 +128,10 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrStudentAlreadyInGroup},
 			expectedText: "Student Already In Group",
 		},
-		{
-			name:         "ErrStudentAlreadyActive",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrStudentAlreadyActive},
-			expectedText: "Student Already Has Active Visit",
-		},
+		// ErrStudentAlreadyActive intentionally absent — it maps to
+		// 409 Conflict (see TestErrorRenderer_StudentAlreadyActive in
+		// handlers_unit_test.go and TestErrorRenderer_StudentAlreadyActiveConflict
+		// in errors_test.go) per the Issue #844 review fix.
 		{
 			name:         "ErrStaffAlreadySupervising",
 			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrStaffAlreadySupervising},

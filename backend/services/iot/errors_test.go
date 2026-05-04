@@ -51,7 +51,7 @@ func TestDeviceNotFoundError_Unwrap(t *testing.T) {
 
 func TestDuplicateDeviceIDError_Error(t *testing.T) {
 	err := &DuplicateDeviceIDError{DeviceID: "device-456"}
-	assert.Equal(t, "duplicate device ID: device-456", err.Error())
+	assert.Equal(t, `Die Geräte-ID "device-456" ist bereits vergeben`, err.Error())
 }
 
 func TestDuplicateDeviceIDError_Unwrap(t *testing.T) {
@@ -83,7 +83,7 @@ func TestIoTError_AllStandardErrors(t *testing.T) {
 			name:        "duplicate device ID",
 			op:          "RegisterDevice",
 			err:         ErrDuplicateDeviceID,
-			wantContain: "duplicate device ID",
+			wantContain: "ist bereits vergeben",
 		},
 		{
 			name:        "invalid status",

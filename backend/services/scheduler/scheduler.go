@@ -1263,8 +1263,7 @@ func markRunToday(lastRunMap *sync.Map, tenantID int64) {
 // scheduleStatusFlagClearTask schedules a daily task to clear sick / excused
 // flags for tenants whose operations.sick_clear_mode or
 // operations.excused_clear_mode is set to "end_of_day". The task fires at the
-// tenant's configured operations.student_daily_checkout_time (the natural
-// end of the OGS day); when that setting is empty, no clear happens.
+// tenant's configured operations.status_flag_clear_time.
 func (s *Scheduler) scheduleStatusFlagClearTask() {
 	// Env var kill switch to allow ops to disable this task without code changes.
 	if os.Getenv("STATUS_FLAG_CLEAR_ENABLED") == "false" {
@@ -1285,8 +1284,8 @@ func (s *Scheduler) scheduleStatusFlagClearTask() {
 	go s.runStatusFlagClearTaskPolling(task)
 }
 
-// runStatusFlagClearTaskPolling checks every minute if any tenant's checkout
-// time matches now and clears the configured end_of_day flags.
+// runStatusFlagClearTaskPolling checks every minute if any tenant's status
+// flag clear time matches now and clears the configured end_of_day flags.
 func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
 	defer s.wg.Done()
 	defer func() {
@@ -1320,7 +1319,7 @@ func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
 }
 
 // checkAndRunStatusFlagClear evaluates each tenant's clear_mode settings and
-// clears flags when the configured daily checkout time matches now.
+// clears flags when the configured status flag clear time matches now.
 func (s *Scheduler) checkAndRunStatusFlagClear(task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
@@ -1339,7 +1338,7 @@ func (s *Scheduler) checkAndRunStatusFlagClear(task *ScheduledTask) {
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
-		clearTime := s.resolveStringSetting(tenantCtx, configModel.KeyStudentDailyCheckoutTime, "", "")
+		clearTime := s.resolveStringSetting(tenantCtx, configModel.KeyStatusFlagClearTime, "", "18:00")
 		if clearTime == "" || !timeMatchesNow(clearTime) {
 			return nil
 		}

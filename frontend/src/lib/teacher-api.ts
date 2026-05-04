@@ -298,10 +298,10 @@ class TeacherService {
         message?: string;
       };
       const msg = extractErrorMessage(errorData, response.statusText);
-      if (msg.includes("email already exists")) {
+      if (msg.includes("bereits registriert")) {
         return { status: "account_exists" as const };
       }
-      if (msg.includes("username already exists")) {
+      if (msg.includes("Benutzername ist bereits vergeben")) {
         throw new Error(
           "Ein Konto mit diesem Benutzernamen existiert bereits.",
         );

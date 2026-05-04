@@ -26,6 +26,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
 		"operations.admin_supervision_overview",
+		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
 		"gdpr.data_cleanup_enabled",
@@ -67,10 +68,10 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	// 28 pre-WP-B7 settings + 7 timetable settings + 2 sick/excused clear-mode
-	// settings == 37 minimum. The `>=` is intentional so later work packages can
-	// add more settings without retrofitting this assertion.
-	assert.GreaterOrEqual(t, len(all), 37, "at least 37 settings should be registered (28 existing + 7 timetable + 2 clear-mode)")
+	// 28 pre-WP-B7 settings + 7 timetable settings + 3 status-flag settings
+	// == 38 minimum. The `>=` is intentional so later work packages can add more
+	// settings without retrofitting this assertion.
+	assert.GreaterOrEqual(t, len(all), 38, "at least 38 settings should be registered (28 existing + 7 timetable + 3 status-flag)")
 }
 
 func TestPresenceModeSetting(t *testing.T) {
@@ -232,6 +233,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.session_cleanup_interval_minutes", config.FieldNumber},
 		{"operations.session_abandoned_threshold_minutes", config.FieldNumber},
 		{"operations.admin_supervision_overview", config.FieldBoolean},
+		{"operations.status_flag_clear_time", config.FieldTime},
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
 	}
@@ -465,6 +467,16 @@ func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
 	assert.Equal(t, "", def.Default, "daily checkout time should default to empty (always available)")
 }
 
+func TestStatusFlagClearTime_Default(t *testing.T) {
+	def := config.GetDefinition(config.KeyStatusFlagClearTime)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldTime, def.Type)
+	assert.Equal(t, "18:00", def.Default, "status flag clear time should have a real default so end_of_day can run")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "abwesenheit", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+}
+
 func TestValidation_NumberFields(t *testing.T) {
 	// All number fields should have min/max validation
 	numberKeys := []string{
@@ -502,6 +514,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
 		{"operations.admin_supervision_overview", false},
+		{"operations.status_flag_clear_time", "18:00"},
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},
 		{"gdpr.data_cleanup_timeout_minutes", 30},
