@@ -95,12 +95,19 @@ The codebase pattern for live student/visit data is **SSE, not polling**
 (see `frontend/CLAUDE.md` → "Real-Time Updates (SSE)"). Reuse it:
 
 - Subscribe via the existing `useSSE("/api/sse/events")` hook.
-- The SSE event payload already carries `room_id` (see
-  `backend/realtime/events.go` — `Event.RoomID *string`). Trigger a
-  `mutate()` of the SWR key whenever a `student_checkin` /
-  `student_checkout` event's `room_id` matches the page's room. No need
-  to derive the active-group set client-side — that removes the
-  chicken-and-egg problem the previous draft of this plan called out.
+- **Correction (2026-05-04):** `student_checkin` / `student_checkout`
+  events do **not** carry `room_id` — only `active_group_id`
+  (see `backend/services/active/visit_helpers.go::broadcastVisitCreated`
+  and the EndVisit broadcast in `active_service.go`). The page therefore
+  derives the set of active-group ids from the latest REST payload (via
+  `uniqueActiveGroupIdsInRoom` in `lib/students-in-room-helpers.ts`) and
+  triggers `mutate()` when an inbound event's `active_group_id` is in
+  that set. New active groups starting in this room arrive as
+  `activity_start` events, which **do** carry `event.data.room_id`, so
+  we additionally `mutate()` when that room id matches the page's room
+  — symmetric for `activity_end`. This bounds the chicken-and-egg
+  problem to "session that started in this room AFTER the most recent
+  refetch": the activity_start event closes that gap.
 - Initial fetch via `useSWRAuth` with `revalidateOnFocus: true` (same
   default Kindersuche relies on for staleness on tab return).
 - No `refreshInterval`. SSE provides the push; SWR provides the pull on
