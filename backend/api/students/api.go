@@ -425,7 +425,10 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 			ids = filtered
 		}
 		params.studentIDs = ids
-		// fall through to the standard ListWithOptions path
+		// fall through to the standard ListWithOptions path. params.groupID is
+		// intentionally NOT cleared here even though buildBaseFilter ignores it
+		// — the room∩group intersection has already been computed via FindByIDs
+		// above, so re-applying group_id downstream would be redundant.
 	} else if params.groupID > 0 {
 		// group-only branch keeps existing behavior
 		students, err := rs.StudentRepo.FindByGroupIDs(ctx, []int64{params.groupID})

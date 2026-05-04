@@ -23,7 +23,7 @@ import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
-import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
+import { StudentPresenceBadge } from "~/components/ui/student-presence-badge";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
