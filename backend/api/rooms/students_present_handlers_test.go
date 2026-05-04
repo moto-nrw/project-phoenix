@@ -48,16 +48,17 @@ func setStudentDataScopeRooms(t *testing.T, tc *testContext, scope string) {
 // tests below: one room, one active group taking place in that room, two
 // students from two different education groups, both currently checked-in.
 type studentsInRoomFixture struct {
-	roomID                int64
-	activityGroupID       int64
-	activeGroupID         int64
-	supervisedEduGroupID  int64
-	unrelatedEduGroupID   int64
-	supervisedStudentID   int64
-	unrelatedStudentID    int64
-	supervisedStudentName struct{ first, last string }
-	unrelatedStudentName  struct{ first, last string }
-	cleanup               func()
+	roomID                 int64
+	activityGroupID        int64
+	activeGroupID          int64
+	supervisedEduGroupID   int64
+	supervisedEduGroupName string
+	unrelatedEduGroupID    int64
+	supervisedStudentID    int64
+	unrelatedStudentID     int64
+	supervisedStudentName  struct{ first, last string }
+	unrelatedStudentName   struct{ first, last string }
+	cleanup                func()
 }
 
 func setupStudentsInRoomFixture(t *testing.T, tc *testContext) *studentsInRoomFixture {
@@ -81,13 +82,14 @@ func setupStudentsInRoomFixture(t *testing.T, tc *testContext) *studentsInRoomFi
 	unrelatedVisit := testpkg.CreateTestVisit(t, tc.db, unrelatedStudent.ID, activeGroup.ID, now.Add(-5*time.Minute), nil)
 
 	fx := &studentsInRoomFixture{
-		roomID:               room.ID,
-		activityGroupID:      activityGroup.ID,
-		activeGroupID:        activeGroup.ID,
-		supervisedEduGroupID: supervisedGroup.ID,
-		unrelatedEduGroupID:  unrelatedGroup.ID,
-		supervisedStudentID:  supervisedStudent.ID,
-		unrelatedStudentID:   unrelatedStudent.ID,
+		roomID:                 room.ID,
+		activityGroupID:        activityGroup.ID,
+		activeGroupID:          activeGroup.ID,
+		supervisedEduGroupID:   supervisedGroup.ID,
+		supervisedEduGroupName: supervisedGroup.Name,
+		unrelatedEduGroupID:    unrelatedGroup.ID,
+		supervisedStudentID:    supervisedStudent.ID,
+		unrelatedStudentID:     unrelatedStudent.ID,
 	}
 	fx.supervisedStudentName.first, fx.supervisedStudentName.last = "Anna", "Schmidt"
 	fx.unrelatedStudentName.first, fx.unrelatedStudentName.last = "Bob", "Mueller"
@@ -206,6 +208,8 @@ func TestListStudentsPresent_GroupSupervisorsOnly_RedactsNonSupervised(t *testin
 	require.NotNil(t, supervised.ActiveGroupID)
 	assert.Equal(t, fx.activeGroupID, *supervised.ActiveGroupID)
 	require.NotNil(t, supervised.EntryTime)
+	require.NotNil(t, supervised.GroupName, "group_name must be the student's Stammgruppe, not the activity")
+	assert.Equal(t, fx.supervisedEduGroupName, *supervised.GroupName)
 
 	unrelated := byID[fx.unrelatedStudentID]
 	require.False(t, unrelated.HasFullAccess, "non-supervised student must be redacted")

@@ -93,16 +93,20 @@ type VisitGroupNames struct {
 // VisitRepository.ListActiveByRoomID. EducationGroupID is the student's
 // education group (users.students.group_id); the handler uses it to drive
 // GDPR redaction via api/common.StudentAccessContext.HasFullAccessByGroupID.
-// ActivityName is empty when the active group is a spontaneous session
-// (active.groups.group_id IS NULL).
+//
+// EducationGroupName is the human-readable Stammgruppe name (e.g.
+// "Sternengruppe"). The room-detail "Kinder im Raum" UI surfaces this so the
+// label matches the convention on the Kindersuche page (Gruppe = Stammgruppe,
+// not the active activity). Empty when the student has no education group
+// assignment, in which case the handler omits the field from the response.
 type StudentInRoomVisit struct {
-	StudentID        int64
-	FirstName        string
-	LastName         string
-	EducationGroupID *int64
-	ActiveGroupID    int64
-	ActivityName     string
-	EntryTime        time.Time
+	StudentID          int64
+	FirstName          string
+	LastName           string
+	EducationGroupID   *int64
+	EducationGroupName string
+	ActiveGroupID      int64
+	EntryTime          time.Time
 }
 
 // IsActive returns whether this visit is currently active

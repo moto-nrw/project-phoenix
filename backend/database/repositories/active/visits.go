@@ -667,18 +667,20 @@ func (r *VisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64)
 
 // ListActiveByRoomID returns one row per student currently checked-in to any
 // active (end_time IS NULL) group in the given room. Joins users.students /
-// users.persons for display fields and activities.groups for the activity
-// name. Ordered by last name then first name so the API response is stable
-// without an additional client sort.
+// users.persons for display fields and education.groups for the student's
+// Stammgruppe name (used as the "Gruppe" label on the room-detail UI — keeps
+// the semantic aligned with Kindersuche, which also surfaces the Stammgruppe
+// rather than the active activity). Ordered by last name then first name so
+// the API response is stable without an additional client sort.
 func (r *VisitRepository) ListActiveByRoomID(ctx context.Context, roomID int64) ([]*active.StudentInRoomVisit, error) {
 	type row struct {
-		StudentID        int64          `bun:"student_id"`
-		FirstName        string         `bun:"first_name"`
-		LastName         string         `bun:"last_name"`
-		EducationGroupID sql.NullInt64  `bun:"education_group_id"`
-		ActiveGroupID    int64          `bun:"active_group_id"`
-		ActivityName     sql.NullString `bun:"activity_name"`
-		EntryTime        time.Time      `bun:"entry_time"`
+		StudentID          int64          `bun:"student_id"`
+		FirstName          string         `bun:"first_name"`
+		LastName           string         `bun:"last_name"`
+		EducationGroupID   sql.NullInt64  `bun:"education_group_id"`
+		EducationGroupName sql.NullString `bun:"education_group_name"`
+		ActiveGroupID      int64          `bun:"active_group_id"`
+		EntryTime          time.Time      `bun:"entry_time"`
 	}
 
 	var rows []row
@@ -688,13 +690,13 @@ func (r *VisitRepository) ListActiveByRoomID(ctx context.Context, roomID int64) 
 		ColumnExpr(`"person".first_name AS first_name`).
 		ColumnExpr(`"person".last_name AS last_name`).
 		ColumnExpr(`"student".group_id AS education_group_id`).
+		ColumnExpr(`"edu_group".name AS education_group_name`).
 		ColumnExpr(`"visit".active_group_id AS active_group_id`).
-		ColumnExpr(`"activity".name AS activity_name`).
 		ColumnExpr(`"visit".entry_time AS entry_time`).
 		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
 		Join(`JOIN users.students AS "student" ON "student".id = "visit".student_id`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Join(`LEFT JOIN activities.groups AS "activity" ON "activity".id = "group".group_id`).
+		Join(`LEFT JOIN education.groups AS "edu_group" ON "edu_group".id = "student".group_id`).
 		Where(`"group".room_id = ?`, roomID).
 		Where(`"group".end_time IS NULL`).
 		Where(`"visit".exit_time IS NULL`).
@@ -724,8 +726,8 @@ func (r *VisitRepository) ListActiveByRoomID(ctx context.Context, roomID int64) 
 			gid := row.EducationGroupID.Int64
 			v.EducationGroupID = &gid
 		}
-		if row.ActivityName.Valid {
-			v.ActivityName = row.ActivityName.String
+		if row.EducationGroupName.Valid {
+			v.EducationGroupName = row.EducationGroupName.String
 		}
 		out[i] = v
 	}

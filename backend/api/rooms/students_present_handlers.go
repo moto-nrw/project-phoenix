@@ -113,9 +113,12 @@ func newStudentPresentResponse(v *active.StudentInRoomVisit, hasFullAccess bool)
 	activeGroupID := v.ActiveGroupID
 	entryTime := v.EntryTime
 
+	// "Gruppe" on the room-detail UI is the student's Stammgruppe — same
+	// semantic as Kindersuche. The activity name is already shown once in the
+	// Rauminfos card above, so repeating it per student would be noise.
 	var groupName *string
-	if v.ActivityName != "" {
-		s := v.ActivityName
+	if v.EducationGroupName != "" {
+		s := v.EducationGroupName
 		groupName = &s
 	}
 
