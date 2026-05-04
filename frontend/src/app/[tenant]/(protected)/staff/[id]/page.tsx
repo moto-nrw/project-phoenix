@@ -234,6 +234,14 @@ function StaffDetailContent() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
+  // Radix Tabs auto-focuses the active TabsContent on mount, which the
+  // browser then scrolls into view, leaving the staff header partially
+  // clipped above the viewport. Snap to the top of the page after the
+  // first paint so the avatar and name are always fully visible.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [staffId]);
+
   // Close menu on Escape
   useEffect(() => {
     if (!menuOpen) return;
