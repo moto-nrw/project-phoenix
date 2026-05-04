@@ -112,9 +112,6 @@ export function formatDuration(minutes: number | null): string {
   return `${mins} Min.`;
 }
 
-/** Time range filter options for history views */
-export type TimeRangeFilter = "today" | "7days" | "week" | "month";
-
 /**
  * Get the start date for a given time range filter
  * @param timeRange The time range filter option

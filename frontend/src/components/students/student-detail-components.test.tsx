@@ -1,5 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import {
+  render,
+  screen,
+  fireEvent,
+  cleanup,
+  within,
+} from "@testing-library/react";
 
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn() }),
@@ -147,6 +153,168 @@ describe("StudentDetailHeader", () => {
       />,
     );
     expect(screen.queryByText("Gruppe 1")).not.toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // TodayTimeStatusInlineRow — covers planned/actual rendering, absent flow,
+  // exception dot, and the "(geplant: …)" parenthetical.
+  //
+  // The row is private to student-detail-components, so we exercise it
+  // through StudentDetailHeader's public time props.
+  // ---------------------------------------------------------------------------
+  describe("TodayTimeStatusInlineRow (via StudentDetailHeader)", () => {
+    // The setup file does not register a global cleanup; without this,
+    // each render leaks into the next test's document.body and breaks
+    // single-element assertions like getByText.
+    afterEach(() => cleanup());
+
+    function renderHeaderWithTimes(
+      props: Partial<React.ComponentProps<typeof StudentDetailHeader>>,
+    ) {
+      return render(
+        <StudentDetailHeader
+          student={mockStudent}
+          myGroups={[]}
+          myGroupRooms={[]}
+          mySupervisedRooms={[]}
+          {...props}
+        />,
+      );
+    }
+
+    /**
+     * Scope queries to a single time row by data-testid. The header also
+     * renders a LocationBadge that can produce overlapping strings ("Kommt
+     * heute nicht"), so unscoped queries find duplicates and fail tests for
+     * the wrong reason.
+     */
+    function rowFor(kind: "arrival" | "pickup") {
+      return within(screen.getByTestId(`today-time-row-${kind}`));
+    }
+
+    it("renders both rows with a dash placeholder when no times are configured", () => {
+      // Always-render contract: caregivers should see the structural labels
+      // even when nothing is scheduled, otherwise it's ambiguous whether the
+      // system rendered nothing on purpose or hit an error.
+      renderHeaderWithTimes({});
+
+      expect(rowFor("arrival").getByText("—")).toBeInTheDocument();
+      expect(rowFor("pickup").getByText("—")).toBeInTheDocument();
+    });
+
+    it("shows the planned pickup time as the primary value when nothing is resolved yet", () => {
+      renderHeaderWithTimes({
+        todayPickupPlannedTime: "15:30",
+      });
+
+      const pickup = rowFor("pickup");
+      // Primary value is the planned time. The "(geplant: …)" parenthetical
+      // is suppressed until an actual time arrives — otherwise we'd be
+      // duplicating the same value into both spots.
+      expect(pickup.getByText("15:30")).toBeInTheDocument();
+      expect(pickup.queryByText(/geplant:/)).not.toBeInTheDocument();
+    });
+
+    it("promotes actual to primary and demotes planned to a parenthetical when both exist", () => {
+      // The killer feature of the rewrite — caregivers need the actual at a
+      // glance, with the original schedule visible for context.
+      renderHeaderWithTimes({
+        todayPickupPlannedTime: "15:30",
+        todayPickupActualTime: "15:42",
+      });
+
+      const pickup = rowFor("pickup");
+      // Primary value — what actually happened.
+      expect(pickup.getByText("15:42")).toBeInTheDocument();
+      // Parenthetical — combines the planned value with the diff so the
+      // caregiver doesn't have to subtract in their head.
+      expect(pickup.getByText(/geplant: 15:30, \+12 min/)).toBeInTheDocument();
+    });
+
+    it("renders the exception dot in the affected row only", () => {
+      renderHeaderWithTimes({
+        todayPickupPlannedTime: "15:30",
+        isPickupException: true,
+      });
+
+      // The dot uses the German tooltip "Ausnahme" via title= attribute —
+      // assert via title rather than class so we're not coupled to styling.
+      expect(rowFor("pickup").getByTitle("Ausnahme")).toBeInTheDocument();
+      expect(rowFor("arrival").queryByTitle("Ausnahme")).toBeNull();
+    });
+
+    it("does not render the exception dot when isPickupException is false", () => {
+      renderHeaderWithTimes({
+        todayPickupPlannedTime: "15:30",
+        isPickupException: false,
+      });
+
+      expect(rowFor("pickup").queryByTitle("Ausnahme")).toBeNull();
+    });
+
+    it("renders an optional pickup note inline in parentheses", () => {
+      renderHeaderWithTimes({
+        todayPickupPlannedTime: "15:30",
+        todayPickupNote: "Wird von Oma abgeholt",
+      });
+
+      expect(
+        rowFor("pickup").getByText("(Wird von Oma abgeholt)"),
+      ).toBeInTheDocument();
+    });
+
+    it("switches the arrival row to 'Kommt heute nicht' when isArrivalAbsent is true", () => {
+      renderHeaderWithTimes({
+        todayArrivalPlannedTime: "08:00",
+        isArrivalAbsent: true,
+      });
+
+      const arrival = rowFor("arrival");
+      // Absent state is mutually exclusive with the planned value — showing
+      // both would confuse caregivers about whether to expect the kid.
+      expect(arrival.getByText("Kommt heute nicht")).toBeInTheDocument();
+      expect(arrival.queryByText("08:00")).toBeNull();
+      // Pickup row must remain unaffected.
+      expect(rowFor("pickup").queryByText("Kommt heute nicht")).toBeNull();
+    });
+
+    it("renders the absence reason inside the absent row", () => {
+      renderHeaderWithTimes({
+        todayArrivalPlannedTime: "08:00",
+        isArrivalAbsent: true,
+        todayArrivalNote: "Krank",
+      });
+
+      const arrival = rowFor("arrival");
+      expect(arrival.getByText("Kommt heute nicht")).toBeInTheDocument();
+      expect(arrival.getByText("(Krank)")).toBeInTheDocument();
+    });
+
+    it("renders the actual time even when no planned time was scheduled (walk-in)", () => {
+      // Walk-in scenario: a student arrives without a planned arrival
+      // configured. The row still renders the actual but suppresses the
+      // "(geplant: …)" parenthetical because there's nothing to compare.
+      renderHeaderWithTimes({
+        todayArrivalActualTime: "07:55",
+      });
+
+      const arrival = rowFor("arrival");
+      expect(arrival.getByText("07:55")).toBeInTheDocument();
+      expect(arrival.queryByText(/geplant:/)).toBeNull();
+    });
+
+    it("folds the diff annotation into the planned parenthetical", () => {
+      renderHeaderWithTimes({
+        todayPickupPlannedTime: "15:00",
+        todayPickupActualTime: "15:12",
+      });
+
+      // Inline form combines planned + diff in one parenthetical to keep
+      // the row compact: "(geplant: 15:00, +12 min)".
+      expect(
+        rowFor("pickup").getByText(/geplant: 15:00, \+12 min/),
+      ).toBeInTheDocument();
+    });
   });
 });
 
@@ -549,6 +717,7 @@ describe("StudentHistorySection", () => {
   const defaultProps = {
     studentId: "123",
     attendanceLogEnabled: true,
+    feedbackEnabled: true,
     onNavigate: vi.fn(),
   };
 
@@ -573,13 +742,12 @@ describe("StudentHistorySection", () => {
       <StudentHistorySection {...defaultProps} attendanceLogEnabled={false} />,
     );
     expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
-    expect(screen.getByText("Für Ihre Schule deaktiviert")).toBeInTheDocument();
     expect(
       screen.getByText("Anwesenheitsprotokoll").closest("button"),
     ).toBeDisabled();
   });
 
-  it("renders feedback history button as enabled", () => {
+  it("renders feedback history button as enabled when feature is on", () => {
     render(<StudentHistorySection {...defaultProps} />);
     expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
     expect(screen.getByText("Feedback und Bewertungen")).toBeInTheDocument();
@@ -587,6 +755,14 @@ describe("StudentHistorySection", () => {
       .getByText("Feedbackhistorie")
       .closest("button");
     expect(feedbackButton).not.toBeDisabled();
+  });
+
+  it("renders feedback history button as disabled when feature is off", () => {
+    render(<StudentHistorySection {...defaultProps} feedbackEnabled={false} />);
+    expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
+    expect(
+      screen.getByText("Feedbackhistorie").closest("button"),
+    ).toBeDisabled();
   });
 
   it("renders meal history button as disabled", () => {
@@ -602,6 +778,7 @@ describe("StudentHistorySection", () => {
       <StudentHistorySection
         studentId="456"
         attendanceLogEnabled={true}
+        feedbackEnabled={true}
         onNavigate={onNavigate}
       />,
     );
@@ -618,6 +795,7 @@ describe("StudentHistorySection", () => {
       <StudentHistorySection
         studentId="456"
         attendanceLogEnabled={false}
+        feedbackEnabled={true}
         onNavigate={onNavigate}
       />,
     );
@@ -628,12 +806,13 @@ describe("StudentHistorySection", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("feedback button navigates on click", () => {
+  it("feedback button navigates on click when enabled", () => {
     const onNavigate = vi.fn();
     render(
       <StudentHistorySection
         studentId="456"
         attendanceLogEnabled={true}
+        feedbackEnabled={true}
         onNavigate={onNavigate}
       />,
     );

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -35,6 +36,7 @@ import (
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	suggestionsAPI "github.com/moto-nrw/project-phoenix/api/suggestions"
 	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
+	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 
@@ -44,6 +46,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -66,7 +69,6 @@ type API struct {
 	Feedback         *feedbackAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
 	Schedules        *schedulesAPI.Resource
-	Config           *configAPI.Resource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
 	IoT              *iotAPI.Resource
@@ -77,6 +79,7 @@ type API struct {
 	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingAPI.Resource
+	Timetable        *timetableAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -269,41 +272,66 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
+	api.Auth.SettingsService = api.Services.Settings
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:         api.Services.Users,
-		StudentRepo:           repoFactory.Student,
-		EducationService:      api.Services.Education,
-		UserContextService:    api.Services.UserContext,
-		ActiveService:         api.Services.Active,
-		IoTService:            api.Services.IoT,
-		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
-		PickupScheduleService: api.Services.PickupSchedule,
-		SchoolRepo:            repoFactory.School,
-		SettingsService:       api.Services.Settings,
-		AttendanceRepo:        repoFactory.Attendance,
-		VisitRepo:             repoFactory.ActiveVisit,
-		DataAccessLogRepo:     repoFactory.DataAccessLog,
-		Logger:                logger.With("handler", "students"),
-		DB:                    db,
+		PersonService:          api.Services.Users,
+		StudentRepo:            repoFactory.Student,
+		EducationService:       api.Services.Education,
+		UserContextService:     api.Services.UserContext,
+		ActiveService:          api.Services.Active,
+		IoTService:             api.Services.IoT,
+		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
+		PickupScheduleService:  api.Services.PickupSchedule,
+		ArrivalScheduleService: api.Services.ArrivalSchedule,
+		SchoolRepo:             repoFactory.School,
+		SettingsService:        api.Services.Settings,
+		AttendanceRepo:         repoFactory.Attendance,
+		StudentStatusDayRepo:   repoFactory.StudentStatusDay,
+		VisitRepo:              repoFactory.ActiveVisit,
+		DataAccessLogRepo:      repoFactory.DataAccessLog,
+		Broadcaster:            api.Services.RealtimeHub,
+		Logger:                 logger.With("handler", "students"),
+		DB:                     db,
 	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student, db)
 	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, repoFactory.StaffWorkSchedule, db, logger.With("handler", "staff"))
-	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, db)
+	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
-	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
+	// Shared side-effect hook: when checkout.schulhof_enabled or
+	// checkout.wc_enabled flips on (regardless of who flipped it), make sure
+	// the corresponding system room exists. Registered on BOTH the tenant-
+	// admin resource and the operator resource so that either writer triggers
+	// infrastructure provisioning.
+	onSettingValueSet := func(ctx context.Context, _ int64, key string, value any) error {
+		boolVal, ok := value.(bool)
+		if !ok || !boolVal {
+			return nil // only trigger on enable (true), not disable
+		}
+
+		switch key {
+		case configModel.KeyCheckoutSchulhofEnabled:
+			_, err := api.Services.Schulhof.EnsureInfrastructure(ctx, 0)
+			return err
+		case configModel.KeyCheckoutWCEnabled:
+			_, err := api.Services.WC.EnsureInfrastructure(ctx)
+			return err
+		default:
+			return nil
+		}
+	}
+	api.Settings.OnValueSet(onSettingValueSet)
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
 		UsersService:          api.Services.Users,
 		ActiveService:         api.Services.Active,
 		ActivitiesService:     api.Services.Activities,
-		ConfigService:         api.Services.Config,
 		SettingsService:       api.Services.Settings,
 		FacilityService:       api.Services.Facilities,
 		EducationService:      api.Services.Education,
@@ -313,13 +341,37 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                logger.With("handler", "iot"),
 		DB:                    db,
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, db, logger.With("handler", "sse"))
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
-	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution, db)
+	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, db)
+	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
+		CalendarPeriodService:  api.Services.CalendarPeriod,
+		MaterializationService: api.Services.Materialization,
+		InstanceService:        api.Services.Instance,
+		PersonService:          api.Services.Users,
+		InstanceStudentRepo:    repoFactory.InstanceStudent,
+		ActivityInstanceRepo:   repoFactory.ActivityInstance,
+		ActivityExceptionRepo:  repoFactory.ActivityException,
+		ActivityScheduleRepo:   repoFactory.ActivitySchedule,
+		InstanceStaffRepo:      repoFactory.InstanceStaff,
+		SupervisorRepo:         repoFactory.GroupSupervisor,
+		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
+		ArrivalExceptionRepo:   repoFactory.StudentArrivalException,
+		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
+		PickupExceptionRepo:    repoFactory.StudentPickupException,
+		VisitRepo:              repoFactory.ActiveVisit,
+		StudentRepo:            repoFactory.Student,
+		StaffRepo:              repoFactory.Staff,
+		UserContextService:     api.Services.UserContext,
+		SettingsService:        api.Services.Settings,
+		Broadcaster:            api.Services.RealtimeHub,
+		Logger:                 logger.With("handler", "timetable"),
+		DB:                     db,
+	})
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -329,9 +381,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		CaregiverCapabilityService: api.Services.CaregiverCapability,
 		SuggestionsService:         api.Services.OperatorSuggestions,
 		AnnouncementsService:       api.Services.Announcement,
+		SettingsService:            api.Services.Settings,
 		TokenAuth:                  nil, // Created internally by operator API
 		DB:                         db,
 	})
+	// Mirror the tenant-side OnValueSet hook so operator writes also trigger
+	// side effects (e.g. auto-creating the Schulhof/WC rooms when the
+	// corresponding checkout toggle flips on).
+	api.Operator.OnSettingValueSet(onSettingValueSet)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
@@ -431,9 +488,6 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount schedule resources
 		r.Mount("/schedules", a.Schedules.Router())
 
-		// Mount config resources
-		r.Mount("/config", a.Config.Router())
-
 		// Mount settings resources (new schema-driven settings system)
 		r.Mount("/settings", a.Settings.SettingsRouter())
 
@@ -463,6 +517,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount time-tracking resources
 		r.Mount("/time-tracking", a.TimeTracking.Router())
+
+		// Mount timetable resources
+		r.Mount("/timetable", a.Timetable.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

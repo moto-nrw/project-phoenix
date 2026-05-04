@@ -553,7 +553,7 @@ func (s *invitationService) ensureInvitationTargetAllowed(ctx context.Context, e
 		return &AuthError{Op: opCreateInvitation, Err: err}
 	}
 	if exists {
-		return &AuthError{Op: opCreateInvitation, Err: fmt.Errorf("account already has access to tenant")}
+		return &AuthError{Op: opCreateInvitation, Err: ErrAccountAlreadyHasTenantAccess}
 	}
 	return nil
 }

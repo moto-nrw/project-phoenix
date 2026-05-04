@@ -61,7 +61,7 @@ function mockStudentResponse(overrides?: Record<string, unknown>) {
         first_name: "Test",
         second_name: "Student",
         name: "Test Student",
-        school_class: "2a",
+        school_class: "Klasse 2a",
         group_name: "Sterne",
         ...overrides,
       },
@@ -175,6 +175,21 @@ const noVisitsDay = {
     checked_in_by: 1,
     device_id: 1,
   },
+  room_detail_available: true,
+  visits: [],
+};
+
+const sickStatusDay = {
+  date: "2026-04-08",
+  attendance: null,
+  status_entries: [
+    {
+      status: "sick",
+      label: "Krank",
+      reported_at: "2026-04-08T07:30:00Z",
+      cleared_at: "2026-04-08T16:00:00Z",
+    },
+  ],
   room_detail_available: true,
   visits: [],
 };
@@ -361,6 +376,21 @@ describe("StudentRoomHistoryPage", () => {
         ),
       ).toBeInTheDocument();
     });
+  });
+
+  it("renders status-only days", async () => {
+    setupFetch(mockAttendanceHistoryResponse([sickStatusDay]));
+    render(<StudentRoomHistoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Krank").length).toBeGreaterThan(0);
+    });
+
+    expect(
+      screen.queryByText(
+        /Keine Anwesenheitsdaten für den ausgewählten Zeitraum/,
+      ),
+    ).not.toBeInTheDocument();
   });
 
   // ─── Caps info ──────────────────────────────────────────────────────────────

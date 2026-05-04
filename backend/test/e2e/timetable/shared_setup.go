@@ -1,0 +1,479 @@
+// Package e2e_timetable exercises the timetable epic as end-to-end HTTP flows.
+//
+// Each flow test spins up the real service factory against the test DB and
+// drives real HTTP requests through the production timetable router, minting
+// actual JWTs with admin permissions. Tenant isolation is verified in-flow
+// by issuing a second tenant's token and asserting 404.
+//
+// Fixtures follow the existing testpkg pattern; `tenant_id=1` is the primary
+// tenant (matching the whitelisted value in the hermetic linter) and
+// `tenant_id=2` is the isolated neighbor.
+package e2e_timetable
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// primaryTenantID matches the whitelisted tenant used by testpkg fixtures.
+const primaryTenantID int64 = 1
+
+// secondaryTenantID is created per test run for cross-tenant isolation checks.
+const secondaryTenantID int64 = 2
+
+// scenario bundles the common infrastructure a single flow needs.
+type scenario struct {
+	t         *testing.T
+	db        *bun.DB
+	factory   *services.Factory
+	repos     *repositories.Factory
+	router    chi.Router
+	tokenAuth *jwt.TokenAuth
+
+	cleanupOrder []string
+	cleanupIDs   map[string][]int64
+	extraCleanup []func()
+}
+
+// newScenario returns a ready-to-use scenario with real DB + service factory
+// + fully mounted timetable router + JWT signer.
+func newScenario(t *testing.T) *scenario {
+	t.Helper()
+
+	db, factory := testutil.SetupAPITest(t)
+	testpkg.EnsureTestTenant(t, db, secondaryTenantID)
+
+	// SetupAPITest sets the viper defaults we need; NewTokenAuth reads them.
+	ta, err := jwt.NewTokenAuth()
+	require.NoError(t, err, "init JWT token auth")
+
+	repos := repositories.NewFactory(db)
+
+	s := &scenario{
+		t:         t,
+		db:        db,
+		factory:   factory,
+		repos:     repos,
+		tokenAuth: ta,
+		cleanupOrder: []string{
+			"schedule.instance_students",
+			"schedule.instance_staff",
+			"schedule.activity_instances",
+			"schedule.activity_exceptions",
+			"schedule.student_arrival_exceptions",
+			"schedule.student_arrival_schedules",
+			"schedule.student_pickup_exceptions",
+			"schedule.student_pickup_schedules",
+			"activities.student_enrollments",
+			"activities.supervisors",
+			"activities.schedules",
+			"audit.data_deletions",
+			"active.visits",
+			"active.group_supervisors",
+			"active.groups",
+			"activities.groups",
+			"activities.categories",
+			"schedule.timeframes",
+			"schedule.calendar_periods",
+		},
+		cleanupIDs: make(map[string][]int64),
+	}
+	s.router = s.mountRouter()
+	return s
+}
+
+// registerCleanup tracks IDs to delete at teardown.
+func (s *scenario) registerCleanup(table string, ids ...int64) {
+	s.cleanupIDs[table] = append(s.cleanupIDs[table], ids...)
+}
+
+// teardown deletes all registered fixtures in FK-safe order.
+func (s *scenario) teardown() {
+	s.t.Helper()
+	for _, tbl := range s.cleanupOrder {
+		if ids := s.cleanupIDs[tbl]; len(ids) > 0 {
+			testpkg.CleanupTableRecords(s.t, s.db, tbl, ids...)
+		}
+	}
+	for _, fn := range s.extraCleanup {
+		fn()
+	}
+}
+
+// tenantCtx returns a context bound to the primary tenant.
+func (s *scenario) tenantCtx() context.Context {
+	return tenant.WithTenantID(context.Background(), primaryTenantID)
+}
+
+// mountRouter builds the full timetable Resource with real services and
+// returns its router (with JWT + tenant middleware intact).
+func (s *scenario) mountRouter() chi.Router {
+	deps := timetableAPI.Dependencies{
+		CalendarPeriodService:  s.factory.CalendarPeriod,
+		MaterializationService: s.factory.Materialization,
+		InstanceService:        s.factory.Instance,
+		PersonService:          s.factory.Users,
+		InstanceStudentRepo:    s.repos.InstanceStudent,
+		ActivityInstanceRepo:   s.repos.ActivityInstance,
+		ActivityExceptionRepo:  s.repos.ActivityException,
+		ActivityScheduleRepo:   s.repos.ActivitySchedule,
+		InstanceStaffRepo:      s.repos.InstanceStaff,
+		SupervisorRepo:         s.repos.GroupSupervisor,
+		ArrivalScheduleRepo:    s.repos.StudentArrivalSchedule,
+		ArrivalExceptionRepo:   s.repos.StudentArrivalException,
+		PickupScheduleRepo:     s.repos.StudentPickupSchedule,
+		PickupExceptionRepo:    s.repos.StudentPickupException,
+		VisitRepo:              s.repos.ActiveVisit,
+		StudentRepo:            s.repos.Student,
+		StaffRepo:              s.repos.Staff,
+		UserContextService:     s.factory.UserContext,
+		SettingsService:        s.factory.Settings,
+		Broadcaster:            s.factory.RealtimeHub,
+		Logger:                 slog.Default(),
+		DB:                     s.db,
+	}
+
+	resource := timetableAPI.NewResource(deps)
+	return resource.Router()
+}
+
+// do executes an HTTP request against the timetable router.
+// method, path: e.g. ("POST", "/materialize"). body: nil or a JSON-marshalable struct.
+// claims: which tenant/permissions to authenticate as.
+func (s *scenario) do(method, path string, body any, claims jwt.AppClaims) *httptest.ResponseRecorder {
+	s.t.Helper()
+
+	var reader io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		require.NoError(s.t, err, "marshal request body")
+		reader = bytes.NewBuffer(b)
+	}
+
+	token, err := s.tokenAuth.CreateJWT(claims)
+	require.NoError(s.t, err, "mint JWT")
+
+	req := httptest.NewRequest(method, path, reader)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := httptest.NewRecorder()
+	s.router.ServeHTTP(rr, req)
+	return rr
+}
+
+// decodeResponse parses {"status":"...","data":...} into a target struct's
+// Data field. Uses the common envelope exposed by api/common.Respond.
+func decodeResponse(t *testing.T, rr *httptest.ResponseRecorder, target any) {
+	t.Helper()
+	var env struct {
+		Status  string          `json:"status"`
+		Data    json.RawMessage `json:"data"`
+		Message string          `json:"message"`
+		Error   string          `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env),
+		"unmarshal envelope: %s", rr.Body.String())
+	if target != nil && len(env.Data) > 0 {
+		require.NoError(t, json.Unmarshal(env.Data, target),
+			"unmarshal data payload: %s", string(env.Data))
+	}
+}
+
+// adminClaimsForTenant builds admin JWT claims pinned to the given tenant,
+// with the full permission set the timetable routes care about.
+func adminClaimsForTenant(accountID, tenantID int64) jwt.AppClaims {
+	c := testutil.AdminTestClaims(int(accountID))
+	c.Permissions = []string{
+		permissions.SchedulesRead,
+		permissions.SchedulesCreate,
+		permissions.SchedulesUpdate,
+		permissions.SchedulesDelete,
+		permissions.SchedulesManage,
+		permissions.ConfigRead,
+		permissions.ConfigUpdate,
+		permissions.ConfigManage,
+		permissions.UsersRead,
+		"admin:*",
+	}
+	c.IsAdmin = true
+	c.TenantID = tenantID
+	return c
+}
+
+// primaryAdminClaims returns claims for the primary tenant admin.
+func primaryAdminClaims() jwt.AppClaims {
+	return adminClaimsForTenant(1, primaryTenantID)
+}
+
+// secondaryAdminClaims returns claims for an admin on the isolated tenant.
+func secondaryAdminClaims() jwt.AppClaims {
+	return adminClaimsForTenant(2, secondaryTenantID)
+}
+
+// parseHHMM parses "HH:MM" into a time.Time anchored on 2000-01-01.
+func parseHHMM(t *testing.T, hhmm string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse("15:04", hhmm)
+	require.NoError(t, err, "invalid HH:MM literal %q", hhmm)
+	return time.Date(2000, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
+}
+
+// createActivePeriod creates an active calendar period spanning 1 year before
+// and 1 year after `anchor`.
+func (s *scenario) createActivePeriod(name string, anchor time.Time) *scheduleModels.CalendarPeriod {
+	s.t.Helper()
+	period := &scheduleModels.CalendarPeriod{
+		Name:            name,
+		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+		StartDate:       time.Date(anchor.Year()-1, 8, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:         time.Date(anchor.Year()+1, 7, 31, 0, 0, 0, 0, time.UTC),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	require.NoError(s.t, s.factory.CalendarPeriod.CreatePeriod(s.tenantCtx(), period))
+	s.registerCleanup("schedule.calendar_periods", period.ID)
+	return period
+}
+
+// createTimeframeWithTimes inserts a timeframe with explicit HH:MM times.
+// The start_time / end_time columns are TIMESTAMPTZ; the service layer reads
+// them back through timezone.WallClock(), which extracts .Hour() from the
+// time.Time as loaded by the driver. Store the values anchored to local
+// (Berlin) time so the wall clock hours match what we intended — using UTC
+// would cross a DST/CET offset and shift the hour by +1 or +2 on read.
+func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM string) *scheduleModels.Timeframe {
+	s.t.Helper()
+	start := parseHHMMLocal(s.t, startHHMM)
+	end := parseHHMMLocal(s.t, endHHMM)
+
+	tf := &scheduleModels.Timeframe{
+		StartTime:   start,
+		EndTime:     &end,
+		IsActive:    true,
+		Description: description,
+	}
+	tf.SetTenantID(primaryTenantID)
+
+	_, err := s.db.NewInsert().
+		Model(tf).
+		ModelTableExpr(`schedule.timeframes`).
+		Exec(s.tenantCtx())
+	require.NoError(s.t, err, "insert timeframe")
+	s.registerCleanup("schedule.timeframes", tf.ID)
+	return tf
+}
+
+// parseHHMMLocal builds a time.Time at today's date with the given wall-clock
+// time pinned to Europe/Berlin. We cannot use `time.Local` here because the
+// CI runner's Local is UTC while the dev box's Local is Europe/Berlin — the
+// TIMESTAMPTZ column round-trips the value through Postgres's session TZ
+// (Europe/Berlin), so inserting in UTC yields a +2h shift on read. Pinning
+// the input to Europe/Berlin keeps the wall-clock stable across both envs.
+func parseHHMMLocal(t *testing.T, hhmm string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse("15:04", hhmm)
+	require.NoError(t, err, "invalid HH:MM literal %q", hhmm)
+	now := time.Now().In(timezone.Berlin)
+	return time.Date(now.Year(), now.Month(), now.Day(), parsed.Hour(), parsed.Minute(), 0, 0, timezone.Berlin)
+}
+
+// templateSpec describes a weekly template to materialize later.
+type templateSpec struct {
+	name       string
+	weekday    int
+	startHHMM  string
+	endHHMM    string
+	roomID     int64
+	staffIDs   []int64
+	studentIDs []int64
+	periodID   *int64
+	validFrom  time.Time
+	validUntil *time.Time
+}
+
+// templateFixture is the full bundle of rows behind one activity template.
+type templateFixture struct {
+	group        *activitiesModels.Group
+	schedule     *activitiesModels.Schedule
+	timeframe    *scheduleModels.Timeframe
+	enrollments  []int64
+	supervisors  []int64
+	roomID       int64
+	staffIDs     []int64
+	studentIDs   []int64
+	validFromUTC time.Time
+}
+
+// buildTemplate inserts a full template bundle so materialize() will pick it up.
+func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
+	s.t.Helper()
+	ctx := s.tenantCtx()
+
+	category := testpkg.CreateTestActivityCategory(s.t, s.db, spec.name)
+	s.registerCleanup("activities.categories", category.ID)
+
+	creator := testpkg.CreateTestStaff(s.t, s.db, "Creator", spec.name)
+	s.extraCleanup = append(s.extraCleanup, func() {
+		testpkg.CleanupStaffFixtures(s.t, s.db, creator.ID)
+	})
+
+	group := &activitiesModels.Group{
+		Name:            spec.name,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      category.ID,
+		CreatedBy:       &creator.ID,
+		PlannedRoomID:   &spec.roomID,
+		IsTemplate:      true,
+	}
+	group.SetTenantID(primaryTenantID)
+	_, err := s.db.NewInsert().
+		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Exec(ctx)
+	require.NoError(s.t, err, "insert activity group")
+	s.registerCleanup("activities.groups", group.ID)
+
+	timeframe := s.createTimeframeWithTimes(spec.name+"-tf", spec.startHHMM, spec.endHHMM)
+
+	sched := &activitiesModels.Schedule{
+		Weekday:          spec.weekday,
+		TimeframeID:      &timeframe.ID,
+		ActivityGroupID:  group.ID,
+		WeekPattern:      0,
+		CalendarPeriodID: spec.periodID,
+	}
+	sched.SetTenantID(primaryTenantID)
+	_, err = s.db.NewInsert().
+		Model(sched).
+		ModelTableExpr(`activities.schedules`).
+		Exec(ctx)
+	require.NoError(s.t, err, "insert schedule")
+	s.registerCleanup("activities.schedules", sched.ID)
+
+	validFrom := spec.validFrom
+	if validFrom.IsZero() {
+		validFrom = time.Now().AddDate(0, -1, 0)
+	}
+
+	var enrollmentIDs []int64
+	for _, sid := range spec.studentIDs {
+		enroll := &activitiesModels.StudentEnrollment{
+			StudentID:       sid,
+			ActivityGroupID: group.ID,
+			ValidFrom:       validFrom,
+			ValidUntil:      spec.validUntil,
+		}
+		enroll.SetTenantID(primaryTenantID)
+		_, err := s.db.NewInsert().
+			Model(enroll).
+			ModelTableExpr(`activities.student_enrollments`).
+			Exec(ctx)
+		require.NoError(s.t, err, "insert enrollment")
+		enrollmentIDs = append(enrollmentIDs, enroll.ID)
+	}
+	s.registerCleanup("activities.student_enrollments", enrollmentIDs...)
+
+	var supervisorIDs []int64
+	for i, stid := range spec.staffIDs {
+		sup := &activitiesModels.SupervisorPlanned{
+			StaffID:    stid,
+			GroupID:    group.ID,
+			IsPrimary:  i == 0,
+			ValidFrom:  validFrom,
+			ValidUntil: spec.validUntil,
+		}
+		sup.SetTenantID(primaryTenantID)
+		_, err := s.db.NewInsert().
+			Model(sup).
+			ModelTableExpr(`activities.supervisors`).
+			Exec(ctx)
+		require.NoError(s.t, err, "insert supervisor")
+		supervisorIDs = append(supervisorIDs, sup.ID)
+	}
+	s.registerCleanup("activities.supervisors", supervisorIDs...)
+
+	return &templateFixture{
+		group:        group,
+		schedule:     sched,
+		timeframe:    timeframe,
+		enrollments:  enrollmentIDs,
+		supervisors:  supervisorIDs,
+		roomID:       spec.roomID,
+		staffIDs:     spec.staffIDs,
+		studentIDs:   spec.studentIDs,
+		validFromUTC: validFrom,
+	}
+}
+
+// queryCounter is a bun.QueryHook that counts queries between reset and read.
+type queryCounter struct {
+	count atomic.Int64
+}
+
+func (q *queryCounter) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
+	return ctx
+}
+func (q *queryCounter) AfterQuery(_ context.Context, _ *bun.QueryEvent) {
+	q.count.Add(1)
+}
+func (q *queryCounter) reset()     { q.count.Store(0) }
+func (q *queryCounter) get() int64 { return q.count.Load() }
+
+// nextWeekday returns the next occurrence of the given ISO weekday (1=Mon...7=Sun)
+// at least `minDaysAhead` days from `from`.
+func nextWeekday(from time.Time, isoWeekday, minDaysAhead int) time.Time {
+	d := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.UTC).
+		AddDate(0, 0, minDaysAhead)
+	for {
+		w := int(d.Weekday())
+		if w == 0 {
+			w = 7
+		}
+		if w == isoWeekday {
+			return d
+		}
+		d = d.AddDate(0, 0, 1)
+	}
+}
+
+// ensureJWTSecret makes sure viper has a JWT secret set before NewTokenAuth
+// is called. testutil.SetupAPITest does this via viper.SetDefault, but if
+// the viper store has an empty "auth_jwt_secret" from a parent config file,
+// the default is overridden to empty.
+func init() {
+	if viper.GetString("auth_jwt_secret") == "" {
+		viper.Set("auth_jwt_secret", "e2e-test-secret-abcdefghijklmnopqrstuvwxyz")
+	}
+	if viper.GetDuration("auth_jwt_expiry") == 0 {
+		viper.Set("auth_jwt_expiry", 15*time.Minute)
+	}
+	if viper.GetDuration("auth_jwt_refresh_expiry") == 0 {
+		viper.Set("auth_jwt_refresh_expiry", time.Hour)
+	}
+}

@@ -135,8 +135,12 @@ describe("OperatorLoginPage", () => {
   });
 
   it("shows loading state during authentication", async () => {
+    let resolveSignIn: (value: { error: null }) => void = () => undefined;
     mockSignIn.mockImplementation(
-      () => new Promise((resolve) => setTimeout(resolve, 100)),
+      () =>
+        new Promise((resolve) => {
+          resolveSignIn = resolve;
+        }),
     );
 
     render(<OperatorLoginPage />);
@@ -146,6 +150,14 @@ describe("OperatorLoginPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Anmeldung läuft...")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      resolveSignIn({ error: null });
+    });
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/operator/suggestions");
     });
   });
 

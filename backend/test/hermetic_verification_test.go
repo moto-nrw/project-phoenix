@@ -58,6 +58,22 @@ func TestHermeticTestPatterns(t *testing.T) {
 				len(violations), strings.Join(violations, "\n"))
 		}
 	})
+
+	t.Run("no_broken_cleanup_model_pattern", func(t *testing.T) {
+		violations := checkBrokenCleanupPattern(t, backendRoot)
+		if len(violations) > 0 {
+			t.Errorf("Found %d use(s) of the broken Model((*interface{})(nil)) cleanup pattern:\n\n%s\n\n"+
+				"This pattern is silently rejected by bun (interface{} is not a struct),\n"+
+				"causing every Exec() to short-circuit without running SQL — the cleanup\n"+
+				"becomes a no-op and tests rely on stale data from previous runs (#1296).\n\n"+
+				"Fix: replace with TableExpr(...) — the same pattern CleanupTableRecords uses.\n"+
+				"  // Before (no-op):\n"+
+				"  db.NewDelete().Model((*interface{})(nil)).Table(\"users.students\").Where(...)\n\n"+
+				"  // After (correct):\n"+
+				"  db.NewDelete().TableExpr(\"users.students\").Where(...)",
+				len(violations), strings.Join(violations, "\n"))
+		}
+	})
 }
 
 // findBackendRoot walks up the directory tree to find the backend root.
@@ -136,20 +152,30 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
-		"_internal_test.go",                     // Internal tests often use mocks
-		"_mock_test.go",                         // Mock tests
-		"models/",                               // Model unit tests don't hit DB (Unix)
-		"models\\",                              // Model unit tests don't hit DB (Windows)
-		"invitation_service_test.go",            // Uses mocks
-		"password_reset_integration_test.go",    // Uses mocks (sqlmock + stubs)
-		"handlers_unit_test.go",                 // Unit tests for converters (no DB)
-		"http_middleware_test.go",               // Uses nil *bun.DB for unit testing middleware
-		"operator_provisioning_service_test.go", // Uses mocks (sqlmock + stubs)
-		"operator_invitation_test.go",           // Uses mocks (sqlmock + stubs)
-		"operator_invitation_dispatch_test.go",  // Uses mocks for email dispatch tests
-		"invitations_test.go",                   // Uses mocks for handler tests
-		"error_helpers_test.go",                 // Internal unit tests for helper functions (no DB)
-		"api/iot/api_test.go",                   // Uses mock SchoolRepo for unit testing handler
+		"_internal_test.go",                                      // Internal tests often use mocks
+		"_mock_test.go",                                          // Mock tests
+		"models/",                                                // Model unit tests don't hit DB (Unix)
+		"models\\",                                               // Model unit tests don't hit DB (Windows)
+		"invitation_service_test.go",                             // Uses mocks
+		"password_reset_integration_test.go",                     // Uses mocks (sqlmock + stubs)
+		"handlers_unit_test.go",                                  // Unit tests for converters (no DB)
+		"http_middleware_test.go",                                // Uses nil *bun.DB for unit testing middleware
+		"operator_provisioning_service_test.go",                  // Uses mocks (sqlmock + stubs)
+		"operator_summaries_test.go",                             // Uses mockSummariesRepo + mockOrganizationRepo (no DB)
+		"operator_invitation_test.go",                            // Uses mocks (sqlmock + stubs)
+		"operator_invitation_dispatch_test.go",                   // Uses mocks for email dispatch tests
+		"invitations_test.go",                                    // Uses mocks for handler tests
+		"error_helpers_test.go",                                  // Internal unit tests for helper functions (no DB)
+		"api/iot/api_test.go",                                    // Uses mock SchoolRepo for unit testing handler
+		"api/iot/common/errors_test.go",                          // Pure JSON-marshal regression tests for error renderers; int64 literals are throwaway IDs, not DB rows
+		"api/iot/config_test.go",                                 // Uses mock settings service for unit testing config endpoint
+		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
+		"api/timetable/api_test.go",                              // Uses mock CalendarPeriodService for unit testing handlers
+		"api/timetable/instances_test.go",                        // Uses mock InstanceService + PersonService for unit testing handlers
+		"api/timetable/instance_students_unit_test.go",           // Uses fake repo for unit testing attendance PATCH handler
+		"services/schedule/attendance_sync_service_unit_test.go", // Uses fake repos for unit testing graceful-degradation branches
+		"services/schedule/timetable_cleanup_service_test.go",    // Uses failingAuditRepo mock for audit-write-failure rollback coverage (WP-B14)
+		"services/schedule/substitute_conflict_test.go",          // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -253,6 +279,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"SetupAPITest",
 		"setupAPITest",
 		"setupTestContext", // Indirect setup via shared helper (calls SetupAPITest)
+		"newScenario",      // E2E timetable flows — shared_setup.go wraps SetupAPITest
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)
@@ -339,6 +366,70 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		if hasDBOps && !usesSetup && !usesMocks {
 			relPath, _ := filepath.Rel(root, path)
 			violations = append(violations, "  - "+relPath)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
+
+	return violations
+}
+
+// checkBrokenCleanupPattern scans the test helper package for the
+// Model((*interface{})(nil)) cleanup pattern that bun silently rejects.
+// See issue #1296 — every call site logged an error via tb.Logf but never
+// failed the test, so cleanup was a no-op for months.
+func checkBrokenCleanupPattern(t *testing.T, root string) []string {
+	t.Helper()
+
+	var violations []string
+
+	brokenPattern := regexp.MustCompile(`Model\(\(\*interface\{\}\)\(nil\)\)`)
+
+	// Only scan the test helper package — production code uses concrete types
+	// like Model((*MyStruct)(nil)) which is valid.
+	testDir := filepath.Join(root, "test")
+
+	err := filepath.Walk(testDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		// Skip this file — it intentionally contains the pattern in error messages.
+		if filepath.Base(path) == "hermetic_verification_test.go" {
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer func() { _ = file.Close() }()
+
+		relPath, _ := filepath.Rel(root, path)
+
+		scanner := bufio.NewScanner(file)
+		lineNum := 0
+		for scanner.Scan() {
+			lineNum++
+			line := scanner.Text()
+
+			if strings.HasPrefix(strings.TrimSpace(line), "//") {
+				continue
+			}
+
+			if brokenPattern.MatchString(line) {
+				violations = append(violations,
+					formatViolation(relPath, lineNum, strings.TrimSpace(line)))
+			}
 		}
 
 		return nil

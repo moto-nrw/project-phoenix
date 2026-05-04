@@ -83,7 +83,7 @@ func TestFixedSeeder_FetchRoles(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	err := fs.fetchRoles(context.TODO())
 	require.NoError(t, err)
 
@@ -99,29 +99,13 @@ func TestFixedSeeder_SeedRooms(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 	result := &FixedResult{}
 
 	err := fs.seedRooms(context.TODO(), result)
 	require.NoError(t, err)
 	assert.Equal(t, len(DemoRooms), result.RoomCount)
 	assert.Len(t, fs.roomIDs, len(DemoRooms))
-}
-
-func TestFixedSeeder_SeedPersons(t *testing.T) {
-	srv := apiMock(t)
-	defer srv.Close()
-
-	client := NewClient(srv.URL, false)
-	client.token = "test-token"
-
-	fs := NewFixedSeeder(client, true)
-	result := &FixedResult{}
-
-	err := fs.seedPersons(context.TODO(), result)
-	require.NoError(t, err)
-	assert.Equal(t, len(DemoStaff), result.PersonCount)
-	assert.Len(t, fs.personIDs, len(DemoStaff))
 }
 
 func TestFixedSeeder_SeedStaff(t *testing.T) {
@@ -131,7 +115,7 @@ func TestFixedSeeder_SeedStaff(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 
 	// Pre-populate personIDs (normally done by seedPersons)
 	for _, staff := range DemoStaff {
@@ -153,7 +137,7 @@ func TestFixedSeeder_SeedStaff_MissingPerson(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	// personIDs is empty, so should fail
 	result := &FixedResult{}
 	err := fs.seedStaff(context.TODO(), result)
@@ -168,7 +152,7 @@ func TestFixedSeeder_SeedGroups(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 	// Pre-populate teacherIDs for group assignment
 	fs.teacherIDs["Julia Klein"] = 100
 	fs.teacherIDs["Markus Wolf"] = 200
@@ -187,7 +171,7 @@ func TestFixedSeeder_SeedStudents(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 
 	// Pre-populate groupIDs
 	groupKeys := []string{
@@ -214,7 +198,7 @@ func TestFixedSeeder_SeedStudents_MissingGroup(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	// groupIDs is empty
 	result := &FixedResult{}
 	err := fs.seedStudents(context.TODO(), result)
@@ -229,7 +213,7 @@ func TestFixedSeeder_SeedGuardians(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 
 	// Pre-populate studentIDByIndex for all 100 students
 	for i := 0; i < 100; i++ {
@@ -249,7 +233,7 @@ func TestFixedSeeder_FetchCategories(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 	err := fs.fetchCategories(context.TODO())
 	require.NoError(t, err)
 	assert.NotEmpty(t, fs.categoryIDs)
@@ -268,7 +252,7 @@ func TestFixedSeeder_FetchCategories_Empty(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	err := fs.fetchCategories(context.TODO())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no categories found")
@@ -281,7 +265,7 @@ func TestFixedSeeder_SeedActivities(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 
 	// Pre-populate roomIDs and categoryIDs
 	for _, act := range DemoActivities {
@@ -309,7 +293,7 @@ func TestFixedSeeder_SeedActivities_MissingRoom(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	fs.categoryIDs["Sport"] = 1
 	// roomIDs is empty
 	result := &FixedResult{}
@@ -325,7 +309,7 @@ func TestFixedSeeder_AssignSupervisors(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 
 	// Pre-populate staffIDs and activityIDs
 	firstStaffKey := fmt.Sprintf("%s %s", DemoStaff[0].FirstName, DemoStaff[0].LastName)
@@ -338,7 +322,7 @@ func TestFixedSeeder_AssignSupervisors(t *testing.T) {
 }
 
 func TestFixedSeeder_AssignSupervisors_NoStaff(t *testing.T) {
-	fs := NewFixedSeeder(nil, false)
+	fs := NewFixedSeeder(nil, false, "")
 	err := fs.assignSupervisors(context.TODO())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no staff available")
@@ -351,7 +335,7 @@ func TestFixedSeeder_EnrollStudents(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 
 	// Pre-populate activityIDs and studentIDs
 	fs.activityIDs["Fußball"] = 100
@@ -371,7 +355,7 @@ func TestFixedSeeder_SeedDevices(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 	result := &FixedResult{}
 
 	err := fs.seedDevices(context.TODO(), result)
@@ -387,7 +371,7 @@ func TestFixedSeeder_SeedStaffAccounts(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	fs.roleIDs["admin"] = 1
 	fs.roleIDs["user"] = 2
 	fs.roleIDs["guest"] = 3
@@ -410,7 +394,7 @@ func TestFixedSeeder_SeedStaffAccounts(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStaffAccounts_MissingRole(t *testing.T) {
-	fs := NewFixedSeeder(nil, false)
+	fs := NewFixedSeeder(nil, false, "")
 	// No roles
 	result := &FixedResult{}
 	err := fs.seedStaffAccounts(context.TODO(), result)
@@ -419,7 +403,7 @@ func TestFixedSeeder_SeedStaffAccounts_MissingRole(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStaffAccounts_MissingUserRole(t *testing.T) {
-	fs := NewFixedSeeder(nil, false)
+	fs := NewFixedSeeder(nil, false, "")
 	fs.roleIDs["admin"] = 1
 	// No "user" role
 	result := &FixedResult{}
@@ -429,7 +413,7 @@ func TestFixedSeeder_SeedStaffAccounts_MissingUserRole(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStaffAccounts_MissingGuestRole(t *testing.T) {
-	fs := NewFixedSeeder(nil, false)
+	fs := NewFixedSeeder(nil, false, "")
 	fs.roleIDs["admin"] = 1
 	fs.roleIDs["user"] = 2
 	// No "guest" role
@@ -439,18 +423,6 @@ func TestFixedSeeder_SeedStaffAccounts_MissingGuestRole(t *testing.T) {
 	assert.Contains(t, err.Error(), "guest role not found")
 }
 
-func TestFixedSeeder_SeedStaffAccounts_MissingPerson(t *testing.T) {
-	fs := NewFixedSeeder(nil, false)
-	fs.roleIDs["admin"] = 1
-	fs.roleIDs["user"] = 2
-	fs.roleIDs["guest"] = 3
-	// personIDs empty
-	result := &FixedResult{}
-	err := fs.seedStaffAccounts(context.TODO(), result)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "person not found")
-}
-
 func TestFixedSeeder_SwitchToStaffAccount(t *testing.T) {
 	srv := apiMock(t)
 	defer srv.Close()
@@ -458,7 +430,7 @@ func TestFixedSeeder_SwitchToStaffAccount(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	fs.staffCredentials = []StaffCredentials{
 		{Email: "demo1@mail.de", Password: "pass1", Name: "Anna Müller", Position: "OGS-Büro"},
 	}
@@ -468,7 +440,7 @@ func TestFixedSeeder_SwitchToStaffAccount(t *testing.T) {
 }
 
 func TestFixedSeeder_SwitchToStaffAccount_NoOGSStaff(t *testing.T) {
-	fs := NewFixedSeeder(nil, false)
+	fs := NewFixedSeeder(nil, false, "")
 	fs.staffCredentials = []StaffCredentials{
 		{Position: "Pädagogische Fachkraft"},
 	}
@@ -485,7 +457,7 @@ func TestFixedSeeder_MarkStudentsSick(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 
 	// Pre-populate studentIDByIndex
 	for i := 0; i < len(DemoStudents); i++ {
@@ -515,7 +487,7 @@ func TestFixedSeeder_GetCheckedInStudentIDs(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	ids, err := fs.getCheckedInStudentIDs()
 	require.NoError(t, err)
 	assert.True(t, ids[1])
@@ -536,7 +508,7 @@ func TestFixedSeeder_GetCheckedInStudentIDs_Empty(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	ids, err := fs.getCheckedInStudentIDs()
 	require.NoError(t, err)
 	assert.Empty(t, ids)
@@ -604,10 +576,10 @@ func TestDemoData_GuardiansHaveRequiredFields(t *testing.T) {
 }
 
 func TestDemoData_Counts(t *testing.T) {
-	assert.Equal(t, 12, len(DemoRooms))
+	assert.Equal(t, 11, len(DemoRooms))
 	assert.Equal(t, 20, len(DemoStaff))
 	assert.Equal(t, 100, len(DemoStudents))
-	assert.Equal(t, 10, len(DemoActivities))
+	assert.Equal(t, 8, len(DemoActivities))
 	assert.Equal(t, 10, len(DemoDevices))
 }
 
@@ -621,28 +593,11 @@ func TestFixedSeeder_SeedRooms_APIError(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	result := &FixedResult{}
 	err := fs.seedRooms(context.TODO(), result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create room")
-}
-
-func TestFixedSeeder_SeedPersons_APIError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
-	}))
-	defer srv.Close()
-
-	client := NewClient(srv.URL, false)
-	client.token = "test"
-
-	fs := NewFixedSeeder(client, false)
-	result := &FixedResult{}
-	err := fs.seedPersons(context.TODO(), result)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create person")
 }
 
 func TestFixedSeeder_SeedDevices_APIError(t *testing.T) {
@@ -655,7 +610,7 @@ func TestFixedSeeder_SeedDevices_APIError(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	result := &FixedResult{}
 	err := fs.seedDevices(context.TODO(), result)
 	assert.Error(t, err)
@@ -672,7 +627,7 @@ func TestFixedSeeder_FetchRoles_APIError(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	err := fs.fetchRoles(context.TODO())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to fetch roles")
@@ -688,7 +643,7 @@ func TestFixedSeeder_FetchCategories_APIError(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	err := fs.fetchCategories(context.TODO())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to fetch categories")
@@ -701,7 +656,7 @@ func TestFixedSeeder_SeedGuardians_MissingStudentIndex(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, true) // verbose to cover warning branch
+	fs := NewFixedSeeder(client, true, "") // verbose to cover warning branch
 	// studentIDByIndex is empty, so no students can be linked
 	result := &FixedResult{}
 	err := fs.seedGuardians(context.TODO(), result)
@@ -717,7 +672,7 @@ func TestFixedSeeder_EnrollStudents_MissingStudentID(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, true) // verbose to cover warning branch
+	fs := NewFixedSeeder(client, true, "") // verbose to cover warning branch
 	fs.activityIDs["Fußball"] = 100
 	// studentIDs is empty, so no students can be enrolled
 
@@ -733,7 +688,7 @@ func TestFixedSeeder_SwitchToStaffAccount_LoginError(t *testing.T) {
 	defer srv.Close()
 
 	client := NewClient(srv.URL, false)
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	fs.staffCredentials = []StaffCredentials{
 		{Email: "demo1@mail.de", Password: "wrong", Name: "Admin", Position: "OGS-Büro"},
 	}
@@ -753,7 +708,7 @@ func TestFixedSeeder_SeedRooms_InvalidResponseJSON(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	result := &FixedResult{}
 	err := fs.seedRooms(context.TODO(), result)
 	assert.Error(t, err)
@@ -770,7 +725,7 @@ func TestFixedSeeder_GetCheckedInStudentIDs_APIError(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test"
 
-	fs := NewFixedSeeder(client, false)
+	fs := NewFixedSeeder(client, false, "")
 	_, err := fs.getCheckedInStudentIDs()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to fetch active visits")
@@ -793,7 +748,7 @@ func TestFixedSeeder_SeedPickupSchedules(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 
 	// Pre-populate all 100 students
 	for i := 0; i < 100; i++ {
@@ -814,7 +769,7 @@ func TestFixedSeeder_SeedPickupSchedules_EmptyStudents(t *testing.T) {
 	client := NewClient(srv.URL, false)
 	client.token = "test-token"
 
-	fs := NewFixedSeeder(client, true)
+	fs := NewFixedSeeder(client, true, "")
 	// studentIDByIndex is empty — no schedules should be created
 
 	result := &FixedResult{}

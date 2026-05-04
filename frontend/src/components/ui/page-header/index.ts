@@ -1,3 +1,3 @@
 export { PageHeaderWithSearch } from "./PageHeaderWithSearch";
 
-export type { FilterConfig, ActiveFilter } from "./types";
+export type { FilterConfig, ActiveFilter, OverflowMenuItem } from "./types";

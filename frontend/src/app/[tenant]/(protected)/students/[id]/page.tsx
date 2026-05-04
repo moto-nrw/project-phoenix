@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -16,6 +16,7 @@ import {
   useStudentData,
   type ExtendedStudent,
 } from "~/lib/hooks/use-student-data";
+import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   StudentDetailHeader,
@@ -28,16 +29,30 @@ import {
   StudentCheckoutSection,
   StudentCheckinSection,
   StudentSickReportSection,
+  StudentExcusedReportSection,
   getStudentActionType,
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
 import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "StudentDetailPage" });
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
+import { ArrivalScheduleManager } from "~/components/students/arrival-schedule-manager";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
+import { fetchArrivalData } from "~/lib/student-arrival-api";
+import {
+  getDayData as getArrivalDayData,
+  formatArrivalTime,
+} from "~/lib/arrival-schedule-helpers";
+
+type TodayArrival = {
+  time?: string;
+  note?: string;
+  isException?: boolean;
+  isAbsent?: boolean;
+};
+
+const logger = createLogger({ component: "StudentDetailPage" });
 
 // =============================================================================
 // MAIN COMPONENT
@@ -57,7 +72,9 @@ export default function StudentDetailPage() {
     loading,
     error,
     hasFullAccess,
+    hasWriteAccess,
     attendanceLogEnabled,
+    feedbackEnabled,
     supervisors,
     myGroups,
     myGroupRooms,
@@ -103,6 +120,23 @@ export default function StudentDetailPage() {
     : student?.sick
       ? "Gesundmelden"
       : "Krankmelden";
+
+  // Excused toggle state
+  const [showConfirmExcused, setShowConfirmExcused] = useState(false);
+  const [excusedLoading, setExcusedLoading] = useState(false);
+  const excusedConfirmText = excusedLoading
+    ? "Wird gespeichert..."
+    : student?.excused
+      ? "Entschuldigung aufheben"
+      : "Entschuldigen";
+
+  // Switch dialog: shown when the user clicks one flag but the other is set.
+  // "sick" = we want to switch TO sick (excused is currently true).
+  // "excused" = we want to switch TO excused (sick is currently true).
+  const [switchTarget, setSwitchTarget] = useState<"sick" | "excused" | null>(
+    null,
+  );
+  const [switchLoading, setSwitchLoading] = useState(false);
   const [selectedActiveGroupId, setSelectedActiveGroupId] =
     useState<string>("");
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
@@ -114,6 +148,12 @@ export default function StudentDetailPage() {
     note?: string;
     isException?: boolean;
   }>({});
+
+  const { data: arrivalData } = useSWRAuth(
+    hasFullAccess && studentId ? `arrival-data-${studentId}` : null,
+    async () => fetchArrivalData(studentId),
+    { revalidateOnFocus: false },
+  );
 
   // Load active groups when check-in modal opens
   useEffect(() => {
@@ -143,7 +183,7 @@ export default function StudentDetailPage() {
     void loadActiveGroups();
   }, [showConfirmCheckin]);
 
-  // Load today's pickup time for header (only for full access users)
+  // Load today's pickup time for header (requires read access to student data)
   useEffect(() => {
     if (!hasFullAccess || !studentId) {
       setTodayPickup({});
@@ -161,6 +201,7 @@ export default function StudentDetailPage() {
           data.exceptions,
           student?.sick ?? false,
           data.notes,
+          student?.excused ?? false,
         );
 
         if (dayData.effectiveTime) {
@@ -179,7 +220,37 @@ export default function StudentDetailPage() {
     };
 
     void loadTodayPickup();
-  }, [hasFullAccess, studentId, student?.sick]);
+  }, [hasFullAccess, studentId, student?.sick, student?.excused]);
+
+  const todayArrival = useMemo<TodayArrival>(() => {
+    if (!hasFullAccess || !arrivalData) return {};
+
+    const dayData = getArrivalDayData(
+      new Date(),
+      arrivalData.schedules,
+      arrivalData.exceptions,
+      arrivalData.notes,
+      student?.sick ?? false,
+      student?.excused ?? false,
+    );
+
+    if (dayData.isAbsent) {
+      return {
+        note: dayData.effectiveReason,
+        isException: dayData.isException,
+        isAbsent: true,
+      };
+    }
+    if (dayData.effectiveTime) {
+      return {
+        time: formatArrivalTime(dayData.effectiveTime),
+        note: dayData.effectiveReason,
+        isException: dayData.isException,
+        isAbsent: false,
+      };
+    }
+    return {};
+  }, [arrivalData, hasFullAccess, student?.excused, student?.sick]);
 
   // Show loading state
   if (loading) {
@@ -276,7 +347,6 @@ export default function StudentDetailPage() {
       const newSickStatus = !(student.sick ?? false);
       await studentService.updateStudent(studentId, {
         sick: newSickStatus,
-        bus: student.buskind ?? false,
       });
       refreshData();
       setShowConfirmSick(false);
@@ -293,6 +363,90 @@ export default function StudentDetailPage() {
       toast.error("Fehler beim Ändern des Krankheitsstatus");
     } finally {
       setSickLoading(false);
+    }
+  };
+
+  const handleConfirmExcusedToggle = async () => {
+    if (!student) return;
+
+    setExcusedLoading(true);
+    try {
+      const newExcusedStatus = !(student.excused ?? false);
+      await studentService.updateStudent(studentId, {
+        excused: newExcusedStatus,
+      });
+      refreshData();
+      setShowConfirmExcused(false);
+      toast.success(
+        newExcusedStatus
+          ? `${student.name} wurde als entschuldigt markiert`
+          : `Entschuldigung für ${student.name} wurde aufgehoben`,
+      );
+    } catch (err) {
+      logger.error("excused_status_toggle_failed", {
+        student_id: studentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Fehler beim Ändern des Entschuldigungsstatus");
+    } finally {
+      setExcusedLoading(false);
+    }
+  };
+
+  // Click interceptor for the Krank button. If the student is currently
+  // excused, we must first clear the excused flag — show the switch dialog
+  // instead of the normal confirm modal.
+  const handleSickClick = () => {
+    if (student?.sick) {
+      setShowConfirmSick(true);
+      return;
+    }
+    if (student?.excused) {
+      setSwitchTarget("sick");
+      return;
+    }
+    setShowConfirmSick(true);
+  };
+
+  const handleExcusedClick = () => {
+    if (student?.excused) {
+      setShowConfirmExcused(true);
+      return;
+    }
+    if (student?.sick) {
+      setSwitchTarget("excused");
+      return;
+    }
+    setShowConfirmExcused(true);
+  };
+
+  const handleConfirmSwitch = async () => {
+    if (!student || !switchTarget) return;
+
+    setSwitchLoading(true);
+    try {
+      // Send both flags in one request so the backend's mutual-exclusion guard
+      // sees only the final state (one true, the other explicitly false).
+      await studentService.updateStudent(studentId, {
+        sick: switchTarget === "sick",
+        excused: switchTarget === "excused",
+      });
+      refreshData();
+      toast.success(
+        switchTarget === "sick"
+          ? `${student.name} wurde krankgemeldet (Entschuldigung aufgehoben)`
+          : `${student.name} wurde entschuldigt (Krankmeldung aufgehoben)`,
+      );
+      setSwitchTarget(null);
+    } catch (err) {
+      logger.error("status_switch_failed", {
+        student_id: studentId,
+        target: switchTarget,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Fehler beim Wechseln des Status");
+    } finally {
+      setSwitchLoading(false);
     }
   };
 
@@ -393,16 +547,24 @@ export default function StudentDetailPage() {
           myGroups={myGroups}
           myGroupRooms={myGroupRooms}
           mySupervisedRooms={mySupervisedRooms}
-          todayPickupTime={todayPickup.time}
+          todayPickupPlannedTime={todayPickup.time}
+          todayPickupActualTime={student.actual_pickup_time}
           todayPickupNote={todayPickup.note}
           isPickupException={todayPickup.isException}
+          todayArrivalPlannedTime={todayArrival.time}
+          todayArrivalActualTime={student.actual_arrival_time}
+          isArrivalException={todayArrival.isException}
+          todayArrivalNote={todayArrival.note}
+          isArrivalAbsent={todayArrival.isAbsent}
         />
 
         {hasFullAccess ? (
           <FullAccessView
             student={student}
             studentId={studentId}
+            hasWriteAccess={hasWriteAccess}
             attendanceLogEnabled={attendanceLogEnabled}
+            feedbackEnabled={feedbackEnabled}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             showPersonalInfoModal={showPersonalInfoModal}
@@ -412,14 +574,17 @@ export default function StudentDetailPage() {
             onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
             onSavePersonal={handleSavePersonal}
             onRefreshData={refreshData}
-            onSickClick={() => setShowConfirmSick(true)}
+            onSickClick={handleSickClick}
             sickLoading={sickLoading}
+            onExcusedClick={handleExcusedClick}
+            excusedLoading={excusedLoading}
           />
         ) : (
           <LimitedAccessView
             student={student}
             studentId={studentId}
             attendanceLogEnabled={attendanceLogEnabled}
+            feedbackEnabled={feedbackEnabled}
             supervisors={supervisors}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
@@ -497,6 +662,66 @@ export default function StudentDetailPage() {
           )}
         </p>
       </ConfirmationModal>
+
+      {/* Excused Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showConfirmExcused}
+        onClose={() => setShowConfirmExcused(false)}
+        onConfirm={handleConfirmExcusedToggle}
+        title={
+          student.excused ? "Entschuldigung aufheben" : "Kind entschuldigen"
+        }
+        confirmText={excusedConfirmText}
+        cancelText="Abbrechen"
+        isConfirmLoading={excusedLoading}
+        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+      >
+        <p>
+          {student.excused ? (
+            <>
+              Möchten Sie die Entschuldigung für <strong>{student.name}</strong>{" "}
+              aufheben?
+            </>
+          ) : (
+            <>
+              Möchten Sie <strong>{student.name}</strong> als entschuldigt
+              markieren?
+            </>
+          )}
+        </p>
+      </ConfirmationModal>
+
+      {/* Switch Dialog — shown when user clicks one flag but the other is set */}
+      <ConfirmationModal
+        isOpen={switchTarget !== null}
+        onClose={() => setSwitchTarget(null)}
+        onConfirm={handleConfirmSwitch}
+        title={
+          switchTarget === "sick"
+            ? "Als krank melden?"
+            : "Als entschuldigt markieren?"
+        }
+        confirmText={switchLoading ? "Wird gewechselt..." : "Status wechseln"}
+        cancelText="Abbrechen"
+        isConfirmLoading={switchLoading}
+        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+      >
+        <p>
+          {switchTarget === "sick" ? (
+            <>
+              <strong>{student.name}</strong> ist aktuell als entschuldigt
+              markiert. Stattdessen als krank melden? Die Entschuldigung wird
+              dabei aufgehoben.
+            </>
+          ) : (
+            <>
+              <strong>{student.name}</strong> ist aktuell als krank gemeldet.
+              Stattdessen als entschuldigt markieren? Die Krankmeldung wird
+              dabei aufgehoben.
+            </>
+          )}
+        </p>
+      </ConfirmationModal>
     </>
   );
 }
@@ -509,6 +734,7 @@ interface LimitedAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   showCheckout: boolean;
   showCheckin: boolean;
@@ -520,6 +746,7 @@ function LimitedAccessView({
   student,
   studentId,
   attendanceLogEnabled,
+  feedbackEnabled,
   supervisors,
   showCheckout,
   showCheckin,
@@ -542,12 +769,6 @@ function LimitedAccessView({
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
-      <PickupScheduleManager
-        studentId={student.id}
-        readOnly={true}
-        isSick={student.sick}
-      />
-
       <PersonalInfoReadOnly student={student} />
 
       <StudentGuardianManager studentId={student.id} readOnly={true} />
@@ -555,6 +776,8 @@ function LimitedAccessView({
       <StudentHistorySection
         studentId={studentId}
         attendanceLogEnabled={attendanceLogEnabled}
+        feedbackEnabled={feedbackEnabled}
+        readOnly={true}
         onNavigate={(path) => historyRouter.push(path)}
       />
     </div>
@@ -568,7 +791,9 @@ function LimitedAccessView({
 interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
+  hasWriteAccess: boolean;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
   showCheckout: boolean;
   showCheckin: boolean;
   showPersonalInfoModal: boolean;
@@ -580,12 +805,16 @@ interface FullAccessViewProps {
   onRefreshData: () => void;
   onSickClick: () => void;
   sickLoading: boolean;
+  onExcusedClick: () => void;
+  excusedLoading: boolean;
 }
 
 function FullAccessView({
   student,
   studentId,
+  hasWriteAccess,
   attendanceLogEnabled,
+  feedbackEnabled,
   showCheckout,
   showCheckin,
   showPersonalInfoModal,
@@ -597,58 +826,82 @@ function FullAccessView({
   onRefreshData,
   onSickClick,
   sickLoading,
+  onExcusedClick,
+  excusedLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
   return (
     <>
-      <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
-        {showCheckout && (
-          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-        )}
-        {showCheckin && (
-          <StudentCheckinSection onCheckinClick={onCheckinClick} />
-        )}
-        <StudentSickReportSection
-          isSick={student.sick ?? false}
-          sickSince={student.sick_since}
-          onToggle={onSickClick}
-          isLoading={sickLoading}
-        />
-      </div>
+      {(showCheckout || showCheckin || hasWriteAccess) && (
+        <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
+          {showCheckout && (
+            <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+          )}
+          {showCheckin && (
+            <StudentCheckinSection onCheckinClick={onCheckinClick} />
+          )}
+          {hasWriteAccess && (
+            <StudentSickReportSection
+              isSick={student.sick ?? false}
+              sickSince={student.sick_since}
+              onToggle={onSickClick}
+              isLoading={sickLoading}
+            />
+          )}
+          {hasWriteAccess && (
+            <StudentExcusedReportSection
+              isExcused={student.excused ?? false}
+              excusedSince={student.excused_since}
+              onToggle={onExcusedClick}
+              isLoading={excusedLoading}
+            />
+          )}
+        </div>
+      )}
 
       <div className="space-y-4 sm:space-y-6">
+        <ArrivalScheduleManager
+          studentId={studentId}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
+        />
+
         <PickupScheduleManager
           studentId={studentId}
-          readOnly={false}
-          onUpdate={onRefreshData}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
           isSick={student.sick}
+          isExcused={student.excused}
         />
 
         <PersonalInfoReadOnly
           student={student}
-          showEditButton={true}
-          onEditClick={onOpenPersonalInfoModal}
+          showEditButton={hasWriteAccess}
+          onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
         />
 
         <StudentGuardianManager
           studentId={studentId}
-          readOnly={false}
-          onUpdate={onRefreshData}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
         />
 
         <StudentHistorySection
           studentId={studentId}
           attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
           onNavigate={(path) => historyRouter.push(path)}
         />
       </div>
 
-      <PersonalInfoFormModal
-        isOpen={showPersonalInfoModal}
-        onClose={onClosePersonalInfoModal}
-        student={student}
-        onSave={onSavePersonal}
-      />
+      {hasWriteAccess && (
+        <PersonalInfoFormModal
+          isOpen={showPersonalInfoModal}
+          onClose={onClosePersonalInfoModal}
+          student={student}
+          onSave={onSavePersonal}
+        />
+      )}
     </>
   );
 }

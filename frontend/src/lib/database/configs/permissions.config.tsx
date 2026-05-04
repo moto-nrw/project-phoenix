@@ -6,7 +6,12 @@ import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
 import type { Permission, BackendPermission } from "@/lib/auth-helpers";
 import { mapPermissionResponse } from "@/lib/auth-helpers";
-import { formatPermissionDisplay } from "@/lib/permission-labels";
+import {
+  formatPermissionDisplay,
+  localizeAction,
+  localizeDescription,
+  localizeResource,
+} from "@/lib/permission-labels";
 import {
   PermissionSelector,
   type PermissionSelectorValue,
@@ -132,7 +137,9 @@ export const permissionsConfig = defineEntityConfig<Permission>({
   detail: {
     header: {
       title: (p: Permission) => displayName(p),
-      subtitle: (p: Permission) => p.description || "Keine Beschreibung",
+      subtitle: (p: Permission) =>
+        localizeDescription(p.resource, p.action, p.description) ||
+        "Keine Beschreibung",
       avatar: {
         text: (p: Permission) => (p.resource?.[0] ?? "P").toUpperCase(),
         size: "lg",
@@ -150,12 +157,23 @@ export const permissionsConfig = defineEntityConfig<Permission>({
         title: "Technische Daten",
         titleColor: "text-indigo-800",
         items: [
-          { label: "Ressource", value: (p: Permission) => p.resource },
-          { label: "Aktion", value: (p: Permission) => p.action },
-          { label: "Anzeigename", value: (p: Permission) => p.name },
+          {
+            label: "Ressource",
+            value: (p: Permission) => localizeResource(p.resource),
+          },
+          {
+            label: "Aktion",
+            value: (p: Permission) => localizeAction(p.action),
+          },
+          {
+            label: "Technischer Name",
+            value: (p: Permission) => p.name || `${p.resource}:${p.action}`,
+          },
           {
             label: "Beschreibung",
-            value: (p: Permission) => p.description || "Keine Beschreibung",
+            value: (p: Permission) =>
+              localizeDescription(p.resource, p.action, p.description) ||
+              "Keine Beschreibung",
           },
           { label: "ID", value: (p: Permission) => p.id },
           {
@@ -193,7 +211,8 @@ export const permissionsConfig = defineEntityConfig<Permission>({
     item: {
       title: (p: Permission) => displayName(p),
       subtitle: (p: Permission) => p.name,
-      description: (p: Permission) => p.description || "",
+      description: (p: Permission) =>
+        localizeDescription(p.resource, p.action, p.description),
       avatar: {
         text: (p: Permission) => (p.resource?.[0] ?? "P").toUpperCase(),
       },

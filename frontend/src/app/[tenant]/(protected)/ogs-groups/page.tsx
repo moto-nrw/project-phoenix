@@ -7,7 +7,6 @@ import {
   useMemo,
   useCallback,
   useRef,
-  type JSX,
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -27,12 +26,14 @@ import {
   parseLocation,
 } from "~/lib/location-helper";
 import {
-  getPickupUrgency,
+  countCheckedInStudents,
+  formatGroupLabelWithAttendance,
   isStudentInGroupRoom,
   matchesSearchFilter,
   matchesAttendanceFilter,
 } from "./ogs-group-helpers";
-import type { OGSGroup, PickupUrgency } from "./ogs-group-helpers";
+import { useMinuteClock } from "~/lib/pickup-helpers";
+import type { OGSGroup } from "./ogs-group-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { groupTransferService } from "~/lib/group-transfer-api";
@@ -40,19 +41,35 @@ import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
+import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
 import { Loading } from "~/components/ui/loading";
-import { LocationBadge } from "@/components/ui/location-badge";
+import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
   StudentCard,
-  StudentInfoRow,
-  PickupTimeIcon,
-  ExceptionIcon,
+  PickupTimeRow,
+  ArrivalTimeRow,
 } from "~/components/students/student-card";
+import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
+import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import {
+  deriveCheckinState,
+  useSchoolCheckinMode,
+} from "~/lib/hooks/use-school-checkin-mode";
+import { buildGroupOverflowItems } from "./components/group-overflow-items";
+import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
-import { Clock, AlertTriangle } from "lucide-react";
+import { activeService } from "~/lib/active-api";
+import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import { TrackingIndicators } from "~/components/students/tracking-indicators";
+import {
+  combineTimeNotes,
+  getStudentTimeStatus,
+  getTimeStatusSortRank,
+} from "~/lib/student-time-status";
+
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
@@ -77,12 +94,20 @@ interface BackendStudentFromBFF {
   name?: string;
   school_class?: string;
   current_location?: string;
+  current_room_color?: string | null;
   sick?: boolean;
   sick_since?: string;
   sick_until?: string;
+  excused?: boolean;
+  excused_since?: string;
   location_since?: string;
   group_id?: number;
   group_name?: string;
+  arrival_time?: string;
+  arrival_is_exception?: boolean;
+  arrival_notes?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
 }
 
 // BFF response type for dashboard data
@@ -124,15 +149,34 @@ interface OGSDashboardBFFResponse {
   firstGroupId: string | null;
 }
 
-function renderPickupIcon(urgency: PickupUrgency): JSX.Element {
-  if (urgency === "overdue") {
-    return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
+function mapStudentForOgsPage(
+  student: Student | BackendStudentFromBFF,
+): Student {
+  if ("last_name" in student) {
+    return {
+      id: student.id.toString(),
+      name: `${student.first_name} ${student.last_name}`.trim(),
+      first_name: student.first_name,
+      second_name: student.last_name,
+      school_class: student.school_class ?? "",
+      current_location: student.current_location ?? "",
+      current_room_color: student.current_room_color ?? null,
+      sick: student.sick ?? false,
+      sick_since: student.sick_since,
+      excused: student.excused ?? false,
+      excused_since: student.excused_since,
+      location_since: student.location_since,
+      group_id: student.group_id?.toString(),
+      group_name: student.group_name,
+      arrival_time: student.arrival_time,
+      arrival_is_exception: student.arrival_is_exception,
+      arrival_notes: student.arrival_notes,
+      actual_arrival_time: student.actual_arrival_time,
+      actual_pickup_time: student.actual_pickup_time,
+    };
   }
-  if (urgency === "soon") {
-    return <Clock className="h-3.5 w-3.5 animate-pulse text-orange-500" />;
-  }
-  // normal / none — default gray clock
-  return <PickupTimeIcon />;
+
+  return student;
 }
 
 function OGSGroupPageContent() {
@@ -147,6 +191,20 @@ function OGSGroupPageContent() {
 
   const { success: showSuccessToast } = useToast();
   const { userContext } = useUserContext();
+  const { setGroupAttendanceCount } = useGroupAttendanceCounts();
+
+  // Only binary-mode tenants expose the web check-in toggle; in detailed
+  // mode the kiosk owns check-in/out and a parallel web button would
+  // confuse users. We gate both the header toggle and the card's
+  // check-in mode on this flag — when false the page behaves exactly as
+  // it did before this feature landed.
+  const presenceMode = usePresenceMode();
+  const isBinaryMode = presenceMode === "binary";
+
+  // Page-level school check-in/out mode. Toggle lives in the header; when
+  // isActive, clicking a card toggles that student's attendance instead of
+  // navigating to the detail page.
+  const schoolCheckin = useSchoolCheckinMode();
 
   // Check if user has access to OGS groups
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -185,15 +243,12 @@ function OGSGroupPageContent() {
   );
 
   // Sort mode for student list
-  const [sortMode, setSortMode] = useState<"default" | "pickup">("default");
+  const [sortMode, setSortMode] = useState<"default" | "pickup" | "arrival">(
+    "default",
+  );
 
   // Current time for urgency calculation (updates every minute)
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(interval);
-  }, []);
+  const now = useMinuteClock();
 
   // State for group transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -276,6 +331,11 @@ function OGSGroupPageContent() {
     // Update student count on the first sorted group (BFF pre-loads data for it)
     if (ogsGroups[0]) {
       ogsGroups[0].student_count = studentsData.length;
+      ogsGroups[0].present_count = countCheckedInStudents(studentsData);
+      setGroupAttendanceCount(ogsGroups[0].id, {
+        present: ogsGroups[0].present_count,
+        total: ogsGroups[0].student_count,
+      });
     }
 
     setAllGroups(ogsGroups);
@@ -301,19 +361,7 @@ function OGSGroupPageContent() {
       }
 
       // Map backend students to frontend format (last_name → second_name)
-      const mappedStudents: Student[] = studentsData.map((s) => ({
-        id: s.id.toString(),
-        name: `${s.first_name} ${s.last_name}`.trim(),
-        first_name: s.first_name,
-        second_name: s.last_name, // Backend uses last_name
-        school_class: s.school_class ?? "",
-        current_location: s.current_location ?? "",
-        sick: s.sick ?? false,
-        sick_since: s.sick_since,
-        location_since: s.location_since,
-        group_id: s.group_id?.toString(),
-        group_name: s.group_name,
-      }));
+      const mappedStudents = studentsData.map(mapStudentForOgsPage);
       setStudents(mappedStudents);
 
       // Set pickup times from BFF response (prevents loading flash)
@@ -358,7 +406,7 @@ function OGSGroupPageContent() {
     setActiveTransfers(transfers);
     setError(null);
     setIsLoading(false);
-  }, [dashboardData, selectedGroupId]);
+  }, [dashboardData, selectedGroupId, setGroupAttendanceCount]);
 
   // Sync selected group with URL param.
   // The sidebar navigates with the correct ?group= param at click-time,
@@ -437,6 +485,7 @@ function OGSGroupPageContent() {
   // Only fetches when hasAccess is confirmed and we have a group ID.
   // Includes room status and pickup times to prevent "loading flash" on student cards.
   const { data: swrStudentsData } = useSWRAuth<{
+    groupId: string;
     students: Student[];
     roomStatus?: Record<
       string,
@@ -449,6 +498,7 @@ function OGSGroupPageContent() {
       }
     >;
     pickupTimes?: Map<string, BulkPickupTime>;
+    trackingIndicators?: TrackingIndicatorsResponse;
   }>(
     hasAccess && currentGroupId ? `ogs-students-${currentGroupId}` : null,
     async () => {
@@ -456,6 +506,7 @@ function OGSGroupPageContent() {
       const [studentsResponse, roomStatusResponse] = await Promise.all([
         studentService.getStudents({
           groupId: currentGroupId!,
+          includeArrivalTimes: true,
           token: session?.user?.token,
         }),
         // Fetch room status inline (don't use callback that sets state)
@@ -488,20 +539,34 @@ function OGSGroupPageContent() {
 
       const students = studentsResponse.students || [];
 
-      // Fetch pickup times for all students (prevents loading flash)
+      // Fetch pickup times and tracking indicators in parallel (prevents loading flash).
+      // Arrival data is part of the student list response, so ogs-students-* invalidation is enough.
       let pickupTimesMap = new Map<string, BulkPickupTime>();
+      let trackingIndicators: TrackingIndicatorsResponse = {
+        labels: [],
+        results: {},
+      };
       if (students.length > 0) {
         const studentIds = students.map((s) => s.id.toString());
-        pickupTimesMap = await fetchBulkPickupTimes(studentIds).catch(() => {
-          logger.error("failed to fetch pickup times in SWR");
-          return new Map<string, BulkPickupTime>();
-        });
+        const [pickupResult, trackingResult] = await Promise.all([
+          fetchBulkPickupTimes(studentIds).catch(() => {
+            logger.error("failed to fetch pickup times in SWR");
+            return new Map<string, BulkPickupTime>();
+          }),
+          activeService.getTrackingIndicators(studentIds).catch(() => {
+            return { labels: [], results: {} } as TrackingIndicatorsResponse;
+          }),
+        ]);
+        pickupTimesMap = pickupResult;
+        trackingIndicators = trackingResult;
       }
 
       return {
+        groupId: currentGroupId!,
         students,
         roomStatus: roomStatusResponse ?? undefined,
         pickupTimes: pickupTimesMap,
+        trackingIndicators,
       };
     },
     {
@@ -513,8 +578,31 @@ function OGSGroupPageContent() {
   // Sync SWR student data with local state
   // Also syncs room status and pickup times to keep UI in sync and prevent loading flash
   useEffect(() => {
+    if (swrStudentsData?.groupId !== currentGroupId) {
+      return;
+    }
+
     if (swrStudentsData?.students) {
-      setStudents(swrStudentsData.students);
+      const mappedStudents = swrStudentsData.students.map(mapStudentForOgsPage);
+      setStudents(mappedStudents);
+      if (currentGroupId) {
+        const presentCount = countCheckedInStudents(mappedStudents);
+        setGroupAttendanceCount(currentGroupId, {
+          present: presentCount,
+          total: mappedStudents.length,
+        });
+        setAllGroups((prev) =>
+          prev.map((group) =>
+            group.id === currentGroupId
+              ? {
+                  ...group,
+                  student_count: mappedStudents.length,
+                  present_count: presentCount,
+                }
+              : group,
+          ),
+        );
+      }
     }
     if (swrStudentsData?.roomStatus) {
       setRoomStatus(swrStudentsData.roomStatus);
@@ -524,7 +612,7 @@ function OGSGroupPageContent() {
     if (swrStudentsData?.pickupTimes instanceof Map) {
       setPickupTimes(swrStudentsData.pickupTimes);
     }
-  }, [swrStudentsData]);
+  }, [swrStudentsData, currentGroupId, setGroupAttendanceCount]);
 
   // Ref to track current group without triggering unnecessary re-renders
   const currentGroupRef = useRef<OGSGroup | null>(null);
@@ -731,14 +819,23 @@ function OGSGroupPageContent() {
         token: session?.user?.token,
       });
       const studentsData = studentsResponse.students || [];
+      const presentCount = countCheckedInStudents(studentsData);
 
       setStudents(studentsData);
+      setGroupAttendanceCount(groupId, {
+        present: presentCount,
+        total: studentsData.length,
+      });
 
       // Update group with actual student count
       setAllGroups((prev) =>
         prev.map((group) =>
           group.id === groupId
-            ? { ...group, student_count: studentsData.length }
+            ? {
+                ...group,
+                student_count: studentsData.length,
+                present_count: presentCount,
+              }
             : group,
         ),
       );
@@ -779,14 +876,6 @@ function OGSGroupPageContent() {
     };
 
     if (sortMode === "pickup") {
-      // Urgency rank: overdue (0) → soon (1) → normal (2) → none/no time (3) → zuhause (4)
-      const urgencyRank: Record<string, number> = {
-        overdue: 0,
-        soon: 1,
-        normal: 2,
-        none: 3,
-      };
-
       return sorted.sort((a, b) => {
         const aHome = isHomeLocation(a.current_location);
         const bHome = isHomeLocation(b.current_location);
@@ -799,15 +888,59 @@ function OGSGroupPageContent() {
         // Beide anwesend: nach Urgency-Gruppe sortieren
         const timeA = pickupTimes.get(a.id.toString())?.pickupTime;
         const timeB = pickupTimes.get(b.id.toString())?.pickupTime;
-        const urgencyA = getPickupUrgency(timeA, now);
-        const urgencyB = getPickupUrgency(timeB, now);
-        const rankA = urgencyRank[urgencyA] ?? 3;
-        const rankB = urgencyRank[urgencyB] ?? 3;
+        const statusA = getStudentTimeStatus({
+          plannedTime: timeA,
+          actualTime: a.actual_pickup_time,
+          now,
+        });
+        const statusB = getStudentTimeStatus({
+          plannedTime: timeB,
+          actualTime: b.actual_pickup_time,
+          now,
+        });
+        const rankA = getTimeStatusSortRank(statusA);
+        const rankB = getTimeStatusSortRank(statusB);
 
         // Verschiedene Urgency-Gruppen: überzogen zuerst
         if (rankA !== rankB) return rankA - rankB;
 
         // Gleiche Urgency-Gruppe: nach Abholzeit, dann Name
+        if (timeA && timeB) {
+          const timeCmp = timeA.localeCompare(timeB);
+          if (timeCmp !== 0) return timeCmp;
+        }
+
+        return compareByName(a, b);
+      });
+    }
+
+    if (sortMode === "arrival") {
+      return sorted.sort((a, b) => {
+        const aHome = isHomeLocation(a.current_location);
+        const bHome = isHomeLocation(b.current_location);
+
+        // Angekommene Schüler (nicht zu Hause) immer unten
+        if (!aHome && bHome) return 1;
+        if (aHome && !bHome) return -1;
+
+        // Beide zu Hause: nach Ankunfts-Urgency sortieren
+        const timeA = a.arrival_time;
+        const timeB = b.arrival_time;
+        const statusA = getStudentTimeStatus({
+          plannedTime: timeA,
+          actualTime: a.actual_arrival_time,
+          now,
+        });
+        const statusB = getStudentTimeStatus({
+          plannedTime: timeB,
+          actualTime: b.actual_arrival_time,
+          now,
+        });
+        const rankA = getTimeStatusSortRank(statusA);
+        const rankB = getTimeStatusSortRank(statusB);
+
+        if (rankA !== rankB) return rankA - rankB;
+
         if (timeA && timeB) {
           const timeCmp = timeA.localeCompare(timeB);
           if (timeCmp !== 0) return timeCmp;
@@ -860,9 +993,11 @@ function OGSGroupPageContent() {
         label: "Sortierung",
         type: "buttons",
         value: sortMode,
-        onChange: (value) => setSortMode(value as "default" | "pickup"),
+        onChange: (value) =>
+          setSortMode(value as "default" | "pickup" | "arrival"),
         options: [
           { value: "default", label: "Alphabetisch" },
+          { value: "arrival", label: "Nächste Ankunft" },
           { value: "pickup", label: "Nächste Abholung" },
         ],
       },
@@ -983,10 +1118,14 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Render helper for desktop action button
-  const renderDesktopActionButton = () => {
-    if (isMobile || !currentGroup) return undefined;
-    if (currentGroup.viaSubstitution) {
+  // Render helper for the substitution status pill. "In Vertretung" is a
+  // passive informational badge — it just signals that the current user is
+  // covering for someone else. Active actions ("Gruppe übergeben") moved into
+  // the kebab-menu, and the check-in mode lives in the SchoolCheckinFab.
+  const renderSubstitutionBadge = (variant: "desktop" | "mobile") => {
+    if (!currentGroup?.viaSubstitution) return undefined;
+
+    if (variant === "desktop") {
       return (
         <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
           <svg
@@ -1008,18 +1147,18 @@ function OGSGroupPageContent() {
         </div>
       );
     }
+
     return (
-      <button
-        onClick={() => setShowTransferModal(true)}
-        className="flex h-10 items-center gap-2 rounded-full border border-[#83CD2D] bg-white px-4 text-[#4a7a15] transition-colors duration-150 hover:bg-[#f0f9e4] active:bg-[#e4f3d3]"
-        aria-label="Gruppe übergeben"
+      <div
+        className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
+        title="In Vertretung"
       >
         <svg
-          className="h-4 w-4"
+          className="h-4 w-4 text-orange-600"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          strokeWidth={2}
+          strokeWidth={2.5}
         >
           <path
             strokeLinecap="round"
@@ -1027,67 +1166,19 @@ function OGSGroupPageContent() {
             d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
           />
         </svg>
-        <span className="text-sm font-medium">
-          {activeTransfers.length > 0
-            ? `Gruppe übergeben (${activeTransfers.length})`
-            : "Gruppe übergeben"}
-        </span>
-      </button>
+      </div>
     );
   };
 
-  // Render helper for mobile action button
-  const renderMobileActionButton = () => {
-    if (!isMobile || !currentGroup) return undefined;
-    if (currentGroup.viaSubstitution) {
-      return (
-        <div
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
-          title="In Vertretung"
-        >
-          <svg
-            className="h-4 w-4 text-orange-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-            />
-          </svg>
-        </div>
-      );
-    }
-    return (
-      <button
-        onClick={() => setShowTransferModal(true)}
-        className="relative flex h-8 w-8 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[#4a7a15] transition-colors duration-150 active:bg-[#e4f3d3]"
-        aria-label="Gruppe übergeben"
-      >
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-          />
-        </svg>
-        {activeTransfers.length > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-[#83CD2D] bg-white text-[10px] font-bold text-[#4a7a15]">
-            {activeTransfers.length}
-          </span>
-        )}
-      </button>
-    );
-  };
+  // Build the kebab-menu items once per render. Skip when there's no current
+  // group (loading state) so the menu doesn't appear with stale handlers.
+  const overflowItems = currentGroup
+    ? buildGroupOverflowItems({
+        viaSubstitution: currentGroup.viaSubstitution ?? false,
+        activeTransfersCount: activeTransfers.length,
+        onOpenTransfer: () => setShowTransferModal(true),
+      })
+    : [];
 
   // Render helper for student grid content
   const renderStudentContent = () => {
@@ -1136,11 +1227,9 @@ function OGSGroupPageContent() {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
-              const isAtHome = isHomeLocation(student.current_location);
-              const urgency = isAtHome
-                ? ("none" as PickupUrgency)
-                : getPickupUrgency(studentPickup?.pickupTime, now);
 
+              const checkinState = deriveCheckinState(student.current_location);
+              const studentIdStr = student.id.toString();
               return (
                 <StudentCard
                   key={student.id}
@@ -1151,9 +1240,21 @@ function OGSGroupPageContent() {
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
                   }
+                  checkinMode={isBinaryMode && schoolCheckin.isActive}
+                  checkinState={checkinState}
+                  isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+                  onCheckinClick={() =>
+                    void schoolCheckin.toggle(studentIdStr, checkinState)
+                  }
                   locationBadge={
-                    <LocationBadge
-                      student={student}
+                    <StudentPresenceBadge
+                      student={{
+                        ...student,
+                        not_arrival_today:
+                          (student.arrival_is_exception ?? false) &&
+                          !student.arrival_time,
+                        not_arrival_reason: student.arrival_notes ?? null,
+                      }}
                       displayMode="roomName"
                       isGroupRoom={inGroupRoom}
                       variant="modern"
@@ -1161,28 +1262,45 @@ function OGSGroupPageContent() {
                     />
                   }
                   extraContent={
-                    studentPickup?.pickupTime ? (
-                      <StudentInfoRow
-                        icon={
-                          studentPickup.isException ? (
-                            <ExceptionIcon />
-                          ) : (
-                            renderPickupIcon(urgency)
-                          )
+                    <>
+                      <ArrivalTimeRow
+                        arrivalTime={student.arrival_time}
+                        actualTime={student.actual_arrival_time}
+                        isException={student.arrival_is_exception ?? false}
+                        isAbsent={
+                          (student.arrival_is_exception ?? false) &&
+                          !student.arrival_time
                         }
-                      >
-                        Abholung: {studentPickup.pickupTime} Uhr
-                        {studentPickup.dayNotes?.length > 0 && (
-                          <span className="ml-1 text-gray-500">
-                            (
-                            {studentPickup.dayNotes
-                              .map((n) => n.content)
-                              .join(", ")}
-                            )
-                          </span>
-                        )}
-                      </StudentInfoRow>
-                    ) : null
+                        notes={student.arrival_notes}
+                        now={now}
+                      />
+                      <PickupTimeRow
+                        pickupTime={studentPickup?.pickupTime}
+                        actualTime={student.actual_pickup_time}
+                        isException={studentPickup?.isException ?? false}
+                        notes={
+                          studentPickup
+                            ? combineTimeNotes(
+                                studentPickup.notes,
+                                studentPickup.dayNotes,
+                              )
+                            : undefined
+                        }
+                        now={now}
+                      />
+                    </>
+                  }
+                  trackingIndicators={
+                    swrStudentsData?.trackingIndicators?.labels.length ? (
+                      <TrackingIndicators
+                        labels={swrStudentsData.trackingIndicators.labels}
+                        results={
+                          swrStudentsData.trackingIndicators.results[
+                            student.id
+                          ] ?? []
+                        }
+                      />
+                    ) : undefined
                   }
                 />
               );
@@ -1202,62 +1320,116 @@ function OGSGroupPageContent() {
   return (
     <>
       <div className="w-full">
-        {/* PageHeaderWithSearch - Title only on mobile */}
-        <PageHeaderWithSearch
-          title={
-            isMobile && allGroups.length === 1
-              ? (currentGroup?.name ?? "Meine Gruppe")
-              : "" // No title when multiple groups (tabs show group names) or on desktop
-          }
-          actionButton={renderDesktopActionButton()}
-          mobileActionButton={renderMobileActionButton()}
-          tabs={
-            allGroups.length > 1 && !isDesktop
-              ? {
-                  items: allGroups.map((group) => ({
-                    id: group.id,
-                    label: group.name,
-                    count: group.student_count,
-                  })),
-                  activeTab: currentGroup?.id ?? "",
-                  onTabChange: (tabId) => {
-                    const group = allGroups.find((g) => g.id === tabId);
-                    if (group) {
-                      localStorage.setItem("sidebar-last-group", tabId);
-                      localStorage.setItem(
-                        "sidebar-last-group-name",
-                        group.name,
-                      );
-                      void switchToGroup(tabId);
-                    }
-                  },
-                }
-              : undefined
-          }
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Name suchen...",
-          }}
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setAttendanceFilter("all");
-            setSortMode("default");
-          }}
-        />
+        {/* Page header — scrolls with the rest of the page (no sticky).
+            Active filters surface as a count badge on the filter pill (no
+            separate chips row), and the kebab menu carries the rare
+            "Gruppe übergeben" action. */}
+        <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
+          <PageHeaderWithSearch
+            title={
+              isMobile && allGroups.length === 1
+                ? currentGroup
+                  ? formatGroupLabelWithAttendance(currentGroup)
+                  : "Meine Gruppe"
+                : "" // No title when multiple groups (tabs show group names) or on desktop
+            }
+            actionButton={renderSubstitutionBadge("desktop")}
+            mobileActionButton={renderSubstitutionBadge("mobile")}
+            overflowMenu={overflowItems}
+            primaryAction={
+              isBinaryMode ? (
+                <SchoolCheckinFab
+                  variant="inline"
+                  isActive={schoolCheckin.isActive}
+                  onToggle={schoolCheckin.toggleActive}
+                  successCount={schoolCheckin.successCount}
+                  pendingCount={schoolCheckin.pendingIds.size}
+                />
+              ) : undefined
+            }
+            activeFilterDisplay="count"
+            tabs={
+              allGroups.length > 1 && !isDesktop
+                ? {
+                    items: allGroups.map((group) => ({
+                      id: group.id,
+                      label: formatGroupLabelWithAttendance(group),
+                    })),
+                    activeTab: currentGroup?.id ?? "",
+                    onTabChange: (tabId) => {
+                      const group = allGroups.find((g) => g.id === tabId);
+                      if (group) {
+                        localStorage.setItem("sidebar-last-group", tabId);
+                        localStorage.setItem(
+                          "sidebar-last-group-name",
+                          group.name,
+                        );
+                        void switchToGroup(tabId);
+                      }
+                    },
+                  }
+                : undefined
+            }
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Name suchen...",
+            }}
+            filters={filterConfigs}
+            activeFilters={activeFilters}
+            onClearAllFilters={() => {
+              setSearchTerm("");
+              setAttendanceFilter("all");
+              setSortMode("default");
+            }}
+          />
+        </div>
 
-        {/* Mobile Error Display */}
+        {/* Mobile Error Display — outside the sticky stack so it doesn't
+            push everything down on small screens. */}
         {error && (
           <div className="mb-4 md:hidden">
             <Alert type="error" message={error} />
           </div>
         )}
 
-        {/* Student Grid - Mobile Optimized */}
-        {renderStudentContent()}
+        {/* Mobile (<md) check-in mode trigger — inline pill at the top of
+            the card list when OFF; switches to a sticky bottom bar above
+            the mobile nav when ON. Tablet keeps the floating FAB and
+            desktop the header inline pill, both rendered below. */}
+        {isBinaryMode && (
+          <div className="mb-3 md:hidden">
+            <SchoolCheckinModeMobile
+              isActive={schoolCheckin.isActive}
+              onToggle={schoolCheckin.toggleActive}
+              successCount={schoolCheckin.successCount}
+              pendingCount={schoolCheckin.pendingIds.size}
+            />
+          </div>
+        )}
+
+        {/* Student Grid. Bottom padding reserves room for the mobile
+            sticky bar / tablet floating FAB so the last row of cards
+            stays tappable; desktop has neither and gets pb-0. */}
+        <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
+          {renderStudentContent()}
+        </div>
       </div>
+
+      {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
+          renders the inline pill / sticky bar combo above; desktop
+          renders the inline pill inside the page header. */}
+      {isBinaryMode && (
+        <div className="hidden md:block lg:hidden">
+          <SchoolCheckinFab
+            variant="floating"
+            isActive={schoolCheckin.isActive}
+            onToggle={schoolCheckin.toggleActive}
+            successCount={schoolCheckin.successCount}
+            pendingCount={schoolCheckin.pendingIds.size}
+          />
+        </div>
+      )}
 
       {/* Group Transfer Modal */}
       <GroupTransferModal

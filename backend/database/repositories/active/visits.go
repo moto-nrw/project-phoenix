@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -553,7 +554,15 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 		ExitTime:      row.VisitExitTime,
 	}
 
-	if row.GroupID.Valid && row.GroupGroupID.Valid && row.GroupRoomID.Valid {
+	if row.GroupID.Valid && row.GroupRoomID.Valid {
+		// Row.GroupGroupID may legitimately be NULL for spontaneous sessions
+		// (WP-B6) — map it to *int64, leaving nil when the row carries no
+		// parent template.
+		var templateID *int64
+		if row.GroupGroupID.Valid {
+			v := row.GroupGroupID.Int64
+			templateID = &v
+		}
 		group := &active.Group{
 			Model: modelBase.Model{
 				ID:        row.GroupID.Int64,
@@ -563,7 +572,7 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 			StartTime:    row.GroupStartTime,
 			EndTime:      row.GroupEndTime,
 			LastActivity: row.GroupLastActivity,
-			GroupID:      row.GroupGroupID.Int64,
+			GroupID:      templateID,
 			RoomID:       row.GroupRoomID.Int64,
 		}
 		if row.GroupTimeoutMinutes.Valid {
@@ -729,6 +738,107 @@ func (r *VisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeG
 	}
 
 	return rowsAffected, nil
+}
+
+// visitGroupNames captures the activity + room names for a student visit (DB scan target).
+type visitGroupNames struct {
+	StudentID         int64  `bun:"student_id"`
+	ActivityGroupName string `bun:"activity_group_name"`
+	RoomName          string `bun:"room_name"`
+}
+
+// GetTodayVisitNamesForStudents returns activity group + room names for all of
+// today's visits for the given students. Used for tracking indicator matching.
+func (r *VisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
+	if len(studentIDs) == 0 {
+		return nil, nil
+	}
+
+	// Deduplicate incoming IDs.
+	uniqueIDs := make([]int64, 0, len(studentIDs))
+	seen := make(map[int64]struct{}, len(studentIDs))
+	for _, id := range studentIDs {
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniqueIDs = append(uniqueIDs, id)
+	}
+
+	var results []visitGroupNames
+
+	today := timezone.Today()
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		ColumnExpr(`"visit".student_id`).
+		ColumnExpr(`COALESCE("activity"."name", '') AS activity_group_name`).
+		ColumnExpr(`COALESCE("room"."name", '') AS room_name`).
+		Join(`LEFT JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
+		Join(`LEFT JOIN activities.groups AS "activity" ON "activity".id = "group".group_id`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
+		Where(`"visit".student_id IN (?)`, bun.List(uniqueIDs)).
+		Where(`"visit".entry_time >= ?`, today)
+
+	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &results); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get today visit names for students",
+			Err: err,
+		}
+	}
+
+	// Convert to model type.
+	out := make([]active.VisitGroupNames, len(results))
+	for i, r := range results {
+		out[i] = active.VisitGroupNames{
+			StudentID:         r.StudentID,
+			ActivityGroupName: r.ActivityGroupName,
+			RoomName:          r.RoomName,
+		}
+	}
+
+	return out, nil
+}
+
+// FindByStudentAndActiveGroupIDs returns visits for the given student whose
+// active_group_id is in the provided slice. Used by the timetable /student/
+// {id}/day and /week endpoints to detect "unplanned" attendance — instances
+// where the student was actually there (has a visit) without being enrolled
+// (no instance_students row).
+//
+// Empty slice short-circuits to an empty result: bun would otherwise emit
+// `IN ('{}')` which some driver paths handle oddly. Bailing early keeps the
+// call cheap on the common "no active/completed instances" path.
+func (r *VisitRepository) FindByStudentAndActiveGroupIDs(
+	ctx context.Context, studentID int64, activeGroupIDs []int64,
+) ([]*active.Visit, error) {
+	if len(activeGroupIDs) == 0 {
+		return []*active.Visit{}, nil
+	}
+
+	var visits []*active.Visit
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&visits).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		Where(`"visit".student_id = ?`, studentID).
+		Where(`"visit".active_group_id IN (?)`, bun.List(activeGroupIDs)).
+		OrderExpr(`"visit".entry_time ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student and active group IDs",
+			Err: err,
+		}
+	}
+	return visits, nil
 }
 
 // FindActiveVisits finds all visits with no exit time (currently active)

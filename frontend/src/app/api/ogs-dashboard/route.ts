@@ -4,7 +4,10 @@
 // and prevent sequential loading "flash" on student cards
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
+import { createLogger } from "~/lib/logger";
 import { createGetHandler } from "~/lib/route-wrapper";
+
+const logger = createLogger({ component: "OGSDashboardRoute" });
 
 // Backend response types
 interface BackendEducationalGroup {
@@ -25,10 +28,19 @@ interface BackendStudent {
   name?: string;
   school_class?: string;
   current_location?: string;
+  /** Hex color of the student's current room when set; drives badge color in LocationBadge. */
+  current_room_color?: string | null;
   sick?: boolean;
   sick_since?: string;
   sick_until?: string;
+  excused?: boolean;
+  excused_since?: string;
   location_since?: string;
+  arrival_time?: string;
+  arrival_is_exception?: boolean;
+  arrival_notes?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
 }
 
 interface BackendRoomStatus {
@@ -133,7 +145,7 @@ export const GET = createGetHandler<OGSDashboardResponse>(
       await Promise.all([
         // Fetch students for first group
         apiGet<{ data: BackendStudent[] }>(
-          `/api/students?group_id=${firstGroupId}`,
+          `/api/students?group_id=${firstGroupId}&include_arrival_times=true`,
           token,
         ).catch(() => ({ data: [] as BackendStudent[] })),
 
@@ -162,7 +174,13 @@ export const GET = createGetHandler<OGSDashboardResponse>(
         "/api/students/pickup-times/bulk",
         token,
         { student_ids: studentIds },
-      ).catch(() => ({ data: [] as BackendPickupTime[] }));
+      ).catch((error: unknown) => {
+        logger.warn("ogs_dashboard_pickup_times_fetch_failed", {
+          student_count: studentIds.length,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return { data: [] as BackendPickupTime[] };
+      });
       pickupTimes = pickupResult.data ?? [];
     }
 

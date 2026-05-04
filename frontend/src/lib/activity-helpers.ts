@@ -19,7 +19,7 @@ export interface ActivitySupervisorSummary {
   name: string;
 }
 
-export function mapActivitySupervisorSummaryResponse(
+function mapActivitySupervisorSummaryResponse(
   supervisor: BackendActivitySupervisor,
 ): ActivitySupervisorSummary {
   return {
@@ -202,7 +202,7 @@ export interface ActivityStudent {
 }
 
 // Added: Frontend supervisor type
-export interface Supervisor {
+interface Supervisor {
   id: string;
   name: string;
 }
@@ -333,6 +333,20 @@ function mapScheduleToTime(
     created_at: new Date(schedule.created_at),
     updated_at: new Date(schedule.updated_at),
   };
+}
+
+// System activity names that cannot be deleted or renamed.
+// Must stay in sync with backend constants/activities.go.
+const SYSTEM_ACTIVITY_NAMES = ["Schulhof Freispiel", "WC"] as const;
+
+/** Returns true if the activity is a system activity (Schulhof Freispiel, WC). */
+export function isSystemActivity(
+  activity: Activity | null | undefined,
+): boolean {
+  if (!activity) return false;
+  return SYSTEM_ACTIVITY_NAMES.includes(
+    activity.name as (typeof SYSTEM_ACTIVITY_NAMES)[number],
+  );
 }
 
 // Mapping functions for backend to frontend types
@@ -710,10 +724,6 @@ export interface ActivityFilter {
 }
 
 // Schedule filter type
-export interface ActivityScheduleFilter {
-  weekday?: string;
-  has_timeframe?: boolean;
-}
 
 // Helper functions
 export function formatActivityTimes(

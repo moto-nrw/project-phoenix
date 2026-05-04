@@ -157,6 +157,7 @@ describe("MobileBottomNav", () => {
       isSupervising: false,
       isLoadingGroups: false,
       isLoadingSupervision: false,
+      adminOverviewEnabled: false,
       supervisedRooms: [],
       groups: [],
       refresh: vi.fn(),
@@ -295,6 +296,7 @@ describe("MobileBottomNav", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -437,6 +439,7 @@ describe("MobileBottomNav", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -456,6 +459,7 @@ describe("MobileBottomNav", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -467,6 +471,97 @@ describe("MobileBottomNav", () => {
       const links = screen.getAllByRole("link");
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/active-supervisions");
+    });
+
+    it("injects Aufsicht tab for admins when admin_supervision_overview is enabled", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        adminOverviewEnabled: true,
+        supervisedRooms: [{ id: "1", name: "Room A", groupId: "g1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      // Admin baseline does NOT include /active-supervisions — injection must add it
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/active-supervisions");
+    });
+
+    it("does not inject Aufsicht tab for admin while supervision is still loading", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: false,
+        isLoadingGroups: true,
+        isLoadingSupervision: true,
+        adminOverviewEnabled: false,
+        supervisedRooms: [],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    it("does not inject Aufsicht tab when only a synthetic Schulhof room exists (setting off)", () => {
+      // P1-A regression guard: Schulhof is injected into supervisedRooms for
+      // every tenant that has one. An admin without admin_supervision_overview
+      // must not surface the admin tab merely because a Schulhof entry exists.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        adminOverviewEnabled: false,
+        supervisedRooms: [
+          { id: "schulhof", name: "Schulhof", groupId: "g1", isSchulhof: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    it("does not inject Aufsicht tab for admin who is not supervising", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        adminOverviewEnabled: false,
+        supervisedRooms: [],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const links = screen.getAllByRole("link");
+      const hrefs = links.map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
     });
   });
 
@@ -597,19 +692,36 @@ describe("MobileBottomNav", () => {
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/operator/suggestions");
       expect(hrefs).toContain("/operator/announcements");
-      expect(hrefs).toContain("/operator/provisioning");
+      // Verwaltung entry now points at the first management page (Träger)
+      // since the old single-page /operator/provisioning was split into five
+      // dedicated routes. See issue #1282 (operator sidebar restructure).
+      expect(hrefs).toContain("/operator/organizations");
       expect(hrefs).toContain("/operator/operators");
     });
 
-    it("does not show overflow menu in operator mode", () => {
+    it("shows overflow menu in operator mode with the remaining Verwaltung pages", async () => {
+      // Issue #1282: the old operator bottom nav had no overflow because the
+      // single /operator/provisioning page housed all Verwaltung tabs. After
+      // the tabs were split into dedicated routes the overflow drawer must
+      // surface the remaining 4 sibling pages + Einstellungen so mobile users
+      // can reach them.
       render(<MobileBottomNav />);
 
-      // Operator mode has no "More" button
-      const buttons = screen.queryAllByRole("button");
-      const moreButton = buttons.find(
+      const navButtons = screen.getAllByRole("button");
+      const moreButton = navButtons.find(
         (btn) => !btn.hasAttribute("data-testid"),
       );
-      expect(moreButton).toBeUndefined();
+      expect(moreButton).toBeDefined();
+
+      fireEvent.click(moreButton!);
+
+      const links = await screen.findAllByRole("link");
+      const hrefs = links.map((l) => l.getAttribute("href"));
+      expect(hrefs).toContain("/operator/schools");
+      expect(hrefs).toContain("/operator/accounts");
+      expect(hrefs).toContain("/operator/devices");
+      expect(hrefs).toContain("/operator/persons");
+      expect(hrefs).toContain("/operator/settings");
     });
 
     it("shows active label for current operator route", () => {

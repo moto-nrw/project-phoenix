@@ -40,6 +40,10 @@ interface StudentResponseFromBackend {
   tag_id?: string;
   school_class: string;
   current_location?: string | null;
+  // Hex of the student's current room when set (Issue #1324). The proxy
+  // forwards it untouched; mapStudentResponse threads it into the Student
+  // type that powers LocationBadge.
+  current_room_color?: string | null;
   guardian_name: string;
   guardian_contact: string;
   guardian_email?: string;
@@ -87,6 +91,7 @@ export const GET = createGetHandler(
         name?: string;
         first_name?: string;
         has_full_access?: boolean;
+        has_write_access?: boolean;
         group_supervisors?: Array<{
           id: number;
           first_name: string;
@@ -106,9 +111,12 @@ export const GET = createGetHandler(
 
       // Extract access control fields from response data
       const hasFullAccess = studentData.has_full_access ?? false;
+      const hasWriteAccess = studentData.has_write_access ?? false;
       const groupSupervisors = studentData.group_supervisors ?? [];
       const attendanceLogEnabled =
         (studentData.attendance_log_enabled as boolean) ?? false;
+      const feedbackEnabled =
+        (studentData.feedback_enabled as boolean) ?? false;
 
       // Check if we need to extract last_name from the name field
       if (!studentData.last_name && studentData.name) {
@@ -133,8 +141,10 @@ export const GET = createGetHandler(
         ...mappedStudent,
         ...consentData,
         has_full_access: hasFullAccess,
+        has_write_access: hasWriteAccess,
         group_supervisors: groupSupervisors,
         attendance_log_enabled: attendanceLogEnabled,
+        feedback_enabled: feedbackEnabled,
       };
     } catch (error) {
       logger.error("student fetch failed", {

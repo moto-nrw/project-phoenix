@@ -19,19 +19,24 @@ const ModalContext = createContext<ModalContextType | undefined>(undefined);
 export function ModalProvider({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Counter rather than boolean so that stacked modals (e.g. an edit modal
+  // opening a confirmation modal on top) only report `isModalOpen=false` once
+  // every modal has unmounted. Otherwise the inner modal's cleanup would flip
+  // the flag while the outer modal is still open, which would let the mobile
+  // master/detail drawer dismiss itself out from under it.
+  const [openCount, setOpenCount] = useState(0);
 
   const openModal = useCallback(() => {
-    setIsModalOpen(true);
+    setOpenCount((count) => count + 1);
   }, []);
 
   const closeModal = useCallback(() => {
-    setIsModalOpen(false);
+    setOpenCount((count) => (count > 0 ? count - 1 : 0));
   }, []);
 
   const contextValue = useMemo(
-    () => ({ isModalOpen, openModal, closeModal }),
-    [isModalOpen, openModal, closeModal],
+    () => ({ isModalOpen: openCount > 0, openModal, closeModal }),
+    [openCount, openModal, closeModal],
   );
 
   return (

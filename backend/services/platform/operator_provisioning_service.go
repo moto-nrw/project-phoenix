@@ -81,27 +81,21 @@ type OperatorProvisioningService interface {
 	SetDeviceAPIKey(ctx context.Context, id int64, apiKey *string, operatorID int64, clientIP net.IP) (*OperatorDeviceInfo, error)
 	SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
 	RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error
+	SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error
+	RestoreOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error
 	DeleteDevice(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 	ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error)
 	SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error
+	GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error)
+	ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error)
+	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
+	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
+	ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
 }
 
-// OperatorPersonInfo holds person information with school/org context for operator views.
-type OperatorPersonInfo struct {
-	ID               int64     `bun:"id" json:"id"`
-	FirstName        string    `bun:"first_name" json:"first_name"`
-	LastName         string    `bun:"last_name" json:"last_name"`
-	HasAccount       bool      `bun:"has_account" json:"has_account"`
-	AccountEmail     *string   `bun:"account_email" json:"account_email,omitempty"`
-	HasRFIDCard      bool      `bun:"has_rfid_card" json:"has_rfid_card"`
-	IsStaff          bool      `bun:"is_staff" json:"is_staff"`
-	IsStudent        bool      `bun:"is_student" json:"is_student"`
-	SchoolID         int64     `bun:"school_id" json:"school_id"`
-	SchoolName       string    `bun:"school_name" json:"school_name"`
-	OrganizationID   int64     `bun:"organization_id" json:"organization_id"`
-	OrganizationName string    `bun:"organization_name" json:"organization_name"`
-	CreatedAt        time.Time `bun:"created_at" json:"created_at"`
-}
+// OperatorPersonInfo aliases the model type so existing service callers keep
+// referencing platformSvc.OperatorPersonInfo.
+type OperatorPersonInfo = platform.OperatorPersonInfo
 
 // OperatorDeviceInfo holds device information with school/org context for operator views.
 type OperatorDeviceInfo struct {
@@ -148,6 +142,7 @@ func enrichDeviceInfo(devices []OperatorDeviceInfo) []OperatorDeviceInfo {
 type operatorProvisioningService struct {
 	organizationRepo    platform.OrganizationRepository
 	schoolRepo          platform.SchoolRepository
+	summariesRepo       platform.OperatorSummariesRepository
 	categoryRepo        activityModels.CategoryRepository
 	deviceRepo          iotModels.DeviceRepository
 	roleRepo            authModels.RoleRepository
@@ -167,6 +162,7 @@ type operatorProvisioningService struct {
 type OperatorProvisioningServiceConfig struct {
 	OrganizationRepo    platform.OrganizationRepository
 	SchoolRepo          platform.SchoolRepository
+	SummariesRepo       platform.OperatorSummariesRepository
 	CategoryRepo        activityModels.CategoryRepository
 	DeviceRepo          iotModels.DeviceRepository
 	RoleRepo            authModels.RoleRepository
@@ -184,9 +180,13 @@ type OperatorProvisioningServiceConfig struct {
 
 // NewOperatorProvisioningService creates a provisioning service.
 func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) OperatorProvisioningService {
+	if cfg.SummariesRepo == nil {
+		panic("operator provisioning service: SummariesRepo is required")
+	}
 	return &operatorProvisioningService{
 		organizationRepo:    cfg.OrganizationRepo,
 		schoolRepo:          cfg.SchoolRepo,
+		summariesRepo:       cfg.SummariesRepo,
 		categoryRepo:        cfg.CategoryRepo,
 		deviceRepo:          cfg.DeviceRepo,
 		roleRepo:            cfg.RoleRepo,
@@ -253,12 +253,16 @@ func (s *operatorProvisioningService) ListOrganizations(ctx context.Context) ([]
 func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platform.Organization, error) {
 	var updated *platform.Organization
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		existing, err := s.organizationRepo.FindByID(adminCtx, id)
+		// See locking contract on OrganizationRepository.FindByIDForShare.
+		existing, err := s.organizationRepo.FindByIDForShare(adminCtx, id)
 		if err != nil {
 			return err
 		}
 		if existing == nil {
 			return &OrganizationNotFoundError{OrganizationID: id}
+		}
+		if existing.IsDeleted() {
+			return &OrganizationAlreadyDeletedError{OrganizationID: id}
 		}
 
 		changes := map[string]any{}
@@ -365,12 +369,16 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		changes := map[string]any{}
 
 		if req.OrganizationID != existing.OrganizationID {
-			org, orgErr := s.organizationRepo.FindByID(adminCtx, req.OrganizationID)
+			// See locking contract on OrganizationRepository.FindByIDForShare.
+			org, orgErr := s.organizationRepo.FindByIDForShare(adminCtx, req.OrganizationID)
 			if orgErr != nil {
 				return orgErr
 			}
 			if org == nil {
 				return &OrganizationNotFoundError{OrganizationID: req.OrganizationID}
+			}
+			if org.IsDeleted() {
+				return &OrganizationDeletedError{OrganizationID: req.OrganizationID}
 			}
 			changes["organization_id"] = map[string]int64{"old": existing.OrganizationID, "new": req.OrganizationID}
 		}
@@ -1066,29 +1074,6 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 	})
 }
 
-// operatorPersonQuery is the shared query for listing persons with school/org context.
-const operatorPersonQuery = `
-SELECT
-	"p".id,
-	"p".first_name,
-	"p".last_name,
-	("p".account_id IS NOT NULL) AS has_account,
-	"a".email AS account_email,
-	(EXISTS (SELECT 1 FROM users.staff WHERE person_id = "p".id)) AS is_staff,
-	(EXISTS (SELECT 1 FROM users.students WHERE person_id = "p".id)) AS is_student,
-	("p".tag_id IS NOT NULL) AS has_rfid_card,
-	"s".id AS school_id,
-	"s".name AS school_name,
-	"o".id AS organization_id,
-	"o".name AS organization_name,
-	"p".created_at
-FROM users.persons AS "p"
-INNER JOIN platform.schools AS "s" ON "s".id = "p".tenant_id
-INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
-LEFT JOIN auth.accounts AS "a" ON "a".id = "p".account_id
-WHERE "p".deleted_at IS NULL
-`
-
 func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
@@ -1103,18 +1088,11 @@ func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, sch
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
 
-		var db bun.IDB = s.txHandler.DB
-		if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
-			db = tx
-		}
-
-		q := operatorPersonQuery + ` AND "p".tenant_id = ? ORDER BY "p".last_name, "p".first_name`
-		if scanErr := db.NewRaw(q, schoolID).Scan(adminCtx, &result); scanErr != nil {
+		persons, scanErr := s.summariesRepo.PersonsBySchool(adminCtx, schoolID)
+		if scanErr != nil {
 			return scanErr
 		}
-		if result == nil {
-			result = []OperatorPersonInfo{}
-		}
+		result = persons
 		return nil
 	})
 	return result, err
@@ -1247,12 +1225,16 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 }
 
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {
-	org, err := s.organizationRepo.FindByID(ctx, school.OrganizationID)
+	// See locking contract on OrganizationRepository.FindByIDForShare.
+	org, err := s.organizationRepo.FindByIDForShare(ctx, school.OrganizationID)
 	if err != nil {
 		return err
 	}
 	if org == nil {
 		return &OrganizationNotFoundError{OrganizationID: school.OrganizationID}
+	}
+	if org.IsDeleted() {
+		return &OrganizationDeletedError{OrganizationID: school.OrganizationID}
 	}
 	if err := s.ensureSchoolSlugAvailable(ctx, school.OrganizationID, school.Slug); err != nil {
 		return err
@@ -1574,6 +1556,18 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 			return &SchoolNotDeletedError{SchoolID: schoolID}
 		}
 
+		// See locking contract on OrganizationRepository.FindByIDForShare.
+		parentOrg, orgErr := s.organizationRepo.FindByIDForShare(adminCtx, school.OrganizationID)
+		if orgErr != nil {
+			return orgErr
+		}
+		if parentOrg == nil {
+			return &OrganizationNotFoundError{OrganizationID: school.OrganizationID}
+		}
+		if parentOrg.IsDeleted() {
+			return &OrganizationDeletedError{OrganizationID: school.OrganizationID}
+		}
+
 		if err := s.schoolRepo.Restore(adminCtx, schoolID); err != nil {
 			// If another operator concurrently restored this school between our read and
 			// update, the WHERE deleted_at IS NOT NULL clause matches zero rows. Map that
@@ -1588,6 +1582,78 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 			"name":      school.Name,
 			"slug":      school.Slug,
 			"subdomain": school.Subdomain,
+		})
+		return nil
+	})
+}
+
+// SoftDeleteOrganization marks an organization as deleted. Blocked if the organization still
+// has non-deleted schools — the operator must delete each school individually first.
+func (s *operatorProvisioningService) SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		// See locking contract on OrganizationRepository.FindByIDForShare — this
+		// FOR UPDATE serializes against concurrent school mutations that take FOR SHARE.
+		org, err := s.organizationRepo.FindByIDForUpdate(adminCtx, organizationID)
+		if err != nil {
+			return err
+		}
+		if org == nil {
+			return &OrganizationNotFoundError{OrganizationID: organizationID}
+		}
+		if org.IsDeleted() {
+			return &OrganizationAlreadyDeletedError{OrganizationID: organizationID}
+		}
+
+		// Block deletion if the organization still has non-deleted schools.
+		schoolCount, err := s.schoolRepo.CountNonDeletedByOrganizationID(adminCtx, organizationID)
+		if err != nil {
+			return fmt.Errorf("count schools for organization %d: %w", organizationID, err)
+		}
+		if schoolCount > 0 {
+			return &OrganizationHasSchoolsError{OrganizationID: organizationID, SchoolCount: schoolCount}
+		}
+
+		if err := s.organizationRepo.SoftDelete(adminCtx, organizationID); err != nil {
+			if isRowsAffectedMismatch(err) {
+				return &OrganizationAlreadyDeletedError{OrganizationID: organizationID}
+			}
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionSoftDelete, platform.ResourceOrganization, &organizationID, clientIP, map[string]any{
+			"name": org.Name,
+			"slug": org.Slug,
+		})
+		return nil
+	})
+}
+
+// RestoreOrganization returns a soft-deleted organization to its pre-deletion state.
+func (s *operatorProvisioningService) RestoreOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {
+	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+		// Lock symmetry with SoftDeleteOrganization: FOR UPDATE serializes restore
+		// against a concurrent soft-delete of the same row.
+		org, err := s.organizationRepo.FindByIDForUpdate(adminCtx, organizationID)
+		if err != nil {
+			return err
+		}
+		if org == nil {
+			return &OrganizationNotFoundError{OrganizationID: organizationID}
+		}
+		if !org.IsDeleted() {
+			return &OrganizationNotDeletedError{OrganizationID: organizationID}
+		}
+
+		if err := s.organizationRepo.Restore(adminCtx, organizationID); err != nil {
+			if isRowsAffectedMismatch(err) {
+				return &OrganizationNotDeletedError{OrganizationID: organizationID}
+			}
+			return err
+		}
+
+		s.logAction(adminCtx, operatorID, platform.ActionRestore, platform.ResourceOrganization, &organizationID, clientIP, map[string]any{
+			"name": org.Name,
+			"slug": org.Slug,
 		})
 		return nil
 	})

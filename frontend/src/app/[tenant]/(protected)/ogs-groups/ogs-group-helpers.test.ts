@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
-  getPickupUrgency,
+  countCheckedInStudents,
+  formatGroupLabelWithAttendance,
+  isStudentCheckedIn,
   isStudentInGroupRoom,
   matchesSearchFilter,
   matchesAttendanceFilter,
@@ -32,42 +34,6 @@ function makeGroup(overrides: Partial<OGSGroup> = {}): OGSGroup {
     ...overrides,
   };
 }
-
-describe("getPickupUrgency", () => {
-  it("returns 'none' when pickupTimeStr is undefined", () => {
-    expect(getPickupUrgency(undefined, new Date())).toBe("none");
-  });
-
-  it("returns 'overdue' when pickup time is in the past", () => {
-    const now = new Date("2025-01-15T15:00:00");
-    expect(getPickupUrgency("14:30", now)).toBe("overdue");
-  });
-
-  it("returns 'soon' when pickup time is within 30 minutes", () => {
-    const now = new Date("2025-01-15T14:45:00");
-    expect(getPickupUrgency("15:00", now)).toBe("soon");
-  });
-
-  it("returns 'soon' when pickup time is exactly now (0 minutes diff)", () => {
-    const now = new Date("2025-01-15T15:00:00");
-    expect(getPickupUrgency("15:00", now)).toBe("soon");
-  });
-
-  it("returns 'normal' when pickup time is more than 30 minutes away", () => {
-    const now = new Date("2025-01-15T13:00:00");
-    expect(getPickupUrgency("15:00", now)).toBe("normal");
-  });
-
-  it("returns 'soon' at exactly 30 minutes before pickup", () => {
-    const now = new Date("2025-01-15T14:30:00");
-    expect(getPickupUrgency("15:00", now)).toBe("soon");
-  });
-
-  it("returns 'normal' at 31 minutes before pickup", () => {
-    const now = new Date("2025-01-15T14:29:00");
-    expect(getPickupUrgency("15:00", now)).toBe("normal");
-  });
-});
 
 describe("isStudentInGroupRoom", () => {
   it("returns false when student has no current_location", () => {
@@ -126,6 +92,49 @@ describe("isStudentInGroupRoom", () => {
     const student = makeStudent({ current_location: "Anwesend - Raum 2" });
     const group = makeGroup({ room_name: "Raum 1", room_id: undefined });
     expect(isStudentInGroupRoom(student, group)).toBe(false);
+  });
+});
+
+describe("attendance count helpers", () => {
+  it("counts present, transit, and schoolyard students as checked in", () => {
+    const students = [
+      makeStudent({ current_location: "Anwesend - Raum 1" }),
+      makeStudent({ current_location: "Unterwegs" }),
+      makeStudent({ current_location: "Schulhof" }),
+      makeStudent({ current_location: "Zuhause" }),
+      makeStudent({ current_location: "Unbekannt" }),
+      makeStudent({ current_location: undefined }),
+    ];
+
+    expect(countCheckedInStudents(students)).toBe(3);
+  });
+
+  it("does not count home, unknown, or empty locations as checked in", () => {
+    expect(
+      isStudentCheckedIn(makeStudent({ current_location: "Zuhause" })),
+    ).toBe(false);
+    expect(
+      isStudentCheckedIn(makeStudent({ current_location: "Unbekannt" })),
+    ).toBe(false);
+    expect(
+      isStudentCheckedIn(makeStudent({ current_location: undefined })),
+    ).toBe(false);
+  });
+
+  it("formats group labels with checked-in and total counts", () => {
+    const group = makeGroup({
+      name: "Eulen",
+      present_count: 12,
+      student_count: 18,
+    });
+
+    expect(formatGroupLabelWithAttendance(group)).toBe("Eulen 12/18");
+  });
+
+  it("keeps the plain group label before counts are loaded", () => {
+    expect(formatGroupLabelWithAttendance(makeGroup({ name: "Eulen" }))).toBe(
+      "Eulen",
+    );
   });
 });
 

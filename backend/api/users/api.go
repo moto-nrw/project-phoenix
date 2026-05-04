@@ -45,22 +45,11 @@ func (rs *Resource) Router() chi.Router {
 		// Read operations only require users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listPersons)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getPerson)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/by-tag/{tagId}", rs.getPersonByTag)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/search", rs.searchPersons)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/by-account/{accountId}", rs.getPersonByAccount)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/rfid-cards/available", rs.listAvailableRFIDCards)
 
 		// Write operations require specific permissions
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createPerson)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updatePerson)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deletePerson)
-
-		// Special operations
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/rfid", rs.linkRFID)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/rfid", rs.unlinkRFID)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/account", rs.linkAccount)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/account", rs.unlinkAccount)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/profile", rs.getFullProfile)
 	})
 
 	return r
@@ -80,26 +69,6 @@ func (rs *Resource) GetPersonHandler() http.HandlerFunc {
 	return rs.getPerson
 }
 
-// GetPersonByTagHandler returns the getPersonByTag handler for testing
-func (rs *Resource) GetPersonByTagHandler() http.HandlerFunc {
-	return rs.getPersonByTag
-}
-
-// SearchPersonsHandler returns the searchPersons handler for testing
-func (rs *Resource) SearchPersonsHandler() http.HandlerFunc {
-	return rs.searchPersons
-}
-
-// GetPersonByAccountHandler returns the getPersonByAccount handler for testing
-func (rs *Resource) GetPersonByAccountHandler() http.HandlerFunc {
-	return rs.getPersonByAccount
-}
-
-// ListAvailableRFIDCardsHandler returns the listAvailableRFIDCards handler for testing
-func (rs *Resource) ListAvailableRFIDCardsHandler() http.HandlerFunc {
-	return rs.listAvailableRFIDCards
-}
-
 // CreatePersonHandler returns the createPerson handler for testing
 func (rs *Resource) CreatePersonHandler() http.HandlerFunc {
 	return rs.createPerson
@@ -113,29 +82,4 @@ func (rs *Resource) UpdatePersonHandler() http.HandlerFunc {
 // DeletePersonHandler returns the deletePerson handler for testing
 func (rs *Resource) DeletePersonHandler() http.HandlerFunc {
 	return rs.deletePerson
-}
-
-// LinkRFIDHandler returns the linkRFID handler for testing
-func (rs *Resource) LinkRFIDHandler() http.HandlerFunc {
-	return rs.linkRFID
-}
-
-// UnlinkRFIDHandler returns the unlinkRFID handler for testing
-func (rs *Resource) UnlinkRFIDHandler() http.HandlerFunc {
-	return rs.unlinkRFID
-}
-
-// LinkAccountHandler returns the linkAccount handler for testing
-func (rs *Resource) LinkAccountHandler() http.HandlerFunc {
-	return rs.linkAccount
-}
-
-// UnlinkAccountHandler returns the unlinkAccount handler for testing
-func (rs *Resource) UnlinkAccountHandler() http.HandlerFunc {
-	return rs.unlinkAccount
-}
-
-// GetFullProfileHandler returns the getFullProfile handler for testing
-func (rs *Resource) GetFullProfileHandler() http.HandlerFunc {
-	return rs.getFullProfile
 }

@@ -1,8 +1,9 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import GroupsPage from "./page";
 
-// Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
@@ -10,19 +11,31 @@ vi.mock("next-auth/react", () => ({
   })),
 }));
 
-// Mock next/navigation
+let currentSearch = new URLSearchParams();
+const mockReplace = vi.fn((url: string) => {
+  const query = url.includes("?") ? (url.split("?")[1] ?? "") : "";
+  currentSearch = new URLSearchParams(query);
+});
+const setSelectedGroup = (id: string | null) => {
+  currentSearch = new URLSearchParams();
+  if (id) {
+    currentSearch.set("group", id);
+  }
+};
+
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  useRouter: vi.fn(() => ({ push: vi.fn(), replace: mockReplace })),
+  usePathname: vi.fn(() => "/tenant/database/groups"),
+  useSearchParams: () => currentSearch,
 }));
 
-// Mock SWR hooks
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
-// Mock service factory
 const mockGetOne = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
@@ -37,18 +50,8 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-// Mock hooks
 vi.mock("~/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
-}));
-
-vi.mock("~/hooks/useDeleteConfirmation", () => ({
-  useDeleteConfirmation: vi.fn(() => ({
-    showConfirmModal: false,
-    handleDeleteClick: vi.fn(),
-    handleDeleteCancel: vi.fn(),
-    confirmDelete: vi.fn(),
-  })),
 }));
 
 const mockToastSuccess = vi.fn();
@@ -60,13 +63,12 @@ vi.mock("~/contexts/ToastContext", () => ({
   })),
 }));
 
-// Mock UI components
 vi.mock("~/components/database/database-page-layout", () => ({
   DatabasePageLayout: ({
     children,
     loading,
   }: {
-    children: React.ReactNode;
+    children: ReactNode;
     loading: boolean;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
@@ -78,20 +80,44 @@ vi.mock("~/components/database/database-page-layout", () => ({
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({
     search,
+    filters,
     onClearAllFilters,
+    actionButton,
   }: {
-    search: { value: string; onChange: (v: string) => void };
+    search: { value: string; onChange: (value: string) => void };
+    filters: Array<{
+      id: string;
+      value: string;
+      onChange: (value: string) => void;
+      options?: Array<{ value: string; label: string }>;
+    }>;
     onClearAllFilters: () => void;
+    actionButton?: ReactNode;
   }) => (
     <div data-testid="page-header">
       <input
         data-testid="search-input"
         value={search.value}
-        onChange={(e) => search.onChange(e.target.value)}
+        onChange={(event) => search.onChange(event.target.value)}
       />
+      {filters.map((filter) => (
+        <select
+          key={filter.id}
+          data-testid={`filter-${filter.id}`}
+          value={filter.value}
+          onChange={(event) => filter.onChange(event.target.value)}
+        >
+          {filter.options?.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      ))}
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
         Clear
       </button>
+      {actionButton}
     </div>
   ),
 }));
@@ -105,12 +131,22 @@ vi.mock("@/components/groups", () => ({
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="group-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
-          onClick={() => void onCreate({ name: "New Group" })}
+          onClick={() => submit({ name: "Neue Gruppe" })}
         >
           Submit
         </button>
@@ -118,83 +154,102 @@ vi.mock("@/components/groups", () => ({
           Close
         </button>
       </div>
-    ) : null,
-  GroupDetailModal: ({
-    isOpen,
-    group,
-    onClose,
-    onEdit,
-    onDelete,
+    ) : null;
+  },
+  GroupsMasterDetail: ({
+    groups,
+    selectedId,
+    selectedGroup,
+    onSelect,
+    onSaveGroup,
+    onDeleteClick,
   }: {
-    isOpen: boolean;
-    group: { name: string } | null;
-    onClose: () => void;
-    onEdit: () => void;
-    onDelete: () => void;
-  }) =>
-    isOpen && group ? (
-      <div data-testid="group-detail-modal">
-        <span data-testid="detail-group-name">{group.name}</span>
-        <button data-testid="edit-button" onClick={onEdit}>
-          Edit
-        </button>
-        <button data-testid="delete-button" onClick={onDelete}>
-          Delete
-        </button>
-        <button data-testid="close-detail-modal" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
-  GroupEditModal: ({
-    isOpen,
-    onClose,
-    onSave,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
-      <div data-testid="group-edit-modal">
+    groups: Array<{ id: string; name: string }>;
+    selectedId: string | null;
+    selectedGroup?: { name: string } | null;
+    onSelect: (id: string | null) => void;
+    onSaveGroup: (data: { name: string }) => Promise<void>;
+    onDeleteClick: () => void;
+  }) => (
+    <div data-testid="groups-master-detail">
+      {groups.map((group) => (
         <button
-          data-testid="submit-edit"
-          onClick={() => void onSave({ name: "Updated Group" })}
+          key={group.id}
+          data-testid={`group-row-${group.id}`}
+          onClick={() => onSelect(group.id)}
         >
-          Save
+          {group.name}
         </button>
-        <button data-testid="close-edit-modal" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
+      ))}
+      {selectedId ? (
+        <div data-testid="group-detail-panel">
+          <span data-testid="detail-selected-id">{selectedId}</span>
+          <span data-testid="detail-group-name">
+            {selectedGroup?.name ?? "unbekannt"}
+          </span>
+          <button
+            data-testid="trigger-update"
+            onClick={() => void onSaveGroup({ name: "Updated Group" })}
+          >
+            Save
+          </button>
+          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+            Close
+          </button>
+          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+            Delete
+          </button>
+        </div>
+      ) : null}
+    </div>
+  ),
 }));
 
 vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: () => <div data-testid="confirmation-modal" />,
+  ConfirmationModal: ({
+    isOpen,
+    onConfirm,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <button data-testid="confirm-delete" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button data-testid="cancel-delete" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    ) : null,
 }));
 
-// Import mocked modules
 import { useSWRAuth } from "~/lib/swr";
 
 const mockGroups = [
   {
     id: "1",
-    name: "Gruppe A",
+    name: "Gruppe Rot",
     room_name: "Raum 101",
-    student_count: 15,
+    representative_name: "Frau Müller",
+    student_count: 12,
   },
   {
     id: "2",
-    name: "Gruppe B",
-    room_name: "Raum 102",
-    student_count: 20,
+    name: "Gruppe Blau",
+    room_name: "Raum 202",
+    representative_name: "Herr Schmidt",
+    student_count: 8,
   },
 ];
 
 describe("GroupsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentSearch = new URLSearchParams();
 
     vi.mocked(useSWRAuth).mockReturnValue({
       data: mockGroups,
@@ -204,9 +259,8 @@ describe("GroupsPage", () => {
       mutate: vi.fn(),
     } as ReturnType<typeof useSWRAuth>);
 
-    // Setup getOne to return the selected group
     mockGetOne.mockImplementation((id: string) =>
-      Promise.resolve(mockGroups.find((g) => g.id === id)),
+      Promise.resolve(mockGroups.find((group) => group.id === id) ?? null),
     );
   });
 
@@ -214,8 +268,8 @@ describe("GroupsPage", () => {
     render(<GroupsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-      expect(screen.getByText("Gruppe B")).toBeInTheDocument();
+      expect(screen.getByText("Gruppe Rot")).toBeInTheDocument();
+      expect(screen.getByText("Gruppe Blau")).toBeInTheDocument();
     });
   });
 
@@ -230,8 +284,10 @@ describe("GroupsPage", () => {
 
     render(<GroupsPage />);
 
-    const layout = screen.getByTestId("database-layout");
-    expect(layout).toHaveAttribute("data-loading", "true");
+    expect(screen.getByTestId("database-layout")).toHaveAttribute(
+      "data-loading",
+      "true",
+    );
   });
 
   it("shows error message when fetch fails", async () => {
@@ -271,350 +327,236 @@ describe("GroupsPage", () => {
   it("filters groups by search term", async () => {
     render(<GroupsPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Gruppe A" } });
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Rot" },
+    });
 
     await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-      expect(screen.queryByText("Gruppe B")).not.toBeInTheDocument();
+      expect(screen.getByText("Gruppe Rot")).toBeInTheDocument();
+      expect(screen.queryByText("Gruppe Blau")).not.toBeInTheDocument();
     });
   });
 
-  it("displays room info for groups", async () => {
+  it("filters groups by representative name in search", async () => {
     render(<GroupsPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Raum 101")).toBeInTheDocument();
-      expect(screen.getByText("Raum 102")).toBeInTheDocument();
-    });
-  });
-
-  it("opens create modal when create button is clicked", async () => {
-    render(<GroupsPage />);
-
-    const createButton = screen.getByLabelText("Gruppe erstellen");
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("closes create modal when close is clicked", async () => {
-    render(<GroupsPage />);
-
-    const createButton = screen.getByLabelText("Gruppe erstellen");
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Müller" },
     });
 
-    const closeButton = screen.getByTestId("close-create-modal");
-    fireEvent.click(closeButton);
-
     await waitFor(() => {
-      expect(
-        screen.queryByTestId("group-create-modal"),
-      ).not.toBeInTheDocument();
-    });
-  });
-
-  it("opens detail modal when group row is clicked", async () => {
-    render(<GroupsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-    });
-
-    const groupRow = screen.getByText("Gruppe A").closest("button");
-    if (groupRow) {
-      fireEvent.click(groupRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
-      expect(screen.getByTestId("detail-group-name")).toHaveTextContent(
-        "Gruppe A",
-      );
-    });
-  });
-
-  it("opens edit modal when edit button is clicked in detail modal", async () => {
-    render(<GroupsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-    });
-
-    const groupRow = screen.getByText("Gruppe A").closest("button");
-    if (groupRow) {
-      fireEvent.click(groupRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
-    });
-
-    const editButton = screen.getByTestId("edit-button");
-    fireEvent.click(editButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-edit-modal")).toBeInTheDocument();
+      expect(screen.getByText("Gruppe Rot")).toBeInTheDocument();
+      expect(screen.queryByText("Gruppe Blau")).not.toBeInTheDocument();
     });
   });
 
   it("clears all filters when clear button is clicked", async () => {
     render(<GroupsPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "test" } });
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Rot" },
+    });
+    fireEvent.change(screen.getByTestId("filter-room"), {
+      target: { value: "Raum 101" },
+    });
 
-    expect(searchInput).toHaveValue("test");
-
-    const clearButton = screen.getByTestId("clear-filters");
-    fireEvent.click(clearButton);
+    fireEvent.click(screen.getByTestId("clear-filters"));
 
     await waitFor(() => {
-      expect(searchInput).toHaveValue("");
+      expect(screen.getByTestId("search-input")).toHaveValue("");
+      expect(screen.getByTestId("filter-room")).toHaveValue("all");
     });
   });
 
-  it("calls create service when submitting create form", async () => {
-    mockCreate.mockResolvedValueOnce({ id: "3", name: "New Group" });
+  it("opens create modal when create button is clicked", async () => {
+    render(<GroupsPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Gruppe erstellen")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("calls create service when submitting the create modal", async () => {
+    mockCreate.mockResolvedValueOnce({ id: "3", name: "Neue Gruppe" });
 
     render(<GroupsPage />);
 
-    // Open create modal
-    const createButton = screen.getByLabelText("Gruppe erstellen");
-    fireEvent.click(createButton);
+    fireEvent.click(screen.getAllByLabelText("Gruppe erstellen")[0]!);
 
     await waitFor(() => {
       expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
     });
 
-    // Submit the form
-    const submitButton = screen.getByTestId("submit-create");
-    fireEvent.click(submitButton);
+    fireEvent.click(screen.getByTestId("submit-create"));
 
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalled();
     });
   });
 
-  it("calls update service when saving edit form", async () => {
-    mockUpdate.mockResolvedValueOnce({ id: "1", name: "Updated Group" });
-
-    render(<GroupsPage />);
-
-    // Select a group to open detail modal
-    await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-    });
-
-    const groupRow = screen.getByText("Gruppe A").closest("button");
-    if (groupRow) {
-      fireEvent.click(groupRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
-    });
-
-    // Click edit button
-    const editButton = screen.getByTestId("edit-button");
-    fireEvent.click(editButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-edit-modal")).toBeInTheDocument();
-    });
-
-    // Submit edit form
-    const submitButton = screen.getByTestId("submit-edit");
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalled();
-    });
-  });
-
-  it("calls delete service when deleting a group", async () => {
-    mockDelete.mockResolvedValueOnce(null);
-
-    render(<GroupsPage />);
-
-    // Select a group to open detail modal
-    await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-    });
-
-    const groupRow = screen.getByText("Gruppe A").closest("button");
-    if (groupRow) {
-      fireEvent.click(groupRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
-    });
-
-    // Click delete button
-    const deleteButton = screen.getByTestId("delete-button");
-    fireEvent.click(deleteButton);
-
-    await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalled();
-    });
-  });
-
-  it("shows error toast when delete returns error", async () => {
-    mockDelete.mockResolvedValueOnce(
-      "Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen",
+  it("re-throws create errors so the form can render them inline (Issue #1356)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error(
+        "education error during CreateGroup: Eine Gruppe mit diesem Namen existiert bereits",
+      ),
     );
 
     render(<GroupsPage />);
 
+    fireEvent.click(screen.getAllByLabelText("Gruppe erstellen")[0]!);
+
     await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
     });
 
-    const groupRow = screen.getByText("Gruppe A").closest("button");
-    if (groupRow) {
-      fireEvent.click(groupRow);
-    }
+    fireEvent.click(screen.getByTestId("submit-create"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
+    });
+    // The modal must NOT close on a duplicate so the user can correct the name.
+    expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("logs the stringified value when create rejects with a non-Error", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    // Reject with a plain string — exercises the `String(createError)` branch
+    // of the `createError instanceof Error ? ... : ...` ternary in the catch.
+    mockCreate.mockRejectedValueOnce("plain-string-error");
+
+    render(<GroupsPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Gruppe erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("group-create-modal")).toBeInTheDocument();
     });
 
-    const deleteButton = screen.getByTestId("delete-button");
-    fireEvent.click(deleteButton);
+    fireEvent.click(screen.getByTestId("submit-create"));
 
     await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalled();
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen",
+      expect(consoleError).toHaveBeenCalledWith("failed to create group", {
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
+  it("syncs group selection into the URL when a row is clicked", async () => {
+    render(<GroupsPage />);
+
+    fireEvent.click(screen.getByTestId("group-row-1"));
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/tenant/database/groups?group=1",
+        { scroll: false },
       );
     });
   });
 
-  it("closes detail modal when close button is clicked", async () => {
+  it("hydrates the detail panel from the group URL param", async () => {
+    setSelectedGroup("1");
+
     render(<GroupsPage />);
 
-    // Open detail modal
     await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-    });
-
-    const groupRow = screen.getByText("Gruppe A").closest("button");
-    if (groupRow) {
-      fireEvent.click(groupRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
-    });
-
-    // Close the modal
-    const closeButton = screen.getByTestId("close-detail-modal");
-    fireEvent.click(closeButton);
-
-    await waitFor(() => {
-      expect(
-        screen.queryByTestId("group-detail-modal"),
-      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("group-detail-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
     });
   });
 
-  it("closes edit modal when close button is clicked", async () => {
+  it("removes the group URL param when the detail panel is closed", async () => {
+    setSelectedGroup("1");
+
     render(<GroupsPage />);
 
-    // Open detail modal first
     await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+      expect(screen.getByTestId("group-detail-panel")).toBeInTheDocument();
     });
 
-    const groupRow = screen.getByText("Gruppe A").closest("button");
-    if (groupRow) {
-      fireEvent.click(groupRow);
-    }
+    fireEvent.click(screen.getByTestId("trigger-deselect"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("group-detail-modal")).toBeInTheDocument();
-    });
-
-    // Open edit modal
-    const editButton = screen.getByTestId("edit-button");
-    fireEvent.click(editButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("group-edit-modal")).toBeInTheDocument();
-    });
-
-    // Close edit modal
-    const closeButton = screen.getByTestId("close-edit-modal");
-    fireEvent.click(closeButton);
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("group-edit-modal")).not.toBeInTheDocument();
+      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/groups", {
+        scroll: false,
+      });
     });
   });
 
-  it("filters groups by room name in search", async () => {
+  it("calls update service when saving from the inline detail panel", async () => {
+    setSelectedGroup("1");
+    mockUpdate.mockResolvedValueOnce(undefined);
+
     render(<GroupsPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Raum 101" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-update"));
 
     await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-      expect(screen.queryByText("Gruppe B")).not.toBeInTheDocument();
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "1",
+        expect.objectContaining({ name: "Updated Group" }),
+      );
     });
   });
 
-  it("shows not found message when search has no matches", async () => {
+  it("calls delete service after confirming deletion from the detail panel", async () => {
+    setSelectedGroup("1");
+    mockDelete.mockResolvedValueOnce(null);
+
     render(<GroupsPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "xyz123" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-delete"));
 
     await waitFor(() => {
-      expect(screen.getByText("Keine Gruppen gefunden")).toBeInTheDocument();
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-delete"));
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalledWith("1");
+      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/groups", {
+        scroll: false,
+      });
     });
   });
 
-  it("filters groups by representative name in search", async () => {
-    // Mock with representative_name field
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: [
-        {
-          id: "1",
-          name: "Gruppe A",
-          room_name: "Raum 101",
-          student_count: 15,
-          representative_name: "Frau Schmidt",
-        },
-        {
-          id: "2",
-          name: "Gruppe B",
-          room_name: "Raum 102",
-          student_count: 20,
-          representative_name: "Herr Müller",
-        },
-      ],
-      isLoading: false,
-      error: null,
-      isValidating: false,
-      mutate: vi.fn(),
-    } as ReturnType<typeof useSWRAuth>);
+  it("shows an error toast when delete returns an error", async () => {
+    setSelectedGroup("1");
+    mockDelete.mockResolvedValueOnce("Gruppe kann nicht gelöscht werden");
 
     render(<GroupsPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Schmidt" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("group-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-delete"));
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-delete"));
 
     await waitFor(() => {
-      expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-      expect(screen.queryByText("Gruppe B")).not.toBeInTheDocument();
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Gruppe kann nicht gelöscht werden",
+      );
     });
   });
 });

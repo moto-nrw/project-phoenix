@@ -7,6 +7,7 @@ import {
   act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import StudentSearchPage from "./page";
 
 // Mock next-auth/react
@@ -118,14 +119,26 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-// Mock LocationBadge
+// Mock StudentPresenceBadge — wrapper the page now renders instead of
+// the bare LocationBadge, so binary-mode tenants can hide detailed labels.
+vi.mock("@/components/ui/student-presence-badge", () => ({
+  StudentPresenceBadge: ({
+    student,
+  }: {
+    student: { current_location: string };
+  }) => <span data-testid="location-badge">{student.current_location}</span>,
+}));
+
+// Mock LocationBadge (still referenced transitively by any non-mocked paths)
 vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: ({ student }: { student: { current_location: string } }) => (
     <span data-testid="location-badge">{student.current_location}</span>
   ),
 }));
 
-// Mock location helpers
+// Mock location helpers — LOCATION_COLORS is consumed by student-card.tsx
+// (check-in mode tint), so the mock must expose the brand palette even if
+// individual tests don't assert on colors.
 vi.mock("~/lib/location-helper", () => ({
   isHomeLocation: (loc: string) => loc === "Zuhause" || loc === "",
   isPresentLocation: (loc: string) =>
@@ -135,18 +148,60 @@ vi.mock("~/lib/location-helper", () => ({
     loc !== "Schulhof",
   isTransitLocation: (loc: string) => loc === "Unterwegs",
   isSchoolyardLocation: (loc: string) => loc === "Schulhof",
+  LOCATION_COLORS: {
+    GROUP_ROOM: "#83CD2D",
+    OTHER_ROOM: "#5080D8",
+    HOME: "#FF3130",
+    SCHOOLYARD: "#F78C10",
+    TRANSIT: "#D946EF",
+    UNKNOWN: "#6B7280",
+    SICK: "#EAB308",
+    EXCUSED: "#7C3AED",
+  },
+  LOCATION_STATUSES: {
+    PRESENT: "Anwesend",
+    HOME: "Zuhause",
+    SCHOOLYARD: "Schulhof",
+    TRANSIT: "Unterwegs",
+    UNKNOWN: "Unbekannt",
+    SICK: "Krank",
+    EXCUSED: "Entschuldigt",
+  },
+}));
+
+// Mock school-checkin FAB + hook so existing search tests aren't
+// responsible for the new floating mode trigger —
+// page.school-checkin.test.tsx covers it dedicatedly.
+vi.mock("~/components/students/school-checkin-fab", () => ({
+  SchoolCheckinFab: () => <div data-testid="school-checkin-fab" />,
+}));
+
+vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
+  useSchoolCheckinMode: () => ({
+    isActive: false,
+    toggleActive: vi.fn(),
+    deactivate: vi.fn(),
+    pendingIds: new Set<string>(),
+    successCount: 0,
+    toggle: vi.fn(),
+  }),
+  deriveCheckinState: () => "unknown",
 }));
 
 // Mock student-helpers
-vi.mock("~/lib/student-helpers", () => ({
-  SCHOOL_YEAR_FILTER_OPTIONS: [
-    { value: "all", label: "Alle" },
-    { value: "1", label: "1" },
-    { value: "2", label: "2" },
-    { value: "3", label: "3" },
-    { value: "4", label: "4" },
-  ],
-}));
+vi.mock("~/lib/student-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/student-helpers")>();
+  return {
+    ...actual,
+    SCHOOL_YEAR_FILTER_OPTIONS: [
+      { value: "all", label: "Alle" },
+      { value: "1", label: "1" },
+      { value: "2", label: "2" },
+      { value: "3", label: "3" },
+      { value: "4", label: "4" },
+    ],
+  };
+});
 
 // Mock SSE hook
 vi.mock("~/lib/hooks/use-sse", () => ({
@@ -174,6 +229,8 @@ const mockStudents = [
     school_class: "1a",
     group_name: "Gruppe A",
     current_location: "Raum 101",
+    pickup_time: "15:30",
+    has_full_access: true,
   },
   {
     id: "2",
@@ -182,6 +239,7 @@ const mockStudents = [
     school_class: "2b",
     group_name: "Gruppe B",
     current_location: "Zuhause",
+    has_full_access: true,
   },
   {
     id: "3",
@@ -190,6 +248,8 @@ const mockStudents = [
     school_class: "1a",
     group_name: "Gruppe A",
     current_location: "Unterwegs",
+    pickup_time: "16:00",
+    has_full_access: true,
   },
   {
     id: "4",
@@ -198,6 +258,7 @@ const mockStudents = [
     school_class: "3c",
     group_name: "Gruppe C",
     current_location: "Schulhof",
+    has_full_access: true,
   },
 ];
 
@@ -1029,6 +1090,428 @@ describe("StudentSearchPage", () => {
           screen.queryByTestId("active-filter-group"),
         ).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Pickup Time Filtering", () => {
+    it("filters students by specific pickup time", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      // Filter by 15:30 — only Max has this pickup time
+      const pickupFilter = screen.getByTestId("filter-pickupTime");
+      fireEvent.change(pickupFilter, { target: { value: "15:30" } });
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(screen.queryByText("Tom")).not.toBeInTheDocument();
+        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+      });
+    });
+
+    it("filters students with 'none' to show only students without pickup time", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      // Filter by "none" — Anna and Lisa have no pickup_time
+      const pickupFilter = screen.getByTestId("filter-pickupTime");
+      fireEvent.change(pickupFilter, { target: { value: "none" } });
+
+      await waitFor(() => {
+        // Anna has no pickup_time and has_full_access=true
+        expect(screen.getByText("Anna")).toBeInTheDocument();
+        // Lisa has no pickup_time and has_full_access=true
+        expect(screen.getByText("Lisa")).toBeInTheDocument();
+        // Max and Tom have pickup_time set, so they should be filtered out
+        expect(screen.queryByText("Max")).not.toBeInTheDocument();
+        expect(screen.queryByText("Tom")).not.toBeInTheDocument();
+      });
+    });
+
+    it("hides redacted students (has_full_access=false) when pickup time filter is active", async () => {
+      // Create mock students where one has has_full_access=false
+      const studentsWithRedacted = [
+        {
+          id: "10",
+          first_name: "Visible",
+          second_name: "Student",
+          school_class: "1a",
+          group_name: "Gruppe A",
+          current_location: "Raum 101",
+          has_full_access: true,
+        },
+        {
+          id: "11",
+          first_name: "Redacted",
+          second_name: "Student",
+          school_class: "1a",
+          group_name: "Gruppe A",
+          current_location: "Raum 102",
+          has_full_access: false,
+        },
+      ];
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: studentsWithRedacted },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Visible")).toBeInTheDocument();
+        expect(screen.getByText("Redacted")).toBeInTheDocument();
+      });
+
+      // Apply "none" pickup time filter — redacted student should be excluded (GDPR)
+      const pickupFilter = screen.getByTestId("filter-pickupTime");
+      fireEvent.change(pickupFilter, { target: { value: "none" } });
+
+      await waitFor(() => {
+        expect(screen.getByText("Visible")).toBeInTheDocument();
+        // Redacted student must NOT appear — has_full_access=false means we
+        // can't know their pickup status, so they're excluded from filtering
+        expect(screen.queryByText("Redacted")).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows active filter chips with correct labels and clears via chip click or clear-all", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-pickupTime")).toBeInTheDocument();
+      });
+
+      const pickupFilter = screen.getByTestId("filter-pickupTime");
+
+      // Verify "Keine Abholzeit" chip label for "none"
+      fireEvent.change(pickupFilter, { target: { value: "none" } });
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("active-filter-pickupTime"),
+        ).toHaveTextContent("Keine Abholzeit");
+      });
+
+      // Switch to specific time — verify chip label and clear-all
+      fireEvent.change(pickupFilter, { target: { value: "15:30" } });
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("active-filter-pickupTime"),
+        ).toHaveTextContent("Abholzeit 15:30 Uhr");
+      });
+
+      // Clear all filters
+      fireEvent.click(screen.getByTestId("clear-filters"));
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-pickupTime")).toHaveValue("all");
+        expect(
+          screen.queryByTestId("active-filter-pickupTime"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("displays pickup time on student cards when present", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        // Max has pickup_time="15:30"
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      // Verify pickup time text appears for students with pickup_time
+      await waitFor(() => {
+        expect(screen.getByText("Abholzeit: 15:30 Uhr")).toBeInTheDocument();
+        expect(screen.getByText("Abholzeit: 16:00 Uhr")).toBeInTheDocument();
+      });
+    });
+
+    it("displays fallback pickup row when student has no pickup_time but has full access", async () => {
+      // Use only one student without pickup_time
+      const studentsNoPickup = [
+        {
+          id: "20",
+          first_name: "NoPickup",
+          second_name: "Student",
+          school_class: "2a",
+          group_name: "Gruppe A",
+          current_location: "Raum 101",
+          has_full_access: true,
+        },
+      ];
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: studentsNoPickup },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("NoPickup")).toBeInTheDocument();
+      });
+
+      // Should show "Abholzeit: —" fallback for students with full access but no pickup time
+      expect(screen.getByText("Abholzeit: —")).toBeInTheDocument();
+    });
+  });
+
+  describe("Tracking Filter (Aktivitäten heute)", () => {
+    // Fixture: two students, two configured labels; student "1" completed
+    // Hausaufgaben, student "2" has done nothing yet.
+    const trackingStudents = [
+      {
+        id: "1",
+        first_name: "Felix",
+        second_name: "Schneider",
+        school_class: "1a",
+        group_name: "Sterne",
+        current_location: "Raum 101",
+        has_full_access: true,
+      },
+      {
+        id: "2",
+        first_name: "Emma",
+        second_name: "Meyer",
+        school_class: "1a",
+        group_name: "Sterne",
+        current_location: "Raum 101",
+        has_full_access: true,
+      },
+    ];
+
+    const trackingTwoLabels: TrackingIndicatorsResponse = {
+      labels: ["Hausaufgaben", "Mensa"],
+      results: {
+        "1": [true, false],
+        "2": [false, false],
+      },
+    };
+
+    // Configures useSWRAuth to return students for the students key and
+    // the provided tracking response for the tracking-indicators key.
+    async function primeTracking(opts: {
+      tracking?: TrackingIndicatorsResponse;
+      students?: typeof trackingStudents;
+    }) {
+      const swrModule = await import("~/lib/swr");
+      const studentsResult = {
+        data: { students: opts.students ?? trackingStudents },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+      const trackingResult = {
+        data: opts.tracking,
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key: unknown) => {
+        if (typeof key === "string" && key.startsWith("tracking-indicators-")) {
+          return trackingResult;
+        }
+        return studentsResult;
+      });
+    }
+
+    it("does not render the tracking dropdown when no labels are configured", async () => {
+      await primeTracking({ tracking: { labels: [], results: {} } });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByText("Felix")).toBeInTheDocument(),
+      );
+      expect(screen.queryByTestId("filter-tracking")).not.toBeInTheDocument();
+    });
+
+    it("renders the dropdown with Alle / per-label / Noch nichts erledigt options", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-tracking")).toBeInTheDocument(),
+      );
+      const select = screen.getByTestId("filter-tracking");
+      expect(select.querySelector('option[value="all"]')).toHaveTextContent(
+        "Alle Aktivitäten heute",
+      );
+      expect(
+        select.querySelector('option[value="missing:0"]'),
+      ).toHaveTextContent("Noch nicht in Hausaufgaben");
+      expect(
+        select.querySelector('option[value="missing:1"]'),
+      ).toHaveTextContent("Noch nicht in Mensa");
+      expect(
+        select.querySelector('option[value="none_visited"]'),
+      ).toHaveTextContent("Noch nichts erledigt");
+    });
+
+    it("selecting 'missing:0' hides students who already completed that label", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByText("Felix")).toBeInTheDocument(),
+      );
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "missing:0" },
+      });
+
+      await waitFor(() => {
+        // Felix completed Hausaufgaben (results[0] === true) → hidden.
+        expect(screen.queryByText("Felix")).not.toBeInTheDocument();
+        // Emma hasn't → visible.
+        expect(screen.getByText("Emma")).toBeInTheDocument();
+      });
+    });
+
+    it("'none_visited' keeps only students missing every configured indicator", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByText("Felix")).toBeInTheDocument(),
+      );
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "none_visited" },
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText("Felix")).not.toBeInTheDocument();
+        expect(screen.getByText("Emma")).toBeInTheDocument();
+      });
+    });
+
+    it("shows the chip with the correct label and clears it when clicked", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-tracking")).toBeInTheDocument(),
+      );
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "missing:1" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-filter-tracking")).toHaveTextContent(
+          "Noch nicht in Mensa",
+        );
+      });
+
+      fireEvent.click(screen.getByTestId("active-filter-tracking"));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("active-filter-tracking"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("filter-tracking")).toHaveValue("all");
+      });
+    });
+
+    it("'Alle zurücksetzen' clears the tracking filter", async () => {
+      await primeTracking({ tracking: trackingTwoLabels });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-tracking")).toBeInTheDocument(),
+      );
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "none_visited" },
+      });
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("active-filter-tracking"),
+        ).toBeInTheDocument(),
+      );
+
+      fireEvent.click(screen.getByTestId("clear-filters"));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("active-filter-tracking"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("filter-tracking")).toHaveValue("all");
+      });
+    });
+
+    it("hides redacted students (has_full_access === false) while a tracking filter is active", async () => {
+      const mixed = [
+        trackingStudents[0],
+        {
+          id: "9",
+          first_name: "Redacted",
+          second_name: "Kid",
+          school_class: "1a",
+          group_name: "Sterne",
+          current_location: "Raum 101",
+          has_full_access: false,
+        },
+      ];
+      // Only include tracking data for id "1"; redacted student has no row.
+      await primeTracking({
+        tracking: {
+          labels: ["Hausaufgaben"],
+          results: { "1": [false] },
+        },
+        students: mixed as typeof trackingStudents,
+      });
+      render(<StudentSearchPage />);
+
+      await waitFor(() =>
+        expect(screen.getByText("Redacted")).toBeInTheDocument(),
+      );
+
+      // Initially both visible.
+      expect(screen.getByText("Felix")).toBeInTheDocument();
+      expect(screen.getByText("Redacted")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByTestId("filter-tracking"), {
+        target: { value: "missing:0" },
+      });
+
+      await waitFor(() => {
+        // Felix missing HA → shown.
+        expect(screen.getByText("Felix")).toBeInTheDocument();
+        // Redacted kid hidden — no tracking data AND has_full_access false.
+        expect(screen.queryByText("Redacted")).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Arrival sort mode", () => {
+    it("re-sorts the list when switching sort=arrival", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+
+      // Flip to arrival sort mode — component should re-render without error.
+      fireEvent.change(screen.getByTestId("filter-sort"), {
+        target: { value: "arrival" },
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-sort")).toHaveValue("arrival"),
+      );
+
+      // All four default students still present post-sort.
+      expect(screen.getByText("Max")).toBeInTheDocument();
+      expect(screen.getByText("Anna")).toBeInTheDocument();
+      expect(screen.getByText("Tom")).toBeInTheDocument();
+      expect(screen.getByText("Lisa")).toBeInTheDocument();
     });
   });
 });

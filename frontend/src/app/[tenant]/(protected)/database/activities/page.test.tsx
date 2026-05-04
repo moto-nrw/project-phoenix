@@ -1,8 +1,9 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ActivitiesPage from "./page";
 
-// Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
@@ -10,19 +11,31 @@ vi.mock("next-auth/react", () => ({
   })),
 }));
 
-// Mock next/navigation
+let currentSearch = new URLSearchParams();
+const mockReplace = vi.fn((url: string) => {
+  const query = url.includes("?") ? (url.split("?")[1] ?? "") : "";
+  currentSearch = new URLSearchParams(query);
+});
+const setSelectedActivity = (id: string | null) => {
+  currentSearch = new URLSearchParams();
+  if (id) {
+    currentSearch.set("activity", id);
+  }
+};
+
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  useRouter: vi.fn(() => ({ push: vi.fn(), replace: mockReplace })),
+  usePathname: vi.fn(() => "/tenant/database/activities"),
+  useSearchParams: () => currentSearch,
 }));
 
-// Mock SWR hooks
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
-// Mock service factory
 const mockGetOne = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
@@ -37,35 +50,25 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-// Mock hooks
 vi.mock("~/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
-vi.mock("~/hooks/useDeleteConfirmation", () => ({
-  useDeleteConfirmation: vi.fn(() => ({
-    showConfirmModal: false,
-    handleDeleteClick: vi.fn(),
-    handleDeleteCancel: vi.fn(),
-    confirmDelete: vi.fn(),
-  })),
-}));
-
+const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
-    success: vi.fn(),
+    success: mockToastSuccess,
     error: mockToastError,
   })),
 }));
 
-// Mock UI components
 vi.mock("~/components/database/database-page-layout", () => ({
   DatabasePageLayout: ({
     children,
     loading,
   }: {
-    children: React.ReactNode;
+    children: ReactNode;
     loading: boolean;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
@@ -77,20 +80,44 @@ vi.mock("~/components/database/database-page-layout", () => ({
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({
     search,
+    filters,
     onClearAllFilters,
+    actionButton,
   }: {
-    search: { value: string; onChange: (v: string) => void };
+    search: { value: string; onChange: (value: string) => void };
+    filters: Array<{
+      id: string;
+      value: string;
+      onChange: (value: string) => void;
+      options?: Array<{ value: string; label: string }>;
+    }>;
     onClearAllFilters: () => void;
+    actionButton?: ReactNode;
   }) => (
     <div data-testid="page-header">
       <input
         data-testid="search-input"
         value={search.value}
-        onChange={(e) => search.onChange(e.target.value)}
+        onChange={(event) => search.onChange(event.target.value)}
       />
+      {filters.map((filter) => (
+        <select
+          key={filter.id}
+          data-testid={`filter-${filter.id}`}
+          value={filter.value}
+          onChange={(event) => filter.onChange(event.target.value)}
+        >
+          {filter.options?.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      ))}
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
         Clear
       </button>
+      {actionButton}
     </div>
   ),
 }));
@@ -104,12 +131,22 @@ vi.mock("@/components/activities", () => ({
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="activity-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
-          onClick={() => void onCreate({ name: "New Activity" })}
+          onClick={() => submit({ name: "Neue AG" })}
         >
           Submit
         </button>
@@ -117,63 +154,94 @@ vi.mock("@/components/activities", () => ({
           Close
         </button>
       </div>
-    ) : null,
-  ActivityDetailModal: ({
-    isOpen,
-    activity,
-    onClose,
-    onEdit,
-    onDelete,
+    ) : null;
+  },
+  ActivitiesMasterDetail: ({
+    activities,
+    selectedId,
+    selectedActivity,
+    onSelect,
+    onSaveActivity,
+    onDeleteClick,
   }: {
-    isOpen: boolean;
-    activity: { name: string } | null;
-    onClose: () => void;
-    onEdit: () => void;
-    onDelete: () => void;
-  }) =>
-    isOpen && activity ? (
-      <div data-testid="activity-detail-modal">
-        <span data-testid="detail-activity-name">{activity.name}</span>
-        <button data-testid="edit-button" onClick={onEdit}>
-          Edit
-        </button>
-        <button data-testid="delete-button" onClick={onDelete}>
-          Delete
-        </button>
-        <button data-testid="close-detail-modal" onClick={onClose}>
-          Close
-        </button>
+    activities: Array<{ id: string; name: string }>;
+    selectedId: string | null;
+    selectedActivity?: { name: string } | null;
+    onSelect: (id: string | null) => void;
+    onSaveActivity: (data: { name: string }) => Promise<void>;
+    onDeleteClick: () => void;
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onSaveActivity and
+    // renders the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const save = (data: { name: string }) => {
+      setError(null);
+      void onSaveActivity(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return (
+      <div data-testid="activities-master-detail">
+        {activities.map((activity) => (
+          <button
+            key={activity.id}
+            data-testid={`activity-row-${activity.id}`}
+            onClick={() => onSelect(activity.id)}
+          >
+            {activity.name}
+          </button>
+        ))}
+        {selectedId ? (
+          <div data-testid="activity-detail-panel">
+            {error ? <span data-testid="update-error">{error}</span> : null}
+            <span data-testid="detail-selected-id">{selectedId}</span>
+            <span data-testid="detail-activity-name">
+              {selectedActivity?.name ?? "unbekannt"}
+            </span>
+            <button
+              data-testid="trigger-update"
+              onClick={() => save({ name: "Updated AG" })}
+            >
+              Save
+            </button>
+            <button
+              data-testid="trigger-deselect"
+              onClick={() => onSelect(null)}
+            >
+              Close
+            </button>
+            <button data-testid="trigger-delete" onClick={onDeleteClick}>
+              Delete
+            </button>
+          </div>
+        ) : null}
       </div>
-    ) : null,
-  ActivityEditModal: ({
-    isOpen,
-    onClose,
-    onSave,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
-      <div data-testid="activity-edit-modal">
-        <button
-          data-testid="submit-edit"
-          onClick={() => void onSave({ name: "Updated Activity" })}
-        >
-          Save
-        </button>
-        <button data-testid="close-edit-modal" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
+    );
+  },
 }));
 
 vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: () => <div data-testid="confirmation-modal" />,
+  ConfirmationModal: ({
+    isOpen,
+    onConfirm,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <button data-testid="confirm-delete" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button data-testid="cancel-delete" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    ) : null,
 }));
 
-// Import mocked modules
 import { useSWRAuth } from "~/lib/swr";
 
 const mockActivities = [
@@ -181,21 +249,28 @@ const mockActivities = [
     id: "1",
     name: "Fußball AG",
     category_name: "Sport",
-    description: "Fußball für alle",
-    max_participants: 20,
+    max_participant: 20,
+    is_open_ags: false,
+    supervisor_id: "1",
+    supervisor_name: "Herr Fischer",
+    ag_category_id: "1",
   },
   {
     id: "2",
     name: "Chor",
     category_name: "Musik",
-    description: "Singen macht Spaß",
-    max_participants: 30,
+    max_participant: 30,
+    is_open_ags: false,
+    supervisor_id: "2",
+    supervisor_name: "Frau Weber",
+    ag_category_id: "2",
   },
 ];
 
 describe("ActivitiesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentSearch = new URLSearchParams();
 
     vi.mocked(useSWRAuth).mockReturnValue({
       data: mockActivities,
@@ -205,9 +280,10 @@ describe("ActivitiesPage", () => {
       mutate: vi.fn(),
     } as ReturnType<typeof useSWRAuth>);
 
-    // Setup getOne to return the selected activity
     mockGetOne.mockImplementation((id: string) =>
-      Promise.resolve(mockActivities.find((a) => a.id === id)),
+      Promise.resolve(
+        mockActivities.find((activity) => activity.id === id) ?? null,
+      ),
     );
   });
 
@@ -231,8 +307,10 @@ describe("ActivitiesPage", () => {
 
     render(<ActivitiesPage />);
 
-    const layout = screen.getByTestId("database-layout");
-    expect(layout).toHaveAttribute("data-loading", "true");
+    expect(screen.getByTestId("database-layout")).toHaveAttribute(
+      "data-loading",
+      "true",
+    );
   });
 
   it("shows error message when fetch fails", async () => {
@@ -274,8 +352,9 @@ describe("ActivitiesPage", () => {
   it("filters activities by search term", async () => {
     render(<ActivitiesPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Fußball" } });
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Fußball" },
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Fußball AG")).toBeInTheDocument();
@@ -283,297 +362,251 @@ describe("ActivitiesPage", () => {
     });
   });
 
-  it("displays category badges for activities", async () => {
+  it("filters activities by supervisor name in search", async () => {
     render(<ActivitiesPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Sport")).toBeInTheDocument();
-      expect(screen.getByText("Musik")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Fischer" },
     });
-  });
-
-  it("opens create modal when create button is clicked", async () => {
-    render(<ActivitiesPage />);
-
-    const createButton = screen.getByLabelText("Aktivität erstellen");
-    fireEvent.click(createButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("opens detail modal when activity row is clicked", async () => {
-    render(<ActivitiesPage />);
 
     await waitFor(() => {
       expect(screen.getByText("Fußball AG")).toBeInTheDocument();
-    });
-
-    const activityRow = screen.getByText("Fußball AG").closest("button");
-    if (activityRow) {
-      fireEvent.click(activityRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
-      expect(screen.getByTestId("detail-activity-name")).toHaveTextContent(
-        "Fußball AG",
-      );
-    });
-  });
-
-  it("opens edit modal when edit button is clicked in detail modal", async () => {
-    render(<ActivitiesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
-    });
-
-    const activityRow = screen.getByText("Fußball AG").closest("button");
-    if (activityRow) {
-      fireEvent.click(activityRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
-    });
-
-    const editButton = screen.getByTestId("edit-button");
-    fireEvent.click(editButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("activity-edit-modal")).toBeInTheDocument();
+      expect(screen.queryByText("Chor")).not.toBeInTheDocument();
     });
   });
 
   it("clears all filters when clear button is clicked", async () => {
     render(<ActivitiesPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "test" } });
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Fußball" },
+    });
+    fireEvent.change(screen.getByTestId("filter-category"), {
+      target: { value: "Sport" },
+    });
 
-    expect(searchInput).toHaveValue("test");
-
-    const clearButton = screen.getByTestId("clear-filters");
-    fireEvent.click(clearButton);
+    fireEvent.click(screen.getByTestId("clear-filters"));
 
     await waitFor(() => {
-      expect(searchInput).toHaveValue("");
+      expect(screen.getByTestId("search-input")).toHaveValue("");
+      expect(screen.getByTestId("filter-category")).toHaveValue("all");
     });
   });
 
-  it("calls create service when submitting create form", async () => {
-    mockCreate.mockResolvedValueOnce({ id: "3", name: "New Activity" });
+  it("opens create modal when create button is clicked", async () => {
+    render(<ActivitiesPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Aktivität erstellen")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("calls create service when submitting the create modal", async () => {
+    mockCreate.mockResolvedValueOnce({ id: "3", name: "Neue AG" });
 
     render(<ActivitiesPage />);
 
-    // Open create modal
-    const createButton = screen.getByLabelText("Aktivität erstellen");
-    fireEvent.click(createButton);
+    fireEvent.click(screen.getAllByLabelText("Aktivität erstellen")[0]!);
 
     await waitFor(() => {
       expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
     });
 
-    // Submit the form
-    const submitButton = screen.getByTestId("submit-create");
-    fireEvent.click(submitButton);
+    fireEvent.click(screen.getByTestId("submit-create"));
 
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalled();
     });
   });
 
-  it("calls update service when saving edit form", async () => {
-    mockUpdate.mockResolvedValueOnce({ id: "1", name: "Updated Activity" });
+  it("re-throws create errors so the form can render them inline (Issue #1356)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error(
+        "activities error during CreateActivity: Eine Aktivität mit diesem Namen existiert bereits",
+      ),
+    );
 
     render(<ActivitiesPage />);
 
-    // Select an activity to open detail modal
-    await waitFor(() => {
-      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
-    });
-
-    const activityRow = screen.getByText("Fußball AG").closest("button");
-    if (activityRow) {
-      fireEvent.click(activityRow);
-    }
+    fireEvent.click(screen.getAllByLabelText("Aktivität erstellen")[0]!);
 
     await waitFor(() => {
-      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
     });
 
-    // Click edit button
-    const editButton = screen.getByTestId("edit-button");
-    fireEvent.click(editButton);
+    fireEvent.click(screen.getByTestId("submit-create"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("activity-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
     });
-
-    // Submit edit form
-    const submitButton = screen.getByTestId("submit-edit");
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalled();
-    });
+    // The modal must NOT close on a duplicate so the user can correct the name.
+    expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
-  it("calls delete service when deleting an activity", async () => {
-    mockDelete.mockResolvedValueOnce(null);
+  it("logs the stringified value when create rejects with a non-Error", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce("plain-string-error");
 
     render(<ActivitiesPage />);
 
-    // Select an activity to open detail modal
+    fireEvent.click(screen.getAllByLabelText("Aktivität erstellen")[0]!);
     await waitFor(() => {
-      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+      expect(screen.getByTestId("activity-create-modal")).toBeInTheDocument();
     });
 
-    const activityRow = screen.getByText("Fußball AG").closest("button");
-    if (activityRow) {
-      fireEvent.click(activityRow);
-    }
+    fireEvent.click(screen.getByTestId("submit-create"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
+      expect(consoleError).toHaveBeenCalledWith("failed to create activity", {
+        error: "plain-string-error",
+      });
     });
-
-    // Click delete button
-    const deleteButton = screen.getByTestId("delete-button");
-    fireEvent.click(deleteButton);
-
-    await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalled();
-    });
+    consoleError.mockRestore();
   });
 
-  it("shows error toast when delete returns error", async () => {
-    mockDelete.mockResolvedValueOnce("Aktivität kann nicht gelöscht werden");
-
+  it("syncs activity selection into the URL when a row is clicked", async () => {
     render(<ActivitiesPage />);
-    await waitFor(() => {
-      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
-    });
 
-    const row = screen.getByText("Fußball AG").closest("button");
-    if (row) fireEvent.click(row);
-    await waitFor(() => {
-      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
-    });
+    fireEvent.click(screen.getByTestId("activity-row-1"));
 
-    fireEvent.click(screen.getByTestId("delete-button"));
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Aktivität kann nicht gelöscht werden",
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/tenant/database/activities?activity=1",
+        { scroll: false },
       );
     });
   });
 
-  it("closes detail modal when close button is clicked", async () => {
+  it("hydrates the detail panel from the activity URL param and fetches detail data", async () => {
+    setSelectedActivity("1");
+
     render(<ActivitiesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
-    });
-
-    const activityRow = screen.getByText("Fußball AG").closest("button");
-    if (activityRow) {
-      fireEvent.click(activityRow);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
-    });
-
-    const closeButton = screen.getByTestId("close-detail-modal");
-    fireEvent.click(closeButton);
-
-    await waitFor(() => {
-      expect(
-        screen.queryByTestId("activity-detail-modal"),
-      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
+      expect(mockGetOne).toHaveBeenCalledWith("1");
     });
   });
 
-  it("closes edit modal when close button is clicked", async () => {
+  it("removes the activity URL param when the detail panel is closed", async () => {
+    setSelectedActivity("1");
+
     render(<ActivitiesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+      expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
     });
 
-    const activityRow = screen.getByText("Fußball AG").closest("button");
-    if (activityRow) {
-      fireEvent.click(activityRow);
-    }
+    fireEvent.click(screen.getByTestId("trigger-deselect"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("activity-detail-modal")).toBeInTheDocument();
-    });
-
-    const editButton = screen.getByTestId("edit-button");
-    fireEvent.click(editButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("activity-edit-modal")).toBeInTheDocument();
-    });
-
-    const closeButton = screen.getByTestId("close-edit-modal");
-    fireEvent.click(closeButton);
-
-    await waitFor(() => {
-      expect(
-        screen.queryByTestId("activity-edit-modal"),
-      ).not.toBeInTheDocument();
+      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/activities", {
+        scroll: false,
+      });
     });
   });
 
-  it("shows not found message when search has no matches", async () => {
+  it("calls update service when saving from the inline detail panel", async () => {
+    setSelectedActivity("1");
+    mockUpdate.mockResolvedValueOnce(undefined);
+
     render(<ActivitiesPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "xyz123" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-update"));
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Keine Aktivitäten gefunden"),
-      ).toBeInTheDocument();
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "1",
+        expect.objectContaining({ name: "Updated AG" }),
+      );
     });
   });
 
-  it("filters activities by supervisor name in search", async () => {
-    // Mock with supervisor_name field
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: [
-        {
-          id: "1",
-          name: "Fußball AG",
-          category_name: "Sport",
-          supervisor_name: "Herr Fischer",
-        },
-        {
-          id: "2",
-          name: "Kunst AG",
-          category_name: "Kunst",
-          supervisor_name: "Frau Weber",
-        },
-      ],
-      isLoading: false,
-      error: null,
-      isValidating: false,
-      mutate: vi.fn(),
-    } as ReturnType<typeof useSWRAuth>);
+  it("re-throws update errors so the inline form can render them (Issue #1356)", async () => {
+    setSelectedActivity("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error(
+        "activities error during UpdateActivity: Eine Aktivität mit diesem Namen existiert bereits",
+      ),
+    );
 
     render(<ActivitiesPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Fischer" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-update"));
 
     await waitFor(() => {
-      expect(screen.getByText("Fußball AG")).toBeInTheDocument();
-      expect(screen.queryByText("Kunst AG")).not.toBeInTheDocument();
+      expect(screen.getByTestId("update-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
+    });
+    // The detail panel must stay mounted so the user can correct the name.
+    expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("calls delete service after confirming deletion from the detail panel", async () => {
+    setSelectedActivity("1");
+    mockDelete.mockResolvedValueOnce(null);
+
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-delete"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-delete"));
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalledWith("1");
+      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/activities", {
+        scroll: false,
+      });
+    });
+  });
+
+  it("shows an error toast when delete returns an error", async () => {
+    setSelectedActivity("1");
+    mockDelete.mockResolvedValueOnce("Aktivität kann nicht gelöscht werden");
+
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("activity-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-delete"));
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("confirm-delete"));
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Aktivität kann nicht gelöscht werden",
+      );
     });
   });
 });

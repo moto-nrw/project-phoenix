@@ -22,6 +22,17 @@ Project Phoenix is part of a three-repo system. All repos live side-by-side (`..
 
 **If you change IoT endpoints, error messages, or auth headers**: PyrePortal will break silently. Error messages are hardcoded in `PyrePortal/src/services/api.ts` and mapped to German UI text. Coordinate changes across repos.
 
+### Presence mode (cross-repo contract)
+
+`GET /api/iot/config` returns a `presence_mode: "detailed" | "binary"` field
+that PyrePortal must respect. In `binary` mode the kiosk must hide room
+selection, hide Raumwechsel/WC buttons, and branch the scan-result modal
+based on `checkout.schulhof_enabled` (2-button door kiosk vs 3-button with
+yard state). Missing or unknown values default to `detailed` so old kiosk
+builds continue to work. Backend checkin semantics adapt transparently —
+only the kiosk UI needs to change per mode. See the companion PyrePortal
+issue for the exact UI state machine.
+
 ## Multi-Tenancy
 
 ### Tenant Hierarchy
@@ -78,6 +89,22 @@ Changing tenant resolution, auth headers, or error messages affects PyrePortal's
 - Factory pattern for DI: `repositories.NewFactory(db)` → `services.NewFactory(repoFactory, db)`
 
 ## Critical Patterns
+
+### 0. Frontend: Reuse Existing Components and Design Standards (MANDATORY)
+
+**ABSOLUTE RULE: Before creating ANY new UI element, color, or component, search the existing codebase first.** Do not reinvent what already exists.
+
+**Brand Colors** — MOTO uses specific brand hex codes, NOT generic Tailwind color classes. Before using any color:
+
+1. **Check `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS`** — the single source of truth for all semantic brand colors (green, blue, red, orange, purple, gray, amber). Read the file and use the exact hex values defined there.
+2. **Check `frontend/src/contexts/ToastContext.tsx`** — established color patterns for success/error/info states.
+3. **Check `frontend/src/styles/globals.css`** — logo gradient and other global color definitions.
+
+**NEVER use generic Tailwind color classes** (`text-green-500`, `bg-blue-500`, etc.) when a MOTO brand color exists for that semantic purpose. Tailwind defaults are different hues. Always use arbitrary value syntax with the brand hex: `text-[#HEX]`, `bg-[#HEX]`.
+
+**Reuse before rebuild:**
+- **ALWAYS search `frontend/src/components/`** for existing components before building new ones.
+- **ALWAYS check `frontend/src/lib/`** for existing helpers, hooks, and utilities before writing new logic.
 
 ### 1. BUN ORM: Quote Aliases (MANDATORY)
 ```go

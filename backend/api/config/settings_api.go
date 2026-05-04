@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -29,10 +30,38 @@ const (
 	loginImageDir     = "public/uploads/login-images"
 )
 
+// errOperatorOnlyForTenant explains why a tenant admin may not read/write an
+// AccessOperatorOnly setting. Surfaced as HTTP 403. The UI already hides these
+// settings; this is belt-and-braces defence against direct API calls.
+const errOperatorOnlyForTenant = "this setting is operator-only"
+
+// guardTenantAccess blocks tenant-admin read/write on AccessOperatorOnly settings.
+// Returns true when the handler should abort (response has already been written).
+func guardTenantAccess(w http.ResponseWriter, r *http.Request, key string) bool {
+	def := configModel.GetDefinition(key)
+	if def == nil {
+		common.RenderError(w, r, common.ErrorNotFound(fmt.Errorf("setting %q not found", key)))
+		return true
+	}
+	if def.AccessPolicy == configModel.AccessOperatorOnly {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New(errOperatorOnlyForTenant)))
+		return true
+	}
+	return false
+}
+
 // SettingsResource defines the settings API resource.
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
+	onValueSet      func(ctx context.Context, tenantID int64, key string, value any) error
+}
+
+// OnValueSet registers a callback that runs after a setting value is validated and saved.
+// The callback executes inside the same tenant transaction as the setting write, so
+// returning an error aborts the request and rolls back the update.
+func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+	rs.onValueSet = fn
 }
 
 // NewSettingsResource creates a new settings resource.
@@ -59,6 +88,7 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 		settingsWrite := authorize.RequiresAnyPermission(permissions.ConfigUpdate, permissions.ConfigManage)
 
 		r.With(authorize.RequiresPermission(permissions.ConfigRead), withTx).Get("/schema", rs.getSchema)
+		r.With(settingsWrite, withTx).Get("/values/{key}/reveal", rs.revealValue)
 		r.With(settingsWrite, withTx).Put("/values/{key}", rs.setValue)
 		r.With(settingsWrite, withTx).Delete("/values/{key}", rs.resetValue)
 
@@ -96,8 +126,35 @@ func (rs *SettingsResource) getSchema(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, schema, "Schema retrieved successfully")
 }
 
+func (rs *SettingsResource) revealValue(w http.ResponseWriter, r *http.Request) {
+	key := chi.URLParam(r, "key")
+	if guardTenantAccess(w, r, key) {
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	// Check that the user has write permission (reveal requires write, not just read).
+	def := configModel.GetDefinition(key)
+	if def.WritePermission != "" && !authorize.HasPermission(def.WritePermission, claims.Permissions) {
+		common.RenderError(w, r, common.ErrorForbidden(fmt.Errorf("insufficient permissions for %q", key)))
+		return
+	}
+
+	value, err := rs.settingsService.Resolve(r.Context(), key)
+	if err != nil {
+		renderSettingsError(w, r, err)
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]any{"value": value}, "")
+}
+
 func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
+	if guardTenantAccess(w, r, key) {
+		return
+	}
 
 	var req setValueRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -108,8 +165,15 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
 
-	err := tenant.WithTenantTx(r.Context(), rs.db, tenant.FromContext(r.Context()), func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, claims.Permissions)
+	tenantID := tenant.FromContext(r.Context())
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, claims.Permissions); err != nil {
+			return err
+		}
+		if rs.onValueSet != nil {
+			return rs.onValueSet(ctx, tenantID, key, req.Value)
+		}
+		return nil
 	})
 	if err != nil {
 		renderSettingsError(w, r, err)
@@ -121,6 +185,9 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 
 func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
+	if guardTenantAccess(w, r, key) {
+		return
+	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
@@ -246,6 +313,9 @@ func (rs *SettingsResource) deleteLoginImage(w http.ResponseWriter, r *http.Requ
 
 // GetSchema returns the getSchema handler for external test access.
 func (rs *SettingsResource) GetSchema() http.HandlerFunc { return rs.getSchema }
+
+// RevealValue returns the revealValue handler for external test access.
+func (rs *SettingsResource) RevealValue() http.HandlerFunc { return rs.revealValue }
 
 // SetValue returns the setValue handler for external test access.
 func (rs *SettingsResource) SetValue() http.HandlerFunc { return rs.setValue }

@@ -4,6 +4,8 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
 import { createGetHandler } from "~/lib/route-wrapper";
+import { auth } from "~/server/auth";
+import { isAdmin } from "~/lib/auth-utils";
 
 // Backend response types for supervised/active groups
 interface BackendActiveGroup {
@@ -13,6 +15,7 @@ interface BackendActiveGroup {
   room?: {
     id: number;
     name: string;
+    color?: string | null;
   };
   end_time?: string;
 }
@@ -56,6 +59,7 @@ interface BackendRoom {
   name: string;
   building?: string;
   floor?: number;
+  color?: string | null;
 }
 
 // Backend response for visits with display data
@@ -65,9 +69,15 @@ interface BackendVisitDisplay {
   active_group_id: number;
   check_in_time: string;
   check_out_time?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
   student_name?: string;
   school_class?: string;
   group_name?: string;
+  sick?: boolean;
+  sick_since?: string;
+  excused?: boolean;
+  excused_since?: string;
   is_active: boolean;
 }
 
@@ -99,7 +109,7 @@ interface ActiveSupervisionDashboardResponse {
     id: string;
     name: string;
     room_id?: string;
-    room?: { id: string; name: string };
+    room?: { id: string; name: string; color?: string | null };
   }>;
 
   // Unclaimed groups available to claim
@@ -129,7 +139,13 @@ interface ActiveSupervisionDashboardResponse {
     groupName: string;
     activeGroupId: string;
     checkInTime: string;
+    actualArrivalTime?: string;
+    actualPickupTime?: string;
     isActive: boolean;
+    sick?: boolean;
+    sickSince?: string;
+    excused?: boolean;
+    excusedSince?: string;
   }>;
 
   // ID of first room (for state initialization)
@@ -166,6 +182,14 @@ interface ActiveSupervisionDashboardResponse {
  */
 export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
   async (_request: NextRequest, token: string) => {
+    // Resolve the caller's role once so we can pick the right supervised-groups
+    // endpoint. Admins (including dual-role teacher-admins) go through
+    // /supervisors/all first; non-admins skip that call entirely and use
+    // /me/groups/supervised. Routing by role avoids an unnecessary 403 +
+    // fallback round-trip on every non-admin dashboard load.
+    const session = await auth();
+    const shouldUseAdminEndpoint = isAdmin(session);
+
     // Step 1: Fetch all initial data in parallel (including Schulhof status)
     const [
       supervisedResult,
@@ -174,11 +198,32 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       groupsResult,
       schulhofResult,
     ] = await Promise.all([
-      // User's supervised active groups
-      apiGet<{ data: BackendActiveGroup[] | null }>(
-        "/api/me/groups/supervised",
-        token,
-      ).catch(() => ({ data: [] as BackendActiveGroup[] })),
+      // User's supervised active groups. For admin-only users, try the admin
+      // overview endpoint first. If it returns 403 (setting disabled) fall
+      // back to the caregiver endpoint so the user keeps their own rooms.
+      // Other errors (5xx, network) are not swallowed — they propagate so
+      // the frontend can surface them instead of silently rendering empty.
+      shouldUseAdminEndpoint
+        ? apiGet<{ data: BackendActiveGroup[] | null }>(
+            "/api/active/supervisors/all",
+            token,
+          ).catch((err: unknown) => {
+            // Only fall back on a forbidden response (setting disabled or
+            // insufficient role). Any other error (5xx, network) propagates
+            // so the caller sees a real failure instead of a silent empty.
+            const msg = err instanceof Error ? err.message : String(err);
+            if (msg.includes("(403)") || msg.includes(" 403 ")) {
+              return apiGet<{ data: BackendActiveGroup[] | null }>(
+                "/api/me/groups/supervised",
+                token,
+              );
+            }
+            throw err;
+          })
+        : apiGet<{ data: BackendActiveGroup[] | null }>(
+            "/api/me/groups/supervised",
+            token,
+          ),
 
       // Unclaimed groups available to claim
       apiGet<{ data: BackendUnclaimedGroup[] | null }>(
@@ -277,7 +322,11 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
             id: group.id.toString(),
             name: group.name,
             room_id: group.room_id?.toString(),
-            room: { id: group.room.id.toString(), name: group.room.name },
+            room: {
+              id: group.room.id.toString(),
+              name: group.room.name,
+              color: group.room.color ?? null,
+            },
           };
         }
 
@@ -296,6 +345,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
                 ? {
                     id: roomResponse.data.id.toString(),
                     name: roomResponse.data.name,
+                    color: roomResponse.data.color ?? null,
                   }
                 : undefined,
             };
@@ -338,7 +388,13 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
             groupName: v.group_name ?? "",
             activeGroupId: v.active_group_id.toString(),
             checkInTime: v.check_in_time,
+            actualArrivalTime: v.actual_arrival_time,
+            actualPickupTime: v.actual_pickup_time,
             isActive: v.is_active,
+            sick: v.sick,
+            sickSince: v.sick_since,
+            excused: v.excused,
+            excusedSince: v.excused_since,
           }));
       } catch {
         firstRoomVisits = [];

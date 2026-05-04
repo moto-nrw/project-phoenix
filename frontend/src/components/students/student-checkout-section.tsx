@@ -1,6 +1,13 @@
 "use client";
 
-import { Home, LogIn, Thermometer, Heart } from "lucide-react";
+import {
+  Home,
+  LogIn,
+  Thermometer,
+  Heart,
+  CalendarX,
+  CalendarCheck,
+} from "lucide-react";
 
 // Type for the action the user can perform
 type StudentActionType = "checkout" | "checkin" | "none";
@@ -113,6 +120,69 @@ export function StudentSickReportSection({
           {isSick && sickSinceDisplay
             ? `Krank gemeldet seit ${sickSinceDisplay}`
             : "Als krank melden"}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+// Component for excused (entschuldigt) quick-action
+interface StudentExcusedReportSectionProps {
+  readonly isExcused: boolean;
+  readonly excusedSince?: string;
+  readonly onToggle: () => void;
+  readonly isLoading: boolean;
+}
+
+export function StudentExcusedReportSection({
+  isExcused,
+  excusedSince,
+  onToggle,
+  isLoading,
+}: StudentExcusedReportSectionProps) {
+  const excusedSinceDisplay = excusedSince
+    ? new Date(excusedSince).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : null;
+
+  const renderExcusedIcon = () => {
+    if (isLoading) {
+      return (
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      );
+    }
+    if (isExcused) {
+      return <CalendarCheck className="h-5 w-5 sm:h-6 sm:w-6" />;
+    }
+    return <CalendarX className="h-5 w-5 sm:h-6 sm:w-6" />;
+  };
+
+  return (
+    <button
+      onClick={onToggle}
+      disabled={isLoading}
+      className="flex flex-1 flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
+    >
+      <div
+        className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${
+          isExcused
+            ? "border-[#83CD2D] text-[#83CD2D]"
+            : "border-[#7C3AED] text-[#7C3AED]"
+        }`}
+      >
+        {renderExcusedIcon()}
+      </div>
+      <div className="text-center">
+        <p className="text-base font-semibold text-gray-900">
+          {isExcused ? "Entschuldigung aufheben" : "Entschuldigen"}
+        </p>
+        <p className="mt-0.5 hidden text-xs text-gray-400 sm:block">
+          {isExcused && excusedSinceDisplay
+            ? `Entschuldigt seit ${excusedSinceDisplay}`
+            : "Als entschuldigt markieren"}
         </p>
       </div>
     </button>

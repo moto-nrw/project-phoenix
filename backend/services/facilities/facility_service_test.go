@@ -15,6 +15,42 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// createRoomWithExactName creates a room with the exact given name (no timestamp suffix).
+// Use this for system room tests where the name must match constants exactly.
+// Cleans up any pre-existing room with the same name first to avoid unique constraint violations.
+func createRoomWithExactName(t *testing.T, db *bun.DB, name string) *facilities.Room {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+
+	// Clean up any pre-existing room with this exact name (from crashed tests or seed data)
+	_, _ = db.NewDelete().
+		TableExpr("facilities.rooms").
+		Where("name = ? AND tenant_id = 1", name).
+		Exec(ctx)
+
+	room := &facilities.Room{
+		Name:     name,
+		Building: "Test Building",
+	}
+	room.SetTenantID(1)
+	err := db.NewInsert().
+		Model(room).
+		ModelTableExpr(`facilities.rooms`).
+		Scan(ctx)
+	require.NoError(t, err, "Failed to create room with exact name %q", name)
+	return room
+}
+
+// cleanupRoom removes a room by ID.
+func cleanupRoom(t *testing.T, db *bun.DB, roomID int64) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	_, _ = db.NewDelete().
+		TableExpr("facilities.rooms").
+		Where("id = ?", roomID).
+		Exec(ctx)
+}
+
 // setupFacilitiesService creates a facilities service with real database connection.
 func setupFacilitiesService(t *testing.T, db *bun.DB) facilitiesSvc.Service {
 	t.Helper()
@@ -184,7 +220,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.Contains(t, err.Error(), "existiert bereits")
 	})
 
 	t.Run("rejects room with empty name", func(t *testing.T) {
@@ -281,7 +317,7 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.Contains(t, err.Error(), "existiert bereits")
 	})
 
 	t.Run("allows update without changing name", func(t *testing.T) {
@@ -302,6 +338,41 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		updated, err := service.GetRoom(ctx, room.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 100, *updated.Capacity)
+	})
+
+	t.Run("blocks renaming system room Schulhof", func(t *testing.T) {
+		// ARRANGE — exact name required to match constants.SchulhofRoomName
+		room := createRoomWithExactName(t, db, "Schulhof")
+		defer cleanupRoom(t, db, room.ID)
+
+		room.Name = "Spielplatz"
+
+		// ACT
+		err := service.UpdateRoom(ctx, room)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemraum")
+	})
+
+	t.Run("allows updating other properties of system room", func(t *testing.T) {
+		// ARRANGE — exact name required to match constants.WCRoomName
+		room := createRoomWithExactName(t, db, "WC")
+		defer cleanupRoom(t, db, room.ID)
+
+		newCapacity := 25
+		room.Capacity = &newCapacity
+
+		// ACT
+		err := service.UpdateRoom(ctx, room)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		updated, err := service.GetRoom(ctx, room.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 25, *updated.Capacity)
+		assert.Equal(t, "WC", updated.Name)
 	})
 }
 
@@ -381,6 +452,32 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("blocks deletion of system room Schulhof", func(t *testing.T) {
+		// ARRANGE — exact name required to match constants.SchulhofRoomName
+		room := createRoomWithExactName(t, db, "Schulhof")
+		defer cleanupRoom(t, db, room.ID)
+
+		// ACT
+		err := service.DeleteRoom(ctx, room.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemraum")
+	})
+
+	t.Run("blocks deletion of system room WC", func(t *testing.T) {
+		// ARRANGE — exact name required to match constants.WCRoomName
+		room := createRoomWithExactName(t, db, "WC")
+		defer cleanupRoom(t, db, room.ID)
+
+		// ACT
+		err := service.DeleteRoom(ctx, room.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Systemraum")
 	})
 }
 

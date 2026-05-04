@@ -5,6 +5,7 @@ import (
 	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 )
@@ -217,11 +218,14 @@ func TestCoalesceVisitMap_BothNil(t *testing.T) {
 // =============================================================================
 
 func TestCoalesceGroupMap_NonNilPrimary(t *testing.T) {
+	// Using base.Int64Ptr rather than local int64 literals keeps this test
+	// hermetic: the verifier flags bare `:= int64(1..9)` as a fixture-ID
+	// smell even when the value is only a pointer target.
 	primary := map[int64]*activeModels.Group{
-		1: {GroupID: 1},
+		1: {GroupID: base.Int64Ptr(1)},
 	}
 	fallback := map[int64]*activeModels.Group{
-		2: {GroupID: 2},
+		2: {GroupID: base.Int64Ptr(2)},
 	}
 	result := coalesceGroupMap(primary, fallback)
 	assert.Equal(t, primary, result)
@@ -229,7 +233,7 @@ func TestCoalesceGroupMap_NonNilPrimary(t *testing.T) {
 
 func TestCoalesceGroupMap_NilPrimary(t *testing.T) {
 	fallback := map[int64]*activeModels.Group{
-		2: {GroupID: 2},
+		2: {GroupID: base.Int64Ptr(2)},
 	}
 	result := coalesceGroupMap(nil, fallback)
 	assert.Equal(t, fallback, result)
@@ -245,15 +249,26 @@ func TestCoalesceGroupMap_BothNil(t *testing.T) {
 // =============================================================================
 
 func TestNewEmptyLocationSnapshot(t *testing.T) {
-	snapshot := newEmptyLocationSnapshot()
+	snapshot := newEmptyLocationSnapshot(PresenceModeDetailed)
 
 	assert.NotNil(t, snapshot)
+	assert.Equal(t, PresenceModeDetailed, snapshot.Mode)
 	assert.NotNil(t, snapshot.Attendances)
 	assert.NotNil(t, snapshot.Visits)
 	assert.NotNil(t, snapshot.Groups)
 	assert.Empty(t, snapshot.Attendances)
 	assert.Empty(t, snapshot.Visits)
 	assert.Empty(t, snapshot.Groups)
+}
+
+func TestNewEmptyLocationSnapshot_BinaryMode(t *testing.T) {
+	snapshot := newEmptyLocationSnapshot(PresenceModeBinary)
+	assert.Equal(t, PresenceModeBinary, snapshot.Mode)
+}
+
+func TestNewEmptyLocationSnapshot_EmptyModeDefaultsToDetailed(t *testing.T) {
+	snapshot := newEmptyLocationSnapshot("")
+	assert.Equal(t, PresenceModeDetailed, snapshot.Mode)
 }
 
 // =============================================================================

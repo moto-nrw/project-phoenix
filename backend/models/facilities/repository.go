@@ -12,7 +12,7 @@ type RoomRepository interface {
 	// FindByID retrieves a room by its ID
 	FindByID(ctx context.Context, id interface{}) (*Room, error)
 
-	// FindByName retrieves a room by its name
+	// FindByName retrieves a room by its name (case-insensitive).
 	FindByName(ctx context.Context, name string) (*Room, error)
 
 	// FindByBuilding retrieves rooms by building

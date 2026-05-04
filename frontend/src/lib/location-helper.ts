@@ -2,7 +2,7 @@
  * Centralized helpers for parsing, styling, and rendering student location data.
  */
 
-export interface ParsedLocation {
+interface ParsedLocation {
   status: string;
   room?: string;
 }
@@ -18,10 +18,31 @@ export interface LocationStyle {
 export interface StudentLocationContext {
   current_location?: string | null;
   location_since?: string | null;
+  /**
+   * Hex color of the student's current room when set. Backend serves this in
+   * `current_room_color` for visit/student responses; the active-supervisions
+   * page derives it from the current room object directly. Drives the room
+   * badge color so the OGS list isn't a wall of identical blue badges anymore.
+   * Nil for status-only locations (Schulhof / Unterwegs / Zuhause / sick / etc.)
+   * and for rooms without a custom color set.
+   *
+   * **Maintenance note**: any new SWR cache that stores rows containing this
+   * field (or any other room-derived attribute like the room name baked into
+   * `current_location`) MUST register its key substring in
+   * `lib/swr/room-derived-caches.ts`. Otherwise badge colours stay stale
+   * after an admin saves a room until the cache happens to refetch.
+   */
+  current_room_color?: string | null;
   group_id?: string | null;
   group_name?: string | null;
   sick?: boolean;
   sick_since?: string | null;
+  excused?: boolean;
+  excused_since?: string | null;
+  has_full_access?: boolean;
+  /** Today has an arrival-schedule exception with null expected time — student is not coming */
+  not_arrival_today?: boolean;
+  not_arrival_reason?: string | null;
 }
 
 export const LOCATION_STATUSES = {
@@ -31,6 +52,8 @@ export const LOCATION_STATUSES = {
   TRANSIT: "Unterwegs",
   UNKNOWN: "Unbekannt",
   SICK: "Krank",
+  EXCUSED: "Entschuldigt",
+  NOT_ARRIVAL: "Kommt heute nicht",
 } as const;
 
 export const LOCATION_COLORS = {
@@ -41,6 +64,23 @@ export const LOCATION_COLORS = {
   TRANSIT: "#D946EF",
   UNKNOWN: "#6B7280",
   SICK: "#EAB308", // Amber - medical/sick status
+  EXCUSED: "#7C3AED", // Purple - excused absence (kind is not attending today)
+  NOT_ARRIVAL: "#6B7280", // Gray - planned absence via arrival-schedule exception
+} as const;
+
+/**
+ * Hover/active/text/background shade variants of the brand green
+ * (LOCATION_COLORS.GROUP_ROOM). Centralised so the school check-in toggle and
+ * any future "primary action" buttons stop hardcoding hex literals — see
+ * CLAUDE.md §0 (route every brand color through LOCATION_COLORS).
+ */
+export const GROUP_ROOM_SHADES = {
+  base: LOCATION_COLORS.GROUP_ROOM, // #83CD2D
+  hover: "#74b827", // darker green for primary-button hover
+  active: "#669f21", // even darker for :active
+  text: "#4a7a15", // accessible text-on-white
+  bgHover: "#f0f9e4", // tinted background for ghost-button hover
+  bgActive: "#e4f3d3", // slightly darker tint for ghost-button :active
 } as const;
 
 const LOCATION_SEPARATOR = "-";
@@ -145,11 +185,20 @@ function isStudentInGroupRoom(
 
 /**
  * Determines the color for a student who is present with a room assignment.
+ *
+ * Priority is intentional:
+ *   1. Eigener-Gruppenraum-Grün — viewer-relative signal, kept as-is per the
+ *      hard constraint that all non-blue colors keep their meaning.
+ *   2. Per-room hex from the backend (`roomColor`) — the new differentiator
+ *      that replaces the painful "every other room is the same blue" symptom.
+ *   3. OTHER_ROOM blue fallback — bestehende Räume ohne gesetzte Farbe sehen
+ *      genauso aus wie heute, kein visueller Sprung.
  */
 function getColorForPresentWithRoom(
   room: string,
   isGroupRoom?: boolean,
   groupRooms?: string[],
+  roomColor?: string | null,
 ): string {
   // Check if room is one of the user's OGS group rooms
   if (
@@ -163,6 +212,13 @@ function getColorForPresentWithRoom(
   // Fallback to isGroupRoom prop if groupRooms not provided
   if (isGroupRoom) {
     return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
+  }
+
+  // Per-room override — empty string is treated like null (the rooms.config
+  // form sends "" when the user clears the picker, the backend translates
+  // both to NULL; either way the badge falls back to OTHER_ROOM blue).
+  if (roomColor && roomColor.length > 0) {
+    return roomColor;
   }
 
   // Student in any other room
@@ -181,6 +237,7 @@ export function getLocationColor(
   location?: string | null,
   isGroupRoom?: boolean,
   groupRooms?: string[],
+  roomColor?: string | null,
 ): string {
   const parsed = parseLocation(location);
   const status = parsed.status;
@@ -194,7 +251,12 @@ export function getLocationColor(
   // Handle "Anwesend" status
   if (status === LOCATION_STATUSES.PRESENT) {
     if (parsed.room) {
-      return getColorForPresentWithRoom(parsed.room, isGroupRoom, groupRooms);
+      return getColorForPresentWithRoom(
+        parsed.room,
+        isGroupRoom,
+        groupRooms,
+        roomColor,
+      );
     }
     // "Anwesend" without room details (GDPR-reduced) - show green (present in building)
     return LOCATION_COLORS.GROUP_ROOM;
@@ -257,7 +319,12 @@ export function canSeeDetailedLocation(
   userGroups?: string[],
   _supervisedRooms?: string[],
 ): boolean {
-  // Check if student is in user's OGS group (ONLY way to get detailed location)
+  // Backend grants full read access via student_data_scope setting
+  if (student.has_full_access) {
+    return true;
+  }
+
+  // Check if student is in user's OGS group
   if (
     student.group_id &&
     Array.isArray(userGroups) &&
@@ -267,7 +334,6 @@ export function canSeeDetailedLocation(
     return true;
   }
 
-  // Supervisors do NOT get detailed location for students outside their OGS groups
   return false;
 }
 

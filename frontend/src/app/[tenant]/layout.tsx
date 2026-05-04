@@ -3,6 +3,7 @@ import { TenantProvider } from "~/components/tenant/tenant-provider";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
+import { normalizePresenceMode } from "~/lib/tenant-api";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 
 interface TenantResolveResponse {
@@ -13,6 +14,7 @@ interface TenantResolveResponse {
   organization_id: number;
   organization_name: string;
   settings: TenantSettings;
+  presence_mode?: string;
 }
 
 /**
@@ -42,6 +44,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       organizationId: data.organization_id,
       organizationName: data.organization_name,
       settings: data.settings ?? {},
+      presenceMode: normalizePresenceMode(data.presence_mode),
     };
   } catch {
     return null;

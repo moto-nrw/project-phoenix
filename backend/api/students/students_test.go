@@ -1,16 +1,233 @@
 package students_test
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// =============================================================================
+// List Students with Pickup Times Tests
+// =============================================================================
+
+func TestListStudents_WithPickupTimes(t *testing.T) {
+	tc := setupTestContext(t)
+
+	// Create two students: one with a pickup schedule, one without
+	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "WithSchedule", "PT1")
+	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "NoSchedule", "PT2")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithSchedule.ID, studentNoSchedule.ID)
+
+	// The handler derives the weekday via timezone.DateOf(time.Now()), which
+	// converts to Europe/Berlin before extracting the date. The test must use
+	// the same conversion so the inserted schedule matches the handler's query,
+	// even when CI runs near midnight UTC (where UTC and Berlin dates differ).
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = 7 // Sunday
+	}
+
+	// Skip on weekends — pickup schedules only apply Mon-Fri
+	if todayWeekday > scheduleModel.WeekdayFriday {
+		t.Skip("Skipping pickup time test on weekend — schedules only apply Mon-Fri")
+	}
+
+	// Insert a pickup schedule for today's weekday
+	pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
+	schedule := &scheduleModel.StudentPickupSchedule{
+		StudentID:  studentWithSchedule.ID,
+		Weekday:    todayWeekday,
+		PickupTime: pickupTime,
+		CreatedBy:  1,
+	}
+	schedule.SetTenantID(1)
+	_, err := tc.db.NewInsert().Model(schedule).
+		ModelTableExpr("schedule.student_pickup_schedules").
+		Returning("id").
+		Exec(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupSchedule)(nil)).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Where("student_id = ?", studentWithSchedule.ID).
+			Exec(context.Background())
+	}()
+
+	t.Run("include_pickup_times_returns_pickup_time_field", func(t *testing.T) {
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
+		req := testutil.NewRequest("GET", "/?include_pickup_times=true&school_class=PT1&page_size=50", nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		// Parse response to check pickup_time field
+		var resp struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &resp)
+		require.NoError(t, err, "Failed to parse response JSON")
+		require.NotEmpty(t, resp.Data, "Expected at least one student in response")
+
+		// Find the student with schedule and verify pickup_time is set
+		found := false
+		for _, raw := range resp.Data {
+			var student struct {
+				ID         int64   `json:"id"`
+				PickupTime *string `json:"pickup_time"`
+			}
+			err := json.Unmarshal(raw, &student)
+			require.NoError(t, err)
+
+			if student.ID == studentWithSchedule.ID {
+				found = true
+				require.NotNil(t, student.PickupTime, "Student with schedule should have pickup_time")
+				assert.Equal(t, "15:30", *student.PickupTime, "Pickup time should match the schedule")
+			}
+
+			if student.ID == studentNoSchedule.ID {
+				assert.Nil(t, student.PickupTime, "Student without schedule should not have pickup_time")
+			}
+		}
+		assert.Truef(t, found, "Student with schedule should be in response. Body: %s", rr.Body.String())
+	})
+
+	t.Run("without_include_pickup_times_omits_field", func(t *testing.T) {
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
+		req := testutil.NewRequest("GET", "/?school_class=PT1&page_size=50", nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		// Verify pickup_time is not present in any response
+		var resp struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &resp)
+		require.NoError(t, err)
+
+		for _, raw := range resp.Data {
+			var student map[string]interface{}
+			err := json.Unmarshal(raw, &student)
+			require.NoError(t, err)
+
+			_, hasPickupTime := student["pickup_time"]
+			assert.False(t, hasPickupTime, "pickup_time should not be present when include_pickup_times is not set")
+		}
+	})
+}
+
+func TestListStudents_WithArrivalTimes(t *testing.T) {
+	tc := setupTestContext(t)
+
+	schoolClass := fmt.Sprintf("AT-%d", time.Now().UnixNano())
+	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "WithSchedule", schoolClass)
+	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "NoSchedule", schoolClass)
+	staff := testpkg.CreateTestStaff(t, tc.db, "Arrival", "Creator")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithSchedule.ID, studentNoSchedule.ID)
+
+	berlinToday := timezone.DateOf(time.Now())
+	todayWeekday := int(berlinToday.Weekday())
+	if todayWeekday == 0 {
+		todayWeekday = 7
+	}
+
+	if todayWeekday > scheduleModel.WeekdayFriday {
+		t.Skip("Skipping arrival time test on weekend — schedules only apply Mon-Fri")
+	}
+
+	arrivalTime := time.Date(2000, 1, 1, 8, 15, 0, 0, time.UTC)
+	schedule := &scheduleModel.StudentArrivalSchedule{
+		StudentID:       studentWithSchedule.ID,
+		Weekday:         todayWeekday,
+		ExpectedArrival: arrivalTime,
+		CreatedBy:       staff.ID,
+	}
+	schedule.SetTenantID(1)
+	_, err := tc.db.NewInsert().Model(schedule).
+		ModelTableExpr("schedule.student_arrival_schedules").
+		Returning("id").
+		Exec(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentArrivalSchedule)(nil)).
+			ModelTableExpr("schedule.student_arrival_schedules").
+			Where("student_id = ?", studentWithSchedule.ID).
+			Exec(context.Background())
+	}()
+
+	t.Run("include_arrival_times_returns_arrival_time_field", func(t *testing.T) {
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?include_arrival_times=true&school_class=%s&page_size=50", schoolClass), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		var resp struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.NotEmpty(t, resp.Data)
+
+		found := false
+		for _, raw := range resp.Data {
+			var student struct {
+				ID          int64   `json:"id"`
+				ArrivalTime *string `json:"arrival_time"`
+			}
+			err := json.Unmarshal(raw, &student)
+			require.NoError(t, err)
+
+			if student.ID == studentWithSchedule.ID {
+				found = true
+				require.NotNil(t, student.ArrivalTime)
+				assert.Equal(t, "08:15", *student.ArrivalTime)
+			}
+
+			if student.ID == studentNoSchedule.ID {
+				assert.Nil(t, student.ArrivalTime)
+			}
+		}
+		assert.Truef(t, found, "Student with schedule should be in response. Body: %s", rr.Body.String())
+	})
+
+	t.Run("without_include_arrival_times_omits_field", func(t *testing.T) {
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&page_size=50", schoolClass), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var resp struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		err := json.Unmarshal(rr.Body.Bytes(), &resp)
+		require.NoError(t, err)
+
+		for _, raw := range resp.Data {
+			var student map[string]interface{}
+			err := json.Unmarshal(raw, &student)
+			require.NoError(t, err)
+
+			_, hasArrivalTime := student["arrival_time"]
+			assert.False(t, hasArrivalTime, "arrival_time should not be present when include_arrival_times is not set")
+		}
+	})
+}
 
 // =============================================================================
 // List Students Tests
@@ -483,6 +700,133 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, clearRR.Code, "Should clear sick status")
 		assert.Contains(t, clearRR.Body.String(), `"sick":false`)
+
+		var history activeModel.StudentStatusDay
+		err := tc.db.NewSelect().
+			Model(&history).
+			ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+			Where(`"student_status_day".student_id = ?`, student.ID).
+			Where(`"student_status_day".status = ?`, activeModel.StudentStatusDaySick).
+			Scan(context.Background())
+		require.NoError(t, err)
+		assert.NotNil(t, history.ClearedAt)
+	})
+}
+
+func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
+	tc := setupTestContext(t)
+
+	t.Run("mark_as_excused_sets_excused_since", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Status", "ES1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		eventCount := len(tc.broadcaster.events)
+
+		body := map[string]interface{}{"excused": true}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), `"excused":true`)
+		assert.Contains(t, rr.Body.String(), `"excused_since"`)
+		require.Len(t, tc.broadcaster.events, eventCount+1)
+		assert.Equal(t, "student_updated", string(tc.broadcaster.events[eventCount].Type))
+	})
+
+	t.Run("clear_excused_clears_excused_since", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ClearExcused", "Student", "EC1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+
+		setReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"excused": true})
+		setRR := executeWithAuth(router, setReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		assert.Equal(t, http.StatusOK, setRR.Code)
+
+		clearReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"excused": false})
+		clearRR := executeWithAuth(router, clearReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, clearRR.Code)
+		assert.Contains(t, clearRR.Body.String(), `"excused":false`)
+
+		var history activeModel.StudentStatusDay
+		err := tc.db.NewSelect().
+			Model(&history).
+			ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+			Where(`"student_status_day".student_id = ?`, student.ID).
+			Where(`"student_status_day".status = ?`, activeModel.StudentStatusDayExcused).
+			Scan(context.Background())
+		require.NoError(t, err)
+		assert.NotNil(t, history.ClearedAt)
+	})
+}
+
+// TestUpdateStudent_SickExcusedMutualExclusion encodes the business rule
+// that a student cannot be both sick and excused at the same time.
+func TestUpdateStudent_SickExcusedMutualExclusion(t *testing.T) {
+	tc := setupTestContext(t)
+
+	t.Run("both_flags_true_in_same_request_is_rejected", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Mutex", "Student", "MS1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+
+		body := map[string]interface{}{"sick": true, "excused": true}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusConflict, rr.Code,
+			"setting both sick and excused to true must return 409")
+		assert.Contains(t, rr.Body.String(), students.ErrCodeSickExcusedConflict,
+			"response should carry the SICK_EXCUSED_CONFLICT code for the frontend")
+	})
+
+	t.Run("setting_sick_while_already_excused_is_rejected", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Mutex", "Excused", "ME1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+
+		// Pre-state: excused = true
+		excReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"excused": true})
+		excRR := executeWithAuth(router, excReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		assert.Equal(t, http.StatusOK, excRR.Code)
+
+		// Attempt: set sick = true without clearing excused
+		sickReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"sick": true})
+		sickRR := executeWithAuth(router, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusConflict, sickRR.Code)
+		assert.Contains(t, sickRR.Body.String(), students.ErrCodeSickExcusedConflict)
+	})
+
+	t.Run("switch_from_sick_to_excused_in_one_request_succeeds", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Switch", "Student", "SW1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+
+		// Pre-state: sick = true
+		sickReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"sick": true})
+		sickRR := executeWithAuth(router, sickReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+		assert.Equal(t, http.StatusOK, sickRR.Code)
+
+		// Switch: clear sick AND set excused in one request
+		switchReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID),
+			map[string]interface{}{"sick": false, "excused": true})
+		switchRR := executeWithAuth(router, switchReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, switchRR.Code,
+			"simultaneous clear-one + set-other must be accepted")
+		assert.Contains(t, switchRR.Body.String(), `"sick":false`)
+		assert.Contains(t, switchRR.Body.String(), `"excused":true`)
 	})
 }
 

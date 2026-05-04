@@ -348,7 +348,7 @@ interface BulkDayNoteResponse {
 /**
  * Frontend day note in bulk response
  */
-export interface BulkDayNote {
+interface BulkDayNote {
   id: string;
   content: string;
 }

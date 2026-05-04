@@ -26,6 +26,7 @@ import {
   formatTime,
   mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
@@ -135,6 +136,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
 
   const chartData = useMemo(() => {
     return days
+      .filter((day) => day.attendance)
       .slice()
       .reverse()
       .map((day) => ({
@@ -296,6 +298,7 @@ function DayCard({
   readonly isToday: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const statusLabel = day.statusEntries.map((entry) => entry.label).join(", ");
 
   return (
     <div className="border-b border-gray-100 last:border-b-0">
@@ -320,6 +323,11 @@ function DayCard({
                   : "anwesend"}
               </span>
             )}
+            {!day.attendance && statusLabel && (
+              <span className="ml-2 text-xs font-medium text-amber-700">
+                {statusLabel}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -329,7 +337,9 @@ function DayCard({
             </span>
           )}
           {!day.attendance && (
-            <span className="text-xs text-gray-400">Keine Daten</span>
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+              {statusLabel || "Keine Daten"}
+            </span>
           )}
           <ChevronRight
             className={`h-4 w-4 text-gray-400 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -339,6 +349,26 @@ function DayCard({
 
       {expanded && (
         <div className="border-t border-gray-50 bg-gray-50/50 px-4 py-3">
+          {day.statusEntries.length > 0 && (
+            <div className="mb-3 space-y-1">
+              {day.statusEntries.map((entry) => (
+                <div
+                  key={`${day.date}-${entry.status}`}
+                  className="flex items-center justify-between text-xs"
+                >
+                  <span className="font-medium text-amber-800">
+                    {entry.label}
+                  </span>
+                  <span className="text-gray-500">
+                    gemeldet {formatTime(entry.reportedAt)}
+                    {entry.clearedAt
+                      ? ` · beendet ${formatTime(entry.clearedAt)}`
+                      : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {!day.roomDetailAvailable ? (
             <p className="text-xs text-gray-500 italic">
               Raumdetails nicht mehr verfügbar (Aufbewahrungsfrist
@@ -430,6 +460,9 @@ function HistoryTable({
                 {days.map((day) => {
                   const isExpanded = expandedDate === day.date;
                   const isToday = day.date === todayKey;
+                  const statusLabel = day.statusEntries
+                    .map((entry) => entry.label)
+                    .join(", ");
                   return (
                     <React.Fragment key={day.date}>
                       <tr
@@ -446,6 +479,11 @@ function HistoryTable({
                             <span className="font-medium text-gray-900">
                               {formatDate(day.date)}
                             </span>
+                            {statusLabel && (
+                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                {statusLabel}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-3 text-gray-600 tabular-nums">
@@ -489,46 +527,90 @@ function HistoryTable({
                             </td>
                           </tr>
                         ) : day.visits.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={5}
-                              className="bg-gray-50/70 px-6 py-3 text-xs text-gray-500"
-                            >
-                              Keine Raumwechsel an diesem Tag.
-                            </td>
-                          </tr>
-                        ) : (
-                          day.visits.map((v, i) => (
-                            <tr
-                              key={`${day.date}-${i}-${v.entryTime.toISOString()}`}
-                              className="border-b border-gray-50 bg-gray-50/70 text-xs"
-                            >
-                              <td className="py-2 pr-6 pl-12">
-                                <div className="flex items-center gap-2">
-                                  <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5080D8]" />
-                                  <span className="font-medium text-gray-700">
-                                    {v.roomName || "Unbekannt"}
-                                  </span>
-                                </div>
+                          <>
+                            {day.statusEntries.map((entry) => (
+                              <tr
+                                key={`${day.date}-${entry.status}`}
+                                className="bg-gray-50/70 text-xs"
+                              >
+                                <td className="py-2 pr-6 pl-12 font-medium text-amber-800">
+                                  {entry.label}
+                                </td>
+                                <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                  {formatTime(entry.reportedAt)}
+                                </td>
+                                <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                  {entry.clearedAt
+                                    ? formatTime(entry.clearedAt)
+                                    : "–"}
+                                </td>
+                                <td className="px-6 py-2 text-gray-400">–</td>
+                                <td className="px-6 py-2" />
+                              </tr>
+                            ))}
+                            <tr>
+                              <td
+                                colSpan={5}
+                                className="bg-gray-50/70 px-6 py-3 text-xs text-gray-500"
+                              >
+                                Keine Raumwechsel an diesem Tag.
                               </td>
-                              <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                {formatTime(v.entryTime)}
-                              </td>
-                              <td className="px-6 py-2 text-gray-500 tabular-nums">
-                                {v.exitTime ? formatTime(v.exitTime) : "–"}
-                              </td>
-                              <td className="px-6 py-2">
-                                {v.durationMinutes != null ? (
-                                  <span className="rounded bg-gray-200/60 px-1.5 py-0.5 text-gray-600 tabular-nums">
-                                    {formatDuration(v.durationMinutes)}
-                                  </span>
-                                ) : (
-                                  <span className="text-gray-400">–</span>
-                                )}
-                              </td>
-                              <td className="px-6 py-2" />
                             </tr>
-                          ))
+                          </>
+                        ) : (
+                          <>
+                            {day.statusEntries.map((entry) => (
+                              <tr
+                                key={`${day.date}-${entry.status}`}
+                                className="bg-gray-50/70 text-xs"
+                              >
+                                <td className="py-2 pr-6 pl-12 font-medium text-amber-800">
+                                  {entry.label}
+                                </td>
+                                <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                  {formatTime(entry.reportedAt)}
+                                </td>
+                                <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                  {entry.clearedAt
+                                    ? formatTime(entry.clearedAt)
+                                    : "–"}
+                                </td>
+                                <td className="px-6 py-2 text-gray-400">–</td>
+                                <td className="px-6 py-2" />
+                              </tr>
+                            ))}
+                            {day.visits.map((v, i) => (
+                              <tr
+                                key={`${day.date}-${i}-${v.entryTime.toISOString()}`}
+                                className="border-b border-gray-50 bg-gray-50/70 text-xs"
+                              >
+                                <td className="py-2 pr-6 pl-12">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5080D8]" />
+                                    <span className="font-medium text-gray-700">
+                                      {v.roomName || "Unbekannt"}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                  {formatTime(v.entryTime)}
+                                </td>
+                                <td className="px-6 py-2 text-gray-500 tabular-nums">
+                                  {v.exitTime ? formatTime(v.exitTime) : "–"}
+                                </td>
+                                <td className="px-6 py-2">
+                                  {v.durationMinutes != null ? (
+                                    <span className="rounded bg-gray-200/60 px-1.5 py-0.5 text-gray-600 tabular-nums">
+                                      {formatDuration(v.durationMinutes)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">–</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-2" />
+                              </tr>
+                            ))}
+                          </>
                         ))}
                     </React.Fragment>
                   );
@@ -555,7 +637,18 @@ function HistoryTable({
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+// Binary-mode tenants don't record room visits, so the history chart is
+// always empty. Guard here so the tab 404s instead of rendering a charts
+// page with zero data.
 export default function StudentRoomHistoryPage() {
+  return (
+    <BinaryModeGuard>
+      <StudentRoomHistoryPageContent />
+    </BinaryModeGuard>
+  );
+}
+
+function StudentRoomHistoryPageContent() {
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -678,7 +771,7 @@ export default function StudentRoomHistoryPage() {
             {displayName}
           </h1>
           <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-            <span>Klasse {student.school_class}</span>
+            <span>{student.school_class}</span>
             {student.group_name && (
               <>
                 <span className="text-gray-300">·</span>

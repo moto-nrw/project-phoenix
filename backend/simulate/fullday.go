@@ -115,9 +115,14 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 		activityID := rt.State.Activities[actName]
 		supervisor := betreuer[i]
 
+		roomID := findRoomForActivity(actName, rt.State.Rooms)
+
 		body := map[string]any{
 			"activity_id":    activityID,
 			"supervisor_ids": []int64{supervisor.StaffID},
+		}
+		if roomID != 0 {
+			body["room_id"] = roomID
 		}
 
 		_, err := rt.Client.DevicePost("/api/iot/session/start", body, device.APIKey, rt.State.DevicePIN)
@@ -126,7 +131,7 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 			continue
 		}
 
-		if roomID := findRoomForActivity(actName, rt.State.Rooms); roomID != 0 {
+		if roomID != 0 {
 			rt.ActiveRoomIDs = append(rt.ActiveRoomIDs, roomID)
 		}
 
@@ -366,12 +371,12 @@ func findRoomForActivity(activityName string, rooms map[string]int64) int64 {
 		"Fußball":      "Sporthalle",
 		"Basteln":      "Kreativraum",
 		"Kochen":       "Mensa",
-		"Lesen":        "OGS-Raum 2",
-		"Musik":        "OGS-Raum 1",
-		"Tanzen":       "Sporthalle",
+		"Lesen":        "Leseecke",
+		"Musik":        "Musikraum",
+		"Tanzen":       "Bewegungsraum",
 		"Schach":       "OGS-Raum 2",
 		"Garten":       "Schulhof",
-		"Freispiel":    "Schulhof",
+		"Freispiel":    "OGS-Raum 3",
 	}
 
 	roomName, ok := activityRoomMap[activityName]

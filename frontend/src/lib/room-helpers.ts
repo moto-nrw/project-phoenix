@@ -44,6 +44,21 @@ export interface Room {
   updatedAt?: string;
 }
 
+// System room names that cannot be deleted or renamed.
+// Must stay in sync with backend constants/activities.go
+// (SchulhofRoomName, WCRoomName, WCRoomAliasName) and PyrePortal
+// src/services/api.ts (WC_ROOM_ALIASES). Matching is exact-case to mirror
+// the backend's `name == SchulhofRoomName || IsWCRoomName(name)` check.
+const SYSTEM_ROOM_NAMES = ["Schulhof", "WC", "Toilette"] as const;
+
+/** Returns true if the room is a system room (Schulhof, WC, Toilette). */
+export function isSystemRoom(room: Room | null | undefined): boolean {
+  if (!room) return false;
+  return SYSTEM_ROOM_NAMES.includes(
+    room.name as (typeof SYSTEM_ROOM_NAMES)[number],
+  );
+}
+
 // Mapping functions
 export function mapRoomResponse(backendRoom: BackendRoom): Room {
   return {
@@ -130,25 +145,6 @@ export function prepareRoomForBackend(
 }
 
 // Request/Response types
-export interface CreateRoomRequest {
-  name: string;
-  building?: string;
-  floor?: number; // Optional
-  capacity?: number; // Optional
-  category?: string; // Optional
-  color?: string; // Optional
-  device_id?: string;
-}
-
-export interface UpdateRoomRequest {
-  name: string;
-  building?: string;
-  floor?: number; // Optional
-  capacity?: number; // Optional
-  category?: string; // Optional
-  color?: string; // Optional
-  device_id?: string;
-}
 
 // Helper functions
 export function formatFloor(floor: number | undefined): string {

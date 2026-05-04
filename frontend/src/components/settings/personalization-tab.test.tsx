@@ -74,7 +74,7 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     await waitFor(() => {
-      expect(screen.getByText("Kein Bild hochgeladen")).toBeDefined();
+      expect(screen.getByText("Bild hierher ziehen")).toBeDefined();
     });
   });
 
@@ -110,7 +110,7 @@ describe("PersonalizationTab", () => {
       expect(screen.getByAltText("Login-Bild")).toBeDefined();
     });
 
-    expect(screen.queryByText("Bild hochladen")).toBeNull();
+    expect(screen.queryByText("Bild auswählen")).toBeNull();
     expect(screen.queryByText("Bild entfernen")).toBeNull();
   });
 
@@ -121,7 +121,7 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     await waitFor(() => {
-      expect(screen.getByText("Bild hochladen")).toBeDefined();
+      expect(screen.getByText("Bild auswählen")).toBeDefined();
     });
   });
 
@@ -148,7 +148,7 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     await waitFor(() => {
-      expect(screen.getByText("Bild hochladen")).toBeDefined();
+      expect(screen.getByText("Bild auswählen")).toBeDefined();
     });
 
     // Mock the upload POST
@@ -179,7 +179,7 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     await waitFor(() => {
-      expect(screen.getByText("Bild hochladen")).toBeDefined();
+      expect(screen.getByText("Bild auswählen")).toBeDefined();
     });
 
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
@@ -269,9 +269,11 @@ describe("PersonalizationTab", () => {
 
     render(<PersonalizationTab />);
     // Before the fetch resolves, the component should render with the tenant's initial value
-    // After fetch resolves with null, it updates to null
+    // After fetch resolves with null, it updates to null — read-only description is shown
     await waitFor(() => {
-      expect(screen.getByText("Kein Bild hochgeladen")).toBeDefined();
+      expect(
+        screen.getByText(/Das aktuelle Bild wird auf der Login-Seite/),
+      ).toBeDefined();
     });
   });
 
@@ -296,6 +298,186 @@ describe("PersonalizationTab", () => {
     render(<PersonalizationTab />);
     await waitFor(() => {
       expect(screen.getByText(/Laden Sie ein eigenes Bild hoch/)).toBeDefined();
+    });
+  });
+
+  it("rejects files larger than 2 MB", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({ data: { login_image_url: null, can_edit: true } }),
+    );
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(screen.getByText("Bild auswählen")).toBeDefined();
+    });
+
+    const largeFile = new File(["x".repeat(3 * 1024 * 1024)], "big.jpg", {
+      type: "image/jpeg",
+    });
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [largeFile] } });
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Datei ist zu groß (max. 2 MB)",
+      );
+    });
+    // Should NOT have called fetch for upload
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects files with invalid type", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({ data: { login_image_url: null, can_edit: true } }),
+    );
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(screen.getByText("Bild auswählen")).toBeDefined();
+    });
+
+    const svgFile = new File(["<svg></svg>"], "image.svg", {
+      type: "image/svg+xml",
+    });
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [svgFile] } });
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Nur JPG, PNG oder WebP erlaubt",
+      );
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("handles drag-and-drop upload", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({ data: { login_image_url: null, can_edit: true } }),
+    );
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(screen.getByText("Bild hierher ziehen")).toBeDefined();
+    });
+
+    const dropzone = document.querySelector("fieldset") as HTMLElement;
+
+    // Simulate drag enter
+    fireEvent.dragEnter(dropzone, {
+      dataTransfer: { files: [] },
+    });
+    expect(screen.getByText("Bild hier ablegen…")).toBeDefined();
+
+    // Simulate drag leave
+    fireEvent.dragLeave(dropzone, {
+      dataTransfer: { files: [] },
+    });
+    expect(screen.getByText("Bild hierher ziehen")).toBeDefined();
+  });
+
+  it("handles drag over without errors", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({ data: { login_image_url: null, can_edit: true } }),
+    );
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(screen.getByText("Bild hierher ziehen")).toBeDefined();
+    });
+
+    const dropzone = document.querySelector("fieldset") as HTMLElement;
+    fireEvent.dragOver(dropzone, {
+      dataTransfer: { files: [] },
+    });
+    // Should not throw
+  });
+
+  it("processes file on drop", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({ data: { login_image_url: null, can_edit: true } }),
+    );
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(screen.getByText("Bild hierher ziehen")).toBeDefined();
+    });
+
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      jsonResponse({
+        data: { login_image_url: "/uploads/login-images/dropped.jpg" },
+      }),
+    );
+
+    const file = new File(["img"], "drop.png", { type: "image/png" });
+    const dropzone = document.querySelector("fieldset") as HTMLElement;
+    fireEvent.drop(dropzone, {
+      dataTransfer: { files: [file] },
+    });
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Login-Bild erfolgreich hochgeladen",
+      );
+    });
+  });
+
+  it("shows replace text when image exists and can_edit", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({
+        data: {
+          login_image_url: "/uploads/login-images/1_abc.jpg",
+          can_edit: true,
+        },
+      }),
+    );
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(screen.getByText("Neues Bild hierher ziehen")).toBeDefined();
+    });
+  });
+
+  it("handles keyboard activation of dropzone", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({ data: { login_image_url: null, can_edit: true } }),
+    );
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(screen.getByText("Bild auswählen")).toBeDefined();
+    });
+
+    const clickButton = screen.getByLabelText(
+      "Bild hochladen — ziehen Sie eine Datei hierher oder klicken Sie zum Auswählen",
+    );
+    // Enter and Space should trigger file input click
+    fireEvent.keyDown(clickButton, { key: "Enter" });
+    fireEvent.keyDown(clickButton, { key: " " });
+    // No error thrown — keyboard handling works
+  });
+
+  it("handles non-ok fetch on mount gracefully", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({ error: "server error" }, false),
+    );
+
+    render(<PersonalizationTab />);
+    // Should not crash, loading should finish
+    await waitFor(() => {
+      expect(document.querySelector(".animate-spin")).toBeNull();
+    });
+  });
+
+  it("handles fetch exception on mount gracefully", async () => {
+    mockSessionFetch.mockRejectedValue(new Error("network down"));
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(document.querySelector(".animate-spin")).toBeNull();
     });
   });
 });

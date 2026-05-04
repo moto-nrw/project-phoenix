@@ -42,7 +42,6 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Users,
 		svc.Active,
 		svc.Activities,
-		svc.Config,
 		svc.Facilities,
 		svc.Education,
 	)
@@ -401,29 +400,6 @@ func TestUpdateSupervisors_EmptySupervisors(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertBadRequest(t, rr)
-}
-
-// =============================================================================
-// GET TIMEOUT CONFIG TESTS
-// Note: Timeout handlers rely on middleware for device auth, so we only test with device context
-// =============================================================================
-
-func TestGetTimeoutConfig_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-10")
-
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/timeout-config", ctx.resource.GetTimeoutConfigHandler())
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/timeout-config", nil,
-		testutil.WithDeviceContext(testDevice),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 // =============================================================================

@@ -2,6 +2,7 @@ package common
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -73,13 +74,23 @@ const (
 	DateFormatISO = "2006-01-02"
 )
 
+// FieldError describes one per-field validation problem. Emitted inside
+// ErrResponse.Errors so the frontend can render a form-level error list
+// without a second round-trip. Both fields are required.
+type FieldError struct {
+	Field  string `json:"field"`
+	Reason string `json:"reason"`
+}
+
 // ErrResponse is the error response structure
 type ErrResponse struct {
 	Err            error `json:"-"`
 	HTTPStatusCode int   `json:"-"`
 
-	Status    string `json:"status"`
-	ErrorText string `json:"error,omitempty"`
+	Status    string       `json:"status"`
+	ErrorText string       `json:"error,omitempty"`
+	Code      string       `json:"code,omitempty"`
+	Errors    []FieldError `json:"errors,omitempty"`
 }
 
 // Render implements the render.Renderer interface for ErrResponse
@@ -95,6 +106,21 @@ func ErrorInvalidRequest(err error) render.Renderer {
 		HTTPStatusCode: http.StatusBadRequest,
 		Status:         "error",
 		ErrorText:      err.Error(),
+	}
+}
+
+// ErrorValidation returns a 400 Bad Request with a summary message and a
+// per-field error list. The summary goes in the standard `error` field so
+// existing frontend handlers that read `.error` continue to display a
+// message; the `errors` array surfaces individual field problems for form
+// rendering.
+func ErrorValidation(summary string, fields []FieldError) render.Renderer {
+	return &ErrResponse{
+		Err:            errors.New(summary),
+		HTTPStatusCode: http.StatusBadRequest,
+		Status:         "error",
+		ErrorText:      summary,
+		Errors:         fields,
 	}
 }
 
@@ -138,6 +164,19 @@ func ErrorInternalServer(err error) render.Renderer {
 	}
 }
 
+// ErrorInternalServerWrap returns a 500 response with a stable client-facing message
+// while preserving the full error chain for Sentry and slog.
+// Use this instead of ErrorInternalServer when the original error contains
+// internal details (DB errors, stack traces) that must not leak to clients.
+func ErrorInternalServerWrap(clientMsg string, cause error) render.Renderer {
+	return &ErrResponse{
+		Err:            fmt.Errorf("%s: %w", clientMsg, cause),
+		HTTPStatusCode: http.StatusInternalServerError,
+		Status:         "error",
+		ErrorText:      clientMsg,
+	}
+}
+
 // ErrorConflict returns a 409 Conflict error response
 func ErrorConflict(err error) render.Renderer {
 	return &ErrResponse{
@@ -145,6 +184,17 @@ func ErrorConflict(err error) render.Renderer {
 		HTTPStatusCode: http.StatusConflict,
 		Status:         "error",
 		ErrorText:      err.Error(),
+	}
+}
+
+// ErrorConflictWithCode returns a 409 Conflict with a stable error code for frontend disambiguation.
+func ErrorConflictWithCode(err error, code string) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusConflict,
+		Status:         "error",
+		ErrorText:      err.Error(),
+		Code:           code,
 	}
 }
 

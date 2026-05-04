@@ -10,19 +10,54 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
-// buildSchema constructs the full settings schema, filtered by permissions.
+// buildSchema constructs the full settings schema for tenant admins.
+// Settings marked AccessOperatorOnly are hidden; the per-setting
+// ReadPermission filter is applied.
 func buildSchema(
 	ctx context.Context,
 	svc *settingsService,
 	userPermissions []string,
+) (*SettingsSchema, error) {
+	return buildSchemaWithScope(ctx, svc, userPermissions, false)
+}
+
+// buildSchemaForOperator constructs the full settings schema for platform operators.
+// Settings marked AccessAdminOnly are hidden; the per-setting ReadPermission filter
+// is skipped (operator access is gated at the route level by RequiresOperatorScope
+// and per-setting by AccessPolicy).
+func buildSchemaForOperator(
+	ctx context.Context,
+	svc *settingsService,
+	userPermissions []string,
+) (*SettingsSchema, error) {
+	return buildSchemaWithScope(ctx, svc, userPermissions, true)
+}
+
+// buildSchemaWithScope is the shared implementation. isOperator selects the
+// admin-vs-operator filters: operators see AccessShared + AccessOperatorOnly,
+// tenants see AccessShared + AccessAdminOnly.
+func buildSchemaWithScope(
+	ctx context.Context,
+	svc *settingsService,
+	userPermissions []string,
+	isOperator bool,
 ) (*SettingsSchema, error) {
 	defs := config.AllDefinitions()
 
 	// Resolve all values and build the resolved map
 	resolvedMap := make(map[string]*ResolvedSetting, len(defs))
 	for key, def := range defs {
-		// Permission filter: if ReadPermission is set, user must have it
-		if def.ReadPermission != "" && !authorize.HasPermission(def.ReadPermission, userPermissions) {
+		// AccessPolicy filter: hide the other audience's dedicated settings.
+		if isOperator && def.AccessPolicy == config.AccessAdminOnly {
+			continue
+		}
+		if !isOperator && def.AccessPolicy == config.AccessOperatorOnly {
+			continue
+		}
+
+		// Permission filter: only applied for tenant callers. Operators bypass
+		// the per-setting ReadPermission — AccessPolicy already gated them.
+		if !isOperator && def.ReadPermission != "" && !authorize.HasPermission(def.ReadPermission, userPermissions) {
 			continue
 		}
 
@@ -45,20 +80,27 @@ func buildSchema(
 			displayValue = "••••••"
 		}
 
+		// Operators can always write (AccessPolicy gate already enforced at
+		// the route level; they bypass WritePermission in SetValue).
+		writable := isOperator ||
+			def.WritePermission == "" ||
+			authorize.HasPermission(def.WritePermission, userPermissions)
+
 		resolved := &ResolvedSetting{
-			Key:         key,
-			Label:       def.Label,
-			Description: def.Description,
-			Type:        def.Type,
-			Default:     def.Default,
-			Value:       displayValue,
-			IsDefault:   isDefault,
-			Writable:    def.WritePermission == "" || authorize.HasPermission(def.WritePermission, userPermissions),
-			Visible:     true,
-			SortOrder:   def.SortOrder,
-			Validation:  def.Validation,
-			DependsOn:   def.DependsOn,
-			Options:     def.Options,
+			Key:          key,
+			Label:        def.Label,
+			Description:  def.Description,
+			Type:         def.Type,
+			Default:      def.Default,
+			Value:        displayValue,
+			IsDefault:    isDefault,
+			Writable:     writable,
+			Visible:      true,
+			SortOrder:    def.SortOrder,
+			AccessPolicy: def.AccessPolicy,
+			Validation:   def.Validation,
+			DependsOn:    def.DependsOn,
+			Options:      def.Options,
 		}
 		resolvedMap[key] = resolved
 	}
@@ -93,7 +135,8 @@ func buildSchema(
 			Label: tabKey,
 		}
 
-		// Collect and sort categories
+		// Collect and sort categories by minimum SortOrder of their items,
+		// with alphabetical as tiebreaker.
 		var categoryKeys []string
 		seen := make(map[string]bool)
 		for ck := range catItems {
@@ -102,7 +145,14 @@ func buildSchema(
 				seen[ck.category] = true
 			}
 		}
-		sort.Strings(categoryKeys)
+		sort.Slice(categoryKeys, func(i, j int) bool {
+			minI := minCategorySortOrder(catItems[catKey{tab: tabKey, category: categoryKeys[i]}])
+			minJ := minCategorySortOrder(catItems[catKey{tab: tabKey, category: categoryKeys[j]}])
+			if minI != minJ {
+				return minI < minJ
+			}
+			return categoryKeys[i] < categoryKeys[j]
+		})
 
 		for _, catName := range categoryKeys {
 			ck := catKey{tab: tabKey, category: catName}
@@ -166,6 +216,20 @@ func jsonValuesEqual(a, b any) bool {
 		return false
 	}
 	return string(aj) == string(bj)
+}
+
+// minCategorySortOrder returns the minimum SortOrder among items in a category.
+func minCategorySortOrder(items []*ResolvedSetting) int {
+	if len(items) == 0 {
+		return 0
+	}
+	min := items[0].SortOrder
+	for _, item := range items[1:] {
+		if item.SortOrder < min {
+			min = item.SortOrder
+		}
+	}
+	return min
 }
 
 // orderTabs returns tab keys ordered by TabOrder, with unknown tabs appended alphabetically.

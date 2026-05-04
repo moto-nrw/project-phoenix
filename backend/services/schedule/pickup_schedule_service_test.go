@@ -330,32 +330,39 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 		assert.Greater(t, exception.ID, int64(0))
 	})
 
-	t.Run("fails when exception already exists for date", func(t *testing.T) {
+	t.Run("upserts when exception already exists for date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use Berlin timezone for consistent date handling
 		exceptionDate := time.Date(2024, 3, 20, 12, 0, 0, 0, timezone.Berlin)
+		firstPickupTime := time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC)
 		exception1 := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
+			PickupTime:    &firstPickupTime,
 			Reason:        strPtr("First exception"),
 			CreatedBy:     1,
 		}
 		err := service.CreateStudentPickupException(ctx, exception1)
 		require.NoError(t, err)
+		originalID := exception1.ID
 
+		secondPickupTime := time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC)
 		exception2 := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
-			Reason:        strPtr("Second exception"),
+			PickupTime:    &secondPickupTime,
+			Reason:        strPtr("Changed pickup"),
 			CreatedBy:     1,
 		}
 
 		err = service.CreateStudentPickupException(ctx, exception2)
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		require.NoError(t, err)
+		assert.Equal(t, originalID, exception2.ID, "should update existing exception, not create new")
+		assert.Equal(t, 13, exception2.PickupTime.Hour(), "should have updated pickup time")
+		assert.Equal(t, "Changed pickup", *exception2.Reason, "should have updated reason")
 	})
 
 	t.Run("fails validation for invalid exception", func(t *testing.T) {

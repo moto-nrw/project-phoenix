@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
@@ -277,7 +278,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupNoRoom(t 
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   789,
+				GroupID:   base.Int64Ptr(789),
 				RoomID:    1,
 				StartTime: startTime,
 				Room:      nil, // No room loaded
@@ -311,7 +312,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupEmptyRoom
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   789,
+				GroupID:   base.Int64Ptr(789),
 				RoomID:    1,
 				StartTime: startTime,
 				Room: &facilities.Room{
@@ -347,7 +348,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_WithRoom(t *te
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   789,
+				GroupID:   base.Int64Ptr(789),
 				RoomID:    1,
 				StartTime: startTime,
 				Room: &facilities.Room{
@@ -361,6 +362,71 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_WithRoom(t *te
 	location := snapshot.ResolveStudentLocation(123, true)
 
 	assert.Equal(t, "Anwesend - Room 101", location)
+}
+
+// TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor confirms the
+// snapshot resolver populates StudentLocationInfo.RoomColor when the active
+// group's room has a color configured. Frontend depends on this to render
+// per-room badge colors instead of every "Anwesend - <Room>" being blue.
+func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) {
+	checkinTime := time.Now().Add(-30 * time.Minute)
+	entryTime := time.Now().Add(-10 * time.Minute)
+	startTime := time.Now().Add(-1 * time.Hour)
+	roomColor := "#A3D977"
+
+	t.Run("populates RoomColor when room has color set", func(t *testing.T) {
+		snapshot := &common.StudentLocationSnapshot{
+			Mode: common.PresenceModeDetailed,
+			Attendances: map[int64]*activeService.AttendanceStatus{
+				123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
+			},
+			Visits: map[int64]*activeModels.Visit{
+				123: {StudentID: 123, ActiveGroupID: 456, EntryTime: entryTime},
+			},
+			Groups: map[int64]*activeModels.Group{
+				456: {
+					GroupID:   base.Int64Ptr(789),
+					RoomID:    1,
+					StartTime: startTime,
+					Room: &facilities.Room{
+						Name:     "Bibliothek",
+						Building: "Main Building",
+						Color:    &roomColor,
+					},
+				},
+			},
+		}
+
+		info := snapshot.ResolveStudentLocationWithTime(123, true)
+		assert.Equal(t, "Anwesend - Bibliothek", info.Location)
+		require.NotNil(t, info.RoomColor)
+		assert.Equal(t, "#A3D977", *info.RoomColor)
+	})
+
+	t.Run("RoomColor is nil when room has no color (fallback to blue)", func(t *testing.T) {
+		snapshot := &common.StudentLocationSnapshot{
+			Mode: common.PresenceModeDetailed,
+			Attendances: map[int64]*activeService.AttendanceStatus{
+				123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
+			},
+			Visits: map[int64]*activeModels.Visit{
+				123: {StudentID: 123, ActiveGroupID: 456, EntryTime: entryTime},
+			},
+			Groups: map[int64]*activeModels.Group{
+				456: {
+					GroupID:   base.Int64Ptr(789),
+					RoomID:    1,
+					StartTime: startTime,
+					Room:      &facilities.Room{Name: "Sportraum"},
+				},
+			},
+		}
+
+		info := snapshot.ResolveStudentLocationWithTime(123, true)
+		assert.Equal(t, "Anwesend - Sportraum", info.Location)
+		assert.Nil(t, info.RoomColor,
+			"a room without color must propagate nil so the frontend falls back to OTHER_ROOM blue")
+	})
 }
 
 // =============================================================================
@@ -438,7 +504,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedIn_WithRo
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   789,
+				GroupID:   base.Int64Ptr(789),
 				RoomID:    1,
 				StartTime: startTime,
 				Room: &facilities.Room{
@@ -497,7 +563,7 @@ func TestStudentLocationSnapshot_MultipleStudents(t *testing.T) {
 		},
 		Groups: map[int64]*activeModels.Group{
 			10: {
-				GroupID: 100, RoomID: 1, StartTime: startTime,
+				GroupID: base.Int64Ptr(100), RoomID: 1, StartTime: startTime,
 				Room: &facilities.Room{Name: "Cafeteria"},
 			},
 		},
@@ -566,4 +632,165 @@ func TestStudentLocationSnapshot_UnknownStatus(t *testing.T) {
 
 	// Unknown status should return "Abwesend"
 	assert.Equal(t, "Abwesend", location)
+}
+
+// =============================================================================
+// Binary mode + tri-state attendance tests
+// =============================================================================
+
+func TestBinaryMode_CheckedIn_ReturnsAnwesend(t *testing.T) {
+	checkinTime := time.Now().Add(-2 * time.Hour)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:   42,
+				Status:      "checked_in",
+				CheckInTime: &checkinTime,
+			},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Anwesend", info.Location)
+	require.NotNil(t, info.Since)
+	assert.Equal(t, checkinTime, *info.Since)
+}
+
+func TestBinaryMode_CheckedIn_NoFullAccess_OmitsTimestamp(t *testing.T) {
+	checkinTime := time.Now().Add(-2 * time.Hour)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:   42,
+				Status:      "checked_in",
+				CheckInTime: &checkinTime,
+			},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, false)
+
+	assert.Equal(t, "Anwesend", info.Location)
+	assert.Nil(t, info.Since, "non-full-access viewers should not receive timestamps")
+}
+
+func TestBinaryMode_OnYard_ReturnsSchulhof(t *testing.T) {
+	checkinTime := time.Now().Add(-3 * time.Hour)
+	yardSince := time.Now().Add(-15 * time.Minute)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:   42,
+				Status:      "on_yard",
+				CheckInTime: &checkinTime,
+				YardSince:   &yardSince,
+			},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Schulhof", info.Location)
+	require.NotNil(t, info.Since)
+	assert.Equal(t, yardSince, *info.Since, "Since should be the yard transition timestamp, not the earlier check-in")
+}
+
+func TestBinaryMode_CheckedOut_ReturnsAbwesend(t *testing.T) {
+	checkoutTime := time.Now().Add(-10 * time.Minute)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:    42,
+				Status:       "checked_out",
+				CheckOutTime: &checkoutTime,
+			},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Abwesend", info.Location)
+	require.NotNil(t, info.Since)
+	assert.Equal(t, checkoutTime, *info.Since)
+}
+
+func TestBinaryMode_NotCheckedIn_ReturnsAbwesend(t *testing.T) {
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {StudentID: 42, Status: "not_checked_in"},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Abwesend", info.Location)
+	assert.Nil(t, info.Since)
+}
+
+func TestBinaryMode_IgnoresVisitsAndGroups(t *testing.T) {
+	// Even if visit and group data somehow leak into a binary snapshot, the
+	// resolver must not consult them — binary semantics are attendance-only.
+	checkinTime := time.Now().Add(-1 * time.Hour)
+	entryTime := time.Now().Add(-30 * time.Minute)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeBinary,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {
+				StudentID:   42,
+				Status:      "checked_in",
+				CheckInTime: &checkinTime,
+			},
+		},
+		Visits: map[int64]*activeModels.Visit{
+			42: {StudentID: 42, ActiveGroupID: 99, EntryTime: entryTime},
+		},
+		Groups: map[int64]*activeModels.Group{
+			99: {RoomID: 1, Room: &facilities.Room{Name: "Art Room"}},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Anwesend", info.Location, "binary mode must not render room names from stray visit data")
+}
+
+func TestDetailedMode_OnYardStatusFallsThroughToAbwesend(t *testing.T) {
+	// In detailed mode yard_since is never written (yard is binary-only), but
+	// if the status somehow derives to "on_yard", the resolver treats it as
+	// not-checked-in — detailed mode has no Schulhof label path.
+	yardSince := time.Now().Add(-15 * time.Minute)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode: common.PresenceModeDetailed,
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {StudentID: 42, Status: "on_yard", YardSince: &yardSince},
+		},
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Abwesend", info.Location, "detailed mode ignores yard state — only checked_in/checked_out drive the label")
+}
+
+func TestDefaultMode_EmptyModeBehavesAsDetailed(t *testing.T) {
+	// Old test fixtures construct a snapshot without setting Mode. The
+	// resolver must keep treating those as detailed-mode for backwards
+	// compatibility.
+	checkinTime := time.Now().Add(-1 * time.Hour)
+	snapshot := &common.StudentLocationSnapshot{
+		Attendances: map[int64]*activeService.AttendanceStatus{
+			42: {StudentID: 42, Status: "checked_in", CheckInTime: &checkinTime},
+		},
+		Visits: make(map[int64]*activeModels.Visit),
+		Groups: make(map[int64]*activeModels.Group),
+	}
+
+	info := snapshot.ResolveStudentLocationWithTime(42, true)
+
+	assert.Equal(t, "Unterwegs", info.Location, "empty Mode must default to detailed-mode rendering")
 }

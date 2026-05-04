@@ -1,6 +1,8 @@
 package config_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
@@ -104,7 +107,7 @@ func TestSettingsSetValue_Success(t *testing.T) {
 		"value": "18:30",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.session_end_time", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_daily_checkout_time", body,
 		testutil.WithClaims(adminClaimsWithConfigPerms()),
 	)
 
@@ -142,7 +145,7 @@ func TestSettingsSetValue_InvalidValue(t *testing.T) {
 		"value": "not-a-boolean",
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.session_end_enabled", body,
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.raumwechsel_enabled", body,
 		testutil.WithClaims(adminClaimsWithConfigPerms()),
 	)
 
@@ -184,7 +187,7 @@ func TestSettingsResetValue_Success(t *testing.T) {
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/values/{key}", ctx.resource.ResetValue())
 
-	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.session_end_time", nil,
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.student_daily_checkout_time", nil,
 		testutil.WithClaims(adminClaimsWithConfigPerms()),
 	)
 
@@ -401,6 +404,122 @@ func TestSettingsDeleteLoginImage_NoExistingImage(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
 }
 
+// =============================================================================
+// OnValueSet Callback Tests
+// =============================================================================
+
+func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	var callbackKey string
+	var callbackValue any
+	var callbackTenantID int64
+	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) error {
+		callbackTenantID = tenantID
+		callbackKey = key
+		callbackValue = value
+		return nil
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	assert.Equal(t, "checkout.schulhof_enabled", callbackKey)
+	assert.Equal(t, true, callbackValue)
+	assert.Greater(t, callbackTenantID, int64(0), "callback should receive a valid tenant_id")
+}
+
+func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
+		return errors.New("hook failed")
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": "17:45",
+	}
+
+	claims := adminClaimsWithConfigPerms()
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_daily_checkout_time", body,
+		testutil.WithClaims(claims),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+
+	count, err := ctx.db.NewSelect().
+		TableExpr("config.setting_values").
+		Where("tenant_id = ?", claims.TenantID).
+		Where("setting_key = ?", "operations.student_daily_checkout_time").
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "failed callback should roll back the setting update")
+}
+
+func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	callbackInvoked := false
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
+		callbackInvoked = true
+		return nil
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": "not-a-boolean",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+
+	assert.False(t, callbackInvoked, "callback should not be invoked on validation error")
+}
+
+func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// No OnValueSet registered — should not panic
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	body := map[string]interface{}{
+		"value": true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
 func TestSettingsDeleteLoginImage_NoTenantContext(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
@@ -417,4 +536,84 @@ func TestSettingsDeleteLoginImage_NoTenantContext(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+}
+
+// =============================================================================
+// AccessPolicy enforcement — admins must not touch AccessOperatorOnly settings
+// =============================================================================
+
+func TestSettingsSetValue_OperatorOnlyForbidden(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	// operations.session_end_time is AccessOperatorOnly — tenant admins must not
+	// write it even if they hold config:update. The UI hides these keys; this
+	// test guards the direct-API path.
+	body := map[string]interface{}{"value": "19:00"}
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.session_end_time", body,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+}
+
+func TestSettingsResetValue_OperatorOnlyForbidden(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Delete("/values/{key}", ctx.resource.ResetValue())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.session_end_time", nil,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+}
+
+func TestSettingsGetSchema_HidesOperatorOnly(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Get("/schema", ctx.resource.GetSchema())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/schema", nil,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, _ := response["data"].(map[string]interface{})
+	tabs, _ := data["tabs"].([]interface{})
+
+	// Walk every item and confirm no AccessOperatorOnly keys appear.
+	operatorOnlyKeys := map[string]bool{
+		"operations.session_end_enabled":                 true,
+		"operations.session_end_time":                    true,
+		"operations.session_end_timeout_minutes":         true,
+		"operations.session_cleanup_enabled":             true,
+		"operations.session_cleanup_interval_minutes":    true,
+		"operations.session_abandoned_threshold_minutes": true,
+	}
+	for _, tabRaw := range tabs {
+		tab := tabRaw.(map[string]interface{})
+		categories, _ := tab["categories"].([]interface{})
+		for _, catRaw := range categories {
+			cat := catRaw.(map[string]interface{})
+			items, _ := cat["items"].([]interface{})
+			for _, itemRaw := range items {
+				item := itemRaw.(map[string]interface{})
+				key := item["key"].(string)
+				assert.False(t, operatorOnlyKeys[key],
+					"admin schema must not include AccessOperatorOnly key %s", key)
+			}
+		}
+	}
 }

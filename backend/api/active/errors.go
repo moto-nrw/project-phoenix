@@ -85,7 +85,17 @@ func ErrorRenderer(err error) render.Renderer {
 		renderer.StatusText = "Student Already In Group"
 
 	case errors.Is(err, activeSvc.ErrStudentAlreadyActive):
-		renderer.HTTPStatusCode = http.StatusBadRequest
+		// 409 Conflict — the request is well-formed but conflicts with
+		// existing state (the student already has an open visit). Issue
+		// #844 added a DB-level partial unique index on active.visits;
+		// the active service now translates the resulting 23505 error
+		// to ErrStudentAlreadyActive for ALL CreateVisit callers, not
+		// just the IoT checkin flow. Without this 409 mapping, the
+		// admin POST /active/visits route would surface concurrent
+		// duplicate-creation as 400 Bad Request, contradicting both
+		// the IoT path's 409 response and the semantic meaning of the
+		// error.
+		renderer.HTTPStatusCode = http.StatusConflict
 		renderer.StatusText = "Student Already Has Active Visit"
 
 	case errors.Is(err, activeSvc.ErrStaffAlreadySupervising):

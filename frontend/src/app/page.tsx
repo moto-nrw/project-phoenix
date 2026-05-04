@@ -95,7 +95,7 @@ export default function RootPage() {
                     value={selectedSlug}
                     disabled={loading}
                     onChange={(e) => setSelectedSlug(e.target.value)}
-                    className="w-full appearance-none rounded-lg border-0 bg-white px-3 py-2.5 pr-10 text-gray-900 ring-1 ring-gray-200 transition-all focus:ring-2 focus:ring-gray-900 focus:outline-none disabled:opacity-50"
+                    className="w-full appearance-none rounded-lg border-0 bg-white px-3 py-2.5 pr-10 text-gray-900 ring-1 ring-gray-200 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:opacity-50"
                   >
                     <option value="">
                       {loading ? "Laden..." : "Bitte auswählen..."}
@@ -129,7 +129,7 @@ export default function RootPage() {
                   type="button"
                   disabled={!selectedSlug}
                   onClick={handleNavigate}
-                  className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Weiter
                 </button>

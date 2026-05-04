@@ -48,12 +48,15 @@ const DEBOUNCE_MS = 500;
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
 
-  // Only enable SSE when authenticated AND user is staff (has "user" role).
-  // Admin-only accounts lack a person/staff record, so the backend SSE
-  // endpoint rejects them with 401 — skip the connection entirely.
+  // Enable SSE for staff (has "user" role) and admins.
+  // Pure admins without a staff record connect with zero supervised groups
+  // but still receive BroadcastToAll events (e.g. dashboard_counts_changed).
   const isStaff = session?.user?.roles?.includes("user") ?? false;
+  const isAdmin = session?.user?.roles?.includes("admin") ?? false;
   const isAuthenticated =
-    sessionStatus === "authenticated" && !!session?.user?.token && isStaff;
+    sessionStatus === "authenticated" &&
+    !!session?.user?.token &&
+    (isStaff || isAdmin);
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
   const pendingGroupIds = useRef(new Set<string>());
@@ -61,8 +64,12 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingActivityEvent = useRef(false);
   const hasPendingDashboardEvent = useRef(false);
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
+  const hasPendingArrivalScheduleEvent = useRef(false);
+  const hasPendingStudentUpdateEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
+  // All matchers must use includes() instead of startsWith() to match regardless of prefix.
   const flushInvalidations = useCallback(() => {
     // Invalidate ALL supervision-visits caches for student/dashboard events.
     // A student checked out of Room A may appear on the Schulhof (catch-all),
@@ -71,8 +78,7 @@ export function useGlobalSSE(): SSEHookState {
     // that flag to keep their detail views in sync.
     if (pendingGroupIds.current.size > 0 || hasPendingDashboardEvent.current) {
       mutate(
-        (key) =>
-          typeof key === "string" && key.startsWith("supervision-visits-"),
+        (key) => typeof key === "string" && key.includes("supervision-visits-"),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -81,16 +87,30 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
-    // Invalidate OGS group student caches (ogs-students-{groupId})
-    // so the "Meine Gruppe" page picks up location changes (e.g. Zuhause).
-    // Triggered by pendingGroupIds (room-level events) OR pendingStudentIds
-    // (daily checkout sends student_checkout without an active_group_id).
+    // Invalidate student list caches so "Meine Gruppe" and students/search
+    // pick up location changes (e.g. Zuhause) without a manual refresh.
+    // Also invalidate tracking indicator caches on active-supervisions
+    // (tracking-supervisions-*) and students/search (tracking-indicators-*).
+    // Triggered by pendingGroupIds (room-level events), pendingStudentIds
+    // (daily checkout sends student_checkout without an active_group_id),
+    // or hasPendingDashboardEvent (dashboard_counts_changed is broadcast
+    // to ALL clients on every check-in/out — ensures search page updates
+    // even when the user doesn't supervise the affected room/group).
     if (
       pendingGroupIds.current.size > 0 ||
-      pendingStudentIds.current.size > 0
+      pendingStudentIds.current.size > 0 ||
+      hasPendingDashboardEvent.current ||
+      hasPendingArrivalScheduleEvent.current ||
+      hasPendingStudentUpdateEvent.current
     ) {
       mutate(
-        (key) => typeof key === "string" && key.startsWith("ogs-students-"),
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("ogs-students-") ||
+            key.includes("database-students-list") ||
+            key.includes("search-students-") ||
+            key.includes("tracking-supervisions-") ||
+            key.includes("tracking-indicators-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -101,10 +121,43 @@ export function useGlobalSSE(): SSEHookState {
 
     // Invalidate specific student detail caches
     for (const studentId of pendingStudentIds.current) {
-      mutate(`student-detail-${studentId}`).catch((err) => {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          key.includes(`student-detail-${studentId}`),
+      ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_detail",
+        });
+      });
+    }
+
+    if (hasPendingStudentUpdateEvent.current) {
+      mutate(
+        (key) => typeof key === "string" && key.includes("student-detail-"),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "student_detail",
+        });
+      });
+    }
+
+    // Arrival schedule changes affect derived "Kommt heute nicht" badges and
+    // arrival rows. These keys are independent from attendance/location caches.
+    if (hasPendingArrivalScheduleEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("arrival-search-") ||
+            key.includes("arrival-supervisions-") ||
+            key.includes("arrival-ogs-groups-") ||
+            key.includes("arrival-data-")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "arrival_schedule",
         });
       });
     }
@@ -118,13 +171,12 @@ export function useGlobalSSE(): SSEHookState {
       pendingStudentIds.current.size > 0 ||
       hasPendingActivityEvent.current ||
       hasPendingDashboardEvent.current ||
-      hasPendingDailyCheckoutDashboardEvent.current
+      hasPendingDailyCheckoutDashboardEvent.current ||
+      hasPendingArrivalScheduleEvent.current ||
+      hasPendingStudentUpdateEvent.current
     ) {
       mutate(
-        (key) =>
-          typeof key === "string" &&
-          (key.startsWith("active-supervision-dashboard") ||
-            key.includes("dashboard")),
+        (key) => typeof key === "string" && key.includes("dashboard"),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -155,6 +207,8 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingActivityEvent.current = false;
     hasPendingDashboardEvent.current = false;
     hasPendingDailyCheckoutDashboardEvent.current = false;
+    hasPendingArrivalScheduleEvent.current = false;
+    hasPendingStudentUpdateEvent.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -185,6 +239,12 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        case "student_updated": {
+          hasPendingStudentUpdateEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
         case "activity_start":
         case "activity_end":
         case "activity_update": {
@@ -200,6 +260,12 @@ export function useGlobalSSE(): SSEHookState {
           // Global event from BroadcastToAll — only refresh dashboard counts,
           // NOT room/supervision/active caches (those are for activity events).
           hasPendingDashboardEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "arrival_schedule_changed": {
+          hasPendingArrivalScheduleEvent.current = true;
           scheduleFlush();
           break;
         }

@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	base "github.com/moto-nrw/project-phoenix/models/base"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -27,6 +28,7 @@ type Resource struct {
 	PersonService      userSvc.PersonService
 	SchulhofService    facilities.SchulhofService
 	UserContextService usercontext.UserContextService
+	SettingsService    configSvc.SettingsService
 	db                 *bun.DB
 	logger             *slog.Logger
 }
@@ -49,12 +51,13 @@ func (rs *Resource) getDB(ctx context.Context) bun.IDB {
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, settingsService configSvc.SettingsService, db *bun.DB, logger *slog.Logger) *Resource {
 	return &Resource{
 		ActiveService:      activeService,
 		PersonService:      personService,
 		SchulhofService:    schulhofService,
 		UserContextService: userContextService,
+		SettingsService:    settingsService,
 		db:                 db,
 		logger:             logger,
 	}
@@ -125,6 +128,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getSupervisor)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/staff/{staffId}", rs.getStaffSupervisions)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/staff/{staffId}/active", rs.getStaffActiveSupervisions)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/all", rs.getAllActiveSupervisions)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get(routeGroupByGroupID, rs.getSupervisorsByGroup)
 
 			// Write operations
@@ -162,9 +166,11 @@ func (rs *Resource) Router() chi.Router {
 
 		// Analytics
 		r.Route("/analytics", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/counts", rs.getCounts)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/dashboard", rs.getDashboardAnalytics)
 		})
+
+		// Tracking indicators (bulk check if students visited configured rooms/activities today)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Post("/tracking-indicators", rs.getTrackingIndicators)
 
 		// Cross-tenant students (Ferienbetreuung / holiday care)
 		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/cross-tenant-students", rs.getCrossTenantStudents)

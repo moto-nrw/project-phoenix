@@ -31,12 +31,13 @@ import (
 // ---------------------------------------------------------------------------
 
 type internalSchoolRepoStub struct {
-	createFn           func(context.Context, *platformModels.School) error
-	findByIDFn         func(context.Context, int64) (*platformModels.School, error)
-	findByOrgAndSlugFn func(context.Context, int64, string) (*platformModels.School, error)
-	findBySubdomainFn  func(context.Context, string) (*platformModels.School, error)
-	softDeleteFn       func(context.Context, int64) error
-	restoreFn          func(context.Context, int64) error
+	createFn                 func(context.Context, *platformModels.School) error
+	findByIDFn               func(context.Context, int64) (*platformModels.School, error)
+	findByOrgAndSlugFn       func(context.Context, int64, string) (*platformModels.School, error)
+	findBySubdomainFn        func(context.Context, string) (*platformModels.School, error)
+	softDeleteFn             func(context.Context, int64) error
+	restoreFn                func(context.Context, int64) error
+	countNonDeletedByOrgIDFn func(context.Context, int64) (int, error)
 }
 
 func (s *internalSchoolRepoStub) Create(ctx context.Context, school *platformModels.School) error {
@@ -102,12 +103,20 @@ func (s *internalSchoolRepoStub) Restore(ctx context.Context, id int64) error {
 	}
 	return nil
 }
+func (s *internalSchoolRepoStub) CountNonDeletedByOrganizationID(ctx context.Context, orgID int64) (int, error) {
+	if s.countNonDeletedByOrgIDFn != nil {
+		return s.countNonDeletedByOrgIDFn(ctx, orgID)
+	}
+	return 0, nil
+}
 
 type internalOrgRepoStub struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)
 	findBySlugFn func(context.Context, string) (*platformModels.Organization, error)
 	createFn     func(context.Context, *platformModels.Organization) error
 	listFn       func(context.Context) ([]*platformModels.Organization, error)
+	softDeleteFn func(context.Context, int64) error
+	restoreFn    func(context.Context, int64) error
 }
 
 func (s *internalOrgRepoStub) Create(ctx context.Context, org *platformModels.Organization) error {
@@ -121,6 +130,12 @@ func (s *internalOrgRepoStub) FindByID(ctx context.Context, id int64) (*platform
 		return s.findByIDFn(ctx, id)
 	}
 	return nil, nil
+}
+func (s *internalOrgRepoStub) FindByIDForShare(ctx context.Context, id int64) (*platformModels.Organization, error) {
+	return s.FindByID(ctx, id)
+}
+func (s *internalOrgRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*platformModels.Organization, error) {
+	return s.FindByID(ctx, id)
 }
 func (s *internalOrgRepoStub) FindBySlug(ctx context.Context, slug string) (*platformModels.Organization, error) {
 	if s.findBySlugFn != nil {
@@ -139,6 +154,18 @@ func (s *internalOrgRepoStub) Update(context.Context, *platformModels.Organizati
 }
 func (s *internalOrgRepoStub) CountByIDs(context.Context, []int64) (int, error) {
 	return 0, nil
+}
+func (s *internalOrgRepoStub) SoftDelete(ctx context.Context, id int64) error {
+	if s.softDeleteFn != nil {
+		return s.softDeleteFn(ctx, id)
+	}
+	return nil
+}
+func (s *internalOrgRepoStub) Restore(ctx context.Context, id int64) error {
+	if s.restoreFn != nil {
+		return s.restoreFn(ctx, id)
+	}
+	return nil
 }
 
 type internalDeviceRepoStub struct {
@@ -2348,10 +2375,110 @@ func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 				}
 			},
 		},
+		organizationRepo: &internalOrgRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{
+					Model:  modelBase.Model{ID: 1},
+					Name:   "Org",
+					Slug:   "org",
+					Active: true,
+				}, nil
+			},
+		},
 	}
 
 	err := svc.RestoreSchool(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
 	var notDeletedErr *SchoolNotDeletedError
+	require.ErrorAs(t, err, &notDeletedErr)
+}
+
+// ---------------------------------------------------------------------------
+// SoftDeleteOrganization / RestoreOrganization
+// ---------------------------------------------------------------------------
+
+func TestSoftDeleteOrganization_FindByIDError(t *testing.T) {
+	svc := &operatorProvisioningService{
+		organizationRepo: &internalOrgRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return nil, assert.AnError
+			},
+		},
+		schoolRepo: &internalSchoolRepoStub{},
+	}
+
+	err := svc.SoftDeleteOrganization(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
+	svc := &operatorProvisioningService{
+		organizationRepo: &internalOrgRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{
+					Model:  modelBase.Model{ID: 42},
+					Name:   "Org",
+					Slug:   "org",
+					Active: true,
+				}, nil
+			},
+			softDeleteFn: func(context.Context, int64) error {
+				return &modelBase.DatabaseError{
+					Op:  "soft delete organization",
+					Err: errors.New("expected 1 rows affected, got 0"),
+				}
+			},
+		},
+		schoolRepo: &internalSchoolRepoStub{
+			countNonDeletedByOrgIDFn: func(context.Context, int64) (int, error) {
+				return 0, nil
+			},
+		},
+	}
+
+	err := svc.SoftDeleteOrganization(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	var alreadyDeletedErr *OrganizationAlreadyDeletedError
+	require.ErrorAs(t, err, &alreadyDeletedErr)
+}
+
+func TestRestoreOrganization_FindByIDError(t *testing.T) {
+	svc := &operatorProvisioningService{
+		organizationRepo: &internalOrgRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return nil, assert.AnError
+			},
+		},
+		schoolRepo: &internalSchoolRepoStub{},
+	}
+
+	err := svc.RestoreOrganization(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestRestoreOrganization_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
+	deletedAt := time.Now()
+	svc := &operatorProvisioningService{
+		organizationRepo: &internalOrgRepoStub{
+			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
+				return &platformModels.Organization{
+					Model:     modelBase.Model{ID: 42},
+					Name:      "Org",
+					Slug:      "org",
+					Active:    true,
+					DeletedAt: &deletedAt,
+				}, nil
+			},
+			restoreFn: func(context.Context, int64) error {
+				return &modelBase.DatabaseError{
+					Op:  "restore organization",
+					Err: errors.New("expected 1 rows affected, got 0"),
+				}
+			},
+		},
+		schoolRepo: &internalSchoolRepoStub{},
+	}
+
+	err := svc.RestoreOrganization(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
+	var notDeletedErr *OrganizationNotDeletedError
 	require.ErrorAs(t, err, &notDeletedErr)
 }
 

@@ -44,6 +44,20 @@ describe("mapAttendanceHistoryResponse", () => {
         room_detail_available: false,
         visits: null,
       },
+      {
+        date: "2026-04-07",
+        attendance: null,
+        status_entries: [
+          {
+            status: "sick",
+            label: "Krank",
+            reported_at: "2026-04-07T07:30:00Z",
+            cleared_at: "2026-04-07T16:00:00Z",
+          },
+        ],
+        room_detail_available: true,
+        visits: [],
+      },
     ],
     range: {
       start: "2026-03-07T00:00:00Z",
@@ -65,7 +79,7 @@ describe("mapAttendanceHistoryResponse", () => {
 
   it("maps days with attendance and visits", () => {
     const result = mapAttendanceHistoryResponse(raw);
-    expect(result.days).toHaveLength(2);
+    expect(result.days).toHaveLength(3);
 
     const day1 = result.days[0]!;
     expect(day1.date).toBe("2026-04-06");
@@ -92,6 +106,17 @@ describe("mapAttendanceHistoryResponse", () => {
     expect(day2.visits).toEqual([]);
     expect(day2.attendance!.checkOutTime).toBeNull();
     expect(day2.attendance!.durationMinutes).toBeNull();
+  });
+
+  it("maps status-only days", () => {
+    const result = mapAttendanceHistoryResponse(raw);
+    const day = result.days[2]!;
+    expect(day.attendance).toBeNull();
+    expect(day.statusEntries).toHaveLength(1);
+    expect(day.statusEntries[0]!.status).toBe("sick");
+    expect(day.statusEntries[0]!.label).toBe("Krank");
+    expect(day.statusEntries[0]!.reportedAt).toBeInstanceOf(Date);
+    expect(day.statusEntries[0]!.clearedAt).toBeInstanceOf(Date);
   });
 });
 

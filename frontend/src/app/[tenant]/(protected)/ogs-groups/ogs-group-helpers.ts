@@ -1,5 +1,6 @@
 import type { Student } from "~/lib/api";
 import {
+  isPresentLocation,
   isHomeLocation,
   isSchoolyardLocation,
   isTransitLocation,
@@ -13,32 +14,38 @@ export interface OGSGroup {
   room_name?: string;
   room_id?: string;
   student_count?: number;
+  present_count?: number;
   supervisor_name?: string;
   students?: Student[];
   viaSubstitution?: boolean;
 }
 
-// Pickup urgency constants and helper
-const PICKUP_URGENCY_SOON_MINUTES = 30;
+type StudentLocationLike = {
+  readonly current_location?: string | null;
+};
 
-export type PickupUrgency = "overdue" | "soon" | "normal" | "none";
+export function isStudentCheckedIn(student: StudentLocationLike): boolean {
+  return (
+    isPresentLocation(student.current_location) ||
+    isSchoolyardLocation(student.current_location) ||
+    isTransitLocation(student.current_location)
+  );
+}
 
-export function getPickupUrgency(
-  pickupTimeStr: string | undefined,
-  now: Date,
-): PickupUrgency {
-  if (!pickupTimeStr) return "none";
+export function countCheckedInStudents(
+  students: readonly StudentLocationLike[],
+): number {
+  return students.filter(isStudentCheckedIn).length;
+}
 
-  const [hours, minutes] = pickupTimeStr.split(":").map(Number);
-  const pickupDate = new Date(now);
-  pickupDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+export function formatGroupAttendanceCount(group?: OGSGroup | null): string {
+  if (!group || group.student_count === undefined) return "";
+  return `${group.present_count ?? 0}/${group.student_count}`;
+}
 
-  const diffMs = pickupDate.getTime() - now.getTime();
-  const diffMinutes = diffMs / 60000;
-
-  if (diffMinutes < 0) return "overdue";
-  if (diffMinutes <= PICKUP_URGENCY_SOON_MINUTES) return "soon";
-  return "normal";
+export function formatGroupLabelWithAttendance(group: OGSGroup): string {
+  const attendanceCount = formatGroupAttendanceCount(group);
+  return attendanceCount ? `${group.name} ${attendanceCount}` : group.name;
 }
 
 export function isStudentInGroupRoom(

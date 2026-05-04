@@ -32,22 +32,19 @@ export function Button({
 
   // Base styles ohne text-sm
   const baseStyles =
-    "inline-flex items-center justify-center rounded-lg px-5 py-3 font-medium shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 transition-all duration-200";
+    "inline-flex items-center justify-center rounded-lg px-5 py-3 font-medium shadow-md focus:outline-none disabled:opacity-50 transition-all duration-200";
 
   // Variant-specific styles (using current app standards: bg-gray-900 for primary)
   const variantStyles = {
-    primary:
-      "bg-gray-900 text-white hover:bg-gray-700 hover:shadow-lg focus:ring-gray-900",
-    secondary:
-      "bg-gray-200 text-gray-800 hover:bg-gray-300 hover:shadow-md focus:ring-gray-500",
+    primary: "bg-gray-900 text-white hover:bg-gray-700 hover:shadow-lg",
+    secondary: "bg-gray-200 text-gray-800 hover:bg-gray-300 hover:shadow-md",
     outline:
-      "bg-transparent text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50 hover:ring-gray-400 focus:ring-gray-500",
+      "bg-transparent text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50 hover:ring-gray-400",
     outline_danger:
-      "bg-red-50 text-red-600 ring-1 ring-red-300 hover:bg-red-100 hover:ring-red-400 focus:ring-red-500",
-    danger:
-      "bg-red-600 text-white hover:bg-red-700 hover:shadow-lg focus:ring-red-500",
+      "bg-red-50 text-red-600 ring-1 ring-red-300 hover:bg-red-100 hover:ring-red-400",
+    danger: "bg-red-600 text-white hover:bg-red-700 hover:shadow-lg",
     success:
-      "bg-green-600 text-white hover:bg-green-700 hover:shadow-lg active:scale-95 focus:ring-green-500",
+      "bg-green-600 text-white hover:bg-green-700 hover:shadow-lg active:scale-95",
   };
 
   return (

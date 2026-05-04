@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/react";
+import { ToastProvider } from "~/contexts/ToastContext";
 import { SettingsField } from "./settings-field";
 import type { ResolvedSetting } from "~/lib/settings-api";
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
 
 function makeSetting(
   overrides: Partial<ResolvedSetting> = {},
@@ -17,6 +22,7 @@ function makeSetting(
     writable: true,
     visible: true,
     sort_order: 1,
+    access_policy: "shared",
     validation: null,
     depends_on: null,
     options: null,
@@ -30,7 +36,7 @@ describe("SettingsField", () => {
   });
 
   it("renders label and description", () => {
-    const { getByText } = render(
+    const { getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting()}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -42,7 +48,7 @@ describe("SettingsField", () => {
   });
 
   it("shows Standard badge when is_default", () => {
-    const { getByText } = render(
+    const { getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ is_default: true })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -53,7 +59,7 @@ describe("SettingsField", () => {
   });
 
   it("shows Nur Lesen badge when not writable", () => {
-    const { getByText } = render(
+    const { getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ writable: false })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -64,18 +70,19 @@ describe("SettingsField", () => {
   });
 
   it("renders nothing when not visible", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ visible: false })}
         onSave={vi.fn().mockResolvedValue(null)}
         onReset={vi.fn().mockResolvedValue(null)}
       />,
     );
-    expect(container.innerHTML).toBe("");
+    expect(container.querySelector("label")).toBeNull();
+    expect(container.querySelector("input")).toBeNull();
   });
 
   it("shows reset button when not default", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ is_default: false })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -87,7 +94,7 @@ describe("SettingsField", () => {
   });
 
   it("hides reset button when is_default", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ is_default: true })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -101,7 +108,7 @@ describe("SettingsField", () => {
   });
 
   it("renders boolean field as toggle", () => {
-    const { getByRole } = render(
+    const { getByRole } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "boolean", value: true })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -112,7 +119,7 @@ describe("SettingsField", () => {
   });
 
   it("renders number field", () => {
-    const { getByRole } = render(
+    const { getByRole } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "number", value: 42 })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -123,7 +130,7 @@ describe("SettingsField", () => {
   });
 
   it("renders time field", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "time", value: "18:00" })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -131,13 +138,14 @@ describe("SettingsField", () => {
       />,
     );
     const input = container.querySelector(
-      "input[type='time']",
+      "input[placeholder='HH:MM']",
     ) as HTMLInputElement;
+    expect(input).not.toBeNull();
     expect(input.value).toBe("18:00");
   });
 
   it("renders password field with masked display", () => {
-    const { getByText } = render(
+    const { getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "password", value: "secret" })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -148,7 +156,7 @@ describe("SettingsField", () => {
   });
 
   it("renders select field", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({
           type: "select",
@@ -169,7 +177,7 @@ describe("SettingsField", () => {
 
   it("saves boolean immediately on toggle", async () => {
     const onSave = vi.fn().mockResolvedValue(null);
-    const { getByRole } = render(
+    const { getByRole } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "boolean", value: false })}
         onSave={onSave}
@@ -185,7 +193,7 @@ describe("SettingsField", () => {
 
   it("saves text on blur (not on keystroke)", async () => {
     const onSave = vi.fn().mockResolvedValue(null);
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "text", value: "old" })}
         onSave={onSave}
@@ -210,7 +218,7 @@ describe("SettingsField", () => {
 
   it("does not save on keystroke (only on blur or debounce)", () => {
     const onSave = vi.fn().mockResolvedValue(null);
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "number", value: 10 })}
         onSave={onSave}
@@ -229,7 +237,7 @@ describe("SettingsField", () => {
 
   it("calls onReset when reset button clicked", async () => {
     const onReset = vi.fn().mockResolvedValue(null);
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ is_default: false })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -250,7 +258,7 @@ describe("SettingsField", () => {
 
   it("shows validation error for invalid number", async () => {
     const onSave = vi.fn().mockResolvedValue(null);
-    const { container, getByText } = render(
+    const { container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({
           type: "number",
@@ -269,14 +277,16 @@ describe("SettingsField", () => {
     fireEvent.blur(input);
 
     await waitFor(() => {
-      expect(getByText("Minimum: 10")).toBeDefined();
+      const errorText = container.querySelector(".text-red-600");
+      expect(errorText).not.toBeNull();
+      expect(errorText!.textContent).toBe("Minimum: 10");
     });
     expect(onSave).not.toHaveBeenCalled();
   });
 
   it("shows error message from failed save", async () => {
     const onSave = vi.fn().mockResolvedValue("Ungültiger Wert.");
-    const { getByRole, findByText } = render(
+    const { getByRole, container } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ type: "boolean", value: false })}
         onSave={onSave}
@@ -285,6 +295,28 @@ describe("SettingsField", () => {
     );
 
     fireEvent.click(getByRole("switch"));
-    expect(await findByText("Ungültiger Wert.")).toBeDefined();
+    await waitFor(() => {
+      const errorText = container.querySelector(".text-red-600");
+      expect(errorText).not.toBeNull();
+      expect(errorText!.textContent).toBe("Ungültiger Wert.");
+    });
+  });
+
+  it("renders a text field as fallback for unknown type", () => {
+    const { container } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          type: "unknown-type" as ResolvedSetting["type"],
+          value: "fallback",
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const input = container.querySelector(
+      "input[type='text']",
+    ) as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.value).toBe("fallback");
   });
 });

@@ -18,8 +18,8 @@ func TestErrorVariables(t *testing.T) {
 		{"ErrInvalidCredentials", ErrInvalidCredentials, "invalid username or password"},
 		{"ErrAccountNotFound", ErrAccountNotFound, "account not found"},
 		{"ErrAccountInactive", ErrAccountInactive, "account is inactive"},
-		{"ErrEmailAlreadyExists", ErrEmailAlreadyExists, "email already exists"},
-		{"ErrUsernameAlreadyExists", ErrUsernameAlreadyExists, "username already exists"},
+		{"ErrEmailAlreadyExists", ErrEmailAlreadyExists, "Diese E-Mail-Adresse ist bereits registriert"},
+		{"ErrUsernameAlreadyExists", ErrUsernameAlreadyExists, "Dieser Benutzername ist bereits vergeben"},
 		{"ErrInvalidToken", ErrInvalidToken, "invalid token format"},
 		{"ErrTokenExpired", ErrTokenExpired, "token has expired"},
 		{"ErrTokenNotFound", ErrTokenNotFound, "token not found"},
@@ -33,6 +33,7 @@ func TestErrorVariables(t *testing.T) {
 		{"ErrInvitationExpired", ErrInvitationExpired, "invitation has expired"},
 		{"ErrInvitationUsed", ErrInvitationUsed, "invitation has already been used"},
 		{"ErrInvitationNameRequired", ErrInvitationNameRequired, "first name and last name are required"},
+		{"ErrAccountAlreadyHasTenantAccess", ErrAccountAlreadyHasTenantAccess, "account already has access to tenant"},
 	}
 
 	for _, tt := range tests {
@@ -63,6 +64,7 @@ func TestErrorVariablesAreDistinct(t *testing.T) {
 		ErrInvitationExpired,
 		ErrInvitationUsed,
 		ErrInvitationNameRequired,
+		ErrAccountAlreadyHasTenantAccess,
 	}
 
 	// Each error should be distinguishable with errors.Is

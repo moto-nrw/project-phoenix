@@ -1,10 +1,170 @@
 // Backend response types (snake_case, int64 ids)
 
+export interface BackendProvisioningStats {
+  traeger_count: number;
+  schulen_count: number;
+  konten_count: number;
+  geraete_count: number;
+}
+
+export interface ProvisioningStats {
+  traegerCount: number;
+  schulenCount: number;
+  kontenCount: number;
+  geraeteCount: number;
+}
+
+export function mapProvisioningStats(
+  data: BackendProvisioningStats,
+): ProvisioningStats {
+  return {
+    traegerCount: data.traeger_count,
+    schulenCount: data.schulen_count,
+    kontenCount: data.konten_count,
+    geraeteCount: data.geraete_count,
+  };
+}
+
+export interface BackendOrganizationSummary extends BackendOrganization {
+  schulen_count: number;
+  konten_count: number;
+  geraete_count: number;
+  personen_count: number;
+}
+
+export interface OrganizationSummary extends Organization {
+  schulenCount: number;
+  kontenCount: number;
+  geraeteCount: number;
+  personenCount: number;
+}
+
+export function mapOrganizationSummary(
+  data: BackendOrganizationSummary,
+): OrganizationSummary {
+  return {
+    ...mapOrganization(data),
+    schulenCount: data.schulen_count,
+    kontenCount: data.konten_count,
+    geraeteCount: data.geraete_count,
+    personenCount: data.personen_count,
+  };
+}
+
+export interface BackendSchoolSummary {
+  id: number;
+  organization_id: number;
+  organization_name: string;
+  name: string;
+  slug: string;
+  subdomain: string;
+  active: boolean;
+  hidden: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+  address: string;
+  city: string;
+  zip: string;
+  phone: string;
+  email: string;
+  settings: string | null;
+  konten_count: number;
+  geraete_count: number;
+  personen_count: number;
+}
+
+export interface SchoolSummary {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  name: string;
+  slug: string;
+  subdomain: string;
+  active: boolean;
+  hidden: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  address: string;
+  city: string;
+  zip: string;
+  phone: string;
+  email: string;
+  kontenCount: number;
+  geraeteCount: number;
+  personenCount: number;
+}
+
+export function mapSchoolSummary(data: BackendSchoolSummary): SchoolSummary {
+  return {
+    id: data.id.toString(),
+    organizationId: data.organization_id.toString(),
+    organizationName: data.organization_name,
+    name: data.name,
+    slug: data.slug,
+    subdomain: data.subdomain,
+    active: data.active,
+    hidden: data.hidden,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    deletedAt: data.deleted_at ?? null,
+    address: data.address,
+    city: data.city,
+    zip: data.zip,
+    phone: data.phone,
+    email: data.email,
+    kontenCount: data.konten_count,
+    geraeteCount: data.geraete_count,
+    personenCount: data.personen_count,
+  };
+}
+
+// Adapters: drop the summary-only count fields so existing modal/form
+// components that accept the base Organization/School types can be reused on
+// drill-in pages without leaking aggregate counts into their props.
+export function summaryToOrganization(
+  summary: OrganizationSummary,
+): Organization {
+  return {
+    id: summary.id,
+    name: summary.name,
+    slug: summary.slug,
+    active: summary.active,
+    deletedAt: summary.deletedAt,
+    createdAt: summary.createdAt,
+    updatedAt: summary.updatedAt,
+  };
+}
+
+export function summaryToSchool(summary: SchoolSummary): School {
+  return {
+    id: summary.id,
+    organizationId: summary.organizationId,
+    name: summary.name,
+    slug: summary.slug,
+    subdomain: summary.subdomain,
+    address: summary.address,
+    city: summary.city,
+    zip: summary.zip,
+    phone: summary.phone,
+    email: summary.email,
+    active: summary.active,
+    hidden: summary.hidden,
+    deletedAt: summary.deletedAt,
+    createdAt: summary.createdAt,
+    updatedAt: summary.updatedAt,
+  };
+}
+
 export interface BackendOrganization {
   id: number;
   name: string;
   slug: string;
   active: boolean;
+  // Backend uses json:",omitempty" on a *time.Time, so the field is absent
+  // (undefined) when the row is not soft-deleted, not null.
+  deleted_at?: string | null;
   settings: string | null;
   created_at: string;
   updated_at: string;
@@ -23,7 +183,9 @@ export interface BackendSchool {
   email: string;
   active: boolean;
   hidden: boolean;
-  deleted_at: string | null;
+  // Backend uses json:",omitempty" on a *time.Time, so the field is absent
+  // (undefined) when the row is not soft-deleted, not null.
+  deleted_at?: string | null;
   settings: string | null;
   created_at: string;
   updated_at: string;
@@ -54,6 +216,7 @@ export interface Organization {
   name: string;
   slug: string;
   active: boolean;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -209,6 +372,7 @@ export function mapOrganization(data: BackendOrganization): Organization {
     name: data.name,
     slug: data.slug,
     active: data.active,
+    deletedAt: data.deleted_at ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   };
@@ -283,10 +447,6 @@ export interface CreateDeviceRequest {
   device_id: string;
   device_type: string;
   name?: string;
-  api_key?: string;
-}
-
-export interface SetDeviceAPIKeyRequest {
   api_key?: string;
 }
 

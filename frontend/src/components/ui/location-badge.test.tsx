@@ -329,6 +329,180 @@ describe("LocationBadge", () => {
   });
 
   // ===========================================================================
+  // EXCUSED STATUS TESTS — mirrors the Krank pattern with purple badge
+  // ===========================================================================
+
+  describe("excused status display", () => {
+    describe("when student is excused AND at home", () => {
+      it("shows Entschuldigt badge instead of Zuhause", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          excused: true,
+          excused_since: "2024-01-15T08:00:00Z",
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText(LOCATION_STATUSES.EXCUSED)).toBeInTheDocument();
+        expect(screen.queryByText("Zuhause")).not.toBeInTheDocument();
+      });
+
+      it("applies purple color (EXCUSED) to the badge", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        const badge = screen.getByText(LOCATION_STATUSES.EXCUSED);
+        expect(badge.closest("span")).toHaveStyle({
+          backgroundColor: LOCATION_COLORS.EXCUSED,
+        });
+      });
+
+      it("shows excused_since timestamp when showLocationSince is enabled", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          excused: true,
+          excused_since: "2024-01-15T09:45:00Z",
+        });
+        render(
+          <LocationBadge
+            student={student}
+            displayMode="roomName"
+            showLocationSince={true}
+          />,
+        );
+        expect(screen.getByText(/seit.*Uhr/)).toBeInTheDocument();
+      });
+
+      it("falls back to location_since when excused_since is missing", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          location_since: "2024-01-15T10:30:00Z",
+          excused: true,
+          excused_since: undefined,
+        });
+        render(
+          <LocationBadge
+            student={student}
+            displayMode="roomName"
+            showLocationSince={true}
+          />,
+        );
+        expect(screen.getByText(/seit.*Uhr/)).toBeInTheDocument();
+      });
+    });
+
+    describe("when student is excused AND present at school", () => {
+      it("shows location badge with additional Entschuldigt indicator", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText("Raum 101")).toBeInTheDocument();
+        expect(screen.getByText(LOCATION_STATUSES.EXCUSED)).toBeInTheDocument();
+      });
+
+      it("renders excused indicator with data attribute and purple color", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        const ind = screen.getByText(LOCATION_STATUSES.EXCUSED);
+        expect(ind.closest("[data-excused-indicator]")).toHaveAttribute(
+          "data-excused-indicator",
+          "true",
+        );
+        expect(ind.closest("span")).toHaveStyle({
+          backgroundColor: LOCATION_COLORS.EXCUSED,
+        });
+      });
+    });
+
+    describe("sick takes precedence over excused when both flags are set", () => {
+      it("shows only Krank badge, not Entschuldigt, when both are true at home", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          sick: true,
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText(LOCATION_STATUSES.SICK)).toBeInTheDocument();
+        expect(
+          screen.queryByText(LOCATION_STATUSES.EXCUSED),
+        ).not.toBeInTheDocument();
+      });
+
+      it("shows only Krank indicator, not Entschuldigt, when both are true and present", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          sick: true,
+          excused: true,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText(LOCATION_STATUSES.SICK)).toBeInTheDocument();
+        expect(
+          screen.queryByText(LOCATION_STATUSES.EXCUSED),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    describe("when student is NOT excused", () => {
+      it("does not show excused indicator", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          excused: false,
+        });
+        render(<LocationBadge student={student} displayMode="roomName" />);
+
+        expect(screen.getByText("Raum 101")).toBeInTheDocument();
+        expect(
+          screen.queryByText(LOCATION_STATUSES.EXCUSED),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    describe("excused badge with simple variant", () => {
+      it("shows Entschuldigt badge in simple variant when excused at home", () => {
+        const student = createStudent({
+          current_location: "Zuhause",
+          excused: true,
+        });
+        render(
+          <LocationBadge
+            student={student}
+            displayMode="roomName"
+            variant="simple"
+          />,
+        );
+        expect(screen.getByText(LOCATION_STATUSES.EXCUSED)).toBeInTheDocument();
+      });
+
+      it("shows additional excused indicator in simple variant when present", () => {
+        const student = createStudent({
+          current_location: "Anwesend - Raum 101",
+          excused: true,
+        });
+        render(
+          <LocationBadge
+            student={student}
+            displayMode="roomName"
+            variant="simple"
+          />,
+        );
+        expect(screen.getByText("Raum 101")).toBeInTheDocument();
+        expect(screen.getByText(LOCATION_STATUSES.EXCUSED)).toBeInTheDocument();
+      });
+    });
+  });
+
+  // ===========================================================================
   // CONTEXT-AWARE MODE WITH SICK STATUS
   // ===========================================================================
 
@@ -419,6 +593,75 @@ describe("LocationBadge", () => {
       );
 
       expect(screen.getByText(LOCATION_STATUSES.SICK)).toBeInTheDocument();
+    });
+  });
+
+  // ===========================================================================
+  // Per-room color (Issue #1324) — make sure the badge actually paints the
+  // configured hex when student.current_room_color is set, and falls back to
+  // OTHER_ROOM blue otherwise. Drives the differentiation users will see.
+  // ===========================================================================
+  describe("per-room color (current_room_color)", () => {
+    it("paints the per-room color when set in roomName mode", () => {
+      const student = createStudent({
+        current_location: "Anwesend - Bibliothek",
+        current_room_color: "#A3D977",
+      });
+      render(<LocationBadge student={student} displayMode="roomName" />);
+      const badgeContainer = screen.getByText("Bibliothek").closest("span");
+      // Tailwind keeps style serialized as the literal value we pass in;
+      // jsdom compares colors as written, so the assertion is exact.
+      expect(badgeContainer).toHaveStyle({ backgroundColor: "#A3D977" });
+    });
+
+    it("falls back to OTHER_ROOM blue when no per-room color is set", () => {
+      const student = createStudent({
+        current_location: "Anwesend - Bibliothek",
+        current_room_color: null,
+      });
+      render(<LocationBadge student={student} displayMode="roomName" />);
+      const badgeContainer = screen.getByText("Bibliothek").closest("span");
+      expect(badgeContainer).toHaveStyle({
+        backgroundColor: LOCATION_COLORS.OTHER_ROOM,
+      });
+    });
+
+    it("keeps GROUP_ROOM green when room is the viewer's own group room (hard constraint)", () => {
+      // Per-room color must NOT override the eigener-Gruppenraum green —
+      // see Issue #1324 discussion: all non-blue colors keep their meaning.
+      const student = createStudent({
+        current_location: "Anwesend - Raum A",
+        current_room_color: "#A3D977",
+      });
+      render(
+        <LocationBadge
+          student={student}
+          displayMode="roomName"
+          groupRooms={["Raum A"]}
+        />,
+      );
+      const badgeContainer = screen.getByText("Raum A").closest("span");
+      expect(badgeContainer).toHaveStyle({
+        backgroundColor: LOCATION_COLORS.GROUP_ROOM,
+      });
+    });
+
+    it("renders correctly when current_room_color key is absent (forward compat)", () => {
+      // Old backend builds (rolled back during a deploy or older PyrePortal
+      // proxy in the request path) won't include current_room_color in their
+      // payload at all — TypeScript represents that as `undefined`. The
+      // badge must fall back to OTHER_ROOM blue without crashing or
+      // rendering an empty backgroundColor.
+      const student: StudentLocationContext = {
+        current_location: "Anwesend - Bibliothek",
+        location_since: "2024-01-15T10:00:00Z",
+        // current_room_color intentionally omitted
+      };
+      render(<LocationBadge student={student} displayMode="roomName" />);
+      const badgeContainer = screen.getByText("Bibliothek").closest("span");
+      expect(badgeContainer).toHaveStyle({
+        backgroundColor: LOCATION_COLORS.OTHER_ROOM,
+      });
     });
   });
 });

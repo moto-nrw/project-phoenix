@@ -1,21 +1,61 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import RolesPage from "./page";
 
-const mockPush = vi.fn();
-const mockUseSession = vi.fn();
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
-  redirect: vi.fn(),
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(() => ({
+    data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+    status: "authenticated",
+  })),
 }));
 
-vi.mock("next-auth/react", () => ({
-  useSession: (opts?: { required?: boolean; onUnauthenticated?: () => void }) =>
-    mockUseSession(opts),
+let currentSearch = new URLSearchParams();
+const mockReplace = vi.fn((url: string) => {
+  const query = url.includes("?") ? (url.split("?")[1] ?? "") : "";
+  currentSearch = new URLSearchParams(query);
+});
+const setSelectedRole = (id: string | null) => {
+  currentSearch = new URLSearchParams();
+  if (id) {
+    currentSearch.set("role", id);
+  }
+};
+
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+  useRouter: vi.fn(() => ({ push: vi.fn(), replace: mockReplace })),
+  usePathname: vi.fn(() => "/tenant/database/roles"),
+  useSearchParams: () => currentSearch,
+}));
+
+const mockGetList = vi.fn();
+const mockGetOne = vi.fn();
+const mockCreate = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
+vi.mock("@/lib/database/service-factory", () => ({
+  createCrudService: vi.fn(() => ({
+    getList: mockGetList,
+    getOne: mockGetOne,
+    create: mockCreate,
+    update: mockUpdate,
+    delete: mockDelete,
+  })),
+}));
+
+vi.mock("~/hooks/useIsMobile", () => ({
+  useIsMobile: vi.fn(() => false),
+}));
+
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: vi.fn(() => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+  })),
 }));
 
 vi.mock("~/components/database/database-page-layout", () => ({
@@ -23,9 +63,8 @@ vi.mock("~/components/database/database-page-layout", () => ({
     children,
     loading,
   }: {
-    children: React.ReactNode;
-    loading?: boolean;
-    sessionLoading?: boolean;
+    children: ReactNode;
+    loading: boolean;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
       {children}
@@ -36,80 +75,25 @@ vi.mock("~/components/database/database-page-layout", () => ({
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({
     search,
+    onClearAllFilters,
     actionButton,
   }: {
-    search: { value: string; onChange: (v: string) => void };
-    actionButton?: React.ReactNode;
+    search: { value: string; onChange: (value: string) => void };
+    onClearAllFilters: () => void;
+    actionButton?: ReactNode;
   }) => (
     <div data-testid="page-header">
       <input
         data-testid="search-input"
         value={search.value}
-        onChange={(e) => search.onChange(e.target.value)}
+        onChange={(event) => search.onChange(event.target.value)}
       />
+      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+        Clear
+      </button>
       {actionButton}
     </div>
   ),
-}));
-
-const mockUseIsMobile = vi.fn(() => false);
-vi.mock("~/hooks/useIsMobile", () => ({
-  useIsMobile: () => mockUseIsMobile(),
-}));
-
-const mockHandleDeleteClick = vi.fn();
-const mockHandleDeleteCancel = vi.fn();
-const mockConfirmDelete = vi.fn();
-const mockShowConfirmModal = vi.fn(() => false);
-
-vi.mock("~/hooks/useDeleteConfirmation", () => ({
-  useDeleteConfirmation: () => ({
-    showConfirmModal: mockShowConfirmModal(),
-    handleDeleteClick: mockHandleDeleteClick,
-    handleDeleteCancel: mockHandleDeleteCancel,
-    confirmDelete: mockConfirmDelete,
-  }),
-}));
-
-const mockToastSuccess = vi.fn();
-const mockToastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({
-    success: mockToastSuccess,
-    error: mockToastError,
-    info: vi.fn(),
-    warning: vi.fn(),
-  }),
-}));
-
-const mockGetList = vi.fn();
-const mockGetOne = vi.fn();
-const mockCreate = vi.fn();
-const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
-
-vi.mock("@/lib/database/service-factory", () => ({
-  createCrudService: () => ({
-    getList: mockGetList,
-    getOne: mockGetOne,
-    create: mockCreate,
-    update: mockUpdate,
-    delete: mockDelete,
-  }),
-}));
-
-vi.mock("@/lib/database/configs/roles.config", () => ({
-  rolesConfig: {
-    name: { singular: "Rolle", plural: "Rollen" },
-    form: {
-      transformBeforeSubmit: (data: unknown) => data,
-    },
-  },
-}));
-
-vi.mock("@/lib/auth-helpers", () => ({
-  getRoleDisplayName: (name: string) => name,
-  getRoleDisplayDescription: (name: string, desc: string) => desc,
 }));
 
 vi.mock("@/components/roles", () => ({
@@ -120,51 +104,32 @@ vi.mock("@/components/roles", () => ({
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (data: { name: string }) => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="create-modal">
+    onCreate: (data: { name: string }) => Promise<void>;
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
+      <div data-testid="role-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
-          data-testid="create-submit"
-          onClick={() => onCreate({ name: "New Role" })}
+          data-testid="submit-create"
+          onClick={() => submit({ name: "Neue Rolle" })}
         >
-          Create
+          Submit
         </button>
-        <button data-testid="create-close" onClick={onClose}>
+        <button data-testid="close-create-modal" onClick={onClose}>
           Close
         </button>
       </div>
-    ) : null,
-  RoleDetailModal: ({
-    isOpen,
-    onClose,
-    role,
-    onEdit,
-    onManagePermissions,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    role: { name: string };
-    onEdit: () => void;
-    onDelete: () => void;
-    onManagePermissions: () => void;
-    loading?: boolean;
-    onDeleteClick: () => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="detail-modal">
-        <span data-testid="detail-name">{role.name}</span>
-        <button data-testid="edit-button" onClick={onEdit}>
-          Edit
-        </button>
-        <button data-testid="manage-permissions" onClick={onManagePermissions}>
-          Manage Permissions
-        </button>
-        <button data-testid="detail-close" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
+    ) : null;
+  },
   RoleEditModal: ({
     isOpen,
     onClose,
@@ -172,60 +137,103 @@ vi.mock("@/components/roles", () => ({
   }: {
     isOpen: boolean;
     onClose: () => void;
-    role: { name: string };
-    onSave: (data: { name: string }) => void;
-    loading?: boolean;
-  }) =>
-    isOpen ? (
-      <div data-testid="edit-modal">
+    onSave: (data: { name: string }) => Promise<void>;
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onSave and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onSave(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
+      <div data-testid="role-edit-modal">
+        {error ? <span data-testid="edit-error">{error}</span> : null}
         <button
-          data-testid="save-button"
-          onClick={() => onSave({ name: "Updated" })}
+          data-testid="submit-edit"
+          onClick={() => submit({ name: "Updated" })}
         >
           Save
         </button>
-        <button data-testid="edit-close" onClick={onClose}>
+        <button data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
+  RolesMasterDetail: ({
+    roles,
+    selectedId,
+    selectedRole,
+    onSelect,
+    onEditClick,
+    onDeleteClick,
+    onManagePermissions,
+  }: {
+    roles: Array<{ id: string; name: string }>;
+    selectedId: string | null;
+    selectedRole?: { name: string } | null;
+    onSelect: (id: string | null) => void;
+    onEditClick: () => void;
+    onDeleteClick: () => void;
+    onManagePermissions: () => void;
+  }) => (
+    <div data-testid="roles-master-detail">
+      {roles.map((role) => (
+        <button
+          key={role.id}
+          data-testid={`role-row-${role.id}`}
+          onClick={() => onSelect(role.id)}
+        >
+          {role.name}
+        </button>
+      ))}
+      {selectedId ? (
+        <div data-testid="role-detail-panel">
+          <span data-testid="detail-selected-id">{selectedId}</span>
+          <span data-testid="detail-role-name">
+            {selectedRole?.name ?? "unbekannt"}
+          </span>
+          <button data-testid="trigger-edit" onClick={onEditClick}>
+            Edit
+          </button>
+          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+            Delete
+          </button>
+          <button
+            data-testid="trigger-permissions"
+            onClick={onManagePermissions}
+          >
+            Permissions
+          </button>
+          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+            Close
+          </button>
+        </div>
+      ) : null}
+    </div>
+  ),
 }));
 
 vi.mock("@/components/auth", () => ({
-  RolePermissionManagementModal: ({
-    isOpen,
-    onClose,
-    onUpdate,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    role: { id: string; name: string };
-    onUpdate: () => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="permission-modal">
-        <button data-testid="permission-update" onClick={onUpdate}>
-          Update
-        </button>
-        <button data-testid="permission-close" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
+  RolePermissionManagementModal: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="role-permission-modal" /> : null,
 }));
 
 vi.mock("~/components/ui/modal", () => ({
   ConfirmationModal: ({
     isOpen,
-    onClose,
     onConfirm,
+    onClose,
   }: {
     isOpen: boolean;
-    onClose: () => void;
-    onConfirm: () => void;
+    onConfirm?: () => void;
+    onClose?: () => void;
   }) =>
     isOpen ? (
-      <div data-testid="confirm-modal">
+      <div data-testid="confirmation-modal">
         <button data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
@@ -239,63 +247,47 @@ vi.mock("~/components/ui/modal", () => ({
 const mockRoles = [
   {
     id: "1",
-    name: "Admin",
-    description: "Full access",
-    permissions: [{ id: "p1" }, { id: "p2" }],
+    name: "Vertretungslehrkraft",
+    description: "Vertritt im Krankheitsfall",
+    isSystem: false,
+    baseRole: "teacher",
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-02",
+    permissions: [],
   },
   {
     id: "2",
-    name: "Lehrer",
-    description: "Teacher role",
-    permissions: [{ id: "p1" }],
-  },
-  {
-    id: "3",
-    name: "Betreuer",
-    description: "Supervisor role",
-    permissions: [],
+    name: "admin",
+    description: "Administrator",
+    isSystem: true,
+    baseRole: "admin",
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-02",
   },
 ];
 
 describe("RolesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSession.mockReturnValue({
-      data: { user: { token: "test-token" } },
-      status: "authenticated",
-    });
-    mockUseIsMobile.mockReturnValue(false);
-    mockShowConfirmModal.mockReturnValue(false);
+    currentSearch = new URLSearchParams();
+
     mockGetList.mockResolvedValue({ data: mockRoles });
-    mockGetOne.mockResolvedValue(mockRoles[0]);
+    mockGetOne.mockImplementation((id: string) =>
+      Promise.resolve(mockRoles.find((role) => role.id === id) ?? null),
+    );
   });
 
-  it("renders roles list", async () => {
+  it("renders the page with roles data", async () => {
     render(<RolesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-      expect(screen.getByText("Lehrer")).toBeInTheDocument();
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+      // System role label is mapped via getRoleDisplayName; "admin" will map.
     });
   });
 
-  it("shows loading state initially", () => {
-    mockGetList.mockImplementation(
-      () =>
-        new Promise((resolve) => setTimeout(() => resolve({ data: [] }), 100)),
-    );
-
-    render(<RolesPage />);
-
-    expect(screen.getByTestId("database-layout")).toHaveAttribute(
-      "data-loading",
-      "true",
-    );
-  });
-
   it("shows error message when fetch fails", async () => {
-    mockGetList.mockRejectedValue(new Error("Fetch failed"));
+    mockGetList.mockRejectedValueOnce(new Error("Failed to fetch"));
 
     render(<RolesPage />);
 
@@ -306,8 +298,8 @@ describe("RolesPage", () => {
     });
   });
 
-  it("shows empty state when no roles", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
+  it("shows empty state when no roles exist", async () => {
+    mockGetList.mockResolvedValueOnce({ data: [] });
 
     render(<RolesPage />);
 
@@ -320,490 +312,407 @@ describe("RolesPage", () => {
     render(<RolesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
     });
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Lehrer" } });
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Vertretung" },
+    });
 
     await waitFor(() => {
-      expect(screen.getByText("Lehrer")).toBeInTheDocument();
-      expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
     });
   });
 
-  it("opens create modal when create button is clicked", async () => {
+  it("clears filters when clear button is clicked", async () => {
     render(<RolesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
     });
 
-    const createButtons = screen.getAllByLabelText("Rolle erstellen");
-    const firstButton = createButtons[0];
-    if (firstButton) {
-      fireEvent.click(firstButton);
-    }
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Vertretung" },
+    });
+    fireEvent.click(screen.getByTestId("clear-filters"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("search-input")).toHaveValue("");
     });
   });
 
-  it("opens detail modal when role is clicked", async () => {
+  it("opens create modal when add button is clicked", async () => {
     render(<RolesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Admin"));
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
 
     await waitFor(() => {
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
     });
   });
 
-  it("opens edit modal when edit button is clicked", async () => {
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Admin"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("edit-button"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("opens permission management modal when manage permissions is clicked", async () => {
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Admin"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("manage-permissions"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("permission-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("creates role successfully", async () => {
-    mockCreate.mockResolvedValue({
-      id: "4",
-      name: "New Role",
-    });
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    const createButtons = screen.getAllByLabelText("Rolle erstellen");
-    const firstButton = createButtons[0];
-    if (firstButton) {
-      fireEvent.click(firstButton);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-
-    await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalled();
-      expect(mockToastSuccess).toHaveBeenCalled();
-    });
-  });
-
-  it("closes create modal when close button is clicked", async () => {
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    const createButtons = screen.getAllByLabelText("Rolle erstellen");
-    const firstButton = createButtons[0];
-    if (firstButton) {
-      fireEvent.click(firstButton);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("create-close"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument();
-    });
-  });
-
-  it("displays permission count on role cards", async () => {
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-      expect(screen.getByText("2 Berechtigungen")).toBeInTheDocument();
-      expect(screen.getByText("1 Berechtigungen")).toBeInTheDocument();
-      expect(screen.getByText("0 Berechtigungen")).toBeInTheDocument();
-    });
-  });
-
-  it("does not display permission count when undefined", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          name: "Admin",
-          description: "Full access",
-          permissions: undefined,
-        },
-      ],
-    });
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-      expect(screen.queryByText(/Berechtigungen/)).not.toBeInTheDocument();
-    });
-  });
-
-  it("displays description when present", async () => {
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Full access")).toBeInTheDocument();
-      expect(screen.getByText("Teacher role")).toBeInTheDocument();
-    });
-  });
-
-  it("does not display description when missing", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          name: "Admin",
-          description: null,
-          permissions: [],
-        },
-      ],
-    });
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-      const roleCards = screen
-        .getAllByRole("button")
-        .filter((btn) => btn.textContent?.includes("Admin"));
-      expect(roleCards[0]?.textContent).not.toContain("Full access");
-    });
-  });
-
-  it("filters by description", async () => {
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Supervisor" } });
-
-    await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
-      expect(screen.queryByText("Admin")).not.toBeInTheDocument();
-    });
-  });
-
-  it("handles description filtering with null description", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          name: "Admin",
-          description: null,
-          permissions: [],
-        },
-        {
-          id: "2",
-          name: "Teacher",
-          description: "Teaches students",
-          permissions: [],
-        },
-      ],
-    });
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Teaches" } });
-
-    await waitFor(() => {
-      expect(screen.getByText("Teacher")).toBeInTheDocument();
-      expect(screen.queryByText("Admin")).not.toBeInTheDocument();
-    });
-  });
-
-  it("updates role and refreshes permission modal data", async () => {
-    mockGetOne.mockResolvedValue({
-      id: "1",
-      name: "Admin",
-      description: "Full access",
-      permissions: [
-        { id: "p1", name: "Read" },
-        { id: "p2", name: "Write" },
-        { id: "p3", name: "Delete" },
-      ],
-    });
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Admin"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+  it("translates duplicate-key conflicts into a German message and renders inline (Issue #1356)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error(
+        "auth error during CreateRole: duplicate key value violates unique constraint",
+      ),
     );
 
-    fireEvent.click(screen.getByTestId("manage-permissions"));
-    await waitFor(() =>
-      expect(screen.getByTestId("permission-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("permission-update"));
+    render(<RolesPage />);
 
     await waitFor(() => {
-      expect(mockGetList).toHaveBeenCalledTimes(2);
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Neue Rolle" existiert bereits/,
+      );
+    });
+    // Raw Postgres internals must not leak to the user.
+    expect(screen.getByTestId("create-error")).not.toHaveTextContent(
+      /duplicate key/,
+    );
+    // The modal must NOT close so the user can correct the name.
+    expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("matches duplicate-key conflicts via the 23505 SQLSTATE branch on create", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error("constraint violation 23505 on auth.roles_unique"),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Neue Rolle" existiert bereits/,
+      );
+    });
+  });
+
+  it("re-throws the original error when create fails for a non-duplicate reason", async () => {
+    mockCreate.mockRejectedValueOnce(new Error("network unreachable"));
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        "network unreachable",
+      );
+    });
+    // Modal stays open and toast is not fired on failure.
+    expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("re-throws stringified non-Error rejections from create unchanged", async () => {
+    // Exercises the `createError instanceof Error : false` ternary branch.
+    // The page logs `String(createError)` and rethrows the original value.
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce("plain-string-error");
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("role_create_failed", {
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
+  it("matches duplicate-key conflicts via the 23505 SQLSTATE branch on update", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error("23505 duplicate role for tenant"),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Updated" existiert bereits/,
+      );
+    });
+  });
+
+  it("re-throws the original error when update fails for a non-duplicate reason", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockRejectedValueOnce(new Error("server timeout"));
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        "server timeout",
+      );
+    });
+    expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("re-throws stringified non-Error rejections from update unchanged", async () => {
+    setSelectedRole("1");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockUpdate.mockRejectedValueOnce("plain-string-error");
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("role_update_failed", {
+        role_id: "1",
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
+  it("syncs role selection into the URL when a row is clicked", async () => {
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("role-row-1"));
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/tenant/database/roles?role=1",
+        { scroll: false },
+      );
+    });
+  });
+
+  it("hydrates the detail panel from the role URL param and fetches detail data", async () => {
+    setSelectedRole("1");
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
       expect(mockGetOne).toHaveBeenCalledWith("1");
     });
   });
 
-  it("closes permission management modal", async () => {
+  it("opens the edit modal when the detail panel edit button is clicked", async () => {
+    setSelectedRole("1");
+
     render(<RolesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Admin"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("manage-permissions"));
-    await waitFor(() =>
-      expect(screen.getByTestId("permission-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("permission-close"));
+    fireEvent.click(screen.getByTestId("trigger-edit"));
 
     await waitFor(() => {
-      expect(screen.queryByTestId("permission-modal")).not.toBeInTheDocument();
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
     });
   });
 
-  it("closes edit modal", async () => {
+  it("opens the permission management modal from the detail panel", async () => {
+    setSelectedRole("1");
+
     render(<RolesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Admin"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    fireEvent.click(screen.getByTestId("trigger-permissions"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-permission-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("calls update service when saving the edit modal", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockResolvedValueOnce(undefined);
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "1",
+        expect.objectContaining({ name: "Updated" }),
+      );
+    });
+  });
+
+  it("translates duplicate-key conflicts on update into a German message and renders inline (Issue #1356)", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error(
+        "auth error during UpdateRole: duplicate key value violates unique constraint",
+      ),
     );
 
-    fireEvent.click(screen.getByTestId("edit-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Updated" existiert bereits/,
+      );
+    });
+    // Raw Postgres internals must not leak to the user.
+    expect(screen.getByTestId("edit-error")).not.toHaveTextContent(
+      /duplicate key/,
     );
-
-    fireEvent.click(screen.getByTestId("edit-close"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
-    });
+    // The modal must NOT close so the user can correct the name.
+    expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
-  it("closes detail modal and resets selected role", async () => {
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Admin"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("detail-close"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("detail-modal")).not.toBeInTheDocument();
-    });
-  });
-
-  it("shows mobile title when on mobile", async () => {
-    mockUseIsMobile.mockReturnValue(true);
+  it("calls delete service after confirming deletion from the detail panel", async () => {
+    setSelectedRole("1");
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<RolesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
     });
-  });
 
-  it("shows mobile FAB when on mobile", async () => {
-    mockUseIsMobile.mockReturnValue(true);
-
-    render(<RolesPage />);
+    fireEvent.click(screen.getByTestId("trigger-delete"));
 
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
     });
-
-    const createButtons = screen.getAllByLabelText("Rolle erstellen");
-    expect(createButtons.length).toBeGreaterThan(0);
-  });
-
-  it("handles update with no selected role", async () => {
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    // Don't click any role, just wait for render
-    await waitFor(() => {
-      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
-    });
-
-    // No update should happen
-    expect(mockUpdate).not.toHaveBeenCalled();
-  });
-
-  it("handles delete with no selected role", async () => {
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    // No delete should happen
-    expect(mockDelete).not.toHaveBeenCalled();
-  });
-
-  it("handles session loading state", () => {
-    mockUseSession.mockReturnValue({
-      data: null,
-      status: "loading",
-    });
-
-    render(<RolesPage />);
-
-    expect(screen.getByTestId("database-layout")).toHaveAttribute(
-      "data-loading",
-      "true",
-    );
-  });
-
-  it("updates role successfully", async () => {
-    mockUpdate.mockResolvedValue({});
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Admin"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("edit-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("save-button"));
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalled();
-      expect(mockToastSuccess).toHaveBeenCalled();
-      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("deletes role successfully", async () => {
-    mockShowConfirmModal.mockReturnValue(true);
-    mockDelete.mockResolvedValue(null);
-    mockConfirmDelete.mockImplementation((fn: () => void) => fn());
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Admin"));
-    await waitFor(() =>
-      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument(),
-    );
 
     fireEvent.click(screen.getByTestId("confirm-delete"));
 
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalledWith("1");
-      expect(mockToastSuccess).toHaveBeenCalled();
+      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/roles", {
+        scroll: false,
+      });
     });
   });
 
-  it("shows error toast when delete returns error", async () => {
-    mockShowConfirmModal.mockReturnValue(true);
-    mockDelete.mockResolvedValue("Rolle kann nicht gelöscht werden");
-    mockConfirmDelete.mockImplementation((fn: () => void) => fn());
+  it("shows an error toast when delete returns an error", async () => {
+    setSelectedRole("1");
+    mockDelete.mockResolvedValueOnce("Rolle kann nicht gelöscht werden");
 
     render(<RolesPage />);
+
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Admin"));
+    fireEvent.click(screen.getByTestId("trigger-delete"));
     await waitFor(() => {
-      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
     });
+
     fireEvent.click(screen.getByTestId("confirm-delete"));
 
     await waitFor(() => {
@@ -813,112 +722,26 @@ describe("RolesPage", () => {
     });
   });
 
-  it("shows delete confirmation modal", async () => {
-    mockShowConfirmModal.mockReturnValue(true);
+  it("renders the unclassified-roles warning banner", async () => {
+    mockGetList.mockResolvedValueOnce({
+      data: [
+        {
+          id: "3",
+          name: "Helfer",
+          description: "",
+          isSystem: false,
+          createdAt: "2026-01-01",
+          updatedAt: "2026-01-02",
+        },
+      ],
+    });
 
     render(<RolesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(
+        screen.getByText("1 Rolle hat keine Systemrollen-Zuordnung"),
+      ).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByText("Admin"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("cancels delete confirmation", async () => {
-    mockShowConfirmModal.mockReturnValue(true);
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Admin"));
-    await waitFor(() =>
-      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("cancel-delete"));
-
-    expect(mockHandleDeleteCancel).toHaveBeenCalled();
-    expect(mockDelete).not.toHaveBeenCalled();
-  });
-});
-
-describe("RolesPage filtering logic", () => {
-  it("filters by name", () => {
-    const roles = [
-      { id: "1", name: "Admin", description: "Full access" },
-      { id: "2", name: "Lehrer", description: "Teacher role" },
-    ];
-
-    const searchTerm = "admin";
-    const filtered = roles.filter(
-      (r) =>
-        r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (r.description?.toLowerCase().includes(searchTerm.toLowerCase()) ??
-          false),
-    );
-
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0]?.name).toBe("Admin");
-  });
-
-  it("filters by description", () => {
-    const roles = [
-      { id: "1", name: "Admin", description: "Full access" },
-      { id: "2", name: "Lehrer", description: "Teacher role" },
-    ];
-
-    const searchTerm = "teacher";
-    const filtered = roles.filter(
-      (r) =>
-        r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (r.description?.toLowerCase().includes(searchTerm.toLowerCase()) ??
-          false),
-    );
-
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0]?.name).toBe("Lehrer");
-  });
-
-  it("sorts roles alphabetically by name", () => {
-    const roles = [
-      { id: "1", name: "Betreuer" },
-      { id: "2", name: "Admin" },
-      { id: "3", name: "Lehrer" },
-    ];
-
-    const sorted = [...roles].sort((a, b) =>
-      a.name.localeCompare(b.name, "de"),
-    );
-
-    expect(sorted[0]?.name).toBe("Admin");
-    expect(sorted[1]?.name).toBe("Betreuer");
-    expect(sorted[2]?.name).toBe("Lehrer");
-  });
-});
-
-describe("RolesPage role display helper", () => {
-  it("returns first character uppercase for avatar", () => {
-    const role = { name: "Administrator" };
-    const getAvatarLetter = (r: typeof role) =>
-      r.name?.charAt(0)?.toUpperCase() ?? "R";
-
-    expect(getAvatarLetter(role)).toBe("A");
-  });
-
-  it("returns R as fallback when name is empty", () => {
-    const role = { name: "" };
-    const getAvatarLetter = (r: typeof role) =>
-      r.name?.charAt(0)?.toUpperCase() ?? "R";
-
-    // Empty string charAt(0) returns "", which is falsy, so fallback to "R"
-    expect(getAvatarLetter(role) || "R").toBe("R");
   });
 });

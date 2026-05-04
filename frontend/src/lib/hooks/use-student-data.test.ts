@@ -121,6 +121,7 @@ describe("useStudentData", () => {
         data: {
           student: mockStudent,
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100", "101"],
           myGroupRooms: ["Room A", "Room B"],
@@ -172,6 +173,7 @@ describe("useStudentData", () => {
         data: {
           student: mockStudent,
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100"],
           myGroupRooms: ["Room A"],
@@ -263,6 +265,7 @@ describe("useStudentData", () => {
         group_name: "Group A",
         current_location: "Room 101",
         has_full_access: true,
+        has_write_access: true,
         group_supervisors: mockSupervisors,
       });
 
@@ -320,6 +323,7 @@ describe("useStudentData", () => {
         group_name: "Group A",
         current_location: "Room 101",
         has_full_access: true,
+        has_write_access: true,
         group_supervisors: mockSupervisors,
       });
 
@@ -381,6 +385,7 @@ describe("useStudentData", () => {
             sick_since: "2024-01-10T08:00:00Z",
           },
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100"],
           myGroupRooms: ["Room A"],
@@ -398,6 +403,40 @@ describe("useStudentData", () => {
       expect(result.current.student?.extra_info).toBe("Sensitive info");
       expect(result.current.student?.supervisor_notes).toBe("Private notes");
       expect(result.current.student?.sick).toBe(true);
+    });
+
+    it("should include excused fields when hasFullAccess is true", () => {
+      mockUseSession.mockReturnValue({
+        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      mockUseSWRAuth.mockReturnValue({
+        data: {
+          student: {
+            ...mockStudent,
+            excused: true,
+            excused_since: "2024-02-01T08:00:00Z",
+          },
+          hasFullAccess: true,
+          hasWriteAccess: true,
+          supervisors: mockSupervisors,
+          myGroups: ["100"],
+          myGroupRooms: ["Room A"],
+          mySupervisedRooms: [],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useStudentData("1"));
+      expect(result.current.student?.excused).toBe(true);
+      expect(result.current.student?.excused_since).toBe(
+        "2024-02-01T08:00:00Z",
+      );
     });
 
     it("should use default value for hasFullAccess when data is undefined", () => {
@@ -419,6 +458,107 @@ describe("useStudentData", () => {
 
       // Default value should be true according to the implementation
       expect(result.current.hasFullAccess).toBe(true);
+      // Write access defaults to false (deny-by-default)
+      expect(result.current.hasWriteAccess).toBe(false);
+    });
+
+    it("should expose actual_arrival_time and actual_pickup_time when hasFullAccess is true", () => {
+      mockUseSession.mockReturnValue({
+        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      mockUseSWRAuth.mockReturnValue({
+        data: {
+          student: {
+            ...mockStudent,
+            actual_arrival_time: "07:58",
+            actual_pickup_time: "15:42",
+          },
+          hasFullAccess: true,
+          hasWriteAccess: true,
+          supervisors: mockSupervisors,
+          myGroups: ["100"],
+          myGroupRooms: ["Room A"],
+          mySupervisedRooms: [],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useStudentData("1"));
+
+      expect(result.current.student?.actual_arrival_time).toBe("07:58");
+      expect(result.current.student?.actual_pickup_time).toBe("15:42");
+    });
+
+    it("should pass through hasFullAccess=false without inventing actual times", () => {
+      // GDPR stripping for actual times happens inside the SWR fetcher
+      // (see mapStudentResponse in use-student-data.ts), which the test
+      // bypasses by mocking useSWRAuth. What we CAN assert from this layer
+      // is that the hook does not fabricate actual times when none are in
+      // the SWR result and access is denied — i.e. no defaulting bug.
+      mockUseSession.mockReturnValue({
+        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      mockUseSWRAuth.mockReturnValue({
+        data: {
+          student: { ...mockStudent },
+          hasFullAccess: false,
+          hasWriteAccess: false,
+          supervisors: mockSupervisors,
+          myGroups: ["100"],
+          myGroupRooms: ["Room A"],
+          mySupervisedRooms: [],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useStudentData("1"));
+
+      expect(result.current.hasFullAccess).toBe(false);
+      expect(result.current.student?.actual_arrival_time).toBeUndefined();
+      expect(result.current.student?.actual_pickup_time).toBeUndefined();
+    });
+
+    it("should leave actual times undefined when backend omits them even with full access", () => {
+      // Common case: student has not yet checked in. Hook must not invent
+      // empty strings or epoch timestamps just because the field is missing.
+      mockUseSession.mockReturnValue({
+        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      mockUseSWRAuth.mockReturnValue({
+        data: {
+          student: { ...mockStudent },
+          hasFullAccess: true,
+          hasWriteAccess: true,
+          supervisors: mockSupervisors,
+          myGroups: ["100"],
+          myGroupRooms: ["Room A"],
+          mySupervisedRooms: [],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useStudentData("1"));
+
+      expect(result.current.student?.actual_arrival_time).toBeUndefined();
+      expect(result.current.student?.actual_pickup_time).toBeUndefined();
     });
   });
 
@@ -436,6 +576,7 @@ describe("useStudentData", () => {
         data: {
           student: mockStudent,
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100"],
           myGroupRooms: ["Room A"],
@@ -470,6 +611,7 @@ describe("useStudentData", () => {
         data: {
           student: mockStudent,
           hasFullAccess: true,
+          hasWriteAccess: true,
           supervisors: mockSupervisors,
           myGroups: ["100"],
           myGroupRooms: ["Room A"],

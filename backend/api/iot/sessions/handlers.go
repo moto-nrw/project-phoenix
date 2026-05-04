@@ -153,10 +153,12 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	// Session found - populate response
+	// Session found - populate response. currentSession.GroupID is already
+	// *int64 (nullable per WP-B6) so we assign it directly; spontaneous
+	// sessions surface as `activity_id: null` on the wire.
 	response.IsActive = true
 	response.ActiveGroupID = &currentSession.ID
-	response.ActivityID = &currentSession.GroupID
+	response.ActivityID = currentSession.GroupID
 	response.RoomID = &currentSession.RoomID
 	response.StartTime = &currentSession.StartTime
 	duration := time.Since(currentSession.StartTime).String()

@@ -10,8 +10,11 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { RoleGuard } from "~/components/auth/role-guard";
+import { useOptionalSupervision } from "~/lib/supervision-context";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
+import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -25,13 +28,28 @@ import {
   StudentInfoRow,
   SchoolClassIcon,
   GroupIcon,
+  PickupTimeRow,
+  ArrivalTimeRow,
 } from "~/components/students/student-card";
+import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
+import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
+import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
+import type { BulkArrivalTime } from "~/lib/student-arrival-api";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
+import { isAdmin, isCaregiver } from "~/lib/auth-utils";
+import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { Student } from "~/lib/student-helpers";
+import {
+  SCHOOL_YEAR_FILTER_OPTIONS,
+  getSchoolYear,
+} from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
+import { combineTimeNotes } from "~/lib/student-time-status";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
@@ -56,6 +74,8 @@ interface ActiveRoom {
   name: string;
   room_name?: string;
   room_id?: string;
+  /** Hex color of the room when set; drives the per-room badge color in LocationBadge. */
+  room_color?: string;
   student_count?: number;
   supervisor_name?: string;
   students?: StudentWithVisit[];
@@ -86,7 +106,7 @@ interface BFFDashboardResponse {
     id: string;
     name: string;
     room_id?: string;
-    room?: { id: string; name: string };
+    room?: { id: string; name: string; color?: string | null };
   }>;
   unclaimedGroups: Array<{
     id: string;
@@ -106,7 +126,13 @@ interface BFFDashboardResponse {
     groupName: string;
     activeGroupId: string;
     checkInTime: string;
+    actualArrivalTime?: string;
+    actualPickupTime?: string;
     isActive: boolean;
+    sick?: boolean;
+    sickSince?: string;
+    excused?: boolean;
+    excusedSince?: string;
   }>;
   firstRoomId: string | null;
   schulhofStatus: SchulhofStatusResponse | null;
@@ -114,11 +140,12 @@ interface BFFDashboardResponse {
 
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
 
-/** Check if a student matches the current search and group filters */
+/** Check if a student matches the current search, group, and year filters */
 function matchesStudentFilters(
   student: StudentWithVisit,
   searchTerm: string,
   groupFilter: string,
+  yearFilter: string,
 ): boolean {
   if (searchTerm) {
     const searchLower = searchTerm.toLowerCase();
@@ -131,6 +158,10 @@ function matchesStudentFilters(
   if (groupFilter !== "all") {
     const studentGroupName = student.group_name ?? "Unbekannt";
     if (studentGroupName !== groupFilter) return false;
+  }
+  if (yearFilter !== "all") {
+    const studentYear = getSchoolYear(student.school_class);
+    if (studentYear !== yearFilter) return false;
   }
   return true;
 }
@@ -192,6 +223,7 @@ interface EmptyRoomsViewProps {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   setGroupFilter: (filter: string) => void;
+  setSelectedYear: (year: string) => void;
   filterConfigs: FilterConfig[];
   activeFilters: ActiveFilter[];
 }
@@ -204,6 +236,7 @@ function EmptyRoomsView({
   searchTerm,
   setSearchTerm,
   setGroupFilter,
+  setSelectedYear,
   filterConfigs,
   activeFilters,
 }: Readonly<EmptyRoomsViewProps>) {
@@ -231,6 +264,7 @@ function EmptyRoomsView({
         onClearAllFilters={() => {
           setSearchTerm("");
           setGroupFilter("all");
+          setSelectedYear("all");
         }}
       />
 
@@ -286,6 +320,7 @@ function MeinRaumPageContent() {
   const [students, setStudents] = useState<StudentWithVisit[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [selectedYear, setSelectedYear] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -379,6 +414,7 @@ function MeinRaumPageContent() {
       roomId: string,
       roomName?: string,
       groupNameToId?: Map<string, string>,
+      roomColor?: string | null,
     ): Promise<StudentWithVisit[]> => {
       try {
         // Use bulk endpoint to fetch visits with display data for specific room
@@ -409,8 +445,15 @@ function MeinRaumPageContent() {
             second_name: lastName,
             school_class: visit.schoolClass ?? "",
             current_location: location,
+            current_room_color: roomColor ?? null,
             group_name: visit.groupName,
             group_id: groupId, // Add group_id for permission checking
+            sick: visit.sick,
+            sick_since: visit.sickSince,
+            excused: visit.excused,
+            excused_since: visit.excusedSince,
+            actual_arrival_time: visit.actualArrivalTime,
+            actual_pickup_time: visit.actualPickupTime,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
           } as StudentWithVisit;
@@ -460,6 +503,98 @@ function MeinRaumPageContent() {
   // NOTE: Do NOT call useGlobalSSE() here - it's already called in TenantAuthWrapper.
   // Calling it again would create a duplicate SSE connection.
 
+  // Admin fallback: when BFF fails, load supervised groups directly
+  const fetchAdminDashboardFallback =
+    useCallback(async (): Promise<BFFDashboardResponse> => {
+      const [groupsRes, schulhofRes] = await Promise.all([
+        fetch("/api/active/supervisors/all", {
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        }),
+        fetch("/api/active/schulhof/status", {
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        }).catch(() => null),
+      ]);
+
+      let supervisedGroups: BFFDashboardResponse["supervisedGroups"] = [];
+      if (groupsRes.ok) {
+        const json = (await groupsRes.json()) as {
+          data?: Array<{
+            id: number;
+            name?: string;
+            room_id?: number;
+            room?: { id: number; name: string };
+          }>;
+        };
+        supervisedGroups = (json.data ?? []).map((g) => ({
+          id: g.id.toString(),
+          name: g.name ?? "",
+          room_id: g.room_id?.toString(),
+          room: g.room
+            ? { id: g.room.id.toString(), name: g.room.name }
+            : undefined,
+        }));
+      }
+
+      let schulhofStatus: BFFDashboardResponse["schulhofStatus"] = null;
+      if (schulhofRes?.ok) {
+        const json = (await schulhofRes.json()) as {
+          data?: {
+            data?: {
+              exists: boolean;
+              room_id?: number;
+              room_name: string;
+              active_group_id?: number;
+              is_user_supervising: boolean;
+              supervision_id?: number;
+              supervisor_count: number;
+              student_count: number;
+              supervisors?: Array<{
+                id: number;
+                staff_id: number;
+                name: string;
+                is_current_user: boolean;
+              }>;
+            };
+          };
+        };
+        const s = json.data?.data;
+        if (s?.exists) {
+          schulhofStatus = {
+            exists: true,
+            roomId: s.room_id?.toString() ?? null,
+            roomName: s.room_name,
+            activityGroupId: null,
+            activeGroupId: s.active_group_id?.toString() ?? null,
+            isUserSupervising: s.is_user_supervising,
+            supervisionId: s.supervision_id?.toString() ?? null,
+            supervisorCount: s.supervisor_count,
+            studentCount: s.student_count,
+            supervisors: (s.supervisors ?? []).map((sup) => ({
+              id: sup.id.toString(),
+              staffId: sup.staff_id.toString(),
+              name: sup.name,
+              isCurrentUser: sup.is_current_user,
+            })),
+          };
+        }
+      }
+
+      return {
+        supervisedGroups,
+        unclaimedGroups: [],
+        currentStaff: null,
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId:
+          supervisedGroups.length > 0
+            ? (supervisedGroups[0]?.room_id ?? null)
+            : null,
+        schulhofStatus,
+      };
+    }, []);
+
   // Get current room ID for per-room SWR subscription
   const currentRoomId = currentRoom?.id;
 
@@ -483,6 +618,13 @@ function MeinRaumPageContent() {
       });
 
       if (!response.ok) {
+        // Admin fallback: load data directly from individual endpoints
+        if (isAdmin(session)) {
+          logger.info("bff_failed_admin_fallback", {
+            status: response.status,
+          });
+          return await fetchAdminDashboardFallback();
+        }
         throw new Error(`BFF request failed: ${response.status}`);
       }
 
@@ -585,6 +727,7 @@ function MeinRaumPageContent() {
         name: group.name,
         room_name: group.room?.name,
         room_id: group.room_id,
+        room_color: group.room?.color ?? undefined,
         student_count: undefined,
         supervisor_name: undefined,
       }))
@@ -640,8 +783,15 @@ function MeinRaumPageContent() {
               second_name: lastName,
               school_class: visit.schoolClass ?? "",
               current_location: location,
+              current_room_color: firstRoom.room_color ?? null,
               group_name: visit.groupName,
               group_id: groupId,
+              sick: visit.sick,
+              sick_since: visit.sickSince,
+              excused: visit.excused,
+              excused_since: visit.excusedSince,
+              actual_arrival_time: visit.actualArrivalTime,
+              actual_pickup_time: visit.actualPickupTime,
               activeGroupId: visit.activeGroupId,
               checkInTime: new Date(visit.checkInTime),
             } as StudentWithVisit;
@@ -793,8 +943,15 @@ function MeinRaumPageContent() {
           second_name: lastName,
           school_class: visit.schoolClass ?? "",
           current_location: location,
+          current_room_color: currentRoom?.room_color ?? null,
           group_name: visit.groupName,
           group_id: groupId,
+          sick: visit.sick,
+          sick_since: visit.sickSince,
+          excused: visit.excused,
+          excused_since: visit.excusedSince,
+          actual_arrival_time: visit.actualArrivalTime,
+          actual_pickup_time: visit.actualPickupTime,
           activeGroupId: visit.activeGroupId,
           checkInTime: visit.checkInTime,
         } as StudentWithVisit;
@@ -814,6 +971,43 @@ function MeinRaumPageContent() {
       updateRoomStudentCount(currentRoomId, swrVisitsData.length);
     }
   }, [swrVisitsData, currentRoomId, updateRoomStudentCount]);
+
+  // Tracking indicators: fetch when student list changes (SSE-driven via SWR revalidation)
+  const trackingStudentIds = useMemo(
+    () => students.map((s) => s.id),
+    [students],
+  );
+  const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
+    trackingStudentIds.length > 0
+      ? `tracking-supervisions-${currentRoomId}-${trackingStudentIds.join(",")}`
+      : null,
+    async () => activeService.getTrackingIndicators(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // Current time for pickup urgency calculation (updates every minute)
+  const now = useMinuteClock();
+
+  // Pickup times: fetch when student list or date changes
+  const todayKey = now.toISOString().slice(0, 10);
+  const { data: pickupTimesData } = useSWRAuth<Map<string, BulkPickupTime>>(
+    trackingStudentIds.length > 0 && currentRoomId
+      ? `pickup-supervisions-${todayKey}-${trackingStudentIds.join(",")}`
+      : null,
+    async () => fetchBulkPickupTimes(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // Arrival times: fetch when student list or date changes
+  const { data: arrivalTimesRaw } = useSWRAuth<Map<string, BulkArrivalTime>>(
+    trackingStudentIds.length > 0 && currentRoomId
+      ? `arrival-supervisions-${todayKey}-${trackingStudentIds.join(",")}`
+      : null,
+    async () => fetchBulkArrivalTimes(trackingStudentIds),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+  const arrivalTimesData: Map<string, BulkArrivalTime> | undefined =
+    arrivalTimesRaw instanceof Map ? arrivalTimesRaw : undefined;
 
   // Handle dashboard error
   useEffect(() => {
@@ -955,6 +1149,7 @@ function MeinRaumPageContent() {
         selectedRoom.id,
         selectedRoom.room_name,
         groupNameToIdMapRef.current,
+        selectedRoom.room_color,
       );
 
       // Set students state
@@ -990,7 +1185,8 @@ function MeinRaumPageContent() {
 
   // Apply filters to students (ensure students is an array)
   const filteredStudents = (Array.isArray(students) ? students : []).filter(
-    (student) => matchesStudentFilters(student, searchTerm, groupFilter),
+    (student) =>
+      matchesStudentFilters(student, searchTerm, groupFilter, selectedYear),
   );
 
   // Prepare filter configurations for PageHeaderWithSearch
@@ -1006,6 +1202,14 @@ function MeinRaumPageContent() {
 
     return [
       {
+        id: "year",
+        label: "Klassenstufe",
+        type: "buttons",
+        value: selectedYear,
+        onChange: (value) => setSelectedYear(value as string),
+        options: [...SCHOOL_YEAR_FILTER_OPTIONS],
+      },
+      {
         id: "group",
         label: "Gruppe",
         type: "dropdown",
@@ -1020,7 +1224,7 @@ function MeinRaumPageContent() {
         ],
       },
     ];
-  }, [groupFilter, students]);
+  }, [selectedYear, groupFilter, students]);
 
   // Prepare active filters for display
   const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -1034,6 +1238,14 @@ function MeinRaumPageContent() {
       });
     }
 
+    if (selectedYear !== "all") {
+      filters.push({
+        id: "year",
+        label: `Jahr ${selectedYear}`,
+        onRemove: () => setSelectedYear("all"),
+      });
+    }
+
     if (groupFilter !== "all") {
       filters.push({
         id: "group",
@@ -1043,7 +1255,7 @@ function MeinRaumPageContent() {
     }
 
     return filters;
-  }, [searchTerm, groupFilter]);
+  }, [searchTerm, selectedYear, groupFilter]);
 
   if (status === "loading" || isLoading || hasAccess === null) {
     return <LoadingView />;
@@ -1065,6 +1277,7 @@ function MeinRaumPageContent() {
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         setGroupFilter={setGroupFilter}
+        setSelectedYear={setSelectedYear}
         filterConfigs={filterConfigs}
         activeFilters={activeFilters}
       />
@@ -1107,44 +1320,97 @@ function MeinRaumPageContent() {
       return (
         <div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-            {filteredStudents.map((student) => (
-              <StudentCard
-                key={student.id}
-                studentId={student.id}
-                firstName={student.first_name}
-                lastName={student.second_name}
-                gradient={GROUP_CARD_GRADIENT}
-                onClick={() =>
-                  router.push(
-                    `/students/${student.id}?from=/active-supervisions`,
-                  )
-                }
-                locationBadge={
-                  <LocationBadge
-                    student={student}
-                    displayMode="contextAware"
-                    userGroups={myGroupIds}
-                    groupRooms={myGroupRooms}
-                    variant="modern"
-                    size="md"
-                  />
-                }
-                extraContent={
-                  <>
-                    {student.school_class && (
-                      <StudentInfoRow icon={<SchoolClassIcon />}>
-                        Klasse {student.school_class}
-                      </StudentInfoRow>
-                    )}
-                    {student.group_name && (
-                      <StudentInfoRow icon={<GroupIcon />}>
-                        Gruppe: {student.group_name}
-                      </StudentInfoRow>
-                    )}
-                  </>
-                }
-              />
-            ))}
+            {filteredStudents.map((student) => {
+              const studentPickup = pickupTimesData?.get(student.id.toString());
+              const studentArrival = arrivalTimesData?.get(
+                student.id.toString(),
+              );
+
+              return (
+                <StudentCard
+                  key={student.id}
+                  studentId={student.id}
+                  firstName={student.first_name}
+                  lastName={student.second_name}
+                  gradient={GROUP_CARD_GRADIENT}
+                  onClick={() =>
+                    router.push(
+                      `/students/${student.id}?from=/active-supervisions`,
+                    )
+                  }
+                  locationBadge={
+                    <LocationBadge
+                      student={{
+                        ...student,
+                        not_arrival_today:
+                          (studentArrival?.isException ?? false) &&
+                          !studentArrival?.expectedArrival,
+                        not_arrival_reason: studentArrival?.notes ?? null,
+                      }}
+                      displayMode="contextAware"
+                      userGroups={myGroupIds}
+                      groupRooms={myGroupRooms}
+                      variant="modern"
+                      size="md"
+                    />
+                  }
+                  extraContent={
+                    <>
+                      {student.school_class && (
+                        <StudentInfoRow icon={<SchoolClassIcon />}>
+                          {student.school_class}
+                        </StudentInfoRow>
+                      )}
+                      {student.group_name && (
+                        <StudentInfoRow icon={<GroupIcon />}>
+                          Gruppe: {student.group_name}
+                        </StudentInfoRow>
+                      )}
+                      <ArrivalTimeRow
+                        arrivalTime={studentArrival?.expectedArrival}
+                        actualTime={student.actual_arrival_time}
+                        isException={studentArrival?.isException ?? false}
+                        isAbsent={
+                          (studentArrival?.isException ?? false) &&
+                          !studentArrival?.expectedArrival
+                        }
+                        notes={
+                          studentArrival
+                            ? combineTimeNotes(
+                                studentArrival.notes,
+                                studentArrival.dayNotes,
+                              )
+                            : undefined
+                        }
+                        now={now}
+                      />
+                      <PickupTimeRow
+                        pickupTime={studentPickup?.pickupTime}
+                        actualTime={student.actual_pickup_time}
+                        isException={studentPickup?.isException ?? false}
+                        notes={
+                          studentPickup
+                            ? combineTimeNotes(
+                                studentPickup.notes,
+                                studentPickup.dayNotes,
+                              )
+                            : undefined
+                        }
+                        now={now}
+                      />
+                    </>
+                  }
+                  trackingIndicators={
+                    trackingData?.labels.length ? (
+                      <TrackingIndicators
+                        labels={trackingData.labels}
+                        results={trackingData.results[student.id] ?? []}
+                      />
+                    ) : undefined
+                  }
+                />
+              );
+            })}
           </div>
         </div>
       );
@@ -1302,6 +1568,7 @@ function MeinRaumPageContent() {
             onClearAllFilters={() => {
               setSearchTerm("");
               setGroupFilter("all");
+              setSelectedYear("all");
             }}
             actionButton={
               // Only show release button when user IS supervising Schulhof
@@ -1449,15 +1716,53 @@ function MeinRaumPageContent() {
   );
 }
 
-// Main component with Suspense wrapper
+// Gate component: allows caregivers always, admins only when they have supervised rooms
+// (i.e., admin_supervision_overview setting is active and there are active groups)
+function ActiveSupervisionGate({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      redirect("/");
+    },
+  });
+  const { adminOverviewEnabled, isLoadingSupervision } =
+    useOptionalSupervision();
+
+  if (status === "loading" || isLoadingSupervision) {
+    return <Loading fullPage={false} />;
+  }
+
+  // Caregivers (user/teacher role) always have access
+  if (isCaregiver(session)) {
+    return <>{children}</>;
+  }
+
+  // Admins only when the admin_supervision_overview setting is confirmed
+  // enabled (i.e. /api/active/supervisors/all returned OK). Checking
+  // supervisedRooms.length would incorrectly let admins through when the
+  // setting is OFF but a synthetic Schulhof entry is present.
+  if (isAdmin(session) && adminOverviewEnabled) {
+    return <>{children}</>;
+  }
+
+  return <ForbiddenPage />;
+}
+
+// Main component with Suspense wrapper. BinaryModeGuard runs first so
+// binary-mode tenants get a 404 before the supervision gate tries to load
+// data that depends on detailed-mode room visits.
 export default function MeinRaumPage() {
   return (
-    <RoleGuard variant="staffOnly">
+    <BinaryModeGuard>
       <Suspense fallback={<Loading fullPage={false} />}>
-        <SSEErrorBoundary>
-          <MeinRaumPageContent />
-        </SSEErrorBoundary>
+        <ActiveSupervisionGate>
+          <SSEErrorBoundary>
+            <MeinRaumPageContent />
+          </SSEErrorBoundary>
+        </ActiveSupervisionGate>
       </Suspense>
-    </RoleGuard>
+    </BinaryModeGuard>
   );
 }

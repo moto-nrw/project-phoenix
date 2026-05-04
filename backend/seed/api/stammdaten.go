@@ -19,6 +19,7 @@ type StaffCredentials struct {
 type FixedSeeder struct {
 	client           *Client
 	verbose          bool
+	staffPassword    string             // optional: shared password for all staff accounts (from CLI flag)
 	roomIDs          map[string]int64   // room name -> id
 	personIDs        map[string]int64   // "firstName lastName" -> id (staff only)
 	staffIDs         map[string]int64   // "firstName lastName" -> staff id
@@ -52,11 +53,14 @@ type FixedResult struct {
 	StaffCredentials    []StaffCredentials // Login credentials for demo
 }
 
-// NewFixedSeeder creates a new fixed data seeder
-func NewFixedSeeder(client *Client, verbose bool) *FixedSeeder {
+// NewFixedSeeder creates a new fixed data seeder.
+// staffPassword is optional: when non-empty, all 20 staff accounts use this
+// password instead of the per-account defaults from demoPasswords.
+func NewFixedSeeder(client *Client, verbose bool, staffPassword string) *FixedSeeder {
 	return &FixedSeeder{
 		client:           client,
 		verbose:          verbose,
+		staffPassword:    staffPassword,
 		roomIDs:          make(map[string]int64),
 		personIDs:        make(map[string]int64),
 		staffIDs:         make(map[string]int64),
@@ -91,17 +95,13 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 		return nil, fmt.Errorf("failed to seed rooms: %w", err)
 	}
 
-	// 3. Create persons (staff only, students created via student API)
-	if err := s.seedPersons(ctx, result); err != nil {
-		return nil, fmt.Errorf("failed to seed persons: %w", err)
-	}
-
-	// 4. Create auth accounts for staff and link to persons
+	// 3. Create auth accounts and linked persons for staff
+	//    (students get persons created automatically via student API)
 	if err := s.seedStaffAccounts(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed staff accounts: %w", err)
 	}
 
-	// 5. Create staff records
+	// 4. Create staff records
 	if err := s.seedStaff(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed staff: %w", err)
 	}
@@ -248,41 +248,6 @@ func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {
 
 	if s.verbose {
 		fmt.Printf("  ✓ %d rooms created\n", result.RoomCount)
-	}
-	return nil
-}
-
-func (s *FixedSeeder) seedPersons(_ context.Context, result *FixedResult) error {
-	// Create persons for staff only
-	// (Students will have persons created automatically via student API)
-	for _, staff := range DemoStaff {
-		personKey := fmt.Sprintf("%s %s", staff.FirstName, staff.LastName)
-		body := map[string]string{
-			"first_name": staff.FirstName,
-			"last_name":  staff.LastName,
-		}
-
-		respBody, err := s.client.Post("/api/users", body)
-		if err != nil {
-			return fmt.Errorf("failed to create person %s: %w", personKey, err)
-		}
-
-		var resp struct {
-			Status string `json:"status"`
-			Data   struct {
-				ID int64 `json:"id"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(respBody, &resp); err != nil {
-			return fmt.Errorf("failed to parse person response: %w", err)
-		}
-
-		s.personIDs[personKey] = resp.Data.ID
-		result.PersonCount++
-	}
-
-	if s.verbose {
-		fmt.Printf("  ✓ %d persons created (staff)\n", result.PersonCount)
 	}
 	return nil
 }
@@ -878,8 +843,6 @@ func (s *FixedSeeder) seedActivities(_ context.Context, result *FixedResult) err
 		"Musik":        "Musik",
 		"Tanzen":       "Sport",
 		"Schach":       "Spiele",
-		"Garten":       "Draußen",
-		"Freispiel":    "Draußen",
 	}
 
 	for _, activity := range DemoActivities {
@@ -1074,7 +1037,8 @@ func (s *FixedSeeder) fetchRoles(_ context.Context) error {
 	return nil
 }
 
-// seedStaffAccounts creates auth accounts for staff and links them to persons
+// seedStaffAccounts creates auth accounts for staff and the matching person
+// records (with account_id set on creation, so no separate link step is needed).
 func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) error {
 	// Get role IDs for different staff types
 	adminRoleID, ok := s.roleIDs["admin"]
@@ -1090,25 +1054,25 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		return fmt.Errorf("guest role not found - available roles: %v", s.roleIDs)
 	}
 
+	demoPasswords := []string{
+		"sdlXK26%", "mQp9Wy3$", "kJt4Nz8!", "hBv7Rx5@", "fGn2Lm6#",
+		"pYc8Dq1&", "wZa3Ks9*", "vTe5Hj4%", "xUi6Fo7$", "cRo1Pn2!",
+		"bWs4Mv8@", "nLk7Qx3#", "jHd9Zt5&", "gFa2Yc6*", "tEr8Ub1%",
+		"qDm3Wp4$", "yKn5Sj7!", "uBx6Gi9@", "iCv1Lh2#", "oAz4Rk8&",
+	}
+
 	for i, staff := range DemoStaff {
 		personKey := fmt.Sprintf("%s %s", staff.FirstName, staff.LastName)
-		personID, ok := s.personIDs[personKey]
-		if !ok {
-			return fmt.Errorf("person not found for staff account %s", personKey)
-		}
 
-		// Generate email and credentials for demo accounts
+		// Generate email and credentials for demo accounts.
 		// Email: demo{n}@mail.de where n = account number (1-20)
-		// Password: hardcoded unique passwords so accounts survive cronjob resets
-		demoPasswords := []string{
-			"sdlXK26%", "mQp9Wy3$", "kJt4Nz8!", "hBv7Rx5@", "fGn2Lm6#",
-			"pYc8Dq1&", "wZa3Ks9*", "vTe5Hj4%", "xUi6Fo7$", "cRo1Pn2!",
-			"bWs4Mv8@", "nLk7Qx3#", "jHd9Zt5&", "gFa2Yc6*", "tEr8Ub1%",
-			"qDm3Wp4$", "yKn5Sj7!", "uBx6Gi9@", "iCv1Lh2#", "oAz4Rk8&",
-		}
+		// Password: per-account defaults, or shared --staff-password when set
 		accountNum := i + 1
 		email := fmt.Sprintf("demo%d@mail.de", accountNum)
 		password := demoPasswords[i]
+		if s.staffPassword != "" {
+			password = s.staffPassword
+		}
 		pin := fmt.Sprintf("%04d", 1000+i)
 
 		// Assign role based on position:
@@ -1125,7 +1089,7 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			roleID = userRoleID
 		}
 
-		// Create account via /register with role_id
+		// 1. Create account via /register with role_id
 		registerBody := map[string]any{
 			"email":            email,
 			"username":         fmt.Sprintf("demo%d", accountNum),
@@ -1134,31 +1098,45 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			"role_id":          roleID,
 		}
 
-		respBody, err := s.client.Post("/auth/register", registerBody)
+		registerResp, err := s.client.Post("/auth/register", registerBody)
 		if err != nil {
 			return fmt.Errorf("failed to create account for %s: %w", personKey, err)
 		}
 
-		// Parse response to get account ID
-		var resp struct {
+		var account struct {
 			Status string `json:"status"`
 			Data   struct {
 				ID int64 `json:"id"`
 			} `json:"data"`
 		}
-		if err := json.Unmarshal(respBody, &resp); err != nil {
+		if err := json.Unmarshal(registerResp, &account); err != nil {
 			return fmt.Errorf("failed to parse account response: %w", err)
 		}
 
-		// Link account to person
-		linkPath := fmt.Sprintf("/api/users/%d/account", personID)
-		linkBody := map[string]any{
-			"account_id": resp.Data.ID,
+		// 2. Create person with account_id pre-populated.
+		personBody := map[string]any{
+			"first_name": staff.FirstName,
+			"last_name":  staff.LastName,
+			"account_id": account.Data.ID,
 		}
-		_, err = s.client.Put(linkPath, linkBody)
+
+		personResp, err := s.client.Post("/api/users", personBody)
 		if err != nil {
-			return fmt.Errorf("failed to link account to person %s: %w", personKey, err)
+			return fmt.Errorf("failed to create person %s: %w", personKey, err)
 		}
+
+		var person struct {
+			Status string `json:"status"`
+			Data   struct {
+				ID int64 `json:"id"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(personResp, &person); err != nil {
+			return fmt.Errorf("failed to parse person response: %w", err)
+		}
+
+		s.personIDs[personKey] = person.Data.ID
+		result.PersonCount++
 
 		// Store credentials for summary
 		s.staffCredentials = append(s.staffCredentials, StaffCredentials{
@@ -1173,7 +1151,7 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 	}
 
 	if s.verbose {
-		fmt.Printf("  ✓ %d staff accounts created and linked\n", result.AccountCount)
+		fmt.Printf("  ✓ %d staff accounts + persons created\n", result.AccountCount)
 	}
 	return nil
 }

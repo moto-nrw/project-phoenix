@@ -157,9 +157,13 @@ export function InvitationForm({
 
       // Handle specific error cases with user-friendly messages
       if (apiError?.status === 409) {
-        setError(
-          "Für diese E-Mail-Adresse existiert bereits ein Account. Bitte verwende eine andere E-Mail-Adresse.",
-        );
+        if (apiError.code === "ACCOUNT_ALREADY_HAS_TENANT_ACCESS") {
+          setError("Dieser Account hat bereits Zugang zu dieser Einrichtung.");
+        } else {
+          setError(
+            "Für diese E-Mail-Adresse existiert bereits ein Account. Bitte verwende eine andere E-Mail-Adresse.",
+          );
+        }
         setErrorFieldName("email");
       } else {
         setError(

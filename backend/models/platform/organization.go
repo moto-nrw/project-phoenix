@@ -39,10 +39,11 @@ const tablePlatformOrganizations = "platform.organizations"
 // Organization represents a top-level tenant organization (e.g. a school district).
 type Organization struct {
 	base.Model `bun:"schema:platform,table:organizations"`
-	Name       string `bun:"name,notnull" json:"name"`
-	Slug       string `bun:"slug,notnull,unique" json:"slug"`
-	Active     bool   `bun:"active,notnull,default:true" json:"active"`
-	Settings   string `bun:"settings,default:'{}'" json:"settings,omitempty"`
+	Name       string     `bun:"name,notnull" json:"name"`
+	Slug       string     `bun:"slug,notnull,unique" json:"slug"`
+	Active     bool       `bun:"active,notnull,default:true" json:"active"`
+	DeletedAt  *time.Time `bun:"deleted_at" json:"deleted_at,omitempty"`
+	Settings   string     `bun:"settings,default:'{}'" json:"settings,omitempty"`
 }
 
 func (o *Organization) BeforeAppendModel(query any) error {
@@ -102,4 +103,9 @@ func (o *Organization) GetCreatedAt() time.Time {
 // GetUpdatedAt returns the last update timestamp
 func (o *Organization) GetUpdatedAt() time.Time {
 	return o.UpdatedAt
+}
+
+// IsDeleted returns true if the organization has been soft-deleted.
+func (o *Organization) IsDeleted() bool {
+	return o.DeletedAt != nil
 }

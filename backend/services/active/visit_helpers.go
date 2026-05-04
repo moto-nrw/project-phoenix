@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -46,9 +47,9 @@ func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, devi
 
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Visit, staffID, deviceID int64) error {
-	// Use Berlin timezone for date calculation since the school operates in Germany.
-	// This ensures a check-in at 00:30 CET is recorded for the correct day.
-	visitDate := timezone.DateOf(visit.EntryTime)
+	// Use DateOfUTC: extract the Berlin calendar date but return as UTC midnight,
+	// so the value round-trips correctly through PostgreSQL DATE columns (PG session is UTC).
+	visitDate := timezone.DateOfUTC(visit.EntryTime)
 	attendanceRecords, err := s.attendanceRepo.FindByStudentAndDate(ctx, visit.StudentID, visitDate)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
@@ -77,7 +78,7 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visi
 	}
 
 	attendance.SetTenantID(tenant.FromContext(ctx))
-	if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
+	if _, err := s.attendanceRepo.CreateIfNoOpenForToday(ctx, attendance); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 	return nil
@@ -124,8 +125,40 @@ func (s *service) clearCheckoutOnReentry(ctx context.Context, studentID int64, a
 	}
 }
 
-// autoClearStudentSickness clears sickness flag when student checks in
+// resolveClearMode resolves the configured clear mode for a status flag,
+// falling back to the provided default when the settings resolver is unavailable
+// or has no tenant override. Registry defaults are populated via SetValue flow,
+// not via Resolve* — so we check HasTenantOverride explicitly.
+func (s *service) resolveClearMode(ctx context.Context, key, fallback string) string {
+	if s.settings == nil {
+		return fallback
+	}
+	hasOverride, err := s.settings.HasTenantOverride(ctx, key)
+	if err != nil {
+		s.getLogger().Warn("settings override check failed, using default",
+			slog.String("key", key),
+			slog.String("error", err.Error()),
+		)
+		return fallback
+	}
+	if !hasOverride {
+		return fallback
+	}
+	val, err := s.settings.ResolveString(ctx, key)
+	if err != nil || val == "" {
+		return fallback
+	}
+	return val
+}
+
+// autoClearStudentSickness clears the sickness flag on student check-in when
+// the tenant's operations.sick_clear_mode setting is "next_checkin" (default).
 func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64) {
+	mode := s.resolveClearMode(ctx, configModel.KeySickClearMode, configModel.ClearModeNextCheckin)
+	if mode != configModel.ClearModeNextCheckin {
+		return
+	}
+
 	student, err := s.studentRepo.FindByID(ctx, studentID)
 	if err != nil || student == nil {
 		return
@@ -135,7 +168,9 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 		return
 	}
 
-	// Student is marked as sick, clear it since they're checking in
+	now := time.Now()
+	s.recordStudentStatusForClear(ctx, studentID, active.StudentStatusDaySick, student.SickSince, now, active.StudentStatusSourceNextCheckin)
+
 	falseVal := false
 	student.Sick = &falseVal
 	student.SickSince = nil
@@ -153,8 +188,80 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 	)
 }
 
-// broadcastVisitCreated sends SSE event for visit creation
-func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit) {
+// autoClearStudentExcused clears the excused flag on student check-in when
+// the tenant's operations.excused_clear_mode setting is "next_checkin".
+func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) {
+	mode := s.resolveClearMode(ctx, configModel.KeyExcusedClearMode, configModel.ClearModeEndOfDay)
+	if mode != configModel.ClearModeNextCheckin {
+		return
+	}
+
+	student, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil || student == nil {
+		return
+	}
+
+	if student.Excused == nil || !*student.Excused {
+		return
+	}
+
+	now := time.Now()
+	s.recordStudentStatusForClear(ctx, studentID, active.StudentStatusDayExcused, student.ExcusedSince, now, active.StudentStatusSourceNextCheckin)
+
+	falseVal := false
+	student.Excused = &falseVal
+	student.ExcusedSince = nil
+
+	if err := s.studentRepo.Update(ctx, student); err != nil {
+		s.getLogger().Warn("failed to auto-clear excused on check-in",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	s.getLogger().Info("auto-cleared excused on student check-in",
+		slog.Int64("student_id", studentID),
+	)
+}
+
+func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int64, status string, since *time.Time, now time.Time, source string) {
+	if s.studentStatusRepo == nil {
+		return
+	}
+	reportedAt := now
+	if since != nil {
+		reportedAt = *since
+	}
+	today := timezone.DateOfUTC(now)
+	if err := s.studentStatusRepo.UpsertReported(ctx, &active.StudentStatusDay{
+		StudentID:  studentID,
+		Date:       today,
+		Status:     status,
+		ReportedAt: reportedAt,
+		Source:     source,
+	}); err != nil {
+		s.getLogger().Warn("failed to record student status before auto-clear",
+			slog.Int64("student_id", studentID),
+			slog.String("status", status),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if err := s.studentStatusRepo.MarkCleared(ctx, studentID, status, today, now, source); err != nil {
+		s.getLogger().Warn("failed to close student status history on auto-clear",
+			slog.Int64("student_id", studentID),
+			slog.String("status", status),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+// broadcastVisitCreated sends SSE event for visit creation.
+// snapshot (WP-B10) may be nil — when present, it enriches the event with
+// attendance_status/substatus/note so subscribers see the flipped attendance
+// state alongside the check-in line.
+func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit, snapshot *AttendanceSnapshot) {
 	if s.broadcaster == nil {
 		return
 	}
@@ -164,13 +271,16 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 
 	studentName, studentRec := s.getStudentDisplayData(ctx, visit.StudentID)
 
+	data := realtime.EventData{
+		StudentID:   &studentID,
+		StudentName: &studentName,
+	}
+	applyAttendanceSnapshot(&data, snapshot)
+
 	event := realtime.NewEvent(
 		realtime.EventStudentCheckIn,
 		activeGroupID,
-		realtime.EventData{
-			StudentID:   &studentID,
-			StudentName: &studentName,
-		},
+		data,
 	)
 
 	if err := s.broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {

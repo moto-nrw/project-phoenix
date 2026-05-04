@@ -51,7 +51,7 @@ func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, stude
 	}
 
 	err := query.
-		Order("enrollment_date DESC").
+		Order("valid_from DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -85,7 +85,9 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		ColumnExpr(`"student_enrollment".tenant_id AS "student_enrollment__tenant_id"`).
 		ColumnExpr(`"student_enrollment".student_id AS "student_enrollment__student_id"`).
 		ColumnExpr(`"student_enrollment".activity_group_id AS "student_enrollment__activity_group_id"`).
-		ColumnExpr(`"student_enrollment".enrollment_date AS "student_enrollment__enrollment_date"`).
+		ColumnExpr(`"student_enrollment".valid_from AS "student_enrollment__valid_from"`).
+		ColumnExpr(`"student_enrollment".valid_until AS "student_enrollment__valid_until"`).
+		ColumnExpr(`"student_enrollment".calendar_period_id AS "student_enrollment__calendar_period_id"`).
 		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
 		ColumnExpr(`"student".id AS "student__id"`).
 		ColumnExpr(`"student".created_at AS "student__created_at"`).
@@ -115,7 +117,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 	}
 
 	err := query.
-		Order("student_enrollment.enrollment_date DESC").
+		Order("student_enrollment.valid_from DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -161,27 +163,25 @@ func (r *StudentEnrollmentRepository) CountByGroupID(ctx context.Context, groupI
 	return count, nil
 }
 
-// FindByEnrollmentDateRange finds enrollments within a date range
-func (r *StudentEnrollmentRepository) FindByEnrollmentDateRange(ctx context.Context, start, end time.Time) ([]*activities.StudentEnrollment, error) {
+// FindByValidFromRange finds enrollments within a valid_from date range
+func (r *StudentEnrollmentRepository) FindByValidFromRange(ctx context.Context, start, end time.Time) ([]*activities.StudentEnrollment, error) {
 	enrollments := make([]*activities.StudentEnrollment, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&enrollments).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
-		// Note: Relation() doesn't work with multi-schema tables
-		// The caller should load Student, Student.Person, and ActivityGroup separately if needed
-		Where("enrollment_date >= ? AND enrollment_date <= ?", start, end)
+		Where("valid_from >= ? AND valid_from <= ?", start, end)
 
 	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
 		query = query.Where(where, val)
 	}
 
 	err := query.
-		Order("enrollment_date DESC").
+		Order("valid_from DESC").
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by enrollment date range",
+			Op:  "find by valid_from date range",
 			Err: err,
 		}
 	}

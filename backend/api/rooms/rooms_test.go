@@ -2,6 +2,7 @@ package rooms_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -191,6 +192,17 @@ func TestCreateRoom(t *testing.T) {
 		router := setupRouter(tc.resource.CreateRoomHandler(), "")
 		uniqueName := fmt.Sprintf("Full Room %d", time.Now().UnixNano())
 		floor := 2
+		// Hex stays deterministic — the row gets cleaned up below, so
+		// repeated runs no longer collide on the (tenant_id, lower(color))
+		// unique index from migration 1.15.45. Earlier crashed/cancelled
+		// runs may have left a #FF5733 row behind that the deferred
+		// cleanup never ran on; sweep it up here to keep the test
+		// hermetic.
+		_, _ = tc.db.NewDelete().
+			TableExpr("facilities.rooms").
+			Where("LOWER(color) = LOWER(?)", "#FF5733").
+			Exec(context.Background())
+
 		body := map[string]interface{}{
 			"name":     uniqueName,
 			"building": "Main",
@@ -204,6 +216,20 @@ func TestCreateRoom(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+
+		// Clean up the row we just created so the unique-on-color index
+		// doesn't poison subsequent runs of this test in the shared test
+		// DB. The original test omitted this and relied on the (then-non-
+		// existent) lack of a constraint to dodge collisions; now that
+		// uniqueness is enforced the cleanup is mandatory.
+		var resp struct {
+			Data struct {
+				ID int64 `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		require.NotZero(t, resp.Data.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, resp.Data.ID)
 	})
 
 	t.Run("bad_request_missing_name", func(t *testing.T) {

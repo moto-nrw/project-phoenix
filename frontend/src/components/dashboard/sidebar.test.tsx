@@ -60,6 +60,7 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { usePresenceMode } from "~/components/tenant/tenant-provider";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -67,6 +68,7 @@ const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockUseShellAuth = vi.mocked(useShellAuth);
+const mockUsePresenceMode = vi.mocked(usePresenceMode);
 
 // Helper to create mock search params
 function createMockSearchParams(
@@ -130,6 +132,7 @@ describe("Sidebar", () => {
       isSupervising: false,
       isLoadingGroups: false,
       isLoadingSupervision: false,
+      adminOverviewEnabled: false,
       supervisedRooms: [],
       groups: [],
       refresh: vi.fn(),
@@ -202,6 +205,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -230,6 +234,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -246,6 +251,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -262,6 +268,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -442,6 +449,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: true,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -459,6 +467,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: true,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -500,6 +509,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -524,6 +534,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -570,6 +581,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [{ id: 1, name: "Eulen" }],
         refresh: vi.fn(),
@@ -592,6 +604,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -612,6 +625,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
         groups: [],
         refresh: vi.fn(),
@@ -634,6 +648,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
@@ -735,6 +750,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [{ id: 1, name: "Eulen" }],
         refresh: vi.fn(),
@@ -751,6 +767,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -770,6 +787,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
         groups: [],
         refresh: vi.fn(),
@@ -786,6 +804,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -819,6 +838,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -846,6 +866,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -882,6 +903,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -953,6 +975,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -980,6 +1003,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -1022,6 +1046,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [{ id: 1, name: "Eulen" }],
         refresh: vi.fn(),
@@ -1048,6 +1073,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
         groups: [],
         refresh: vi.fn(),
@@ -1119,6 +1145,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -1153,6 +1180,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -1187,6 +1215,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [],
         groups: [
           { id: 1, name: "Eulen" },
@@ -1221,6 +1250,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           { id: "20", name: "Raum B", groupId: "2" },
@@ -1299,6 +1329,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           {
@@ -1325,6 +1356,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           {
             id: "schulhof",
@@ -1390,6 +1422,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        adminOverviewEnabled: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           {
@@ -1413,6 +1446,53 @@ describe("Sidebar", () => {
           link.textContent === "Raum A" || link.textContent === "Schulhof",
       );
       expect(roomLinks).toHaveLength(2);
+    });
+  });
+
+  describe("binary presence mode", () => {
+    // The sidebar hides room/activity nav + the supervision accordion when
+    // the tenant runs in binary mode. These two assertions cover both
+    // `isBinaryMode` branches (BINARY_HIDDEN_HREFS filter + accordion gate).
+
+    beforeEach(() => {
+      mockUsePresenceMode.mockReturnValue("binary");
+    });
+
+    afterEach(() => {
+      mockUsePresenceMode.mockReturnValue("detailed");
+    });
+
+    it("hides Räume and Aktivitäten nav items", () => {
+      render(<Sidebar />);
+      expect(screen.queryByText("Räume")).not.toBeInTheDocument();
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+    });
+
+    it("hides the Aktuelle-Aufsicht accordion for supervising staff", () => {
+      // Give the user both groups and supervised rooms so detailed mode
+      // would definitely render the accordion — then assert binary hides it.
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        adminOverviewEnabled: false,
+        supervisedRooms: [
+          { id: "r1", name: "Raum A", groupId: "g1", isSchulhof: false },
+        ],
+        groups: [{ id: 1, name: "1a" }],
+        refresh: vi.fn(),
+      });
+      render(<Sidebar />);
+      // Accordion header is "Aktuelle Aufsicht" (singular) or "Aktuelle
+      // Aufsichten" (plural) — neither should appear in binary mode.
+      expect(screen.queryByText(/Aktuelle Aufsicht/)).not.toBeInTheDocument();
+    });
+
+    it("keeps Kindersuche and Mitarbeiter visible (not binary-hidden)", () => {
+      render(<Sidebar />);
+      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
     });
   });
 });

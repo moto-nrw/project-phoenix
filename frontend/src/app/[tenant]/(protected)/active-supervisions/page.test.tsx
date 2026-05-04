@@ -112,6 +112,9 @@ vi.mock("~/lib/active-api", () => ({
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
     toggleSchulhofSupervision: vi.fn(() => Promise.resolve()),
+    getTrackingIndicators: vi.fn(() =>
+      Promise.resolve({ labels: [], results: {} }),
+    ),
   },
 }));
 
@@ -137,6 +140,36 @@ vi.mock("~/components/ui/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
+// Mock location-helper
+vi.mock("~/lib/location-helper", () => ({
+  LOCATION_COLORS: {
+    UNKNOWN: "#6B7280",
+    SCHOOLYARD: "#F78C10",
+    HOME: "#FF3130",
+    GROUP_ROOM: "#83CD2D",
+  },
+  LOCATION_STATUSES: { PRESENT: "Anwesend" },
+  isHomeLocation: vi.fn(() => false),
+  isSchoolyardLocation: vi.fn(() => false),
+  isTransitLocation: vi.fn(() => false),
+  parseLocation: vi.fn(() => ({ room: "Room 1", status: "Anwesend" })),
+}));
+
+// Mock pickup-helpers
+vi.mock("~/lib/pickup-helpers", () => ({
+  useMinuteClock: () => new Date("2026-01-15T12:00:00"),
+}));
+
+// Mock pickup-schedule-api
+vi.mock("~/lib/pickup-schedule-api", () => ({
+  fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
+}));
+
+// Mock student-arrival-api
+vi.mock("~/lib/student-arrival-api", () => ({
+  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
+}));
+
 // Mock StudentCard components
 vi.mock("~/components/students/student-card", () => ({
   StudentCard: ({
@@ -155,6 +188,57 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  PickupTimeRow: ({
+    pickupTime,
+    isException,
+    notes,
+    isHome,
+  }: {
+    pickupTime?: string;
+    isException: boolean;
+    notes?: string;
+    isHome: boolean;
+    now: Date;
+  }) => (
+    <div
+      data-testid="pickup-time-row"
+      data-pickup-time={pickupTime ?? ""}
+      data-is-exception={String(isException)}
+      data-is-home={String(isHome)}
+    >
+      {pickupTime && <>Abholzeit: {pickupTime} Uhr</>}
+      {!pickupTime && isException && (notes || "Abwesend")}
+      {!pickupTime && !isException && <>Abholzeit: —</>}
+      {notes && <span>({notes})</span>}
+    </div>
+  ),
+  ArrivalTimeRow: ({
+    arrivalTime,
+    isException,
+    isAbsent,
+    notes,
+    isHome,
+  }: {
+    arrivalTime?: string;
+    isException: boolean;
+    isAbsent: boolean;
+    notes?: string;
+    isHome: boolean;
+    now: Date;
+  }) => (
+    <div
+      data-testid="arrival-time-row"
+      data-arrival-time={arrivalTime ?? ""}
+      data-is-exception={String(isException)}
+      data-is-absent={String(isAbsent)}
+      data-is-home={String(isHome)}
+    >
+      {isAbsent && <>Kommt heute nicht</>}
+      {!isAbsent && arrivalTime && <>Ankunftszeit: {arrivalTime} Uhr</>}
+      {!isAbsent && !arrivalTime && <>Ankunftszeit: —</>}
+      {notes && <span>({notes})</span>}
+    </div>
+  ),
 }));
 
 // Mock SWR hook
@@ -7312,5 +7396,719 @@ describe("RoleGuard integration", () => {
 
     expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
+  it("renders content for admin with supervised rooms", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    // Mock useOptionalSupervision to return adminOverviewEnabled = true,
+    // which is the explicit signal that the admin_supervision_overview
+    // setting is enabled on the backend.
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
+      isLoadingSupervision: false,
+      adminOverviewEnabled: true,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    // Admin with rooms should pass the gate and render content
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
+  it("blocks admin when only a synthetic Schulhof room exists (setting off)", async () => {
+    // P1-A regression guard — the gate must consult adminOverviewEnabled,
+    // not supervisedRooms.length. A synthetic Schulhof entry is always
+    // present when the tenant has a Schulhof, regardless of the setting.
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [
+        {
+          id: "schulhof",
+          name: "Schulhof",
+          groupId: "1",
+          isSchulhof: true,
+        },
+      ],
+      isLoadingSupervision: false,
+      adminOverviewEnabled: false,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+  });
+
+  it("shows loading state while supervision is loading for admin", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [],
+      isLoadingSupervision: true,
+      adminOverviewEnabled: false,
+      hasGroups: false,
+      isLoadingGroups: true,
+      groups: [],
+      isSupervising: false,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+  });
+});
+
+describe("Admin fallback dashboard fetcher", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+
+    const supervisionCtx = await import("~/lib/supervision-context");
+    vi.spyOn(supervisionCtx, "useOptionalSupervision").mockReturnValue({
+      supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
+      isLoadingSupervision: false,
+      adminOverviewEnabled: true,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+  });
+
+  afterEach(() => cleanup());
+
+  // Helper: mock useSWRAuth so the dashboard fetcher actually runs
+  function captureFetcher(): {
+    getPromise: () => Promise<unknown> | undefined;
+  } {
+    let dashboardPromise: Promise<unknown> | undefined;
+    vi.mocked(useSWRAuth).mockImplementation(((
+      key: string | null,
+      fetcher: (() => Promise<unknown>) | undefined,
+    ) => {
+      if (
+        key?.startsWith("active-supervision-dashboard") &&
+        fetcher &&
+        !dashboardPromise
+      ) {
+        dashboardPromise = fetcher();
+      }
+      return {
+        data: null,
+        isLoading: true,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never;
+    }) as never);
+    return { getPromise: () => dashboardPromise };
+  }
+
+  it("populates supervisedGroups and schulhofStatus from fallback endpoints", async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      if (url.includes("/api/active/supervisors/all")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  id: 1,
+                  name: "Group 1",
+                  room_id: 10,
+                  room: { id: 10, name: "Kunstraum" },
+                },
+              ],
+            }),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                data: {
+                  exists: true,
+                  room_id: 99,
+                  room_name: "Schulhof",
+                  active_group_id: 42,
+                  is_user_supervising: true,
+                  supervision_id: 123,
+                  supervisor_count: 1,
+                  student_count: 5,
+                  supervisors: [
+                    {
+                      id: 1,
+                      staff_id: 2,
+                      name: "Super",
+                      is_current_user: true,
+                    },
+                  ],
+                },
+              },
+            }),
+        });
+      }
+      return Promise.reject(new Error(`unexpected: ${url}`));
+    });
+
+    const { getPromise } = captureFetcher();
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(getPromise()).toBeDefined());
+
+    const result = (await getPromise()) as {
+      supervisedGroups: Array<{ id: string; room_id?: string }>;
+      schulhofStatus: { exists: boolean; supervisorCount: number } | null;
+      firstRoomId: string | null;
+    };
+    expect(result.supervisedGroups).toHaveLength(1);
+    expect(result.supervisedGroups[0]?.room_id).toBe("10");
+    expect(result.firstRoomId).toBe("10");
+    expect(result.schulhofStatus?.exists).toBe(true);
+    expect(result.schulhofStatus?.supervisorCount).toBe(1);
+  });
+
+  it("returns empty supervisedGroups when supervisors endpoint fails", async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 403 });
+      }
+      if (url.includes("/api/active/supervisors/all")) {
+        return Promise.resolve({ ok: false });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.reject(new Error("network"));
+      }
+      return Promise.reject(new Error("unexpected"));
+    });
+
+    const { getPromise } = captureFetcher();
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(getPromise()).toBeDefined());
+
+    const result = (await getPromise()) as {
+      supervisedGroups: unknown[];
+      schulhofStatus: unknown;
+      firstRoomId: string | null;
+    };
+    expect(result.supervisedGroups).toEqual([]);
+    expect(result.schulhofStatus).toBeNull();
+    expect(result.firstRoomId).toBeNull();
+  });
+
+  it("omits schulhofStatus when schulhof.exists is false", async () => {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      if (url.includes("/api/active/supervisors/all")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data: [] }),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                data: {
+                  exists: false,
+                  room_name: "",
+                  is_user_supervising: false,
+                  supervisor_count: 0,
+                  student_count: 0,
+                },
+              },
+            }),
+        });
+      }
+      return Promise.reject(new Error("unexpected"));
+    });
+
+    const { getPromise } = captureFetcher();
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(getPromise()).toBeDefined());
+
+    const result = (await getPromise()) as { schulhofStatus: unknown };
+    expect(result.schulhofStatus).toBeNull();
+  });
+
+  it("skips fallback entirely for non-admin and throws on BFF failure", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: false } },
+      status: "authenticated",
+    } as never);
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/api/active-supervision-dashboard")) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      return Promise.reject(new Error("should not be called"));
+    });
+
+    // Capture the fetcher without invoking — invoke manually below to contain
+    // the rejection inside the test instead of letting it escape to vitest.
+    let capturedFetcher: (() => Promise<unknown>) | undefined;
+    vi.mocked(useSWRAuth).mockImplementation(((
+      key: string | null,
+      fetcher: (() => Promise<unknown>) | undefined,
+    ) => {
+      if (
+        key?.startsWith("active-supervision-dashboard") &&
+        fetcher &&
+        !capturedFetcher
+      ) {
+        capturedFetcher = fetcher;
+      }
+      return {
+        data: null,
+        isLoading: true,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never;
+    }) as never);
+
+    render(<MeinRaumPage />);
+    await waitFor(() => expect(capturedFetcher).toBeDefined());
+
+    await expect(capturedFetcher!()).rejects.toThrow("BFF request failed: 500");
+  });
+});
+
+describe("Tracking indicators rendering", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+    localStorage.clear();
+  });
+
+  afterEach(() => cleanup());
+
+  it("subscribes to the tracking hook once a room has students", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [
+        {
+          studentId: "100",
+          studentName: "Max Mustermann",
+          schoolClass: "1a",
+          groupName: "OGS",
+          activeGroupId: "1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "1",
+      schulhofStatus: null,
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation((key) => {
+      if (typeof key === "string" && key.startsWith("tracking-supervisions")) {
+        return {
+          data: { labels: ["Hausaufgaben"], results: { "100": [true] } },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        } as never;
+      }
+      if (
+        typeof key === "string" &&
+        key.startsWith("active-supervision-dashboard")
+      ) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        } as never;
+      }
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never;
+    });
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+    });
+
+    const trackingCall = vi
+      .mocked(useSWRAuth)
+      .mock.calls.find(
+        (args) =>
+          typeof args[0] === "string" &&
+          args[0].startsWith("tracking-supervisions"),
+      );
+    expect(trackingCall).toBeDefined();
+    expect(trackingCall?.[0]).toContain("tracking-supervisions-");
+    expect(trackingCall?.[0]).toContain("100");
+  });
+});
+
+describe("Year filter (Klassenstufe) on active supervisions", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+    localStorage.clear();
+
+    // Override PageHeaderWithSearch to expose year filter
+    const mod = await import("~/components/ui/page-header");
+    vi.mocked(
+      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+    ).mockImplementation((props: Record<string, unknown>) => {
+      const p = props;
+      const search = p.search as
+        | { value: string; onChange: (v: string) => void }
+        | undefined;
+      const filters = p.filters as
+        | Array<{
+            id: string;
+            value: string;
+            onChange: (v: string) => void;
+            options: Array<{ value: string; label: string }>;
+          }>
+        | undefined;
+      const activeFilters = p.activeFilters as
+        | Array<{ id: string; label: string; onRemove?: () => void }>
+        | undefined;
+      const onClearAllFilters = p.onClearAllFilters as (() => void) | undefined;
+
+      return (
+        <div data-testid="page-header">
+          {search && (
+            <input
+              data-testid="search-input"
+              value={search.value}
+              onChange={(e) => search.onChange(e.target.value)}
+            />
+          )}
+          {filters?.map((f) => (
+            <select
+              key={f.id}
+              data-testid={`filter-${f.id}`}
+              value={f.value}
+              onChange={(e) => f.onChange(e.target.value)}
+            >
+              {f.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ))}
+          <div data-testid="active-filters">
+            {activeFilters?.map((f) => (
+              <button
+                key={f.id}
+                data-testid={`active-filter-${f.id}`}
+                onClick={f.onRemove}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {onClearAllFilters && (
+            <button data-testid="clear-filters" onClick={onClearAllFilters}>
+              Clear
+            </button>
+          )}
+        </div>
+      );
+    });
+  });
+
+  afterEach(() => cleanup());
+
+  function makeDashboardWithStudents(
+    students: Array<{
+      id: string;
+      name: string;
+      schoolClass: string;
+      groupName: string;
+    }>,
+  ) {
+    return {
+      supervisedGroups: [
+        {
+          id: "g1",
+          name: "OGS",
+          room_id: "r1",
+          room: { id: "r1", name: "Raum A" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [{ id: "eg1", name: "OGS", room: { name: "Raum A" } }],
+      firstRoomVisits: students.map((s) => ({
+        studentId: s.id,
+        studentName: s.name,
+        schoolClass: s.schoolClass,
+        groupName: s.groupName,
+        activeGroupId: "g1",
+        checkInTime: new Date().toISOString(),
+        isActive: true,
+      })),
+      firstRoomId: "r1",
+      schulhofStatus: null,
+    };
+  }
+
+  const fourStudents = [
+    { id: "s1", name: "Max Mustermann", schoolClass: "1a", groupName: "OGS" },
+    { id: "s2", name: "Anna Schmidt", schoolClass: "2b", groupName: "OGS" },
+    { id: "s3", name: "Tom Weber", schoolClass: "1c", groupName: "OGS" },
+    { id: "s4", name: "Lisa Müller", schoolClass: "3a", groupName: "OGS" },
+  ];
+
+  const swrNull = {
+    data: null,
+    isLoading: false,
+    error: null,
+    mutate: mockMutate,
+    isValidating: false,
+  } as never;
+
+  it("filters students by year 1 — shows only class 1 students", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    // Filter by year 1
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "1" } });
+
+    await waitFor(() => {
+      // Max (1a) and Tom (1c) should remain; Anna (2b) and Lisa (3a) filtered out
+      expect(screen.getAllByTestId("student-card").length).toBe(2);
+    });
+  });
+
+  it("filters students by year 3 — shows only class 3 students", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "3" } });
+
+    await waitFor(() => {
+      // Only Lisa (3a)
+      expect(screen.getAllByTestId("student-card").length).toBe(1);
+    });
+  });
+
+  it("shows all students when year filter is reset to 'all'", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    const yearFilter = screen.getByTestId("filter-year");
+
+    // Filter by year 1
+    fireEvent.change(yearFilter, { target: { value: "1" } });
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(2);
+    });
+
+    // Reset to all
+    fireEvent.change(yearFilter, { target: { value: "all" } });
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+  });
+
+  it("shows year active filter chip with correct label", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "2" } });
+
+    await waitFor(() => {
+      const chip = screen.getByTestId("active-filter-year");
+      expect(chip).toBeInTheDocument();
+      expect(chip).toHaveTextContent("Jahr 2");
+    });
+  });
+
+  it("removes year filter when active filter chip is clicked", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    // Set year filter
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "1" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-filter-year")).toBeInTheDocument();
+      expect(screen.getAllByTestId("student-card").length).toBe(2);
+    });
+
+    // Click chip to remove
+    fireEvent.click(screen.getByTestId("active-filter-year"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("active-filter-year"),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+  });
+
+  it("clears year filter when clear-all-filters is clicked", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: makeDashboardWithStudents(fourStudents),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
+
+    // Set year filter
+    const yearFilter = screen.getByTestId("filter-year");
+    fireEvent.change(yearFilter, { target: { value: "1" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-filter-year")).toBeInTheDocument();
+    });
+
+    // Click clear all
+    fireEvent.click(screen.getByTestId("clear-filters"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("active-filter-year"),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByTestId("student-card").length).toBe(4);
+    });
   });
 });

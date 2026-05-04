@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor, fireEvent, screen } from "@testing-library/react";
+import { ToastProvider } from "~/contexts/ToastContext";
 
 const mockFetchSchema = vi.fn<() => Promise<unknown>>();
 const mockSetSettingValue = vi.fn<() => Promise<string | null>>();
@@ -17,6 +18,20 @@ vi.mock("~/lib/settings-api", () => ({
   fetchSettingsSchema: () => mockFetchSchema(),
   setSettingValue: (_k: string, _v: unknown) => mockSetSettingValue(),
   resetSettingValue: (_k: string) => mockResetSettingValue(),
+}));
+
+const mockRefreshSupervision = vi.fn(() => Promise.resolve());
+vi.mock("~/lib/supervision-context", () => ({
+  useOptionalSupervision: () => ({
+    hasGroups: false,
+    groups: [],
+    isLoadingGroups: false,
+    isSupervising: false,
+    supervisedRooms: [],
+    isLoadingSupervision: false,
+    adminOverviewEnabled: false,
+    refresh: mockRefreshSupervision,
+  }),
 }));
 
 const { useSettingsTabs } = await import("./settings-page");
@@ -86,6 +101,10 @@ function HookWrapper({
   const result = useSettingsTabs();
   onResult(result);
   return null;
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
 }
 
 // Renders the actual SettingsContent via the hook's renderTab
@@ -174,7 +193,7 @@ describe("SettingsContent (via renderTab)", () => {
 
   it("renders no-tabs when schema is null", async () => {
     mockFetchSchema.mockResolvedValue(null);
-    render(<RenderedTab tabId="settings-operations" />);
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await waitFor(() => {
       expect(screen.getByTestId("no-tabs")).toBeDefined();
     });
@@ -183,7 +202,7 @@ describe("SettingsContent (via renderTab)", () => {
   it("renders settings items after loading", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
-    render(<RenderedTab tabId="settings-operations" />);
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     expect(await screen.findByText("Aktiviert")).toBeDefined();
     expect(await screen.findByText("Uhrzeit")).toBeDefined();
   });
@@ -191,7 +210,9 @@ describe("SettingsContent (via renderTab)", () => {
   it("shows nothing when schema is null (no access)", async () => {
     mockFetchSchema.mockResolvedValue(null);
 
-    const { container } = render(<RenderedTab tabId="settings-operations" />);
+    const { container } = renderWithProviders(
+      <RenderedTab tabId="settings-operations" />,
+    );
     await waitFor(() => {
       expect(container.querySelector(".animate-spin")).toBeNull();
     });
@@ -200,7 +221,7 @@ describe("SettingsContent (via renderTab)", () => {
   it("shows Keine Einstellungen for unknown tab", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
-    render(<RenderedTab tabId="settings-nonexistent" />);
+    renderWithProviders(<RenderedTab tabId="settings-nonexistent" />);
     expect(
       await screen.findByText("Keine Einstellungen verfügbar."),
     ).toBeDefined();
@@ -209,7 +230,7 @@ describe("SettingsContent (via renderTab)", () => {
   it("saves boolean value on toggle click", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
-    render(<RenderedTab tabId="settings-operations" />);
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -221,14 +242,14 @@ describe("SettingsContent (via renderTab)", () => {
   it("renders category heading from schema", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
-    render(<RenderedTab tabId="settings-operations" />);
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     expect(await screen.findByText("Sitzungen")).toBeDefined();
   });
 
   it("updates value optimistically after save (no immediate re-fetch)", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
-    render(<RenderedTab tabId="settings-operations" />);
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await screen.findByText("Aktiviert");
 
     const fetchCountBefore = mockFetchSchema.mock.calls.length;
@@ -250,7 +271,9 @@ describe("SettingsContent (via renderTab)", () => {
       "Netzwerkfehler beim Speichern der Einstellung.",
     );
 
-    const { container } = render(<RenderedTab tabId="settings-operations" />);
+    const { container } = renderWithProviders(
+      <RenderedTab tabId="settings-operations" />,
+    );
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -268,7 +291,9 @@ describe("SettingsContent (via renderTab)", () => {
       "Einstellung konnte nicht gespeichert werden.",
     );
 
-    const { container } = render(<RenderedTab tabId="settings-operations" />);
+    const { container } = renderWithProviders(
+      <RenderedTab tabId="settings-operations" />,
+    );
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -285,7 +310,9 @@ describe("SettingsContent (via renderTab)", () => {
       "Netzwerkfehler beim Speichern der Einstellung.",
     );
 
-    const { container } = render(<RenderedTab tabId="settings-operations" />);
+    const { container } = renderWithProviders(
+      <RenderedTab tabId="settings-operations" />,
+    );
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -293,8 +320,8 @@ describe("SettingsContent (via renderTab)", () => {
       expect(container.querySelector(".bg-red-50")).not.toBeNull();
     });
 
-    // Click the dismiss button (×)
-    const closeButton = screen.getByText("×");
+    // Click the dismiss button
+    const closeButton = screen.getByLabelText("Fehler schließen");
     fireEvent.click(closeButton);
 
     await waitFor(() => {
@@ -305,7 +332,7 @@ describe("SettingsContent (via renderTab)", () => {
   it("resets value and reloads schema", async () => {
     mockFetchSchema.mockResolvedValue(mockSchema);
 
-    render(<RenderedTab tabId="settings-operations" />);
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await screen.findByText("Aktiviert");
 
     // Simulate a reset — the component calls resetSettingValue then loadSchema
@@ -335,7 +362,9 @@ describe("SettingsContent (via renderTab)", () => {
     mockFetchSchema.mockResolvedValue(schemaWithOverride);
 
     // Re-render with the overridden schema
-    const { unmount } = render(<RenderedTab tabId="settings-operations" />);
+    const { unmount } = renderWithProviders(
+      <RenderedTab tabId="settings-operations" />,
+    );
 
     await waitFor(() => {
       // The key thing is that the component loaded with the overridden schema
@@ -375,7 +404,7 @@ describe("SettingsContent (via renderTab)", () => {
     };
     mockFetchSchema.mockResolvedValue(schemaWithOverride);
 
-    render(<RenderedTab tabId="settings-operations" />);
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await screen.findByText("Aktiviert");
 
     // Find and click reset if available
@@ -399,7 +428,9 @@ describe("SettingsContent (via renderTab)", () => {
       "Netzwerkfehler beim Speichern der Einstellung.",
     );
 
-    const { container } = render(<RenderedTab tabId="settings-operations" />);
+    const { container } = renderWithProviders(
+      <RenderedTab tabId="settings-operations" />,
+    );
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -421,7 +452,9 @@ describe("SettingsContent (via renderTab)", () => {
     // A validation error like "Minimum: 5" should NOT be shown as a banner
     mockSetSettingValue.mockResolvedValue("Minimum: 5");
 
-    const { container } = render(<RenderedTab tabId="settings-operations" />);
+    const { container } = renderWithProviders(
+      <RenderedTab tabId="settings-operations" />,
+    );
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
@@ -432,5 +465,63 @@ describe("SettingsContent (via renderTab)", () => {
 
     // Validation errors don't match the banner condition — no banner should appear
     expect(container.querySelector(".bg-red-50")).toBeNull();
+  });
+
+  it("refreshes supervision context after toggling admin_supervision_overview", async () => {
+    const schemaWithAdminOverview = {
+      tabs: [
+        {
+          key: "operations",
+          label: "Betrieb",
+          categories: [
+            {
+              key: "sessions",
+              label: "Sitzungen",
+              items: [
+                {
+                  key: "operations.admin_supervision_overview",
+                  label: "Administrator-Aufsichtsübersicht",
+                  description: "Admins sehen alle Aufsichten",
+                  type: "boolean" as const,
+                  default: false,
+                  value: false,
+                  is_default: true,
+                  writable: true,
+                  visible: true,
+                  sort_order: 1,
+                  validation: null,
+                  depends_on: null,
+                  options: null,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    mockFetchSchema.mockResolvedValue(schemaWithAdminOverview);
+    mockSetSettingValue.mockResolvedValue(null);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    const toggle = await screen.findByRole("switch");
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(mockRefreshSupervision).toHaveBeenCalledWith({ force: true });
+    });
+  });
+
+  it("does not refresh supervision context for unrelated settings", async () => {
+    mockFetchSchema.mockResolvedValue(mockSchema);
+    mockSetSettingValue.mockResolvedValue(null);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    const toggle = await screen.findByRole("switch");
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(mockSetSettingValue).toHaveBeenCalled();
+    });
+    expect(mockRefreshSupervision).not.toHaveBeenCalled();
   });
 });

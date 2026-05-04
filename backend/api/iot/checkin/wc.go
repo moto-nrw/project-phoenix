@@ -2,6 +2,7 @@ package checkin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -9,17 +10,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
 // ensureWCRoom finds or creates the WC room
 func (rs *Resource) ensureWCRoom(ctx context.Context) (*facilities.Room, error) {
-	// Try to find existing WC room
-	room, err := rs.FacilityService.FindRoomByName(ctx, constants.WCRoomName)
+	room, err := rs.FacilityService.FindToiletRoom(ctx, 0)
 	if err == nil && room != nil {
 		rs.getLogger().DebugContext(ctx, "found existing WC room",
 			slog.Int64("room_id", room.ID),
+			slog.String("room_name", room.Name),
 		)
 		return room, nil
+	}
+	if err != nil && !errors.Is(err, facilitiesSvc.ErrRoomNotFound) {
+		return nil, fmt.Errorf("failed to look up WC room: %w", err)
 	}
 
 	// Room not found - create it
@@ -37,9 +42,8 @@ func (rs *Resource) ensureWCRoom(ctx context.Context) (*facilities.Room, error) 
 	}
 
 	if err := rs.FacilityService.CreateRoom(ctx, newRoom); err != nil {
-		// Retry: concurrent request may have created it
-		room, retryErr := rs.FacilityService.FindRoomByName(ctx, constants.WCRoomName)
-		if retryErr == nil && room != nil {
+		// Retry: concurrent request may have created one of the accepted aliases
+		if room, retryErr := rs.FacilityService.FindToiletRoom(ctx, 0); retryErr == nil && room != nil {
 			return room, nil
 		}
 		return nil, fmt.Errorf("failed to auto-create WC room: %w", err)

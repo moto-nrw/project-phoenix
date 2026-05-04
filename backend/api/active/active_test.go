@@ -40,7 +40,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Schulhof, svc.UserContext, db, slog.Default())
+	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default())
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -95,6 +95,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", tc.resource.GetSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}", tc.resource.GetStaffSupervisionsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}/active", tc.resource.GetStaffActiveSupervisionsHandler())
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/all", tc.resource.GetAllActiveSupervisionsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/", tc.resource.CreateSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Put("/{id}", tc.resource.UpdateSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Delete("/{id}", tc.resource.DeleteSupervisorHandler())
@@ -103,7 +104,6 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 		// Analytics
 		r.Route("/analytics", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", tc.resource.GetCountsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", tc.resource.GetDashboardAnalyticsHandler())
 		})
 	})
@@ -162,6 +162,7 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", tc.resource.GetSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}", tc.resource.GetStaffSupervisionsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}/active", tc.resource.GetStaffActiveSupervisionsHandler())
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/all", tc.resource.GetAllActiveSupervisionsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/", tc.resource.CreateSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Put("/{id}", tc.resource.UpdateSupervisorHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Delete("/{id}", tc.resource.DeleteSupervisorHandler())
@@ -170,7 +171,6 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 		// Analytics - Extended
 		r.Route("/analytics", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", tc.resource.GetCountsHandler())
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", tc.resource.GetDashboardAnalyticsHandler())
 		})
 
@@ -529,17 +529,32 @@ func TestListSupervisors(t *testing.T) {
 	})
 }
 
+// supervisorTestTenantID isolates TestCreateSupervisor's fixtures from the
+// default test tenant (1) so concurrent test packages' CleanupActivityFixtures
+// — which deletes by raw int64 ID across many tables in tenant 1 — cannot
+// FK-cascade-delete this test's active group mid-request and surface as the
+// opaque "active: CreateGroupSupervisor: database operation failed" 500.
+const supervisorTestTenantID int64 = 99001
+
 func TestCreateSupervisor(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	adminClaims := testutil.AdminTestClaims(1)
+	testpkg.EnsureTestTenant(t, tc.db, supervisorTestTenantID)
+	adminClaims := testutil.AdminTestClaimsForTenant(1, supervisorTestTenantID)
 
-	// Create test fixtures
-	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Supervisor Room %d", time.Now().UnixNano()))
-	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Supervisor Activity %d", time.Now().UnixNano()))
-	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-	staff := testpkg.CreateTestStaff(t, tc.db, "Supervisor", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
+	// All fixtures live in supervisorTestTenantID — out of reach of other
+	// packages' tenant-1-scoped cleanup.
+	suffix := time.Now().UnixNano()
+	room := testpkg.CreateTestRoomForTenant(t, tc.db, supervisorTestTenantID,
+		fmt.Sprintf("Supervisor Room %d", suffix))
+	group := testpkg.CreateTestActivityGroupForTenant(t, tc.db, supervisorTestTenantID,
+		fmt.Sprintf("Supervisor Activity %d", suffix))
+	activeGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, tc.db,
+		supervisorTestTenantID, group.ID, room.ID)
+	staff := testpkg.CreateTestStaffForTenant(t, tc.db, supervisorTestTenantID,
+		"Supervisor", "Staff")
+	defer testpkg.CleanupActivityFixturesForTenant(t, tc.db, supervisorTestTenantID,
+		room.ID, group.ID, activeGroup.ID, staff.ID)
 
 	t.Run("success with valid data", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -617,33 +632,6 @@ func TestGetStaffActiveSupervisions(t *testing.T) {
 // ============================================================================
 // ANALYTICS TESTS
 // ============================================================================
-
-func TestGetCounts(t *testing.T) {
-	_, router := setupProtectedRouter(t)
-
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("success with permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/counts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-
-		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		data, ok := response["data"].(map[string]interface{})
-		require.True(t, ok, "Expected data to be an object")
-		// Note: Fields with value 0 are omitted due to omitempty in struct tags
-		// So we only verify the response is a valid object with at least active_groups_count
-		assert.Contains(t, data, "active_groups_count")
-	})
-
-	t.Run("forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/counts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
-
-		testutil.AssertForbidden(t, rr)
-	})
-}
 
 func TestGetDashboardAnalytics(t *testing.T) {
 	_, router := setupProtectedRouter(t)
@@ -2369,6 +2357,39 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 	t.Run("forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits/display", activeGroup.ID), nil)
 		rr := executeWithAuth(router, req, staffClaims, []string{})
+
+		testutil.AssertForbidden(t, rr)
+	})
+}
+
+// ============================================================================
+// ADMIN SUPERVISION OVERVIEW TESTS (GET /active/supervisors/all)
+// ============================================================================
+
+func TestGetAllActiveSupervisions(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	adminClaims := testutil.AdminTestClaims(1)
+	teacherClaims := testutil.TeacherTestClaims(42)
+
+	t.Run("forbidden for non-admin user", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/all", nil)
+		rr := executeWithAuth(router, req, teacherClaims, []string{permissions.GroupsRead})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("forbidden for admin when setting is disabled (default)", func(t *testing.T) {
+		// The setting defaults to false, so admin should get 403
+		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/all", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("forbidden without groups:read permission", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/all", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})

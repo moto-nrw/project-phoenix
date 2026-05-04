@@ -26,7 +26,7 @@ type AuthService interface {
 	GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error)
 
 	// Role Management
-	CreateRole(ctx context.Context, name, description string) (*auth.Role, error)
+	CreateRole(ctx context.Context, name, description string, baseRole *string) (*auth.Role, error)
 	GetRoleByID(ctx context.Context, id int) (*auth.Role, error)
 	GetRoleByName(ctx context.Context, name string) (*auth.Role, error)
 	UpdateRole(ctx context.Context, role *auth.Role) error

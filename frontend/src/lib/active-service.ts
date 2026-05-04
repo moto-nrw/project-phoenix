@@ -11,7 +11,6 @@ import {
   mapSupervisorResponse,
   mapCombinedGroupResponse,
   mapGroupMappingResponse,
-  mapAnalyticsResponse,
   mapSchulhofStatusResponse,
   mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
@@ -24,7 +23,6 @@ import {
   type Supervisor,
   type CombinedGroup,
   type GroupMapping,
-  type Analytics,
   type SchulhofStatus,
   type ToggleSupervisionResponse,
   type BackendActiveGroup,
@@ -32,13 +30,13 @@ import {
   type BackendSupervisor,
   type BackendCombinedGroup,
   type BackendGroupMapping,
-  type BackendAnalytics,
   type BackendSchulhofStatus,
   type BackendToggleSupervisionResponse,
   type CreateActiveGroupInput,
   type CreateVisitInput,
   type CreateSupervisorInput,
   type CreateCombinedGroupInput,
+  type TrackingIndicatorsResponse,
 } from "./active-helpers";
 
 // Generic API response interface
@@ -813,16 +811,6 @@ export const activeService = {
     );
   },
 
-  // Analytics
-  getAnalyticsCounts: async (): Promise<Analytics> => {
-    return proxyGet<BackendAnalytics, Analytics>(
-      "/api/active/analytics/counts",
-      "/active/analytics/counts",
-      mapAnalyticsResponse,
-      "Get analytics counts",
-    );
-  },
-
   // Unclaimed Groups (Deviceless Claiming)
   getUnclaimedGroups: async (): Promise<ActiveGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
@@ -1012,5 +1000,42 @@ export const activeService = {
       mapToggleSupervisionResponse,
       "Toggle Schulhof supervision",
     );
+  },
+
+  /**
+   * Fetch tracking indicators for a set of students.
+   * Returns configured labels and per-student match results (boolean array aligned with labels).
+   * Returns empty labels/results when the feature is disabled or no labels are configured.
+   */
+  getTrackingIndicators: async (
+    studentIds: string[],
+  ): Promise<TrackingIndicatorsResponse> => {
+    const empty: TrackingIndicatorsResponse = { labels: [], results: {} };
+    if (studentIds.length === 0) return empty;
+
+    const session = await getCachedSession();
+    if (!session?.user?.token) return empty;
+
+    const response = await fetch("/api/active/tracking-indicators", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.user.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+      }),
+    });
+
+    if (!response.ok) {
+      logger.warn("tracking_indicators_fetch_failed", {
+        status: response.status,
+      });
+      return empty;
+    }
+
+    const data =
+      (await response.json()) as ApiResponse<TrackingIndicatorsResponse>;
+    return data.data;
   },
 };

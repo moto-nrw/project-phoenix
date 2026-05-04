@@ -7,7 +7,7 @@ import type { Activity } from "./activity-helpers";
 const logger = createLogger({ component: "TeacherAPI" });
 
 /** Result of a createTeacher call — either success or a prompt to link an existing account. */
-export type CreateTeacherResult =
+type CreateTeacherResult =
   | { status: "created"; data: TeacherWithCredentials }
   | { status: "account_exists"; email: string };
 
@@ -298,10 +298,10 @@ class TeacherService {
         message?: string;
       };
       const msg = extractErrorMessage(errorData, response.statusText);
-      if (msg.includes("email already exists")) {
+      if (msg.includes("bereits registriert")) {
         return { status: "account_exists" as const };
       }
-      if (msg.includes("username already exists")) {
+      if (msg.includes("Benutzername ist bereits vergeben")) {
         throw new Error(
           "Ein Konto mit diesem Benutzernamen existiert bereits.",
         );

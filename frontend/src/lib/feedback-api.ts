@@ -3,7 +3,7 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "FeedbackAPI" });
 
-export interface BackendFeedbackEntry {
+interface BackendFeedbackEntry {
   id: number;
   value: "positive" | "neutral" | "negative";
   day: string;
@@ -47,6 +47,9 @@ export async function fetchStudentFeedback(
 
     if (!response.ok) {
       if (response.status === 404) return [];
+      if (response.status === 403) {
+        throw new Error("feature_disabled");
+      }
       throw new Error(
         `Failed to fetch feedback: ${response.status} ${response.statusText}`,
       );

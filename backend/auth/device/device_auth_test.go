@@ -980,6 +980,9 @@ func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error           { r
 func (m *mockSchoolRepo) CountByIDs(_ context.Context, ids []int64) (int, error) {
 	return len(ids), nil
 }
+func (m *mockSchoolRepo) CountNonDeletedByOrganizationID(_ context.Context, _ int64) (int, error) {
+	return 0, nil
+}
 
 func TestRejectDeletedSchool_ActiveSchool_ReturnsNil(t *testing.T) {
 	repo := &mockSchoolRepo{school: &platform.School{Active: true}}

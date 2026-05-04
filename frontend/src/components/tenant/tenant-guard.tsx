@@ -31,15 +31,57 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
   const switchAttempted = useRef(false);
   const [signingOutOperator, setSigningOutOperator] = useState(false);
+  const [signingOutExpiredSession, setSigningOutExpiredSession] =
+    useState(false);
 
   const sessionTenantId = session?.user?.tenantId;
   const sessionScope = session?.user?.scope;
+  const sessionToken = session?.user?.token;
+  const sessionError = session?.error;
   const urlTenantId = tenant?.tenantId;
   const urlSlug = tenant?.slug;
+
+  // Auth.js can still report "authenticated" after the JWT callback has
+  // stripped token/roles because refresh failed. Do not render tenant UI in
+  // that limbo state; it makes real admins look like caregivers and produces
+  // confusing forbidden screens.
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    if (sessionToken && !sessionError) return;
+
+    logger.warn("tenant_session_invalid", {
+      token_present: !!sessionToken,
+      error: sessionError,
+    });
+
+    setSigningOutExpiredSession(true);
+
+    void (async () => {
+      try {
+        await mutate(() => true, undefined, { revalidate: false });
+        clearSessionCache();
+      } catch (err) {
+        logger.warn("invalid_session_cache_clear_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      try {
+        await signOut({ redirect: false });
+      } catch (err) {
+        logger.warn("invalid_session_signout_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        window.location.assign("/?error=SessionExpired");
+      }
+    })();
+  }, [status, sessionToken, sessionError]);
 
   // Operator session on tenant subdomain — sign out immediately
   useEffect(() => {
     if (status !== "authenticated" || !tenant) return;
+    if (!sessionToken || sessionError) return;
     if (sessionScope !== "platform") return;
 
     logger.warn("operator_session_on_tenant", {
@@ -69,11 +111,12 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
         window.location.assign("/");
       }
     })();
-  }, [status, tenant, sessionScope, urlSlug]);
+  }, [status, tenant, sessionScope, urlSlug, sessionToken, sessionError]);
 
   useEffect(() => {
     // Only check when authenticated and tenant context is resolved
     if (status !== "authenticated" || !tenant) return;
+    if (!sessionToken || sessionError) return;
 
     // Operator sessions are handled by the effect above
     if (sessionScope === "platform") return;
@@ -127,6 +170,8 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
     urlTenantId,
     urlSlug,
     update,
+    sessionToken,
+    sessionError,
   ]);
 
   // While session is loading, render children transparently.
@@ -143,6 +188,17 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
   const isOperatorOnTenant =
     signingOutOperator ||
     (status === "authenticated" && sessionScope === "platform" && !!tenant);
+
+  if (
+    signingOutExpiredSession ||
+    (status === "authenticated" && (!sessionToken || sessionError))
+  ) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <div className="text-sm text-gray-500">Sitzung wird erneuert...</div>
+      </div>
+    );
+  }
 
   if (isOperatorOnTenant) {
     return (

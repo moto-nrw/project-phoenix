@@ -27,6 +27,12 @@ type UserContextService interface {
 	// GetMyGroups retrieves educational groups associated with the current user
 	GetMyGroups(ctx context.Context) ([]*education.Group, error)
 
+	// GetSubstitutedGroupIDs returns the set of education group IDs the current
+	// staff member can access via an active substitution where the regular
+	// staff slot is unassigned. Returns an empty set when the user is not
+	// staff or has no active substitutions.
+	GetSubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error)
+
 	// GetMyActivityGroups retrieves activity groups associated with the current user
 	GetMyActivityGroups(ctx context.Context) ([]*activities.Group, error)
 

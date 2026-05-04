@@ -120,6 +120,68 @@ export function useTenantMutate() {
 }
 
 /**
+ * Hook that invalidates every tenant-scoped SWR cache entry whose key matches
+ * a substring. Useful for cross-cutting changes that affect data displayed by
+ * multiple unrelated pages — e.g. updating a room's color must refresh every
+ * visit/student list that stamps `current_room_color` into its rows.
+ *
+ * Match is checked against the tenant-prefixed key, so substrings should
+ * include enough context to avoid over-invalidation. Pass an array of
+ * substrings to match if any of them appears.
+ *
+ * **Picking substrings**: prefer fragments that are unlikely to collide with
+ * future cache keys. `"ogs-students"` is safer than `"students"` because the
+ * latter would also match `students-search`, `students-import`, etc., once
+ * those caches exist. Substring match is a forward-compatibility hazard — a
+ * new SWR consumer added later may accidentally land in your invalidation
+ * net without anyone noticing. Err on the side of longer, more specific
+ * fragments and revisit this list whenever a new cache key is introduced
+ * that contains one of your substrings.
+ *
+ * **Convention**: existing SWR keys in this codebase put a trailing dash
+ * before their first dynamic segment (`ogs-students-${groupId}`,
+ * `active-supervision-dashboard-${refreshKey}`). Including that trailing
+ * dash in your substring (`"ogs-students-"` instead of `"ogs-students"`)
+ * narrows the match window and makes accidental collisions with future
+ * keys that only happen to start with the same prefix less likely.
+ *
+ * **Stability**: Callers can pass a literal array each render — the hook
+ * derives a stable string key internally from the joined substrings, so the
+ * returned callback identity stays referentially stable across renders.
+ * This avoids cascading useCallback invalidations in consumers that depend
+ * on the returned function.
+ *
+ * @example
+ * ```tsx
+ * const refreshRoomConsumers = useTenantMutateMatching([
+ *   "active-supervision",
+ *   "supervision-visits",
+ *   "ogs-students",
+ *   "search-students",
+ * ]);
+ * await refreshRoomConsumers(); // every cache key containing one of those substrings refetches
+ * ```
+ */
+export function useTenantMutateMatching(substrings: readonly string[]) {
+  const slug = useTenantSlugSafe();
+  // "|" is a safe joiner: substrings are caller-supplied cache-key fragments
+  // (literals like "ogs-students"), which cannot legally contain pipe in any
+  // SWR key the codebase produces. The joined string is the actual dep — a
+  // fresh array literal with identical contents reuses the memoized callback.
+  const joined = substrings.join("|");
+
+  return useCallback(() => {
+    const needles = joined.length > 0 ? joined.split("|") : [];
+    return swrMutate((key) => {
+      if (typeof key !== "string") return false;
+      // Limit to the active tenant so cross-tenant caches (multi-tab) stay put.
+      if (slug && !key.startsWith(`${slug}:`)) return false;
+      return needles.some((needle) => key.includes(needle));
+    });
+  }, [slug, joined]);
+}
+
+/**
  * SWR hook for data that depends on a parameter.
  *
  * Automatically generates a cache key that includes the parameter,

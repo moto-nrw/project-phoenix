@@ -37,7 +37,7 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.Facilities)
 		assert.NotNil(t, factory.Feedback)
 		assert.NotNil(t, factory.IoT)
-		assert.NotNil(t, factory.Config)
+		assert.NotNil(t, factory.Settings)
 		assert.NotNil(t, factory.Schedule)
 		assert.NotNil(t, factory.Users)
 		assert.NotNil(t, factory.Guardian)

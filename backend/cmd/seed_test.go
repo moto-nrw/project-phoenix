@@ -37,6 +37,9 @@ func TestSeedCmd_Flags(t *testing.T) {
 	assert.NotNil(t, f.Lookup("pin"))
 	assert.NotNil(t, f.Lookup("url"))
 	assert.NotNil(t, f.Lookup("verbose"))
+	assert.NotNil(t, f.Lookup("tenant-slug"))
+	assert.NotNil(t, f.Lookup("staff-password"))
+	assert.NotNil(t, f.Lookup("admin-email"))
 }
 
 func TestSeedCmd_FlagDefaults(t *testing.T) {
@@ -87,4 +90,16 @@ func TestSeedCmd_FlagTypes(t *testing.T) {
 	verboseFlag := f.Lookup("verbose")
 	require.NotNil(t, verboseFlag)
 	assert.Equal(t, "false", verboseFlag.DefValue)
+
+	tenantSlugFlag := f.Lookup("tenant-slug")
+	require.NotNil(t, tenantSlugFlag)
+	assert.Equal(t, "", tenantSlugFlag.DefValue)
+
+	staffPasswordFlag := f.Lookup("staff-password")
+	require.NotNil(t, staffPasswordFlag)
+	assert.Equal(t, "", staffPasswordFlag.DefValue)
+
+	adminEmailFlag := f.Lookup("admin-email")
+	require.NotNil(t, adminEmailFlag)
+	assert.Equal(t, "", adminEmailFlag.DefValue)
 }

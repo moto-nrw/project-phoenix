@@ -3,12 +3,15 @@ package students
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -88,6 +91,12 @@ func populateSensitiveStudentFields(response *StudentResponse, student *users.St
 	if student.SickSince != nil {
 		response.SickSince = student.SickSince
 	}
+	if student.Excused != nil {
+		response.Excused = *student.Excused
+	}
+	if student.ExcusedSince != nil {
+		response.ExcusedSince = student.ExcusedSince
+	}
 }
 
 // populateSnapshotSensitiveFields sets sensitive fields for the snapshot version
@@ -107,6 +116,12 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 	}
 	if student.SickSince != nil {
 		response.SickSince = student.SickSince
+	}
+	if student.Excused != nil {
+		response.Excused = *student.Excused
+	}
+	if student.ExcusedSince != nil {
+		response.ExcusedSince = student.ExcusedSince
 	}
 }
 
@@ -137,11 +152,20 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 	return common.StudentLocationInfo{Location: "Abwesend"}
 }
 
-// resolveStudentLocationWithTime determines a student's current location with timestamp
+// resolveStudentLocationWithTime determines a student's current location with timestamp.
+//
+// Binary-mode tenants short-circuit to ResolveBinaryLocation — web check-ins
+// write only attendance (no room visit), so falling through to
+// presentOrTransit() would always yield "Unterwegs", contradicting the
+// simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
 func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) common.StudentLocationInfo {
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil || attendanceStatus == nil {
 		return common.StudentLocationInfo{Location: "Abwesend"}
+	}
+
+	if activeService.GetPresenceMode(ctx) == common.PresenceModeBinary {
+		return common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
 	}
 
 	// Handle non-checked-in states (checked_out or other)
@@ -163,8 +187,9 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 	// Include room name for all authenticated staff (needed for supervised room checkout)
 	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
 		return common.StudentLocationInfo{
-			Location: fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
-			Since:    &currentVisit.EntryTime,
+			Location:  fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
+			Since:     &currentVisit.EntryTime,
+			RoomColor: activeGroup.Room.Color,
 		}
 	}
 
@@ -196,6 +221,8 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		response.GuardianContact = *student.GuardianContact
 	}
 
+	response.HasFullAccess = hasFullAccess
+
 	// Resolve location
 	if locationOverride != nil {
 		response.Location = *locationOverride
@@ -203,6 +230,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, services.ActiveService)
 		response.Location = locationInfo.Location
 		response.LocationSince = locationInfo.Since
+		response.RoomColor = locationInfo.RoomColor
 	}
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
@@ -234,9 +262,12 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 		response.GuardianContact = *student.GuardianContact
 	}
 
+	response.HasFullAccess = hasFullAccess
+
 	locationInfo := snapshot.ResolveLocationWithTime(student.ID, hasFullAccess)
 	response.Location = locationInfo.Location
 	response.LocationSince = locationInfo.Since
+	response.RoomColor = locationInfo.RoomColor
 
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 	populateSnapshotPublicFields(&response, student)
@@ -283,4 +314,112 @@ func teacherToSupervisorContact(teacher *users.Teacher) *SupervisorContact {
 	}
 
 	return supervisor
+}
+
+// enrichWithPickupTimes adds today's effective pickup time to each student response.
+// Uses a single bulk query via PickupScheduleService (handles schedule + exception merging).
+// Only students with HasFullAccess=true receive pickup times (GDPR).
+func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64, now time.Time) {
+	if len(studentIDs) == 0 || rs.PickupScheduleService == nil {
+		return
+	}
+
+	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, now)
+	if err != nil {
+		rs.Logger.Warn("failed to bulk-fetch pickup times", "error", err.Error())
+		return
+	}
+
+	for i := range responses {
+		if !responses[i].HasFullAccess {
+			continue
+		}
+		if ept, ok := pickupTimes[responses[i].ID]; ok {
+			if ept.PickupTime != nil {
+				formatted := ept.PickupTime.Format("15:04")
+				responses[i].PickupTime = &formatted
+			}
+			responses[i].PickupIsException = ept.IsException
+			responses[i].PickupNotes = buildPickupNotes(ept)
+		}
+	}
+}
+
+// enrichWithArrivalTimes adds today's effective arrival time to each student response.
+// It mirrors pickup enrichment so student list consumers can render arrival badges
+// from their primary SWR cache instead of maintaining a second cache.
+func (rs *Resource) enrichWithArrivalTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64, now time.Time) {
+	if len(studentIDs) == 0 || rs.ArrivalScheduleService == nil {
+		return
+	}
+
+	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, now)
+	if err != nil {
+		rs.Logger.Warn("failed to bulk-fetch arrival times", "error", err.Error())
+		return
+	}
+
+	for i := range responses {
+		if !responses[i].HasFullAccess {
+			continue
+		}
+		if eat, ok := arrivalTimes[responses[i].ID]; ok {
+			if eat.ArrivalTime != nil {
+				formatted := eat.ArrivalTime.Format("15:04")
+				responses[i].ArrivalTime = &formatted
+			}
+			responses[i].ArrivalIsException = eat.IsException
+			responses[i].ArrivalNotes = buildArrivalNotes(eat)
+		}
+	}
+}
+
+// buildPickupNotes combines exception reason and day notes into a single string.
+func buildPickupNotes(ept *schedule.EffectivePickupTime) string {
+	var parts []string
+	if ept.Notes != "" {
+		parts = append(parts, ept.Notes)
+	}
+	for _, n := range ept.DayNotes {
+		if n.Content != "" {
+			parts = append(parts, n.Content)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// buildArrivalNotes combines exception reason and day notes into a single string.
+func buildArrivalNotes(eat *schedule.EffectiveArrivalTime) string {
+	var parts []string
+	if eat.Notes != "" {
+		parts = append(parts, eat.Notes)
+	}
+	for _, n := range eat.DayNotes {
+		if n.Content != "" {
+			parts = append(parts, n.Content)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func applyActualTimesFromAttendance(response *StudentResponse, status *activeService.AttendanceStatus) {
+	if response == nil || status == nil {
+		return
+	}
+
+	response.ActualArrivalTime = timezone.FormatBerlinClock(status.CheckInTime)
+	response.ActualPickupTime = timezone.FormatBerlinClock(status.CheckOutTime)
+}
+
+func applyActualTimesFromSnapshot(response *StudentResponse, snapshot *common.StudentDataSnapshot) {
+	if response == nil || snapshot == nil || snapshot.LocationSnapshot == nil {
+		return
+	}
+
+	status, ok := snapshot.LocationSnapshot.Attendances[response.ID]
+	if !ok || status == nil {
+		return
+	}
+
+	applyActualTimesFromAttendance(response, status)
 }

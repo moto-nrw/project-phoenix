@@ -1,10 +1,14 @@
 package activities_test
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -352,4 +356,166 @@ func TestScheduleRepository_Delete_NonExistent(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))
 		require.NoError(t, err)
 	})
+}
+
+// ============================================================================
+// FindTemplateStartTimesByGroupIDs (WP-B13)
+// ============================================================================
+
+// createTestTimeframe inserts a schedule.timeframes row with the given
+// wall-clock start (HH:MM → UTC date-zeroed). Returns the model with its
+// assigned ID. The tenant is 1.
+func createTestTimeframe(t *testing.T, db *bun.DB, startHour, startMin int) *scheduleModels.Timeframe {
+	t.Helper()
+	// Mirrors the production flow: admins enter wall-clock times in Berlin
+	// local zone. A TIMESTAMPTZ round-trip via Go's local TZ then preserves
+	// the HH:MM components that extractTimeOfDay inside the repo relies on.
+	start := time.Date(2024, 1, 1, startHour, startMin, 0, 0, timezone.Berlin)
+	end := start.Add(time.Hour)
+	tf := &scheduleModels.Timeframe{
+		StartTime:   start,
+		EndTime:     &end,
+		IsActive:    true,
+		Description: fmt.Sprintf("tf-%02d%02d-%d", startHour, startMin, time.Now().UnixNano()),
+	}
+	tf.SetTenantID(1)
+
+	ctx := testpkg.TenantContext(1)
+	_, err := db.NewInsert().
+		Model(tf).
+		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
+		Returning("id").
+		Exec(ctx)
+	require.NoError(t, err)
+	return tf
+}
+
+func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_ReturnsTimes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivitySchedule
+	ctx := testpkg.TenantContext(1)
+
+	group1 := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("B13TplA-%d", time.Now().UnixNano()))
+	group2 := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("B13TplB-%d", time.Now().UnixNano()+1))
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group1.CategoryID, 0)
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group2.CategoryID, 0)
+	defer testpkg.CleanupTableRecords(t, db, "activities.groups", group1.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.groups", group2.ID)
+
+	tf14 := createTestTimeframe(t, db, 14, 0)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", tf14.ID)
+	tf15 := createTestTimeframe(t, db, 15, 30)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", tf15.ID)
+	tf10 := createTestTimeframe(t, db, 10, 0)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", tf10.ID)
+
+	// group1 Monday 14:00, group1 Friday 15:30, group2 Monday 10:00, plus one
+	// schedule without a timeframe (must be skipped).
+	sched1 := createSchedule(t, db, group1.ID, scheduleModels.WeekdayMonday, &tf14.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", sched1.ID)
+	sched2 := createSchedule(t, db, group1.ID, scheduleModels.WeekdayFriday, &tf15.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", sched2.ID)
+	sched3 := createSchedule(t, db, group2.ID, scheduleModels.WeekdayMonday, &tf10.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", sched3.ID)
+	schedNoTF := createSchedule(t, db, group1.ID, scheduleModels.WeekdayTuesday, nil)
+	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", schedNoTF.ID)
+
+	rows, err := repo.FindTemplateStartTimesByGroupIDs(ctx, []int64{group1.ID, group2.ID})
+	require.NoError(t, err)
+
+	type key struct {
+		GID     int64
+		Weekday int
+	}
+	got := make(map[key][]time.Time, len(rows))
+	for _, r := range rows {
+		got[key{r.ActivityGroupID, r.Weekday}] = append(got[key{r.ActivityGroupID, r.Weekday}], r.StartTime)
+	}
+
+	require.Len(t, got[key{group1.ID, scheduleModels.WeekdayMonday}], 1)
+	assert.Equal(t, 14, got[key{group1.ID, scheduleModels.WeekdayMonday}][0].Hour())
+
+	require.Len(t, got[key{group1.ID, scheduleModels.WeekdayFriday}], 1)
+	assert.Equal(t, 15, got[key{group1.ID, scheduleModels.WeekdayFriday}][0].Hour())
+	assert.Equal(t, 30, got[key{group1.ID, scheduleModels.WeekdayFriday}][0].Minute())
+
+	require.Len(t, got[key{group2.ID, scheduleModels.WeekdayMonday}], 1)
+	assert.Equal(t, 10, got[key{group2.ID, scheduleModels.WeekdayMonday}][0].Hour())
+
+	_, hasTuesday := got[key{group1.ID, scheduleModels.WeekdayTuesday}]
+	assert.False(t, hasTuesday, "schedule without timeframe must be skipped by the JOIN")
+}
+
+func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_EmptyInput(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivitySchedule
+	ctx := testpkg.TenantContext(1)
+
+	rows, err := repo.FindTemplateStartTimesByGroupIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+}
+
+func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_AmbiguousWeekday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivitySchedule
+	ctx := testpkg.TenantContext(1)
+
+	group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("B13Amb-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
+	defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+
+	tfMorning := createTestTimeframe(t, db, 8, 0)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", tfMorning.ID)
+	tfAfternoon := createTestTimeframe(t, db, 14, 0)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", tfAfternoon.ID)
+
+	s1 := createSchedule(t, db, group.ID, scheduleModels.WeekdayMonday, &tfMorning.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", s1.ID)
+	s2 := createSchedule(t, db, group.ID, scheduleModels.WeekdayMonday, &tfAfternoon.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", s2.ID)
+
+	rows, err := repo.FindTemplateStartTimesByGroupIDs(ctx, []int64{group.ID})
+	require.NoError(t, err)
+
+	mondayRows := 0
+	for _, r := range rows {
+		if r.ActivityGroupID == group.ID && r.Weekday == scheduleModels.WeekdayMonday {
+			mondayRows++
+		}
+	}
+	assert.Equal(t, 2, mondayRows, "both schedules for the same weekday must be returned — caller disambiguates")
+}
+
+func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_TenantScoped(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivitySchedule
+
+	group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("B13Iso-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
+	defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+
+	tf := createTestTimeframe(t, db, 14, 0)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.timeframes", tf.ID)
+
+	sched := createSchedule(t, db, group.ID, scheduleModels.WeekdayMonday, &tf.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", sched.ID)
+
+	// Tenant 1 sees the row.
+	rows, err := repo.FindTemplateStartTimesByGroupIDs(testpkg.TenantContext(1), []int64{group.ID})
+	require.NoError(t, err)
+	assert.NotEmpty(t, rows)
+
+	// Tenant 2 must not.
+	rows2, err := repo.FindTemplateStartTimesByGroupIDs(testpkg.TenantContext(2), []int64{group.ID})
+	require.NoError(t, err)
+	assert.Empty(t, rows2, "schedules from tenant 1 must not leak to tenant 2")
 }

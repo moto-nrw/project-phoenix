@@ -2,6 +2,13 @@ function formatUnit(value: number, singular: string, plural: string): string {
   return `vor ${value} ${value === 1 ? singular : plural}`;
 }
 
+const numberFormatter = new Intl.NumberFormat("de-DE");
+
+// Format an integer count for display (German locale, thousand separators).
+export function formatCount(value: number): string {
+  return numberFormatter.format(value);
+}
+
 export function getRelativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);

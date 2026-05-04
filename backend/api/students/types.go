@@ -13,30 +13,42 @@ const (
 
 // StudentResponse represents a student response
 type StudentResponse struct {
-	ID              int64      `json:"id"`
-	PersonID        int64      `json:"person_id"`
-	FirstName       string     `json:"first_name"`
-	LastName        string     `json:"last_name"`
-	TagID           string     `json:"tag_id,omitempty"`
-	Birthday        string     `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
-	SchoolClass     string     `json:"school_class"`
-	Location        string     `json:"current_location"`
-	LocationSince   *time.Time `json:"location_since,omitempty"` // When student entered current location
-	GuardianName    string     `json:"guardian_name,omitempty"`
-	GuardianContact string     `json:"guardian_contact,omitempty"`
-	GuardianEmail   string     `json:"guardian_email,omitempty"`
-	GuardianPhone   string     `json:"guardian_phone,omitempty"`
-	GroupID         int64      `json:"group_id,omitempty"`
-	GroupName       string     `json:"group_name,omitempty"`
-	ExtraInfo       string     `json:"extra_info,omitempty"`
-	HealthInfo      string     `json:"health_info,omitempty"`
-	SupervisorNotes string     `json:"supervisor_notes,omitempty"`
-	PickupStatus    string     `json:"pickup_status,omitempty"`
-	Bus             bool       `json:"bus"`
-	Sick            bool       `json:"sick"`
-	SickSince       *time.Time `json:"sick_since,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID                 int64      `json:"id"`
+	PersonID           int64      `json:"person_id"`
+	FirstName          string     `json:"first_name"`
+	LastName           string     `json:"last_name"`
+	TagID              string     `json:"tag_id,omitempty"`
+	Birthday           string     `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
+	SchoolClass        string     `json:"school_class"`
+	Location           string     `json:"current_location"`
+	LocationSince      *time.Time `json:"location_since,omitempty"`     // When student entered current location
+	RoomColor          *string    `json:"current_room_color,omitempty"` // Hex of the current room when set; nil for status-only locations or rooms without override
+	GuardianName       string     `json:"guardian_name,omitempty"`
+	GuardianContact    string     `json:"guardian_contact,omitempty"`
+	GuardianEmail      string     `json:"guardian_email,omitempty"`
+	GuardianPhone      string     `json:"guardian_phone,omitempty"`
+	GroupID            int64      `json:"group_id,omitempty"`
+	GroupName          string     `json:"group_name,omitempty"`
+	ExtraInfo          string     `json:"extra_info,omitempty"`
+	HealthInfo         string     `json:"health_info,omitempty"`
+	SupervisorNotes    string     `json:"supervisor_notes,omitempty"`
+	PickupStatus       string     `json:"pickup_status,omitempty"`
+	PickupTime         *string    `json:"pickup_time,omitempty"`          // Today's effective pickup time (HH:MM)
+	PickupIsException  bool       `json:"pickup_is_exception,omitempty"`  // True if today's pickup time is an exception
+	PickupNotes        string     `json:"pickup_notes,omitempty"`         // Exception reason or schedule notes
+	ArrivalTime        *string    `json:"arrival_time,omitempty"`         // Today's effective arrival time (HH:MM)
+	ArrivalIsException bool       `json:"arrival_is_exception,omitempty"` // True if today's arrival time is an exception
+	ArrivalNotes       string     `json:"arrival_notes,omitempty"`        // Exception reason or schedule notes
+	ActualArrivalTime  *string    `json:"actual_arrival_time,omitempty"`  // Today's actual arrival time from attendance (HH:MM)
+	ActualPickupTime   *string    `json:"actual_pickup_time,omitempty"`   // Today's actual pickup time from attendance (HH:MM)
+	Bus                bool       `json:"bus"`
+	Sick               bool       `json:"sick"`
+	SickSince          *time.Time `json:"sick_since,omitempty"`
+	Excused            bool       `json:"excused"`
+	ExcusedSince       *time.Time `json:"excused_since,omitempty"`
+	HasFullAccess      bool       `json:"has_full_access"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 // SupervisorContact represents contact information for a group supervisor
@@ -53,8 +65,10 @@ type SupervisorContact struct {
 type StudentDetailResponse struct {
 	StudentResponse
 	HasFullAccess        bool                `json:"has_full_access"`
+	HasWriteAccess       bool                `json:"has_write_access"`
 	GroupSupervisors     []SupervisorContact `json:"group_supervisors,omitempty"`
 	AttendanceLogEnabled bool                `json:"attendance_log_enabled"`
+	FeedbackEnabled      bool                `json:"feedback_enabled"`
 }
 
 // StudentRequest represents a student creation request with person details
@@ -104,6 +118,7 @@ type UpdateStudentRequest struct {
 	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
 	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
 	Sick            *bool   `json:"sick,omitempty"`             // true = currently sick
+	Excused         *bool   `json:"excused,omitempty"`          // true = currently excused (not attending today)
 }
 
 // RFIDAssignmentRequest represents an RFID tag assignment request

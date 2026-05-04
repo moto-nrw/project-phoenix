@@ -1,21 +1,61 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import PermissionsPage from "./page";
 
-const mockPush = vi.fn();
-const mockUseSession = vi.fn();
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
-  redirect: vi.fn(),
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(() => ({
+    data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+    status: "authenticated",
+  })),
 }));
 
-vi.mock("next-auth/react", () => ({
-  useSession: (opts?: { required?: boolean; onUnauthenticated?: () => void }) =>
-    mockUseSession(opts),
+let currentSearch = new URLSearchParams();
+const mockReplace = vi.fn((url: string) => {
+  const query = url.includes("?") ? (url.split("?")[1] ?? "") : "";
+  currentSearch = new URLSearchParams(query);
+});
+const setSelectedPermission = (id: string | null) => {
+  currentSearch = new URLSearchParams();
+  if (id) {
+    currentSearch.set("permission", id);
+  }
+};
+
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn(),
+  useRouter: vi.fn(() => ({ push: vi.fn(), replace: mockReplace })),
+  usePathname: vi.fn(() => "/tenant/database/permissions"),
+  useSearchParams: () => currentSearch,
+}));
+
+const mockGetList = vi.fn();
+const mockGetOne = vi.fn();
+const mockCreate = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
+vi.mock("@/lib/database/service-factory", () => ({
+  createCrudService: vi.fn(() => ({
+    getList: mockGetList,
+    getOne: mockGetOne,
+    create: mockCreate,
+    update: mockUpdate,
+    delete: mockDelete,
+  })),
+}));
+
+vi.mock("~/hooks/useIsMobile", () => ({
+  useIsMobile: vi.fn(() => false),
+}));
+
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: vi.fn(() => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+  })),
 }));
 
 vi.mock("~/components/database/database-page-layout", () => ({
@@ -23,9 +63,8 @@ vi.mock("~/components/database/database-page-layout", () => ({
     children,
     loading,
   }: {
-    children: React.ReactNode;
-    loading?: boolean;
-    sessionLoading?: boolean;
+    children: ReactNode;
+    loading: boolean;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
       {children}
@@ -36,134 +75,58 @@ vi.mock("~/components/database/database-page-layout", () => ({
 vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({
     search,
+    onClearAllFilters,
     actionButton,
   }: {
-    search: { value: string; onChange: (v: string) => void };
-    actionButton?: React.ReactNode;
+    search: { value: string; onChange: (value: string) => void };
+    onClearAllFilters: () => void;
+    actionButton?: ReactNode;
   }) => (
     <div data-testid="page-header">
       <input
         data-testid="search-input"
         value={search.value}
-        onChange={(e) => search.onChange(e.target.value)}
+        onChange={(event) => search.onChange(event.target.value)}
       />
+      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+        Clear
+      </button>
       {actionButton}
     </div>
   ),
 }));
 
-const mockUseIsMobile = vi.fn(() => false);
-vi.mock("~/hooks/useIsMobile", () => ({
-  useIsMobile: () => mockUseIsMobile(),
-}));
-
-const mockHandleDeleteClick = vi.fn();
-const mockHandleDeleteCancel = vi.fn();
-const mockConfirmDelete = vi.fn();
-const mockShowConfirmModal = vi.fn(() => false);
-
-vi.mock("~/hooks/useDeleteConfirmation", () => ({
-  useDeleteConfirmation: () => ({
-    showConfirmModal: mockShowConfirmModal(),
-    handleDeleteClick: mockHandleDeleteClick,
-    handleDeleteCancel: mockHandleDeleteCancel,
-    confirmDelete: mockConfirmDelete,
-  }),
-}));
-
-const mockToastSuccess = vi.fn();
-const mockToastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({
-    success: mockToastSuccess,
-    error: mockToastError,
-    info: vi.fn(),
-    warning: vi.fn(),
-  }),
-}));
-
-const mockGetList = vi.fn();
-const mockGetOne = vi.fn();
-const mockCreate = vi.fn();
-const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
-
-vi.mock("@/lib/database/service-factory", () => ({
-  createCrudService: () => ({
-    getList: mockGetList,
-    getOne: mockGetOne,
-    create: mockCreate,
-    update: mockUpdate,
-    delete: mockDelete,
-  }),
-}));
-
-vi.mock("@/lib/database/configs/permissions.config", () => ({
-  permissionsConfig: {
-    name: { singular: "Berechtigung", plural: "Berechtigungen" },
-    form: {
-      transformBeforeSubmit: (data: unknown) => data,
-    },
-  },
-}));
-
-vi.mock("@/lib/permission-labels", () => ({
-  formatPermissionDisplay: (resource: string, action: string) =>
-    `${resource}:${action}`,
-  localizeAction: (action: string) => action,
-  localizeResource: (resource: string) => resource,
-}));
+// Captures the most recent thrown error from onCreate/onSave so tests can
+// assert the rethrown message bubbles up to the form layer.
+const lastModalError = { message: "" };
 
 vi.mock("@/components/permissions", () => ({
   PermissionCreateModal: ({
     isOpen,
     onClose,
     onCreate,
-    loading,
-    error,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (data: { resource: string; action: string }) => void;
-    loading?: boolean;
-    error?: string | null;
+    onCreate: (data: { resource: string; action: string }) => Promise<void>;
   }) =>
     isOpen ? (
-      <div data-testid="create-modal">
-        {error && <div data-testid="create-error">{error}</div>}
+      <div data-testid="permission-create-modal">
         <button
-          data-testid="create-submit"
-          disabled={loading}
-          onClick={() => onCreate({ resource: "test", action: "read" })}
+          data-testid="submit-create"
+          onClick={() => {
+            lastModalError.message = "";
+            onCreate({ resource: "students", action: "delete" }).catch(
+              (err: unknown) => {
+                lastModalError.message =
+                  err instanceof Error ? err.message : String(err);
+              },
+            );
+          }}
         >
-          Create
+          Submit
         </button>
-        <button data-testid="create-close" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
-  PermissionDetailModal: ({
-    isOpen,
-    onClose,
-    permission,
-    onEdit,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    permission: { name: string };
-    onEdit: () => void;
-    onDelete: () => void;
-    loading?: boolean;
-    onDeleteClick: () => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="detail-modal">
-        <span data-testid="detail-name">{permission.name}</span>
-        <button data-testid="edit-button" onClick={onEdit}>
-          Edit
-        </button>
-        <button data-testid="detail-close" onClick={onClose}>
+        <button data-testid="close-create-modal" onClick={onClose}>
           Close
         </button>
       </div>
@@ -172,101 +135,143 @@ vi.mock("@/components/permissions", () => ({
     isOpen,
     onClose,
     onSave,
-    loading,
-    error,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    permission: { name: string };
-    onSave: (data: { name: string }) => void;
-    loading?: boolean;
-    error?: string | null;
+    onSave: (data: { description: string }) => Promise<void>;
   }) =>
     isOpen ? (
-      <div data-testid="edit-modal">
-        {error && <div data-testid="edit-error">{error}</div>}
+      <div data-testid="permission-edit-modal">
         <button
-          data-testid="save-button"
-          disabled={loading}
-          onClick={() => onSave({ name: "Updated" })}
+          data-testid="submit-edit"
+          onClick={() => {
+            lastModalError.message = "";
+            onSave({ description: "Updated" }).catch((err: unknown) => {
+              lastModalError.message =
+                err instanceof Error ? err.message : String(err);
+            });
+          }}
         >
           Save
         </button>
-        <button data-testid="edit-close" onClick={onClose}>
+        <button data-testid="close-edit-modal" onClick={onClose}>
           Close
+        </button>
+      </div>
+    ) : null,
+  PermissionsMasterDetail: ({
+    permissions,
+    selectedId,
+    selectedPermission,
+    onSelect,
+    onEditClick,
+    onDeleteClick,
+  }: {
+    permissions: Array<{ id: string; resource: string; action: string }>;
+    selectedId: string | null;
+    selectedPermission?: { resource: string; action: string } | null;
+    onSelect: (id: string | null) => void;
+    onEditClick: () => void;
+    onDeleteClick: () => void;
+  }) => (
+    <div data-testid="permissions-master-detail">
+      {permissions.map((permission) => (
+        <button
+          key={permission.id}
+          data-testid={`permission-row-${permission.id}`}
+          onClick={() => onSelect(permission.id)}
+        >
+          {permission.resource}:{permission.action}
+        </button>
+      ))}
+      {selectedId ? (
+        <div data-testid="permission-detail-panel">
+          <span data-testid="detail-selected-id">{selectedId}</span>
+          <span data-testid="detail-permission-name">
+            {selectedPermission?.resource}:{selectedPermission?.action}
+          </span>
+          <button data-testid="trigger-edit" onClick={onEditClick}>
+            Edit
+          </button>
+          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+            Delete
+          </button>
+          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+            Close
+          </button>
+        </div>
+      ) : null}
+    </div>
+  ),
+}));
+
+vi.mock("~/components/ui/modal", () => ({
+  ConfirmationModal: ({
+    isOpen,
+    onConfirm,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <button data-testid="confirm-delete" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button data-testid="cancel-delete" onClick={onClose}>
+          Cancel
         </button>
       </div>
     ) : null,
 }));
 
-vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="confirm-modal">Confirm</div> : null,
-}));
-
 const mockPermissions = [
   {
     id: "1",
-    name: "Read Students",
-    description: "Can read student data",
+    name: "students:read",
+    description: "Schülerdaten lesen",
     resource: "students",
     action: "read",
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-02",
   },
   {
     id: "2",
-    name: "Write Students",
-    description: "Can write student data",
+    name: "students:write",
+    description: "Schülerdaten bearbeiten",
     resource: "students",
     action: "write",
-  },
-  {
-    id: "3",
-    name: "Admin Access",
-    description: "Full admin access",
-    resource: "admin",
-    action: "all",
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-02",
   },
 ];
 
 describe("PermissionsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSession.mockReturnValue({
-      data: { user: { token: "test-token" } },
-      status: "authenticated",
-    });
-    mockUseIsMobile.mockReturnValue(false);
-    mockShowConfirmModal.mockReturnValue(false);
+    currentSearch = new URLSearchParams();
+
     mockGetList.mockResolvedValue({ data: mockPermissions });
-    mockGetOne.mockResolvedValue(mockPermissions[0]);
+    mockGetOne.mockImplementation((id: string) =>
+      Promise.resolve(
+        mockPermissions.find((permission) => permission.id === id) ?? null,
+      ),
+    );
   });
 
-  it("renders permissions list", async () => {
+  it("renders the page with permissions data", async () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-      expect(screen.getByText("Write Students")).toBeInTheDocument();
-      expect(screen.getByText("Admin Access")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
+      expect(screen.getByText("students:write")).toBeInTheDocument();
     });
   });
 
-  it("shows loading state initially", () => {
-    mockGetList.mockImplementation(
-      () =>
-        new Promise((resolve) => setTimeout(() => resolve({ data: [] }), 100)),
-    );
-
-    render(<PermissionsPage />);
-
-    expect(screen.getByTestId("database-layout")).toHaveAttribute(
-      "data-loading",
-      "true",
-    );
-  });
-
   it("shows error message when fetch fails", async () => {
-    mockGetList.mockRejectedValue(new Error("Fetch failed"));
+    mockGetList.mockRejectedValueOnce(new Error("Failed to fetch"));
 
     render(<PermissionsPage />);
 
@@ -277,8 +282,8 @@ describe("PermissionsPage", () => {
     });
   });
 
-  it("shows empty state when no permissions", async () => {
-    mockGetList.mockResolvedValue({ data: [] });
+  it("shows empty state when no permissions exist", async () => {
+    mockGetList.mockResolvedValueOnce({ data: [] });
 
     render(<PermissionsPage />);
 
@@ -293,586 +298,277 @@ describe("PermissionsPage", () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Admin" } });
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "write" },
+    });
 
     await waitFor(() => {
-      expect(screen.getByText("Admin Access")).toBeInTheDocument();
-      expect(screen.queryByText("Read Students")).not.toBeInTheDocument();
+      expect(screen.queryByText("students:read")).not.toBeInTheDocument();
+      expect(screen.getByText("students:write")).toBeInTheDocument();
     });
   });
 
-  it("opens create modal when create button is clicked", async () => {
+  it("opens create modal when add button is clicked", async () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
-    const firstButton = createButtons[0];
-    if (firstButton) {
-      fireEvent.click(firstButton);
-    }
+    fireEvent.click(screen.getAllByLabelText("Berechtigung erstellen")[0]!);
 
     await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("permission-create-modal")).toBeInTheDocument();
     });
   });
 
-  it("opens detail modal when permission is clicked", async () => {
+  it("syncs permission selection into the URL when a row is clicked", async () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
+    fireEvent.click(screen.getByTestId("permission-row-1"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("opens edit modal when edit button is clicked", async () => {
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Read Students"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("edit-button"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("creates permission successfully", async () => {
-    mockCreate.mockResolvedValue({
-      id: "4",
-      resource: "test",
-      action: "read",
-    });
-
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-    });
-
-    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
-    const firstButton = createButtons[0];
-    if (firstButton) {
-      fireEvent.click(firstButton);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-
-    await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalled();
-      expect(mockToastSuccess).toHaveBeenCalled();
-    });
-  });
-
-  it("closes create modal when close button is clicked", async () => {
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-    });
-
-    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
-    const firstButton = createButtons[0];
-    if (firstButton) {
-      fireEvent.click(firstButton);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("create-close"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument();
-    });
-  });
-
-  it("shows duplicate key error when creating duplicate permission", async () => {
-    mockCreate.mockRejectedValue(
-      new Error("duplicate key value violates unique constraint (23505)"),
-    );
-
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-    });
-
-    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
-    fireEvent.click(createButtons[0]!);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-
-    await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalled();
-      expect(screen.getByTestId("create-error")).toBeInTheDocument();
-      expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /existiert bereits/,
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/tenant/database/permissions?permission=1",
+        { scroll: false },
       );
     });
   });
 
-  it("shows generic error when create fails", async () => {
-    mockCreate.mockRejectedValue(new Error("Network error"));
+  it("hydrates the detail panel from the permission URL param", async () => {
+    setSelectedPermission("1");
 
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByTestId("permission-detail-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
     });
+  });
 
-    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
-    fireEvent.click(createButtons[0]!);
+  it("opens the edit modal when the detail panel edit button is clicked", async () => {
+    setSelectedPermission("1");
+
+    render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("permission-detail-panel")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId("create-submit"));
+    fireEvent.click(screen.getByTestId("trigger-edit"));
 
     await waitFor(() => {
-      expect(mockCreate).toHaveBeenCalled();
-      expect(screen.getByTestId("create-error")).toHaveTextContent(
-        /Fehler beim Erstellen/,
+      expect(screen.getByTestId("permission-edit-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("calls update service when saving the edit modal", async () => {
+    setSelectedPermission("1");
+    mockUpdate.mockResolvedValueOnce(undefined);
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "1",
+        expect.objectContaining({ description: "Updated" }),
       );
     });
   });
 
-  it("clears create error when modal is closed", async () => {
-    mockCreate.mockRejectedValue(new Error("duplicate key"));
+  it("calls delete service after confirming deletion from the detail panel", async () => {
+    setSelectedPermission("1");
+    mockDelete.mockResolvedValueOnce(null);
 
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByTestId("permission-detail-panel")).toBeInTheDocument();
     });
 
-    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
-    fireEvent.click(createButtons[0]!);
-    await waitFor(() =>
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-submit"));
-    await waitFor(() =>
-      expect(screen.getByTestId("create-error")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("create-close"));
+    fireEvent.click(screen.getByTestId("trigger-delete"));
 
     await waitFor(() => {
-      expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument();
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
     });
 
-    // Reopen modal - error should be cleared
-    fireEvent.click(createButtons[0]!);
+    fireEvent.click(screen.getByTestId("confirm-delete"));
+
     await waitFor(() => {
-      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
-      expect(screen.queryByTestId("create-error")).not.toBeInTheDocument();
+      expect(mockDelete).toHaveBeenCalledWith("1");
+      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/permissions", {
+        scroll: false,
+      });
     });
   });
 
-  it("shows duplicate key error when updating permission", async () => {
-    mockUpdate.mockRejectedValue(
-      new Error("duplicate key value violates unique constraint"),
+  it("re-throws German duplicate-key message when create hits 23505", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce(
+      new Error('duplicate key value violates unique constraint "..."'),
     );
 
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
+    fireEvent.click(screen.getAllByLabelText("Berechtigung erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-create-modal")).toBeInTheDocument();
+    });
 
-    fireEvent.click(screen.getByTestId("edit-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("save-button"));
+    fireEvent.click(screen.getByTestId("submit-create"));
 
     await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalled();
-      expect(screen.getByTestId("edit-error")).toHaveTextContent(
-        /existiert bereits/,
+      expect(lastModalError.message).toContain(
+        'Die Berechtigung "students:delete" existiert bereits',
       );
     });
+    expect(consoleError).toHaveBeenCalledWith("permission_create_failed", {
+      error: expect.stringContaining("duplicate key"),
+    });
+    // Modal stays open on failure so the user can retry.
+    expect(screen.getByTestId("permission-create-modal")).toBeInTheDocument();
+    consoleError.mockRestore();
   });
 
-  it("shows generic error when update fails", async () => {
-    mockUpdate.mockRejectedValue(new Error("Network error"));
+  it("re-throws fallback message when create fails for non-duplicate reason", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce(new Error("network unreachable"));
 
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("students:read")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
+    fireEvent.click(screen.getAllByLabelText("Berechtigung erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-create-modal")).toBeInTheDocument();
+    });
 
-    fireEvent.click(screen.getByTestId("edit-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("save-button"));
+    fireEvent.click(screen.getByTestId("submit-create"));
 
     await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalled();
-      expect(screen.getByTestId("edit-error")).toHaveTextContent(
-        /Fehler beim Aktualisieren/,
+      expect(lastModalError.message).toBe(
+        "Fehler beim Erstellen der Berechtigung. Bitte versuchen Sie es erneut.",
       );
     });
+    expect(consoleError).toHaveBeenCalledWith("permission_create_failed", {
+      error: "network unreachable",
+    });
+    consoleError.mockRestore();
   });
 
-  it("clears edit error when modal is closed", async () => {
-    mockUpdate.mockRejectedValue(new Error("duplicate key"));
-
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Read Students"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("edit-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("save-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("edit-error")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("edit-close"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
-    });
-  });
-
-  it("filters by description", async () => {
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-    });
-
-    const searchInput = screen.getByTestId("search-input");
-    fireEvent.change(searchInput, { target: { value: "Full admin" } });
-
-    await waitFor(() => {
-      expect(screen.getByText("Admin Access")).toBeInTheDocument();
-      expect(screen.queryByText("Read Students")).not.toBeInTheDocument();
-    });
-  });
-
-  it("shows mobile FAB when on mobile", async () => {
-    mockUseIsMobile.mockReturnValue(true);
-
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-    });
-
-    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
-    // Mobile should show FAB only
-    expect(createButtons.length).toBeGreaterThan(0);
-  });
-
-  it("displays permission with name", async () => {
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-      expect(screen.getByText("Can read student data")).toBeInTheDocument();
-    });
-  });
-
-  it("displays permission without description", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          name: "Basic Permission",
-          description: null,
-          resource: "users",
-          action: "read",
-        },
-      ],
-    });
-
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Basic Permission")).toBeInTheDocument();
-      expect(screen.queryByText("Can read")).not.toBeInTheDocument();
-    });
-  });
-
-  it("uses resource:action when name is empty", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          name: "",
-          description: "Test",
-          resource: "users",
-          action: "read",
-        },
-      ],
-    });
-
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("users:read")).toBeInTheDocument();
-    });
-  });
-
-  it("uses resource:action when name is whitespace", async () => {
-    mockGetList.mockResolvedValue({
-      data: [
-        {
-          id: "1",
-          name: "   ",
-          description: "Test",
-          resource: "users",
-          action: "read",
-        },
-      ],
-    });
-
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("users:read")).toBeInTheDocument();
-    });
-  });
-
-  it("closes detail modal and clears selected permission", async () => {
-    render(<PermissionsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Read Students"));
-    await waitFor(() =>
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
-    );
-
-    fireEvent.click(screen.getByTestId("detail-close"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("detail-modal")).not.toBeInTheDocument();
-    });
-  });
-
-  it("handles detail loading state", async () => {
-    let resolveGetOne: (value: unknown) => void;
-    mockGetOne.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveGetOne = resolve;
-        }),
+  it("re-throws German duplicate-key message when update hits 23505", async () => {
+    setSelectedPermission("1");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockUpdate.mockRejectedValueOnce(
+      new Error("constraint violation: 23505 unique"),
     );
 
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByTestId("permission-detail-panel")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Read Students"));
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
-      expect(mockGetOne).toHaveBeenCalledWith("1");
+      expect(lastModalError.message).toContain("existiert bereits");
     });
-
-    // Resolve the pending getOne promise before unmount to prevent
-    // "window is not defined" from state updates on unmounted components
-    resolveGetOne!(mockPermissions[0]);
-    await waitFor(() => expect(mockGetOne).toHaveBeenCalledTimes(1));
+    expect(consoleError).toHaveBeenCalledWith("permission_update_failed", {
+      permission_id: "1",
+      error: expect.stringContaining("23505"),
+    });
+    consoleError.mockRestore();
   });
 
-  it("sorts permissions by resource, action, then name", async () => {
-    const unsortedPermissions = [
-      {
-        id: "3",
-        name: "Z Permission",
-        resource: "users",
-        action: "write",
-        description: "",
-      },
-      {
-        id: "2",
-        name: "A Permission",
-        resource: "admin",
-        action: "read",
-        description: "",
-      },
-      {
-        id: "1",
-        name: "M Permission",
-        resource: "users",
-        action: "read",
-        description: "",
-      },
-    ];
-
-    mockGetList.mockResolvedValue({ data: unsortedPermissions });
+  it("re-throws fallback message when update fails for non-duplicate reason", async () => {
+    setSelectedPermission("1");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockUpdate.mockRejectedValueOnce(new Error("server timeout"));
 
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      const buttons = screen
-        .getAllByRole("button")
-        .filter((btn) =>
-          ["A Permission", "M Permission", "Z Permission"].some((name) =>
-            btn.textContent?.includes(name),
-          ),
-        );
-      expect(buttons[0]?.textContent).toContain("A Permission");
-      expect(buttons[1]?.textContent).toContain("M Permission");
-      expect(buttons[2]?.textContent).toContain("Z Permission");
+      expect(screen.getByTestId("permission-detail-panel")).toBeInTheDocument();
     });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(lastModalError.message).toBe(
+        "Fehler beim Aktualisieren der Berechtigung. Bitte versuchen Sie es erneut.",
+      );
+    });
+    expect(consoleError).toHaveBeenCalledWith("permission_update_failed", {
+      permission_id: "1",
+      error: "server timeout",
+    });
+    consoleError.mockRestore();
   });
 
-  it("shows mobile title when on mobile", async () => {
-    mockUseIsMobile.mockReturnValue(true);
+  it("shows an error toast when delete returns an error", async () => {
+    setSelectedPermission("1");
+    mockDelete.mockResolvedValueOnce("Berechtigung kann nicht gelöscht werden");
 
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Read Students")).toBeInTheDocument();
-    });
-  });
-});
-
-describe("PermissionsPage filtering logic", () => {
-  it("filters by name", () => {
-    const permissions = [
-      { id: "1", name: "Read Users", resource: "users", action: "read" },
-      { id: "2", name: "Write Data", resource: "data", action: "write" },
-    ];
-
-    const searchTerm = "read";
-    const filtered = permissions.filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.resource.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.action.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
-
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0]?.name).toBe("Read Users");
-  });
-
-  it("filters by resource", () => {
-    const permissions = [
-      { id: "1", name: "Read Users", resource: "users", action: "read" },
-      { id: "2", name: "Write Data", resource: "data", action: "write" },
-    ];
-
-    const searchTerm = "data";
-    const filtered = permissions.filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.resource.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.action.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
-
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0]?.name).toBe("Write Data");
-  });
-
-  it("sorts permissions by resource then action", () => {
-    const permissions = [
-      { id: "1", name: "B", resource: "users", action: "write" },
-      { id: "2", name: "A", resource: "admin", action: "read" },
-      { id: "3", name: "C", resource: "users", action: "read" },
-    ];
-
-    const sorted = [...permissions].sort((a, b) => {
-      const r = a.resource.localeCompare(b.resource, "de");
-      if (r !== 0) return r;
-      return a.action.localeCompare(b.action, "de");
+      expect(screen.getByTestId("permission-detail-panel")).toBeInTheDocument();
     });
 
-    expect(sorted[0]?.resource).toBe("admin");
-    expect(sorted[1]?.resource).toBe("users");
-    expect(sorted[1]?.action).toBe("read");
-    expect(sorted[2]?.resource).toBe("users");
-    expect(sorted[2]?.action).toBe("write");
-  });
-});
+    fireEvent.click(screen.getByTestId("trigger-delete"));
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
 
-describe("displayTitle helper logic", () => {
-  it("returns name when name is present", () => {
-    const perm = { name: "Test Permission", resource: "test", action: "read" };
-    const displayTitle = (p: typeof perm) =>
-      p.name?.trim() ? p.name : `${p.resource}:${p.action}`;
+    fireEvent.click(screen.getByTestId("confirm-delete"));
 
-    expect(displayTitle(perm)).toBe("Test Permission");
-  });
-
-  it("returns resource:action when name is empty", () => {
-    const perm = { name: "", resource: "test", action: "read" };
-    const displayTitle = (p: typeof perm) =>
-      p.name?.trim() ? p.name : `${p.resource}:${p.action}`;
-
-    expect(displayTitle(perm)).toBe("test:read");
-  });
-
-  it("returns resource:action when name is whitespace", () => {
-    const perm = { name: "   ", resource: "test", action: "read" };
-    const displayTitle = (p: typeof perm) =>
-      p.name?.trim() ? p.name : `${p.resource}:${p.action}`;
-
-    expect(displayTitle(perm)).toBe("test:read");
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Berechtigung kann nicht gelöscht werden",
+      );
+    });
   });
 });

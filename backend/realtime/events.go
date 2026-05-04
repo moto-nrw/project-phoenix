@@ -12,14 +12,28 @@ const (
 	// Student movement events
 	EventStudentCheckIn  EventType = "student_checkin"
 	EventStudentCheckOut EventType = "student_checkout"
+	EventStudentUpdated  EventType = "student_updated"
 
 	// Activity session lifecycle events
 	EventActivityStart  EventType = "activity_start"
 	EventActivityEnd    EventType = "activity_end"
 	EventActivityUpdate EventType = "activity_update"
 
+	// Instance lifecycle events (WP-B9). Instances are the "planned" layer
+	// between template (activities.*) and live (active.*). These fire on the
+	// lifecycle transitions driven by admin/staff via the planner — distinct
+	// from activity_start/end which are IoT/NFC driven and emit per active.group.
+	EventInstanceStarted   EventType = "instance_started"
+	EventInstanceCompleted EventType = "instance_completed"
+	EventInstanceCancelled EventType = "instance_cancelled"
+	EventInstanceOverdue   EventType = "instance_overdue"
+
 	// Global refresh event — tells all clients to re-fetch dashboard counts
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
+
+	// Arrival schedule events affect derived "not arriving today" badges and
+	// bulk arrival-time lookups across student list/detail pages.
+	EventArrivalScheduleChanged EventType = "arrival_schedule_changed"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients
@@ -44,6 +58,20 @@ type EventData struct {
 	RoomID        *string   `json:"room_id,omitempty"`
 	RoomName      *string   `json:"room_name,omitempty"`
 	SupervisorIDs *[]string `json:"supervisor_ids,omitempty"`
+
+	// Instance lifecycle fields (for instance_* events, WP-B9). String-typed
+	// so the Event envelope's ActiveGroupID convention stays consistent and
+	// so empty values serialize cleanly via omitempty.
+	InstanceID        *string `json:"instance_id,omitempty"`
+	InstanceDate      *string `json:"instance_date,omitempty"`       // YYYY-MM-DD
+	InstanceStartTime *string `json:"instance_start_time,omitempty"` // HH:MM:SS
+
+	// Attendance fields (WP-B10). Populated on student_checkin / student_checkout
+	// when the visit corresponds to a schedule.instance_students row — null
+	// otherwise (walk-ins, check-ins against non-instance active groups).
+	AttendanceStatus    *string `json:"attendance_status,omitempty"`
+	AttendanceSubstatus *string `json:"attendance_substatus,omitempty"`
+	AttendanceNote      *string `json:"attendance_note,omitempty"`
 
 	// Source tracking
 	Source *string `json:"source,omitempty"` // "rfid", "manual", "automated"

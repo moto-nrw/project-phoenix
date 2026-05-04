@@ -12,6 +12,8 @@ import (
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -248,6 +250,16 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	)
 	student.Person = person
 
+	// Binary-mode tenants track attendance only — no visits, no rooms, no
+	// active groups. Short-circuit the detailed-mode flow and toggle the
+	// attendance row directly. This keeps PyrePortal's existing response
+	// contract intact (same CheckinResponse shape) while skipping all the
+	// visit/room/supervision complexity that doesn't apply here.
+	if rs.ActiveService.GetPresenceMode(ctx) == "binary" {
+		rs.processBinaryModeCheckin(w, r, student, deviceCtx, now)
+		return
+	}
+
 	// Step 5: Load current visit with room information
 	currentVisit := rs.loadCurrentVisitWithRoom(ctx, student.ID)
 
@@ -322,7 +334,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
 
 		// Resolve feedback_enabled so PyrePortal knows whether to show the feedback modal
-		result.FeedbackEnabled = true // default
+		result.FeedbackEnabled = false // default: opt-in (GDPR)
 		if rs.SettingsService != nil {
 			if val, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyFeedbackEnabled); err == nil {
 				result.FeedbackEnabled = val
@@ -375,6 +387,91 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	)
 
 	sendCheckinResponse(w, r, response, result.Action)
+}
+
+// processBinaryModeCheckin toggles active.attendance for the student and sends
+// a CheckinResponse-compatible reply. Skips the visit/room/active-group path
+// entirely — binary-mode tenants don't populate those tables.
+//
+// Contract note for PyrePortal: the response shape matches detailed-mode's
+// CheckinResponse (same field names), just with room_name empty and visit_id
+// omitted. Kiosks that read those fields defensively keep working; see the
+// PyrePortal issue for the UX branch (single-tap vs room-selector).
+func (rs *Resource) processBinaryModeCheckin(
+	w http.ResponseWriter,
+	r *http.Request,
+	student *users.Student,
+	deviceCtx *iot.Device,
+	now time.Time,
+) {
+	ctx := r.Context()
+
+	// Staff ID for CheckedInBy / CheckedOutBy is carried by device auth
+	// (staff PIN). No active-group lookup is needed because binary-mode
+	// kiosks don't open activity sessions.
+	var staffID int64
+	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
+		staffID = staffCtx.ID
+	}
+	if staffID == 0 {
+		rs.getLogger().WarnContext(ctx, "binary mode checkin without staff context",
+			slog.Int64("student_id", student.ID),
+			slog.Int64("device_id", deviceCtx.ID),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("staff PIN required for binary-mode attendance toggle")))
+		return
+	}
+
+	// skipAuthCheck=true: the device + staff-PIN layer already authorized
+	// this scan. The default IoT path (skipAuthCheck=false) would also
+	// require an active session supervisor, which doesn't exist in binary.
+	result, err := rs.ActiveService.ToggleStudentAttendance(ctx, student.ID, staffID, deviceCtx.ID, true)
+	if err != nil {
+		rs.getLogger().ErrorContext(ctx, "binary mode attendance toggle failed",
+			slog.Int64("student_id", student.ID),
+			slog.Int64("staff_id", staffID),
+			slog.String("error", err.Error()),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+
+	studentName := student.Person.FirstName + " " + student.Person.LastName
+	message := binaryModeGreeting(result.Action, student.Person.FirstName)
+
+	response := map[string]interface{}{
+		"student_id":               student.ID,
+		"student_name":             studentName,
+		"action":                   result.Action, // "checked_in" | "checked_out"
+		"room_name":                "",            // binary has no rooms
+		"processed_at":             now,
+		"message":                  message,
+		"status":                   "success",
+		"daily_checkout_available": false, // daily-checkout semantics belong to the detailed flow
+		"feedback_enabled":         false,
+	}
+
+	rs.getLogger().InfoContext(ctx, "binary mode checkin complete",
+		slog.String("action", result.Action),
+		slog.Int64("student_id", student.ID),
+		slog.Int64("staff_id", staffID),
+	)
+
+	sendCheckinResponse(w, r, response, result.Action)
+}
+
+// binaryModeGreeting returns the German kiosk message shown on the confirmation
+// screen. Deliberately terse — kiosks have short attention windows and the
+// detailed flow's greeting helpers assume room context we don't have here.
+func binaryModeGreeting(action, firstName string) string {
+	switch action {
+	case "checked_in":
+		return "Willkommen, " + firstName + "!"
+	case "checked_out":
+		return "Tschüss, " + firstName + "!"
+	default:
+		return "Anwesenheit aktualisiert"
+	}
 }
 
 func attachPickupInfoToResponse(response map[string]interface{}, effectivePickup *scheduleSvc.EffectivePickupTime) {

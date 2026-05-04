@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
+import { ToastProvider } from "~/contexts/ToastContext";
 import { SettingsCategory } from "./settings-category";
 import type { SchemaCategory } from "~/lib/settings-api";
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
 
 function makeCategory(overrides: Partial<SchemaCategory> = {}): SchemaCategory {
   return {
@@ -19,6 +24,7 @@ function makeCategory(overrides: Partial<SchemaCategory> = {}): SchemaCategory {
         writable: true,
         visible: true,
         sort_order: 1,
+        access_policy: "shared",
         validation: null,
         depends_on: null,
         options: null,
@@ -34,6 +40,7 @@ function makeCategory(overrides: Partial<SchemaCategory> = {}): SchemaCategory {
         writable: true,
         visible: true,
         sort_order: 2,
+        access_policy: "shared",
         validation: null,
         depends_on: null,
         options: null,
@@ -45,7 +52,7 @@ function makeCategory(overrides: Partial<SchemaCategory> = {}): SchemaCategory {
 
 describe("SettingsCategory", () => {
   it("renders category label", () => {
-    const { getByText } = render(
+    const { getByText } = renderWithProviders(
       <SettingsCategory
         category={makeCategory()}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -56,7 +63,7 @@ describe("SettingsCategory", () => {
   });
 
   it("renders all visible items", () => {
-    const { getByText } = render(
+    const { getByText } = renderWithProviders(
       <SettingsCategory
         category={makeCategory()}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -68,7 +75,7 @@ describe("SettingsCategory", () => {
   });
 
   it("renders nothing when all items are hidden", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsCategory
         category={makeCategory({
           items: [
@@ -83,6 +90,7 @@ describe("SettingsCategory", () => {
               writable: true,
               visible: false,
               sort_order: 1,
+              access_policy: "shared",
               validation: null,
               depends_on: null,
               options: null,
@@ -93,17 +101,19 @@ describe("SettingsCategory", () => {
         onReset={vi.fn().mockResolvedValue(null)}
       />,
     );
-    expect(container.innerHTML).toBe("");
+    expect(container.querySelector("h3")).toBeNull();
+    expect(container.querySelector("label")).toBeNull();
   });
 
   it("renders nothing with empty items", () => {
-    const { container } = render(
+    const { container } = renderWithProviders(
       <SettingsCategory
         category={makeCategory({ items: [] })}
         onSave={vi.fn().mockResolvedValue(null)}
         onReset={vi.fn().mockResolvedValue(null)}
       />,
     );
-    expect(container.innerHTML).toBe("");
+    expect(container.querySelector("h3")).toBeNull();
+    expect(container.querySelector("label")).toBeNull();
   });
 });

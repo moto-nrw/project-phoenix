@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { mutate } from "swr";
 import {
   Calendar,
   ChevronLeft,
@@ -39,11 +40,25 @@ import {
 
 const logger = createLogger({ component: "PickupScheduleManager" });
 
+/** Invalidate SWR caches that contain pickup time data (OGS groups, dashboard). */
+function invalidatePickupCaches() {
+  try {
+    mutate(
+      (key) =>
+        typeof key === "string" &&
+        (key.includes("ogs-students-") || key.includes("dashboard")),
+    ).catch(() => {});
+  } catch {
+    // SWR cache not available (e.g. in tests)
+  }
+}
+
 interface PickupScheduleManagerProps {
   readonly studentId: string;
   readonly readOnly?: boolean;
   readonly onUpdate?: () => void;
   readonly isSick?: boolean;
+  readonly isExcused?: boolean;
 }
 
 export default function PickupScheduleManager({
@@ -51,6 +66,7 @@ export default function PickupScheduleManager({
   readOnly = false,
   onUpdate,
   isSick = false,
+  isExcused = false,
 }: PickupScheduleManagerProps) {
   const [pickupData, setPickupData] = useState<PickupData>({
     schedules: [],
@@ -68,7 +84,7 @@ export default function PickupScheduleManager({
   // Compute week data
   const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
 
-  // Merge schedule + exceptions + sick + notes for each day
+  // Merge schedule + exceptions + sick / excused + notes for each day
   const dayDataList = useMemo(
     () =>
       weekDays.map((date) =>
@@ -78,6 +94,7 @@ export default function PickupScheduleManager({
           pickupData.exceptions,
           isSick,
           pickupData.notes,
+          isExcused,
         ),
       ),
     [
@@ -85,6 +102,7 @@ export default function PickupScheduleManager({
       pickupData.schedules,
       pickupData.exceptions,
       isSick,
+      isExcused,
       pickupData.notes,
     ],
   );
@@ -121,6 +139,7 @@ export default function PickupScheduleManager({
     await loadPickupData();
     onUpdate?.();
     setIsScheduleModalOpen(false);
+    invalidatePickupCaches();
   };
 
   // Open day edit modal
@@ -130,10 +149,12 @@ export default function PickupScheduleManager({
   };
 
   // Refresh day data after changes (keeps modal open with fresh data)
+  // Also invalidates OGS groups SWR caches so pickup times update on navigation back
   const refreshAndKeepModal = useCallback(async () => {
     const data = await fetchStudentPickupData(studentId);
     setPickupData(data);
     onUpdate?.();
+    invalidatePickupCaches();
   }, [studentId, onUpdate]);
 
   // Day edit modal: exception handlers
@@ -219,8 +240,9 @@ export default function PickupScheduleManager({
       pickupData.exceptions,
       isSick,
       pickupData.notes,
+      isExcused,
     );
-  }, [editingDay, pickupData, isSick]);
+  }, [editingDay, pickupData, isSick, isExcused]);
 
   // Show loading state
   if (isLoading && pickupData.schedules.length === 0) {
@@ -399,6 +421,14 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
             <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
             <span>Krank</span>
           </div>
+        ) : day.showExcused ? (
+          <div
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+            style={{ backgroundColor: "#7C3AED" }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+            <span>Entschuldigt</span>
+          </div>
         ) : (
           <>
             {/* Time */}
@@ -436,7 +466,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
       </div>
 
       {/* Notes below (full width) */}
-      {!day.showSick && hasNotes && (
+      {!day.showSick && !day.showExcused && hasNotes && (
         <div className="mt-1.5 space-y-0.5 pl-[76px]">
           {day.baseSchedule?.notes && (
             <div className="flex items-start gap-1 text-xs text-gray-400 italic">
@@ -512,6 +542,14 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
         >
           <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
           <span>Krank</span>
+        </div>
+      ) : day.showExcused ? (
+        <div
+          className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+          style={{ backgroundColor: "#7C3AED" }}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+          <span>Entschuldigt</span>
         </div>
       ) : (
         <>

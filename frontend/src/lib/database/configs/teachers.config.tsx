@@ -18,27 +18,37 @@ function mapTeacherResponse(data: unknown): Teacher {
   // Get account_id from either direct data or nested person object
   const accountId =
     (typedData.account_id as number | undefined) ??
-    (person?.account_id as number | undefined);
+    (typedData.accountId as number | undefined) ??
+    (person?.account_id as number | undefined) ??
+    (person?.accountId as number | undefined);
 
   // Get email from either direct data or nested person object
   const email =
     (typedData.email as string | undefined) ??
     (person?.email as string | undefined);
 
-  // Get first and last name from either direct data or nested person object
+  // The list endpoint (/api/staff) returns camelCase firstName/lastName, while
+  // the detail endpoint and nested person objects use snake_case. Accept both
+  // so list-side selections render names in the detail panel and edit modal.
   const firstName =
     (typedData.first_name as string | undefined) ??
+    (typedData.firstName as string | undefined) ??
     (person?.first_name as string | undefined) ??
+    (person?.firstName as string | undefined) ??
     "";
   const lastName =
     (typedData.last_name as string | undefined) ??
+    (typedData.lastName as string | undefined) ??
     (person?.last_name as string | undefined) ??
+    (person?.lastName as string | undefined) ??
     "";
 
   // Get tag_id from either direct data or nested person object
   const tagId =
     (typedData.tag_id as string | null | undefined) ??
-    (person?.tag_id as string | null | undefined);
+    (typedData.tagId as string | null | undefined) ??
+    (person?.tag_id as string | null | undefined) ??
+    (person?.tagId as string | null | undefined);
 
   // Get avatar from either direct data or nested person object
   const avatar =

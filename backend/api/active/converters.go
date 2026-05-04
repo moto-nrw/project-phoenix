@@ -6,6 +6,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
+// activeGroupDisplayName renders a display string for an active.Group. For
+// template-backed sessions it emits "<prefix><template_id>"; for spontaneous
+// sessions (no template, WP-B6) it emits "<prefix>spontaneous" so the name
+// remains distinguishable and never collides with a real template id.
+func activeGroupDisplayName(g *active.Group) string {
+	if g == nil {
+		return ""
+	}
+	if templateID, ok := g.TemplateID(); ok {
+		return displayGroupPrefix + strconv.FormatInt(templateID, 10)
+	}
+	return displayGroupPrefix + "spontaneous"
+}
+
 // ===== Conversion Functions =====
 
 // newActiveGroupResponse converts an active group model to a response object
@@ -48,8 +62,9 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 	// Add room info if available
 	if group.Room != nil {
 		response.Room = &RoomSimple{
-			ID:   group.Room.ID,
-			Name: group.Room.Name,
+			ID:    group.Room.ID,
+			Name:  group.Room.Name,
+			Color: group.Room.Color,
 		}
 	}
 
@@ -74,7 +89,7 @@ func newVisitResponse(visit *active.Visit) VisitResponse {
 		response.StudentName = visit.Student.Person.GetFullName()
 	}
 	if visit.ActiveGroup != nil {
-		response.ActiveGroupName = displayGroupPrefix + strconv.FormatInt(visit.ActiveGroup.GroupID, 10)
+		response.ActiveGroupName = activeGroupDisplayName(visit.ActiveGroup)
 	}
 
 	return response
@@ -98,7 +113,7 @@ func newSupervisorResponse(supervisor *active.GroupSupervisor) SupervisorRespons
 		response.StaffName = supervisor.Staff.Person.GetFullName()
 	}
 	if supervisor.ActiveGroup != nil {
-		response.ActiveGroupName = displayGroupPrefix + strconv.FormatInt(supervisor.ActiveGroup.GroupID, 10)
+		response.ActiveGroupName = activeGroupDisplayName(supervisor.ActiveGroup)
 	}
 
 	return response
@@ -136,7 +151,7 @@ func newGroupMappingResponse(mapping *active.GroupMapping) GroupMappingResponse 
 
 	// Add related information if available
 	if mapping.ActiveGroup != nil {
-		response.GroupName = displayGroupPrefix + strconv.FormatInt(mapping.ActiveGroup.GroupID, 10)
+		response.GroupName = activeGroupDisplayName(mapping.ActiveGroup)
 	}
 	if mapping.CombinedGroup != nil {
 		response.CombinedName = "Combined Group #" + strconv.FormatInt(mapping.CombinedGroup.ID, 10)

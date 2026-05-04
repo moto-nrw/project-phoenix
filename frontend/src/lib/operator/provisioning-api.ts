@@ -1,14 +1,20 @@
 import { operatorFetch } from "./api-helpers";
 import type {
   BackendOrganization,
+  BackendOrganizationSummary,
+  BackendProvisioningStats,
   BackendSchool,
+  BackendSchoolSummary,
   BackendInvitation,
   BackendSchoolAccount,
   BackendOrgAccount,
   BackendOperatorDevice,
   BackendOperatorPerson,
   Organization,
+  OrganizationSummary,
+  ProvisioningStats,
   School,
+  SchoolSummary,
   Invitation,
   SchoolAccount,
   OrgAccount,
@@ -24,7 +30,10 @@ import type {
 } from "./provisioning-helpers";
 import {
   mapOrganization,
+  mapOrganizationSummary,
+  mapProvisioningStats,
   mapSchool,
+  mapSchoolSummary,
   mapInvitation,
   mapSchoolAccount,
   mapOrgAccount,
@@ -33,6 +42,36 @@ import {
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
+  async getStats(): Promise<ProvisioningStats> {
+    const data = await operatorFetch<BackendProvisioningStats>(
+      "/api/operator/provisioning/stats",
+    );
+    return mapProvisioningStats(data);
+  }
+
+  async listOrganizationSummaries(): Promise<OrganizationSummary[]> {
+    const data = await operatorFetch<BackendOrganizationSummary[]>(
+      "/api/operator/provisioning/organizations/summaries",
+    );
+    return data.map(mapOrganizationSummary);
+  }
+
+  async listSchoolSummaries(): Promise<SchoolSummary[]> {
+    const data = await operatorFetch<BackendSchoolSummary[]>(
+      "/api/operator/provisioning/schools/summaries",
+    );
+    return data.map(mapSchoolSummary);
+  }
+
+  async listOrganizationSchools(
+    organizationId: string,
+  ): Promise<SchoolSummary[]> {
+    const data = await operatorFetch<BackendSchoolSummary[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/schools`,
+    );
+    return data.map(mapSchoolSummary);
+  }
+
   async listOrganizations(): Promise<Organization[]> {
     const data = await operatorFetch<BackendOrganization[]>(
       "/api/operator/provisioning/organizations",
@@ -181,10 +220,33 @@ class OperatorProvisioningService {
     return data.map(mapOperatorPerson);
   }
 
+  async listOrganizationPersons(
+    organizationId: string,
+  ): Promise<OperatorPerson[]> {
+    const data = await operatorFetch<BackendOperatorPerson[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/persons`,
+    );
+    return data.map(mapOperatorPerson);
+  }
+
   async softDeletePerson(personId: string): Promise<void> {
     await operatorFetch<null>(
       `/api/operator/provisioning/persons/${encodeURIComponent(personId)}`,
       { method: "DELETE" },
+    );
+  }
+
+  async softDeleteOrganization(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async restoreOrganization(id: string): Promise<void> {
+    await operatorFetch(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(id)}/restore`,
+      { method: "POST" },
     );
   }
 
@@ -217,3 +279,22 @@ class OperatorProvisioningService {
 }
 
 export const operatorProvisioningService = new OperatorProvisioningService();
+
+/**
+ * Purges the Next.js ISR cache for the given tenant subdomain slugs so stale
+ * tenant-resolution does not linger (~5 min) after a slug change, delete,
+ * restore, or active-flag toggle. Fire-and-forget: on failure the cache
+ * self-heals within its TTL, so callers must never block success flow.
+ */
+export async function revalidateTenantCache(slugs: string[]): Promise<void> {
+  if (slugs.length === 0) return;
+  try {
+    await fetch("/api/operator/provisioning/revalidate-tenant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slugs }),
+    });
+  } catch {
+    // Cache self-heals in ≤5 min; don't block the success flow.
+  }
+}

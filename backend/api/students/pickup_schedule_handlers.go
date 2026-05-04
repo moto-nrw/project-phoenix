@@ -276,12 +276,17 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	return staff.ID, nil
 }
 
-// requirePickupReadAccess parses the student from URL params without checking full access.
-// Used for read-only operations that should be visible to all authenticated staff.
+// requirePickupReadAccess parses the student from URL params and checks read access.
+// Respects the gdpr.student_data_scope setting: with group_supervisors_only only
+// supervisors and admins can view pickup data; with all_staff any verified staff can.
 // Returns the student on success or writes an error response and returns nil.
 func (rs *Resource) requirePickupReadAccess(w http.ResponseWriter, r *http.Request) *users.Student {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
+		return nil
+	}
+	if !rs.checkStudentReadAccess(r, student) {
+		renderError(w, r, ErrorForbidden(fmt.Errorf("read access required to view pickup schedules")))
 		return nil
 	}
 	return student
@@ -315,7 +320,7 @@ func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label s
 }
 
 // getStudentPickupSchedules handles GET /students/{id}/pickup-schedules
-// This endpoint is accessible to all authenticated staff (read-only)
+// Access is controlled by the gdpr.student_data_scope tenant setting.
 func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
 	student := rs.requirePickupReadAccess(w, r)
 	if student == nil {
@@ -794,29 +799,26 @@ func (rs *Resource) DeleteStudentPickupNoteHandler() http.HandlerFunc {
 }
 
 // filterAuthorizedStudentIDs filters the requested student IDs to only those
-// the current user has access to (admin sees all, others see only their groups' students)
+// the current user has read access to. Respects the gdpr.student_data_scope
+// setting: admins see all, all_staff scope lets any verified staff see all,
+// otherwise only students in the user's supervised groups are returned.
 func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []int64) ([]int64, error) {
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	accessCtx := rs.determineStudentAccess(r)
 
-	// Admins have access to all students
-	if hasAdminPermissions(userPermissions) {
+	// Admins and all_staff scope see all requested students
+	if accessCtx.IsAdmin || accessCtx.AllStaffScope {
 		return requestedIDs, nil
 	}
 
-	// Get groups the user supervises
-	educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-	if err != nil {
-		return nil, err
-	}
-
-	if len(educationGroups) == 0 {
+	// No supervised groups → no access
+	if len(accessCtx.MyGroupIDs) == 0 {
 		return []int64{}, nil
 	}
 
-	// Extract group IDs
-	groupIDs := make([]int64, 0, len(educationGroups))
-	for _, group := range educationGroups {
-		groupIDs = append(groupIDs, group.ID)
+	// Extract group IDs from access context
+	groupIDs := make([]int64, 0, len(accessCtx.MyGroupIDs))
+	for gid := range accessCtx.MyGroupIDs {
+		groupIDs = append(groupIDs, gid)
 	}
 
 	// Get all students in these groups

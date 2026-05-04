@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import axios from "axios";
 import { performImmediateCheckin } from "./checkin-api";
 
+// oxlint-disable-next-line import/no-named-as-default-member -- Axios exposes create on the default export at runtime, but not as a TypeScript named export.
+const createAxios = axios["create"];
+
 // Mock axios
 vi.mock("axios", () => {
   const mockAxiosInstance = {
@@ -11,6 +14,7 @@ vi.mock("axios", () => {
     delete: vi.fn(),
   };
   return {
+    create: vi.fn(() => mockAxiosInstance),
     default: {
       create: vi.fn(() => mockAxiosInstance),
     },
@@ -24,7 +28,7 @@ describe("checkin-api", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAxiosInstance = axios.create() as unknown as {
+    mockAxiosInstance = createAxios() as unknown as {
       post: ReturnType<typeof vi.fn>;
     };
   });

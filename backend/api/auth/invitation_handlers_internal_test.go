@@ -127,6 +127,27 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 	assert.Equal(t, float64(0), item["created_by"])
 }
 
+func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *testing.T) {
+	service := &mockInvitationService{
+		createFn: func(context.Context, authService.InvitationRequest) (*authModels.InvitationToken, error) {
+			return nil, &authService.AuthError{Op: "create invitation", Err: authService.ErrAccountAlreadyHasTenantAccess}
+		},
+	}
+
+	resource := NewResource(nil, service, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"existing@example.com","role_id":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1}))
+	rr := httptest.NewRecorder()
+	resource.createInvitation(rr, req)
+
+	require.Equal(t, http.StatusConflict, rr.Code)
+	body := decodeJSONBody(t, rr)
+	assert.Equal(t, "error", body["status"])
+	assert.Equal(t, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS", body["code"])
+}
+
 func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
 	service := &mockInvitationService{
 		validateFn: func(_ context.Context, token string) (*authService.InvitationValidationResult, error) {

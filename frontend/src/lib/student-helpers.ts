@@ -23,8 +23,17 @@ export const SCHOOL_YEAR_FILTER_OPTIONS = [
   { value: "4", label: "4" },
 ] as const;
 
+/**
+ * Extract the school year (Klassenstufe) from a school_class string.
+ * E.g. "Klasse 3a" → "3", "2b" → "2", "unknown" → null
+ */
+export function getSchoolYear(schoolClass: string): string | null {
+  const match = /(\d+)/.exec(schoolClass);
+  return match ? match[1]! : null;
+}
+
 // Scheduled checkout information
-export interface ScheduledCheckoutInfo {
+interface ScheduledCheckoutInfo {
   id: number;
   scheduled_for: string;
   reason?: string;
@@ -41,9 +50,13 @@ export interface BackendStudent {
   school_class: string;
   current_location?: string | null;
   location_since?: string | null; // When student entered current location (ISO timestamp)
+  /** Hex color of the current room when set (Issue #1324). Drives badge color in LocationBadge. */
+  current_room_color?: string | null;
   bus?: boolean;
   sick?: boolean;
   sick_since?: string;
+  excused?: boolean;
+  excused_since?: string;
   guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_email?: string;
@@ -56,6 +69,15 @@ export interface BackendStudent {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
+  pickup_time?: string; // Today's effective pickup time (HH:MM)
+  pickup_is_exception?: boolean; // True if today's pickup time is an exception
+  pickup_notes?: string; // Exception reason or schedule notes
+  arrival_time?: string; // Today's effective arrival time (HH:MM)
+  arrival_is_exception?: boolean; // True if today's arrival time is an exception
+  arrival_notes?: string; // Exception reason or schedule notes
+  actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
+  actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
+  has_full_access?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +95,7 @@ export interface SupervisorContact {
 // Detailed student response with access control
 export interface BackendStudentDetail extends BackendStudent {
   has_full_access: boolean;
+  has_write_access: boolean;
   group_supervisors?: SupervisorContact[];
   attendance_log_enabled: boolean;
 }
@@ -127,12 +150,17 @@ export interface Student {
   current_location: string;
   // When student entered current location (only for hasFullAccess users)
   location_since?: string;
+  /** Hex color of the current room when set (Issue #1324). Empty string treated as null. */
+  current_room_color?: string | null;
   // Transportation method (separate from attendance)
   takes_bus?: boolean;
   bus?: boolean; // Administrative permission flag (Buskind), not attendance status
   // Sickness status (only visible to supervisors/admins)
   sick?: boolean;
   sick_since?: string;
+  // Excused status (kind is not attending the OGS today, only visible to supervisors/admins)
+  excused?: boolean;
+  excused_since?: string;
   name_lg?: string;
   contact_lg?: string;
   guardian_email?: string;
@@ -145,6 +173,7 @@ export interface Student {
   data_retention_days?: number;
   // Additional fields for access control
   has_full_access?: boolean;
+  has_write_access?: boolean;
   group_supervisors?: SupervisorContact[];
   // Feature flag: tenant has attendance log enabled
   attendance_log_enabled?: boolean;
@@ -154,6 +183,14 @@ export interface Student {
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
+  pickup_time?: string; // Today's effective pickup time (HH:MM)
+  pickup_is_exception?: boolean; // True if today's pickup time is an exception
+  pickup_notes?: string; // Exception reason or schedule notes
+  arrival_time?: string; // Today's effective arrival time (HH:MM)
+  arrival_is_exception?: boolean; // True if today's arrival time is an exception
+  arrival_notes?: string; // Exception reason or schedule notes
+  actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
+  actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
 }
 
 // Mapping functions
@@ -183,10 +220,13 @@ export function mapStudentResponse(
     // New attendance-based system
     current_location,
     location_since: backendStudent.location_since ?? undefined,
+    current_room_color: backendStudent.current_room_color ?? null,
     takes_bus: undefined,
     bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
     sick: backendStudent.sick ?? false, // Sickness status
     sick_since: backendStudent.sick_since,
+    excused: backendStudent.excused ?? false, // Excused from attending today
+    excused_since: backendStudent.excused_since,
     name_lg: backendStudent.guardian_name ?? undefined,
     contact_lg: backendStudent.guardian_contact ?? undefined,
     guardian_email: backendStudent.guardian_email,
@@ -197,6 +237,15 @@ export function mapStudentResponse(
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
     pickup_status: backendStudent.pickup_status,
+    pickup_time: backendStudent.pickup_time,
+    pickup_is_exception: backendStudent.pickup_is_exception,
+    pickup_notes: backendStudent.pickup_notes,
+    arrival_time: backendStudent.arrival_time,
+    arrival_is_exception: backendStudent.arrival_is_exception,
+    arrival_notes: backendStudent.arrival_notes,
+    actual_arrival_time: backendStudent.actual_arrival_time,
+    actual_pickup_time: backendStudent.actual_pickup_time,
+    has_full_access: backendStudent.has_full_access,
   };
 
   // Add scheduled checkout info if present
@@ -233,6 +282,7 @@ export function mapStudentDetailResponse(
 
   // Then add the additional fields
   student.has_full_access = backendStudent.has_full_access;
+  student.has_write_access = backendStudent.has_write_access;
   student.group_supervisors = backendStudent.group_supervisors;
   student.attendance_log_enabled = backendStudent.attendance_log_enabled;
 
@@ -260,7 +310,10 @@ export function prepareStudentForBackend(
     current_location: student.current_location
       ? normalizeLocation(student.current_location)
       : undefined,
-    bus: student.bus ?? false, // Send bus as a separate field
+    // Only send bus when explicitly provided so partial updates (e.g. sick/excused
+    // toggles) don't clobber the persisted Buskind flag. The backend field is
+    // *bool with omitempty — omitting the key leaves the DB value untouched.
+    bus: student.bus,
     // REMOVED: guardian_name and guardian_contact - deprecated fields
     // Use guardian_profiles system instead
     group_id: student.group_id
@@ -279,22 +332,11 @@ export function prepareStudentForBackend(
     supervisor_notes: student.supervisor_notes,
     pickup_status: student.pickup_status,
     sick: student.sick,
+    excused: student.excused,
   };
 }
 
 // Request/Response types
-export interface CreateStudentRequest {
-  first_name?: string;
-  second_name?: string; // Will be mapped to last_name for backend
-  school_class?: string;
-  group_id?: number;
-  name_lg?: string; // Guardian name
-  contact_lg?: string; // Guardian contact
-  tag_id?: string; // Optional RFID
-  guardian_email?: string;
-  guardian_phone?: string;
-  extra_info?: string;
-}
 
 export interface UpdateStudentRequest {
   first_name?: string;
@@ -313,6 +355,7 @@ export interface UpdateStudentRequest {
   pickup_status?: string;
   bus?: boolean;
   sick?: boolean;
+  excused?: boolean;
 }
 
 // Backend request type (for actual API calls)
@@ -333,6 +376,7 @@ export interface BackendUpdateRequest {
   pickup_status?: string;
   bus?: boolean;
   sick?: boolean;
+  excused?: boolean;
 }
 
 // Map privacy consent from backend to frontend
@@ -382,6 +426,7 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "pickup_status", target: "pickup_status" },
   { source: "bus", target: "bus" },
   { source: "sick", target: "sick" },
+  { source: "excused", target: "excused" },
 ];
 
 /**

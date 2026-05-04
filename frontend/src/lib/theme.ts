@@ -149,19 +149,3 @@ export const theme = {
     toast: 100 as const,
   },
 } as const;
-
-export type Theme = typeof theme;
-
-/**
- * Helper type to access nested theme properties
- * Usage: ThemeValue<'colors.primary.500'> will return the type of that value
- */
-export type ThemeValue<T extends string> = T extends `${infer K}.${infer Rest}`
-  ? K extends keyof Theme
-    ? Rest extends keyof Theme[K]
-      ? Theme[K][Rest]
-      : ThemeValue<Rest>
-    : never
-  : never;
-
-export default theme;

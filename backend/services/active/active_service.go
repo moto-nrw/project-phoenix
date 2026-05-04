@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -21,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Broadcaster interface (re-exported from realtime for convenience)
@@ -48,6 +51,13 @@ type CrossTenantRepo interface {
 	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
 }
 
+// SettingsResolver resolves tenant-scoped settings. Implemented by config.SettingsService.
+// Optional dependency — when nil, auto-clear behavior falls back to the registry default.
+type SettingsResolver interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
@@ -57,6 +67,7 @@ type ServiceDependencies struct {
 	CombinedGroupRepo active.CombinedGroupRepository
 	GroupMappingRepo  active.GroupMappingRepository
 	AttendanceRepo    active.AttendanceRepository
+	StudentStatusRepo active.StudentStatusDayRepository
 
 	// Cross-tenant query repository (optional - nil-safe)
 	CrossTenantRepo CrossTenantRepo
@@ -85,6 +96,11 @@ type ServiceDependencies struct {
 	// Optional: Work session service for NFC auto-check-in
 	WorkSessionService WorkSessionService
 
+	// Optional: Attendance sync (WP-B10). When non-nil, visit create/end
+	// calls mirror into schedule.instance_students and enrich check-in/out
+	// SSE events with attendance status/substatus/note.
+	AttendanceSyncer AttendanceSyncer
+
 	// Optional: Structured logger (nil-safe, Phase 2b will add logging calls)
 	Logger *slog.Logger
 }
@@ -110,11 +126,12 @@ type service struct {
 	deviceRepo         iotModels.DeviceRepository
 
 	// New dependencies for attendance tracking
-	attendanceRepo   active.AttendanceRepository
-	educationService education.Service
-	usersService     users.PersonService
-	teacherRepo      userModels.TeacherRepository
-	staffRepo        userModels.StaffRepository
+	attendanceRepo    active.AttendanceRepository
+	studentStatusRepo active.StudentStatusDayRepository
+	educationService  education.Service
+	usersService      users.PersonService
+	teacherRepo       userModels.TeacherRepository
+	staffRepo         userModels.StaffRepository
 
 	db *bun.DB
 
@@ -124,8 +141,47 @@ type service struct {
 	// Optional: Work session service for NFC auto-check-in
 	workSessionService WorkSessionService
 
+	// Optional: Attendance sync (WP-B10)
+	attendanceSyncer AttendanceSyncer
+
+	// Optional: Tenant-scoped settings resolver for auto-clear logic.
+	// When nil, auto-clear falls back to the registry default behavior.
+	settings SettingsResolver
+
 	// Structured logger (nil-safe)
 	logger *slog.Logger
+}
+
+// SetSettingsService injects the tenant-scoped settings resolver.
+// Called from the factory after settingsService is constructed.
+func (s *service) SetSettingsService(resolver SettingsResolver) {
+	s.settings = resolver
+}
+
+// GetPresenceMode returns the tenant's resolved presence mode
+// ("detailed" | "binary"), falling back to "detailed" whenever the settings
+// resolver is nil, the key is unset/empty, or the lookup errors. Mirrors the
+// fallback logic of services/config.ResolvePresenceMode but avoids importing
+// the config package here (it would create a dep cycle through the factory).
+func (s *service) GetPresenceMode(ctx context.Context) string {
+	const (
+		keyPresenceMode      = "operations.presence_mode"
+		presenceModeDetailed = "detailed"
+	)
+	if s.settings == nil {
+		return presenceModeDetailed
+	}
+	val, err := s.settings.ResolveString(ctx, keyPresenceMode)
+	if err != nil {
+		s.getLogger().Warn("presence_mode resolve failed, using default",
+			slog.String("error", err.Error()),
+		)
+		return presenceModeDetailed
+	}
+	if val == "" {
+		return presenceModeDetailed
+	}
+	return val
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -153,6 +209,7 @@ func NewService(deps ServiceDependencies) Service {
 		personRepo:         deps.PersonRepo,
 		deviceRepo:         deps.DeviceRepo,
 		attendanceRepo:     deps.AttendanceRepo,
+		studentStatusRepo:  deps.StudentStatusRepo,
 		educationService:   deps.EducationService,
 		usersService:       deps.UsersService,
 		teacherRepo:        deps.TeacherRepo,
@@ -160,6 +217,7 @@ func NewService(deps ServiceDependencies) Service {
 		db:                 deps.DB,
 		broadcaster:        deps.Broadcaster,
 		workSessionService: deps.WorkSessionService,
+		attendanceSyncer:   deps.AttendanceSyncer,
 		logger:             deps.Logger,
 	}
 }
@@ -380,6 +438,13 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
 	}
 
+	// Binary-mode tenants don't track room visits — attendance is the only
+	// surface. Short-circuit here so every caller (IoT, web, scheduler) stays
+	// consistent without having to resolve the mode at each call site.
+	if s.GetPresenceMode(ctx) == "binary" {
+		return nil
+	}
+
 	// Validate student exists before INSERT (prevents FK constraint errors in logs)
 	if err := s.validateStudentExists(ctx, visit.StudentID); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
@@ -408,19 +473,64 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
 
-	// Auto-clear sickness when student checks in
+	// Auto-clear sickness / excused flags when student checks in
+	// (only triggers when the tenant's clear_mode setting is "next_checkin").
 	s.autoClearStudentSickness(ctx, visit.StudentID)
+	s.autoClearStudentExcused(ctx, visit.StudentID)
 
 	// Create the visit record
 	visit.SetTenantID(tenant.FromContext(ctx))
-	if s.visitRepo.Create(ctx, visit) != nil {
+	if err := s.visitRepo.Create(ctx, visit); err != nil {
+		// The partial unique index uniq_active_visits_open_per_student is the
+		// race-safety net behind ensureStudentHasNoActiveVisit above. When
+		// two concurrent requests both pass the read-then-write check, the
+		// loser hits 23505 here. Translate to ErrStudentAlreadyActive so the
+		// IoT handler maps it to 409 Conflict instead of 500.
+		if isDuplicateActiveVisitViolation(err) {
+			return &ActiveError{Op: "CreateVisit", Err: ErrStudentAlreadyActive}
+		}
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
 
+	// WP-B10: mirror the check-in into schedule.instance_students when the
+	// visit corresponds to a planned instance. The mirror is graceful-
+	// degradation-by-design — it returns nil for walk-ins, pre-start
+	// races, or any error — so we never block a visit write on it.
+	// Snapshot is threaded into the broadcast so the SSE event carries
+	// attendance fields when applicable.
+	var snapshot *AttendanceSnapshot
+	if s.attendanceSyncer != nil {
+		snapshot = s.attendanceSyncer.MirrorCheckInForVisit(ctx, visit)
+	}
+
 	// Broadcast SSE event (fire-and-forget, outside transaction)
-	s.broadcastVisitCreated(ctx, visit)
+	s.broadcastVisitCreated(ctx, visit, snapshot)
 
 	return nil
+}
+
+// isDuplicateActiveVisitViolation returns true when err carries PostgreSQL
+// error code 23505 (unique_violation) on the partial unique index
+// uniq_active_visits_open_per_student, defined in migration 1.15.47 on
+// active.visits (tenant_id, student_id) WHERE exit_time IS NULL.
+//
+// We match by constraint name (Field 'n') rather than just the error code
+// so a future unrelated unique index on active.visits doesn't accidentally
+// translate into ErrStudentAlreadyActive.
+func isDuplicateActiveVisitViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *base.DatabaseError
+	if errors.As(err, &dbErr) {
+		err = dbErr.Err
+	}
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.Field('C') == "23505" &&
+			pgErr.Field('n') == "uniq_active_visits_open_per_student"
+	}
+	return false
 }
 
 // isNotFoundError checks if an error is due to "not found" (sql.ErrNoRows) vs. other database errors
@@ -538,6 +648,13 @@ func (s *service) FindVisitsByTimeRange(ctx context.Context, start, end time.Tim
 }
 
 func (s *service) EndVisit(ctx context.Context, id int64) error {
+	// Binary-mode tenants don't keep visit rows, so there's nothing to end.
+	// Callers that hold a stale visit ID from before a mode switch hit this
+	// no-op path instead of a missing-row error.
+	if s.GetPresenceMode(ctx) == "binary" {
+		return nil
+	}
+
 	endedVisit, err := s.endVisitRecord(ctx, id)
 	if err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
@@ -546,7 +663,14 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
 	}
 
-	s.broadcastVisitCheckout(ctx, endedVisit)
+	// WP-B10: load (not mutate) attendance snapshot for SSE enrichment.
+	// Per spec: check-out does NOT change instance_students.status.
+	var snapshot *AttendanceSnapshot
+	if s.attendanceSyncer != nil {
+		snapshot = s.attendanceSyncer.LoadAttendanceForVisit(ctx, endedVisit)
+	}
+
+	s.broadcastVisitCheckout(ctx, endedVisit, snapshot)
 	return nil
 }
 
@@ -569,8 +693,11 @@ func (s *service) endVisitRecord(ctx context.Context, id int64) (*active.Visit, 
 	return visit, nil
 }
 
-// broadcastVisitCheckout broadcasts SSE event for visit checkout
-func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active.Visit) {
+// broadcastVisitCheckout broadcasts SSE event for visit checkout.
+// snapshot (WP-B10) may be nil — when present, it enriches the event
+// with attendance_status/substatus/note so the frontend can display
+// the current attendance state alongside the checkout line.
+func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active.Visit, snapshot *AttendanceSnapshot) {
 	if s.broadcaster == nil || endedVisit == nil {
 		return
 	}
@@ -579,13 +706,16 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	studentID := fmt.Sprintf("%d", endedVisit.StudentID)
 	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
 
+	data := realtime.EventData{
+		StudentID:   &studentID,
+		StudentName: &studentName,
+	}
+	applyAttendanceSnapshot(&data, snapshot)
+
 	event := realtime.NewEvent(
 		realtime.EventStudentCheckOut,
 		activeGroupID,
-		realtime.EventData{
-			StudentID:   &studentID,
-			StudentName: &studentName,
-		},
+		data,
 	)
 
 	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
@@ -617,18 +747,41 @@ func (s *service) broadcastToEducationalGroup(ctx context.Context, student *user
 
 // broadcastStudentCheckoutEvents sends checkout SSE events for each visit.
 // This helper reduces cognitive complexity in session timeout processing.
+//
+// TODO(wp-b11-or-later): batch if hot. Each visit triggers two independent
+// schedule queries inside LoadAttendanceForVisit (FindByActiveGroupID,
+// FindByInstanceAndStudent). A session timeout flushing N students = 2N
+// queries. Not catastrophic at v1 scale, but if schools grow we should add
+// a batched FindByInstanceAndStudentIDs path. Not scoped into WP-B10.
 func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDStr string, visitsToNotify []visitSSEData) {
+	// Parse session ID once — all visits in this batch share the same
+	// active_group_id, which IS the session. We construct a minimal Visit
+	// per student for the snapshot lookup.
+	var sessionID int64
+	if parsed, perr := strconv.ParseInt(sessionIDStr, 10, 64); perr == nil {
+		sessionID = parsed
+	}
+
 	for _, visitData := range visitsToNotify {
 		studentIDStr := fmt.Sprintf("%d", visitData.StudentID)
 		studentName := visitData.Name
 
+		data := realtime.EventData{
+			StudentID:   &studentIDStr,
+			StudentName: &studentName,
+		}
+		if s.attendanceSyncer != nil && sessionID > 0 {
+			snapshot := s.attendanceSyncer.LoadAttendanceForVisit(ctx, &active.Visit{
+				StudentID:     visitData.StudentID,
+				ActiveGroupID: sessionID,
+			})
+			applyAttendanceSnapshot(&data, snapshot)
+		}
+
 		checkoutEvent := realtime.NewEvent(
 			realtime.EventStudentCheckOut,
 			sessionIDStr,
-			realtime.EventData{
-				StudentID:   &studentIDStr,
-				StudentName: &studentName,
-			},
+			data,
 		)
 
 		s.broadcastWithLogging(ctx, sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
@@ -685,8 +838,13 @@ func (s *service) broadcastWithLogging(ctx context.Context, activeGroupID, stude
 }
 
 // getActivityName retrieves the activity name by group ID, returning empty string on error.
-func (s *service) getActivityName(ctx context.Context, groupID int64) string {
-	activity, err := s.activityGroupRepo.FindByID(ctx, groupID)
+// A nil groupID marks a spontaneous session (WP-B6): there is no template to look up,
+// so we return an empty name and leave the display decision to the caller.
+func (s *service) getActivityName(ctx context.Context, groupID *int64) string {
+	if groupID == nil {
+		return ""
+	}
+	activity, err := s.activityGroupRepo.FindByID(ctx, *groupID)
 	if err != nil || activity == nil {
 		return ""
 	}
@@ -901,6 +1059,24 @@ func (s *service) GetStaffActiveSupervisions(ctx context.Context, staffID int64)
 	return activeSupervisions, nil
 }
 
+// GetAllActiveSupervisions returns all currently active supervisions across all staff.
+// Used by admin supervision overview to display all active rooms.
+func (s *service) GetAllActiveSupervisions(ctx context.Context) ([]*active.GroupSupervisor, error) {
+	supervisors, err := s.supervisorRepo.FindAllActive(ctx)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetAllActiveSupervisions", Err: ErrDatabaseOperation}
+	}
+
+	var activeSupervisions []*active.GroupSupervisor
+	for _, supervisor := range supervisors {
+		if supervisor.IsActive() {
+			activeSupervisions = append(activeSupervisions, supervisor)
+		}
+	}
+
+	return activeSupervisions, nil
+}
+
 // GetCrossTenantStudents returns students visiting from other tenants.
 func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error) {
 	if s.crossTenantRepo == nil {
@@ -918,6 +1094,51 @@ func (s *service) GetCrossTenantStudents(ctx context.Context, hostingTenantID in
 	)
 
 	return students, nil
+}
+
+// GetTrackingIndicators returns per-student match results for the given labels.
+// For each student, it checks today's visits and matches activity group name + room name
+// against each label using case-insensitive substring matching.
+func (s *service) GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
+	result := make(map[int64][]bool, len(studentIDs))
+	if len(studentIDs) == 0 || len(labels) == 0 {
+		return result, nil
+	}
+
+	visitNames, err := s.visitRepo.GetTodayVisitNamesForStudents(ctx, studentIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetTrackingIndicators", Err: ErrDatabaseOperation}
+	}
+
+	// Build a map of student ID → concatenated visit texts for matching.
+	studentVisitTexts := make(map[int64][]string, len(studentIDs))
+	for _, vn := range visitNames {
+		text := strings.ToLower(strings.TrimSpace(vn.ActivityGroupName + " " + vn.RoomName))
+		studentVisitTexts[vn.StudentID] = append(studentVisitTexts[vn.StudentID], text)
+	}
+
+	// Lowercase the labels once.
+	lowerLabels := make([]string, len(labels))
+	for i, l := range labels {
+		lowerLabels[i] = strings.ToLower(strings.TrimSpace(l))
+	}
+
+	// For each student, check each label against their visit texts.
+	for _, sid := range studentIDs {
+		matches := make([]bool, len(labels))
+		texts := studentVisitTexts[sid]
+		for li, ll := range lowerLabels {
+			for _, t := range texts {
+				if strings.Contains(t, ll) {
+					matches[li] = true
+					break
+				}
+			}
+		}
+		result[sid] = matches
+	}
+
+	return result, nil
 }
 
 // visitSSEData holds data needed for SSE broadcasts after a visit is ended

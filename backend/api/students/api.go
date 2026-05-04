@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -42,61 +43,70 @@ func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Re
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService         userService.PersonService
-	StudentRepo           users.StudentRepository
-	EducationService      educationService.Service
-	UserContextService    userContextService.UserContextService
-	ActiveService         activeService.Service
-	IoTService            iotSvc.Service
-	PrivacyConsentRepo    users.PrivacyConsentRepository
-	PickupScheduleService scheduleService.PickupScheduleService
-	SchoolRepo            platform.SchoolRepository
-	SettingsService       configService.SettingsService
-	AttendanceRepo        active.AttendanceRepository
-	VisitRepo             active.VisitRepository
-	DataAccessLogRepo     auditModels.DataAccessLogRepository
-	Logger                *slog.Logger
-	db                    *bun.DB
+	PersonService          userService.PersonService
+	StudentRepo            users.StudentRepository
+	EducationService       educationService.Service
+	UserContextService     userContextService.UserContextService
+	ActiveService          activeService.Service
+	IoTService             iotSvc.Service
+	PrivacyConsentRepo     users.PrivacyConsentRepository
+	PickupScheduleService  scheduleService.PickupScheduleService
+	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	SchoolRepo             platform.SchoolRepository
+	SettingsService        configService.SettingsService
+	AttendanceRepo         active.AttendanceRepository
+	StudentStatusDayRepo   active.StudentStatusDayRepository
+	VisitRepo              active.VisitRepository
+	DataAccessLogRepo      auditModels.DataAccessLogRepository
+	Broadcaster            realtime.Broadcaster
+	Logger                 *slog.Logger
+	db                     *bun.DB
 }
 
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService         userService.PersonService
-	StudentRepo           users.StudentRepository
-	EducationService      educationService.Service
-	UserContextService    userContextService.UserContextService
-	ActiveService         activeService.Service
-	IoTService            iotSvc.Service
-	PrivacyConsentRepo    users.PrivacyConsentRepository
-	PickupScheduleService scheduleService.PickupScheduleService
-	SchoolRepo            platform.SchoolRepository
-	SettingsService       configService.SettingsService
-	AttendanceRepo        active.AttendanceRepository
-	VisitRepo             active.VisitRepository
-	DataAccessLogRepo     auditModels.DataAccessLogRepository
-	Logger                *slog.Logger
-	DB                    *bun.DB
+	PersonService          userService.PersonService
+	StudentRepo            users.StudentRepository
+	EducationService       educationService.Service
+	UserContextService     userContextService.UserContextService
+	ActiveService          activeService.Service
+	IoTService             iotSvc.Service
+	PrivacyConsentRepo     users.PrivacyConsentRepository
+	PickupScheduleService  scheduleService.PickupScheduleService
+	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	SchoolRepo             platform.SchoolRepository
+	SettingsService        configService.SettingsService
+	AttendanceRepo         active.AttendanceRepository
+	StudentStatusDayRepo   active.StudentStatusDayRepository
+	VisitRepo              active.VisitRepository
+	DataAccessLogRepo      auditModels.DataAccessLogRepository
+	Broadcaster            realtime.Broadcaster
+	Logger                 *slog.Logger
+	DB                     *bun.DB
 }
 
 // NewResource creates a new students resource from the provided configuration.
 func NewResource(cfg ResourceConfig) *Resource {
 	return &Resource{
-		PersonService:         cfg.PersonService,
-		StudentRepo:           cfg.StudentRepo,
-		EducationService:      cfg.EducationService,
-		UserContextService:    cfg.UserContextService,
-		ActiveService:         cfg.ActiveService,
-		IoTService:            cfg.IoTService,
-		PrivacyConsentRepo:    cfg.PrivacyConsentRepo,
-		PickupScheduleService: cfg.PickupScheduleService,
-		SchoolRepo:            cfg.SchoolRepo,
-		SettingsService:       cfg.SettingsService,
-		AttendanceRepo:        cfg.AttendanceRepo,
-		VisitRepo:             cfg.VisitRepo,
-		DataAccessLogRepo:     cfg.DataAccessLogRepo,
-		Logger:                cfg.Logger,
-		db:                    cfg.DB,
+		PersonService:          cfg.PersonService,
+		StudentRepo:            cfg.StudentRepo,
+		EducationService:       cfg.EducationService,
+		UserContextService:     cfg.UserContextService,
+		ActiveService:          cfg.ActiveService,
+		IoTService:             cfg.IoTService,
+		PrivacyConsentRepo:     cfg.PrivacyConsentRepo,
+		PickupScheduleService:  cfg.PickupScheduleService,
+		ArrivalScheduleService: cfg.ArrivalScheduleService,
+		SchoolRepo:             cfg.SchoolRepo,
+		SettingsService:        cfg.SettingsService,
+		AttendanceRepo:         cfg.AttendanceRepo,
+		StudentStatusDayRepo:   cfg.StudentStatusDayRepo,
+		VisitRepo:              cfg.VisitRepo,
+		DataAccessLogRepo:      cfg.DataAccessLogRepo,
+		Broadcaster:            cfg.Broadcaster,
+		Logger:                 cfg.Logger,
+		db:                     cfg.DB,
 	}
 }
 
@@ -151,6 +161,28 @@ func (rs *Resource) Router() chi.Router {
 
 		// Bulk pickup times endpoint (returns pickup times for multiple students)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
+
+		// Arrival schedule routes (full access required - checked in handlers)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/arrival-schedules", rs.getStudentArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-schedules", rs.updateStudentArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/arrival-exceptions", rs.createStudentArrivalException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-exceptions/{exceptionId}", rs.updateStudentArrivalException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/arrival-exceptions/{exceptionId}", rs.deleteStudentArrivalException)
+
+		// Arrival note routes (full access required - checked in handlers)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/arrival-notes", rs.createStudentArrivalNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-notes/{noteId}", rs.updateStudentArrivalNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/arrival-notes/{noteId}", rs.deleteStudentArrivalNote)
+
+		// Bulk arrival schedule and time endpoints
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/arrival-schedules/bulk", rs.bulkUpsertArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
+
+		// Web-based school check-in/out. Mode-agnostic (writes attendance only).
+		// The users:checkin permission is the coarse gate; the
+		// attendance.web_checkin_access setting is the fine gate enforced inside
+		// the handler (group_supervisors vs all_staff).
+		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
 	})
 
 	// Device-authenticated routes for RFID devices.
@@ -198,7 +230,7 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, student *users.Student) (*users.Person, bool) {
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(errors.New("failed to get person data for student")))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to get person data for student", err))
 		return nil, false
 	}
 	return person, true
@@ -216,9 +248,44 @@ func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student)
 	return group
 }
 
-// checkStudentFullAccess determines if the current user has full access to a student's data
-// Returns true if user is admin or supervises the student's group
+// checkStudentFullAccess determines if the current user has full access to
+// a student's data for write operations (update, delete, privacy consent, etc.).
+// Returns true if the user is an admin or supervises the student's group.
+//
+// The gdpr.student_data_scope setting intentionally does NOT apply here —
+// write operations remain restricted to group supervisors regardless of scope.
+// For read access checks, use checkStudentReadAccess instead.
 func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Student) bool {
+	return rs.isGroupSupervisorOrAdmin(r, student)
+}
+
+// checkStudentReadAccess determines if the current user has full read access
+// to a student's data (profile, location, visit info, privacy details, pickup
+// schedules). Returns true if the user is an admin, a verified staff member
+// when the tenant's student_data_scope is set to all_staff, or a supervisor
+// of the student's education group.
+//
+// This function MUST only be used on read paths. Write operations must use
+// checkStudentFullAccess which ignores the scope setting.
+//
+// Delegates to authorize.CanReadStudent so the same predicate is reusable
+// from other handlers (timetable, per-student day view) without duplicating
+// the scope/admin/supervisor logic.
+func (rs *Resource) checkStudentReadAccess(r *http.Request, student *users.Student) bool {
+	return authorize.CanReadStudent(
+		r.Context(),
+		jwt.PermissionsFromCtx(r.Context()),
+		student,
+		rs.UserContextService,
+		rs.SettingsService,
+		rs.Logger,
+	)
+}
+
+// isGroupSupervisorOrAdmin checks if the caller is an admin or supervises the
+// student's education group. This is the core authorization logic shared by
+// both read and write access paths (before scope overrides are applied).
+func (rs *Resource) isGroupSupervisorOrAdmin(r *http.Request, student *users.Student) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	if hasAdminPermissions(userPermissions) {
 		return true
@@ -296,6 +363,25 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
+	for i := range responses {
+		if !responses[i].HasFullAccess {
+			continue
+		}
+		applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
+	}
+
+	// Optionally enrich the paginated slice with today's effective pickup times (single bulk query).
+	// Only query for students the caller has full access to (GDPR — skip redacted students).
+	if params.includePickupTimes || params.includeArrivalTimes {
+		fullAccessIDs := collectFullAccessStudentIDs(responses)
+		if params.includePickupTimes {
+			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, time.Now())
+		}
+		if params.includeArrivalTimes {
+			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, time.Now())
+		}
+	}
+
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
 }
 
@@ -347,7 +433,7 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users
 
 // buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
 func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) *StudentResponse {
-	hasFullAccess := accessCtx.hasFullAccessToStudent(student)
+	hasFullAccess := accessCtx.HasFullAccessToStudent(student)
 
 	// Get person data from snapshot
 	person := dataSnapshot.GetPerson(student.PersonID)
@@ -393,9 +479,11 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	group := rs.getStudentGroup(r.Context(), student)
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
+	hasFullAccess := rs.checkStudentReadAccess(r, student)
+	hasWriteAccess := rs.checkStudentFullAccess(r, student)
 
 	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
+	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)
 
 	response := StudentDetailResponse{
 		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -408,7 +496,21 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			PersonService: rs.PersonService,
 		}),
 		HasFullAccess:        hasFullAccess,
+		HasWriteAccess:       hasWriteAccess,
 		AttendanceLogEnabled: attendanceLogEnabled,
+		FeedbackEnabled:      feedbackEnabled,
+	}
+
+	if hasFullAccess {
+		attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+		if err != nil {
+			rs.Logger.Warn("failed to resolve actual student arrival/pickup times",
+				"student_id", student.ID,
+				"error", err.Error(),
+			)
+		} else {
+			applyActualTimesFromAttendance(&response.StudentResponse, attendanceStatus)
+		}
 	}
 
 	// Add supervisor contacts for users without full access
@@ -621,6 +723,7 @@ func applyStudentFieldUpdates(req *UpdateStudentRequest, student *users.Student)
 	applyGuardianUpdates(req, student)
 	applyOptionalStudentFields(req, student)
 	applySickStatus(req, student)
+	applyExcusedStatus(req, student)
 }
 
 // applyGuardianUpdates handles legacy guardian field updates
@@ -687,6 +790,59 @@ func applySickStatus(req *UpdateStudentRequest, student *users.Student) {
 	}
 }
 
+// applyExcusedStatus handles excused status updates with ExcusedSince timestamp logic
+func applyExcusedStatus(req *UpdateStudentRequest, student *users.Student) {
+	if req.Excused == nil {
+		return
+	}
+	student.Excused = req.Excused
+	if *req.Excused {
+		if student.ExcusedSince == nil {
+			now := time.Now()
+			student.ExcusedSince = &now
+		}
+	} else {
+		student.ExcusedSince = nil
+	}
+}
+
+// checkSickExcusedConflict returns an error if the incoming update would
+// result in both sick and excused being true simultaneously. Callers with a
+// conflict should prompt the user to switch states rather than hold both.
+func checkSickExcusedConflict(req *UpdateStudentRequest, student *users.Student) error {
+	sickFinal := student.Sick != nil && *student.Sick
+	if req.Sick != nil {
+		sickFinal = *req.Sick
+	}
+	excusedFinal := student.Excused != nil && *student.Excused
+	if req.Excused != nil {
+		excusedFinal = *req.Excused
+	}
+	if sickFinal && excusedFinal {
+		return errors.New("a student cannot be both sick and excused at the same time")
+	}
+	return nil
+}
+
+func (rs *Resource) broadcastStudentUpdated(studentID int64) {
+	if rs.Broadcaster == nil {
+		return
+	}
+
+	source := "manual"
+	event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{
+		Source: &source,
+	})
+
+	if err := rs.Broadcaster.BroadcastToAll(event); err != nil && rs.Logger != nil {
+		rs.Logger.Warn(
+			"failed to broadcast student update",
+			"student_id", studentID,
+			"error", err.Error(),
+		)
+	}
+}
+
 // updateStudent handles updating an existing student
 func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID and get student
@@ -727,6 +883,18 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reject updates that would leave the student in both sick and excused
+	// states simultaneously. The frontend uses the SICK_EXCUSED_CONFLICT code
+	// to prompt the user to switch states rather than hold both.
+	if err := checkSickExcusedConflict(req, student); err != nil {
+		renderError(w, r, ErrorConflictWithCode(err, ErrCodeSickExcusedConflict))
+		return
+	}
+
+	wasSick := boolPtrValue(student.Sick)
+	wasExcused := boolPtrValue(student.Excused)
+	statusHistoryNow := time.Now()
+
 	// Update student fields using helper function
 	applyStudentFieldUpdates(req, student)
 
@@ -737,6 +905,10 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 			if err := rs.PersonService.Update(ctx, person); err != nil {
 				return err
 			}
+		}
+		if err := rs.persistStudentStatusHistory(ctx, student, wasSick, wasExcused, statusHistoryNow); err != nil {
+			rs.logStatusHistoryError(student.ID, err)
+			return err
 		}
 		return rs.StudentRepo.Update(ctx, student)
 	}); err != nil {
@@ -757,6 +929,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Admin users and group supervisors can see full data including detailed location
 	// Explicitly verify access level based on the checks performed above
 	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
+	rs.broadcastStudentUpdated(updatedStudent.ID)
 
 	// Return the updated student with person data
 	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -822,6 +995,10 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 
 // ListStudentsHandler returns the handler for listing students.
 func (rs *Resource) ListStudentsHandler() http.HandlerFunc { return rs.listStudents }
+
+// SchoolCheckinHandler returns the handler for POST /api/students/{id}/school-checkin.
+// Exposed for integration tests that bypass the router's middleware chain.
+func (rs *Resource) SchoolCheckinHandler() http.HandlerFunc { return rs.schoolCheckinHandler }
 
 // GetStudentHandler returns the handler for getting a single student.
 func (rs *Resource) GetStudentHandler() http.HandlerFunc { return rs.getStudent }

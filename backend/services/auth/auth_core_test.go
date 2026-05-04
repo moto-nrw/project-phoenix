@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -66,30 +66,6 @@ func uniqueTestCredentials(prefix string) (email, username string) {
 	email = fmt.Sprintf("%s-%s@test.local", prefix, uniqueID)
 	username = fmt.Sprintf("%s-%s", prefix, uniqueID)
 	return
-}
-
-func parseAccessTokenClaims(t *testing.T, token string) authjwt.AppClaims {
-	t.Helper()
-
-	tokenAuth, err := authjwt.NewTokenAuth()
-	require.NoError(t, err)
-
-	decoded, err := tokenAuth.JwtAuth.Decode(token)
-	require.NoError(t, err)
-
-	claims := make(map[string]any, len(decoded.Keys()))
-	for _, key := range decoded.Keys() {
-		var value any
-		err := decoded.Get(key, &value)
-		require.NoError(t, err)
-		claims[key] = value
-	}
-
-	var appClaims authjwt.AppClaims
-	err = appClaims.ParseClaims(claims)
-	require.NoError(t, err)
-
-	return appClaims
 }
 
 // =============================================================================
@@ -402,7 +378,10 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	// ACT: fire 5 concurrent refresh requests with the same token
+	// ACT: fire 5 concurrent refresh requests with the same token.
+	// Use a barrier (WaitGroup) so all goroutines start at the same time —
+	// without this, goroutine 1 can complete the entire refresh (rotating the
+	// token in the DB) before goroutine 2 even starts, defeating singleflight.
 	const concurrency = 5
 	type result struct {
 		accessToken  string
@@ -411,8 +390,12 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 	}
 	results := make(chan result, concurrency)
 
+	var barrier sync.WaitGroup
+	barrier.Add(concurrency)
 	for range concurrency {
 		go func() {
+			barrier.Done()
+			barrier.Wait() // all goroutines unblock together
 			at, rt, e := service.RefreshToken(ctx, refreshToken)
 			results <- result{at, rt, e}
 		}()
@@ -865,7 +848,7 @@ func TestAuthService_CreateRole(t *testing.T) {
 		name := fmt.Sprintf("test-role-%d", time.Now().UnixNano())
 
 		// ACT
-		role, err := service.CreateRole(ctx, name, "Test role description")
+		role, err := service.CreateRole(ctx, name, "Test role description", strPtr("user"))
 
 		// ASSERT
 		require.NoError(t, err)
@@ -876,7 +859,7 @@ func TestAuthService_CreateRole(t *testing.T) {
 
 	t.Run("returns error for empty name", func(t *testing.T) {
 		// ACT
-		role, err := service.CreateRole(ctx, "", "description")
+		role, err := service.CreateRole(ctx, "", "description", strPtr("user"))
 
 		// ASSERT
 		require.Error(t, err)
@@ -894,7 +877,7 @@ func TestAuthService_GetRoleByID(t *testing.T) {
 	t.Run("returns role when found", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("get-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "description")
+		role, err := service.CreateRole(ctx, name, "description", strPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -926,7 +909,7 @@ func TestAuthService_GetRoleByName(t *testing.T) {
 	t.Run("returns role when found", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("find-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "description")
+		role, err := service.CreateRole(ctx, name, "description", strPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -958,7 +941,7 @@ func TestAuthService_UpdateRole(t *testing.T) {
 	t.Run("updates role successfully", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("update-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "original description")
+		role, err := service.CreateRole(ctx, name, "original description", strPtr("user"))
 		require.NoError(t, err)
 
 		role.Description = "updated description"
@@ -986,7 +969,7 @@ func TestAuthService_DeleteRole(t *testing.T) {
 	t.Run("deletes role successfully", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("delete-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "to delete")
+		role, err := service.CreateRole(ctx, name, "to delete", strPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -1011,7 +994,7 @@ func TestAuthService_ListRoles(t *testing.T) {
 	t.Run("returns roles", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("list-role-%d", time.Now().UnixNano())
-		_, err := service.CreateRole(ctx, name, "for listing")
+		_, err := service.CreateRole(ctx, name, "for listing", strPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -1038,7 +1021,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		roleName := fmt.Sprintf("assign-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "for assignment")
+		role, err := service.CreateRole(ctx, roleName, "for assignment", strPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -1069,7 +1052,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.tokens", token.ID) })
 
 		roleName := fmt.Sprintf("assign-role-tx-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "transaction rollback verification")
+		role, err := service.CreateRole(ctx, roleName, "transaction rollback verification", strPtr("user"))
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
@@ -1091,10 +1074,10 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		tokens, err := service.GetActiveTokens(ctx, int(account.ID))
 		require.NoError(t, err)
 		require.Len(t, tokens, 1)
-		assert.Equal(t, token.ID, tokens[0].ID, "existing refresh tokens should remain untouched by role assignment")
+		assert.Equal(t, token.ID, tokens[0].ID, "token deletion should roll back with the outer transaction")
 	})
 
-	t.Run("existing refresh token picks up new role on next refresh", func(t *testing.T) {
+	t.Run("existing refresh token is revoked after role assignment", func(t *testing.T) {
 		email, username := uniqueTestCredentials("assign-role-refresh")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
@@ -1105,7 +1088,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		require.NoError(t, err)
 
 		roleName := fmt.Sprintf("assign-role-refresh-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification")
+		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", strPtr("user"))
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
@@ -1113,11 +1096,9 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		require.NoError(t, err)
 
 		newAccessToken, newRefreshToken, err := service.RefreshToken(ctx, refreshToken)
-		require.NoError(t, err)
-		assert.NotEmpty(t, newRefreshToken)
-
-		claims := parseAccessTokenClaims(t, newAccessToken)
-		assert.Contains(t, claims.Roles, roleName)
+		require.Error(t, err)
+		assert.Empty(t, newAccessToken)
+		assert.Empty(t, newRefreshToken)
 	})
 }
 
@@ -1136,7 +1117,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		roleName := fmt.Sprintf("remove-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "for removal")
+		role, err := service.CreateRole(ctx, roleName, "for removal", strPtr("user"))
 		require.NoError(t, err)
 
 		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
@@ -1156,7 +1137,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		}
 	})
 
-	t.Run("existing refresh token no longer carries removed role after refresh", func(t *testing.T) {
+	t.Run("existing refresh token is revoked after role removal", func(t *testing.T) {
 		email, username := uniqueTestCredentials("remove-role-refresh")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
@@ -1164,7 +1145,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 
 		roleName := fmt.Sprintf("remove-role-refresh-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification")
+		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", strPtr("user"))
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
@@ -1178,11 +1159,9 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		require.NoError(t, err)
 
 		newAccessToken, newRefreshToken, err := service.RefreshToken(ctx, refreshToken)
-		require.NoError(t, err)
-		assert.NotEmpty(t, newRefreshToken)
-
-		claims := parseAccessTokenClaims(t, newAccessToken)
-		assert.NotContains(t, claims.Roles, roleName)
+		require.Error(t, err)
+		assert.Empty(t, newAccessToken)
+		assert.Empty(t, newRefreshToken)
 	})
 }
 
@@ -1592,7 +1571,7 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role")
+		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("roleperm-%s", uniqueID)
@@ -1619,7 +1598,7 @@ func TestAuthService_RemovePermissionFromRole(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-remove-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role")
+		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("rolerem-%s", uniqueID)
@@ -1649,7 +1628,7 @@ func TestAuthService_GetRolePermissions(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-get-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role")
+		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("roleget-%s", uniqueID)

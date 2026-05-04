@@ -9,6 +9,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // getStudentCurrentLocation handles getting a student's current location with scheduled checkout info
@@ -29,7 +31,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	group := rs.getStudentGroup(r.Context(), student)
 
 	// Determine if user has full access to student location details
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
+	hasFullAccess := rs.checkStudentReadAccess(r, student)
 
 	// Build student response
 	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -65,11 +67,30 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, locationResponse, "Student location retrieved successfully")
 }
 
-// checkGroupRoomAccessAuthorization verifies if the user can view student room status
-// Returns an error if unauthorized, nil if authorized
+// checkGroupRoomAccessAuthorization verifies if the user can view student room status.
+// Returns an error if unauthorized, nil if authorized.
+//
+// Grants access to: admins, any staff when gdpr.student_data_scope = all_staff,
+// and the student's group supervisors. This endpoint is read-only.
 func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, studentGroupID int64) error {
 	if hasAdminPermissions(getPermissionsFromRequest(r)) {
 		return nil
+	}
+
+	// Tenant-configurable read scope: when set to all_staff, any authenticated
+	// staff member can view this information.
+	scope := configService.ResolveStringOrDefault(
+		r.Context(),
+		rs.SettingsService,
+		configModel.KeyStudentDataScope,
+		configModel.StudentDataScopeGroupSupervisorsOnly,
+		rs.Logger,
+	)
+	if scope == configModel.StudentDataScopeAllStaff {
+		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
+			return nil
+		}
+		return errors.New("unauthorized to view student room status")
 	}
 
 	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
@@ -125,7 +146,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Get the educational group
 	group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(errors.New("failed to get student's group")))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to get student's group", err))
 		return
 	}
 
@@ -157,7 +178,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Get the active group to check its room
 	activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(errors.New("failed to get active group")))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to get active group", err))
 		return
 	}
 

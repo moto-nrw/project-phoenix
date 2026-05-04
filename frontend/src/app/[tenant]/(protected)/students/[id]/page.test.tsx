@@ -239,6 +239,26 @@ vi.mock("~/components/students/student-checkout-section", () => ({
       </button>
     </div>
   ),
+  StudentExcusedReportSection: ({
+    isExcused,
+    onToggle,
+    isLoading,
+  }: {
+    isExcused: boolean;
+    excusedSince?: string;
+    onToggle: () => void;
+    isLoading: boolean;
+  }) => (
+    <div data-testid="excused-report-section">
+      <button
+        data-testid="excused-toggle-button"
+        onClick={onToggle}
+        disabled={isLoading}
+      >
+        {isExcused ? "Entschuldigung aufheben" : "Entschuldigen"}
+      </button>
+    </div>
+  ),
   getStudentActionType: vi.fn(() => mockActionType),
 }));
 
@@ -328,6 +348,7 @@ interface MockStudentDataResult {
   loading: boolean;
   error: string | null;
   hasFullAccess: boolean;
+  hasWriteAccess: boolean;
   supervisors: Array<{ name: string; phone?: string }>;
   myGroups: string[];
   myGroupRooms: string[];
@@ -421,6 +442,7 @@ describe("StudentDetailPage", () => {
       loading: false,
       error: null,
       hasFullAccess: true,
+      hasWriteAccess: true,
       supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
       myGroups: ["1"],
       myGroupRooms: ["Raum 101"],
@@ -448,6 +470,7 @@ describe("StudentDetailPage", () => {
         loading: true,
         error: null,
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -469,6 +492,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: "Schüler nicht gefunden",
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -488,6 +512,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -506,6 +531,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: "Error",
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -564,6 +590,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
@@ -767,6 +794,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: true,
+        hasWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -991,22 +1019,21 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
           sick: true,
-          bus: false,
         });
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
-    it("preserves bus flag when toggling sick status", async () => {
+    it("does not send bus on sick toggle so the persisted flag is preserved", async () => {
       mockUpdateStudent.mockResolvedValue({});
 
-      // Student with buskind = true
       mockUseStudentData.mockReturnValue({
         student: { ...mockStudent, buskind: true },
         loading: false,
         error: null,
         hasFullAccess: true,
+        hasWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1033,8 +1060,8 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
           sick: true,
-          bus: true,
         });
+        expect(mockUpdateStudent.mock.calls[0]?.[1]).not.toHaveProperty("bus");
       });
     });
 
@@ -1068,6 +1095,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: true,
+        hasWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1116,6 +1144,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: false,
+        hasWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1128,6 +1157,225 @@ describe("StudentDetailPage", () => {
       expect(
         screen.queryByTestId("sick-report-section"),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Excused Report Functionality", () => {
+    it("renders excused report section in full access view", () => {
+      render(<StudentDetailPage />);
+      expect(screen.getByTestId("excused-report-section")).toBeInTheDocument();
+      expect(screen.getByTestId("excused-toggle-button")).toHaveTextContent(
+        "Entschuldigen",
+      );
+    });
+
+    it("shows excused confirmation modal when excused button is clicked", async () => {
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("excused-toggle-button"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-kind-entschuldigen"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("performs excused toggle successfully", async () => {
+      mockUpdateStudent.mockResolvedValue({});
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("excused-toggle-button"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-kind-entschuldigen"),
+        ).toBeInTheDocument();
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("modal-confirm"));
+      });
+      await waitFor(() => {
+        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
+          excused: true,
+        });
+        expect(mockRefreshData).toHaveBeenCalled();
+        expect(mockToastSuccess).toHaveBeenCalled();
+      });
+    });
+
+    it("shows error toast when excused toggle fails", async () => {
+      mockUpdateStudent.mockRejectedValue(new Error("fail"));
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("excused-toggle-button"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-kind-entschuldigen"),
+        ).toBeInTheDocument();
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("modal-confirm"));
+      });
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalled();
+      });
+    });
+
+    it("shows aufheben modal when student is already excused", async () => {
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, excused: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+      render(<StudentDetailPage />);
+      const btn = screen.getByTestId("excused-toggle-button");
+      expect(btn).toHaveTextContent("Entschuldigung aufheben");
+      fireEvent.click(btn);
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-entschuldigung-aufheben"),
+        ).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Switch Status Dialog (mutual exclusion)", () => {
+    it("opens the switch dialog when clicking Krank on an excused student", async () => {
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, excused: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("sick-toggle-button"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-als-krank-melden?"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("opens the switch dialog when clicking Entschuldigt on a sick student", async () => {
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, sick: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("excused-toggle-button"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-als-entschuldigt-markieren?"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("sends clear-one + set-other when confirming a switch", async () => {
+      mockUpdateStudent.mockResolvedValue({});
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, sick: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("excused-toggle-button"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-als-entschuldigt-markieren?"),
+        ).toBeInTheDocument();
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("modal-confirm"));
+      });
+      await waitFor(() => {
+        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
+          sick: false,
+          excused: true,
+        });
+        expect(mockToastSuccess).toHaveBeenCalled();
+      });
+    });
+
+    it("shows error toast if the switch request fails", async () => {
+      mockUpdateStudent.mockRejectedValue(new Error("boom"));
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, excused: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("sick-toggle-button"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-als-krank-melden?"),
+        ).toBeInTheDocument();
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("modal-confirm"));
+      });
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalled();
+      });
+    });
+
+    it("closes the switch dialog on cancel without calling the API", async () => {
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, sick: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("excused-toggle-button"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-als-entschuldigt-markieren?"),
+        ).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId("modal-cancel"));
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("modal-als-entschuldigt-markieren?"),
+        ).not.toBeInTheDocument();
+      });
+      expect(mockUpdateStudent).not.toHaveBeenCalled();
     });
   });
 
@@ -1157,6 +1405,7 @@ describe("StudentDetailPage", () => {
         loading: false,
         error: null,
         hasFullAccess: true,
+        hasWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],

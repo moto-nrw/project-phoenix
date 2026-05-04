@@ -3,6 +3,8 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -33,9 +36,10 @@ func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
 func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	// Extract date only using Berlin timezone since the school operates in Germany.
-	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
-	dateOnly := timezone.DateOf(date)
+	// Use DateOfUTC: the PG session runs in UTC, so Berlin-midnight timestamptz
+	// gets cast to the previous UTC day. DateOfUTC yields UTC midnight of the
+	// Berlin calendar date, which round-trips correctly through DATE columns.
+	dateOnly := timezone.DateOfUTC(date)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
@@ -124,10 +128,10 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
-	// This ensures the date comparison matches records created via CreateVisit,
-	// which also uses timezone.Today().
-	today := timezone.Today()
+	// Use TodayUTC: the PG session runs in UTC, so Berlin-midnight gets cast to
+	// the previous UTC day. TodayUTC yields UTC midnight of the Berlin calendar
+	// date, which round-trips correctly through DATE columns.
+	today := timezone.TodayUTC()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
@@ -158,6 +162,87 @@ func (r *AttendanceRepository) Create(ctx context.Context, attendance *active.At
 
 	// Use the base Create method
 	return r.Repository.Create(ctx, attendance)
+}
+
+// CreateIfNoOpenForToday inserts the attendance row, deferring to the partial
+// unique index uniq_attendance_open_per_student_day on
+// (student_id, date) WHERE check_out_time IS NULL when a concurrent caller
+// already opened today's attendance. Returns inserted=true when the row was
+// actually written; false signals the conflict path swallowed the insert and
+// the caller should re-fetch the existing open row.
+func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, attendance *active.Attendance) (bool, error) {
+	if attendance == nil {
+		return false, fmt.Errorf("attendance cannot be nil")
+	}
+
+	// Auto-set tenant_id from context if not yet populated, matching base.Create.
+	if attendance.GetTenantID() == 0 {
+		if tid := tenant.FromContext(ctx); tid != 0 {
+			attendance.SetTenantID(tid)
+		}
+	}
+
+	res, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(attendance).
+		ModelTableExpr("active.attendance").
+		On("CONFLICT (student_id, date) WHERE check_out_time IS NULL DO NOTHING").
+		Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "create_if_no_open_for_today", Err: err}
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "create_if_no_open_for_today_rows_affected", Err: err}
+	}
+	return affected > 0, nil
+}
+
+// CloseOpenForToday closes the open attendance row for the given student
+// today via a state-checked UPDATE — the WHERE check_out_time IS NULL guard
+// turns concurrent "out" calls (and "in/out" races where the in lost) into
+// no-ops at the database layer instead of corrupting the row.
+//
+// Why this exists: the school-checkin handler used to route writes through
+// ToggleStudentAttendance, which read-then-flipped the state. Two concurrent
+// "in" requests for an absent student could end up calling check-out, because
+// the second request's internal re-read saw the first request's commit and
+// flipped the action. Action-explicit handlers now call this method directly
+// and skip the toggle entirely.
+func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, staffID int64) (*active.Attendance, error) {
+	today := timezone.TodayUTC()
+
+	// UPDATE … RETURNING populates the row scan target. Bun bubbles up
+	// sql.ErrNoRows when zero rows match, so we treat that as the
+	// idempotent "no open row" path rather than a database error.
+	//
+	// Tenant scoping note: the request is already inside a tenant tx with
+	// RLS, which makes student_id de facto unique (one tenant only sees
+	// its own students), so we don't need an explicit tenant_id predicate
+	// here — RLS rejects rows that aren't ours before the WHERE runs.
+	row := &active.Attendance{}
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model(row).
+		ModelTableExpr("active.attendance").
+		Set("check_out_time = ?", now).
+		Set("yard_since = NULL").
+		Where("student_id = ?", studentID).
+		Where("date = ?", today).
+		Where("check_out_time IS NULL").
+		Returning("*")
+	if staffID > 0 {
+		q = q.Set("checked_out_by = ?", staffID)
+	}
+
+	if _, err := q.Exec(ctx, row); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// No open row — student wasn't checked in, or another concurrent
+			// caller already closed it. Both are idempotent successes.
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "close_open_for_today", Err: err}
+	}
+	return row, nil
 }
 
 // Update overrides base Update to handle validation
@@ -207,9 +292,9 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 		uniqueIDs = append(uniqueIDs, id)
 	}
 
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
-	// This ensures the date comparison matches records created via CreateVisit.
-	today := timezone.Today()
+	// Use TodayUTC: PG session runs in UTC, so Berlin-midnight gets cast to the
+	// previous UTC day. TodayUTC round-trips correctly through DATE columns.
+	today := timezone.TodayUTC()
 	var attendances []*active.Attendance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendances).
@@ -244,9 +329,10 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	// Extract date only using Berlin timezone since the school operates in Germany.
-	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
-	dateOnly := timezone.DateOf(date)
+	// Use DateOfUTC: the PG session runs in UTC, so Berlin-midnight timestamptz
+	// gets cast to the previous UTC day. DateOfUTC yields UTC midnight of the
+	// Berlin calendar date, which round-trips correctly through DATE columns.
+	dateOnly := timezone.DateOfUTC(date)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).

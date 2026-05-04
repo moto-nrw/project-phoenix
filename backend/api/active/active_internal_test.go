@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
@@ -127,11 +128,10 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrStudentAlreadyInGroup},
 			expectedText: "Student Already In Group",
 		},
-		{
-			name:         "ErrStudentAlreadyActive",
-			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrStudentAlreadyActive},
-			expectedText: "Student Already Has Active Visit",
-		},
+		// ErrStudentAlreadyActive intentionally absent — it maps to
+		// 409 Conflict (see TestErrorRenderer_StudentAlreadyActive in
+		// handlers_unit_test.go and TestErrorRenderer_StudentAlreadyActiveConflict
+		// in errors_test.go) per the Issue #844 review fix.
 		{
 			name:         "ErrStaffAlreadySupervising",
 			err:          &activeService.ActiveError{Op: "test", Err: activeService.ErrStaffAlreadySupervising},
@@ -290,7 +290,7 @@ func TestCheckinRequest_Fields(t *testing.T) {
 }
 
 func TestCheckinContext_Fields(t *testing.T) {
-	group := &active.Group{GroupID: 100}
+	group := &active.Group{GroupID: base.Int64Ptr(100)}
 	staff := &users.Staff{PersonID: 200}
 	request := CheckinRequest{ActiveGroupID: 300}
 
@@ -477,7 +477,7 @@ func TestActiveGroupResponse_Fields(t *testing.T) {
 
 	resp := ActiveGroupResponse{
 		ID:              1,
-		GroupID:         10,
+		GroupID:         base.Int64Ptr(10),
 		RoomID:          20,
 		StartTime:       now,
 		EndTime:         &endTime,
@@ -497,7 +497,9 @@ func TestActiveGroupResponse_Fields(t *testing.T) {
 	}
 
 	assert.Equal(t, int64(1), resp.ID)
-	assert.Equal(t, int64(10), resp.GroupID)
+	if assert.NotNil(t, resp.GroupID) {
+		assert.Equal(t, int64(10), *resp.GroupID)
+	}
 	assert.Equal(t, int64(20), resp.RoomID)
 	assert.True(t, resp.IsActive)
 	assert.Equal(t, "Test notes", resp.Notes)

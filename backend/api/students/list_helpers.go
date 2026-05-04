@@ -5,29 +5,28 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // studentListParams holds all query parameters for student listing
 type studentListParams struct {
-	schoolClass  string
-	guardianName string
-	firstName    string
-	lastName     string
-	location     string
-	groupID      int64
-	search       string
-	page         int
-	pageSize     int
+	schoolClass         string
+	guardianName        string
+	firstName           string
+	lastName            string
+	location            string
+	groupID             int64
+	search              string
+	page                int
+	pageSize            int
+	includePickupTimes  bool
+	includeArrivalTimes bool
 }
 
-// studentAccessContext holds access control information for student listing
-type studentAccessContext struct {
-	isAdmin    bool
-	myGroupIDs map[int64]struct{}
-}
+// studentAccessContext is an alias for the shared common.StudentAccessContext
+// so existing call sites in this package keep working unchanged.
+type studentAccessContext = common.StudentAccessContext
 
 // parseStudentListParams extracts query parameters from the request
 func parseStudentListParams(r *http.Request) *studentListParams {
@@ -47,6 +46,10 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 		}
 	}
 
+	// Parse optional includes
+	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
+	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
+
 	// Parse pagination
 	params.page, params.pageSize = common.ParsePagination(r)
 
@@ -58,29 +61,8 @@ func (p *studentListParams) hasPersonFilters() bool {
 	return p.search != "" || p.firstName != "" || p.lastName != "" || p.location != ""
 }
 
-// buildQueryOptions creates query options from parameters
-func (p *studentListParams) buildQueryOptions() *base.QueryOptions {
-	queryOptions := base.NewQueryOptions()
-	filter := base.NewFilter()
-
-	if p.schoolClass != "" {
-		filter.ILike("school_class", "%"+p.schoolClass+"%")
-	}
-	if p.guardianName != "" {
-		filter.ILike("guardian_name", "%"+p.guardianName+"%")
-	}
-
-	// Add pagination only if no person-based filters
-	if !p.hasPersonFilters() {
-		queryOptions.WithPagination(p.page, p.pageSize)
-	}
-	queryOptions.Filter = filter
-
-	return queryOptions
-}
-
-// buildCountFilter creates a filter for counting records
-func (p *studentListParams) buildCountFilter() *base.Filter {
+// buildBaseFilter creates the shared filter for school_class and guardian_name
+func (p *studentListParams) buildBaseFilter() *base.Filter {
 	filter := base.NewFilter()
 	if p.schoolClass != "" {
 		filter.ILike("school_class", "%"+p.schoolClass+"%")
@@ -91,43 +73,31 @@ func (p *studentListParams) buildCountFilter() *base.Filter {
 	return filter
 }
 
+// buildQueryOptions creates query options from parameters
+func (p *studentListParams) buildQueryOptions() *base.QueryOptions {
+	queryOptions := base.NewQueryOptions()
+	queryOptions.Filter = p.buildBaseFilter()
+
+	// Add pagination only if no person-based filters
+	if !p.hasPersonFilters() {
+		queryOptions.WithPagination(p.page, p.pageSize)
+	}
+
+	return queryOptions
+}
+
 // buildCountOptions creates query options for counting records
 func (p *studentListParams) buildCountOptions() *base.QueryOptions {
 	countOptions := base.NewQueryOptions()
-	countOptions.Filter = p.buildCountFilter()
+	countOptions.Filter = p.buildBaseFilter()
 	return countOptions
 }
 
-// determineStudentAccess determines access level and group IDs for the current user
+// determineStudentAccess resolves the access context for the current request.
+// Thin wrapper that injects this Resource's services into the shared common
+// helper so per-student access checks stay cheap when iterating a list.
 func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContext {
-	ctx := &studentAccessContext{
-		isAdmin: hasAdminPermissions(jwt.PermissionsFromCtx(r.Context())),
-	}
-
-	if !ctx.isAdmin {
-		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
-			if educationGroups, err := rs.UserContextService.GetMyGroups(r.Context()); err == nil {
-				ctx.myGroupIDs = make(map[int64]struct{}, len(educationGroups))
-				for _, eduGroup := range educationGroups {
-					ctx.myGroupIDs[eduGroup.ID] = struct{}{}
-				}
-			}
-		}
-	}
-
-	return ctx
-}
-
-// hasFullAccessToStudent checks if user has full access to a specific student
-func (ac *studentAccessContext) hasFullAccessToStudent(student *users.Student) bool {
-	if ac.isAdmin {
-		return true
-	}
-	if student.GroupID != nil && ac.myGroupIDs != nil {
-		_, ok := ac.myGroupIDs[*student.GroupID]
-		return ok
-	}
-	return false
+	return common.DetermineStudentAccess(r, rs.UserContextService, rs.SettingsService, rs.Logger)
 }
 
 // collectIDsFromStudents extracts IDs needed for bulk loading
@@ -208,4 +178,14 @@ func applyInMemoryPagination(responses []StudentResponse, page, pageSize int) ([
 	}
 
 	return responses[startIndex:endIndex], totalCount
+}
+
+func collectFullAccessStudentIDs(responses []StudentResponse) []int64 {
+	fullAccessIDs := make([]int64, 0, len(responses))
+	for i := range responses {
+		if responses[i].HasFullAccess {
+			fullAccessIDs = append(fullAccessIDs, responses[i].ID)
+		}
+	}
+	return fullAccessIDs
 }

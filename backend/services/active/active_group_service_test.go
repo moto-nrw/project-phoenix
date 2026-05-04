@@ -53,7 +53,8 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, activeGroup.ID, result.ID)
-		assert.Equal(t, activityGroup.ID, result.GroupID)
+		require.NotNil(t, result.GroupID)
+		assert.Equal(t, activityGroup.ID, *result.GroupID)
 		assert.Equal(t, room.ID, result.RoomID)
 	})
 
@@ -150,8 +151,9 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 		now := time.Now()
+		activityID := activity.ID
 		group := &activeModels.Group{
-			GroupID:        activity.ID,
+			GroupID:        &activityID,
 			RoomID:         room.ID,
 			StartTime:      now,
 			LastActivity:   now,
@@ -438,10 +440,11 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotEmpty(t, result)
-		// Verify at least one has our activity group ID
+		// Verify at least one has our activity group ID. After WP-B6,
+		// GroupID is *int64; spontaneous sessions never match here.
 		found := false
 		for _, g := range result {
-			if g.GroupID == activity.ID {
+			if templateID, ok := g.TemplateID(); ok && templateID == activity.ID {
 				found = true
 				break
 			}
@@ -472,8 +475,9 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "svc-device-room-match")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activity.CategoryID, room.ID)
 
+		activityID := activity.ID
 		activeGroup := &activeModels.Group{
-			GroupID:        activity.ID,
+			GroupID:        &activityID,
 			RoomID:         room.ID,
 			DeviceID:       &device.ID,
 			StartTime:      time.Now(),
@@ -672,79 +676,6 @@ func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
 // =============================================================================
 // Analytics and Statistics Tests
 // =============================================================================
-
-func TestActiveService_GetActiveGroupsCount(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns count of active groups", func(t *testing.T) {
-		// ARRANGE - create an active group
-		activity := testpkg.CreateTestActivityGroup(t, db, "count-active")
-		room := testpkg.CreateTestRoom(t, db, "Count Room")
-		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID)
-
-		// ACT
-		count, err := service.GetActiveGroupsCount(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 1)
-	})
-}
-
-func TestActiveService_GetTotalVisitsCount(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns count of total visits", func(t *testing.T) {
-		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "visit-count")
-		room := testpkg.CreateTestRoom(t, db, "Visit Count Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "Visit", "Count", "1a")
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
-
-		// ACT
-		count, err := service.GetTotalVisitsCount(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 1)
-	})
-}
-
-func TestActiveService_GetActiveVisitsCount(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns count of active visits", func(t *testing.T) {
-		// ARRANGE - create visit without exit time (active)
-		activity := testpkg.CreateTestActivityGroup(t, db, "active-visit")
-		room := testpkg.CreateTestRoom(t, db, "Active Visit Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "Active", "Visit", "1a")
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
-
-		// ACT
-		count, err := service.GetActiveVisitsCount(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 1)
-	})
-}
 
 func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 	db := testpkg.SetupTestDB(t)

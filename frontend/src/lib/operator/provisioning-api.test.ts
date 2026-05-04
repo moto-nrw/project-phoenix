@@ -26,6 +26,7 @@ const mockBackendOrg: BackendOrganization = {
   name: "Stadt Köln",
   slug: "stadt-koeln",
   active: true,
+  deleted_at: null,
   settings: null,
   created_at: NOW,
   updated_at: NOW,
@@ -132,6 +133,7 @@ describe("OperatorProvisioningService", () => {
         active: true,
         createdAt: NOW,
         updatedAt: NOW,
+        deletedAt: null,
       });
     });
   });
@@ -854,6 +856,246 @@ describe("OperatorProvisioningService", () => {
       const result = await operatorProvisioningService.restoreSchool("10");
 
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe("softDeleteOrganization", () => {
+    it("calls correct endpoint with DELETE method", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.softDeleteOrganization("77");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77",
+        { method: "DELETE" },
+      );
+    });
+
+    it("encodes organization id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.softDeleteOrganization("77/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77%2Fevil",
+        { method: "DELETE" },
+      );
+    });
+  });
+
+  describe("restoreOrganization", () => {
+    it("calls correct endpoint with POST method", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.restoreOrganization("77");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77/restore",
+        { method: "POST" },
+      );
+    });
+
+    it("encodes organization id in URL", async () => {
+      mockOperatorFetch.mockResolvedValue(undefined);
+
+      await operatorProvisioningService.restoreOrganization("77/evil");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/77%2Fevil/restore",
+        { method: "POST" },
+      );
+    });
+  });
+
+  describe("getStats", () => {
+    it("hits the stats endpoint and maps snake_case to camelCase", async () => {
+      mockOperatorFetch.mockResolvedValue({
+        traeger_count: 3,
+        schulen_count: 12,
+        konten_count: 250,
+        geraete_count: 64,
+      });
+
+      const stats = await operatorProvisioningService.getStats();
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/stats",
+      );
+      expect(stats).toEqual({
+        traegerCount: 3,
+        schulenCount: 12,
+        kontenCount: 250,
+        geraeteCount: 64,
+      });
+    });
+
+    it("propagates errors from operatorFetch", async () => {
+      mockOperatorFetch.mockRejectedValue(new Error("network down"));
+
+      await expect(operatorProvisioningService.getStats()).rejects.toThrow(
+        "network down",
+      );
+    });
+  });
+
+  describe("listOrganizationSummaries", () => {
+    it("calls correct endpoint and maps each row", async () => {
+      mockOperatorFetch.mockResolvedValue([
+        {
+          ...mockBackendOrg,
+          schulen_count: 3,
+          konten_count: 24,
+          geraete_count: 7,
+          personen_count: 100,
+        },
+      ]);
+
+      const summaries =
+        await operatorProvisioningService.listOrganizationSummaries();
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/summaries",
+      );
+      expect(summaries).toHaveLength(1);
+      expect(summaries[0]).toMatchObject({
+        id: mockBackendOrg.id.toString(),
+        slug: mockBackendOrg.slug,
+        name: mockBackendOrg.name,
+        schulenCount: 3,
+        kontenCount: 24,
+        geraeteCount: 7,
+        personenCount: 100,
+      });
+    });
+  });
+
+  describe("listSchoolSummaries", () => {
+    it("calls correct endpoint and maps each row", async () => {
+      mockOperatorFetch.mockResolvedValue([
+        {
+          ...mockBackendSchool,
+          konten_count: 12,
+          geraete_count: 4,
+          personen_count: 80,
+        },
+      ]);
+
+      const summaries = await operatorProvisioningService.listSchoolSummaries();
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/schools/summaries",
+      );
+      expect(summaries).toHaveLength(1);
+      expect(summaries[0]).toMatchObject({
+        id: mockBackendSchool.id.toString(),
+        organizationId: mockBackendSchool.organization_id.toString(),
+        name: mockBackendSchool.name,
+        kontenCount: 12,
+        geraeteCount: 4,
+        personenCount: 80,
+      });
+    });
+  });
+
+  describe("listOrganizationSchools", () => {
+    it("calls the org-scoped schools endpoint with the encoded id", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      await operatorProvisioningService.listOrganizationSchools("42");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/42/schools",
+      );
+    });
+
+    it("URL-encodes the org id", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      await operatorProvisioningService.listOrganizationSchools("a/b c");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/a%2Fb%20c/schools",
+      );
+    });
+
+    it("maps each returned school summary", async () => {
+      mockOperatorFetch.mockResolvedValue([
+        {
+          ...mockBackendSchool,
+          konten_count: 5,
+          geraete_count: 2,
+          personen_count: 40,
+        },
+      ]);
+
+      const result =
+        await operatorProvisioningService.listOrganizationSchools("42");
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: mockBackendSchool.id.toString(),
+        kontenCount: 5,
+        geraeteCount: 2,
+        personenCount: 40,
+      });
+    });
+  });
+
+  describe("listOrganizationPersons", () => {
+    it("calls the org-scoped persons endpoint with the encoded id", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      await operatorProvisioningService.listOrganizationPersons("42");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/42/persons",
+      );
+    });
+
+    it("URL-encodes the org id", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      await operatorProvisioningService.listOrganizationPersons("a/b c");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/a%2Fb%20c/persons",
+      );
+    });
+
+    it("maps each returned person", async () => {
+      const backendPerson: BackendOperatorPerson = {
+        id: 5,
+        first_name: "Anna",
+        last_name: "Beispiel",
+        has_account: true,
+        account_email: "anna@example.com",
+        has_rfid_card: false,
+        is_staff: true,
+        is_student: false,
+        school_id: 10,
+        school_name: "Schule A",
+        organization_id: 42,
+        organization_name: "Träger A",
+        created_at: NOW,
+      };
+      mockOperatorFetch.mockResolvedValue([backendPerson]);
+
+      const result =
+        await operatorProvisioningService.listOrganizationPersons("42");
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: "5",
+        firstName: "Anna",
+        lastName: "Beispiel",
+        fullName: "Anna Beispiel",
+        isStaff: true,
+        isStudent: false,
+        hasAccount: true,
+        accountEmail: "anna@example.com",
+        schoolId: "10",
+        organizationId: "42",
+      });
     });
   });
 });

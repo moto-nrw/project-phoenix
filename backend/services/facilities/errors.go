@@ -9,12 +9,16 @@ import (
 // Common facilities errors
 var (
 	ErrRoomNotFound         = errors.New("room not found")
-	ErrDuplicateRoom        = errors.New("room with this name already exists")
+	ErrDuplicateRoom        = errors.New("Ein Raum mit diesem Namen existiert bereits")               //nolint:staticcheck // ST1005: user-facing German message
+	ErrDuplicateToiletRoom  = errors.New("Es existiert bereits ein Toilettenraum (WC oder Toilette)") //nolint:staticcheck // ST1005: user-facing German message
 	ErrInvalidRoomData      = errors.New("invalid room data")
 	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
 	ErrBuildingNotFound     = errors.New("building not found")
 	ErrCategoryNotFound     = errors.New("category not found")
 	ErrRoomInUse            = errors.New("Raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet") //nolint:staticcheck // ST1005: user-facing German message
+	ErrSystemRoomProtected  = errors.New("Systemraum kann nicht gelöscht oder umbenannt werden")                                  //nolint:staticcheck // ST1005: user-facing German message
+	ErrColorAlreadyInUse    = errors.New("Diese Farbe ist bereits einem anderen Raum zugeordnet")                                 //nolint:staticcheck // ST1005: user-facing German message
+	ErrColorReserved        = errors.New("Diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // FacilitiesError represents a facilities-related error

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
   BackendCombinedGroup,
   BackendGroupMapping,
-  BackendAnalytics,
   BackendSchulhofStatus,
   BackendToggleSupervisionResponse,
 } from "./active-helpers";
@@ -98,12 +97,6 @@ const sampleBackendGroupMapping: BackendGroupMapping = {
   combined_group_id: 300,
   group_name: "Class 3A",
   combined_name: "Combined Morning",
-};
-
-const sampleBackendAnalytics: BackendAnalytics = {
-  active_groups_count: 5,
-  total_visits_count: 150,
-  active_visits_count: 45,
 };
 
 describe("active-service", () => {
@@ -812,23 +805,6 @@ describe("active-service", () => {
     });
   });
 
-  describe("Analytics", () => {
-    describe("getAnalyticsCounts", () => {
-      it("fetches analytics counts", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: sampleBackendAnalytics }),
-        } as Response);
-
-        const result = await activeService.getAnalyticsCounts();
-
-        expect(result.activeGroupsCount).toBe(5);
-        expect(result.totalVisitsCount).toBe(150);
-      });
-    });
-  });
-
   describe("Unclaimed Groups", () => {
     describe("getUnclaimedGroups", () => {
       it("fetches unclaimed groups with array response", async () => {
@@ -1278,6 +1254,108 @@ describe("active-service", () => {
         );
         expect(result.action).toBe("stopped");
       });
+    });
+  });
+
+  describe("getTrackingIndicators", () => {
+    it("returns empty response when studentIds is empty", async () => {
+      const result = await activeService.getTrackingIndicators([]);
+
+      expect(result).toEqual({ labels: [], results: {} });
+    });
+
+    it("returns empty response when session has no token", async () => {
+      // Clear the session cache so a fresh getSession call happens
+      const { clearSessionCache } = await import("./session-cache");
+      clearSessionCache();
+      mockedGetSession.mockResolvedValueOnce(null);
+
+      const result = await activeService.getTrackingIndicators(["10", "20"]);
+
+      expect(result).toEqual({ labels: [], results: {} });
+    });
+
+    it("fetches tracking indicators and returns data on success", async () => {
+      const { clearSessionCache } = await import("./session-cache");
+      clearSessionCache();
+
+      const mockResponse = {
+        data: {
+          labels: ["Hausaufgaben", "Mensa"],
+          results: { "10": [true, false], "20": [false, true] },
+        },
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      } as Response);
+
+      const result = await activeService.getTrackingIndicators(["10", "20"]);
+
+      expect(result).toEqual(mockResponse.data);
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/active/tracking-indicators",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ student_ids: [10, 20] }),
+        }),
+      );
+    });
+
+    it("converts string student IDs to integers in request", async () => {
+      const { clearSessionCache } = await import("./session-cache");
+      clearSessionCache();
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: { labels: [], results: {} } }),
+      } as Response);
+
+      await activeService.getTrackingIndicators(["42", "99"]);
+
+      const callBody = JSON.parse(
+        (mockFetch.mock.calls[0] as [string, RequestInit])[1].body as string,
+      ) as { student_ids: number[] };
+      expect(callBody.student_ids).toEqual([42, 99]);
+    });
+
+    it("returns empty response on non-ok HTTP status", async () => {
+      const { clearSessionCache } = await import("./session-cache");
+      clearSessionCache();
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      } as Response);
+
+      const result = await activeService.getTrackingIndicators(["10"]);
+
+      expect(result).toEqual({ labels: [], results: {} });
+    });
+
+    it("includes authorization header from session token", async () => {
+      const { clearSessionCache } = await import("./session-cache");
+      clearSessionCache();
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: { labels: [], results: {} } }),
+      } as Response);
+
+      await activeService.getTrackingIndicators(["10"]);
+
+      const callBody = mockFetch.mock.calls.find(
+        (call: unknown[]) => call[0] === "/api/active/tracking-indicators",
+      ) as [string, RequestInit] | undefined;
+      expect(callBody).toBeDefined();
+      const headers = callBody![1].headers as Record<string, string>;
+      expect(headers.Authorization).toBe("Bearer test-token");
+      expect(headers["Content-Type"]).toBe("application/json");
     });
   });
 });

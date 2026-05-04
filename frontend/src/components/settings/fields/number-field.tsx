@@ -40,17 +40,21 @@ export function NumberField({
         }
       }}
       onBlur={() => {
-        // On blur, if empty or invalid, reset to current value
         const num = parseFloat(text);
         if (isNaN(num)) {
           setText(value.toString());
         }
         onBlur?.();
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        }
+      }}
       min={min}
       max={max}
       disabled={disabled}
-      className="block w-32 rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900 focus:outline-none focus:ring-inset disabled:bg-gray-50 disabled:text-gray-500"
+      className="block w-full max-w-[8rem] rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 sm:w-32"
     />
   );
 }

@@ -22,9 +22,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -39,7 +41,7 @@ func helperResource() *Resource {
 	return &Resource{}
 }
 
-func TestGetStudentDailyCheckoutTime_Default(t *testing.T) {
+func TestGetStudentDailyCheckoutTime_NoConfig_ReturnsNil(t *testing.T) {
 	// Clear any existing env var
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -47,9 +49,8 @@ func TestGetStudentDailyCheckoutTime_Default(t *testing.T) {
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
 
-	// Default should be 15:00
-	assert.Equal(t, 15, checkoutTime.Hour())
-	assert.Equal(t, 0, checkoutTime.Minute())
+	// No time configured — daily checkout is always available
+	assert.Nil(t, checkoutTime, "should return nil when no checkout time is configured")
 }
 
 func TestGetStudentDailyCheckoutTime_CustomValid(t *testing.T) {
@@ -59,6 +60,7 @@ func TestGetStudentDailyCheckoutTime_CustomValid(t *testing.T) {
 	rs := helperResource()
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 
 	assert.Equal(t, 14, checkoutTime.Hour())
 	assert.Equal(t, 30, checkoutTime.Minute())
@@ -138,6 +140,7 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				require.NoError(t, err)
+				require.NotNil(t, checkoutTime)
 				assert.Equal(t, tt.wantH, checkoutTime.Hour())
 				assert.Equal(t, tt.wantM, checkoutTime.Minute())
 			}
@@ -149,12 +152,17 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 // Settings service wiring tests
 // =============================================================================
 
-// mockSettingsService is a minimal mock that only supports ResolveString.
+// mockSettingsService is a minimal mock that supports ResolveString, ResolveBool, and ResolveInt.
 type mockSettingsService struct {
-	values map[string]string
+	values     map[string]string
+	boolValues map[string]bool
+	intValues  map[string]int
 }
 
 func (m *mockSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
+func (m *mockSettingsService) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
 	return nil, nil
 }
 func (m *mockSettingsService) Resolve(_ context.Context, key string) (any, error) {
@@ -172,10 +180,20 @@ func (m *mockSettingsService) ResolveString(_ context.Context, key string) (stri
 func (m *mockSettingsService) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
 	return m.ResolveString(context.Background(), key)
 }
-func (m *mockSettingsService) ResolveBool(_ context.Context, _ string) (bool, error) {
+func (m *mockSettingsService) ResolveBool(_ context.Context, key string) (bool, error) {
+	if m.boolValues != nil {
+		if v, ok := m.boolValues[key]; ok {
+			return v, nil
+		}
+	}
 	return false, nil
 }
-func (m *mockSettingsService) ResolveInt(_ context.Context, _ string) (int, error) {
+func (m *mockSettingsService) ResolveInt(_ context.Context, key string) (int, error) {
+	if m.intValues != nil {
+		if v, ok := m.intValues[key]; ok {
+			return v, nil
+		}
+	}
 	return 0, nil
 }
 func (m *mockSettingsService) HasTenantOverride(_ context.Context, key string) (bool, error) {
@@ -212,6 +230,7 @@ func TestGetStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 	assert.Equal(t, 16, checkoutTime.Hour())
 	assert.Equal(t, 45, checkoutTime.Minute())
 }
@@ -229,6 +248,7 @@ func TestGetStudentDailyCheckoutTime_SettingsServiceFallsBackToEnv(t *testing.T)
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 	assert.Equal(t, 13, checkoutTime.Hour())
 	assert.Equal(t, 15, checkoutTime.Minute())
 }
@@ -243,8 +263,24 @@ func TestGetStudentDailyCheckoutTime_NilSettingsServiceUsesEnv(t *testing.T) {
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 	assert.Equal(t, 17, checkoutTime.Hour())
 	assert.Equal(t, 0, checkoutTime.Minute())
+}
+
+func TestGetStudentDailyCheckoutTime_NoConfigAnywhere_ReturnsNil(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	// Settings service exists but has no override
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values: map[string]string{},
+		},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	assert.Nil(t, checkoutTime, "should return nil when no time is configured anywhere")
 }
 
 // =============================================================================
@@ -722,6 +758,94 @@ func TestShouldShowDailyCheckoutWithGroup_BeforeCheckoutTime(t *testing.T) {
 	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
 	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "Should return false before daily checkout time")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_AlwaysAvailable(t *testing.T) {
+	// No env var, no settings override → nil checkout time → time check skipped
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	// Education group has no room → daily checkout available from any room
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}}},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.True(t, result, "Should return true when no checkout time is configured and group has no room")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_MatchingRoom(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	roomID := int64(42)
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &roomID}},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 42}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.True(t, result, "Should return true when rooms match and no time gate")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_DifferentRoom(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	roomID := int64(42)
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &roomID}},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 99}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "Should return false when student is in wrong room")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_GetCheckoutTimeError(t *testing.T) {
+	// Set an invalid time format to trigger a parse error
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "not-a-time"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	rs := &Resource{}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "Should return false when checkout time parse fails")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_EducationServiceError(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{err: fmt.Errorf("db error")},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "Should return false when education service errors")
+}
+
+func TestShouldUpgradeToDailyCheckout_CheckedOut_NoTimeGate(t *testing.T) {
+	// No checkout time configured → time check should pass
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}}},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
+	assert.True(t, result, "Should upgrade when no time gate and group has no room")
 }
 
 // =============================================================================
@@ -1587,6 +1711,36 @@ func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	assert.Nil(t, group.CreatedBy, "system-created Schulhof group should have NULL created_by")
 }
 
+// overrideTimeNow pins the package-level timeNow clock to fixed and returns a
+// restore function that should be deferred by the caller.
+func overrideTimeNow(fixed time.Time) func() {
+	orig := timeNow
+	timeNow = func() time.Time { return fixed }
+	return func() { timeNow = orig }
+}
+
+// mockPickupScheduleService is a minimal mock for testing isAfterCheckoutTimeGate.
+type mockPickupScheduleService struct {
+	scheduleSvc.PickupScheduleService
+	effectivePickupTime *scheduleSvc.EffectivePickupTime
+	err                 error
+}
+
+func (m *mockPickupScheduleService) GetEffectivePickupTimeForDate(_ context.Context, _ int64, _ time.Time) (*scheduleSvc.EffectivePickupTime, error) {
+	return m.effectivePickupTime, m.err
+}
+
+// mockEducationService is a minimal mock for testing shouldShowDailyCheckoutWithGroup.
+type mockEducationService struct {
+	educationSvc.Service
+	group *education.Group
+	err   error
+}
+
+func (m *mockEducationService) GetGroup(_ context.Context, _ int64) (*education.Group, error) {
+	return m.group, m.err
+}
+
 // mockErrorSettingsService returns errors from HasTenantOverride.
 type mockErrorSettingsService struct {
 	mockSettingsService
@@ -1605,7 +1759,193 @@ func TestGetStudentDailyCheckoutTime_HasTenantOverrideError(t *testing.T) {
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
 	require.NoError(t, err)
-	// Should fall back to default "15:00"
+	// Should fall back to nil (no time configured) since env var is also unset
+	assert.Nil(t, checkoutTime, "should return nil when HasTenantOverride errors and no env var")
+}
+
+func TestGetStudentDailyCheckoutTime_HasTenantOverrideError_FallsBackToEnv(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "15:00"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	rs := &Resource{
+		SettingsService: &mockErrorSettingsService{},
+	}
+
+	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, checkoutTime)
 	assert.Equal(t, 15, checkoutTime.Hour())
 	assert.Equal(t, 0, checkoutTime.Minute())
+}
+
+// =============================================================================
+// isAfterCheckoutTimeGate TESTS
+// =============================================================================
+
+func TestIsAfterCheckoutTimeGate_PerStudentDisabled_FallsBackToGlobal(t *testing.T) {
+	// Per-student disabled (default) → should use global checkout time
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService: &mockSettingsService{values: map[string]string{}},
+	}
+	student := &users.Student{Model: base.Model{ID: 1}}
+
+	// No global time configured → always available
+	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
+	assert.True(t, result, "should return true when per-student disabled and no global time")
+}
+
+func TestIsAfterCheckoutTimeGate_PerStudentDisabled_GlobalTimeInFuture(t *testing.T) {
+	// Set a global time far in the future
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "23:59"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	rs := &Resource{
+		SettingsService: &mockSettingsService{values: map[string]string{}},
+	}
+	student := &users.Student{Model: base.Model{ID: 1}}
+
+	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
+	assert.False(t, result, "should return false when per-student disabled and global time is in future")
+}
+
+func TestIsAfterCheckoutTimeGate_PerStudentEnabled_BeforeDelta(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	// Pin "now" to a deterministic midday so the +2h pickup offset never
+	// wraps past midnight. The function projects pickup onto today's date,
+	// so a wrapped hour would otherwise land in the past and flip the
+	// assertion when CI runs late in the day.
+	fixedNow := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	restore := overrideTimeNow(fixedNow)
+	defer restore()
+
+	// Pickup time 2 hours from fixed now, delta 15 min → too early.
+	pickupTime := time.Date(2000, 1, 1, fixedNow.Hour()+2, 0, 0, 0, fixedNow.Location())
+
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values:     map[string]string{},
+			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
+			intValues:  map[string]int{"operations.per_student_checkout_delta_minutes": 15},
+		},
+		PickupScheduleService: &mockPickupScheduleService{
+			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: &pickupTime},
+		},
+	}
+	student := &users.Student{Model: base.Model{ID: 1}}
+
+	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
+	assert.False(t, result, "should return false when current time is before pickup_time - delta")
+}
+
+func TestIsAfterCheckoutTimeGate_PerStudentEnabled_AfterDelta(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	// Pickup time 5 minutes from now, delta 15 min → already past threshold
+	now := time.Now()
+	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+5, 0, 0, now.Location())
+
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values:     map[string]string{},
+			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
+			intValues:  map[string]int{"operations.per_student_checkout_delta_minutes": 15},
+		},
+		PickupScheduleService: &mockPickupScheduleService{
+			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: &pickupTime},
+		},
+	}
+	student := &users.Student{Model: base.Model{ID: 1}}
+
+	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
+	assert.True(t, result, "should return true when current time is after pickup_time - delta")
+}
+
+func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NoPickupTime_FallsBackToGlobal(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	// Per-student enabled but student has no pickup time → fall back to global (no global = always available)
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values:     map[string]string{},
+			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
+		},
+		PickupScheduleService: &mockPickupScheduleService{
+			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: nil},
+		},
+	}
+	student := &users.Student{Model: base.Model{ID: 1}}
+
+	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
+	assert.True(t, result, "should fall back to global (no global = always available) when student has no pickup time")
+}
+
+func TestIsAfterCheckoutTimeGate_PerStudentEnabled_PickupServiceError_FallsBackToGlobal(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values:     map[string]string{},
+			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
+		},
+		PickupScheduleService: &mockPickupScheduleService{
+			err: fmt.Errorf("db error"),
+		},
+	}
+	student := &users.Student{Model: base.Model{ID: 1}}
+
+	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
+	assert.True(t, result, "should fall back to global when pickup service errors")
+}
+
+func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NilPickupService_FallsBackToGlobal(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values:     map[string]string{},
+			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
+		},
+		// PickupScheduleService is nil
+	}
+	student := &users.Student{Model: base.Model{ID: 1}}
+
+	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
+	assert.True(t, result, "should fall back to global when PickupScheduleService is nil")
+}
+
+func TestIsAfterCheckoutTimeGate_PerStudentEnabled_DeltaZero(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	// Pickup time 1 minute from now, delta 0 → not yet
+	now := time.Now()
+	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+1, 0, 0, now.Location())
+
+	rs := &Resource{
+		SettingsService: &mockSettingsService{
+			values:     map[string]string{},
+			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
+			intValues:  map[string]int{"operations.per_student_checkout_delta_minutes": 0},
+		},
+		PickupScheduleService: &mockPickupScheduleService{
+			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: &pickupTime},
+		},
+	}
+	student := &users.Student{Model: base.Model{ID: 1}}
+
+	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
+	assert.False(t, result, "should return false when delta is 0 and current time is before pickup time")
+}
+
+func TestIsAfterCheckoutTimeGate_NilSettingsService(t *testing.T) {
+	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
+
+	rs := &Resource{}
+	student := &users.Student{Model: base.Model{ID: 1}}
+
+	// No settings service → perStudentEnabled defaults to false → no global time → always available
+	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
+	assert.True(t, result, "should return true when SettingsService is nil and no global time")
 }

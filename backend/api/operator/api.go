@@ -1,11 +1,13 @@
 package operator
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
@@ -15,6 +17,7 @@ import (
 type Resource struct {
 	authResource            *AuthResource
 	provisioningResource    *ProvisioningResource
+	settingsResource        *SettingsResource
 	suggestionsResource     *SuggestionsResource
 	announcementsResource   *AnnouncementsResource
 	profileResource         *ProfileResource
@@ -33,6 +36,7 @@ type ResourceConfig struct {
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	SuggestionsService         platformSvc.OperatorSuggestionsService
 	AnnouncementsService       platformSvc.AnnouncementService
+	SettingsService            configSvc.SettingsService
 	TokenAuth                  *jwt.TokenAuth
 	DB                         *bun.DB
 }
@@ -56,6 +60,17 @@ func (rs *Resource) SetInvitationRateLimiter(mw func(http.Handler) http.Handler)
 	rs.invitationRateLimiter = mw
 }
 
+// OnSettingValueSet forwards to the internal SettingsResource.OnValueSet hook
+// so the caller can register a side-effect callback (e.g. auto-provisioning
+// system rooms when checkout toggles flip on). No-op when the settings
+// resource is unconfigured (cfg.SettingsService was nil).
+func (rs *Resource) OnSettingValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+	if rs.settingsResource == nil {
+		return
+	}
+	rs.settingsResource.OnValueSet(fn)
+}
+
 // NewResource creates a new operator resource
 func NewResource(cfg ResourceConfig) *Resource {
 	tokenAuth := cfg.TokenAuth
@@ -72,6 +87,9 @@ func NewResource(cfg ResourceConfig) *Resource {
 		profileResource:       NewProfileResource(cfg.AuthService),
 		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
 		tokenAuth:             tokenAuth,
+	}
+	if cfg.SettingsService != nil {
+		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB)
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB
@@ -131,6 +149,7 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
 		r.Get("/roles", rs.provisioningResource.ListSystemRoles)
+		r.Get("/stats", rs.provisioningResource.GetProvisioningStats)
 		r.Route("/devices", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListAllDevices)
 			r.Post("/", rs.provisioningResource.CreateDevice)
@@ -140,14 +159,20 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Route("/organizations", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListOrganizations)
+			r.Get("/summaries", rs.provisioningResource.ListOrganizationSummaries)
 			r.Post("/", rs.provisioningResource.CreateOrganization)
 			r.Put("/{id}", rs.provisioningResource.UpdateOrganization)
+			r.Delete("/{id}", rs.provisioningResource.SoftDeleteOrganization)
+			r.Post("/{id}/restore", rs.provisioningResource.RestoreOrganization)
 			r.Get("/{id}/accounts", rs.provisioningResource.ListOrganizationAccounts)
 			r.Get("/{id}/devices", rs.provisioningResource.ListOrganizationDevices)
+			r.Get("/{id}/schools", rs.provisioningResource.ListOrganizationSchoolSummaries)
+			r.Get("/{id}/persons", rs.provisioningResource.ListOrganizationPersons)
 		})
 
 		r.Route("/schools", func(r chi.Router) {
 			r.Get("/", rs.provisioningResource.ListSchools)
+			r.Get("/summaries", rs.provisioningResource.ListSchoolSummaries)
 			r.Post("/", rs.provisioningResource.CreateSchool)
 			r.Put("/{id}", rs.provisioningResource.UpdateSchool)
 			r.Delete("/{id}", rs.provisioningResource.SoftDeleteSchool)
@@ -162,6 +187,14 @@ func (rs *Resource) Router() chi.Router {
 			})
 			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 			r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
+			if rs.settingsResource != nil {
+				r.Route("/{id}/settings", func(r chi.Router) {
+					r.Get("/schema", rs.settingsResource.GetSchoolSettingsSchema)
+					r.Get("/values/{key}/reveal", rs.settingsResource.RevealSchoolSettingValue)
+					r.Put("/values/{key}", rs.settingsResource.SetSchoolSettingValue)
+					r.Delete("/values/{key}", rs.settingsResource.ResetSchoolSettingValue)
+				})
+			}
 		})
 
 		r.Route("/persons", func(r chi.Router) {

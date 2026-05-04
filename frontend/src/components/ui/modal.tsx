@@ -2,6 +2,7 @@
 
 import React, { useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
+import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/hooks/useScrollLock";
 import { dialogAriaProps, getModalAnimationClass } from "./modal-utils";
@@ -89,47 +90,98 @@ export function Modal({
   if (!isOpen) return null;
 
   const modalContent = (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center"
-      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
-    >
-      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
-      <button
-        type="button"
-        onClick={handleClose}
-        aria-label="Hintergrund - Klicken zum Schließen"
-        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${
-          isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
-        }`}
-        style={{
-          animation:
-            isAnimating && !isExiting
-              ? "backdropEnter 200ms ease-out"
-              : undefined,
-        }}
-      />
-      {/* Dialog container */}
+    // Wrapping in FocusScope pushes a new entry onto Radix's focusScopesStack,
+    // which auto-pauses any parent FocusScope (notably Vaul's drawer focus
+    // trap). Without this, taps on inputs inside this modal are stolen back
+    // by the drawer because the modal is portaled to document.body and counts
+    // as "outside" the drawer's scope.
+    <FocusScope asChild loop trapped>
       <div
-        className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
-        {...dialogAriaProps}
+        className="fixed inset-0 z-[9999] flex items-center justify-center"
+        // pointerEvents: 'auto' is required when this modal is rendered while
+        // a Radix/Vaul dialog (e.g. the mobile master/detail drawer) has set
+        // `document.body { pointer-events: none }`. Without this, the modal
+        // is portaled to body and inherits `none`, leaving inputs unclickable.
         style={{
-          background:
-            "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
-          backdropFilter: "blur(20px)",
-          boxShadow:
-            "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)",
-          animationFillMode: "both",
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          pointerEvents: "auto",
         }}
       >
-        {/* Header with close button - only show border if title exists */}
-        {title ? (
-          <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6">
-            <h3 className="pr-4 text-lg font-semibold text-gray-900 sm:text-xl">
-              {title}
-            </h3>
+        {/* Backdrop button - dismiss-on-tap target. Excluded from the tab
+            order (tabIndex=-1) so the FocusScope auto-focus doesn't land on
+            this invisible control; ESC is the keyboard equivalent. */}
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={handleClose}
+          aria-label="Hintergrund - Klicken zum Schließen"
+          className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${
+            isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
+          }`}
+          style={{
+            animation:
+              isAnimating && !isExiting
+                ? "backdropEnter 200ms ease-out"
+                : undefined,
+          }}
+        />
+        {/* Dialog container */}
+        <div
+          className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
+          {...dialogAriaProps}
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
+            backdropFilter: "blur(20px)",
+            boxShadow:
+              "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)",
+            animationFillMode: "both",
+          }}
+        >
+          {/* Header with close button - only show border if title exists */}
+          {title ? (
+            <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6">
+              <h3 className="pr-4 text-lg font-semibold text-gray-900 sm:text-xl">
+                {title}
+              </h3>
+              <button
+                onClick={handleClose}
+                className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+                aria-label="Modal schließen"
+              >
+                {/* Animated X icon */}
+                <svg
+                  className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+
+                {/* Subtle hover glow */}
+                <div
+                  className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                  style={{
+                    boxShadow: "0 0 12px rgba(80,128,216,0.3)",
+                  }}
+                />
+              </button>
+            </div>
+          ) : (
+            /* X button positioned absolutely in top-right when no title */
             <button
               onClick={handleClose}
-              className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+              className="group absolute top-4 right-4 z-10 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
               aria-label="Modal schließen"
             >
               {/* Animated X icon */}
@@ -155,61 +207,33 @@ export function Modal({
                 }}
               />
             </button>
-          </div>
-        ) : (
-          /* X button positioned absolutely in top-right when no title */
-          <button
-            onClick={handleClose}
-            className="group absolute top-4 right-4 z-10 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
-            aria-label="Modal schließen"
-          >
-            {/* Animated X icon */}
-            <svg
-              className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+          )}
 
-            {/* Subtle hover glow */}
-            <div
-              className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-              style={{
-                boxShadow: "0 0 12px rgba(80,128,216,0.3)",
-              }}
-            />
-          </button>
-        )}
-
-        {/* Content area with hidden scrollbar and reveal animation */}
-        <div
-          className="scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
-          data-modal-content="true"
-        >
+          {/* Content area with hidden scrollbar and reveal animation */}
           <div
-            className={`p-4 leading-relaxed text-gray-700 md:p-6 ${
-              isAnimating && !isExiting ? "animate-contentReveal" : "opacity-0"
-            }`}
+            className="scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
+            data-modal-content="true"
           >
-            {children}
+            <div
+              className={`p-4 leading-relaxed text-gray-700 md:p-6 ${
+                isAnimating && !isExiting
+                  ? "animate-contentReveal"
+                  : "opacity-0"
+              }`}
+            >
+              {children}
+            </div>
           </div>
-        </div>
 
-        {/* Footer if provided */}
-        {footer && (
-          <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6">
-            {footer}
-          </div>
-        )}
+          {/* Footer if provided */}
+          {footer && (
+            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6">
+              {footer}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </FocusScope>
   );
 
   // Render to body to avoid any positioning issues
@@ -244,7 +268,7 @@ export function ConfirmationModal({
   cancelText = "Abbrechen",
   isConfirmLoading = false,
   isConfirmDisabled = false,
-  confirmButtonClass = "bg-blue-500 hover:bg-blue-600",
+  confirmButtonClass = "bg-gray-900 hover:bg-gray-700",
 }: ConfirmationModalProps) {
   const modalFooter = (
     <>

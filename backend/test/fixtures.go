@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
@@ -317,9 +316,9 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
-	// This matches the repository queries which also use timezone.Today().
-	today := timezone.Today()
+	// Use TodayUTC() so the DATE column gets UTC midnight of the Berlin calendar
+	// date, matching how performCheckIn stores attendance records in production.
+	today := timezone.TodayUTC()
 
 	attendance := &active.Attendance{
 		StudentID:    studentID,
@@ -344,6 +343,10 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 // Pass activity group IDs, device IDs, room IDs, education group IDs, teacher IDs, or any combination.
 // This is typically called in a defer statement to ensure cleanup happens.
 //
+// Implicit tenant scope: deletes are confined to the default test tenant (id=1).
+// Tests that build fixtures in a different tenant must call
+// CleanupActivityFixturesForTenant instead.
+//
 // Example:
 //
 //	activity := CreateTestActivityGroup(t, db, "Test")
@@ -352,14 +355,29 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 //	defer CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 	tb.Helper()
+	CleanupActivityFixturesForTenant(tb, db, 1, ids...)
+}
+
+// CleanupActivityFixturesForTenant is the tenant-scoped variant of
+// CleanupActivityFixtures. Every DELETE is constrained to the supplied tenant_id,
+// so a test running in an isolated tenant cannot have its rows clobbered by a
+// concurrent test package whose call to CleanupActivityFixtures (tenant 1)
+// happens to pass an int64 that numerically matches one of this test's
+// auto-incremented fixture IDs.
+//
+// Use this together with the *ForTenant fixture builders when a test must run
+// in a non-default tenant for isolation reasons.
+func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64, ids ...int64) {
+	tb.Helper()
 
 	if len(ids) == 0 {
 		return
 	}
 
-	// Batch delete all fixtures matching the IDs
-	// This is a simple approach that deletes from any table with these IDs
-	// More sophisticated cleanup could track which table each ID belongs to
+	// Batch delete all fixtures matching the IDs.
+	// Each DELETE is paired with `tenant_id = ?` so cross-package raw-id
+	// collisions (e.g. tenant 1's staff_id == tenant 99001's active_group_id)
+	// cannot delete the wrong tenant's data.
 
 	for _, id := range ids {
 		// Try to delete from each table type
@@ -371,30 +389,30 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from education.group_substitution (depends on group and staff)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("education.group_substitution").
-			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id),
+			TableExpr("education.group_substitution").
+			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"education.group_substitution")
 
 		// Delete from education.group_teacher (depends on group and teacher)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("education.group_teacher").
-			Where("group_id = ? OR teacher_id = ?", id, id),
+			TableExpr("education.group_teacher").
+			Where("group_id = ? OR teacher_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			"education.group_teacher")
 
 		// Delete from users.teachers (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersTeachers).
-			Where("id = ? OR staff_id = ?", id, id),
+			TableExpr(tableUsersTeachers).
+			Where("id = ? OR staff_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			tableUsersTeachers)
 
 		// Delete from education.groups
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("education.groups").
-			Where(whereIDEquals, id),
+			TableExpr("education.groups").
+			Where(whereIDEquals, id).
+			Where("tenant_id = ?", tenantID),
 			"education.groups")
 
 		// ========================================
@@ -403,23 +421,25 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from active.visits by direct ID, by student_id, or by active_group_id
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableActiveVisits).
-			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id),
+			TableExpr(tableActiveVisits).
+			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			tableActiveVisits)
 
 		// Delete from active.visits (cascade cleanup via activities.groups reference)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableActiveVisits).
-			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ?)", id),
+			TableExpr(tableActiveVisits).
+			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ? AND tenant_id = ?)", id, tenantID).
+			Where("tenant_id = ?", tenantID),
 			"active.visits (cascade)")
 
-		// Delete from active.groups by direct ID or by reference
+		// Delete from active.groups by direct ID or by reference.
+		// room_id reference is required so facilities.rooms can be deleted
+		// without tripping fk_active_groups_room_tenant.
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("active.groups").
-			Where("id = ? OR group_id = ? OR device_id = ?", id, id, id),
+			TableExpr("active.groups").
+			Where("id = ? OR group_id = ? OR device_id = ? OR room_id = ?", id, id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"active.groups")
 
 		// ========================================
@@ -428,45 +448,53 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from activities.student_enrollments (depends on activities.groups)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("activities.student_enrollments").
-			Where("activity_group_id = ?", id),
+			TableExpr("activities.student_enrollments").
+			Where("activity_group_id = ?", id).
+			Where("tenant_id = ?", tenantID),
 			"activities.student_enrollments")
 
-		// Delete from activities.groups by ID or by category_id (to handle FK constraint)
+		// Delete from activities.groups by ID, by category_id, or by created_by.
+		// created_by reference is required so users.staff can be deleted without
+		// tripping fk_activity_groups_created_by_tenant.
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("activities.groups").
-			Where("id = ? OR category_id = ?", id, id),
+			TableExpr("activities.groups").
+			Where("id = ? OR category_id = ? OR created_by = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"activities.groups")
 
 		// Delete from activities.categories (now safe after groups referencing them are deleted)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("activities.categories").
-			Where(whereIDEquals, id),
+			TableExpr("activities.categories").
+			Where(whereIDEquals, id).
+			Where("tenant_id = ?", tenantID),
 			"activities.categories")
 
 		// ========================================
 		// IoT domain cleanup
 		// ========================================
 
-		// Delete from iot.devices
+		// Delete from iot.devices, but never the WEB-MANUAL-001 system device
+		// (migration 1.7.5). Web-originated check-ins fall back to it, so
+		// deleting it would break TestSchoolCheckin_* on every parallel run
+		// where another test cleanup happens to pass its DB id.
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("iot.devices").
-			Where(whereIDEquals, id),
+			TableExpr("iot.devices").
+			Where(whereIDEquals, id).
+			Where("device_id != ?", "WEB-MANUAL-001").
+			Where("tenant_id = ?", tenantID),
 			"iot.devices")
 
 		// ========================================
 		// Facilities domain cleanup
 		// ========================================
 
-		// Delete from facilities.rooms
+		// Delete from facilities.rooms, but never the system default room
+		// (id=1, created by SetupTestDB). Concurrent test packages depend on it.
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("facilities.rooms").
-			Where(whereIDEquals, id),
+			TableExpr("facilities.rooms").
+			Where(whereIDEquals, id).
+			Where("id != ?", 1).
+			Where("tenant_id = ?", tenantID),
 			"facilities.rooms")
 
 		// ========================================
@@ -475,44 +503,51 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from users.guests (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.guests").
-			Where("id = ? OR staff_id = ?", id, id),
+			TableExpr("users.guests").
+			Where("id = ? OR staff_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			"users.guests")
 
 		// Delete from users.profiles (depends on account)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.profiles").
-			Where(whereIDOrAccountID, id, id),
+			TableExpr("users.profiles").
+			Where(whereIDOrAccountID, id, id).
+			Where("tenant_id = ?", tenantID),
 			"users.profiles")
 
-		// Delete from active.attendance (by student_id before deleting student)
+		// Delete from active.attendance by student_id or device_id.
+		// device_id reference is required so iot.devices can be deleted without
+		// tripping fk_attendance_device_tenant.
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("active.attendance").
-			Where("student_id = ?", id),
+			TableExpr("active.attendance").
+			Where("student_id = ? OR device_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			"active.attendance")
 
 		// Delete from users.students
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.students").
-			Where(whereIDEquals, id),
+			TableExpr("users.students").
+			Where(whereIDEquals, id).
+			Where("tenant_id = ?", tenantID),
 			"users.students")
 
-		// Delete from users.staff
+		// Delete from users.staff, but never the system staff fixture
+		// (id=1, created by SetupTestDB). Tests across parallel packages share it.
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersStaff).
-			Where(whereIDEquals, id),
+			TableExpr(tableUsersStaff).
+			Where(whereIDEquals, id).
+			Where("id != ?", 1).
+			Where("tenant_id = ?", tenantID),
 			tableUsersStaff)
 
-		// Delete from users.persons (last, as it's referenced by students and staff)
+		// Delete from users.persons (last, as it's referenced by students and staff).
+		// Skip the system person fixture (id=1, created by SetupTestDB) for the
+		// same reason as users.staff above.
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersPersons).
-			Where(whereIDEquals, id),
+			TableExpr(tableUsersPersons).
+			Where(whereIDEquals, id).
+			Where("id != ?", 1).
+			Where("tenant_id = ?", tenantID),
 			tableUsersPersons)
 
 		// ========================================
@@ -521,9 +556,9 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from active.group_supervisors
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("active.group_supervisors").
-			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id),
+			TableExpr("active.group_supervisors").
+			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"active.group_supervisors")
 
 		// NOTE: Auth domain cleanup intentionally omitted here.
@@ -537,30 +572,30 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 
 		// Delete from users.privacy_consents (by student_id)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.privacy_consents").
-			Where("id = ? OR student_id = ?", id, id),
+			TableExpr("users.privacy_consents").
+			Where("id = ? OR student_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
 			"users.privacy_consents")
 
 		// Delete from users.persons_guardians (by person_id or guardian_account_id)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.persons_guardians").
-			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id),
+			TableExpr("users.persons_guardians").
+			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
 			"users.persons_guardians")
 
 		// Delete from users.guardian_profiles
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("users.guardian_profiles").
-			Where(whereIDEquals, id),
+			TableExpr("users.guardian_profiles").
+			Where(whereIDEquals, id).
+			Where("tenant_id = ?", tenantID),
 			"users.guardian_profiles")
 
 		// Delete from users.rfid_cards (note: string ID, but try as int64)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersRFIDCards).
-			Where(whereIDEquals, fmt.Sprintf("%d", id)),
+			TableExpr(tableUsersRFIDCards).
+			Where(whereIDEquals, fmt.Sprintf("%d", id)).
+			Where("tenant_id = ?", tenantID),
 			tableUsersRFIDCards)
 	}
 }
@@ -643,8 +678,7 @@ func CleanupRFIDCards(tb testing.TB, db *bun.DB, tagIDs ...string) {
 
 	for _, tagID := range tagIDs {
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersRFIDCards).
+			TableExpr(tableUsersRFIDCards).
 			Where(whereIDEquals, tagID),
 			tableUsersRFIDCards)
 	}
@@ -745,7 +779,7 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 
 	now := time.Now()
 	activeGroup := &active.Group{
-		GroupID:        activityGroupID,
+		GroupID:        &activityGroupID,
 		RoomID:         roomID,
 		StartTime:      now,
 		LastActivity:   now,
@@ -826,8 +860,7 @@ func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
 	tb.Helper()
 
 	cleanupDelete(tb, db.NewDelete().
-		Model((*interface{})(nil)).
-		Table(tableUsersPersons).
+		TableExpr(tableUsersPersons).
 		Where(whereIDEquals, personID),
 		tableUsersPersons)
 }
@@ -867,23 +900,20 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 
 		// Delete teacher if exists (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersTeachers).
+			TableExpr(tableUsersTeachers).
 			Where("staff_id = ?", staffID),
 			tableUsersTeachers)
 
 		// Delete staff
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersStaff).
+			TableExpr(tableUsersStaff).
 			Where(whereIDEquals, staffID),
 			tableUsersStaff)
 
 		// Delete person if we found one
 		if staff.PersonID > 0 {
 			cleanupDelete(tb, db.NewDelete().
-				Model((*interface{})(nil)).
-				Table(tableUsersPersons).
+				TableExpr(tableUsersPersons).
 				Where(whereIDEquals, staff.PersonID),
 				tableUsersPersons)
 		}
@@ -940,16 +970,14 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 
 		// Delete teacher
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersTeachers).
+			TableExpr(tableUsersTeachers).
 			Where(whereIDEquals, teacherID),
 			tableUsersTeachers)
 
 		// Delete staff
 		if teacher.StaffID > 0 {
 			cleanupDelete(tb, db.NewDelete().
-				Model((*interface{})(nil)).
-				Table(tableUsersStaff).
+				TableExpr(tableUsersStaff).
 				Where(whereIDEquals, teacher.StaffID),
 				tableUsersStaff)
 		}
@@ -957,8 +985,7 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		// Delete person
 		if staff.PersonID > 0 {
 			cleanupDelete(tb, db.NewDelete().
-				Model((*interface{})(nil)).
-				Table(tableUsersPersons).
+				TableExpr(tableUsersPersons).
 				Where(whereIDEquals, staff.PersonID),
 				tableUsersPersons)
 		}
@@ -1679,8 +1706,7 @@ func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
 
 	for _, id := range timeframeIDs {
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("schedule.timeframes").
+			TableExpr("schedule.timeframes").
 			Where(whereIDEquals, id),
 			"schedule.timeframes")
 	}
@@ -1774,8 +1800,7 @@ func CleanupInvitationFixtures(tb testing.TB, db *bun.DB, invitationIDs ...int64
 
 	for _, id := range invitationIDs {
 		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.invitation_tokens").
+			TableExpr("auth.invitation_tokens").
 			Where(whereIDEquals, id),
 			"auth.invitation_tokens")
 	}
@@ -2148,31 +2173,6 @@ func CreateTestTimeframeForTenant(tb testing.TB, db *bun.DB, tenantID int64, des
 	return timeframe
 }
 
-// CreateTestSettingForTenant creates a config setting belonging to a specific tenant.
-func CreateTestSettingForTenant(tb testing.TB, db *bun.DB, tenantID int64, key, value, category string) *config.Setting {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	uniqueKey := fmt.Sprintf("%s_%d", key, time.Now().UnixNano())
-
-	setting := &config.Setting{
-		Key:      uniqueKey,
-		Value:    value,
-		Category: category,
-	}
-	setting.SetTenantID(tenantID)
-
-	err := db.NewInsert().
-		Model(setting).
-		ModelTableExpr(`config.settings`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test setting for tenant")
-
-	return setting
-}
-
 // CreateTestDeviceForTenant creates an IoT device belonging to a specific tenant.
 func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, deviceID string) *iot.Device {
 	tb.Helper()
@@ -2344,8 +2344,9 @@ func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *
 	activityGroup := CreateTestActivityGroupForTenant(tb, db, tenantID, "IsolationActivity")
 
 	now := time.Now()
+	activityGroupID := activityGroup.ID
 	activeGroup := &active.Group{
-		GroupID:        activityGroup.ID,
+		GroupID:        &activityGroupID,
 		RoomID:         room.ID,
 		StartTime:      now,
 		LastActivity:   now,
@@ -2358,6 +2359,36 @@ func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *
 		ModelTableExpr(`active.groups`).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test active group for tenant")
+
+	return activeGroup
+}
+
+// CreateTestActiveGroupWithIDsForTenant creates an active group bound to
+// caller-supplied activity group and room IDs in the given tenant. Use this
+// when the test owns the room and activity group fixtures (so it can clean
+// them up explicitly) rather than letting CreateTestActiveGroupForTenant
+// auto-create and leak them.
+func CreateTestActiveGroupWithIDsForTenant(tb testing.TB, db *bun.DB, tenantID, activityGroupID, roomID int64) *active.Group {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	activeGroup := &active.Group{
+		GroupID:        &activityGroupID,
+		RoomID:         roomID,
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+	}
+	activeGroup.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test active group with explicit IDs for tenant")
 
 	return activeGroup
 }
@@ -2454,7 +2485,6 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 	tables := []string{
 		"feedback.entries",
 		"auth.tokens",
-		"config.settings",
 		"schedule.timeframes",
 		"iot.devices",
 		"suggestions.votes",
@@ -2485,5 +2515,303 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		if err != nil {
 			tb.Logf("cleanup %s for tenants %v: %v", table, tenantIDs, err)
 		}
+	}
+}
+
+// ============================================================================
+// WP-B11 fixtures: timetable student day/week
+// ============================================================================
+
+// parseTimeHHMM turns "HH:MM" into a time.Time anchored on 2000-01-01 (so
+// only the clock components matter for the TIME column). Invalid input fails
+// the test loudly.
+func parseTimeHHMM(tb testing.TB, hhmm string) time.Time {
+	tb.Helper()
+	t, err := time.Parse("15:04", hhmm)
+	require.NoError(tb, err, "invalid HH:MM literal %q", hhmm)
+	return time.Date(2000, 1, 1, t.Hour(), t.Minute(), 0, 0, time.UTC)
+}
+
+// CreateTestArrivalSchedule inserts a weekly arrival schedule for a student.
+// staffID must reference users.staff(id) — the schema's created_by FK.
+func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, arrivalHHMM string) *schedule.StudentArrivalSchedule {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.StudentArrivalSchedule{
+		StudentID:       studentID,
+		Weekday:         weekday,
+		ExpectedArrival: parseTimeHHMM(tb, arrivalHHMM),
+		CreatedBy:       staffID,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.student_arrival_schedules`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test arrival schedule")
+	return row
+}
+
+// CreateTestArrivalException inserts a date-specific arrival exception.
+// Pass arrivalHHMM="" to signal absence on that date (ExpectedArrival=NULL).
+func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.StudentArrivalException{
+		StudentID:     studentID,
+		ExceptionDate: timezone.DateOfUTC(date),
+		CreatedBy:     staffID,
+	}
+	if arrivalHHMM != "" {
+		t := parseTimeHHMM(tb, arrivalHHMM)
+		row.ExpectedArrival = &t
+	}
+	if reason != "" {
+		row.Reason = &reason
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.student_arrival_exceptions`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test arrival exception")
+	return row
+}
+
+// CreateTestPickupSchedule inserts a weekly pickup schedule for a student.
+func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, pickupHHMM string) *schedule.StudentPickupSchedule {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.StudentPickupSchedule{
+		StudentID:  studentID,
+		Weekday:    weekday,
+		PickupTime: parseTimeHHMM(tb, pickupHHMM),
+		CreatedBy:  staffID,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.student_pickup_schedules`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test pickup schedule")
+	return row
+}
+
+// CreateTestPickupException inserts a date-specific pickup exception.
+// Pass pickupHHMM="" for absence (PickupTime=NULL).
+func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.StudentPickupException{
+		StudentID:     studentID,
+		ExceptionDate: timezone.DateOfUTC(date),
+		CreatedBy:     staffID,
+	}
+	if pickupHHMM != "" {
+		t := parseTimeHHMM(tb, pickupHHMM)
+		row.PickupTime = &t
+	}
+	if reason != "" {
+		row.Reason = &reason
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.student_pickup_exceptions`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test pickup exception")
+	return row
+}
+
+// ActivityInstanceOpts lets tests tweak non-default instance fields without
+// bloating the basic helper signature.
+type ActivityInstanceOpts struct {
+	Status          string // defaults to InstanceStatusPlanned
+	ActivityGroupID *int64 // nil = spontaneous instance
+	ActiveGroupID   *int64 // set for active/completed instances
+	StartHHMM       string // defaults to "14:00"
+	EndHHMM         string // defaults to "15:00"
+	Title           string // defaults to "Test Instance"
+	IsSpontaneous   bool
+}
+
+// CreateTestActivityInstance inserts a schedule.activity_instances row.
+// Activity group / active group / status default to a planned template-backed
+// instance; override via opts for lifecycle-edge tests.
+func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date time.Time, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	status := opts.Status
+	if status == "" {
+		status = schedule.InstanceStatusPlanned
+	}
+	startHHMM := opts.StartHHMM
+	if startHHMM == "" {
+		startHHMM = "14:00"
+	}
+	endHHMM := opts.EndHHMM
+	if endHHMM == "" {
+		endHHMM = "15:00"
+	}
+	title := opts.Title
+	if title == "" {
+		title = fmt.Sprintf("Test Instance %d", time.Now().UnixNano())
+	}
+
+	row := &schedule.ActivityInstance{
+		Date:            timezone.DateOfUTC(date),
+		ActivityGroupID: opts.ActivityGroupID,
+		ActiveGroupID:   opts.ActiveGroupID,
+		Title:           title,
+		StartTime:       parseTimeHHMM(tb, startHHMM),
+		EndTime:         parseTimeHHMM(tb, endHHMM),
+		RoomID:          roomID,
+		Status:          status,
+		IsSpontaneous:   opts.IsSpontaneous,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.activity_instances`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test activity instance")
+	return row
+}
+
+// CreateTestInstanceStudent inserts one instance_students row. Status defaults
+// to AttendanceStatusExpected when empty.
+func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string) *schedule.InstanceStudent {
+	tb.Helper()
+
+	if status == "" {
+		status = schedule.AttendanceStatusExpected
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.InstanceStudent{
+		InstanceID: instanceID,
+		StudentID:  studentID,
+		Status:     status,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.instance_students`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test instance student")
+	return row
+}
+
+// InstanceStaffOpts controls optional fields for CreateTestInstanceStaff.
+type InstanceStaffOpts struct {
+	RoomID       *int64
+	IsPrimary    bool
+	IsSubstitute bool
+	IsAbsent     bool
+}
+
+// CreateTestInstanceStaff inserts one schedule.instance_staff row. Defaults
+// yield a non-primary, non-substitute, non-absent assignment in the instance's
+// main room.
+func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int64, opts InstanceStaffOpts) *schedule.InstanceStaff {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.InstanceStaff{
+		InstanceID:   instanceID,
+		StaffID:      staffID,
+		RoomID:       opts.RoomID,
+		IsPrimary:    opts.IsPrimary,
+		IsSubstitute: opts.IsSubstitute,
+		IsAbsent:     opts.IsAbsent,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.instance_staff`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test instance staff")
+	return row
+}
+
+// CleanupInstanceStaffFixtures removes instance_staff rows by ID. Callers may
+// pass zero IDs (skipped silently).
+func CleanupInstanceStaffFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
+	tb.Helper()
+	nonzero := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			nonzero = append(nonzero, id)
+		}
+	}
+	if len(nonzero) == 0 {
+		return
+	}
+	CleanupTableRecords(tb, db, "schedule.instance_staff", nonzero...)
+}
+
+// CleanupScheduleFixturesB11 drops arrival/pickup/instance fixtures by ID.
+// Table cleanup order matters: instance_students before activity_instances
+// (FK), arrival/pickup exceptions before their student rows. Callers can
+// pass zero IDs (skipped silently).
+func CleanupScheduleFixturesB11(
+	tb testing.TB, db *bun.DB,
+	arrivalScheduleIDs, arrivalExceptionIDs, pickupScheduleIDs, pickupExceptionIDs []int64,
+	instanceStudentIDs, activityInstanceIDs []int64,
+) {
+	tb.Helper()
+
+	nonzero := func(ids []int64) []int64 {
+		out := make([]int64, 0, len(ids))
+		for _, id := range ids {
+			if id > 0 {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
+
+	byTable := []struct {
+		table string
+		ids   []int64
+	}{
+		{"schedule.instance_students", nonzero(instanceStudentIDs)},
+		{"schedule.activity_instances", nonzero(activityInstanceIDs)},
+		{"schedule.student_arrival_exceptions", nonzero(arrivalExceptionIDs)},
+		{"schedule.student_arrival_schedules", nonzero(arrivalScheduleIDs)},
+		{"schedule.student_pickup_exceptions", nonzero(pickupExceptionIDs)},
+		{"schedule.student_pickup_schedules", nonzero(pickupScheduleIDs)},
+	}
+	for _, g := range byTable {
+		if len(g.ids) == 0 {
+			continue
+		}
+		CleanupTableRecords(tb, db, g.table, g.ids...)
 	}
 }

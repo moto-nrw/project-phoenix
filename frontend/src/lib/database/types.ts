@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { DatabaseTheme } from "@/components/ui/database/themes";
 
 // Field types supported by the database forms
-export type FieldType =
+type FieldType =
   | "text"
   | "email"
   | "password"
@@ -17,7 +17,7 @@ export type FieldType =
   | "date";
 
 // Base field configuration - extends the form field type
-export interface FieldConfig {
+interface FieldConfig {
   name: string;
   label: string;
   type: FieldType;
@@ -51,7 +51,7 @@ export interface FieldConfig {
 }
 
 // Form field type (imported from database-form.tsx)
-export interface FormField {
+interface FormField {
   name: string;
   label: string;
   type:
@@ -85,10 +85,12 @@ export interface FormField {
   min?: number;
   max?: number;
   maxLength?: number;
+  /** When true, the field is rendered as read-only and cannot be edited. */
+  disabled?: boolean;
 }
 
 // Form section type (imported from database-form.tsx)
-export interface FormSection {
+interface FormSection {
   title: string;
   subtitle?: string;
   fields: FormField[];
@@ -108,14 +110,14 @@ export interface SectionConfig {
 }
 
 // Detail view item configuration
-export interface DetailItem<T = Record<string, unknown>> {
+interface DetailItem<T = Record<string, unknown>> {
   label: string;
   value: (entity: T) => ReactNode;
   colSpan?: 1 | 2;
 }
 
 // Detail view section configuration
-export interface DetailSection<T = Record<string, unknown>> {
+interface DetailSection<T = Record<string, unknown>> {
   title: string;
   titleColor?: string;
   items: DetailItem<T>[];
@@ -123,7 +125,7 @@ export interface DetailSection<T = Record<string, unknown>> {
 }
 
 // API configuration
-export interface ApiConfig {
+interface ApiConfig {
   basePath: string;
   listParams?: Record<string, string>;
   endpoints?: {
@@ -136,7 +138,7 @@ export interface ApiConfig {
 }
 
 // List item configuration
-export interface ListItemConfig<T = Record<string, unknown>> {
+interface ListItemConfig<T = Record<string, unknown>> {
   title: (entity: T) => string;
   subtitle?: (entity: T) => string;
   description?: (entity: T) => string;
@@ -153,7 +155,7 @@ export interface ListItemConfig<T = Record<string, unknown>> {
 }
 
 // Filter configuration
-export interface FilterConfig {
+interface FilterConfig {
   id: string;
   label: string;
   type: "select" | "text" | "date";

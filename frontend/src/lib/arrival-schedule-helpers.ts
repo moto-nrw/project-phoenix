@@ -1,0 +1,182 @@
+import type {
+  ArrivalException,
+  ArrivalNote,
+  ArrivalSchedule,
+} from "./student-arrival-api";
+
+export const WEEKDAYS = [
+  { value: 1, label: "Montag", shortLabel: "Mo" },
+  { value: 2, label: "Dienstag", shortLabel: "Di" },
+  { value: 3, label: "Mittwoch", shortLabel: "Mi" },
+  { value: 4, label: "Donnerstag", shortLabel: "Do" },
+  { value: 5, label: "Freitag", shortLabel: "Fr" },
+] as const;
+
+export function getWeekdayLabel(weekday: number): string {
+  const found = WEEKDAYS.find((w) => w.value === weekday);
+  return found ? found.label : `Tag ${weekday}`;
+}
+
+export function formatArrivalTime(time: string): string {
+  if (time.length > 5) return time.substring(0, 5);
+  return time;
+}
+
+function getWeekStart(weekOffset = 0): Date {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - daysToMonday + weekOffset * 7);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+export function getWeekDays(weekOffset = 0): Date[] {
+  const monday = getWeekStart(weekOffset);
+  const days: Date[] = [];
+  for (let i = 0; i < 5; i++) {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + i);
+    days.push(day);
+  }
+  return days;
+}
+
+export function formatShortDate(date: Date): string {
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  return `${day}.${month}.`;
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function getWeekdayFromDate(date: Date): number | null {
+  const jsDay = date.getDay();
+  if (jsDay === 0 || jsDay === 6) return null;
+  return jsDay;
+}
+
+export function formatDateISO(date: Date): string {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export interface ArrivalScheduleFormEntry {
+  weekday: number;
+  expected_arrival: string;
+  notes?: string | null;
+}
+
+export function mergeSchedulesWithTemplate(
+  existing: ArrivalSchedule[],
+): ArrivalScheduleFormEntry[] {
+  return WEEKDAYS.map((w) => {
+    const match = existing.find((s) => s.weekday === w.value);
+    return {
+      weekday: w.value,
+      expected_arrival: match ? formatArrivalTime(match.expected_arrival) : "",
+      notes: match?.notes ?? null,
+    };
+  });
+}
+
+export interface ArrivalDayData {
+  date: Date;
+  weekday: number;
+  isToday: boolean;
+  showSick: boolean;
+  showExcused: boolean;
+  exception: ArrivalException | undefined;
+  baseSchedule: ArrivalSchedule | undefined;
+  effectiveTime: string | undefined;
+  effectiveReason: string | undefined;
+  isException: boolean;
+  isAbsent: boolean;
+  notes: ArrivalNote[];
+}
+
+export function getDayData(
+  date: Date,
+  schedules: ArrivalSchedule[],
+  exceptions: ArrivalException[],
+  notes: ArrivalNote[] = [],
+  isSickToday = false,
+  isExcusedToday = false,
+): ArrivalDayData {
+  const weekday = getWeekdayFromDate(date);
+  const dateStr = formatDateISO(date);
+  const today = new Date();
+
+  if (weekday === null) {
+    return {
+      date,
+      weekday: 0,
+      isToday: isSameDay(date, today),
+      showSick: false,
+      showExcused: false,
+      exception: undefined,
+      baseSchedule: undefined,
+      effectiveTime: undefined,
+      effectiveReason: undefined,
+      isException: false,
+      isAbsent: false,
+      notes: [],
+    };
+  }
+
+  const exception = exceptions.find((e) => e.exception_date === dateStr);
+  const baseSchedule = schedules.find((s) => s.weekday === weekday);
+  const isToday = isSameDay(date, today);
+  const showSick = isToday && isSickToday;
+  const showExcused = isToday && !showSick && isExcusedToday;
+
+  let effectiveTime: string | undefined;
+  let isAbsent = false;
+  let effectiveReason: string | undefined =
+    exception?.reason ?? baseSchedule?.notes ?? undefined;
+
+  if (showSick) {
+    effectiveTime = undefined;
+    isAbsent = true;
+    effectiveReason = "Krank";
+  } else if (showExcused) {
+    effectiveTime = undefined;
+    isAbsent = true;
+    effectiveReason = "Entschuldigt";
+  } else if (exception) {
+    if (exception.expected_arrival) {
+      effectiveTime = formatArrivalTime(exception.expected_arrival);
+    } else {
+      effectiveTime = undefined;
+      isAbsent = true;
+    }
+  } else if (baseSchedule) {
+    effectiveTime = formatArrivalTime(baseSchedule.expected_arrival);
+  }
+
+  const dayNotes = notes.filter((n) => n.note_date === dateStr);
+
+  return {
+    date,
+    weekday,
+    isToday,
+    showSick,
+    showExcused,
+    exception,
+    baseSchedule,
+    effectiveTime,
+    effectiveReason,
+    isException: !!exception,
+    isAbsent,
+    notes: dayNotes,
+  };
+}

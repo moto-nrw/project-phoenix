@@ -83,6 +83,38 @@ func TestGetDefinition_NotFound(t *testing.T) {
 	assert.Nil(t, config.GetDefinition("nonexistent"))
 }
 
+func TestRegister_DefaultsAccessPolicyToShared(t *testing.T) {
+	setup(t)
+	config.Register(validDefinition("test.no_policy"))
+
+	def := config.GetDefinition("test.no_policy")
+	require.NotNil(t, def)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy,
+		"Register() should backfill empty AccessPolicy to AccessShared")
+}
+
+func TestRegister_AcceptsAdminAndOperatorOnly(t *testing.T) {
+	setup(t)
+
+	adminOnly := validDefinition("test.admin_only")
+	adminOnly.AccessPolicy = config.AccessAdminOnly
+	config.Register(adminOnly)
+	assert.Equal(t, config.AccessAdminOnly, config.GetDefinition("test.admin_only").AccessPolicy)
+
+	operatorOnly := validDefinition("test.operator_only")
+	operatorOnly.AccessPolicy = config.AccessOperatorOnly
+	config.Register(operatorOnly)
+	assert.Equal(t, config.AccessOperatorOnly, config.GetDefinition("test.operator_only").AccessPolicy)
+}
+
+func TestRegister_InvalidAccessPolicyPanics(t *testing.T) {
+	setup(t)
+
+	def := validDefinition("test.bogus_policy")
+	def.AccessPolicy = config.AccessPolicy("not_a_valid_policy")
+	assert.Panics(t, func() { config.Register(def) })
+}
+
 func TestAllDefinitions(t *testing.T) {
 	setup(t)
 

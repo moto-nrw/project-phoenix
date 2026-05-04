@@ -36,10 +36,14 @@ const (
 
 // ===== Response Types =====
 
-// ActiveGroupResponse represents an active group API response
+// ActiveGroupResponse represents an active group API response.
+// GroupID is nullable (WP-B6): spontaneous sessions — started ad-hoc without
+// a parent template in activities.groups — serialize as `null`. The tag
+// intentionally omits `omitempty` so clients always see the field and are
+// forced to handle the null case explicitly.
 type ActiveGroupResponse struct {
 	ID              int64                   `json:"id"`
-	GroupID         int64                   `json:"group_id"`
+	GroupID         *int64                  `json:"group_id"`
 	RoomID          int64                   `json:"room_id"`
 	StartTime       time.Time               `json:"start_time"`
 	EndTime         *time.Time              `json:"end_time,omitempty"`
@@ -59,10 +63,16 @@ type GroupSupervisorSimple struct {
 	Role    string `json:"role,omitempty"`
 }
 
-// RoomSimple represents simplified room info for active group response
+// RoomSimple represents simplified room info for active group response.
+//
+// Color is included so badge consumers (active-supervisions BFF, OGS dashboard
+// BFF) can paint per-room badges without a follow-up GET /rooms/{id} per
+// active group. omitempty keeps responses unchanged for rooms with no color
+// override; clients fall back to the OTHER_ROOM blue.
 type RoomSimple struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID    int64   `json:"id"`
+	Name  string  `json:"name"`
+	Color *string `json:"color,omitempty"`
 }
 
 // VisitResponse represents a visit API response
@@ -87,10 +97,16 @@ type VisitWithDisplayDataResponse struct {
 	ActiveGroupID int64      `json:"active_group_id"`
 	CheckInTime   time.Time  `json:"check_in_time"`
 	CheckOutTime  *time.Time `json:"check_out_time,omitempty"`
+	ActualArrival *string    `json:"actual_arrival_time,omitempty"`
+	ActualPickup  *string    `json:"actual_pickup_time,omitempty"`
 	IsActive      bool       `json:"is_active"`
 	StudentName   string     `json:"student_name"`
 	SchoolClass   string     `json:"school_class"`
 	GroupName     string     `json:"group_name,omitempty"` // Student's OGS group
+	Sick          bool       `json:"sick"`
+	SickSince     *time.Time `json:"sick_since,omitempty"`
+	Excused       bool       `json:"excused"`
+	ExcusedSince  *time.Time `json:"excused_since,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
@@ -134,13 +150,6 @@ type GroupMappingResponse struct {
 	CombinedName    string `json:"combined_name,omitempty"`
 }
 
-// AnalyticsResponse represents analytics API response
-type AnalyticsResponse struct {
-	ActiveGroupsCount int `json:"active_groups_count,omitempty"`
-	TotalVisitsCount  int `json:"total_visits_count,omitempty"`
-	ActiveVisitsCount int `json:"active_visits_count,omitempty"`
-}
-
 // DashboardAnalyticsResponse represents dashboard analytics API response
 type DashboardAnalyticsResponse struct {
 	// Student Overview
@@ -148,6 +157,7 @@ type DashboardAnalyticsResponse struct {
 	StudentsInTransit    int `json:"students_in_transit"` // Students present but not in any active visit
 	StudentsOnPlayground int `json:"students_on_playground"`
 	StudentsInRooms      int `json:"students_in_rooms"` // Students in indoor rooms (excluding playground)
+	StudentsSick         int `json:"students_sick"`     // Students currently flagged as sick
 
 	// Activities & Rooms
 	ActiveActivities    int     `json:"active_activities"`
@@ -200,6 +210,17 @@ type ActiveGroupSummary struct {
 	StudentCount int    `json:"student_count"`
 	Location     string `json:"location"`
 	Status       string `json:"status"`
+}
+
+// TrackingIndicatorsResponse returns labels and per-student match results
+type TrackingIndicatorsResponse struct {
+	Labels  []string         `json:"labels"`
+	Results map[int64][]bool `json:"results"`
+}
+
+// TrackingIndicatorsRequest is the request body for POST /tracking-indicators
+type TrackingIndicatorsRequest struct {
+	StudentIDs []int64 `json:"student_ids"`
 }
 
 // ===== Request Types =====

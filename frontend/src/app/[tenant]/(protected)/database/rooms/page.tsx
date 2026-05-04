@@ -1,12 +1,16 @@
 "use client";
 
-import { createLogger } from "~/lib/logger";
-import { useState, useMemo } from "react";
-
-const logger = createLogger({ component: "DatabaseRoomsPage" });
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
+import { DatabaseCreateAction } from "~/components/database/database-create-action";
+import { DatabaseEmptyState } from "~/components/database/database-empty-state";
+import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import {
+  useGroupedItems,
+  type Grouper,
+} from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
   FilterConfig,
@@ -16,38 +20,55 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
-import {
-  RoomCreateModal,
-  RoomDetailModal,
-  RoomEditModal,
-} from "@/components/rooms";
+import { RoomCreateModal, RoomsMasterDetail } from "@/components/rooms";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
+import { createLogger } from "~/lib/logger";
+import {
+  useSWRAuth,
+  useTenantMutate,
+  useTenantMutateMatching,
+} from "~/lib/swr";
+import { ROOM_DERIVED_CACHE_KEY_FRAGMENTS } from "~/lib/swr/room-derived-caches";
+
+const logger = createLogger({ component: "DatabaseRoomsPage" });
+
+type RoomsGroupingMode = "none" | "building" | "floor";
+
+const ROOMS_GROUPING_DEFAULT: RoomsGroupingMode = "building";
+
+const ROOMS_GROUPING_OPTIONS: { value: RoomsGroupingMode; label: string }[] = [
+  { value: "building", label: "Gebäude" },
+  { value: "floor", label: "Etage" },
+  { value: "none", label: "Keine" },
+];
+
+function parseRoomsGrouping(value: string | null): RoomsGroupingMode {
+  if (value === "floor" || value === "none") return value;
+  return ROOMS_GROUPING_DEFAULT;
+}
 
 export default function RoomsPage() {
+  const searchParams = useSearchParams();
+  const updateUrlParams = useUpdateUrlParams();
+
+  const selectedId = searchParams.get("room");
+  const grouping = parseRoomsGrouping(searchParams.get("groupBy"));
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const isMobile = useIsMobile();
 
-  // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
 
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-
-  // Delete confirmation modal management
   const {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
     confirmDelete,
-  } = useDeleteConfirmation(setShowDetailModal);
+  } = useDeleteConfirmation();
 
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -60,8 +81,16 @@ export default function RoomsPage() {
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
   const tenantMutate = useTenantMutate();
+  // Other pages stamp room data (colour, name) into their cached student/
+  // visit rows, so a Room save has to invalidate them too — otherwise the
+  // badge colours stay stale until the user navigates away and back. The
+  // list of affected cache substrings lives in lib/swr/room-derived-caches.ts
+  // as a single source of truth — keep it there, not inline here, so future
+  // SWR consumers see the doc comment when they touch the file.
+  const refreshRoomConsumers = useTenantMutateMatching(
+    ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
+  );
 
-  // Fetch rooms with SWR (automatic caching, deduplication, revalidation)
   const {
     data: roomsData,
     isLoading: loading,
@@ -75,7 +104,6 @@ export default function RoomsPage() {
     ? "Fehler beim Laden der Räume. Bitte versuchen Sie es später erneut."
     : null;
 
-  // Unique categories from current data
   const uniqueCategories = useMemo(() => {
     const rooms = roomsData ?? [];
     const set = new Set<string>();
@@ -87,7 +115,6 @@ export default function RoomsPage() {
       .map((c) => ({ value: c, label: c }));
   }, [roomsData]);
 
-  // Filters config
   const filters: FilterConfig[] = useMemo(
     () => [
       {
@@ -122,7 +149,6 @@ export default function RoomsPage() {
     return list;
   }, [searchTerm, categoryFilter]);
 
-  // Derived list (use roomsData directly to avoid dependency issues)
   const filteredRooms = useMemo(() => {
     const rooms = roomsData ?? [];
     let arr = [...rooms];
@@ -138,108 +164,163 @@ export default function RoomsPage() {
     if (categoryFilter !== "all") {
       arr = arr.filter((r) => r.category === categoryFilter);
     }
-    // Sort by name
     arr.sort((a, b) => a.name.localeCompare(b.name, "de"));
     return arr;
   }, [roomsData, searchTerm, categoryFilter]);
 
-  // Select room => open detail and refresh details
-  const handleSelectRoom = async (room: Room) => {
-    setSelectedRoom(room);
-    setShowDetailModal(true);
-    try {
-      setDetailLoading(true);
-      const fresh = await service.getOne(room.id);
-      setSelectedRoom(fresh);
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+  // Resolve against the unfiltered list so the detail panel survives a search
+  // narrowing the visible rows.
+  const selectedRoom = useMemo(
+    () =>
+      selectedId
+        ? ((roomsData ?? []).find((room) => room.id === selectedId) ?? null)
+        : null,
+    [roomsData, selectedId],
+  );
 
-  // Create room
-  const handleCreateRoom = async (data: Partial<Room>) => {
-    try {
-      setCreateLoading(true);
-      // Apply transform to ensure floor is number and color has default
-      if (roomsConfig.form.transformBeforeSubmit) {
-        data = roomsConfig.form.transformBeforeSubmit(data);
-      }
-      const created = await service.create(data);
-      toastSuccess(
-        getDbOperationMessage(
-          "create",
-          roomsConfig.name.singular,
-          created.name,
-        ),
-      );
-      setShowCreateModal(false);
-      await tenantMutate("database-rooms-list");
-    } finally {
-      setCreateLoading(false);
-    }
-  };
+  const handleSelectRoom = useCallback(
+    (id: string | null) => {
+      updateUrlParams({ room: id });
+    },
+    [updateUrlParams],
+  );
 
-  // Update room
-  const handleUpdateRoom = async (data: Partial<Room>) => {
-    if (!selectedRoom) return;
-    try {
-      setDetailLoading(true);
-      // Apply transform to ensure floor is number and color has default
-      if (roomsConfig.form.transformBeforeSubmit) {
-        data = roomsConfig.form.transformBeforeSubmit(data);
-      }
-      await service.update(selectedRoom.id, data);
-      const name = selectedRoom.name;
-      toastSuccess(
-        getDbOperationMessage("update", roomsConfig.name.singular, name),
-      );
-      const refreshed = await service.getOne(selectedRoom.id);
-      setSelectedRoom(refreshed);
-      setShowEditModal(false);
-      setShowDetailModal(true);
-      await tenantMutate("database-rooms-list");
-    } catch (e) {
-      logger.error("failed to update room", {
-        error: e instanceof Error ? e.message : String(e),
+  const handleGroupingChange = useCallback(
+    (next: RoomsGroupingMode) => {
+      updateUrlParams({
+        groupBy: next === ROOMS_GROUPING_DEFAULT ? null : next,
       });
-      throw e;
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+    },
+    [updateUrlParams],
+  );
 
-  // Delete room
-  const handleDeleteRoom = async () => {
-    if (!selectedRoom) return;
-    try {
-      setDetailLoading(true);
-      const deleteError = await service.delete(selectedRoom.id);
-      if (deleteError) {
-        toastError(deleteError);
-        return;
+  const groupers = useMemo<Partial<Record<RoomsGroupingMode, Grouper<Room>>>>(
+    () => ({
+      building: (room) => {
+        const id = room.building?.trim() || "__no_building__";
+        const title = room.building?.trim() || "Ohne Gebäude";
+        return { id, title };
+      },
+      floor: (room) => {
+        if (room.floor === undefined || room.floor === null) {
+          return { id: "__no_floor__", title: "Ohne Etage", sortKey: "zzz" };
+        }
+        // Offset to keep negative floors (basement) ordered before positives.
+        return {
+          id: `floor:${room.floor}`,
+          title: formatFloor(room.floor),
+          sortKey: String(room.floor + 1000).padStart(5, "0"),
+        };
+      },
+    }),
+    [],
+  );
+
+  const groupDefinitions = useGroupedItems(
+    filteredRooms,
+    grouping,
+    groupers,
+    "Räume",
+  );
+
+  const handleCreateRoom = useCallback(
+    async (data: Partial<Room>) => {
+      try {
+        if (roomsConfig.form.transformBeforeSubmit) {
+          data = roomsConfig.form.transformBeforeSubmit(data);
+        }
+        const created = await service.create(data);
+        toastSuccess(
+          getDbOperationMessage(
+            "create",
+            roomsConfig.name.singular,
+            created.name,
+          ),
+        );
+        setShowCreateModal(false);
+        await tenantMutate("database-rooms-list");
+      } catch (createError) {
+        logger.error("failed to create room", {
+          error:
+            createError instanceof Error
+              ? createError.message
+              : String(createError),
+        });
+        throw createError;
       }
-      toastSuccess(
-        getDbOperationMessage(
-          "delete",
-          roomsConfig.name.singular,
-          selectedRoom.name,
-        ),
-      );
-      setShowDetailModal(false);
-      setSelectedRoom(null);
-      await tenantMutate("database-rooms-list");
-    } finally {
-      setDetailLoading(false);
-    }
-  };
+    },
+    [service, tenantMutate, toastSuccess],
+  );
 
-  const handleEditClick = () => {
-    setShowDetailModal(false);
-    setShowEditModal(true);
-  };
+  const handleUpdateRoom = useCallback(
+    async (data: Partial<Room>) => {
+      if (!selectedRoom) return;
+      try {
+        if (roomsConfig.form.transformBeforeSubmit) {
+          data = roomsConfig.form.transformBeforeSubmit(data);
+        }
+        await service.update(selectedRoom.id, data);
+        toastSuccess(
+          getDbOperationMessage(
+            "update",
+            roomsConfig.name.singular,
+            selectedRoom.name,
+          ),
+        );
+        await Promise.all([
+          tenantMutate("database-rooms-list"),
+          // Refetch every consumer that holds room-stamped data so badges
+          // pick up the new color without a manual reload.
+          refreshRoomConsumers(),
+        ]);
+      } catch (updateError) {
+        logger.error("failed to update room", {
+          room_id: selectedRoom.id,
+          error:
+            updateError instanceof Error
+              ? updateError.message
+              : String(updateError),
+        });
+        throw updateError;
+      }
+    },
+    [selectedRoom, service, tenantMutate, refreshRoomConsumers, toastSuccess],
+  );
+
+  const handleDeleteRoom = useCallback(async () => {
+    if (!selectedRoom) return;
+    const deleteError = await service.delete(selectedRoom.id);
+    if (deleteError) {
+      toastError(deleteError);
+      return;
+    }
+    toastSuccess(
+      getDbOperationMessage(
+        "delete",
+        roomsConfig.name.singular,
+        selectedRoom.name,
+      ),
+    );
+    handleSelectRoom(null);
+    await tenantMutate("database-rooms-list");
+  }, [
+    selectedRoom,
+    service,
+    toastError,
+    toastSuccess,
+    handleSelectRoom,
+    tenantMutate,
+  ]);
+
+  const canShowDetail =
+    !loading && (filteredRooms.length > 0 || selectedRoom !== null);
 
   return (
-    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+    <DatabasePageLayout
+      loading={loading}
+      sessionLoading={status === "loading"}
+      className="-mt-1.5 flex w-full flex-col"
+    >
       <div className="mb-4">
         <PageHeaderWithSearch
           title={isMobile ? "Räume" : ""}
@@ -274,81 +355,44 @@ export default function RoomsPage() {
             setCategoryFilter("all");
           }}
           actionButton={
-            !isMobile && (
-              <button
+            <div className="flex items-center gap-2">
+              {!isMobile ? (
+                <DatabaseGroupingToggle
+                  value={grouping}
+                  options={ROOMS_GROUPING_OPTIONS}
+                  onChange={handleGroupingChange}
+                />
+              ) : null}
+              <DatabaseCreateAction
+                label="Raum"
+                ariaLabel="Raum erstellen"
                 onClick={() => setShowCreateModal(true)}
-                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgb(99, 102, 241) 0%, rgb(79, 70, 229) 100%)",
-                  willChange: "transform, opacity",
-                  WebkitTransform: "translateZ(0)",
-                  transform: "translateZ(0)",
-                }}
-                aria-label="Raum erstellen"
-              >
-                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-                <svg
-                  className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
-                </svg>
-                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-              </button>
-            )
+              />
+            </div>
           }
         />
       </div>
 
-      {/* Mobile FAB */}
-      <button
-        onClick={() => setShowCreateModal(true)}
-        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(79,70,229,0.3)] active:scale-95 md:hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, rgb(99, 102, 241) 0%, rgb(79, 70, 229) 100%)",
-          willChange: "transform, opacity",
-          WebkitTransform: "translateZ(0)",
-          transform: "translateZ(0)",
-        }}
-        aria-label="Raum erstellen"
-      >
-        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
-        <svg
-          className="pointer-events-none relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 4.5v15m7.5-7.5h-15"
-          />
-        </svg>
-        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
-      </button>
-
-      {/* Error */}
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
 
-      {/* List */}
-      {filteredRooms.length === 0 ? (
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="text-center">
+      {canShowDetail ? (
+        <div className="min-h-0 flex-1 pb-4">
+          <RoomsMasterDetail
+            groupDefinitions={groupDefinitions}
+            selectedId={selectedId}
+            selectedRoom={selectedRoom}
+            onSelect={handleSelectRoom}
+            onSaveRoom={handleUpdateRoom}
+            onDeleteClick={handleDeleteClick}
+          />
+        </div>
+      ) : !loading ? (
+        <DatabaseEmptyState
+          icon={
             <svg
               className="mx-auto h-12 w-12 text-gray-400"
               fill="none"
@@ -362,127 +406,26 @@ export default function RoomsPage() {
                 d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
               />
             </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">
-              {searchTerm || categoryFilter !== "all"
-                ? "Keine Räume gefunden"
-                : "Keine Räume vorhanden"}
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              {searchTerm || categoryFilter !== "all"
-                ? "Versuchen Sie andere Suchkriterien oder Filter."
-                : "Es wurden noch keine Räume erstellt."}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredRooms.map((room, index) => {
-            const initial = room.name?.charAt(0)?.toUpperCase() ?? "R";
-            const handleClick = () => void handleSelectRoom(room);
+          }
+          title={
+            searchTerm || categoryFilter !== "all"
+              ? "Keine Räume gefunden"
+              : "Keine Räume vorhanden"
+          }
+          description={
+            searchTerm || categoryFilter !== "all"
+              ? "Versuchen Sie andere Suchkriterien oder Filter."
+              : "Es wurden noch keine Räume erstellt."
+          }
+        />
+      ) : null}
 
-            return (
-              <button
-                type="button"
-                key={room.id}
-                onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-indigo-300/50 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
-                style={{
-                  animationName: "fadeInUp",
-                  animationDuration: "0.5s",
-                  animationTimingFunction: "ease-out",
-                  animationFillMode: "forwards",
-                  animationDelay: `${index * 0.03}s`,
-                  opacity: 0,
-                }}
-              >
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-indigo-50/80 to-blue-100/80 opacity-[0.03]"></div>
-                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-indigo-200/60"></div>
-
-                <div className="relative flex items-center gap-4 p-5">
-                  <div className="flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
-                      {initial}
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-indigo-600">
-                      {room.name}
-                    </h3>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      {room.building && room.floor !== undefined && (
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                          {room.building} • {formatFloor(room.floor)}
-                        </span>
-                      )}
-                      {room.building && room.floor === undefined && (
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                          {room.building}
-                        </span>
-                      )}
-                      {!room.building && room.floor !== undefined && (
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                          {formatFloor(room.floor)}
-                        </span>
-                      )}
-                      {room.capacity ? (
-                        <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
-                          {room.capacity} Plätze
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex-shrink-0">
-                    <svg
-                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-indigo-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-indigo-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Create Modal */}
       <RoomCreateModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateRoom}
-        loading={createLoading}
       />
 
-      {/* Detail Modal */}
-      {selectedRoom && (
-        <RoomDetailModal
-          isOpen={showDetailModal}
-          onClose={() => {
-            setShowDetailModal(false);
-            setSelectedRoom(null);
-          }}
-          room={selectedRoom}
-          onEdit={handleEditClick}
-          onDelete={() => void handleDeleteRoom()}
-          loading={detailLoading}
-          onDeleteClick={handleDeleteClick}
-        />
-      )}
-
-      {/* Delete Confirmation Modal */}
       {selectedRoom && (
         <ConfirmationModal
           isOpen={showDeleteConfirmModal}
@@ -500,21 +443,6 @@ export default function RoomsPage() {
           </p>
         </ConfirmationModal>
       )}
-
-      {/* Edit Modal */}
-      {selectedRoom && (
-        <RoomEditModal
-          isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-          }}
-          room={selectedRoom}
-          onSave={handleUpdateRoom}
-          loading={detailLoading}
-        />
-      )}
-
-      {/* Success toasts are handled globally */}
     </DatabasePageLayout>
   );
 }

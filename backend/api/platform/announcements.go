@@ -1,7 +1,6 @@
 package platform
 
 import (
-	"errors"
 	"net/http"
 	"time"
 
@@ -40,7 +39,7 @@ func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Reques
 
 	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, claims.Roles, claims.TenantID, claims.OrgID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to retrieve announcements")))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to retrieve announcements", err))
 		return
 	}
 
@@ -71,7 +70,7 @@ func (rs *AnnouncementsResource) GetUnreadCount(w http.ResponseWriter, r *http.R
 
 	count, err := rs.announcementService.CountUnread(r.Context(), userID, claims.Roles, claims.TenantID, claims.OrgID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to count announcements")))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to count announcements", err))
 		return
 	}
 
@@ -89,7 +88,7 @@ func (rs *AnnouncementsResource) MarkSeen(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := rs.announcementService.MarkSeen(r.Context(), userID, announcementID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to mark announcement as seen")))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to mark announcement as seen", err))
 		return
 	}
 
@@ -107,7 +106,7 @@ func (rs *AnnouncementsResource) MarkDismissed(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := rs.announcementService.MarkDismissed(r.Context(), userID, announcementID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to mark announcement as dismissed")))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to mark announcement as dismissed", err))
 		return
 	}
 

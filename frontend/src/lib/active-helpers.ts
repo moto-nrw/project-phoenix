@@ -1,10 +1,20 @@
 // lib/active-helpers.ts
 // Type definitions for active entities
 
-// Backend types (from Go structs)
+// Tracking indicators response from POST /api/active/tracking-indicators
+export interface TrackingIndicatorsResponse {
+  labels: string[];
+  results: Record<string, boolean[]>; // student_id → [matched1, matched2, ...]
+}
+
+// Backend types (from Go structs).
+// group_id: number | null — WP-B6 made active.groups.group_id nullable so
+// spontaneous activity instances can run without a parent template. The
+// backend serializes `null` explicitly (no omitempty), so clients MUST
+// handle both shapes.
 export interface BackendActiveGroup {
   id: number;
-  group_id: number;
+  group_id: number | null;
   room_id: number;
   start_time: string;
   end_time?: string;
@@ -31,6 +41,8 @@ export interface BackendVisit {
   active_group_id: number;
   check_in_time: string;
   check_out_time?: string;
+  actual_arrival_time?: string;
+  actual_pickup_time?: string;
   is_active: boolean;
   notes?: string;
   student_name?: string;
@@ -38,6 +50,11 @@ export interface BackendVisit {
   school_class?: string;
   group_name?: string; // Student's OGS group (not the active group)
   active_group_name?: string;
+  // Status flags surfaced by the visits/display endpoint
+  sick?: boolean;
+  sick_since?: string;
+  excused?: boolean;
+  excused_since?: string;
   created_at: string;
   updated_at: string;
 }
@@ -78,16 +95,12 @@ export interface BackendGroupMapping {
   combined_name?: string;
 }
 
-export interface BackendAnalytics {
-  active_groups_count?: number;
-  total_visits_count?: number;
-  active_visits_count?: number;
-}
-
 // Frontend types
+// groupId: string | null — mirrors the nullable backend contract (WP-B6).
+// A null value means the session is spontaneous (no parent template).
 export interface ActiveGroup {
   id: string;
-  groupId: string;
+  groupId: string | null;
   roomId: string;
   startTime: Date;
   endTime?: Date;
@@ -114,6 +127,8 @@ export interface Visit {
   activeGroupId: string;
   checkInTime: Date;
   checkOutTime?: Date;
+  actualArrivalTime?: string;
+  actualPickupTime?: string;
   isActive: boolean;
   notes?: string;
   studentName?: string;
@@ -121,6 +136,11 @@ export interface Visit {
   schoolClass?: string;
   groupName?: string;
   activeGroupName?: string;
+  // Status flags (populated by the visits/display endpoint)
+  sick?: boolean;
+  sickSince?: string;
+  excused?: boolean;
+  excusedSince?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -161,19 +181,19 @@ export interface GroupMapping {
   combinedName?: string;
 }
 
-export interface Analytics {
-  activeGroupsCount?: number;
-  totalVisitsCount?: number;
-  activeVisitsCount?: number;
-}
-
 // Transformation functions
 export function mapActiveGroupResponse(
   backendActiveGroup: BackendActiveGroup,
 ): ActiveGroup {
   return {
     id: String(backendActiveGroup.id),
-    groupId: String(backendActiveGroup.group_id),
+    // Preserve null when the backend sends `group_id: null` (spontaneous
+    // session, WP-B6). Do NOT do `String(null)` — that produces the literal
+    // string "null" which would silently break any equality check.
+    groupId:
+      backendActiveGroup.group_id === null
+        ? null
+        : String(backendActiveGroup.group_id),
     roomId: String(backendActiveGroup.room_id),
     startTime: new Date(backendActiveGroup.start_time),
     endTime: backendActiveGroup.end_time
@@ -199,12 +219,18 @@ export function mapVisitResponse(backendVisit: BackendVisit): Visit {
     checkOutTime: backendVisit.check_out_time
       ? new Date(backendVisit.check_out_time)
       : undefined,
+    actualArrivalTime: backendVisit.actual_arrival_time,
+    actualPickupTime: backendVisit.actual_pickup_time,
     isActive: backendVisit.is_active,
     notes: backendVisit.notes,
     studentName: backendVisit.student_name,
     schoolClass: backendVisit.school_class,
     groupName: backendVisit.group_name,
     activeGroupName: backendVisit.active_group_name,
+    sick: backendVisit.sick,
+    sickSince: backendVisit.sick_since,
+    excused: backendVisit.excused,
+    excusedSince: backendVisit.excused_since,
     createdAt: new Date(backendVisit.created_at),
     updatedAt: new Date(backendVisit.updated_at),
   };
@@ -262,18 +288,8 @@ export function mapGroupMappingResponse(
   };
 }
 
-export function mapAnalyticsResponse(
-  backendAnalytics: BackendAnalytics,
-): Analytics {
-  return {
-    activeGroupsCount: backendAnalytics.active_groups_count,
-    totalVisitsCount: backendAnalytics.total_visits_count,
-    activeVisitsCount: backendAnalytics.active_visits_count,
-  };
-}
-
 // Request/Response types
-export interface CreateActiveGroupRequest {
+interface CreateActiveGroupRequest {
   group_id: number;
   room_id: number;
   start_time: string;
@@ -281,15 +297,7 @@ export interface CreateActiveGroupRequest {
   notes?: string;
 }
 
-export interface UpdateActiveGroupRequest {
-  group_id: number;
-  room_id: number;
-  start_time: string;
-  end_time?: string;
-  notes?: string;
-}
-
-export interface CreateVisitRequest {
+interface CreateVisitRequest {
   student_id: number;
   active_group_id: number;
   check_in_time: string;
@@ -297,15 +305,7 @@ export interface CreateVisitRequest {
   notes?: string;
 }
 
-export interface UpdateVisitRequest {
-  student_id: number;
-  active_group_id: number;
-  check_in_time: string;
-  check_out_time?: string;
-  notes?: string;
-}
-
-export interface CreateSupervisorRequest {
+interface CreateSupervisorRequest {
   staff_id: number;
   active_group_id: number;
   start_time: string;
@@ -313,15 +313,7 @@ export interface CreateSupervisorRequest {
   notes?: string;
 }
 
-export interface UpdateSupervisorRequest {
-  staff_id: number;
-  active_group_id: number;
-  start_time: string;
-  end_time?: string;
-  notes?: string;
-}
-
-export interface CreateCombinedGroupRequest {
+interface CreateCombinedGroupRequest {
   name: string;
   description?: string;
   room_id: number;
@@ -331,21 +323,20 @@ export interface CreateCombinedGroupRequest {
   group_ids?: number[];
 }
 
-export interface UpdateCombinedGroupRequest {
-  name: string;
-  description?: string;
-  room_id: number;
-  start_time: string;
-  end_time?: string;
-  notes?: string;
-}
-
-export interface GroupMappingRequest {
+interface GroupMappingRequest {
   active_group_id: number;
   combined_group_id: number;
 }
 
-// Utility functions to prepare data for backend
+// Utility functions to prepare data for backend.
+//
+// NOTE (WP-B6): this helper targets the admin CRUD endpoint
+// (POST/PUT /api/active/groups) which REQUIRES a positive template id. A
+// spontaneous session (groupId === null) cannot be created through this
+// path — spontaneous creation goes through a separate handler (WP-B9+).
+// The truthy guard below is therefore intentional: if groupId is null, we
+// omit the field, and the backend's request validator will reject the
+// request with a 400. That is the desired behaviour for this endpoint.
 export function prepareActiveGroupForBackend(
   activeGroup: Partial<ActiveGroup>,
 ): Partial<CreateActiveGroupRequest> {
@@ -447,9 +438,6 @@ export type CreateCombinedGroupInput = Omit<
 >;
 
 // UnclaimedGroup interface for deviceless room claiming
-export interface UnclaimedGroup extends ActiveGroup {
-  studentCount: number;
-}
 
 // Schulhof (schoolyard) types for permanent tab functionality
 export interface BackendSchulhofStatus {
@@ -465,7 +453,7 @@ export interface BackendSchulhofStatus {
   supervisors: BackendSchulhofSupervisor[];
 }
 
-export interface BackendSchulhofSupervisor {
+interface BackendSchulhofSupervisor {
   id: number;
   staff_id: number;
   name: string;
@@ -491,7 +479,7 @@ export interface SchulhofStatus {
   supervisors: SchulhofSupervisor[];
 }
 
-export interface SchulhofSupervisor {
+interface SchulhofSupervisor {
   id: string;
   staffId: string;
   name: string;

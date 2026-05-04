@@ -280,7 +280,10 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
-		CreatedBy:       &createdBy,
+	}
+	// createdBy == 0 means system-created (nil) — avoids FK violation on users.staff
+	if createdBy > 0 {
+		newActivity.CreatedBy = &createdBy
 	}
 
 	createdActivity, err := s.activityService.CreateGroup(ctx, newActivity, []int64{}, []*activityModels.Schedule{})
@@ -324,10 +327,12 @@ func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy 
 		return nil, fmt.Errorf("failed to end stale active groups: %w", err)
 	}
 
-	// Create a new active group for today
+	// Create a new active group for today. Schulhof sessions are always
+	// template-backed (the well-known Schulhof activity), so GroupID is set.
 	now := time.Now()
+	activityGroupID := activityGroup.ID
 	newActiveGroup := &active.Group{
-		GroupID:   activityGroup.ID,
+		GroupID:   &activityGroupID,
 		RoomID:    room.ID,
 		StartTime: now,
 	}
@@ -374,8 +379,10 @@ func (s *schulhofService) findTodayActiveGroup(ctx context.Context, roomID, acti
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	for _, ag := range activeGroups {
-		// Check if it's for the Schulhof activity and started today and not ended
-		if ag.GroupID == activityGroupID && ag.StartTime.After(todayStart) && ag.EndTime == nil {
+		// Check if it's for the Schulhof activity and started today and not ended.
+		// Spontaneous sessions (no template, WP-B6) can never match here.
+		templateID, ok := ag.TemplateID()
+		if ok && templateID == activityGroupID && ag.StartTime.After(todayStart) && ag.EndTime == nil {
 			return ag, nil
 		}
 	}

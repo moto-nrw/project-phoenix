@@ -1,8 +1,11 @@
 "use client";
 
 import type React from "react";
+import { AlertTriangle, Check, Clock } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import { useMinuteClock } from "~/lib/pickup-helpers";
+import { getStudentTimeStatus } from "~/lib/student-time-status";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 
@@ -279,9 +282,15 @@ interface StudentHeaderProps {
   myGroups: string[];
   myGroupRooms: string[];
   mySupervisedRooms: string[];
-  todayPickupTime?: string;
+  todayPickupPlannedTime?: string;
+  todayPickupActualTime?: string;
   todayPickupNote?: string;
   isPickupException?: boolean;
+  todayArrivalPlannedTime?: string;
+  todayArrivalActualTime?: string;
+  isArrivalException?: boolean;
+  isArrivalAbsent?: boolean;
+  todayArrivalNote?: string;
 }
 
 export function StudentDetailHeader({
@@ -289,9 +298,15 @@ export function StudentDetailHeader({
   myGroups,
   myGroupRooms,
   mySupervisedRooms,
-  todayPickupTime,
+  todayPickupPlannedTime,
+  todayPickupActualTime,
   todayPickupNote,
   isPickupException,
+  todayArrivalPlannedTime,
+  todayArrivalActualTime,
+  isArrivalException,
+  isArrivalAbsent,
+  todayArrivalNote,
 }: Readonly<StudentHeaderProps>) {
   const badgeStudent = {
     current_location: student.current_location,
@@ -300,6 +315,11 @@ export function StudentDetailHeader({
     group_name: student.group_name,
     sick: student.sick,
     sick_since: student.sick_since,
+    excused: student.excused,
+    excused_since: student.excused_since,
+    has_full_access: student.has_full_access,
+    not_arrival_today: isArrivalAbsent ?? false,
+    not_arrival_reason: todayArrivalNote ?? null,
   };
 
   return (
@@ -315,28 +335,24 @@ export function StudentDetailHeader({
               <span className="truncate">{student.group_name}</span>
             </div>
           )}
-          {todayPickupTime && (
-            <div className="mt-1.5 flex items-center gap-2 text-sm text-gray-600">
-              <ClockIcon className="h-4 w-4 text-gray-400" />
-              <span>
-                Heutige Abholung:{" "}
-                <span className="font-medium text-gray-900">
-                  {todayPickupTime}
-                </span>
-                {todayPickupNote && (
-                  <span className="ml-1 text-gray-500">
-                    ({todayPickupNote})
-                  </span>
-                )}
-                {isPickupException && (
-                  <span
-                    className="ml-1.5 inline-flex h-2 w-2 rounded-full bg-orange-400"
-                    title="Ausnahme"
-                  />
-                )}
-              </span>
-            </div>
-          )}
+          <TodayTimeStatusInlineRow
+            kind="arrival"
+            label="Heutige Ankunft"
+            plannedTime={todayArrivalPlannedTime}
+            actualTime={todayArrivalActualTime}
+            isException={isArrivalException}
+            note={isArrivalAbsent ? undefined : todayArrivalNote}
+            isAbsent={isArrivalAbsent}
+            absentReason={todayArrivalNote}
+          />
+          <TodayTimeStatusInlineRow
+            kind="pickup"
+            label="Heutige Abholung"
+            plannedTime={todayPickupPlannedTime}
+            actualTime={todayPickupActualTime}
+            isException={isPickupException}
+            note={todayPickupNote}
+          />
         </div>
         <div className="mr-4 flex-shrink-0 pb-3">
           <LocationBadge
@@ -351,6 +367,114 @@ export function StudentDetailHeader({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function renderInlineTimeIcon(
+  state: ReturnType<typeof getStudentTimeStatus>,
+): React.ReactNode {
+  if (state.icon === "warning") {
+    return (
+      <AlertTriangle className="h-4 w-4" style={{ color: state.iconColor }} />
+    );
+  }
+
+  if (state.icon === "check") {
+    return <Check className="h-4 w-4" style={{ color: state.iconColor }} />;
+  }
+
+  return (
+    <Clock
+      className={`h-4 w-4 ${state.state === "approaching" ? "animate-pulse" : ""}`}
+      style={{ color: state.iconColor }}
+    />
+  );
+}
+
+function TodayTimeStatusInlineRow({
+  kind,
+  label,
+  plannedTime,
+  actualTime,
+  isException = false,
+  note,
+  isAbsent = false,
+  absentReason,
+}: Readonly<{
+  kind: "arrival" | "pickup";
+  label: string;
+  plannedTime?: string;
+  actualTime?: string;
+  isException?: boolean;
+  note?: string;
+  isAbsent?: boolean;
+  absentReason?: string;
+}>) {
+  const now = useMinuteClock();
+
+  if (isAbsent) {
+    return (
+      <div
+        data-testid={`today-time-row-${kind}`}
+        className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
+      >
+        <ClockIcon className="h-4 w-4 text-gray-400" />
+        <span>
+          {label}:{" "}
+          <span className="font-medium text-gray-900">Kommt heute nicht</span>
+          {absentReason && (
+            <span className="ml-1 text-gray-500">({absentReason})</span>
+          )}
+        </span>
+      </div>
+    );
+  }
+
+  const status = getStudentTimeStatus({
+    plannedTime,
+    actualTime,
+    now,
+  });
+
+  const plannedDisplay = plannedTime?.slice(0, 5);
+  const showPlannedHint = Boolean(plannedTime && actualTime);
+
+  return (
+    <div
+      data-testid={`today-time-row-${kind}`}
+      className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
+    >
+      {renderInlineTimeIcon(status)}
+      <span>
+        {label}:{" "}
+        <span
+          className={
+            status.textColor ? "font-medium" : "font-medium text-gray-900"
+          }
+          style={status.textColor ? { color: status.textColor } : undefined}
+        >
+          {status.displayTime ?? "—"}
+        </span>
+        {showPlannedHint && plannedDisplay && (
+          <span className="ml-1 text-gray-500">
+            (geplant: {plannedDisplay}
+            {status.detailAnnotation ? `, ${status.detailAnnotation}` : ""})
+          </span>
+        )}
+        {!showPlannedHint && status.detailAnnotation && (
+          <span className="ml-1 text-gray-500">
+            ({status.detailAnnotation})
+          </span>
+        )}
+        {note && <span className="ml-1 text-gray-500">({note})</span>}
+        {isException && (
+          <span
+            className="ml-1.5 inline-flex h-2 w-2 rounded-full bg-orange-400"
+            title="Ausnahme"
+          />
+        )}
+      </span>
     </div>
   );
 }
@@ -577,20 +701,27 @@ function HistoryButton({
 interface StudentHistorySectionProps {
   studentId: string;
   attendanceLogEnabled: boolean;
+  feedbackEnabled: boolean;
+  readOnly?: boolean;
   onNavigate: (path: string) => void;
 }
 
 /**
  * History section on the student detail page. The Anwesenheitsprotokoll button
- * is gated by the tenant's `gdpr.attendance_log_enabled` setting. Scope checks
- * (group supervisor) are handled by the destination page. Mensa history remains
- * a disabled placeholder (future feature).
+ * is gated by the tenant's `gdpr.attendance_log_enabled` setting. The
+ * Feedbackhistorie button is gated by the tenant's `feedback.enabled` setting.
+ * Mensa history remains a disabled placeholder (future feature).
  */
 export function StudentHistorySection({
   studentId,
   attendanceLogEnabled,
+  feedbackEnabled,
+  readOnly = false,
   onNavigate,
 }: Readonly<StudentHistorySectionProps>) {
+  const attendanceDisabled = readOnly || !attendanceLogEnabled;
+  const feedbackDisabled = readOnly || !feedbackEnabled;
+
   return (
     <InfoCard title="Historien" icon={<ClockIcon />}>
       <div className="grid grid-cols-1 gap-2">
@@ -598,14 +729,16 @@ export function StudentHistorySection({
           icon={<BuildingIcon />}
           title="Anwesenheitsprotokoll"
           description={
-            attendanceLogEnabled
-              ? "Anwesenheit und besuchte Räume"
-              : "Für Ihre Schule deaktiviert"
+            readOnly
+              ? "Nur für Gruppenbetreuer"
+              : attendanceLogEnabled
+                ? "Anwesenheit und besuchte Räume"
+                : "Für Ihre Schule deaktiviert"
           }
           bgColor="bg-[#5080D8]"
-          disabled={!attendanceLogEnabled}
+          disabled={attendanceDisabled}
           onClick={
-            attendanceLogEnabled
+            !attendanceDisabled
               ? () => onNavigate(`/students/${studentId}/room-history`)
               : undefined
           }
@@ -613,9 +746,20 @@ export function StudentHistorySection({
         <HistoryButton
           icon={<ChatIcon />}
           title="Feedbackhistorie"
-          description="Feedback und Bewertungen"
+          description={
+            readOnly
+              ? "Nur für Gruppenbetreuer"
+              : feedbackEnabled
+                ? "Feedback und Bewertungen"
+                : "Für Ihre Schule deaktiviert"
+          }
           bgColor="bg-[#83CD2D]"
-          onClick={() => onNavigate(`/students/${studentId}/feedback_history`)}
+          disabled={feedbackDisabled}
+          onClick={
+            !feedbackDisabled
+              ? () => onNavigate(`/students/${studentId}/feedback_history`)
+              : undefined
+          }
         />
         <HistoryButton
           icon={<ForkKnifeIcon />}

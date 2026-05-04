@@ -1,0 +1,809 @@
+package students
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
+)
+
+// ArrivalScheduleResponse represents an arrival schedule in API responses
+type ArrivalScheduleResponse struct {
+	ID              int64   `json:"id"`
+	StudentID       int64   `json:"student_id"`
+	Weekday         int     `json:"weekday"`
+	WeekdayName     string  `json:"weekday_name"`
+	ExpectedArrival string  `json:"expected_arrival"` // HH:MM format
+	Notes           *string `json:"notes,omitempty"`
+	CreatedBy       int64   `json:"created_by"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
+}
+
+// ArrivalExceptionResponse represents an arrival exception in API responses
+type ArrivalExceptionResponse struct {
+	ID              int64   `json:"id"`
+	StudentID       int64   `json:"student_id"`
+	ExceptionDate   string  `json:"exception_date"`             // YYYY-MM-DD format
+	ExpectedArrival *string `json:"expected_arrival,omitempty"` // HH:MM or null
+	Reason          *string `json:"reason,omitempty"`
+	CreatedBy       int64   `json:"created_by"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
+}
+
+// ArrivalNoteResponse represents an arrival note in API responses
+type ArrivalNoteResponse struct {
+	ID        int64  `json:"id"`
+	StudentID int64  `json:"student_id"`
+	NoteDate  string `json:"note_date"` // YYYY-MM-DD format
+	Content   string `json:"content"`
+	CreatedBy int64  `json:"created_by"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// ArrivalDataResponse represents combined arrival data
+type ArrivalDataResponse struct {
+	Schedules  []ArrivalScheduleResponse  `json:"schedules"`
+	Exceptions []ArrivalExceptionResponse `json:"exceptions"`
+	Notes      []ArrivalNoteResponse      `json:"notes"`
+}
+
+// BulkArrivalScheduleRequest represents a request to update all weekly arrival schedules for a student
+type BulkArrivalScheduleRequest struct {
+	Schedules []ArrivalScheduleRequestItem `json:"schedules"`
+}
+
+// ArrivalScheduleRequestItem represents a single arrival schedule entry in a request
+type ArrivalScheduleRequestItem struct {
+	Weekday         int     `json:"weekday"`
+	ExpectedArrival string  `json:"expected_arrival"` // HH:MM format
+	Notes           *string `json:"notes,omitempty"`
+}
+
+// ArrivalExceptionRequest represents a request to create/update an arrival exception
+type ArrivalExceptionRequest struct {
+	ExceptionDate   string  `json:"exception_date"`             // YYYY-MM-DD format
+	ExpectedArrival *string `json:"expected_arrival,omitempty"` // HH:MM or null (null = absent)
+	Reason          *string `json:"reason,omitempty"`
+}
+
+// ArrivalNoteRequest represents a request to create/update an arrival note
+type ArrivalNoteRequest struct {
+	NoteDate string `json:"note_date"` // YYYY-MM-DD format
+	Content  string `json:"content"`
+}
+
+// BulkUpsertArrivalScheduleRequest represents a request to bulk upsert arrival schedules for a school class
+type BulkUpsertArrivalScheduleRequest struct {
+	SchoolClass string                                 `json:"school_class"`
+	Schedules   []scheduleService.ArrivalScheduleInput `json:"schedules"`
+}
+
+// Bind implements render.Binder for ArrivalNoteRequest
+func (r *ArrivalNoteRequest) Bind(_ *http.Request) error {
+	if r.NoteDate == "" {
+		return errors.New("note_date is required")
+	}
+	if _, err := time.Parse(dateFormatISO, r.NoteDate); err != nil {
+		return errors.New("invalid note_date format, expected YYYY-MM-DD")
+	}
+	if r.Content == "" {
+		return errors.New("content is required")
+	}
+	if len(r.Content) > 500 {
+		return errors.New("content cannot exceed 500 characters")
+	}
+	return nil
+}
+
+// Bind implements render.Binder for BulkArrivalScheduleRequest
+func (r *BulkArrivalScheduleRequest) Bind(_ *http.Request) error {
+	if len(r.Schedules) == 0 {
+		return errors.New("schedules array cannot be empty")
+	}
+	seenWeekdays := make(map[int]bool)
+	for i, s := range r.Schedules {
+		if s.Weekday < schedule.WeekdayMonday || s.Weekday > schedule.WeekdayFriday {
+			return fmt.Errorf("schedule %d: weekday must be between 1 (Monday) and 5 (Friday)", i)
+		}
+		if seenWeekdays[s.Weekday] {
+			return fmt.Errorf("schedule %d: duplicate weekday %d", i, s.Weekday)
+		}
+		seenWeekdays[s.Weekday] = true
+		if s.ExpectedArrival == "" {
+			return fmt.Errorf("schedule %d: expected_arrival is required", i)
+		}
+		if _, err := time.Parse("15:04", s.ExpectedArrival); err != nil {
+			return fmt.Errorf("schedule %d: invalid expected_arrival format, expected HH:MM", i)
+		}
+		if s.Notes != nil && len(*s.Notes) > 500 {
+			return fmt.Errorf("schedule %d: notes cannot exceed 500 characters", i)
+		}
+	}
+	return nil
+}
+
+// Bind implements render.Binder for ArrivalExceptionRequest
+func (r *ArrivalExceptionRequest) Bind(_ *http.Request) error {
+	if r.ExceptionDate == "" {
+		return errors.New("exception_date is required")
+	}
+	if _, err := time.Parse(dateFormatISO, r.ExceptionDate); err != nil {
+		return errors.New("invalid exception_date format, expected YYYY-MM-DD")
+	}
+	// expected_arrival is optional (nil = absent/not coming)
+	// but if provided, it must be valid HH:MM format
+	if r.ExpectedArrival != nil && *r.ExpectedArrival != "" {
+		if _, err := time.Parse("15:04", *r.ExpectedArrival); err != nil {
+			return errors.New("invalid expected_arrival format, expected HH:MM")
+		}
+	}
+	if r.Reason != nil && len(*r.Reason) > 255 {
+		return errors.New("reason cannot exceed 255 characters")
+	}
+	return nil
+}
+
+// Bind implements render.Binder for BulkUpsertArrivalScheduleRequest
+func (r *BulkUpsertArrivalScheduleRequest) Bind(_ *http.Request) error {
+	if r.SchoolClass == "" {
+		return errors.New("school_class is required")
+	}
+	if len(r.Schedules) == 0 {
+		return errors.New("schedules array cannot be empty")
+	}
+	seenWeekdays := make(map[int]bool)
+	for i, s := range r.Schedules {
+		if s.Weekday < schedule.WeekdayMonday || s.Weekday > schedule.WeekdayFriday {
+			return fmt.Errorf("schedule %d: weekday must be between 1 (Monday) and 5 (Friday)", i)
+		}
+		if seenWeekdays[s.Weekday] {
+			return fmt.Errorf("schedule %d: duplicate weekday %d", i, s.Weekday)
+		}
+		seenWeekdays[s.Weekday] = true
+		if s.ArrivalTime == "" {
+			return fmt.Errorf("schedule %d: expected_arrival is required", i)
+		}
+		if _, err := time.Parse("15:04", s.ArrivalTime); err != nil {
+			return fmt.Errorf("schedule %d: invalid expected_arrival format, expected HH:MM", i)
+		}
+	}
+	return nil
+}
+
+// mapArrivalScheduleToResponse converts an arrival schedule model to API response
+func mapArrivalScheduleToResponse(s *schedule.StudentArrivalSchedule) ArrivalScheduleResponse {
+	return ArrivalScheduleResponse{
+		ID:              s.ID,
+		StudentID:       s.StudentID,
+		Weekday:         s.Weekday,
+		WeekdayName:     s.GetWeekdayName(),
+		ExpectedArrival: s.ExpectedArrival.Format("15:04"),
+		Notes:           s.Notes,
+		CreatedBy:       s.CreatedBy,
+		CreatedAt:       s.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       s.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+// mapArrivalExceptionToResponse converts an arrival exception model to API response
+func mapArrivalExceptionToResponse(e *schedule.StudentArrivalException) ArrivalExceptionResponse {
+	resp := ArrivalExceptionResponse{
+		ID:            e.ID,
+		StudentID:     e.StudentID,
+		ExceptionDate: e.ExceptionDate.Format(dateFormatISO),
+		Reason:        e.Reason,
+		CreatedBy:     e.CreatedBy,
+		CreatedAt:     e.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:     e.UpdatedAt.Format(time.RFC3339),
+	}
+	if e.ExpectedArrival != nil {
+		formatted := e.ExpectedArrival.Format("15:04")
+		resp.ExpectedArrival = &formatted
+	}
+	return resp
+}
+
+// mapArrivalNoteToResponse converts an arrival note model to API response
+func mapArrivalNoteToResponse(n *schedule.StudentArrivalNote) ArrivalNoteResponse {
+	return ArrivalNoteResponse{
+		ID:        n.ID,
+		StudentID: n.StudentID,
+		NoteDate:  n.NoteDate.Format(dateFormatISO),
+		Content:   n.Content,
+		CreatedBy: n.CreatedBy,
+		CreatedAt: n.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: n.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+// verifyArrivalExceptionOwnership checks that an arrival exception exists and belongs to the given student.
+func (rs *Resource) verifyArrivalExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *schedule.StudentArrivalException {
+	exception, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(r.Context(), exceptionID)
+	if err != nil || exception == nil {
+		renderError(w, r, ErrorNotFound(errors.New("arrival exception not found")))
+		return nil
+	}
+	if exception.StudentID != studentID {
+		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
+		return nil
+	}
+	return exception
+}
+
+// verifyArrivalNoteOwnership checks that an arrival note exists and belongs to the given student.
+func (rs *Resource) verifyArrivalNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *schedule.StudentArrivalNote {
+	note, err := rs.ArrivalScheduleService.GetStudentArrivalNoteByID(r.Context(), noteID)
+	if err != nil || note == nil {
+		renderError(w, r, ErrorNotFound(errors.New("arrival note not found")))
+		return nil
+	}
+	if note.StudentID != studentID {
+		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
+		return nil
+	}
+	return note
+}
+
+// requireArrivalReadAccess parses the student from URL params and checks read access.
+func (rs *Resource) requireArrivalReadAccess(w http.ResponseWriter, r *http.Request) *users.Student {
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return nil
+	}
+	if !rs.checkStudentReadAccess(r, student) {
+		renderError(w, r, ErrorForbidden(fmt.Errorf("read access required to view arrival schedules")))
+		return nil
+	}
+	return student
+}
+
+// requireArrivalWriteAccess parses the student from URL params and verifies full access.
+func (rs *Resource) requireArrivalWriteAccess(w http.ResponseWriter, r *http.Request, action string) *users.Student {
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return nil
+	}
+	if !rs.checkStudentFullAccess(r, student) {
+		renderError(w, r, ErrorForbidden(fmt.Errorf("full access required to %s", action)))
+		return nil
+	}
+	return student
+}
+
+// getStudentArrivalSchedules handles GET /students/{id}/arrival-schedules
+func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Request) {
+	student := rs.requireArrivalReadAccess(w, r)
+	if student == nil {
+		return
+	}
+
+	data, err := rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	response := buildArrivalDataResponse(data)
+	common.Respond(w, r, http.StatusOK, response, "Arrival schedules retrieved successfully")
+}
+
+// buildArrivalDataResponse converts service arrival data to API response
+func buildArrivalDataResponse(data *scheduleService.StudentArrivalData) ArrivalDataResponse {
+	response := ArrivalDataResponse{
+		Schedules:  make([]ArrivalScheduleResponse, 0, len(data.Schedules)),
+		Exceptions: make([]ArrivalExceptionResponse, 0, len(data.Exceptions)),
+		Notes:      make([]ArrivalNoteResponse, 0, len(data.Notes)),
+	}
+
+	for _, s := range data.Schedules {
+		response.Schedules = append(response.Schedules, mapArrivalScheduleToResponse(s))
+	}
+	for _, e := range data.Exceptions {
+		response.Exceptions = append(response.Exceptions, mapArrivalExceptionToResponse(e))
+	}
+	for _, n := range data.Notes {
+		response.Notes = append(response.Notes, mapArrivalNoteToResponse(n))
+	}
+
+	return response
+}
+
+func (rs *Resource) broadcastArrivalScheduleChanged(studentID int64) {
+	if rs.Broadcaster == nil {
+		return
+	}
+
+	source := "manual"
+	data := realtime.EventData{Source: &source}
+	event := realtime.NewEvent(
+		realtime.EventArrivalScheduleChanged,
+		"",
+		data,
+	)
+	if err := rs.Broadcaster.BroadcastToAll(event); err != nil && rs.Logger != nil {
+		rs.Logger.Warn(
+			"failed to broadcast arrival schedule change",
+			"student_id", studentID,
+			"error", err.Error(),
+		)
+	}
+}
+
+// updateStudentArrivalSchedules handles PUT /students/{id}/arrival-schedules
+func (rs *Resource) updateStudentArrivalSchedules(w http.ResponseWriter, r *http.Request) {
+	student := rs.requireArrivalWriteAccess(w, r, "update arrival schedules")
+	if student == nil {
+		return
+	}
+
+	req := &BulkArrivalScheduleRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	staffID, err := rs.getStaffIDFromJWT(r)
+	if err != nil {
+		renderError(w, r, ErrorForbidden(err))
+		return
+	}
+
+	schedules := make([]*schedule.StudentArrivalSchedule, 0, len(req.Schedules))
+	for _, s := range req.Schedules {
+		arrivalTime, _ := parseTimeOnly(s.ExpectedArrival)
+		schedules = append(schedules, &schedule.StudentArrivalSchedule{
+			StudentID:       student.ID,
+			Weekday:         s.Weekday,
+			ExpectedArrival: arrivalTime,
+			Notes:           s.Notes,
+			CreatedBy:       staffID,
+		})
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, student.ID, schedules)
+	}); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	data, err := rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	rs.broadcastArrivalScheduleChanged(student.ID)
+	response := buildArrivalDataResponse(data)
+	common.Respond(w, r, http.StatusOK, response, "Arrival schedules updated successfully")
+}
+
+// createStudentArrivalException handles POST /students/{id}/arrival-exceptions
+func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http.Request) {
+	student := rs.requireArrivalWriteAccess(w, r, "create arrival exceptions")
+	if student == nil {
+		return
+	}
+
+	req := &ArrivalExceptionRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	staffID, err := rs.getStaffIDFromJWT(r)
+	if err != nil {
+		renderError(w, r, ErrorForbidden(err))
+		return
+	}
+
+	exceptionDate, _ := time.Parse(dateFormatISO, req.ExceptionDate)
+	exception := &schedule.StudentArrivalException{
+		StudentID:     student.ID,
+		ExceptionDate: exceptionDate,
+		Reason:        req.Reason,
+		CreatedBy:     staffID,
+	}
+
+	if req.ExpectedArrival != nil && *req.ExpectedArrival != "" {
+		arrivalTime, _ := parseTimeOnly(*req.ExpectedArrival)
+		exception.ExpectedArrival = &arrivalTime
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ArrivalScheduleService.CreateStudentArrivalException(ctx, exception)
+	}); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	rs.broadcastArrivalScheduleChanged(student.ID)
+	common.Respond(w, r, http.StatusCreated, mapArrivalExceptionToResponse(exception), "Arrival exception created successfully")
+}
+
+// updateStudentArrivalException handles PUT /students/{id}/arrival-exceptions/{exceptionId}
+func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http.Request) {
+	student := rs.requireArrivalWriteAccess(w, r, "update arrival exceptions")
+	if student == nil {
+		return
+	}
+
+	exceptionID, ok := parseEntityID(w, r, "exceptionId", "exception")
+	if !ok {
+		return
+	}
+
+	existingException := rs.verifyArrivalExceptionOwnership(w, r, exceptionID, student.ID)
+	if existingException == nil {
+		return
+	}
+
+	req := &ArrivalExceptionRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	exceptionDate, _ := time.Parse(dateFormatISO, req.ExceptionDate)
+	exception := &schedule.StudentArrivalException{
+		StudentID:     student.ID,
+		ExceptionDate: exceptionDate,
+		Reason:        existingException.Reason,
+		CreatedBy:     existingException.CreatedBy,
+	}
+	exception.ID = exceptionID
+	exception.CreatedAt = existingException.CreatedAt
+	exception.SetTenantID(existingException.TenantID)
+
+	if req.Reason != nil {
+		exception.Reason = req.Reason
+	}
+
+	if req.ExpectedArrival != nil && *req.ExpectedArrival != "" {
+		arrivalTime, _ := parseTimeOnly(*req.ExpectedArrival)
+		exception.ExpectedArrival = &arrivalTime
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ArrivalScheduleService.UpdateStudentArrivalException(ctx, exception)
+	}); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	rs.broadcastArrivalScheduleChanged(student.ID)
+	common.Respond(w, r, http.StatusOK, mapArrivalExceptionToResponse(exception), "Arrival exception updated successfully")
+}
+
+// deleteStudentArrivalException handles DELETE /students/{id}/arrival-exceptions/{exceptionId}
+func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http.Request) {
+	student := rs.requireArrivalWriteAccess(w, r, "delete arrival exceptions")
+	if student == nil {
+		return
+	}
+
+	exceptionID, ok := parseEntityID(w, r, "exceptionId", "exception")
+	if !ok {
+		return
+	}
+
+	if rs.verifyArrivalExceptionOwnership(w, r, exceptionID, student.ID) == nil {
+		return
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ArrivalScheduleService.DeleteStudentArrivalException(ctx, exceptionID)
+	}); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	rs.broadcastArrivalScheduleChanged(student.ID)
+	common.Respond(w, r, http.StatusOK, nil, "Arrival exception deleted successfully")
+}
+
+// createStudentArrivalNote handles POST /students/{id}/arrival-notes
+func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Request) {
+	student := rs.requireArrivalWriteAccess(w, r, "create arrival notes")
+	if student == nil {
+		return
+	}
+
+	req := &ArrivalNoteRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	staffID, err := rs.getStaffIDFromJWT(r)
+	if err != nil {
+		renderError(w, r, ErrorForbidden(err))
+		return
+	}
+
+	noteDate, _ := time.Parse(dateFormatISO, req.NoteDate)
+	note := &schedule.StudentArrivalNote{
+		StudentID: student.ID,
+		NoteDate:  noteDate,
+		Content:   req.Content,
+		CreatedBy: staffID,
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ArrivalScheduleService.CreateStudentArrivalNote(ctx, note)
+	}); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	rs.broadcastArrivalScheduleChanged(student.ID)
+	common.Respond(w, r, http.StatusCreated, mapArrivalNoteToResponse(note), "Arrival note created successfully")
+}
+
+// updateStudentArrivalNote handles PUT /students/{id}/arrival-notes/{noteId}
+func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Request) {
+	student := rs.requireArrivalWriteAccess(w, r, "update arrival notes")
+	if student == nil {
+		return
+	}
+
+	noteID, ok := parseEntityID(w, r, "noteId", "note")
+	if !ok {
+		return
+	}
+
+	existingNote := rs.verifyArrivalNoteOwnership(w, r, noteID, student.ID)
+	if existingNote == nil {
+		return
+	}
+
+	req := &ArrivalNoteRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	noteDate, _ := time.Parse(dateFormatISO, req.NoteDate)
+	note := &schedule.StudentArrivalNote{
+		StudentID: student.ID,
+		NoteDate:  noteDate,
+		Content:   req.Content,
+		CreatedBy: existingNote.CreatedBy,
+	}
+	note.ID = noteID
+	note.CreatedAt = existingNote.CreatedAt
+	note.SetTenantID(existingNote.TenantID)
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ArrivalScheduleService.UpdateStudentArrivalNote(ctx, note)
+	}); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	rs.broadcastArrivalScheduleChanged(student.ID)
+	common.Respond(w, r, http.StatusOK, mapArrivalNoteToResponse(note), "Arrival note updated successfully")
+}
+
+// deleteStudentArrivalNote handles DELETE /students/{id}/arrival-notes/{noteId}
+func (rs *Resource) deleteStudentArrivalNote(w http.ResponseWriter, r *http.Request) {
+	student := rs.requireArrivalWriteAccess(w, r, "delete arrival notes")
+	if student == nil {
+		return
+	}
+
+	noteID, ok := parseEntityID(w, r, "noteId", "note")
+	if !ok {
+		return
+	}
+
+	existingNote := rs.verifyArrivalNoteOwnership(w, r, noteID, student.ID)
+	if existingNote == nil {
+		return
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ArrivalScheduleService.DeleteStudentArrivalNote(ctx, noteID)
+	}); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	rs.broadcastArrivalScheduleChanged(student.ID)
+	common.Respond(w, r, http.StatusOK, nil, "Arrival note deleted successfully")
+}
+
+// bulkUpsertArrivalSchedules handles POST /students/arrival-schedules/bulk
+func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Request) {
+	req := &BulkUpsertArrivalScheduleRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	staffID, err := rs.getStaffIDFromJWT(r)
+	if err != nil {
+		renderError(w, r, ErrorForbidden(err))
+		return
+	}
+
+	result, err := rs.ArrivalScheduleService.BulkUpsertBySchoolClass(r.Context(), req.SchoolClass, req.Schedules, staffID)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	rs.broadcastArrivalScheduleChanged(0)
+	common.Respond(w, r, http.StatusOK, result, "Bulk arrival schedules upserted successfully")
+}
+
+// BulkArrivalTimeRequest represents a request to get arrival times for multiple students
+type BulkArrivalTimeRequest struct {
+	StudentIDs []int64 `json:"student_ids"`
+	Date       *string `json:"date,omitempty"` // Optional date in YYYY-MM-DD format, defaults to today
+}
+
+// Bind implements render.Binder
+func (r *BulkArrivalTimeRequest) Bind(_ *http.Request) error {
+	if len(r.StudentIDs) == 0 {
+		return errors.New("student_ids array cannot be empty")
+	}
+	if len(r.StudentIDs) > 500 {
+		return errors.New("student_ids array cannot exceed 500 items")
+	}
+	if r.Date != nil && *r.Date != "" {
+		if _, err := time.Parse(dateFormatISO, *r.Date); err != nil {
+			return errors.New("invalid date format, expected YYYY-MM-DD")
+		}
+	}
+	return nil
+}
+
+// BulkArrivalDayNoteResponse represents a single day note in bulk arrival time responses
+type BulkArrivalDayNoteResponse struct {
+	ID      int64  `json:"id"`
+	Content string `json:"content"`
+}
+
+// BulkArrivalTimeResponse represents arrival time data for a single student
+type BulkArrivalTimeResponse struct {
+	StudentID       int64                        `json:"student_id"`
+	Date            string                       `json:"date"`
+	WeekdayName     string                       `json:"weekday_name"`
+	ExpectedArrival *string                      `json:"expected_arrival,omitempty"` // HH:MM format or null
+	IsException     bool                         `json:"is_exception"`
+	Notes           string                       `json:"notes,omitempty"`
+	DayNotes        []BulkArrivalDayNoteResponse `json:"day_notes,omitempty"`
+}
+
+// getBulkArrivalTimes handles POST /students/arrival-times/bulk
+func (rs *Resource) getBulkArrivalTimes(w http.ResponseWriter, r *http.Request) {
+	req := &BulkArrivalTimeRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	// Filter student IDs to only those the user has access to
+	authorizedIDs, err := rs.filterAuthorizedStudentIDs(r, req.StudentIDs)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	if len(authorizedIDs) == 0 {
+		common.Respond(w, r, http.StatusOK, []BulkArrivalTimeResponse{}, "Bulk arrival times retrieved successfully")
+		return
+	}
+
+	date := time.Now()
+	if req.Date != nil && *req.Date != "" {
+		parsedDate, _ := time.Parse(dateFormatISO, *req.Date)
+		date = parsedDate
+	}
+
+	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(r.Context(), authorizedIDs, date)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]BulkArrivalTimeResponse, 0, len(arrivalTimes))
+	for studentID, eat := range arrivalTimes {
+		resp := BulkArrivalTimeResponse{
+			StudentID:   studentID,
+			Date:        eat.Date.Format(dateFormatISO),
+			WeekdayName: eat.WeekdayName,
+			IsException: eat.IsException,
+			Notes:       eat.Notes,
+		}
+		if eat.ArrivalTime != nil {
+			formatted := eat.ArrivalTime.Format("15:04")
+			resp.ExpectedArrival = &formatted
+		}
+		if len(eat.DayNotes) > 0 {
+			resp.DayNotes = make([]BulkArrivalDayNoteResponse, 0, len(eat.DayNotes))
+			for _, note := range eat.DayNotes {
+				resp.DayNotes = append(resp.DayNotes, BulkArrivalDayNoteResponse{
+					ID:      note.ID,
+					Content: note.Content,
+				})
+			}
+		}
+		responses = append(responses, resp)
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Bulk arrival times retrieved successfully")
+}
+
+// Handler accessor methods for testing
+
+// GetStudentArrivalSchedulesHandler returns the handler for getting arrival schedules
+func (rs *Resource) GetStudentArrivalSchedulesHandler() http.HandlerFunc {
+	return rs.getStudentArrivalSchedules
+}
+
+// UpdateStudentArrivalSchedulesHandler returns the handler for updating arrival schedules
+func (rs *Resource) UpdateStudentArrivalSchedulesHandler() http.HandlerFunc {
+	return rs.updateStudentArrivalSchedules
+}
+
+// CreateStudentArrivalExceptionHandler returns the handler for creating arrival exceptions
+func (rs *Resource) CreateStudentArrivalExceptionHandler() http.HandlerFunc {
+	return rs.createStudentArrivalException
+}
+
+// UpdateStudentArrivalExceptionHandler returns the handler for updating arrival exceptions
+func (rs *Resource) UpdateStudentArrivalExceptionHandler() http.HandlerFunc {
+	return rs.updateStudentArrivalException
+}
+
+// DeleteStudentArrivalExceptionHandler returns the handler for deleting arrival exceptions
+func (rs *Resource) DeleteStudentArrivalExceptionHandler() http.HandlerFunc {
+	return rs.deleteStudentArrivalException
+}
+
+// CreateStudentArrivalNoteHandler returns the handler for creating arrival notes
+func (rs *Resource) CreateStudentArrivalNoteHandler() http.HandlerFunc {
+	return rs.createStudentArrivalNote
+}
+
+// UpdateStudentArrivalNoteHandler returns the handler for updating arrival notes
+func (rs *Resource) UpdateStudentArrivalNoteHandler() http.HandlerFunc {
+	return rs.updateStudentArrivalNote
+}
+
+// DeleteStudentArrivalNoteHandler returns the handler for deleting arrival notes
+func (rs *Resource) DeleteStudentArrivalNoteHandler() http.HandlerFunc {
+	return rs.deleteStudentArrivalNote
+}
+
+// BulkUpsertArrivalSchedulesHandler returns the handler for bulk upserting arrival schedules
+func (rs *Resource) BulkUpsertArrivalSchedulesHandler() http.HandlerFunc {
+	return rs.bulkUpsertArrivalSchedules
+}
+
+// GetBulkArrivalTimesHandler returns the handler for getting bulk arrival times
+func (rs *Resource) GetBulkArrivalTimesHandler() http.HandlerFunc {
+	return rs.getBulkArrivalTimes
+}
