@@ -37,6 +37,7 @@ type BreakDurationUpdate struct {
 
 // SessionUpdateRequest defines the structure for updating a work session
 type SessionUpdateRequest struct {
+	Date         *time.Time            `json:"date"`
 	CheckInTime  *time.Time            `json:"check_in_time"`
 	CheckOutTime *time.Time            `json:"check_out_time"`
 	BreakMinutes *int                  `json:"break_minutes"`
@@ -488,6 +489,18 @@ func (s *workSessionService) handleSessionNotFoundError(err error) error {
 
 func (s *workSessionService) applyTimeFieldUpdates(uc *sessionUpdateContext, updates SessionUpdateRequest) {
 	strPtr := func(str string) *string { return &str }
+
+	if updates.Date != nil {
+		// Compare DATE portion only; the underlying column is a DATE so any
+		// time-of-day in the incoming pointer is ignored.
+		const dateFmt = "2006-01-02"
+		oldDate := uc.session.Date.Format(dateFmt)
+		newDate := updates.Date.Format(dateFmt)
+		if oldDate != newDate {
+			uc.addAuditEdit(auditModels.FieldDate, strPtr(oldDate), strPtr(newDate))
+			uc.session.Date = *updates.Date
+		}
+	}
 
 	if updates.CheckInTime != nil {
 		// Compare actual time points, not string representations (timezone-safe)

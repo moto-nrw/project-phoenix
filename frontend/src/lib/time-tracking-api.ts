@@ -38,6 +38,7 @@ interface ErrorResponse {
  * Update session request body
  */
 export interface UpdateSessionRequest {
+  date?: string;
   status?: "present" | "home_office";
   checkInTime?: string;
   checkOutTime?: string;
