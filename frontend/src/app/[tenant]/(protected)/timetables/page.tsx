@@ -3,8 +3,8 @@
 /**
  * /timetables — admin weekly planner.
  *
- * Planner surface for calendar periods, templates, materialized instances,
- * manual one-off appointments, lifecycle actions, and plan-quality checks.
+ * Planner surface for calendar periods, series, materialized instances,
+ * one-off appointments, lifecycle actions, and plan-quality checks.
  */
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -28,9 +28,8 @@ import { PlanningMenu } from "~/components/timetable/planning-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { PlanQualityPanel } from "~/components/timetable/plan-quality-panel";
-import { RecurringActivityModal } from "~/components/timetable/recurring-activity-modal";
 import { TemplateList } from "~/components/timetable/template-list";
-import { TimetableInstanceModal } from "~/components/timetable/timetable-instance-modal";
+import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import {
   DENSITY_TO_HOUR_HEIGHT_PX,
   TimetableToolbar,
@@ -76,7 +75,8 @@ function parseWeekOffset(raw: string | null): number {
 }
 
 function parseView(raw: string | null): TimetableView {
-  if (raw === "week" || raw === "templates") return raw;
+  if (raw === "week" || raw === "series") return raw;
+  if (raw === "templates") return "series";
   return "month";
 }
 
@@ -120,12 +120,13 @@ function TimetablesContent() {
   const [selectedDay, setSelectedDay] = useState<string | null>(() =>
     searchParams.get("day"),
   );
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [instanceModalOpen, setInstanceModalOpen] = useState(false);
+  const [eventModalOpen, setEventModalOpen] = useState(false);
   const [editingInstance, setEditingInstance] =
     useState<EnrichedInstance | null>(null);
   const [editingTemplate, setEditingTemplate] =
     useState<TimetableTemplate | null>(null);
+  const [convertingInstance, setConvertingInstance] =
+    useState<EnrichedInstance | null>(null);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
   // null = create mode (no active period yet); otherwise edit the named period.
   const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
@@ -317,7 +318,7 @@ function TimetablesContent() {
   const monthLabel = useMemo(() => formatMonthLabel(monthDate), [monthDate]);
 
   const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}`;
-  const shouldLoadInstances = view !== "templates";
+  const shouldLoadInstances = view !== "series";
   const qualityFromISO = fromISO < todayISO ? todayISO : fromISO;
   const shouldLoadPlanQuality = view === "week" && toISO >= todayISO;
   const gapsSWRKey = `timetable-gaps-${qualityFromISO}-${toISO}`;
@@ -419,7 +420,7 @@ function TimetablesContent() {
   );
   const templatePeriodID = defaultTemplatePeriod?.id ?? assignedPeriods[0]?.id;
   const { data: templateData, isLoading: templatesLoading } = useSWRAuth(
-    status === "authenticated" && view === "templates" && templatePeriodID
+    status === "authenticated" && view === "series" && templatePeriodID
       ? `timetable-templates-${templatePeriodID}`
       : null,
     () => timetableService.getTemplates(templatePeriodID),
@@ -665,19 +666,11 @@ function TimetablesContent() {
     [exceptionConflictsSWRKey, swrKey, tenantMutate, toastError, toastSuccess],
   );
 
-  const openTemplateCreate = useCallback(() => {
-    if (assignedPeriods.length === 0) {
-      toastError("Lege zuerst eine Planungsperiode für diese Woche an.");
-      openPeriodCreate();
-      return;
-    }
-    setEditingTemplate(null);
-    setCreateModalOpen(true);
-  }, [assignedPeriods.length, openPeriodCreate, toastError]);
-
-  const openInstanceCreate = useCallback(() => {
+  const openEventCreate = useCallback(() => {
     setEditingInstance(null);
-    setInstanceModalOpen(true);
+    setEditingTemplate(null);
+    setConvertingInstance(null);
+    setEventModalOpen(true);
   }, []);
 
   const handleApplyTemplate = useCallback(
@@ -695,7 +688,7 @@ function TimetablesContent() {
         : null;
       if (!period) {
         toastError(
-          "Keine aktive Planungsperiode — Vorlage kann nicht angewendet werden.",
+          "Keine aktive Planungsperiode - Serie kann nicht eingeplant werden.",
         );
         openPeriodCreate();
         return;
@@ -747,7 +740,7 @@ function TimetablesContent() {
         toastError(
           err instanceof Error
             ? err.message
-            : "Vorlage konnte nicht angewendet werden",
+            : "Serie konnte nicht eingeplant werden",
         );
       }
     },
@@ -812,11 +805,10 @@ function TimetablesContent() {
         onNext={handleToolbarNext}
         onToday={handleToolbarToday}
         isOnToday={isOnToday}
-        navDisabled={view === "templates"}
+        navDisabled={view === "series"}
         density={density}
         onDensityChange={setDensity}
-        onAddInstance={openInstanceCreate}
-        onAddTemplate={openTemplateCreate}
+        onAddInstance={openEventCreate}
       />
 
       {shouldLoadInstances && (
@@ -870,8 +862,8 @@ function TimetablesContent() {
                   Diese Woche hat noch keine Termine
                 </h3>
                 <p className="max-w-sm text-sm text-slate-500">
-                  Plane die Woche aus den Vorlagen oder lege zuerst eine Vorlage
-                  für Mensa, Lernzeit, AGs oder externe Angebote an.
+                  Lege einen Termin an und entscheide dort, ob er einmalig ist
+                  oder sich wiederholt.
                 </p>
               </div>
               <div className="mt-2 flex flex-wrap justify-center gap-2">
@@ -883,21 +875,14 @@ function TimetablesContent() {
                   className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
                 >
                   <CalendarPlusIcon className="h-3.5 w-3.5" aria-hidden />
-                  Aus Vorlagen planen
+                  Serien einplanen
                 </button>
                 <button
                   type="button"
-                  onClick={openTemplateCreate}
+                  onClick={openEventCreate}
                   className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 >
-                  Vorlage anlegen
-                </button>
-                <button
-                  type="button"
-                  onClick={openInstanceCreate}
-                  className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                >
-                  Termin hinzufügen
+                  Termin anlegen
                 </button>
               </div>
             </div>
@@ -919,7 +904,9 @@ function TimetablesContent() {
                 );
                 if (!instance) return;
                 setEditingInstance(instance);
-                setInstanceModalOpen(true);
+                setEditingTemplate(null);
+                setConvertingInstance(null);
+                setEventModalOpen(true);
               }}
               onSubstitute={handleSubstitute}
             />
@@ -927,17 +914,19 @@ function TimetablesContent() {
         </>
       )}
 
-      {view === "templates" && (
+      {view === "series" && (
         <>
           {templatesLoading ? (
             <Loading />
           ) : (
             <TemplateList
               templates={templates}
-              onCreate={openTemplateCreate}
+              onCreate={openEventCreate}
               onEdit={(template) => {
+                setEditingInstance(null);
+                setConvertingInstance(null);
                 setEditingTemplate(template);
-                setCreateModalOpen(true);
+                setEventModalOpen(true);
               }}
               onApply={(template) => void handleApplyTemplate(template)}
             />
@@ -951,7 +940,20 @@ function TimetablesContent() {
         onLifecycleAction={handleLifecycle}
         onEdit={(instance) => {
           setEditingInstance(instance);
-          setInstanceModalOpen(true);
+          setEditingTemplate(null);
+          setConvertingInstance(null);
+          setEventModalOpen(true);
+        }}
+        onRepeat={(instance) => {
+          if (assignedPeriods.length === 0) {
+            toastError("Lege zuerst eine Planungsperiode für diese Woche an.");
+            openPeriodCreate();
+            return;
+          }
+          setEditingInstance(null);
+          setEditingTemplate(null);
+          setConvertingInstance(instance);
+          setEventModalOpen(true);
         }}
         staffNames={staffNames}
         studentNames={studentNames}
@@ -959,42 +961,38 @@ function TimetablesContent() {
         editDeferred={false}
       />
 
-      <TimetableInstanceModal
-        isOpen={instanceModalOpen}
-        onClose={() => setInstanceModalOpen(false)}
-        defaultDate={selectedDay ?? fromISO}
-        initialInstance={editingInstance}
-        onSaved={(instance) => {
-          void tenantMutate(swrKey);
-          void tenantMutate(gapsSWRKey);
-          void tenantMutate(exceptionConflictsSWRKey);
-          if (instance.id) {
-            updateUrlParams({ instance: instance.id });
-          }
-        }}
-      />
-
-      <RecurringActivityModal
-        isOpen={createModalOpen}
+      <TimetableEventModal
+        isOpen={eventModalOpen}
         onClose={() => {
-          setCreateModalOpen(false);
+          setEventModalOpen(false);
+          setEditingInstance(null);
           setEditingTemplate(null);
+          setConvertingInstance(null);
         }}
+        defaultDate={selectedDay ?? fromISO}
         weekFrom={fromISO}
         weekTo={toISO}
         calendarPeriods={assignedPeriods}
         defaultCalendarPeriodId={defaultTemplatePeriod?.id ?? null}
         showPeriodField={showTemplatePeriodField}
-        initialTemplate={editingTemplate}
-        onCreated={() => {
-          // The backend already materialised the visible week as part of
-          // the create call (we passed weekFrom/weekTo). Refetch so the
-          // fresh instances appear immediately.
+        initialInstance={editingInstance}
+        initialSeries={editingTemplate}
+        convertInstance={convertingInstance}
+        onSaved={(result) => {
           void tenantMutate(swrKey);
+          void tenantMutate(gapsSWRKey);
+          void tenantMutate(exceptionConflictsSWRKey);
           if (templatePeriodID) {
             void tenantMutate(`timetable-templates-${templatePeriodID}`);
           }
+          if (result.kind === "instance" && result.instance.id) {
+            updateUrlParams({ instance: result.instance.id });
+          } else if (result.kind === "series" && result.linkedInstanceId) {
+            updateUrlParams({ instance: result.linkedInstanceId });
+          }
+          setEditingInstance(null);
           setEditingTemplate(null);
+          setConvertingInstance(null);
         }}
       />
 

@@ -9,10 +9,10 @@
  * different consequences:
  *
  * - "Lücken füllen" (Materialize): additive. Creates missing instances
- *   from templates, leaves anything that already exists alone.
+ *   from series, leaves anything that already exists alone.
  * - "Woche neu berechnen" (Replan): destructive. Deletes planned
- *   template-instances in the window and re-creates them from the
- *   current templates. Active/cancelled/manually-added survive.
+ *   series instances in the window and re-creates them from the current
+ *   series. Active/cancelled/manually-added survive.
  *
  * Both options live behind one button so users see the choice up front
  * with descriptions, instead of accidentally picking the destructive
@@ -134,7 +134,7 @@ export function PlanningMenu({
                   Lücken füllen
                 </div>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                  Erstellt fehlende Termine aus den Vorlagen. Bestehende Termine
+                  Erstellt fehlende Termine aus den Serien. Bestehende Termine
                   bleiben unverändert.
                 </p>
               </div>
@@ -159,9 +159,9 @@ export function PlanningMenu({
                   Woche neu berechnen
                 </div>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                  Setzt geplante Termine zurück und legt sie neu aus den
-                  Vorlagen an. Aktive, abgesagte und manuell angelegte Termine
-                  bleiben erhalten.
+                  Setzt geplante Termine zurück und legt sie neu aus den Serien
+                  an. Aktive, abgesagte und manuell angelegte Termine bleiben
+                  erhalten.
                 </p>
               </div>
             </button>
@@ -215,9 +215,9 @@ function ReplanConfirmDialog({
             Woche neu berechnen?
           </h3>
           <p className="mt-1.5 text-sm text-slate-600">
-            Alle geplanten Vorlagen-Termine in{" "}
+            Alle geplanten Serientermine in{" "}
             <span className="font-semibold text-slate-900">{weekLabel}</span>{" "}
-            werden gelöscht und anhand der aktuellen Vorlagen neu erstellt.
+            werden gelöscht und anhand der aktuellen Serien neu erstellt.
             Manuell angelegte Termine, laufende und abgesagte Termine bleiben
             erhalten.
           </p>

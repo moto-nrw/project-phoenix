@@ -221,8 +221,8 @@ export function CalendarPeriodModal({
                 </Button>
                 {deleteConfirm && !deleting && (
                   <p className="text-xs text-[#991B1B]">
-                    Löschen klappt nur, wenn diese Periode nicht mehr von
-                    Vorlagen oder Terminen verwendet wird.
+                    Löschen klappt nur, wenn diese Periode nicht mehr von Serien
+                    oder Terminen verwendet wird.
                   </p>
                 )}
               </div>
@@ -352,7 +352,7 @@ export function CalendarPeriodModal({
             Periode ist aktiv
           </span>
           <span className="text-xs text-slate-500">
-            Nur aktive Perioden materialisieren Templates
+            Nur aktive Perioden erzeugen Serientermine
           </span>
         </label>
 

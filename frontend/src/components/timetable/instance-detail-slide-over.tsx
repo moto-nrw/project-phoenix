@@ -16,6 +16,7 @@ import {
   DoorOpen,
   Pencil,
   Play,
+  Repeat,
   Square,
   StickyNote,
   Timer,
@@ -54,6 +55,7 @@ interface InstanceDetailSlideOverProps {
   onClose: () => void;
   onLifecycleAction: (action: LifecycleAction) => Promise<void>;
   onEdit?: (instance: EnrichedInstance) => void;
+  onRepeat?: (instance: EnrichedInstance) => void;
   staffNames?: Map<string, string>;
   studentNames?: Map<string, string>;
   onAttendancePatch?: (
@@ -135,6 +137,7 @@ export function InstanceDetailSlideOver({
   onClose,
   onLifecycleAction,
   onEdit,
+  onRepeat,
   staffNames = new Map(),
   studentNames = new Map(),
   onAttendancePatch,
@@ -363,6 +366,22 @@ export function InstanceDetailSlideOver({
                   </span>
                 </Button>
               )}
+              {instance.status === "planned" &&
+                !instance.activityGroupId &&
+                onRepeat && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    onClick={() => onRepeat(instance)}
+                    disabled={pendingAction !== null}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Repeat className="h-4 w-4" />
+                      Wiederholen
+                    </span>
+                  </Button>
+                )}
               {instance.status === "active" && (
                 <Button
                   variant="primary"

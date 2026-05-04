@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * TemplateCard — single recurring-activity template tile.
+ * TemplateCard — single recurring series tile.
  *
  * Replaces the legacy two-column list+aside in `template-list.tsx` with a
  * self-contained card that exposes the highest-signal info inline (weekday
  * pattern visualization, time, room, counts) plus two quick actions:
- * "Bearbeiten" (opens existing modal) and "Anwenden" (materializes the
- * template's calendar period). Visual style follows shadcn conventions —
+ * "Bearbeiten" (opens existing modal) and "Termine erzeugen" (materializes
+ * the series' calendar period). Visual style follows shadcn conventions —
  * single border, no default shadow, brand accent reserved for the color
  * bar that ties the card back to the activity type.
  */
@@ -133,7 +133,7 @@ export function TemplateCard({ template, onEdit, onApply }: TemplateCardProps) {
           onClick={() => onApply(template)}
           className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
         >
-          Anwenden
+          Termine erzeugen
         </button>
       </div>
     </article>

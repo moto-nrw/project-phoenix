@@ -26,11 +26,11 @@ export function TemplateList({
         </div>
         <div className="flex flex-col gap-1">
           <h3 className="text-base font-semibold text-slate-900">
-            Keine Vorlagen für diese Periode
+            Keine Serien für diese Periode
           </h3>
           <p className="max-w-sm text-sm text-slate-500">
-            Vorlagen sind wiederkehrende Aktivitäten, die automatisch zu
-            Terminen werden.
+            Serien sind wiederkehrende Termine, die automatisch im Kalender
+            erscheinen.
           </p>
         </div>
         <button
@@ -38,7 +38,7 @@ export function TemplateList({
           onClick={onCreate}
           className="mt-2 inline-flex items-center gap-1 rounded-md bg-slate-900 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-slate-700"
         >
-          + Erste Vorlage anlegen
+          + Ersten Serientermin anlegen
         </button>
       </div>
     );

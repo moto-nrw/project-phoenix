@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, MoreVertical, Plus } from "lucide-react";
 
-export type TimetableView = "week" | "month" | "templates";
+export type TimetableView = "week" | "month" | "series";
 
 /**
  * Three discrete zoom levels for the week grid. Pixel-per-hour values are
@@ -52,13 +52,12 @@ interface TimetableToolbarProps {
   onDensityChange?: (next: WeekDensity) => void;
   /** Primary add actions live in the toolbar to keep chrome on one row. */
   onAddInstance?: () => void;
-  onAddTemplate?: () => void;
 }
 
 const VIEW_TABS: Array<{ id: TimetableView; label: string }> = [
   { id: "week", label: "Woche" },
   { id: "month", label: "Monat" },
-  { id: "templates", label: "Vorlagen" },
+  { id: "series", label: "Serien" },
 ];
 
 export function TimetableToolbar({
@@ -73,9 +72,8 @@ export function TimetableToolbar({
   density,
   onDensityChange,
   onAddInstance,
-  onAddTemplate,
 }: TimetableToolbarProps) {
-  const showRangeNav = view !== "templates";
+  const showRangeNav = view !== "series";
   const showDensity = view === "week" && density && onDensityChange;
 
   return (
@@ -158,28 +156,16 @@ export function TimetableToolbar({
         <DensityMenu density={density} onDensityChange={onDensityChange} />
       )}
 
-      {(onAddInstance ?? onAddTemplate) && (
+      {onAddInstance && (
         <div className="flex items-center gap-1.5">
-          {onAddInstance && (
-            <button
-              type="button"
-              onClick={onAddInstance}
-              className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Termin
-            </button>
-          )}
-          {onAddTemplate && (
-            <button
-              type="button"
-              onClick={onAddTemplate}
-              className="inline-flex h-8 items-center gap-1 rounded-md bg-slate-900 px-2.5 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Vorlage
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onAddInstance}
+            className="inline-flex h-8 items-center gap-1 rounded-md bg-slate-900 px-2.5 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Termin
+          </button>
         </div>
       )}
     </div>
