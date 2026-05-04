@@ -204,7 +204,7 @@ function SearchPageContent() {
   );
   const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
     trackingStudentIds.length > 0
-      ? `tracking-indicators-${debouncedSearchTerm}-${selectedGroup}`
+      ? `tracking-indicators-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}`
       : null,
     async () => activeService.getTrackingIndicators(trackingStudentIds),
     { keepPreviousData: true, revalidateOnFocus: false },
@@ -731,6 +731,18 @@ function SearchPageContent() {
               </div>
             );
           }
+          // Preserve the active room filter in the back-link so stepping
+          // from a room → child → back returns to the same filtered list
+          // (#1323). Plain `/students/search` would drop room_id/room_name.
+          // Encoding is only needed when a query string is appended; the
+          // bare path stays unencoded so existing call sites/tests keep
+          // matching the established `from=/students/search` shape.
+          const buildFromParam = (() => {
+            if (!selectedRoomId) return "/students/search";
+            const qs = new URLSearchParams({ room_id: selectedRoomId });
+            if (selectedRoomName) qs.set("room_name", selectedRoomName);
+            return encodeURIComponent(`/students/search?${qs.toString()}`);
+          })();
           return (
             <div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
@@ -747,7 +759,7 @@ function SearchPageContent() {
                       lastName={student.second_name}
                       onClick={() =>
                         router.push(
-                          `/students/${student.id}?from=/students/search`,
+                          `/students/${student.id}?from=${buildFromParam}`,
                         )
                       }
                       checkinMode={isBinaryMode && schoolCheckin.isActive}
