@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
+  fetchMyEnrollmentProfile,
   fetchPublicCareOfferings,
   submitEnrollment,
+  type MeProfileChild,
+  type MeProfileResponse,
   type PublicCareOffering,
   type SubmitChildPayload,
 } from "~/lib/enrollment-submission-api";
@@ -71,6 +74,10 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
   const [photoConsent, setPhotoConsent] = useState(false);
   const [children, setChildren] = useState<ChildDraft[]>([blankChild()]);
   const [captchaToken, setCaptchaToken] = useState("");
+  const [profile, setProfile] = useState<MeProfileResponse | null>(null);
+  const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
+    new Set(),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -78,13 +85,31 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const [schemaResult, offeringsResult] = await Promise.all([
-          fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null),
-          fetchPublicCareOfferings(tenantSlug, phaseID),
-        ]);
+        const [schemaResult, offeringsResult, profileResult] =
+          await Promise.all([
+            fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null),
+            fetchPublicCareOfferings(tenantSlug, phaseID),
+            fetchMyEnrollmentProfile().catch(() => null),
+          ]);
         if (cancelled) return;
         setSchema(schemaResult);
         setOfferings(offeringsResult);
+        // Prefill guardian fields from the profile when present. We
+        // only fill empty fields so an admin testing the form on a
+        // teacher session can still type their own values.
+        if (profileResult) {
+          setProfile(profileResult);
+          setGuardianFirstName(
+            (prev) => prev || profileResult.guardian.first_name,
+          );
+          setGuardianLastName(
+            (prev) => prev || profileResult.guardian.last_name,
+          );
+          setGuardianEmail((prev) => prev || profileResult.guardian.email);
+          setGuardianPhone(
+            (prev) => prev || (profileResult.guardian.phone ?? ""),
+          );
+        }
       } catch (err) {
         if (cancelled) return;
         const message =
@@ -234,6 +259,38 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
             + Weiteres Kind
           </button>
         </div>
+
+        {profile && profile.children.length > 0 && (
+          <ExistingChildrenPanel
+            existing={profile.children}
+            usedIDs={usedExistingChildIDs}
+            onAdopt={(child) => {
+              const newSlot: ChildDraft = blankChild();
+              newSlot.first_name = child.first_name;
+              newSlot.last_name = child.last_name;
+              newSlot.target_grade_level =
+                child.grade_level != null ? String(child.grade_level) : "";
+              setChildren((prev) => {
+                // Replace the first empty slot if one exists, otherwise
+                // append. Avoids leaving a stranded empty card after
+                // every adoption.
+                const emptyIdx = prev.findIndex(
+                  (c) => !c.first_name && !c.last_name && !c.date_of_birth,
+                );
+                if (emptyIdx >= 0) {
+                  return prev.map((c, i) => (i === emptyIdx ? newSlot : c));
+                }
+                return [...prev, newSlot];
+              });
+              setUsedExistingChildIDs((prev) => {
+                const next = new Set(prev);
+                next.add(child.id);
+                return next;
+              });
+            }}
+          />
+        )}
+
         {children.map((child, i) => (
           <div
             key={i}
@@ -555,5 +612,63 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
         className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
       />
     </label>
+  );
+}
+
+interface ExistingChildrenPanelProps {
+  readonly existing: MeProfileChild[];
+  readonly usedIDs: Set<string>;
+  readonly onAdopt: (child: MeProfileChild) => void;
+}
+
+/**
+ * Surfaced only when the parent is logged in and has linked students.
+ * Each row offers a one-click "Übernehmen" that drops the child into
+ * the next blank slot. Dates of birth aren't on users.students, so
+ * the parent still types those — the panel just saves the names + the
+ * grade-level guess from school_class.
+ */
+function ExistingChildrenPanel({
+  existing,
+  usedIDs,
+  onAdopt,
+}: ExistingChildrenPanelProps) {
+  return (
+    <div className="rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/5 p-4">
+      <h3 className="text-sm font-semibold text-gray-900">Bestehende Kinder</h3>
+      <p className="mt-1 text-xs text-gray-600">
+        Diese Kinder sind schon bei der Schule erfasst. Klicke auf „Übernehmen"
+        um sie schnell in die Anmeldung einzutragen. Geburtsdatum musst du noch
+        eintragen.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {existing.map((c) => {
+          const used = usedIDs.has(c.id);
+          return (
+            <li
+              key={c.id}
+              className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-gray-900">
+                  {c.first_name} {c.last_name}
+                </p>
+                <p className="truncate text-xs text-gray-500">
+                  Klasse: {c.school_class || "—"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onAdopt(c)}
+                disabled={used}
+                className="shrink-0 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {used ? "✓ übernommen" : "Übernehmen"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

@@ -137,6 +137,43 @@ export async function fetchPublicPhases(
   return Array.isArray(list) ? list : [];
 }
 
+export interface MeProfileChild {
+  id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  grade_level?: number;
+}
+
+export interface MeProfileResponse {
+  guardian: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone?: string;
+  };
+  children: MeProfileChild[];
+}
+
+/**
+ * Best-effort autofill payload for parents who already have a tenant
+ * session. Returns null when not authenticated (HTTP 401) so the
+ * caller can render the public form unchanged. Other errors propagate
+ * as Error so SWR/effects can surface them.
+ */
+export async function fetchMyEnrollmentProfile(): Promise<MeProfileResponse | null> {
+  const response = await fetch("/api/enrollment/me/profile", {
+    cache: "no-store",
+  });
+  if (response.status === 401) {
+    return null;
+  }
+  if (!response.ok) {
+    throw await readError(response, "Profil konnte nicht geladen werden");
+  }
+  return readJSON<MeProfileResponse>(response);
+}
+
 /**
  * Submits an enrollment for the given tenant slug. The backend handles
  * captcha verification, schema pinning, and outbox enqueueing.

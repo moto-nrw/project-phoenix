@@ -106,6 +106,13 @@ func (rs *Resource) Router() chi.Router {
 				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deletePhase)
 			})
 		})
+
+		// Autofill payload for the public enrollment form. Any
+		// authenticated session can hit it — we don't require a
+		// specific permission. Non-guardian sessions get the auth
+		// claims as guardian fields and an empty children list, so
+		// the frontend can still cleanly render the form.
+		r.Get("/me/profile", rs.getMyProfile)
 	})
 
 	return r
