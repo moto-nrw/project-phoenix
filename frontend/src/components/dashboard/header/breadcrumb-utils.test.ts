@@ -206,6 +206,10 @@ describe("breadcrumb-utils", () => {
       );
     });
 
+    it("should return 'Räume' for /rooms/{id} referrer (drill-in from room detail)", () => {
+      expect(getBreadcrumbLabel("/rooms/42")).toBe("Räume");
+    });
+
     it("should return 'Kindersuche' for unknown referrer", () => {
       expect(getBreadcrumbLabel("/students")).toBe("Kindersuche");
     });

@@ -356,6 +356,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!from) return "/students/search";
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
+    // Drill-in from /rooms/{id} ("Kinder im Raum") — keep the Räume nav item
+    // highlighted so the sidebar reflects the actual entry path.
+    if (from.startsWith("/rooms/")) return "/rooms";
     if (from.startsWith("/students/search")) return "/students/search";
     return "/students/search";
   };

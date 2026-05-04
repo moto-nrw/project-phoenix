@@ -107,6 +107,11 @@ export function getSubPageLabel(pathname: string): string {
 export function getBreadcrumbLabel(referrer: string): string {
   if (referrer.startsWith("/ogs-groups")) return "Meine Gruppe";
   if (referrer.startsWith("/active-supervisions")) return "Aktuelle Aufsicht";
+  // Drill-in from a room detail page (e.g. "Kinder im Raum" → student detail).
+  // The breadcrumb has to point back to /rooms/{id}, not to Kindersuche, so the
+  // header label and the active sidebar entry agree with the actual path the
+  // user took.
+  if (referrer.startsWith("/rooms/")) return "Räume";
   return "Kindersuche";
 }
 
