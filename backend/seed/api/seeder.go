@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+	"github.com/uptrace/bun"
 )
 
 const (
@@ -72,7 +73,15 @@ func NewSeeder(baseURL string, verbose bool, options SeedOptions) *Seeder {
 
 // Seed executes the complete seeding workflow
 func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*SeedResult, error) {
+	return s.SeedWithDB(ctx, email, password, staffPIN, nil)
+}
+
+// SeedWithDB runs the seeding workflow with an optional direct DB handle.
+// Steps that need to insert system-only or historical rows (which the API
+// does not expose) read this handle from the runtime and skip when nil.
+func (s *Seeder) SeedWithDB(ctx context.Context, email, password, staffPIN string, db *bun.DB) (*SeedResult, error) {
 	runtime := newRuntime(s, email, password, staffPIN)
+	runtime.DB = db
 	workflow := fullDemoWorkflow(s)
 	if err := workflow.Run(ctx, runtime); err != nil {
 		var stepErr *StepError

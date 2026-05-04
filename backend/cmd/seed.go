@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/moto-nrw/project-phoenix/database"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/spf13/cobra"
 )
@@ -69,8 +70,22 @@ Usage:
 			AdminEmail:    adminEmail,
 		}
 
+		// Open a direct DB handle for the steps that need to insert
+		// historical / system-only rows (work-session history, breaks,
+		// absences). Close it when the seeder finishes. Failure to connect
+		// is non-fatal: the affected step skips itself and logs a warning,
+		// so seeding against a remote URL without local DB access still
+		// works for everything that runs through the API.
+		db, dbErr := database.DBConn()
+		if dbErr != nil {
+			log.Printf("seed: no DB handle (%v); time-tracking history will be skipped", dbErr)
+			db = nil
+		} else {
+			defer func() { _ = db.Close() }()
+		}
+
 		seeder := seedapi.NewSeeder(url, verbose, options)
-		result, err := seeder.Seed(ctx, email, password, pin)
+		result, err := seeder.SeedWithDB(ctx, email, password, pin, db)
 		if err != nil {
 			log.Fatal(err)
 		}

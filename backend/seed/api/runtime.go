@@ -1,6 +1,9 @@
 package api
 
-import "github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+import (
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+	"github.com/uptrace/bun"
+)
 
 type Runtime struct {
 	Adapter          *phoenixapi.Adapter
@@ -16,6 +19,11 @@ type Runtime struct {
 	Result           *SeedResult
 	State            *SeedState
 	Values           map[string]any
+	// DB is an optional direct database handle. Steps that need to insert
+	// historical or system-only rows (work-session history, retention proofs,
+	// etc.) attach to rt.DB. Steps must skip gracefully when nil so the seeder
+	// keeps working against remote URLs without local DB access.
+	DB *bun.DB
 }
 
 func newRuntime(seeder *Seeder, operatorEmail, operatorPassword, staffPIN string) *Runtime {
