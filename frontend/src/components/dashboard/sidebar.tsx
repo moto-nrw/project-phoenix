@@ -85,7 +85,7 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
-    href: "/database/timetables",
+    href: "/timetables",
     label: "Stundenplan",
     icon: navigationIcons.calendar,
     activeColor: "text-[#5080D8]",
@@ -372,7 +372,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const filteredNavItems = NAV_ITEMS.filter((item) => {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
-    if (item.href === "/database/timetables" && !timetableEnabled) {
+    if (item.href === "/timetables" && !timetableEnabled) {
       return false;
     }
     if (item.alwaysShow) return true;

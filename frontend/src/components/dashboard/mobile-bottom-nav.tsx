@@ -208,7 +208,7 @@ const additionalNavItems: AdditionalNavItem[] = [
     requiresAdmin: true,
   },
   {
-    href: "/database/timetables",
+    href: "/timetables",
     label: "Stundenplan",
     iconKey: "calendar",
     requiresAdmin: true,
@@ -417,7 +417,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (item.alwaysShow) return true;
-    if (item.href === "/database/timetables" && !timetableEnabled) {
+    if (item.href === "/timetables" && !timetableEnabled) {
       return false;
     }
     if (item.requiresAdmin) return userIsAdmin;

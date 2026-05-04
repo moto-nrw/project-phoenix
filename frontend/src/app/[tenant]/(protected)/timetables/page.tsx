@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /database/timetables — admin weekly planner.
+ * /timetables — admin weekly planner.
  *
  * Planner surface for calendar periods, templates, materialized instances,
  * manual one-off appointments, lifecycle actions, and plan-quality checks.
@@ -66,7 +66,7 @@ import type {
   TimetableTemplate,
 } from "~/lib/timetable-types";
 
-const logger = createLogger({ component: "DatabaseTimetablesPage" });
+const logger = createLogger({ component: "TimetablesPage" });
 const PERIODS_SWR_KEY = "database-calendar-periods-list";
 
 function parseWeekOffset(raw: string | null): number {
