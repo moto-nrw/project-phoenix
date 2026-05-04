@@ -77,20 +77,3 @@ export function mapStudentsInRoomResponse(
     students: payload.students.map(mapStudentInRoom),
   };
 }
-
-// uniqueActiveGroupIdsInRoom collects the active_group_ids the caller is
-// authorised to see. Used by the SSE filter on the room detail page: a
-// student_checkin / student_checkout event whose active_group_id is in this
-// set is a signal to re-fetch. Redacted rows have a null active_group_id and
-// are intentionally skipped — for those, the focus-revalidation fallback
-// keeps the count fresh, which is all a redacted-only viewer can see anyway.
-export function uniqueActiveGroupIdsInRoom(
-  resp: StudentsInRoomResponse | undefined,
-): Set<string> {
-  const ids = new Set<string>();
-  if (!resp) return ids;
-  for (const s of resp.students) {
-    if (s.activeGroupId) ids.add(s.activeGroupId);
-  }
-  return ids;
-}

@@ -125,8 +125,10 @@ type VisitRepository interface {
 	// ListActiveByRoomID returns one row per student currently checked-in to
 	// any active (end_time IS NULL) group in the given room, ordered by last
 	// name then first name. Joins users.students/users.persons for display
-	// fields and activities.groups for the activity name. Tenant scoping
-	// flows through TenantTxMiddleware.
+	// fields and education.groups (via students.group_id) for the student's
+	// Stammgruppe name — the room-detail UI surfaces this under the "Gruppe"
+	// label to match the Kindersuche convention. Tenant scoping flows through
+	// TenantTxMiddleware.
 	ListActiveByRoomID(ctx context.Context, roomID int64) ([]*StudentInRoomVisit, error)
 
 	// CountActiveByGroupID counts currently active visits in a single active group.
