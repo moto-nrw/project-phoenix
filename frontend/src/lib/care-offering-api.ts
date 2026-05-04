@@ -6,7 +6,7 @@ export type DaysOfWeekMode = "fixed" | "parent_choice";
 
 export interface CareOffering {
   id: string;
-  calendar_period_id?: string | null;
+  phase_id: string;
   activity_group_id?: string | null;
   name: string;
   description?: string | null;
@@ -16,10 +16,6 @@ export interface CareOffering {
   includes_lunch: boolean;
   capacity?: number | null;
   price_cents?: number | null;
-  application_window_start?: string | null;
-  application_window_end?: string | null;
-  service_start_date?: string | null;
-  service_end_date?: string | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -27,7 +23,7 @@ export interface CareOffering {
 }
 
 export interface CareOfferingInput {
-  calendar_period_id?: number | null;
+  phase_id: number;
   activity_group_id?: number | null;
   name: string;
   description?: string | null;
@@ -37,10 +33,6 @@ export interface CareOfferingInput {
   includes_lunch: boolean;
   capacity?: number | null;
   price_cents?: number | null;
-  application_window_start?: string | null;
-  application_window_end?: string | null;
-  service_start_date?: string | null;
-  service_end_date?: string | null;
   is_active: boolean;
   sort_order: number;
 }
@@ -86,14 +78,14 @@ async function readError(response: Response, fallback: string): Promise<Error> {
 }
 
 export async function listCareOfferings(
-  calendarPeriodId?: string | null,
+  phaseId?: string | null,
 ): Promise<CareOffering[]> {
   const url = new URL(
     BASE,
     globalThis.window?.location.origin ?? "http://localhost",
   );
-  if (calendarPeriodId) {
-    url.searchParams.set("calendar_period_id", calendarPeriodId);
+  if (phaseId) {
+    url.searchParams.set("phase_id", phaseId);
   }
   const path = `${url.pathname}${url.search}`;
   const response = await fetch(path, { cache: "no-store" });
@@ -156,8 +148,7 @@ export async function deleteCareOffering(id: string): Promise<void> {
 }
 
 export interface CloneCareOfferingInput {
-  target_calendar_period_id: number;
-  days_offset: number;
+  target_phase_id: number;
 }
 
 export async function cloneCareOffering(
@@ -173,81 +164,4 @@ export async function cloneCareOffering(
     throw await readError(response, "Klonen fehlgeschlagen");
   }
   return readJSON<CareOffering>(response);
-}
-
-export interface CalendarPeriodSummary {
-  id: string;
-  name: string;
-  period_type: "school_year" | "semester" | "holiday" | "custom";
-  start_date: string;
-  end_date: string;
-  is_active: boolean;
-}
-
-interface BackendCalendarPeriod {
-  id: number;
-  name: string;
-  period_type: "school_year" | "semester" | "holiday" | "custom";
-  start_date: string;
-  end_date: string;
-  is_active: boolean;
-}
-
-const CALENDAR_PERIODS_PATH = "/api/timetable/periods";
-
-export async function listCalendarPeriods(): Promise<CalendarPeriodSummary[]> {
-  const response = await fetch(CALENDAR_PERIODS_PATH, { cache: "no-store" });
-  if (!response.ok) {
-    throw await readError(response, "Schuljahre konnten nicht geladen werden");
-  }
-  const raw = (await response.json()) as BackendEnvelope<
-    BackendCalendarPeriod[]
-  >;
-  const list = raw.data ?? (raw as unknown as BackendCalendarPeriod[]) ?? [];
-  return list.map((p) => ({
-    id: p.id.toString(),
-    name: p.name,
-    period_type: p.period_type,
-    start_date: p.start_date,
-    end_date: p.end_date,
-    is_active: p.is_active,
-  }));
-}
-
-export interface CreateCalendarPeriodInput {
-  name: string;
-  period_type: "school_year" | "semester" | "holiday" | "custom";
-  start_date: string;
-  end_date: string;
-  week_cycle_length?: number;
-}
-
-export async function createCalendarPeriod(
-  input: CreateCalendarPeriodInput,
-): Promise<CalendarPeriodSummary> {
-  const payload = {
-    name: input.name,
-    period_type: input.period_type,
-    start_date: input.start_date,
-    end_date: input.end_date,
-    week_cycle_length: input.week_cycle_length ?? 1,
-  };
-  const response = await fetch(CALENDAR_PERIODS_PATH, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    throw await readError(response, "Schuljahr konnte nicht angelegt werden");
-  }
-  const raw = (await response.json()) as BackendEnvelope<BackendCalendarPeriod>;
-  const created = raw.data ?? (raw as unknown as BackendCalendarPeriod);
-  return {
-    id: created.id.toString(),
-    name: created.name,
-    period_type: created.period_type,
-    start_date: created.start_date,
-    end_date: created.end_date,
-    is_active: created.is_active,
-  };
 }

@@ -96,6 +96,16 @@ func (rs *Resource) Router() chi.Router {
 				r.With(authorize.RequiresPermission("config:manage")).Post("/clone", rs.cloneCareOffering)
 			})
 		})
+
+		r.Route("/phases", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listPhases)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.createPhase)
+			r.Route("/{id}", func(r chi.Router) {
+				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getPhase)
+				r.With(authorize.RequiresPermission("config:manage")).Put("/", rs.updatePhase)
+				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deletePhase)
+			})
+		})
 	})
 
 	return r

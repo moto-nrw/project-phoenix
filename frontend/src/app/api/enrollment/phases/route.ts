@@ -4,7 +4,7 @@ import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "CareOfferingsRoute" });
+const logger = createLogger({ component: "EnrollmentPhasesRoute" });
 
 async function bearerHeader() {
   const session = await auth();
@@ -13,24 +13,20 @@ async function bearerHeader() {
   return `Bearer ${token}`;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const authHeader = await bearerHeader();
   if (!authHeader) {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
   try {
-    const phase = request.nextUrl.searchParams.get("phase_id");
-    const url = new URL(`${getServerApiUrl()}/api/enrollment/care-offerings`);
-    if (phase) url.searchParams.set("phase_id", phase);
-
-    const response = await fetch(url, {
+    const response = await fetch(`${getServerApiUrl()}/api/enrollment/phases`, {
       headers: { Authorization: authHeader },
       cache: "no-store",
     });
     const payload = await response.json().catch(() => ({}));
     return NextResponse.json(payload, { status: response.status });
   } catch (error) {
-    logger.error("care_offerings_list_failed", {
+    logger.error("phases_list_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(
@@ -47,21 +43,18 @@ export async function POST(request: NextRequest) {
   }
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const response = await fetch(
-      `${getServerApiUrl()}/api/enrollment/care-offerings`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: authHeader,
-        },
-        body: JSON.stringify(body),
+    const response = await fetch(`${getServerApiUrl()}/api/enrollment/phases`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader,
       },
-    );
+      body: JSON.stringify(body),
+    });
     const payload = await response.json().catch(() => ({}));
     return NextResponse.json(payload, { status: response.status });
   } catch (error) {
-    logger.error("care_offerings_create_failed", {
+    logger.error("phases_create_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(

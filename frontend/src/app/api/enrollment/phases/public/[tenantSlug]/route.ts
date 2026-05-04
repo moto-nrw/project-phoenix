@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "PublicEnrollmentSchemaRoute" });
+const logger = createLogger({ component: "PublicPhasesRoute" });
 
 interface RouteContext {
   params: Promise<{ tenantSlug: string }>;
@@ -19,13 +19,15 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   }
   try {
     const response = await fetch(
-      `${getServerApiUrl()}/api/enrollment/schema/public/${encodeURIComponent(tenantSlug)}`,
+      `${getServerApiUrl()}/api/enrollment/phases/public/${encodeURIComponent(
+        tenantSlug,
+      )}`,
       { cache: "no-store" },
     );
     const payload = await response.json().catch(() => ({}));
     return NextResponse.json(payload, { status: response.status });
   } catch (error) {
-    logger.error("public_enrollment_schema_failed", {
+    logger.error("public_phases_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(

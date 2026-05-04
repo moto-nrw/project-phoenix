@@ -86,6 +86,29 @@ export async function fetchActiveSchema(): Promise<FormSchema | null> {
 }
 
 /**
+ * Lists every schema version for the current tenant (newest first).
+ * The Phasen admin page uses this to populate the "use schema X for
+ * this phase" dropdown.
+ */
+export async function listSchemas(): Promise<FormSchema[]> {
+  const response = await fetch(`${SCHEMA_PATH}/versions`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error("schema_list_failed", {
+      status: response.status,
+      error: errorText,
+    });
+    throw new Error(
+      `Failed to load form schema list (HTTP ${response.status})`,
+    );
+  }
+  const list = await readJSON<FormSchema[]>(response);
+  return Array.isArray(list) ? list : [];
+}
+
+/**
  * Public variant of fetchActiveSchema for the parent enrollment form.
  * Slug-gated, no JWT — backend resolves the tenant from the URL param
  * and returns only the active schema's fields. Returns null when no
@@ -100,9 +123,12 @@ export interface PublicFormSchema {
 
 export async function fetchPublicActiveSchema(
   tenantSlug: string,
+  phaseId: string,
 ): Promise<PublicFormSchema | null> {
   const response = await fetch(
-    `/api/enrollment/schema/public/${encodeURIComponent(tenantSlug)}`,
+    `/api/enrollment/schema/public/${encodeURIComponent(
+      tenantSlug,
+    )}/${encodeURIComponent(phaseId)}`,
     { cache: "no-store" },
   );
   if (response.status === 404) {

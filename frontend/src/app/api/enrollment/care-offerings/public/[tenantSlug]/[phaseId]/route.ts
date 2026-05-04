@@ -3,29 +3,31 @@ import type { NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "PublicCalendarPeriodsRoute" });
+const logger = createLogger({ component: "PublicCareOfferingsRoute" });
 
 interface RouteContext {
-  params: Promise<{ tenantSlug: string }>;
+  params: Promise<{ tenantSlug: string; phaseId: string }>;
 }
 
 export async function GET(_request: NextRequest, context: RouteContext) {
-  const { tenantSlug } = await context.params;
-  if (!tenantSlug) {
+  const { tenantSlug, phaseId } = await context.params;
+  if (!tenantSlug || !phaseId) {
     return NextResponse.json(
-      { error: "tenant slug is required" },
+      { error: "tenant slug and phaseId are required" },
       { status: 400 },
     );
   }
   try {
     const response = await fetch(
-      `${getServerApiUrl()}/api/enrollment/calendar-periods/public/${encodeURIComponent(tenantSlug)}`,
+      `${getServerApiUrl()}/api/enrollment/care-offerings/public/${encodeURIComponent(
+        tenantSlug,
+      )}/${encodeURIComponent(phaseId)}`,
       { cache: "no-store" },
     );
     const payload = await response.json().catch(() => ({}));
     return NextResponse.json(payload, { status: response.status });
   } catch (error) {
-    logger.error("public_calendar_periods_failed", {
+    logger.error("public_care_offerings_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(

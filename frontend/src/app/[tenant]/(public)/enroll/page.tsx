@@ -1,40 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-// eslint-disable-next-line no-restricted-imports -- public page; tenant-router not needed
-import { useRouter } from "next/navigation";
-import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
-import {
-  fetchPublicCalendarPeriods,
-  type PublicCalendarPeriod,
-} from "~/lib/enrollment-submission-api";
+import Link from "next/link";
 import { useTenant } from "~/components/tenant/tenant-provider";
+import {
+  fetchPublicPhases,
+  type PublicPhase,
+} from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "EnrollPage" });
+const logger = createLogger({ component: "EnrollPhasePicker" });
+
+const KIND_LABELS: Record<PublicPhase["kind"], string> = {
+  school_year: "Schuljahr",
+  holiday: "Ferienbetreuung",
+  custom: "Sonstiges",
+};
 
 /**
- * Public enrollment page. Shows a school-year picker, then renders
- * the dynamic form for the selected period.
- *
- * The tenant layout already validates the slug + sets the tenant
- * provider context, so the form can call useTenant() directly.
- *
- * Calendar periods come from the existing /api/timetable/periods
- * endpoint — public via the tenant layout's auth context. PR 7 ships
- * the form skeleton; PR 7's parent-facing care-offerings endpoint
- * filters by open window so the form only shows currently-applicable
- * choices. The grade-level cap comes from
- * enrollment.grade_level_max via a server-rendered config payload —
- * for PR 7 we hardcode the OGS default of 4 client-side and let
- * future revisions read it from /api/me or a dedicated config
- * endpoint.
+ * Phase picker — the new public landing page for parents. Lists every
+ * currently-open phase as a card. Clicking a phase navigates to
+ * /{tenant}/enroll/{phaseId} which renders the per-phase form. Was
+ * previously a school-year dropdown above the form; PR B's phase
+ * model splits the picker out so each phase carries its own form.
  */
-export default function EnrollPage() {
+export default function EnrollPhasePickerPage() {
   const { tenantSlug, tenant } = useTenant();
-  const router = useRouter();
-  const [periods, setPeriods] = useState<PublicCalendarPeriod[]>([]);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("");
+  const [phases, setPhases] = useState<PublicPhase[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,17 +36,14 @@ export default function EnrollPage() {
       setLoading(true);
       setError(null);
       try {
-        const schoolYears = await fetchPublicCalendarPeriods(tenantSlug);
+        const list = await fetchPublicPhases(tenantSlug);
         if (cancelled) return;
-        setPeriods(schoolYears);
-        if (schoolYears.length > 0 && !selectedPeriod) {
-          setSelectedPeriod(schoolYears[0]?.id ?? "");
-        }
+        setPhases(list);
       } catch (err) {
         if (cancelled) return;
         const message =
           err instanceof Error ? err.message : "Unbekannter Fehler";
-        logger.error("enroll_page_load_failed", { error: message });
+        logger.error("phase_picker_load_failed", { error: message });
         setError(message);
       } finally {
         if (!cancelled) setLoading(false);
@@ -64,21 +53,7 @@ export default function EnrollPage() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantSlug]);
-
-  const handleSubmitted = (statusURL: string) => {
-    // statusURL is the absolute frontend URL the backend built. We
-    // navigate via the path so Next.js' client routing kicks in
-    // (avoids a full reload).
-    try {
-      const u = new URL(statusURL);
-      router.push(`${u.pathname}?submitted=1`);
-    } catch {
-      // Fall back to absolute navigation if the URL doesn't parse.
-      globalThis.window.location.href = statusURL;
-    }
-  };
 
   if (loading) {
     return (
@@ -95,9 +70,8 @@ export default function EnrollPage() {
           Anmeldung an der {tenant?.name ?? "Schule"}
         </h1>
         <p className="text-sm text-gray-600">
-          Bitte fülle das Formular vollständig aus. Du erhältst nach dem
-          Absenden eine Bestätigungs-E-Mail mit einem Link, über den du den
-          Status deiner Anmeldung jederzeit einsehen kannst.
+          Wähle aus, wofür du dein Kind anmelden möchtest. Du kannst pro Phase
+          eine eigene Anmeldung absenden.
         </p>
       </header>
 
@@ -107,38 +81,53 @@ export default function EnrollPage() {
         </div>
       )}
 
-      {periods.length === 0 ? (
+      {!phases || phases.length === 0 ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Aktuell ist kein Schuljahr für die Anmeldung geöffnet. Bitte komm
-          später wieder oder wende dich an die Schulleitung.
+          Aktuell ist keine Anmeldephase geöffnet. Bitte komm später wieder oder
+          wende dich an die Schulleitung.
         </div>
       ) : (
-        <>
-          <label className="block">
-            <span className="block text-xs font-medium text-gray-600">
-              Schuljahr
-            </span>
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm"
+        <ul className="grid gap-3">
+          {phases.map((p) => (
+            <li
+              key={p.id}
+              className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
             >
-              {periods.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {selectedPeriod && (
-            <EnrollmentForm
-              calendarPeriodID={selectedPeriod}
-              gradeLevelMax={4}
-              onSubmitted={handleSubmitted}
-            />
-          )}
-        </>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-[#5a8e1f] uppercase">
+                    {KIND_LABELS[p.kind]}
+                  </p>
+                  <h2 className="mt-1 text-lg font-semibold text-gray-900">
+                    {p.name}
+                  </h2>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Betreuungszeitraum: {p.service_start_date} –{" "}
+                    {p.service_end_date}
+                  </p>
+                  {p.enrollment_close_at && (
+                    <p className="text-xs text-gray-500">
+                      Anmeldungen möglich bis{" "}
+                      {new Date(p.enrollment_close_at).toLocaleString("de-DE", {
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  )}
+                </div>
+                <Link
+                  href={`/enroll/${encodeURIComponent(p.id)}`}
+                  className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                >
+                  Anmelden →
+                </Link>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </main>
   );

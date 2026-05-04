@@ -2,18 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  type CalendarPeriodSummary,
   type CareOffering,
   type CareOfferingInput,
   type DaysOfWeekMode,
   cloneCareOffering,
-  createCalendarPeriod,
   createCareOffering,
   deleteCareOffering,
-  listCalendarPeriods,
   listCareOfferings,
   updateCareOffering,
 } from "~/lib/care-offering-api";
+import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
@@ -29,9 +27,15 @@ const DAY_LABELS: Record<string, string> = {
 };
 const ALL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
-function blankInput(periodId?: number): CareOfferingInput {
+const KIND_LABELS: Record<Phase["kind"], string> = {
+  school_year: "Schuljahr",
+  holiday: "Ferienbetreuung",
+  custom: "Sonstiges",
+};
+
+function blankInput(phaseId: number): CareOfferingInput {
   return {
-    calendar_period_id: periodId ?? null,
+    phase_id: phaseId,
     activity_group_id: null,
     name: "",
     description: "",
@@ -41,10 +45,6 @@ function blankInput(periodId?: number): CareOfferingInput {
     includes_lunch: false,
     capacity: null,
     price_cents: null,
-    application_window_start: null,
-    application_window_end: null,
-    service_start_date: null,
-    service_end_date: null,
     is_active: true,
     sort_order: 0,
   };
@@ -52,9 +52,7 @@ function blankInput(periodId?: number): CareOfferingInput {
 
 function offeringToInput(o: CareOffering): CareOfferingInput {
   return {
-    calendar_period_id: o.calendar_period_id
-      ? Number(o.calendar_period_id)
-      : null,
+    phase_id: Number(o.phase_id),
     activity_group_id: o.activity_group_id ? Number(o.activity_group_id) : null,
     name: o.name,
     description: o.description ?? "",
@@ -64,47 +62,49 @@ function offeringToInput(o: CareOffering): CareOfferingInput {
     includes_lunch: o.includes_lunch,
     capacity: o.capacity ?? null,
     price_cents: o.price_cents ?? null,
-    application_window_start: o.application_window_start ?? null,
-    application_window_end: o.application_window_end ?? null,
-    service_start_date: o.service_start_date ?? null,
-    service_end_date: o.service_end_date ?? null,
     is_active: o.is_active,
     sort_order: o.sort_order,
   };
 }
 
 export function CareOfferingsEditor() {
-  const [periods, setPeriods] = useState<CalendarPeriodSummary[]>([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
+  const [phases, setPhases] = useState<Phase[]>([]);
+  const [selectedPhaseId, setSelectedPhaseId] = useState<string>("");
   const [offerings, setOfferings] = useState<CareOffering[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreatePeriodModal, setShowCreatePeriodModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CareOfferingInput | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const schoolYearPeriods = useMemo(
-    () => periods.filter((p) => p.period_type === "school_year"),
-    [periods],
+  const hasNoPhases = phases.length === 0;
+  const selectedPhase = useMemo(
+    () => phases.find((p) => p.id === selectedPhaseId) ?? null,
+    [phases, selectedPhaseId],
   );
-  const hasNoPeriods = periods.length === 0;
 
   const loadAll = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [periodsData, offeringsData] = await Promise.all([
-        listCalendarPeriods(),
-        listCareOfferings(selectedPeriodId || undefined),
-      ]);
-      setPeriods(periodsData);
-      setOfferings(offeringsData);
-      // Auto-select the first school year if nothing selected.
-      if (!selectedPeriodId) {
-        const first = periodsData.find((p) => p.period_type === "school_year");
-        if (first) setSelectedPeriodId(first.id);
+      const phasesData = await listPhases();
+      setPhases(phasesData);
+
+      // Auto-select first phase if nothing selected and at least one
+      // phase exists. Prefer is_active over inactive.
+      let activePhaseId = selectedPhaseId;
+      if (!activePhaseId && phasesData.length > 0) {
+        const first = phasesData.find((p) => p.is_active) ?? phasesData[0];
+        if (first) {
+          activePhaseId = first.id;
+          setSelectedPhaseId(first.id);
+        }
       }
+
+      const offeringsData = activePhaseId
+        ? await listCareOfferings(activePhaseId)
+        : [];
+      setOfferings(offeringsData);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("care_offerings_load_failed", { error: msg });
@@ -117,11 +117,11 @@ export function CareOfferingsEditor() {
   useEffect(() => {
     void loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPeriodId]);
+  }, [selectedPhaseId]);
 
   const beginCreate = () => {
-    const periodId = selectedPeriodId ? Number(selectedPeriodId) : undefined;
-    setDraft(blankInput(periodId));
+    if (!selectedPhaseId) return;
+    setDraft(blankInput(Number(selectedPhaseId)));
     setEditingId(null);
   };
 
@@ -158,7 +158,7 @@ export function CareOfferingsEditor() {
   };
 
   const handleDelete = async (offering: CareOffering) => {
-    if (!globalThis.window.confirm(`"${offering.name}" wirklich löschen?`)) {
+    if (!globalThis.window.confirm(`„${offering.name}" wirklich löschen?`)) {
       return;
     }
     setError(null);
@@ -168,33 +168,28 @@ export function CareOfferingsEditor() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Löschen fehlgeschlagen";
       setError(
-        `${msg}. Tipp: Wenn das Angebot bereits in Anmeldungen verwendet wird, deaktiviere es stattdessen über "Bearbeiten → Aktiv ☐".`,
+        `${msg}. Tipp: Wenn das Angebot bereits in Anmeldungen verwendet wird, deaktiviere es stattdessen über „Bearbeiten → Aktiv ☐".`,
       );
     }
   };
 
   const handleClone = async (offering: CareOffering) => {
     const targetIDStr = globalThis.window.prompt(
-      "ID des Ziel-Schuljahres (siehe Auswahl oben):",
-      selectedPeriodId,
+      `ID der Ziel-Phase (siehe Phasenübersicht):\n\nVerfügbare Phasen:\n${phases
+        .map((p) => `  ${p.id}: ${p.name}`)
+        .join("\n")}`,
+      selectedPhaseId,
     );
     if (!targetIDStr) return;
-    const offsetStr = globalThis.window.prompt(
-      "Datums-Verschiebung in Tagen (z.B. 365 für ein Jahr, 0 für keine Verschiebung):",
-      "365",
-    );
-    if (offsetStr === null) return;
     const targetID = Number(targetIDStr);
-    const offset = Number(offsetStr);
-    if (!targetID || Number.isNaN(offset)) {
-      setError("Ungültige Werte für Klonen");
+    if (!targetID) {
+      setError("Ungültige Phase-ID");
       return;
     }
     setError(null);
     try {
       await cloneCareOffering(offering.id, {
-        target_calendar_period_id: targetID,
-        days_offset: offset,
+        target_phase_id: targetID,
       });
       await loadAll();
     } catch (err) {
@@ -209,23 +204,16 @@ export function CareOfferingsEditor() {
 
   return (
     <div className="space-y-6">
-      {hasNoPeriods && (
+      {hasNoPhases && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
           <h2 className="text-sm font-semibold text-amber-900">
-            Noch kein Schuljahr angelegt
+            Noch keine Anmeldephase angelegt
           </h2>
           <p className="mt-1 text-sm text-amber-800">
-            Bevor du Betreuungsangebote anlegen kannst, brauchst du ein
-            Schuljahr (Kalenderzeitraum). Lege jetzt eines an oder verwende
-            einen vorhandenen Zeitraum.
+            Bevor du Betreuungsangebote anlegen kannst, brauchst du mindestens
+            eine Anmeldephase (z. B. ein Schuljahr). Lege diese zuerst auf der
+            Seite „Anmeldephasen" an.
           </p>
-          <button
-            type="button"
-            onClick={() => setShowCreatePeriodModal(true)}
-            className="mt-3 rounded-lg bg-amber-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-800"
-          >
-            Erstes Schuljahr anlegen
-          </button>
         </div>
       )}
 
@@ -237,40 +225,41 @@ export function CareOfferingsEditor() {
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm">
-          <span className="mr-2 font-medium text-gray-700">Schuljahr:</span>
+          <span className="mr-2 font-medium text-gray-700">Phase:</span>
           <select
-            value={selectedPeriodId}
-            onChange={(e) => setSelectedPeriodId(e.target.value)}
-            className="rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm"
+            value={selectedPhaseId}
+            onChange={(e) => setSelectedPhaseId(e.target.value)}
+            disabled={hasNoPhases}
+            className="rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm disabled:bg-gray-100"
           >
-            <option value="">Alle Zeiträume</option>
-            {schoolYearPeriods.map((p) => (
+            {phases.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} ({p.id})
+                {p.name} ({KIND_LABELS[p.kind]})
+                {!p.is_active ? " — inaktiv" : ""}
               </option>
             ))}
           </select>
         </label>
         <button
           type="button"
-          onClick={() => setShowCreatePeriodModal(true)}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          + Schuljahr
-        </button>
-        <button
-          type="button"
           onClick={beginCreate}
-          disabled={hasNoPeriods}
+          disabled={hasNoPhases || !selectedPhaseId}
           className="ml-auto rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
           + Neues Angebot
         </button>
       </div>
 
-      {offerings.length === 0 ? (
+      {selectedPhase && (
+        <p className="text-xs text-gray-500">
+          Betreuungszeitraum dieser Phase: {selectedPhase.service_start_date} –{" "}
+          {selectedPhase.service_end_date}
+        </p>
+      )}
+
+      {selectedPhaseId && offerings.length === 0 ? (
         <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-          Keine Angebote in diesem Zeitraum. Klicke auf "+ Neues Angebot".
+          Keine Angebote in dieser Phase. Klicke auf „+ Neues Angebot".
         </p>
       ) : (
         <ul className="space-y-3">
@@ -335,22 +324,11 @@ export function CareOfferingsEditor() {
         <CareOfferingForm
           draft={draft}
           editing={Boolean(editingId)}
-          periods={periods}
+          phases={phases}
           saving={saving}
           onChange={setDraft}
           onSave={handleSave}
           onCancel={cancelEdit}
-        />
-      )}
-
-      {showCreatePeriodModal && (
-        <CreateCalendarPeriodModal
-          onClose={() => setShowCreatePeriodModal(false)}
-          onCreated={async (created) => {
-            setShowCreatePeriodModal(false);
-            setSelectedPeriodId(created.id);
-            await loadAll();
-          }}
         />
       )}
     </div>
@@ -360,7 +338,7 @@ export function CareOfferingsEditor() {
 interface CareOfferingFormProps {
   readonly draft: CareOfferingInput;
   readonly editing: boolean;
-  readonly periods: CalendarPeriodSummary[];
+  readonly phases: Phase[];
   readonly saving: boolean;
   readonly onChange: (draft: CareOfferingInput) => void;
   readonly onSave: () => Promise<void>;
@@ -370,7 +348,7 @@ interface CareOfferingFormProps {
 function CareOfferingForm({
   draft,
   editing,
-  periods,
+  phases,
   saving,
   onChange,
   onSave,
@@ -401,26 +379,24 @@ function CareOfferingForm({
             value={draft.name}
             onChange={(e) => update({ name: e.target.value })}
             className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-            placeholder="z.B. Regelbetreuung"
+            placeholder="z. B. Regelbetreuung"
           />
         </label>
         <label className="block">
           <span className="block text-xs font-medium text-gray-600">
-            Schuljahr *
+            Phase *
           </span>
           <select
-            value={draft.calendar_period_id?.toString() ?? ""}
+            value={draft.phase_id?.toString() ?? ""}
             onChange={(e) =>
               update({
-                calendar_period_id: e.target.value
-                  ? Number(e.target.value)
-                  : null,
+                phase_id: e.target.value ? Number(e.target.value) : 0,
               })
             }
             className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
           >
-            <option value="">– bitte wählen –</option>
-            {periods.map((p) => (
+            <option value="">— bitte wählen —</option>
+            {phases.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
@@ -468,7 +444,9 @@ function CareOfferingForm({
             checked={draft.days_of_week_mode === "parent_choice"}
             onChange={(e) =>
               update({
-                days_of_week_mode: e.target.checked ? "parent_choice" : "fixed",
+                days_of_week_mode: e.target.checked
+                  ? "parent_choice"
+                  : ("fixed" as DaysOfWeekMode),
               })
             }
           />
@@ -525,70 +503,8 @@ function CareOfferingForm({
         </label>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="block text-xs font-medium text-gray-600">
-            Anmeldung beginnt
-          </span>
-          <input
-            type="datetime-local"
-            value={toDatetimeLocal(draft.application_window_start)}
-            onChange={(e) =>
-              update({
-                application_window_start: fromDatetimeLocal(e.target.value),
-              })
-            }
-            className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-gray-600">
-            Anmeldung endet
-          </span>
-          <input
-            type="datetime-local"
-            value={toDatetimeLocal(draft.application_window_end)}
-            onChange={(e) =>
-              update({
-                application_window_end: fromDatetimeLocal(e.target.value),
-              })
-            }
-            className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-          />
-        </label>
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="block text-xs font-medium text-gray-600">
-            Betreuung beginnt
-          </span>
-          <input
-            type="date"
-            value={draft.service_start_date ?? ""}
-            onChange={(e) =>
-              update({ service_start_date: e.target.value || null })
-            }
-            className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-gray-600">
-            Betreuung endet
-          </span>
-          <input
-            type="date"
-            value={draft.service_end_date ?? ""}
-            onChange={(e) =>
-              update({ service_end_date: e.target.value || null })
-            }
-            className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-          />
-        </label>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-4 text-sm">
-        <label className="inline-flex items-center gap-2">
+      <div className="mt-4 flex flex-wrap gap-4">
+        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
           <input
             type="checkbox"
             checked={draft.includes_holiday_care}
@@ -596,201 +512,44 @@ function CareOfferingForm({
               update({ includes_holiday_care: e.target.checked })
             }
           />
-          inkl. Ferienbetreuung
+          Inkl. Ferienbetreuung
         </label>
-        <label className="inline-flex items-center gap-2">
+        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
           <input
             type="checkbox"
             checked={draft.includes_lunch}
             onChange={(e) => update({ includes_lunch: e.target.checked })}
           />
-          inkl. Mittagessen
+          Inkl. Mittagessen
         </label>
-        <label className="inline-flex items-center gap-2">
+        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
           <input
             type="checkbox"
             checked={draft.is_active}
             onChange={(e) => update({ is_active: e.target.checked })}
           />
-          Aktiv
+          Aktiv (für Eltern sichtbar)
         </label>
       </div>
 
-      <div className="mt-5 flex gap-3">
-        <button
-          type="button"
-          onClick={() => void onSave()}
-          disabled={saving || !draft.name || !draft.calendar_period_id}
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? "Speichern..." : "Speichern"}
-        </button>
+      <div className="mt-5 flex justify-end gap-2">
         <button
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
           Abbrechen
+        </button>
+        <button
+          type="button"
+          onClick={() => void onSave()}
+          disabled={saving || !draft.phase_id || !draft.name.trim()}
+          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+        >
+          {saving ? "Speichert..." : editing ? "Speichern" : "Erstellen"}
         </button>
       </div>
     </div>
   );
 }
-
-function toDatetimeLocal(value: string | null | undefined): string {
-  if (!value) return "";
-  // Trim seconds + timezone for the <input type="datetime-local"> value.
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function fromDatetimeLocal(value: string): string | null {
-  if (!value) return null;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
-
-interface CreateCalendarPeriodModalProps {
-  readonly onClose: () => void;
-  readonly onCreated: (created: CalendarPeriodSummary) => Promise<void>;
-}
-
-function CreateCalendarPeriodModal({
-  onClose,
-  onCreated,
-}: CreateCalendarPeriodModalProps) {
-  const [name, setName] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [periodType, setPeriodType] = useState<
-    "school_year" | "semester" | "holiday" | "custom"
-  >("school_year");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async () => {
-    setError(null);
-    if (!name.trim() || !startDate || !endDate) {
-      setError("Name, Start und Ende sind Pflichtfelder.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const created = await createCalendarPeriod({
-        name: name.trim(),
-        start_date: startDate,
-        end_date: endDate,
-        period_type: periodType,
-      });
-      await onCreated(created);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Anlegen fehlgeschlagen";
-      setError(msg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Schuljahr anlegen
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Lege einen neuen Kalenderzeitraum an, in dem dann Betreuungsangebote
-          eingerichtet werden können.
-        </p>
-
-        {error && (
-          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            {error}
-          </div>
-        )}
-
-        <div className="mt-4 space-y-3">
-          <label className="block">
-            <span className="block text-xs font-medium text-gray-600">
-              Name *
-            </span>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="z.B. Schuljahr 2026/2027"
-              className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="block text-xs font-medium text-gray-600">
-                Start *
-              </span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block">
-              <span className="block text-xs font-medium text-gray-600">
-                Ende *
-              </span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-              />
-            </label>
-          </div>
-          <label className="block">
-            <span className="block text-xs font-medium text-gray-600">
-              Typ *
-            </span>
-            <select
-              value={periodType}
-              onChange={(e) =>
-                setPeriodType(e.target.value as typeof periodType)
-              }
-              className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="school_year">Schuljahr</option>
-              <option value="holiday">Ferien</option>
-              <option value="semester">Halbjahr</option>
-              <option value="custom">Sonstiger Zeitraum</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="mt-5 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSubmit()}
-            disabled={submitting}
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? "Speichern..." : "Anlegen"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Suppress the "unused type" lint when DaysOfWeekMode is only referenced
-// implicitly via the editor draft state.
-void ({} as DaysOfWeekMode);

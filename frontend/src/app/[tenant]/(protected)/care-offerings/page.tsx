@@ -9,9 +9,9 @@ export default function CareOfferingsPage() {
         </h1>
         <p className="mt-1 text-sm text-gray-600">
           Verwalte den Katalog der Betreuungsangebote, aus dem Eltern bei der
-          Anmeldung wählen können (z.B. Regelbetreuung, Ferienbetreuung, Mensa).
-          Pro Schuljahr kann ein eigener Katalog gepflegt werden; Angebote
-          lassen sich einfach in das nächste Schuljahr klonen.
+          Anmeldung wählen können (z. B. Regelbetreuung, Mensa). Jede
+          Anmeldephase hat ihren eigenen Katalog; Angebote lassen sich einfach
+          in eine andere Phase klonen.
         </p>
       </header>
       <CareOfferingsEditor />

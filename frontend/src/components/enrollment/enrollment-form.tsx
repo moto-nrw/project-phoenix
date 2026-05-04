@@ -36,7 +36,7 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 interface Props {
-  readonly calendarPeriodID: string;
+  readonly phaseID: string;
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
 }
@@ -53,11 +53,7 @@ interface Props {
  * adds custom fields on top. PR 5 enforced this distinction in the
  * model's CoreFieldKeys map.
  */
-export function EnrollmentForm({
-  calendarPeriodID,
-  gradeLevelMax,
-  onSubmitted,
-}: Props) {
+export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
   const { tenantSlug } = useTenant();
   const [schema, setSchema] = useState<PublicFormSchema | null>(null);
   const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
@@ -83,8 +79,8 @@ export function EnrollmentForm({
       setError(null);
       try {
         const [schemaResult, offeringsResult] = await Promise.all([
-          fetchPublicActiveSchema(tenantSlug).catch(() => null),
-          fetchPublicCareOfferings(tenantSlug),
+          fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null),
+          fetchPublicCareOfferings(tenantSlug, phaseID),
         ]);
         if (cancelled) return;
         setSchema(schemaResult);
@@ -103,7 +99,7 @@ export function EnrollmentForm({
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, phaseID]);
 
   const updateChild = (index: number, patch: Partial<ChildDraft>) => {
     setChildren((prev) =>
@@ -159,7 +155,7 @@ export function EnrollmentForm({
     setSubmitting(true);
     try {
       const result = await submitEnrollment(tenantSlug, {
-        calendar_period_id: Number(calendarPeriodID),
+        phase_id: Number(phaseID),
         guardian_first_name: guardianFirstName.trim(),
         guardian_last_name: guardianLastName.trim(),
         guardian_email: guardianEmail.trim().toLowerCase(),

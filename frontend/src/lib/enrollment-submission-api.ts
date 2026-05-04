@@ -4,7 +4,7 @@ const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
 
 export interface PublicCareOffering {
   id: string;
-  calendar_period_id?: string | null;
+  phase_id?: string | null;
   name: string;
   description?: string | null;
   days_of_week_mode: "fixed" | "parent_choice";
@@ -26,7 +26,7 @@ export interface SubmitChildPayload {
 }
 
 export interface SubmitEnrollmentPayload {
-  calendar_period_id: number;
+  phase_id: number;
   guardian_first_name: string;
   guardian_last_name: string;
   guardian_email: string;
@@ -83,14 +83,18 @@ async function readError(response: Response, fallback: string): Promise<Error> {
 }
 
 /**
- * Fetches the public care-offering catalog for a given tenant slug.
- * Returns only currently-open offerings.
+ * Fetches the public care-offering catalog for a given tenant slug
+ * and phase. Returns only is_active=true rows; the phase-level window
+ * is enforced by the surrounding parent flow (PR C).
  */
 export async function fetchPublicCareOfferings(
   tenantSlug: string,
+  phaseId: string,
 ): Promise<PublicCareOffering[]> {
   const response = await fetch(
-    `/api/enrollment/care-offerings/public/${encodeURIComponent(tenantSlug)}`,
+    `/api/enrollment/care-offerings/public/${encodeURIComponent(
+      tenantSlug,
+    )}/${encodeURIComponent(phaseId)}`,
     { cache: "no-store" },
   );
   if (!response.ok) {
@@ -103,32 +107,33 @@ export async function fetchPublicCareOfferings(
   return Array.isArray(list) ? list : [];
 }
 
-export interface PublicCalendarPeriod {
+export interface PublicPhase {
   id: string;
   name: string;
-  period_type: "school_year" | "semester" | "holiday" | "custom";
-  start_date: string;
-  end_date: string;
+  kind: "school_year" | "holiday" | "custom";
+  service_start_date: string;
+  service_end_date: string;
+  enrollment_open_at?: string;
+  enrollment_close_at?: string;
+  show_status_reason_to_parent: boolean;
 }
 
 /**
- * Fetches the active school-year calendar periods for a given tenant
- * slug. Public route — no JWT required. The parent enrollment form's
- * school-year picker uses this; the previous /api/timetable/periods
- * call required authentication and broke the unauthenticated parent
- * flow with 401.
+ * Fetches the currently-open phases for a tenant. Public route — no
+ * JWT required. The parent landing page uses this for the phase
+ * picker; clicking a phase navigates the parent into the form.
  */
-export async function fetchPublicCalendarPeriods(
+export async function fetchPublicPhases(
   tenantSlug: string,
-): Promise<PublicCalendarPeriod[]> {
+): Promise<PublicPhase[]> {
   const response = await fetch(
-    `/api/enrollment/calendar-periods/public/${encodeURIComponent(tenantSlug)}`,
+    `/api/enrollment/phases/public/${encodeURIComponent(tenantSlug)}`,
     { cache: "no-store" },
   );
   if (!response.ok) {
-    throw await readError(response, "Schuljahre konnten nicht geladen werden");
+    throw await readError(response, "Phasen konnten nicht geladen werden");
   }
-  const list = await readJSON<PublicCalendarPeriod[]>(response);
+  const list = await readJSON<PublicPhase[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
