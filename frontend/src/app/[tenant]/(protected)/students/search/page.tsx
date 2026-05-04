@@ -83,6 +83,12 @@ function SearchPageContent() {
     ? initialStatus
     : "all";
 
+  // Room filter — populated when the user lands here from the room detail
+  // page's "In Kindersuche öffnen" link (#1323). room_name is purely a
+  // display affordance for the chip; the backend filter only uses room_id.
+  const initialRoomId = searchParams.get("room_id") ?? "";
+  const initialRoomName = searchParams.get("room_name") ?? "";
+
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
@@ -94,6 +100,8 @@ function SearchPageContent() {
   const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
   const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>("all");
   const [sortMode, setSortMode] = useState<"default" | "arrival">("default");
+  const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
+  const [selectedRoomName, setSelectedRoomName] = useState(initialRoomName);
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -148,7 +156,7 @@ function SearchPageContent() {
 
   // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)
   // Note: User context is only for badge styling, not for fetching students
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}`;
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -161,6 +169,7 @@ function SearchPageContent() {
       return await studentService.getStudents({
         search: debouncedSearchTerm,
         groupId: selectedGroup,
+        roomId: selectedRoomId || undefined,
         includePickupTimes: true,
         includeArrivalTimes: true,
       });
@@ -170,6 +179,21 @@ function SearchPageContent() {
       keepPreviousData: true,
     },
   );
+
+  // Clearing the room filter resets state AND strips room_id/room_name from
+  // the URL so a refresh doesn't silently re-hydrate a filter the user has
+  // just removed. window.history.replaceState avoids a Next.js navigation,
+  // which would discard SWR data and flash the loading skeleton.
+  const clearRoomFilter = () => {
+    setSelectedRoomId("");
+    setSelectedRoomName("");
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("room_id");
+      url.searchParams.delete("room_name");
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
 
   const students = studentsData?.students ?? [];
 
@@ -371,6 +395,19 @@ function SearchPageContent() {
       });
     }
 
+    if (selectedRoomId) {
+      // Fall back to "Raum #{id}" when no room_name was passed in the URL
+      // (e.g. an old bookmark) — better than rendering an empty chip.
+      const label = selectedRoomName
+        ? `Raum: ${selectedRoomName}`
+        : `Raum #${selectedRoomId}`;
+      filters.push({
+        id: "room",
+        label,
+        onRemove: clearRoomFilter,
+      });
+    }
+
     if (attendanceFilter !== "all") {
       const statusLabels: Record<string, string> = {
         anwesend: "Anwesend",
@@ -418,6 +455,8 @@ function SearchPageContent() {
     trackingFilter,
     trackingLabels,
     groups,
+    selectedRoomId,
+    selectedRoomName,
   ]);
 
   // Apply additional client-side filtering for attendance statuses and year
@@ -599,6 +638,7 @@ function SearchPageContent() {
             setAttendanceFilter("all");
             setPickupTimeFilter("all");
             setTrackingFilter("all");
+            clearRoomFilter();
           }}
         />
       </div>
