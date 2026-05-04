@@ -18,6 +18,8 @@ import { isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Loading } from "~/components/ui/loading";
 import { DienstplanTab } from "~/components/staff/dienstplan-tab";
+import { UebersichtTab } from "~/components/staff/uebersicht-tab";
+import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
 
@@ -305,15 +307,11 @@ function StaffDetailContent() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="dienstplan" className="w-full">
+      <Tabs defaultValue="uebersicht" className="w-full">
         <TabsList variant="line" className="mb-6 justify-start">
-          <TabsTrigger value="uebersicht" disabled>
-            Uebersicht
-          </TabsTrigger>
+          <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
           <TabsTrigger value="dienstplan">Dienstplan</TabsTrigger>
-          <TabsTrigger value="zeiterfassung" disabled>
-            Zeiterfassung
-          </TabsTrigger>
+          <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
           <TabsTrigger value="abwesenheiten" disabled>
             Abwesenheiten
           </TabsTrigger>
@@ -326,7 +324,7 @@ function StaffDetailContent() {
         </TabsList>
 
         <TabsPrimitive.Content value="uebersicht">
-          <PlaceholderTab title="Uebersicht" />
+          <UebersichtTab staffId={staffId} />
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="dienstplan">
@@ -334,7 +332,7 @@ function StaffDetailContent() {
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="zeiterfassung">
-          <PlaceholderTab title="Zeiterfassung" />
+          <ZeiterfassungTab staffId={staffId} />
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="abwesenheiten">
