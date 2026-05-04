@@ -6,32 +6,26 @@ import { Loading } from "~/components/ui/loading";
 import { staffHistoryService, staffScheduleService } from "~/lib/staff-api";
 import type { StaffHistorySession } from "~/lib/staff-api";
 import {
-  buildMonthGrid,
   endOfMonth,
   endOfWeek,
-  groupSessionsByDay,
   startOfMonth,
   startOfWeek,
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
-import {
-  MonthCalendar,
-  ViewToggle,
-  WeekView,
-  type ViewMode,
-} from "./staff-time-views";
+import { StaffSessionTable } from "./staff-session-table";
+import { ViewToggle, type ViewMode } from "./staff-time-views";
 
-// Zeiterfassung tab. Shows the actual sessions per day vs the schedule's
-// Soll. The Dienstplan tab edits Soll separately. Default view is the
-// month calendar; the toggle switches to a week-detail view. Future work
-// (Tranche 1.5+ in #1375): replace this read-only calendar with a row-
-// per-day table that allows admin corrections inline.
+// Zeiterfassung tab. Day-row table comparing Soll vs Ist for each day in
+// the visible window (week or month). Click on a row opens a read-only
+// detail dialog. Inline corrections by the admin are blocked until the
+// time_tracking:manage endpoint ships in Tranche 1 (#1369); the dialog
+// surfaces this constraint instead of pretending to save.
 export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   const today = useMemo(() => new Date(), []);
 
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [monthAnchor, setMonthAnchor] = useState(() =>
     startOfMonth(new Date()),
   );
@@ -42,23 +36,18 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     () => staffScheduleService.getSchedule(staffId),
   );
 
-  const visibleFrom = useMemo(() => {
-    if (viewMode === "month") {
-      const grid = buildMonthGrid(monthAnchor);
-      const firstRow = grid[0];
-      return firstRow?.[0]?.date ?? startOfMonth(monthAnchor);
-    }
-    return startOfWeek(weekAnchor);
-  }, [viewMode, monthAnchor, weekAnchor]);
-
-  const visibleTo = useMemo(() => {
-    if (viewMode === "month") {
-      const grid = buildMonthGrid(monthAnchor);
-      const lastRow = grid[grid.length - 1];
-      return lastRow?.[6]?.date ?? endOfMonth(monthAnchor);
-    }
-    return endOfWeek(weekAnchor);
-  }, [viewMode, monthAnchor, weekAnchor]);
+  const visibleFrom = useMemo(
+    () =>
+      viewMode === "month"
+        ? startOfMonth(monthAnchor)
+        : startOfWeek(weekAnchor),
+    [viewMode, monthAnchor, weekAnchor],
+  );
+  const visibleTo = useMemo(
+    () =>
+      viewMode === "month" ? endOfMonth(monthAnchor) : endOfWeek(weekAnchor),
+    [viewMode, monthAnchor, weekAnchor],
+  );
 
   const visibleFromKey = toDateKey(visibleFrom);
   const visibleToKey = toDateKey(visibleTo);
@@ -68,34 +57,43 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     staffHistoryService.getHistory(staffId, visibleFromKey, visibleToKey),
   );
 
-  const scheduleEntries = useMemo(() => schedule?.entries ?? [], [schedule]);
-
   const targetByDow = useMemo(() => {
     const map = new Map<number, number>();
-    for (const entry of scheduleEntries) {
+    for (const entry of schedule?.entries ?? []) {
       map.set(entry.dayOfWeek, entry.targetMinutes);
     }
     return map;
-  }, [scheduleEntries]);
-
-  const sessionMinutesByDay = useMemo(
-    () => groupSessionsByDay(visibleSessions ?? []),
-    [visibleSessions],
-  );
+  }, [schedule]);
 
   if (scheduleLoading) {
     return <Loading fullPage={false} />;
   }
 
-  const handlePrevMonth = () => {
-    setMonthAnchor(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
-    );
+  const handlePrev = () => {
+    if (viewMode === "month") {
+      setMonthAnchor(
+        (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+      );
+    } else {
+      setWeekAnchor((prev) => {
+        const next = new Date(prev);
+        next.setDate(next.getDate() - 7);
+        return next;
+      });
+    }
   };
-  const handleNextMonth = () => {
-    setMonthAnchor(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
-    );
+  const handleNext = () => {
+    if (viewMode === "month") {
+      setMonthAnchor(
+        (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+      );
+    } else {
+      setWeekAnchor((prev) => {
+        const next = new Date(prev);
+        next.setDate(next.getDate() + 7);
+        return next;
+      });
+    }
   };
   const handleGoToday = () => {
     if (viewMode === "month") {
@@ -103,20 +101,6 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     } else {
       setWeekAnchor(startOfWeek(new Date()));
     }
-  };
-  const handlePrevWeek = () => {
-    setWeekAnchor((prev) => {
-      const next = new Date(prev);
-      next.setDate(next.getDate() - 7);
-      return next;
-    });
-  };
-  const handleNextWeek = () => {
-    setWeekAnchor((prev) => {
-      const next = new Date(prev);
-      next.setDate(next.getDate() + 7);
-      return next;
-    });
   };
 
   return (
@@ -129,30 +113,128 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
           <ViewToggle value={viewMode} onChange={setViewMode} />
         </div>
 
+        <RangeNav
+          label={formatRangeLabel(viewMode, monthAnchor, weekAnchor)}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          onToday={handleGoToday}
+          todayLabel={viewMode === "month" ? "Diesen Monat" : "Diese Woche"}
+        />
+
         {visibleLoading ? (
-          <Loading fullPage={false} />
-        ) : viewMode === "month" ? (
-          <MonthCalendar
-            monthAnchor={monthAnchor}
-            sessionMinutesByDay={sessionMinutesByDay}
-            targetByDow={targetByDow}
-            onPrev={handlePrevMonth}
-            onNext={handleNextMonth}
-            onGoToday={handleGoToday}
-            today={today}
-          />
+          <div className="py-10">
+            <Loading fullPage={false} />
+          </div>
         ) : (
-          <WeekView
-            weekAnchor={weekAnchor}
-            sessionMinutesByDay={sessionMinutesByDay}
-            targetByDow={targetByDow}
-            onPrev={handlePrevWeek}
-            onNext={handleNextWeek}
-            onGoToday={handleGoToday}
-            today={today}
-          />
+          <div className="mt-4">
+            <StaffSessionTable
+              from={visibleFrom}
+              to={visibleTo}
+              sessions={visibleSessions ?? []}
+              targetByDow={targetByDow}
+              today={today}
+              isAdminView
+            />
+          </div>
         )}
       </div>
     </div>
   );
+}
+
+function RangeNav({
+  label,
+  onPrev,
+  onNext,
+  onToday,
+  todayLabel,
+}: {
+  readonly label: string;
+  readonly onPrev: () => void;
+  readonly onNext: () => void;
+  readonly onToday: () => void;
+  readonly todayLabel: string;
+}) {
+  return (
+    <div className="grid grid-cols-3 items-center">
+      <div />
+      <div className="flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={onPrev}
+          aria-label="Zurück"
+          className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+        </button>
+        <h3 className="min-w-[14rem] text-center text-sm font-semibold text-gray-800">
+          {label}
+        </h3>
+        <button
+          type="button"
+          onClick={onNext}
+          aria-label="Vor"
+          className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </button>
+      </div>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={onToday}
+          className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+        >
+          {todayLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function formatRangeLabel(
+  mode: ViewMode,
+  monthAnchor: Date,
+  weekAnchor: Date,
+): string {
+  if (mode === "month") {
+    return monthAnchor.toLocaleDateString("de-DE", {
+      month: "long",
+      year: "numeric",
+    });
+  }
+  const monday = startOfWeek(weekAnchor);
+  const sunday = endOfWeek(weekAnchor);
+  const startDay = monday.getDate();
+  const endDay = sunday.getDate();
+  const startMonth = monday.toLocaleString("de-DE", { month: "short" });
+  const endMonth = sunday.toLocaleString("de-DE", { month: "short" });
+  if (monday.getMonth() === sunday.getMonth()) {
+    return `${startDay}. – ${endDay}. ${endMonth} ${sunday.getFullYear()}`;
+  }
+  return `${startDay}. ${startMonth} – ${endDay}. ${endMonth} ${sunday.getFullYear()}`;
 }

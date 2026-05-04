@@ -530,11 +530,16 @@ export class StaffScheduleService {
 
 // Staff history types (reuses time-tracking-helpers types)
 export interface StaffHistorySession {
+  id?: number;
   date: string;
+  status?: "present" | "home_office";
   net_minutes: number;
   check_in_time: string;
   check_out_time: string | null;
   break_minutes: number;
+  auto_checked_out?: boolean;
+  notes?: string;
+  edit_count?: number;
 }
 
 export interface StaffHistoryResponse {
