@@ -1,14 +1,10 @@
 package api
 
 import (
-	"math/rand/v2"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 )
 
 func TestMostRecentWeekday(t *testing.T) {
@@ -57,51 +53,31 @@ func TestMostRecentWeekday(t *testing.T) {
 	}
 }
 
-func TestBuildSession_RealisticShape(t *testing.T) {
+func TestToDateKey(t *testing.T) {
 	t.Parallel()
 
-	loc := time.UTC
-	day := time.Date(2026, 5, 4, 0, 0, 0, 0, loc)
+	d := time.Date(2026, 5, 4, 12, 34, 56, 0, time.UTC)
+	assert.Equal(t, "2026-05-04", toDateKey(d))
+}
 
-	tenantID := int64(42)
-	staffID := int64(9999)
+func TestExtractSessionID(t *testing.T) {
+	t.Parallel()
 
-	// Seed RNG deterministically so the test does not flake.
-	rng := rand.New(rand.NewPCG(1, 2))
+	t.Run("extracts id from a wrapped success payload", func(t *testing.T) {
+		payload := []byte(`{"status":"success","data":{"id":42,"staff_id":1}}`)
+		id, err := extractSessionID(payload)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(42), id)
+	})
 
-	session, breaks, err := buildSession(rng, tenantID, staffID, day, loc)
-	require.NoError(t, err)
-	require.NotNil(t, session)
-	require.Len(t, breaks, 1)
+	t.Run("rejects payload without id", func(t *testing.T) {
+		payload := []byte(`{"status":"success","data":{}}`)
+		_, err := extractSessionID(payload)
+		assert.Error(t, err)
+	})
 
-	assert.Equal(t, tenantID, session.TenantID)
-	assert.Equal(t, staffID, session.StaffID)
-	assert.Equal(t, staffID, session.CreatedBy)
-	assert.Equal(t, day, session.Date)
-	assert.Contains(t, []string{
-		activeModels.WorkSessionStatusPresent,
-		activeModels.WorkSessionStatusHomeOffice,
-	}, session.Status)
-	assert.Equal(t, day.Year(), session.CheckInTime.Year())
-	assert.Equal(t, day.Month(), session.CheckInTime.Month())
-	assert.Equal(t, day.Day(), session.CheckInTime.Day())
-	assert.InDelta(t, 8, session.CheckInTime.Hour(), 1,
-		"check-in should land near 08:00")
-
-	if session.CheckOutTime != nil {
-		assert.False(t, session.AutoCheckedOut, "explicit checkout means not auto-closed")
-		assert.True(t, session.CheckOutTime.After(session.CheckInTime),
-			"check-out must be after check-in")
-	} else {
-		assert.True(t, session.AutoCheckedOut, "missing checkout means auto-closed flag set")
-	}
-
-	br := breaks[0]
-	assert.Equal(t, tenantID, br.TenantID)
-	require.NotNil(t, br.EndedAt)
-	assert.True(t, br.EndedAt.After(br.StartedAt))
-	assert.Equal(t, br.DurationMinutes, session.BreakMinutes,
-		"session should aggregate the same break minutes as the break row")
-	assert.GreaterOrEqual(t, br.DurationMinutes, 25)
-	assert.LessOrEqual(t, br.DurationMinutes, 35)
+	t.Run("rejects unparseable JSON", func(t *testing.T) {
+		_, err := extractSessionID([]byte("not json"))
+		assert.Error(t, err)
+	})
 }
