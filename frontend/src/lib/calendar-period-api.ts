@@ -128,4 +128,3 @@ class CalendarPeriodService {
 }
 
 export const calendarPeriodService = new CalendarPeriodService();
-export { CalendarPeriodApiError };

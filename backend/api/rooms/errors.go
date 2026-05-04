@@ -43,6 +43,8 @@ func ErrorRenderer(err error) render.Renderer {
 			return common.ErrorForbidden(inner)
 		case facilities.ErrDuplicateRoom:
 			return common.ErrorConflict(inner)
+		case facilities.ErrDuplicateToiletRoom:
+			return common.ErrorConflict(inner)
 		case facilities.ErrColorAlreadyInUse:
 			return common.ErrorConflictWithCode(inner, "color_already_in_use")
 		case facilities.ErrColorReserved:

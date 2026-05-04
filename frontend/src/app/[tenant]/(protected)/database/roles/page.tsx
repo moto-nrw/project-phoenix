@@ -57,7 +57,6 @@ export default function RolesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
   const [selectedRoleDetail, setSelectedRoleDetail] = useState<Role | null>(
     null,
   );
@@ -211,7 +210,6 @@ export default function RolesPage() {
   const handleCreateRole = useCallback(
     async (data: Partial<Role>) => {
       try {
-        setCreateLoading(true);
         const created = await service.create(data);
         toastSuccess(
           getDbOperationMessage(
@@ -222,8 +220,23 @@ export default function RolesPage() {
         );
         setShowCreateModal(false);
         await fetchRoles();
-      } finally {
-        setCreateLoading(false);
+      } catch (createError) {
+        const errorMessage =
+          createError instanceof Error
+            ? createError.message
+            : String(createError);
+        logger.error("role_create_failed", { error: errorMessage });
+        if (
+          errorMessage.includes("duplicate key") ||
+          errorMessage.includes("23505")
+        ) {
+          throw new Error(
+            `Eine Rolle mit dem Namen "${data.name ?? ""}" existiert bereits. ` +
+              `Bitte wählen Sie einen anderen Namen.`,
+            { cause: createError },
+          );
+        }
+        throw createError;
       }
     },
     [service, fetchRoles, toastSuccess],
@@ -233,7 +246,6 @@ export default function RolesPage() {
     async (data: Partial<Role>) => {
       if (!selectedRole) return;
       try {
-        setDetailLoading(true);
         await service.update(selectedRole.id, data);
         const refreshed = await service.getOne(selectedRole.id);
         setSelectedRoleDetail(refreshed);
@@ -247,13 +259,22 @@ export default function RolesPage() {
         );
         await fetchRoles();
       } catch (err) {
-        logger.error("failed to update role", {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error("role_update_failed", {
           role_id: selectedRole.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: errorMessage,
         });
+        if (
+          errorMessage.includes("duplicate key") ||
+          errorMessage.includes("23505")
+        ) {
+          throw new Error(
+            `Eine Rolle mit dem Namen "${data.name ?? ""}" existiert bereits. ` +
+              `Bitte wählen Sie einen anderen Namen.`,
+            { cause: err },
+          );
+        }
         throw err;
-      } finally {
-        setDetailLoading(false);
       }
     },
     [selectedRole, service, fetchRoles, toastSuccess],
@@ -411,7 +432,6 @@ export default function RolesPage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateRole}
-        loading={createLoading}
       />
 
       {selectedRole && (
@@ -440,7 +460,6 @@ export default function RolesPage() {
           onClose={handleCloseEditModal}
           role={selectedRole}
           onSave={handleUpdateRole}
-          loading={detailLoading}
         />
       )}
 

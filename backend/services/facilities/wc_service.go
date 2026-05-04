@@ -132,12 +132,12 @@ func (s *wcService) findWCActivity(ctx context.Context) (*activityModels.Group, 
 
 // ensureWCRoom finds or creates the WC room.
 func (s *wcService) ensureWCRoom(ctx context.Context) (*facilities.Room, error) {
-	// Try to find existing WC room
-	room, err := s.facilityService.FindRoomByName(ctx, constants.WCRoomName)
+	room, err := s.facilityService.FindToiletRoom(ctx, 0)
 	if err == nil && room != nil {
 		s.getLogger().Info("found existing WC room",
 			slog.String("component", "wc"),
-			slog.Int64("room_id", room.ID))
+			slog.Int64("room_id", room.ID),
+			slog.String("room_name", room.Name))
 		return room, nil
 	}
 	if err != nil && !errors.Is(err, ErrRoomNotFound) {
@@ -160,9 +160,8 @@ func (s *wcService) ensureWCRoom(ctx context.Context) (*facilities.Room, error) 
 	}
 
 	if err := s.facilityService.CreateRoom(ctx, newRoom); err != nil {
-		// Retry: concurrent request may have created it
-		room, retryErr := s.facilityService.FindRoomByName(ctx, constants.WCRoomName)
-		if retryErr == nil && room != nil {
+		// Retry: concurrent request may have created one of the accepted aliases
+		if room, retryErr := s.facilityService.FindToiletRoom(ctx, 0); retryErr == nil && room != nil {
 			return room, nil
 		}
 		return nil, fmt.Errorf("failed to create WC room: %w", err)

@@ -96,6 +96,10 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
+// Captures the most recent thrown error from onCreate/onSave so tests can
+// assert the rethrown message bubbles up to the form layer.
+const lastModalError = { message: "" };
+
 vi.mock("@/components/permissions", () => ({
   PermissionCreateModal: ({
     isOpen,
@@ -110,9 +114,15 @@ vi.mock("@/components/permissions", () => ({
       <div data-testid="permission-create-modal">
         <button
           data-testid="submit-create"
-          onClick={() =>
-            void onCreate({ resource: "students", action: "delete" })
-          }
+          onClick={() => {
+            lastModalError.message = "";
+            onCreate({ resource: "students", action: "delete" }).catch(
+              (err: unknown) => {
+                lastModalError.message =
+                  err instanceof Error ? err.message : String(err);
+              },
+            );
+          }}
         >
           Submit
         </button>
@@ -134,7 +144,13 @@ vi.mock("@/components/permissions", () => ({
       <div data-testid="permission-edit-modal">
         <button
           data-testid="submit-edit"
-          onClick={() => void onSave({ description: "Updated" })}
+          onClick={() => {
+            lastModalError.message = "";
+            onSave({ description: "Updated" }).catch((err: unknown) => {
+              lastModalError.message =
+                err instanceof Error ? err.message : String(err);
+            });
+          }}
         >
           Save
         </button>
@@ -402,6 +418,134 @@ describe("PermissionsPage", () => {
         scroll: false,
       });
     });
+  });
+
+  it("re-throws German duplicate-key message when create hits 23505", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce(
+      new Error('duplicate key value violates unique constraint "..."'),
+    );
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("students:read")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Berechtigung erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(lastModalError.message).toContain(
+        'Die Berechtigung "students:delete" existiert bereits',
+      );
+    });
+    expect(consoleError).toHaveBeenCalledWith("permission_create_failed", {
+      error: expect.stringContaining("duplicate key"),
+    });
+    // Modal stays open on failure so the user can retry.
+    expect(screen.getByTestId("permission-create-modal")).toBeInTheDocument();
+    consoleError.mockRestore();
+  });
+
+  it("re-throws fallback message when create fails for non-duplicate reason", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce(new Error("network unreachable"));
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("students:read")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Berechtigung erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(lastModalError.message).toBe(
+        "Fehler beim Erstellen der Berechtigung. Bitte versuchen Sie es erneut.",
+      );
+    });
+    expect(consoleError).toHaveBeenCalledWith("permission_create_failed", {
+      error: "network unreachable",
+    });
+    consoleError.mockRestore();
+  });
+
+  it("re-throws German duplicate-key message when update hits 23505", async () => {
+    setSelectedPermission("1");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockUpdate.mockRejectedValueOnce(
+      new Error("constraint violation: 23505 unique"),
+    );
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(lastModalError.message).toContain("existiert bereits");
+    });
+    expect(consoleError).toHaveBeenCalledWith("permission_update_failed", {
+      permission_id: "1",
+      error: expect.stringContaining("23505"),
+    });
+    consoleError.mockRestore();
+  });
+
+  it("re-throws fallback message when update fails for non-duplicate reason", async () => {
+    setSelectedPermission("1");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockUpdate.mockRejectedValueOnce(new Error("server timeout"));
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("permission-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(lastModalError.message).toBe(
+        "Fehler beim Aktualisieren der Berechtigung. Bitte versuchen Sie es erneut.",
+      );
+    });
+    expect(consoleError).toHaveBeenCalledWith("permission_update_failed", {
+      permission_id: "1",
+      error: "server timeout",
+    });
+    consoleError.mockRestore();
   });
 
   it("shows an error toast when delete returns an error", async () => {

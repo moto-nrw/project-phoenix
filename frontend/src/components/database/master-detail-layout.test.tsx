@@ -1,3 +1,4 @@
+import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -27,9 +28,53 @@ vi.mock("~/components/ui/drawer", () => ({
       {children}
     </div>
   ),
-  DrawerContent: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="drawer-content">{children}</div>
-  ),
+  DrawerContent: ({
+    children,
+    onInteractOutside,
+    onEscapeKeyDown,
+  }: {
+    children: React.ReactNode;
+    onInteractOutside?: (event: { preventDefault: () => void }) => void;
+    onEscapeKeyDown?: (event: { preventDefault: () => void }) => void;
+  }) => {
+    const fireOutside = () => {
+      const event = { defaultPrevented: false, preventDefault: vi.fn() };
+      onInteractOutside?.(event);
+      (
+        globalThis as unknown as {
+          __lastOutsideEvent: typeof event;
+        }
+      ).__lastOutsideEvent = event;
+    };
+    const fireEscape = () => {
+      const event = { defaultPrevented: false, preventDefault: vi.fn() };
+      onEscapeKeyDown?.(event);
+      (
+        globalThis as unknown as {
+          __lastEscapeEvent: typeof event;
+        }
+      ).__lastEscapeEvent = event;
+    };
+    return (
+      <div data-testid="drawer-content">
+        <button
+          type="button"
+          data-testid="drawer-fire-outside"
+          onClick={fireOutside}
+        >
+          outside
+        </button>
+        <button
+          type="button"
+          data-testid="drawer-fire-escape"
+          onClick={fireEscape}
+        >
+          escape
+        </button>
+        {children}
+      </div>
+    );
+  },
   DrawerHeader: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -46,7 +91,19 @@ class MockResizeObserver {
 vi.stubGlobal("ResizeObserver", MockResizeObserver);
 
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { ModalProvider, useModal } from "../dashboard/modal-context";
 import { MasterDetailLayout } from "./master-detail-layout";
+
+function ModalSwitch({ open }: { open: boolean }) {
+  const { openModal, closeModal } = useModal();
+  React.useEffect(() => {
+    if (open) {
+      openModal();
+      return () => closeModal();
+    }
+  }, [open, openModal, closeModal]);
+  return null;
+}
 
 describe("MasterDetailLayout", () => {
   beforeEach(() => {
@@ -172,6 +229,74 @@ describe("MasterDetailLayout", () => {
 
       fireEvent.click(screen.getByTestId("drawer-close"));
       expect(onDeselect).toHaveBeenCalled();
+    });
+
+    it("preventsDefault on outside-interaction while a modal is open", () => {
+      const onDeselect = vi.fn();
+      render(
+        <ModalProvider>
+          <ModalSwitch open={true} />
+          <MasterDetailLayout
+            list={<div>List</div>}
+            detail={<div>Detail</div>}
+            selectedId="1"
+            onDeselect={onDeselect}
+          />
+        </ModalProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("drawer-fire-outside"));
+      const event = (
+        globalThis as unknown as {
+          __lastOutsideEvent: { preventDefault: ReturnType<typeof vi.fn> };
+        }
+      ).__lastOutsideEvent;
+      expect(event.preventDefault).toHaveBeenCalled();
+    });
+
+    it("does not preventDefault on outside-interaction without an open modal", () => {
+      const onDeselect = vi.fn();
+      render(
+        <ModalProvider>
+          <ModalSwitch open={false} />
+          <MasterDetailLayout
+            list={<div>List</div>}
+            detail={<div>Detail</div>}
+            selectedId="1"
+            onDeselect={onDeselect}
+          />
+        </ModalProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("drawer-fire-outside"));
+      const event = (
+        globalThis as unknown as {
+          __lastOutsideEvent: { preventDefault: ReturnType<typeof vi.fn> };
+        }
+      ).__lastOutsideEvent;
+      expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it("preventsDefault on escape while a modal is open", () => {
+      render(
+        <ModalProvider>
+          <ModalSwitch open={true} />
+          <MasterDetailLayout
+            list={<div>List</div>}
+            detail={<div>Detail</div>}
+            selectedId="1"
+            onDeselect={vi.fn()}
+          />
+        </ModalProvider>,
+      );
+
+      fireEvent.click(screen.getByTestId("drawer-fire-escape"));
+      const event = (
+        globalThis as unknown as {
+          __lastEscapeEvent: { preventDefault: ReturnType<typeof vi.fn> };
+        }
+      ).__lastEscapeEvent;
+      expect(event.preventDefault).toHaveBeenCalled();
     });
 
     it("exposes drawer title via sr-only header", () => {

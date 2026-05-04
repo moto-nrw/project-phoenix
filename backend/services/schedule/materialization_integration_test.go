@@ -18,9 +18,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Hermetic test: fixtures are real DB rows created per subtest and cleaned up
-// via testpkg.Cleanup* helpers. No hardcoded entity IDs (tenant_id=1 is
-// whitelisted by the hermetic linter). Each subtest is self-contained.
+// Hermetic test: fixtures are real DB rows created per subtest under a unique
+// tenant and cleaned up via testpkg.Cleanup* helpers. Each subtest is
+// self-contained.
 
 // -----------------------------------------------------------------------------
 // scenarioSetup bundles the minimum dependencies the materialization service
@@ -32,6 +32,7 @@ type scenarioSetup struct {
 	factory       *services.Factory
 	db            *bun.DB
 	ctx           context.Context
+	tenantID      int64
 	cleanup       func()
 	period        *scheduleModels.CalendarPeriod
 	template      *activitiesModels.Group
@@ -80,7 +81,7 @@ func (s *scenarioSetup) runCleanup(tb testing.TB) {
 }
 
 // makeScenario prepares a minimal end-to-end materialization scenario:
-// tenant=1, one active school-year period (no A/B cycle), one template on
+// one active school-year period (no A/B cycle), one template on
 // the given weekday, one timeframe 14:00–15:00, one room, one staff, three
 // students of which two have valid enrollments at `materializeDate` and one
 // has expired. Returns the setup; caller registers additional fixtures and
@@ -109,7 +110,9 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 		slog.Default(),
 	)
 
-	ctx := testpkg.TenantContext(1)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
 	suffix := time.Now().UnixNano()
 
 	// 1. Calendar period — no A/B, wide range, active.
@@ -124,14 +127,14 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 	require.NoError(t, serviceFactory.CalendarPeriod.CreatePeriod(ctx, period))
 
 	// 2. Fixtures: room, staff, 3 students.
-	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%d", suffix))
-	staff := testpkg.CreateTestStaff(t, db, "Super", fmt.Sprintf("Visor-%d", suffix))
-	student1 := testpkg.CreateTestStudent(t, db, "Alice", fmt.Sprintf("One-%d", suffix), "3a")
-	student2 := testpkg.CreateTestStudent(t, db, "Bob", fmt.Sprintf("Two-%d", suffix), "3a")
-	student3 := testpkg.CreateTestStudent(t, db, "Carol", fmt.Sprintf("Three-%d", suffix), "3a")
+	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Room-%d", suffix))
+	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Super", fmt.Sprintf("Visor-%d", suffix))
+	student1 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Alice", fmt.Sprintf("One-%d", suffix), "3a")
+	student2 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Bob", fmt.Sprintf("Two-%d", suffix), "3a")
+	student3 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Carol", fmt.Sprintf("Three-%d", suffix), "3a")
 
 	// 3. Template activity group (is_template = true, planned_room_id set).
-	category := testpkg.CreateTestActivityCategory(t, db, fmt.Sprintf("Cat-%d", suffix))
+	category := testpkg.CreateTestActivityCategoryForTenant(t, db, tenantID, fmt.Sprintf("Cat-%d", suffix))
 	template := &activitiesModels.Group{
 		Name:            fmt.Sprintf("Malen-AG-%d", suffix),
 		MaxParticipants: 20,
@@ -141,13 +144,13 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 		PlannedRoomID:   &room.ID,
 		IsTemplate:      true,
 	}
-	template.SetTenantID(1)
+	template.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(template).ModelTableExpr(`activities.groups AS "group"`).Exec(ctx)
 	require.NoError(t, err)
 
 	// 4. Timeframe 14:00–15:00 today (the wall-clock date is irrelevant for
 	// TIME columns; bun strips to TIME on write).
-	timeframe := testpkg.CreateTestTimeframe(t, db, fmt.Sprintf("Nachmittag-%d", suffix))
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, tenantID, fmt.Sprintf("Nachmittag-%d", suffix))
 
 	// 5. Schedule: weekday + timeframe, no A/B pattern.
 	sched := &activitiesModels.Schedule{
@@ -156,7 +159,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 		ActivityGroupID: template.ID,
 		WeekPattern:     0,
 	}
-	sched.SetTenantID(1)
+	sched.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(sched).ModelTableExpr(`activities.schedules`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -165,21 +168,21 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 	expiredUntil := materializeDate.AddDate(0, 0, -1)
 	validFrom := materializeDate.AddDate(0, 0, -30)
 	enroll1 := &activitiesModels.StudentEnrollment{StudentID: student1.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
-	enroll1.SetTenantID(1)
+	enroll1.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(enroll1).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
 	enroll2 := &activitiesModels.StudentEnrollment{StudentID: student2.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
-	enroll2.SetTenantID(1)
+	enroll2.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(enroll2).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
 	enroll3 := &activitiesModels.StudentEnrollment{StudentID: student3.ID, ActivityGroupID: template.ID, ValidFrom: validFrom, ValidUntil: &expiredUntil}
-	enroll3.SetTenantID(1)
+	enroll3.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(enroll3).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
 
 	// 7. Supervisor (primary, unbounded).
 	sup := &activitiesModels.SupervisorPlanned{StaffID: staff.ID, GroupID: template.ID, IsPrimary: true, ValidFrom: validFrom}
-	sup.SetTenantID(1)
+	sup.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(sup).ModelTableExpr(`activities.supervisors`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -188,6 +191,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 		factory:       serviceFactory,
 		db:            db,
 		ctx:           ctx,
+		tenantID:      tenantID,
 		period:        period,
 		template:      template,
 		schedule:      sched,
@@ -207,7 +211,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 
 	// Ambient cleanup for things created by testpkg helpers (reuses helpers).
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupActivityFixtures(t, db, student1.ID, staff.ID, 0, template.ID, room.ID)
+		testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, student1.ID, staff.ID, 0, template.ID, room.ID)
 		testpkg.CleanupTableRecords(t, db, "users.students", student2.ID, student3.ID)
 		testpkg.CleanupTableRecords(t, db, "activities.categories", category.ID)
 		testpkg.CleanupScheduleFixtures(t, db, timeframe.ID)
@@ -260,7 +264,7 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("status = ?", scheduleModels.InstanceStatusActive).
 		Where(`"activity_instance".id = ?`, instanceRows[0].ID).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", s.tenantID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 	r3, err := s.svc.MaterializeForTenant(s.ctx, from, to, scheduleSvc.MaterializationSourceManual)
@@ -280,7 +284,7 @@ func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
 		ExceptionDate:   materializeDate,
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
 	s.registerCleanup("schedule.activity_exceptions", exc.ID)
@@ -306,7 +310,7 @@ func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T)
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &newStart,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
 	s.registerCleanup("schedule.activity_exceptions", exc.ID)
@@ -460,7 +464,7 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 		ModelTableExpr(`activities.schedules`).
 		Set("calendar_period_id = ?", holiday.ID).
 		Where("id = ?", s.schedule.ID).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", s.tenantID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -485,7 +489,7 @@ func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
 		Set("week_cycle_length = ?", 2).
 		Set("week_cycle_anchor = ?", anchor).
 		Where(`"calendar_period".id = ?`, s.period.ID).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", s.tenantID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -495,7 +499,7 @@ func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
 		ModelTableExpr(`activities.schedules`).
 		Set("week_pattern = ?", 2).
 		Where("id = ?", s.schedule.ID).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", s.tenantID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 

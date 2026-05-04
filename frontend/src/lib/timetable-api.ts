@@ -432,4 +432,3 @@ class TimetableService {
 }
 
 export const timetableService = new TimetableService();
-export { TimetableApiError };

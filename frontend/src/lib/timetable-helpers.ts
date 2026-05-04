@@ -73,21 +73,6 @@ export function getActivityLightTint(type: ActivityType): string {
 }
 
 /**
- * Strong text colour matching the brand-colour bar — used on titles inside
- * coloured cards.
- */
-export function getActivityTextColor(type: ActivityType): string {
-  switch (type) {
-    case "care":
-      return "#1E3A8A";
-    case "activity":
-      return "#365314";
-    case "external":
-      return "#7C2D12";
-  }
-}
-
-/**
  * German label for the activity type, surfaced as a small badge on cards
  * when the type is non-default.
  */
@@ -111,7 +96,7 @@ export function getActivityTypeBadge(
  * The OGS-Schultage are Mon–Fri; this helper anchors to Monday so the grid
  * always shows the same five columns regardless of the picker date.
  */
-export function getMondayOfWeek(ref: Date, weekOffset = 0): Date {
+function getMondayOfWeek(ref: Date, weekOffset = 0): Date {
   const monday = new Date(ref);
   const day = monday.getDay(); // 0 = Sunday, 1 = Monday, …
   // Sunday (0) needs to walk back 6 days; otherwise day - 1.
@@ -188,7 +173,7 @@ export function toISODate(d: Date): string {
  * Reference algorithm: ISO 8601 defines the week containing the year's first
  * Thursday as week 1.
  */
-export function getISOWeekNumber(d: Date): number {
+function getISOWeekNumber(d: Date): number {
   const target = new Date(d.valueOf());
   const dayNum = (d.getDay() + 6) % 7; // Mon=0 .. Sun=6
   target.setDate(target.getDate() - dayNum + 3);
@@ -653,7 +638,7 @@ export function getCurrentTimeOffset(
   return ((minutesNow - minutesStart) / 60) * hourHeightPx;
 }
 
-export interface LanedInstance {
+interface LanedInstance {
   instance: EnrichedInstance;
   lane: number; // 0-indexed lane within the overlap cluster
   laneCount: number; // total lanes in this cluster (column-width divisor)

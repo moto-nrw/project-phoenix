@@ -10,14 +10,14 @@ export type InstanceStatus = "planned" | "active" | "completed" | "cancelled";
 
 export type ActivityType = "care" | "activity" | "external";
 
-export type ConflictKind = "room" | "staff" | "student";
+type ConflictKind = "room" | "staff" | "student";
 
 /**
  * Soft warning surfaced by the backend when an instance has overlapping
  * rooms, double-booked staff, or double-booked students. Conflicts never
  * block an action; they are advisory and can always be overridden.
  */
-export interface ConflictWarning {
+interface ConflictWarning {
   kind: ConflictKind;
   resourceId: string;
   message: string;
@@ -36,8 +36,8 @@ export interface InstanceStaffSummary {
   isSubstitute: boolean;
 }
 
-export type InstanceAttendanceStatus = "expected" | "present" | "absent";
-export type InstanceAttendanceSubstatus =
+type InstanceAttendanceStatus = "expected" | "present" | "absent";
+type InstanceAttendanceSubstatus =
   | "late"
   | "excused"
   | "sick"
@@ -94,14 +94,14 @@ export interface WeeklyInstancesResponse {
  * Used internally by the mapper; consumers should rely on
  * WeeklyInstancesResponse.
  */
-export interface BackendInstanceStaffSummary {
+interface BackendInstanceStaffSummary {
   staff_id: number;
   is_primary: boolean;
   is_absent: boolean;
   is_substitute: boolean;
 }
 
-export interface BackendInstanceStudentSummary {
+interface BackendInstanceStudentSummary {
   student_id: number;
   status: InstanceAttendanceStatus;
   substatus?: InstanceAttendanceSubstatus | null;
@@ -163,7 +163,7 @@ export interface GapsResponse {
   gaps: GapInstance[];
 }
 
-export interface BackendGapInstance {
+interface BackendGapInstance {
   instance_id: number;
   date: string;
   title: string;
@@ -181,7 +181,7 @@ export interface BackendGapsResponse {
   gaps: BackendGapInstance[];
 }
 
-export type ExceptionConflictKind =
+type ExceptionConflictKind =
   | "cancelled_instance_with_scheduled_arrivals"
   | "modified_instance_time_mismatch";
 
@@ -205,7 +205,7 @@ export interface ExceptionConflictsResponse {
   conflicts: ExceptionConflict[];
 }
 
-export interface BackendExceptionConflict {
+interface BackendExceptionConflict {
   kind: ExceptionConflictKind;
   date: string;
   activity_group_id: number;
@@ -225,7 +225,7 @@ export interface BackendExceptionConflictsResponse {
   conflicts: BackendExceptionConflict[];
 }
 
-export interface TemplateSchedule {
+interface TemplateSchedule {
   id: string;
   weekday: number;
   startTime: string;
@@ -256,7 +256,7 @@ export interface TemplatesResponse {
   templates: TimetableTemplate[];
 }
 
-export interface BackendTemplateSchedule {
+interface BackendTemplateSchedule {
   id: number;
   weekday: number;
   start_time: string;
@@ -408,7 +408,7 @@ export interface BackendAttendanceResponse {
   checked_in_at?: string | null;
 }
 
-export interface SubstituteTimeConflict {
+interface SubstituteTimeConflict {
   instanceId: string;
   title: string;
   date: string;
@@ -416,7 +416,7 @@ export interface SubstituteTimeConflict {
   endTime: string;
 }
 
-export interface SubstituteAffectedInstance {
+interface SubstituteAffectedInstance {
   instanceId: string;
   title: string;
   startTime: string;
@@ -431,7 +431,7 @@ export interface SubstituteResponse {
   warnings: SubstituteTimeConflict[];
 }
 
-export interface BackendSubstituteTimeConflict {
+interface BackendSubstituteTimeConflict {
   instance_id: number;
   title: string;
   date: string;
@@ -439,7 +439,7 @@ export interface BackendSubstituteTimeConflict {
   end_time: string;
 }
 
-export interface BackendSubstituteAffectedInstance {
+interface BackendSubstituteAffectedInstance {
   instance_id: number;
   title: string;
   start_time: string;

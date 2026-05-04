@@ -200,6 +200,19 @@ func init() {
 	}
 
 	config.Register(config.Definition{
+		Key:             config.KeyStatusFlagClearTime,
+		Label:           "Abwesenheit automatisch beenden um",
+		Description:     "Uhrzeit, zu der Krankmeldungen und Entschuldigungen mit Einstellung \"Am Ende des Tages\" automatisch aufgehoben werden.",
+		Type:            config.FieldTime,
+		Default:         "18:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "abwesenheit",
+		SortOrder:       29,
+	})
+
+	config.Register(config.Definition{
 		Key:             config.KeySickClearMode,
 		Label:           "Krankmeldung automatisch beenden",
 		Description:     "Legt fest, wann die Krankmeldung eines Schülers automatisch aufgehoben wird.",

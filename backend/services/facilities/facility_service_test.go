@@ -239,7 +239,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.Contains(t, err.Error(), "existiert bereits")
 	})
 
 	t.Run("rejects room with empty name", func(t *testing.T) {
@@ -336,7 +336,7 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.Contains(t, err.Error(), "existiert bereits")
 	})
 
 	t.Run("allows update without changing name", func(t *testing.T) {

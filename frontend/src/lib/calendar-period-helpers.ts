@@ -96,7 +96,7 @@ export function findPeriodForDate(
   return matches[0] ?? null;
 }
 
-export interface DayPeriodAssignment {
+interface DayPeriodAssignment {
   date: string;
   period: CalendarPeriod | null;
 }

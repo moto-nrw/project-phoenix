@@ -99,8 +99,8 @@ func TestClearStatusFlag_NilDBReturnsError(t *testing.T) {
 }
 
 // fakeStatusFlagSettings scripts the scheduler's SettingsResolver for the
-// status-flag task. Keys resolve in the order the task reads them: daily
-// checkout time, sick_clear_mode, excused_clear_mode.
+// status-flag task. Keys resolve in the order the task reads them: clear time,
+// sick_clear_mode, excused_clear_mode.
 type fakeStatusFlagSettings struct {
 	overrides map[string]string
 }
@@ -124,7 +124,7 @@ func (f *fakeStatusFlagSettings) HasTenantOverride(_ context.Context, key string
 
 // TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch — the expensive
 // UPDATE must not run when the current clock doesn't match the tenant's
-// configured daily checkout time.
+// configured status flag clear time.
 func TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch(t *testing.T) {
 	// Set the configured time to a value that cannot equal any real minute.
 	// timeMatchesNow returns false, so the task body should short-circuit
@@ -133,7 +133,7 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch(t *testing.T) {
 	s := &Scheduler{
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
-				"operations.student_daily_checkout_time": "99:99",
+				"operations.status_flag_clear_time": "99:99",
 			},
 		},
 	}
@@ -143,9 +143,9 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch(t *testing.T) {
 	assert.False(t, task.Running, "task should have reset Running flag")
 }
 
-// TestCheckAndRunStatusFlagClear_SkipsWhenClearTimeEmpty — an empty
-// student_daily_checkout_time means "no daily gate configured" and the task
-// must do nothing regardless of the mode settings.
+// TestCheckAndRunStatusFlagClear_SkipsWhenClearTimeEmpty guards the defensive
+// branch for malformed runtime config. The registered default is 18:00, so
+// real tenants should not hit this path through SettingsService.
 func TestCheckAndRunStatusFlagClear_SkipsWhenClearTimeEmpty(t *testing.T) {
 	s := &Scheduler{
 		settings: &fakeStatusFlagSettings{overrides: map[string]string{}},
@@ -156,7 +156,7 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenClearTimeEmpty(t *testing.T) {
 }
 
 // TestCheckAndRunStatusFlagClear_FiresBothModesWhenTimeMatches — when the
-// clock matches student_daily_checkout_time and both modes are end_of_day,
+// clock matches status_flag_clear_time and both modes are end_of_day,
 // the task enters the clearing branch for both flags. We run without a real
 // db, which makes clearStatusFlag return an error — this is the exact path
 // we want to cover (error branch) and it also lets us verify the lastRun
@@ -173,9 +173,9 @@ func TestCheckAndRunStatusFlagClear_FiresBothModesWhenTimeMatches(t *testing.T) 
 	s := &Scheduler{
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
-				"operations.student_daily_checkout_time": nowHHMM,
-				"operations.sick_clear_mode":             "end_of_day",
-				"operations.excused_clear_mode":          "end_of_day",
+				"operations.status_flag_clear_time": nowHHMM,
+				"operations.sick_clear_mode":        "end_of_day",
+				"operations.excused_clear_mode":     "end_of_day",
 			},
 		},
 	}
@@ -278,7 +278,7 @@ func reloadStudentFlags(t *testing.T, db *bun.DB, studentID int64) (sick, excuse
 // end-to-end integration test for the end_of_day path. It wires a real DB
 // and a real SchoolRepository into the scheduler, plants a student with
 // sick = true AND another with excused = true in tenant 1, configures the
-// settings resolver to return operations.student_daily_checkout_time =
+// settings resolver to return operations.status_flag_clear_time =
 // "now" with both clear modes set to end_of_day, then invokes
 // checkAndRunStatusFlagClear and asserts both flags get wiped by the
 // bulk UPDATE that the scheduler runs inside a tenant transaction. This
@@ -325,9 +325,9 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 		schoolRepo: platformRepo.NewSchoolRepository(db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
-				"operations.student_daily_checkout_time": nowHHMM,
-				"operations.sick_clear_mode":             "end_of_day",
-				"operations.excused_clear_mode":          "end_of_day",
+				"operations.status_flag_clear_time": nowHHMM,
+				"operations.sick_clear_mode":        "end_of_day",
+				"operations.excused_clear_mode":     "end_of_day",
 			},
 		},
 		logger: slog.Default(),
@@ -383,9 +383,9 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 		schoolRepo: platformRepo.NewSchoolRepository(db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
-				"operations.student_daily_checkout_time": nowHHMM,
-				"operations.sick_clear_mode":             "end_of_day",
-				"operations.excused_clear_mode":          "next_checkin",
+				"operations.status_flag_clear_time": nowHHMM,
+				"operations.sick_clear_mode":        "end_of_day",
+				"operations.excused_clear_mode":     "next_checkin",
 			},
 		},
 		logger: slog.Default(),
@@ -429,9 +429,9 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 		schoolRepo: platformRepo.NewSchoolRepository(db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
-				"operations.student_daily_checkout_time": "25:99", // invalid, timeMatchesNow → false
-				"operations.sick_clear_mode":             "end_of_day",
-				"operations.excused_clear_mode":          "end_of_day",
+				"operations.status_flag_clear_time": "25:99", // invalid, timeMatchesNow → false
+				"operations.sick_clear_mode":        "end_of_day",
+				"operations.excused_clear_mode":     "end_of_day",
 			},
 		},
 		logger: slog.Default(),

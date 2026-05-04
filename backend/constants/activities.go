@@ -46,6 +46,10 @@ const (
 	// Auto-created alongside the WC activity if not found.
 	WCRoomName = "WC"
 
+	// WCRoomAliasName is an accepted room-only alias for the WC room.
+	// The canonical auto-created room name remains WCRoomName.
+	WCRoomAliasName = "Toilette"
+
 	// WCRoomCapacity is the default capacity for the WC room.
 	WCRoomCapacity = 20
 
@@ -56,7 +60,15 @@ const (
 // IsSystemRoomName returns true if the given room name is a system room
 // that must not be deleted or renamed.
 func IsSystemRoomName(name string) bool {
-	return name == SchulhofRoomName || name == WCRoomName
+	return name == SchulhofRoomName || IsWCRoomName(name)
+}
+
+// IsWCRoomName returns true if the given room name is one of the accepted
+// canonical toilet-room aliases ("WC" or "Toilette"). Matching is exact-case
+// to match the existing system-room contract, which has always compared
+// SchulhofRoomName and WCRoomName by `==`. See issue #1184.
+func IsWCRoomName(name string) bool {
+	return name == WCRoomName || name == WCRoomAliasName
 }
 
 // IsSystemActivityName returns true if the given activity name is a system activity

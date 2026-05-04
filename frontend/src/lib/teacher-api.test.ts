@@ -682,11 +682,15 @@ describe("teacher-api", () => {
     it("returns account_exists when email already exists", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      // Mock account creation returning "email already exists" error
+      // Mock account creation returning the German duplicate-email sentinel
       mockFetch.mockResolvedValueOnce({
         ok: false,
         statusText: "Conflict",
-        json: () => Promise.resolve({ error: "email already exists" }),
+        json: () =>
+          Promise.resolve({
+            error:
+              "auth error during register: Diese E-Mail-Adresse ist bereits registriert",
+          }),
       } as Response);
 
       const result = await teacherService.createTeacher({
@@ -708,7 +712,11 @@ describe("teacher-api", () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         statusText: "Conflict",
-        json: () => Promise.resolve({ error: "username already exists" }),
+        json: () =>
+          Promise.resolve({
+            error:
+              "auth error during register: Dieser Benutzername ist bereits vergeben",
+          }),
       } as Response);
 
       await expect(

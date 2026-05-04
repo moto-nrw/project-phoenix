@@ -62,7 +62,6 @@ export default function RoomsPage() {
   const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
@@ -227,7 +226,6 @@ export default function RoomsPage() {
   const handleCreateRoom = useCallback(
     async (data: Partial<Room>) => {
       try {
-        setCreateLoading(true);
         if (roomsConfig.form.transformBeforeSubmit) {
           data = roomsConfig.form.transformBeforeSubmit(data);
         }
@@ -241,8 +239,14 @@ export default function RoomsPage() {
         );
         setShowCreateModal(false);
         await tenantMutate("database-rooms-list");
-      } finally {
-        setCreateLoading(false);
+      } catch (createError) {
+        logger.error("failed to create room", {
+          error:
+            createError instanceof Error
+              ? createError.message
+              : String(createError),
+        });
+        throw createError;
       }
     },
     [service, tenantMutate, toastSuccess],
@@ -420,7 +424,6 @@ export default function RoomsPage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateRoom}
-        loading={createLoading}
       />
 
       {selectedRoom && (
