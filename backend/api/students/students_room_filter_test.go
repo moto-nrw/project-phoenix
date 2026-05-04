@@ -69,6 +69,63 @@ func TestListStudents_RoomFilter_ReturnsOnlyStudentsInRoom(t *testing.T) {
 	assert.False(t, hasOutsider, "student outside the room must NOT appear")
 }
 
+// TestListStudents_RoomFilter_IntersectsWithGroupFilter covers the case where
+// the user opens Kindersuche from a room and then narrows by group. The result
+// must satisfy BOTH filters — otherwise the list contradicts the active group
+// chip in the UI (regression from the initial #1323 implementation).
+func TestListStudents_RoomFilter_IntersectsWithGroupFilter(t *testing.T) {
+	tc := setupTestContext(t)
+
+	roomA := testpkg.CreateTestRoom(t, tc.db, "RoomFilterIntersect")
+	activityA := testpkg.CreateTestActivityGroup(t, tc.db, "RoomFilterIntersectActivity")
+	activeGroupA := testpkg.CreateTestActiveGroup(t, tc.db, activityA.ID, roomA.ID)
+
+	groupX := testpkg.CreateTestEducationGroup(t, tc.db, "RoomFilterEduGroupX")
+	groupY := testpkg.CreateTestEducationGroup(t, tc.db, "RoomFilterEduGroupY")
+
+	studentInGroupX := testpkg.CreateTestStudent(t, tc.db, "Intersect", "InGroupX", "RFIX")
+	studentInGroupY := testpkg.CreateTestStudent(t, tc.db, "Intersect", "InGroupY", "RFIY")
+	testpkg.AssignStudentToGroup(t, tc.db, studentInGroupX.ID, groupX.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, studentInGroupY.ID, groupY.ID)
+
+	now := time.Now().UTC()
+	visitX := testpkg.CreateTestVisit(t, tc.db, studentInGroupX.ID, activeGroupA.ID, now.Add(-10*time.Minute), nil)
+	visitY := testpkg.CreateTestVisit(t, tc.db, studentInGroupY.ID, activeGroupA.ID, now.Add(-5*time.Minute), nil)
+
+	defer testpkg.CleanupActivityFixtures(
+		t, tc.db,
+		visitX.ID, visitY.ID,
+		activeGroupA.ID,
+		studentInGroupX.ID, studentInGroupY.ID,
+		activityA.ID, roomA.ID,
+		groupX.ID, groupY.ID,
+	)
+
+	router := setupRouter(tc.resource.ListStudentsHandler(), "")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/?room_id=%d&group_id=%d", roomA.ID, groupX.ID), nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp struct {
+		Data []struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+
+	ids := make(map[int64]struct{}, len(resp.Data))
+	for _, s := range resp.Data {
+		ids[s.ID] = struct{}{}
+	}
+
+	_, hasX := ids[studentInGroupX.ID]
+	_, hasY := ids[studentInGroupY.ID]
+
+	assert.True(t, hasX, "student in room A AND group X must appear")
+	assert.False(t, hasY, "student in room A but group Y must NOT appear when group_id=X")
+}
+
 // TestListStudents_RoomFilter_EmptyRoomReturnsEmpty covers the case where the
 // room has no active groups (or none with open visits). The endpoint should
 // 200 with an empty data array, not error or fall back to "all students".

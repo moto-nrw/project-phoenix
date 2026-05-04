@@ -23,6 +23,11 @@ type studentListParams struct {
 	pageSize            int
 	includePickupTimes  bool
 	includeArrivalTimes bool
+	// studentIDs is an optional pre-filter populated by upstream resolution
+	// (e.g., room_id → active visits) before the SQL list query runs. When
+	// set, buildBaseFilter adds `student.id IN (...)` so the standard
+	// school_class / guardian_name / pagination pipeline still applies.
+	studentIDs []int64
 }
 
 // studentAccessContext is an alias for the shared common.StudentAccessContext
@@ -80,6 +85,13 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")
+	}
+	if len(p.studentIDs) > 0 {
+		ids := make([]interface{}, len(p.studentIDs))
+		for i, id := range p.studentIDs {
+			ids[i] = id
+		}
+		filter.In("id", ids...)
 	}
 	return filter
 }
