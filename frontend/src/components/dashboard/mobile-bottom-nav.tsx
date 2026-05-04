@@ -10,6 +10,7 @@ import React, {
   useMemo,
 } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -17,6 +18,10 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
+import {
+  SETTINGS_SCHEMA_SWR_KEY,
+  fetchSettingsSchema,
+} from "~/lib/settings-api";
 import {
   Drawer,
   DrawerContent,
@@ -203,6 +208,12 @@ const additionalNavItems: AdditionalNavItem[] = [
     requiresAdmin: true,
   },
   {
+    href: "/database/timetables",
+    label: "Stundenplan",
+    iconKey: "calendar",
+    requiresAdmin: true,
+  },
+  {
     href: "/database",
     label: "Datenverwaltung",
     iconKey: "database",
@@ -383,6 +394,19 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Pre-compute permission flags to reduce complexity in filter
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  const { data: settingsSchema } = useSWR(
+    userIsAdmin && mode !== "operator" ? SETTINGS_SCHEMA_SWR_KEY : null,
+    fetchSettingsSchema,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    },
+  );
+  const timetableEnabled =
+    settingsSchema?.tabs
+      .flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .find((item) => item.key === "timetable.enabled")?.value === true;
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
@@ -393,6 +417,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (item.alwaysShow) return true;
+    if (item.href === "/database/timetables" && !timetableEnabled) {
+      return false;
+    }
     if (item.requiresAdmin) return userIsAdmin;
     if (item.requiresSupervision && !userIsAdmin) {
       return hasGroupSupervision || hasRoomSupervision;

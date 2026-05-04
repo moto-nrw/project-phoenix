@@ -117,17 +117,6 @@ const baseDataSections = [
     glowColor: "via-pink-100/30",
     overlayColor: "from-pink-50/80 to-rose-100/80",
   },
-  {
-    id: "timetables",
-    title: "Stundenplan",
-    description: "Wochenplan, Vertretungen und spontane Aktivitäten",
-    href: "/database/timetables",
-    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
-    color: "from-[#5080D8] to-[#4070c8]",
-    ringColor: "group-hover:ring-blue-200/60",
-    glowColor: "via-blue-100/30",
-    overlayColor: "from-blue-50/80 to-cyan-100/80",
-  },
 ];
 
 function DatabaseContent() {

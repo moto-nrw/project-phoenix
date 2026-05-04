@@ -18,6 +18,25 @@ import (
 func init() {
 	// --- Materialization (operations tab) ---
 
+	timetableEnabledDependency := &config.Dependency{
+		Key:       config.KeyTimetableEnabled,
+		Condition: "eq",
+		Value:     true,
+	}
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableEnabled,
+		Label:           "Stundenplan aktivieren",
+		Description:     "Aktiviert den Stundenplan in der Navigation und blendet die weiteren Stundenplan-Einstellungen ein.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       29,
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableMaterializationEnabled,
 		Label:           "Automatische Stundenplan-Materialisierung",
@@ -29,6 +48,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       30,
+		DependsOn:       timetableEnabledDependency,
 	})
 
 	config.Register(config.Definition{
@@ -94,6 +114,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       33,
+		DependsOn:       timetableEnabledDependency,
 	})
 
 	minOverdue := float64(1)
@@ -110,6 +131,7 @@ func init() {
 		Category:        "stundenplan",
 		SortOrder:       34,
 		Validation:      &config.ValidationRules{Min: &minOverdue, Max: &maxOverdue},
+		DependsOn:       timetableEnabledDependency,
 	})
 
 	config.Register(config.Definition{
@@ -123,6 +145,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       35,
+		DependsOn:       timetableEnabledDependency,
 	})
 
 	// --- GDPR retention (gdpr tab) ---
@@ -147,7 +170,7 @@ func init() {
 		SortOrder:       30,
 		Validation:      &config.ValidationRules{Min: &minRetention, Max: &maxRetention},
 		DependsOn: &config.Dependency{
-			Key:       config.KeyDataCleanupEnabled,
+			Key:       config.KeyTimetableEnabled,
 			Condition: "eq",
 			Value:     true,
 		},
@@ -170,6 +193,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       40,
+		DependsOn:       timetableEnabledDependency,
 	})
 
 	config.Register(config.Definition{
@@ -183,5 +207,6 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       41,
+		DependsOn:       timetableEnabledDependency,
 	})
 }

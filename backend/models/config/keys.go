@@ -102,6 +102,7 @@ const (
 // template → instance materialization pipeline and the staff-facing
 // auto-start behaviour. All definitions live in defaults/timetable.go.
 const (
+	KeyTimetableEnabled                   = "timetable.enabled"
 	KeyTimetableMaterializationEnabled    = "timetable.materialization_enabled"
 	KeyTimetableMaterializationWeekday    = "timetable.materialization_weekday"
 	KeyTimetableMaterializationWeeksAhead = "timetable.materialization_weeks_ahead"

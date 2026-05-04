@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
+import { mutate } from "swr";
 import {
+  SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
   setSettingValue,
   resetSettingValue,
@@ -185,6 +187,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
         if (SUPERVISION_AFFECTING_KEYS.has(key)) {
           void refreshSupervision({ force: true });
         }
+        void mutate(SETTINGS_SCHEMA_SWR_KEY);
       }
       return errorMsg;
     },
@@ -215,6 +218,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
         if (SUPERVISION_AFFECTING_KEYS.has(key)) {
           void refreshSupervision({ force: true });
         }
+        void mutate(SETTINGS_SCHEMA_SWR_KEY);
       }
       return errorMsg;
     },

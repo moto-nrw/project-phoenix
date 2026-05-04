@@ -2,7 +2,11 @@
 
 import useSWR from "swr";
 
-import { fetchSettingsSchema, type ResolvedSetting } from "~/lib/settings-api";
+import {
+  SETTINGS_SCHEMA_SWR_KEY,
+  fetchSettingsSchema,
+  type ResolvedSetting,
+} from "~/lib/settings-api";
 
 const DEFAULT_START_HOUR = 9;
 const DEFAULT_END_HOUR = 17;
@@ -35,7 +39,7 @@ export function useTimetableDayHours(): {
   dayStartHour: number;
   dayEndHour: number;
 } {
-  const { data } = useSWR("timetable-day-hours-settings", fetchSettingsSchema, {
+  const { data } = useSWR(SETTINGS_SCHEMA_SWR_KEY, fetchSettingsSchema, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
   });

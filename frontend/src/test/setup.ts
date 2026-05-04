@@ -110,6 +110,7 @@ vi.mock("swr", () => ({
     isValidating: false,
     mutate: vi.fn(),
   })),
+  mutate: vi.fn(),
   useSWRConfig: vi.fn(() => ({
     mutate: vi.fn(),
     cache: new Map(),

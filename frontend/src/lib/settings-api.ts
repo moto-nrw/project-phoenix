@@ -3,6 +3,8 @@ import { createLogger } from "./logger";
 
 const logger = createLogger({ component: "SettingsApi" });
 
+export const SETTINGS_SCHEMA_SWR_KEY = "settings-schema";
+
 // --- Types ---
 
 export interface SettingsSchema {
