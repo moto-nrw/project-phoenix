@@ -665,6 +665,73 @@ func (r *VisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64)
 	return count, nil
 }
 
+// ListActiveByRoomID returns one row per student currently checked-in to any
+// active (end_time IS NULL) group in the given room. Joins users.students /
+// users.persons for display fields and activities.groups for the activity
+// name. Ordered by last name then first name so the API response is stable
+// without an additional client sort.
+func (r *VisitRepository) ListActiveByRoomID(ctx context.Context, roomID int64) ([]*active.StudentInRoomVisit, error) {
+	type row struct {
+		StudentID        int64          `bun:"student_id"`
+		FirstName        string         `bun:"first_name"`
+		LastName         string         `bun:"last_name"`
+		EducationGroupID sql.NullInt64  `bun:"education_group_id"`
+		ActiveGroupID    int64          `bun:"active_group_id"`
+		ActivityName     sql.NullString `bun:"activity_name"`
+		EntryTime        time.Time      `bun:"entry_time"`
+	}
+
+	var rows []row
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprActiveVisitsAsVisit).
+		ColumnExpr(`"visit".student_id AS student_id`).
+		ColumnExpr(`"person".first_name AS first_name`).
+		ColumnExpr(`"person".last_name AS last_name`).
+		ColumnExpr(`"student".group_id AS education_group_id`).
+		ColumnExpr(`"visit".active_group_id AS active_group_id`).
+		ColumnExpr(`"activity".name AS activity_name`).
+		ColumnExpr(`"visit".entry_time AS entry_time`).
+		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
+		Join(`JOIN users.students AS "student" ON "student".id = "visit".student_id`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Join(`LEFT JOIN activities.groups AS "activity" ON "activity".id = "group".group_id`).
+		Where(`"group".room_id = ?`, roomID).
+		Where(`"group".end_time IS NULL`).
+		Where(`"visit".exit_time IS NULL`).
+		OrderExpr(`"person".last_name ASC, "person".first_name ASC, "visit".entry_time ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list active visits by room ID",
+			Err: err,
+		}
+	}
+
+	out := make([]*active.StudentInRoomVisit, len(rows))
+	for i, row := range rows {
+		v := &active.StudentInRoomVisit{
+			StudentID:     row.StudentID,
+			FirstName:     row.FirstName,
+			LastName:      row.LastName,
+			ActiveGroupID: row.ActiveGroupID,
+			EntryTime:     row.EntryTime,
+		}
+		if row.EducationGroupID.Valid {
+			gid := row.EducationGroupID.Int64
+			v.EducationGroupID = &gid
+		}
+		if row.ActivityName.Valid {
+			v.ActivityName = row.ActivityName.String
+		}
+		out[i] = v
+	}
+	return out, nil
+}
+
 // CountActiveByGroupID counts active visits in the given active group.
 func (r *VisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error) {
 	count, err := base.GetDB(ctx, r.db).NewSelect().

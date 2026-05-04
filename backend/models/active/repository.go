@@ -122,6 +122,13 @@ type VisitRepository interface {
 	// CountActiveByRoomID counts currently active visits across all active groups in a room.
 	CountActiveByRoomID(ctx context.Context, roomID int64) (int, error)
 
+	// ListActiveByRoomID returns one row per student currently checked-in to
+	// any active (end_time IS NULL) group in the given room, ordered by last
+	// name then first name. Joins users.students/users.persons for display
+	// fields and activities.groups for the activity name. Tenant scoping
+	// flows through TenantTxMiddleware.
+	ListActiveByRoomID(ctx context.Context, roomID int64) ([]*StudentInRoomVisit, error)
+
 	// CountActiveByGroupID counts currently active visits in a single active group.
 	CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error)
 
