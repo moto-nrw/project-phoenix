@@ -132,6 +132,15 @@ docker compose exec -T server-e2e go run main.go seed \
   --state-path .seed-state-e2e.json \
   --url http://localhost:8080
 
+# The seeder writes .seed-state-e2e.json from inside the container as root.
+# On Linux (CI runners), the bind-mounted file ends up owned by root and the
+# default umask leaves it unreadable to the host runner user — Playwright
+# specs that read it via helpers/seed-state.ts then fail with EACCES. macOS
+# Docker Desktop hides this by remapping UIDs, so it only bites in CI.
+# chmod inside the container (where root can always set mode bits) makes
+# the file world-readable so the host process can read it regardless of UID.
+docker compose exec -T server-e2e chmod 644 .seed-state-e2e.json
+
 echo
 echo "Provisioning second tenant for tenant-switch coverage..."
 # The tenant-switch spec asserts the TenantSwitcher dropdown — which only
