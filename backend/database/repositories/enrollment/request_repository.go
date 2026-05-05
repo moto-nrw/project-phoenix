@@ -51,6 +51,29 @@ func (r *RequestRepository) FindByID(ctx context.Context, id int64) (*enrollment
 	return req, nil
 }
 
+// ListAdmin returns every request for the tenant in context, newest
+// first. Tenant-scoped via RLS. ChildStatus filter joins through the
+// children table; an empty filter returns every row.
+func (r *RequestRepository) ListAdmin(ctx context.Context, filters enrollment.RequestListFilters) ([]*enrollment.Request, error) {
+	var rows []*enrollment.Request
+	q := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(requestTableExpr)
+
+	if filters.PhaseID > 0 {
+		q = q.Where(`"request".phase_id = ?`, filters.PhaseID)
+	}
+	if filters.ChildStatus != "" {
+		q = q.Where(`EXISTS (SELECT 1 FROM enrollment.request_children rc WHERE rc.request_id = "request".id AND rc.status = ?)`, filters.ChildStatus)
+	}
+	q = q.OrderExpr(`"request".submitted_at DESC, "request".id DESC`)
+
+	if err := q.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to list admin requests: %w", err)
+	}
+	return rows, nil
+}
+
 // FindByStatusToken looks up a request by its status_token. Used by the
 // public status/edit page (PR 7). Public route — caller must wrap in
 // WithAdminTx because the token is the only auth signal.

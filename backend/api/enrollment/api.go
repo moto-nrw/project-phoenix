@@ -23,6 +23,7 @@ type Resource struct {
 	RequestService      enrollmentService.RequestService
 	CaptchaService      enrollmentService.CaptchaService
 	PhaseService        enrollmentService.PhaseService
+	DecisionService     enrollmentService.DecisionService
 	SchoolRepo          platformModels.SchoolRepository
 	PhaseRepo           enrollmentModels.PhaseRepository
 	db                  *bun.DB
@@ -31,13 +32,15 @@ type Resource struct {
 // NewResource constructs the enrollment API resource. PR 7 added the
 // RequestService + CaptchaService for the public submission flow.
 // PR A of the phase model wires PhaseService + PhaseRepo so the public
-// + admin endpoints can resolve phase rows.
+// + admin endpoints can resolve phase rows. PR 8 wires DecisionService
+// for the admin review/accept/reject UI.
 func NewResource(
 	formSchemaSvc enrollmentService.FormSchemaService,
 	careOfferingSvc enrollmentService.CareOfferingService,
 	requestSvc enrollmentService.RequestService,
 	captchaSvc enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,
+	decisionSvc enrollmentService.DecisionService,
 	schoolRepo platformModels.SchoolRepository,
 	phaseRepo enrollmentModels.PhaseRepository,
 	db *bun.DB,
@@ -48,6 +51,7 @@ func NewResource(
 		RequestService:      requestSvc,
 		CaptchaService:      captchaSvc,
 		PhaseService:        phaseSvc,
+		DecisionService:     decisionSvc,
 		SchoolRepo:          schoolRepo,
 		PhaseRepo:           phaseRepo,
 		db:                  db,
@@ -113,6 +117,17 @@ func (rs *Resource) Router() chi.Router {
 		// claims as guardian fields and an empty children list, so
 		// the frontend can still cleanly render the form.
 		r.Get("/me/profile", rs.getMyProfile)
+
+		// PR 8 admin review surface. config:read for browse,
+		// config:manage to apply decisions. Decision writes audit
+		// reviewed_by/reviewed_at on each child row.
+		r.Route("/admin/requests", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
+			r.Route("/{id}", func(r chi.Router) {
+				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
+			})
+		})
 	})
 
 	return r

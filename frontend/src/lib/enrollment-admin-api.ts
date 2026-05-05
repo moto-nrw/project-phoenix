@@ -1,0 +1,147 @@
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "EnrollmentAdminAPI" });
+
+export type ChildStatus =
+  | "submitted"
+  | "under_review"
+  | "approved"
+  | "waitlisted"
+  | "rejected"
+  | "withdrawn";
+
+export type DecisionStatus =
+  | "approved"
+  | "waitlisted"
+  | "rejected"
+  | "under_review";
+
+export interface AdminRequestChild {
+  id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  target_grade_level?: number;
+  status: ChildStatus;
+  status_reason?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: number | null;
+  activation_mode: string;
+}
+
+export interface AdminRequestSummary {
+  id: string;
+  phase_id: string;
+  phase_name: string;
+  guardian_first_name: string;
+  guardian_last_name: string;
+  guardian_email: string;
+  guardian_phone?: string | null;
+  submitted_at: string;
+  withdrawn_at?: string | null;
+  status_token: string;
+  children: AdminRequestChild[];
+}
+
+interface BackendEnvelope<T> {
+  status?: string;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+const BASE = "/api/enrollment/admin/requests";
+
+async function readJSON<T>(response: Response): Promise<T> {
+  const raw = (await response.json()) as BackendEnvelope<T>;
+  if (
+    raw &&
+    typeof raw === "object" &&
+    "data" in raw &&
+    raw.data !== undefined
+  ) {
+    return raw.data as T;
+  }
+  return raw as unknown as T;
+}
+
+async function readError(response: Response, fallback: string): Promise<Error> {
+  let message = fallback;
+  try {
+    const payload = (await response.json()) as BackendEnvelope<unknown>;
+    message =
+      payload.error ??
+      payload.message ??
+      `${fallback} (HTTP ${response.status})`;
+  } catch {
+    /* ignore */
+  }
+  logger.error("enrollment_admin_request_failed", {
+    status: response.status,
+    message,
+  });
+  const err = new Error(message) as Error & { status?: number };
+  err.status = response.status;
+  return err;
+}
+
+export interface ListAdminRequestsFilters {
+  phaseId?: string;
+  childStatus?: ChildStatus;
+}
+
+export async function listAdminRequests(
+  filters: ListAdminRequestsFilters = {},
+): Promise<AdminRequestSummary[]> {
+  const url = new URL(
+    BASE,
+    globalThis.window?.location.origin ?? "http://localhost",
+  );
+  if (filters.phaseId) url.searchParams.set("phase_id", filters.phaseId);
+  if (filters.childStatus)
+    url.searchParams.set("child_status", filters.childStatus);
+  const path = `${url.pathname}${url.search}`;
+  const response = await fetch(path, { cache: "no-store" });
+  if (!response.ok) {
+    throw await readError(response, "Anmeldungen konnten nicht geladen werden");
+  }
+  const list = await readJSON<AdminRequestSummary[]>(response);
+  return Array.isArray(list) ? list : [];
+}
+
+export async function getAdminRequest(
+  id: string,
+): Promise<AdminRequestSummary> {
+  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readError(response, "Anmeldung konnte nicht geladen werden");
+  }
+  return readJSON<AdminRequestSummary>(response);
+}
+
+export async function decideAdminChild(
+  requestId: string,
+  childId: string,
+  status: DecisionStatus,
+  reason?: string,
+): Promise<AdminRequestChild> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(requestId)}/children/${encodeURIComponent(
+      childId,
+    )}/decide`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, reason: reason ?? "" }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Entscheidung konnte nicht gespeichert werden",
+    );
+  }
+  return readJSON<AdminRequestChild>(response);
+}

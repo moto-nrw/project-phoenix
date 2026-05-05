@@ -49,11 +49,23 @@ const (
 	RequestStatusWithdrawn   = "withdrawn"    // request withdrawn (withdrawn_at set)
 )
 
-// RequestRepository describes the DB operations PR 5/7/8 need. PR 5
-// only implements + tests Create/FindByID/FindByStatusToken; PR 7 + 8
-// fill in the rest.
+// RequestListFilters narrows the admin list query. Zero-value fields
+// are ignored. ChildStatus matches when ANY child of the request
+// carries the given status — handy for "show me everything still
+// awaiting a decision".
+type RequestListFilters struct {
+	PhaseID     int64
+	ChildStatus string
+}
+
+// RequestRepository describes the DB operations PR 5/7/8 need.
 type RequestRepository interface {
 	Create(ctx context.Context, req *Request) error
 	FindByID(ctx context.Context, id int64) (*Request, error)
 	FindByStatusToken(ctx context.Context, token string) (*Request, error)
+
+	// ListAdmin returns every request matching the filters, newest
+	// first. PR 8's admin review UI consumes this; the parent-facing
+	// flows never call it.
+	ListAdmin(ctx context.Context, filters RequestListFilters) ([]*Request, error)
 }

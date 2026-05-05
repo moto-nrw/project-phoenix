@@ -97,6 +97,7 @@ type Factory struct {
 	EnrollmentCaptcha      enrollment.CaptchaService
 	EnrollmentRequest      enrollment.RequestService
 	EnrollmentPhase        enrollment.PhaseService
+	EnrollmentDecision     enrollment.DecisionService
 }
 
 // NewFactory creates a new services factory
@@ -689,6 +690,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:           logger.With("service", "enrollment-phase"),
 	})
 
+	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
+		RequestRepo:      repos.Request,
+		RequestChildRepo: repos.RequestChild,
+		PhaseRepo:        repos.Phase,
+		Logger:           logger.With("service", "enrollment-decision"),
+	})
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
@@ -765,5 +773,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentCaptcha:      enrollmentCaptchaService,
 		EnrollmentRequest:      enrollmentRequestService,
 		EnrollmentPhase:        enrollmentPhaseService,
+		EnrollmentDecision:     enrollmentDecisionService,
 	}, nil
 }

@@ -308,6 +308,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentRequest,
 		api.Services.EnrollmentCaptcha,
 		api.Services.EnrollmentPhase,
+		api.Services.EnrollmentDecision,
 		repoFactory.School,
 		repoFactory.Phase,
 		db,
