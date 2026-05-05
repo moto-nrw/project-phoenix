@@ -58,8 +58,10 @@ func (r *FormSchemaRepository) FindByID(ctx context.Context, id int64) (*enrollm
 	return schema, nil
 }
 
-// FindActive returns the currently-active form schema for the tenant in
-// context, or an error if none exists.
+// FindActive returns the currently-active form schema for the tenant
+// in context. Returns sql.ErrNoRows (wrapped) when none exists so
+// callers can branch on errors.Is(err, sql.ErrNoRows). The service
+// layer translates that to its own ErrNoActiveSchema sentinel.
 func (r *FormSchemaRepository) FindActive(ctx context.Context) (*enrollment.FormSchema, error) {
 	schema := new(enrollment.FormSchema)
 	err := base.GetDB(ctx, r.db).NewSelect().
@@ -69,7 +71,7 @@ func (r *FormSchemaRepository) FindActive(ctx context.Context) (*enrollment.Form
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("no active form schema for tenant")
+			return nil, fmt.Errorf("no active form schema for tenant: %w", err)
 		}
 		return nil, fmt.Errorf("failed to find active form schema: %w", err)
 	}

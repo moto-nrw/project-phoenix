@@ -16,7 +16,11 @@ import (
 type Request struct {
 	base.Model `bun:"schema:enrollment,table:requests"`
 	base.TenantModel
-	SchemaID           int64          `bun:"schema_id,notnull" json:"schema_id"`
+	// SchemaID is nullable: a phase set to "Basis" with no tenant-
+	// active schema submits without one. The form_schemas FK still
+	// applies when set, so admins can audit which schema version a
+	// non-trivial submission was bound to.
+	SchemaID           *int64         `bun:"schema_id" json:"schema_id,omitempty"`
 	PhaseID            int64          `bun:"phase_id,notnull" json:"phase_id"`
 	GuardianFirstName  string         `bun:"guardian_first_name,notnull" json:"guardian_first_name"`
 	GuardianLastName   string         `bun:"guardian_last_name,notnull" json:"guardian_last_name"`

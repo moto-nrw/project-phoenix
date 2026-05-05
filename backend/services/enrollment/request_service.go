@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -236,7 +237,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 
 	// Pin the schema version to whichever schema the phase points at,
 	// or the tenant's currently-active schema if the phase has no
-	// override (Phase.FormSchemaID == nil).
+	// override. When neither resolves (Basis phase + no tenant schema
+	// ever published), we submit without a schema_id — the column is
+	// nullable since migration 1.15.58.
 	schema, err := s.resolveSubmissionSchema(ctx, phase)
 	if err != nil {
 		return nil, fmt.Errorf("submit: load schema: %w", err)
@@ -254,8 +257,13 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		createdChildren []*enrollmentModels.RequestChild
 	)
 	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		var schemaID *int64
+		if schema != nil {
+			id := schema.ID
+			schemaID = &id
+		}
 		request := &enrollmentModels.Request{
-			SchemaID:           schema.ID,
+			SchemaID:           schemaID,
 			PhaseID:            phase.ID,
 			GuardianFirstName:  strings.TrimSpace(req.GuardianFirstName),
 			GuardianLastName:   strings.TrimSpace(req.GuardianLastName),
@@ -592,9 +600,10 @@ func (s *requestService) loadPhaseForSubmission(ctx context.Context, phaseID int
 }
 
 // resolveSubmissionSchema returns the phase's pinned form schema, or
-// the tenant's currently-active schema when the phase has none. Errors
-// only when neither resolves (admin must publish at least one schema
-// before parents can submit).
+// the tenant's currently-active schema when the phase has none. Returns
+// nil with no error when neither resolves — the caller writes the
+// request with a NULL schema_id (allowed since migration 1.15.58).
+// "Basis" phase + fresh tenant must still be able to submit.
 func (s *requestService) resolveSubmissionSchema(ctx context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.FormSchema, error) {
 	if phase.FormSchemaID != nil {
 		schema, err := s.formSchemaRepo.FindByID(ctx, *phase.FormSchemaID)
@@ -608,6 +617,12 @@ func (s *requestService) resolveSubmissionSchema(ctx context.Context, phase *enr
 	}
 	schema, err := s.formSchemaRepo.FindActive(ctx)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, ErrNoActiveSchema) {
+			// No phase override + no tenant schema = parent gets a
+			// Basis-only form. Submit with NULL schema_id (allowed
+			// since migration 1.15.58).
+			return nil, nil
+		}
 		return nil, err
 	}
 	return schema, nil
