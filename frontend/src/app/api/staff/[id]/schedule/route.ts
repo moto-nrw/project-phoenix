@@ -1,25 +1,16 @@
 import type { NextRequest } from "next/server";
+
 import { apiGet, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPutHandler } from "~/lib/route-wrapper";
 
-interface ScheduleEntry {
-  day_of_week: number;
-  target_minutes: number;
-}
+// Backend response shape; kept loose because the schedule grew rotation
+// metadata (mode, model, rotation_length, weekly_totals, anchor) and the
+// proxy just forwards whatever the server returns.
+type ScheduleResponse = Record<string, unknown>;
 
-interface UpdateScheduleBody {
-  entries: ScheduleEntry[];
-}
-
-interface ScheduleResponse {
-  entries: Array<{
-    id: number;
-    day_of_week: number;
-    target_minutes: number;
-    valid_from: string;
-  }>;
-  weekly_total: number;
-}
+// Both modes are accepted: { mode: "template", model_id }
+// or { mode: "custom", rotation_length, entries: [...], save_as_template }.
+type UpdateScheduleBody = Record<string, unknown>;
 
 export const GET = createGetHandler<ScheduleResponse>(
   async (
