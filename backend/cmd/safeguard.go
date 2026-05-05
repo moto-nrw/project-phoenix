@@ -45,8 +45,11 @@ func isLocalHostname(hostname string) bool {
 	return false
 }
 
+// Keep in sync with frontend/e2e/helpers/safeguard.ts:ALLOWED_HOSTNAMES
+// and scripts/lib/assert-local-url.sh.
 var localDockerHostnames = map[string]bool{
 	"server":                  true,
+	"server-e2e":              true,
 	"host.docker.internal":    true,
 	"gateway.docker.internal": true,
 }
