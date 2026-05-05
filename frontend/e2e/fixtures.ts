@@ -1,4 +1,12 @@
 import { test as base, type Browser, type Page } from "@playwright/test";
+import {
+  makeGroupFactory,
+  makeStudentFactory,
+  teardownGroups,
+  teardownStudents,
+  type GroupFactory,
+  type StudentFactory,
+} from "./helpers/factories";
 import { STORAGE_STATE_PATH } from "./helpers/seed-data";
 
 type Fixtures = {
@@ -19,6 +27,23 @@ type Fixtures = {
    * own browser context.
    */
   staffPage: Page;
+  /**
+   * Test-scoped factory for students. `studentFactory.create({...})`
+   * returns a freshly-created student; teardown deletes everything the
+   * factory created, even if assertions failed mid-test. Per-test scope
+   * (not per-worker) keeps tests isolated.
+   *
+   * Use instead of inline `withAdminContext + try/finally + Date.now()`.
+   */
+  studentFactory: StudentFactory;
+  /**
+   * Test-scoped factory for groups. Same lifecycle as `studentFactory`.
+   * Teardown order: studentFactory runs first (Playwright tears down
+   * fixtures in reverse instantiation order), so a student moved into a
+   * factory-owned group is detached before the group DELETE — avoids the
+   * backend's 409-when-not-empty rejection.
+   */
+  groupFactory: GroupFactory;
 };
 
 async function pageForRole(
@@ -35,7 +60,7 @@ async function pageForRole(
   }
 }
 
-export const test = base.extend<Fixtures>({
+const baseWithFactories = base.extend<Fixtures>({
   authenticatedPage: async ({ page }, use) => {
     await use(page);
   },
@@ -45,14 +70,34 @@ export const test = base.extend<Fixtures>({
   staffPage: async ({ browser }, use) => {
     await pageForRole(browser, STORAGE_STATE_PATH.staff, use);
   },
+  // Playwright requires the first arg to be an object destructuring
+  // pattern; a non-destructured `_` throws at runtime. These factories
+  // have no fixture deps, so the destructure is empty — disable the
+  // empty-pattern lint inline.
+  // oxlint-disable-next-line no-empty-pattern
+  studentFactory: async ({}, use) => {
+    const factory = makeStudentFactory();
+    await use(factory);
+    await teardownStudents(factory._created());
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  groupFactory: async ({}, use) => {
+    const factory = makeGroupFactory();
+    await use(factory);
+    await teardownGroups(factory._created());
+  },
 });
 
+export const test = baseWithFactories;
 export { expect } from "@playwright/test";
 
 /**
- * Re-exports for HTTP-only specs that do not need an authenticated Page.
- * Using these instead of importing directly from `@playwright/test` keeps
- * every test file going through this module — so README guidance ("never
- * import test/expect from @playwright/test") holds for the whole suite.
+ * HTTP-only specs that do not need an authenticated `Page` use these
+ * re-exports. They share the factory fixtures with `test` — the same
+ * `studentFactory` / `groupFactory` are available for setup/teardown
+ * even when the spec drives the backend directly via `request`. Going
+ * through this module (instead of importing from `@playwright/test`)
+ * keeps the README rule "no `@playwright/test` imports in specs" intact.
  */
-export { test as apiTest, expect as apiExpect } from "@playwright/test";
+export const apiTest = baseWithFactories;
+export { expect as apiExpect } from "@playwright/test";

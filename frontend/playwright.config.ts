@@ -19,8 +19,14 @@ export default defineConfig({
   reporter: "html",
   use: {
     baseURL: BASE_URL,
-    trace: "on-first-retry",
+    // `retries: 0` is intentional (see comment above), so `on-first-retry`
+    // would write traces never. `retain-on-failure` keeps a full trace
+    // (step timeline, network log, DOM snapshots per step) on every failed
+    // run and discards it on success — ~zero cost on green, gold for
+    // debugging a CI red without local repro. Same logic for video.
+    trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
   projects: [
     {

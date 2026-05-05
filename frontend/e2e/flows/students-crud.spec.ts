@@ -5,7 +5,9 @@ import {
   apiExpect,
 } from "../fixtures";
 import { withAdminContext } from "../helpers/admin-api";
+import { uniqueSuffix } from "../helpers/factories";
 import { BACKEND_URL } from "../helpers/iot";
+import * as routes from "../helpers/routes";
 import { getTwoDistinctStudents } from "../helpers/seed-state";
 
 /**
@@ -124,7 +126,7 @@ uiTest.describe("Student list UI", () => {
 
       // The Kinder admin view lives under /database/students; bare /students
       // is reserved for the staff search/check-in flow.
-      await page.goto("/database/students");
+      await page.goto(routes.studentsList);
 
       // First seeded student must show up — accommodates SWR/SSR loading.
       await uiExpect(page.getByText(firstFullName).first()).toBeVisible({
@@ -152,6 +154,218 @@ uiTest.describe("Student list UI", () => {
       });
       await uiExpect(page.getByText(secondFullName)).toHaveCount(0, {
         timeout: 5000,
+      });
+    },
+  );
+
+  uiTest(
+    "admin edits a student's class via the Stammdaten tab and the change persists",
+    async ({ authenticatedPage: page, studentFactory }) => {
+      // Issue #1142 explicitly lists "Bearbeiten" as a Schüler-CRUD task.
+      // The HTTP-level update is covered above; this UI half exercises
+      // the master/detail Stammdaten form: select student → change Klasse
+      // → Speichern → verify the value round-trips through the backend.
+      //
+      // `studentFactory` provisions a throwaway student via HTTP and
+      // tears it down automatically after the test, even on assertion
+      // failure — replaces the previous try/finally + Date.now() pattern.
+      const initialClass = "1a";
+      const newClass = "9z";
+
+      const student = await studentFactory.create({
+        school_class: initialClass,
+      });
+
+      // Selection in the master/detail UI is driven via the `student`
+      // query param — navigating directly skips the click dance and
+      // cuts ~2s of flake surface from this test.
+      await page.goto(routes.studentDetail(student.id));
+
+      // The Klasse input has no `name`/`id` and the label is a sibling
+      // (no htmlFor binding), so `getByLabel` is unreliable here. The
+      // placeholder "5A" is unique within the form (only Klasse has it).
+      const klasseInput = page.getByPlaceholder("5A");
+      await uiExpect(klasseInput).toBeVisible({ timeout: 15000 });
+      await uiExpect(klasseInput).toHaveValue(initialClass, {
+        timeout: 10000,
+      });
+
+      await klasseInput.fill(newClass);
+
+      // Speichern button is disabled while !isDirty AND while saving.
+      // After fill() it must be enabled; after click it eventually flips
+      // back to disabled because the parent re-derives originalDraft
+      // from the freshly-saved student. That transition is our "save
+      // landed" signal — more reliable than waiting for a toast.
+      const saveButton = page.getByRole("button", { name: /^Speichern$/ });
+      await uiExpect(saveButton).toBeEnabled({ timeout: 5000 });
+      await saveButton.click();
+      await uiExpect(saveButton).toBeDisabled({ timeout: 15000 });
+
+      // Round-trip via HTTP — the only way to know the change actually
+      // hit the DB and is not just a stale form re-render.
+      const persisted = await withAdminContext(async (ctx, headers) => {
+        const res = await ctx.get(`${BACKEND_URL}/api/students/${student.id}`, {
+          headers,
+        });
+        uiExpect(res.status()).toBe(200);
+        return (await res.json()) as {
+          data: { school_class: string };
+        };
+      });
+      uiExpect(persisted.data.school_class).toBe(newClass);
+    },
+  );
+
+  uiTest(
+    "admin creates a student via the StudentCreateModal and the row appears in the list",
+    async ({ authenticatedPage: page, studentFactory }) => {
+      // Issue #1142 lists "Erstellen" as a Schüler-CRUD task. The HTTP
+      // path is covered above; this UI test exercises the full
+      // open-modal → fill-form → submit → row-visible chain — i.e. what
+      // a real admin actually does. If the form silently no-ops, freezes,
+      // or routes the wrong fields, this catches it where the API test
+      // can't.
+      const suffix = uniqueSuffix();
+      const firstName = `UICreate${suffix}`;
+      const lastName = "Probe";
+      const klasse = "3a";
+
+      await page.goto(routes.studentsList);
+
+      // Open the create modal. The plus-button has aria-label
+      // "Schüler erstellen" (DatabaseCreateAction). aria-label gives a
+      // stable accessible name even though the button only shows an icon.
+      await page
+        .getByRole("button", { name: "Schüler erstellen" })
+        .first()
+        .click();
+
+      // Modal renders with role="dialog" via dialogAriaProps and the
+      // title "Neuer Schüler". Scoping every form interaction to the
+      // dialog avoids selector collisions with the underlying list view
+      // (which has its own search input + Stammdaten form).
+      const dialog = page.getByRole("dialog");
+      await uiExpect(dialog).toBeVisible({ timeout: 10000 });
+      await uiExpect(
+        dialog.getByRole("heading", { name: "Neuer Schüler" }),
+      ).toBeVisible();
+
+      // Form fields use <label> without htmlFor binding (verified in the
+      // edit spec above). Placeholders are unique within this dialog
+      // ("Max", "Mustermann", "5A"), so getByPlaceholder + dialog scope
+      // is the most stable available locator.
+      await dialog.getByPlaceholder("Max").fill(firstName);
+      await dialog.getByPlaceholder("Mustermann").fill(lastName);
+      await dialog.getByPlaceholder("5A").fill(klasse);
+
+      // Submit. Button text flips to "Wird erstellt..." while saving;
+      // we wait for the dialog to disappear instead of polling the label,
+      // because the parent (`page.tsx`) closes the modal in its onCreate
+      // success handler — the close is the canonical "save landed" signal.
+      await dialog.getByRole("button", { name: "Erstellen" }).click();
+      await uiExpect(dialog).toBeHidden({ timeout: 15000 });
+
+      // Row visible in the master/detail list. The list filters
+      // client-side, so the freshly-created student must appear without
+      // needing a manual reload.
+      await uiExpect(
+        page.getByText(`${firstName} ${lastName}`).first(),
+      ).toBeVisible({ timeout: 10000 });
+
+      // Round-trip: the row in the list comes from the same SWR fetch
+      // the rest of the app reads, but a stale cache hit could make this
+      // green even if the backend never wrote the row. Hit /api/students
+      // with the search filter to confirm DB-level persistence and
+      // capture the id for cleanup.
+      const id = await withAdminContext(async (ctx, headers) => {
+        const res = await ctx.get(
+          `${BACKEND_URL}/api/students?search=${encodeURIComponent(firstName)}`,
+          { headers },
+        );
+        uiExpect(res.status()).toBe(200);
+        const body = (await res.json()) as {
+          data: Array<{ id: number; first_name: string; last_name: string }>;
+        };
+        const match = body.data.find(
+          (s) => s.first_name === firstName && s.last_name === lastName,
+        );
+        uiExpect(
+          match,
+          `student ${firstName} ${lastName} not found via /api/students search`,
+        ).toBeDefined();
+        return match!.id;
+      });
+
+      // Hand the id to the factory so its teardown deletes it after the
+      // test, even if a later assertion fails. The factory's teardown
+      // tolerates already-deleted rows, so this is safe to call once.
+      studentFactory.track(id);
+    },
+  );
+
+  uiTest(
+    "admin deletes a student via the confirm dialog and the row disappears",
+    async ({ authenticatedPage: page, studentFactory }) => {
+      // Issue #1142 lists "Löschen" as a Schüler-CRUD task. A broken
+      // confirm modal is the highest-impact UI bug class for this flow
+      // (one click = data gone), so this test asserts the full chain:
+      // detail-action click → confirmation modal opens → confirm →
+      // backend DELETE → row gone from list AND row 404 in API.
+      const student = await studentFactory.create({
+        first_name: `UIDelete${uniqueSuffix()}`,
+      });
+      const fullName = `${student.first_name} ${student.last_name}`;
+
+      // Land directly on the detail view for our student so the
+      // detailActions slot (which holds the Löschen trigger) renders.
+      await page.goto(routes.studentDetail(student.id));
+
+      // The detail-pane Löschen button is the only one rendered on the
+      // page in this state. The confirmation modal also has a "Löschen"
+      // button — we scope the trigger click to the page (NOT the dialog)
+      // so we don't accidentally hit the confirm before the modal opens.
+      const triggerButton = page
+        .getByRole("button", { name: "Löschen" })
+        .first();
+      await uiExpect(triggerButton).toBeVisible({ timeout: 15000 });
+      await triggerButton.click();
+
+      // Confirmation modal: title "Schüler löschen?" disambiguates from
+      // any other dialogs; confirm button label is "Löschen" again, so
+      // we scope through the dialog to pick the right one.
+      const dialog = page.getByRole("dialog");
+      await uiExpect(dialog).toBeVisible({ timeout: 5000 });
+      await uiExpect(
+        dialog.getByRole("heading", { name: "Schüler löschen?" }),
+      ).toBeVisible();
+
+      await dialog.getByRole("button", { name: "Löschen" }).click();
+
+      // useDeleteConfirmation.confirmDelete (src/hooks/useDeleteConfirmation.ts)
+      // hides the modal *synchronously* and then fires the delete callback
+      // fire-and-forget. So `dialog.toBeHidden()` resolves long before the
+      // DELETE request completes — checking the API too early would race
+      // and falsely see the row as still existing. Waiting for the list
+      // row to disappear is the canonical "delete fully landed" signal:
+      // the page-level handleDeleteStudent calls tenantMutate after the
+      // DELETE response returns, which triggers SWR revalidation, which
+      // removes the row.
+      await uiExpect(page.getByText(fullName)).toHaveCount(0, {
+        timeout: 15000,
+      });
+
+      // Backend confirmation: now that the list row is gone, the API
+      // must return 404. A still-existing row at this point would mean
+      // SWR optimistically dropped the row but the backend never
+      // committed the delete — the exact silent-failure class this
+      // test catches.
+      await withAdminContext(async (ctx, headers) => {
+        const res = await ctx.get(`${BACKEND_URL}/api/students/${student.id}`, {
+          headers,
+          failOnStatusCode: false,
+        });
+        uiExpect(res.status()).toBe(404);
       });
     },
   );

@@ -7,6 +7,33 @@ test.describe("Login", () => {
   // would already have a session cookie and the login form would not render.
   test.use({ storageState: { cookies: [], origins: [] } });
 
+  test("admin signs in with valid credentials and lands on the dashboard", async ({
+    page,
+  }) => {
+    // The positive login flow is exercised by `auth.setup.ts` for every
+    // suite run, but only as a setup step — a regression there fails with
+    // the cryptic "setup project failed" rather than a clearly named test.
+    // This spec asserts the same path as a first-class test so a broken
+    // login surfaces with the right name in the report.
+    await page.goto("/");
+    await page.waitForSelector('input[name="email"]');
+
+    await page.fill('input[name="email"]', ADMIN.email);
+    await page.fill('input[name="password"]', ADMIN.password);
+    await page.click('button:has-text("Anmelden")');
+
+    // After successful login NextAuth redirects away from /login — assert
+    // both halves: navigation occurred AND the protected header is mounted
+    // with the admin's display name.
+    await page.waitForURL((url) => !/\/login(\/|$)/.test(url.pathname), {
+      timeout: 15000,
+    });
+    await expect(page.locator('input[name="email"]')).toHaveCount(0);
+    await expect(
+      page.getByRole("button").filter({ hasText: ADMIN.displayName }).first(),
+    ).toBeVisible({ timeout: 15000 });
+  });
+
   test("rejects wrong password and stays on the login form", async ({
     page,
   }) => {

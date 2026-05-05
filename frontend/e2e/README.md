@@ -111,10 +111,105 @@ The two stacks are fully independent. You can keep your dev frontend running on 
 
 ## How to add a test
 
-1. Decide the role: most tests are admin-only → put them anywhere under `e2e/`.
-2. Staff-only tests must live in a file matching `*.staff.spec.ts` so the `chromium-staff` project picks them up.
-3. Use `test, expect` from `../fixtures`, not `@playwright/test`.
-4. Prefer asserting on names/labels (`getByText`, `getByRole`) over IDs — the seeder's IDs are technically stable, but names are robust against future seeder changes.
+The recipe below is the only way to add a spec — every shortcut here came from a real bug in an earlier iteration of the suite.
+
+### 1. Decide UI vs API and pick the right `test` import
+
+| Shape | Import | Default `page` is… |
+|---|---|---|
+| UI spec (drives a browser) | `import { test, expect } from "../fixtures"` | already authenticated as the project's role |
+| HTTP-only spec (no browser, no auth fixture) | `import { apiTest as test, apiExpect as expect } from "../fixtures"` | n/a — use `request` instead |
+
+Never `import { test } from "@playwright/test"`. Going through `fixtures.ts` is what gives you the factories below; bypassing it loses them silently.
+
+### 2. Pick the right role
+
+- Admin-only specs → file goes anywhere under `e2e/`. The `chromium-admin` project picks it up automatically.
+- Staff-only specs → file MUST end in `.staff.spec.ts` (e.g. `myroom-supervision.staff.spec.ts`). The `chromium-staff` project's `testMatch` is wired to that pattern.
+
+### 3. Use the factories — never `try/finally`
+
+For any spec that creates rows, use `studentFactory` / `groupFactory` from the fixture:
+
+```typescript
+test("admin creates X and the row appears", async ({
+  authenticatedPage: page,
+  studentFactory,
+}) => {
+  // create + auto-cleanup
+  const student = await studentFactory.create({ school_class: "3a" });
+
+  // ... assertions ...
+
+  // If the spec creates entities OUTSIDE the factory (e.g. via UI form),
+  // hand the resulting id back so the fixture deletes it on teardown:
+  // studentFactory.track(idFromUI);
+});
+```
+
+The fixture deletes whatever the factory tracked at the end of the test — including on assertion failure. Do NOT add `try/finally` blocks for cleanup; that pattern was retired because it duplicated the fixture's job and broke when an `await` threw before the `finally` registered. Suffix collisions across parallel workers are also handled (factory uses `randomUUID()`, not `Date.now()`).
+
+### 4. Use `helpers/routes.ts` for navigation, not raw paths
+
+```typescript
+import * as routes from "../helpers/routes";
+
+await page.goto(routes.studentsList);
+await page.goto(routes.studentDetail(student.id));
+await page.goto(routes.groupsList);
+```
+
+This survives the kebab-case migration that's still in flight (see CLAUDE.md → URL & Route Conventions). Hardcoded `page.goto("/database/students")` works today but means a future rename has to grep every spec file.
+
+### 5. Selector strategy (in order of preference)
+
+1. **`getByRole({ name })`** — anything with a stable accessible name (buttons, headings, links). Works for icon-only buttons that have `aria-label` (e.g. `Schüler erstellen`).
+2. **`locator('input[name="…"]')`** — form inputs that have a `name` attribute (most config-driven forms do, e.g. groups).
+3. **`getByPlaceholder(…)`** — last-resort for inputs without `name` or `htmlFor` labels (e.g. the Klasse field on the Stammdaten tab). Brand copy can change without warning, so prefer 1 or 2 when available.
+4. **`data-testid`** — NOT used in this codebase yet. Don't add testids to production JSX without a code-review-level discussion. If a real selector collision shows up, talk to the team first.
+
+For modals, scope every interaction through the dialog so the modal's controls don't collide with same-named controls on the page behind it:
+
+```typescript
+const dialog = page.getByRole("dialog");
+await expect(dialog).toBeVisible();
+await dialog.getByPlaceholder("Max").fill(firstName);
+await dialog.getByRole("button", { name: "Erstellen" }).click();
+```
+
+### 6. Wait for the right signal, not the easiest one
+
+`useDeleteConfirmation.confirmDelete` (and many similar handlers) close the modal **synchronously** and fire the underlying request fire-and-forget. That means `await expect(dialog).toBeHidden()` resolves long before the backend has actually deleted the row — checking the API at that point will race and falsely see the row as still existing.
+
+Wait for a domain signal instead:
+
+```typescript
+// Wait for the row to leave the list (delete + SWR revalidation = done)
+await expect(page.getByText(fullName)).toHaveCount(0, { timeout: 15000 });
+
+// THEN check the API
+const res = await ctx.get(`${BACKEND_URL}/api/students/${id}`, {
+  headers, failOnStatusCode: false,
+});
+expect(res.status()).toBe(404);
+```
+
+### 7. Run `pnpm run check` before committing
+
+The repo's `oxlint .` and `tsc --noEmit` already include `e2e/**/*.ts`, so a typo in a helper or a stale type from a backend response shape change will fail the gate before you push. There's no separate `pnpm e2e:check` to remember.
+
+### 8. Stable test data — never assume a seeded id
+
+Seeded entity ids shift whenever `backend/seed/api/data.go` is reordered. Tests must read what they need through `helpers/seed-state.ts`:
+
+```typescript
+import { getStudentByIndex, getRoomId, getDeviceApiKey } from "../helpers/seed-state";
+
+const student = getStudentByIndex(0);  // never `id: 1`
+const roomId = getRoomId("OGS-Raum 1"); // never `roomId: 5`
+```
+
+Same rule for entity names: prefer `getTwoDistinctStudents()` over hardcoding `"Felix Schneider"`.
 
 ## Why we use `localtest.me` instead of `localhost`
 

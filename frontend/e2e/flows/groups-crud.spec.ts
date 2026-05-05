@@ -5,7 +5,9 @@ import {
   apiExpect,
 } from "../fixtures";
 import { withAdminContext } from "../helpers/admin-api";
+import { uniqueSuffix } from "../helpers/factories";
 import { BACKEND_URL } from "../helpers/iot";
+import * as routes from "../helpers/routes";
 import { getFirstTwoGroupDisplayNames } from "../helpers/seed-state";
 
 /**
@@ -128,7 +130,7 @@ uiTest.describe("Group list UI", () => {
   uiTest(
     "admin sees seeded groups on /database/groups",
     async ({ authenticatedPage: page }) => {
-      await page.goto("/database/groups");
+      await page.goto(routes.groupsList);
 
       // Two seeded group display names pulled from the seeder's lookup
       // table — no hardcoded "Sternengruppe"/"Bärengruppe" so the test
@@ -141,6 +143,74 @@ uiTest.describe("Group list UI", () => {
       await uiExpect(page.getByText(secondGroup).first()).toBeVisible({
         timeout: 5000,
       });
+    },
+  );
+
+  uiTest(
+    "admin creates a group via the GroupCreateModal and the row appears in the list",
+    async ({ authenticatedPage: page, groupFactory }) => {
+      // Issue #1142 lists "Erstellen" as a Gruppen task. The HTTP path
+      // is covered by the API spec above; this UI test exercises the
+      // open-modal → fill-form → submit → row-visible chain.
+      const name = `UICreateGruppe ${uniqueSuffix()}`;
+
+      await page.goto(routes.groupsList);
+
+      // The plus-button has aria-label "Gruppe erstellen"
+      // (DatabaseCreateAction). Stable accessible name despite the
+      // icon-only visual.
+      await page
+        .getByRole("button", { name: "Gruppe erstellen" })
+        .first()
+        .click();
+
+      const dialog = page.getByRole("dialog");
+      await uiExpect(dialog).toBeVisible({ timeout: 10000 });
+      await uiExpect(
+        dialog.getByRole("heading", { name: "Neue Gruppe" }),
+      ).toBeVisible();
+
+      // The DatabaseForm renders inputs with `name` attributes from the
+      // groups.config field definitions — `name="name"` is the
+      // Gruppenname field. Locating by name attribute is more stable
+      // than placeholder text, which is brand copy ("z.B. Gruppe Blau")
+      // that marketing might tweak.
+      await dialog.locator('input[name="name"]').fill(name);
+
+      await dialog.getByRole("button", { name: "Erstellen" }).click();
+
+      // The page closes the modal in its onCreate success handler
+      // (page.tsx:164). Modal hidden = create flow completed.
+      await uiExpect(dialog).toBeHidden({ timeout: 15000 });
+
+      // Row visible in the list. The list is SWR-backed; SWR mutate is
+      // called after create, so the new row appears without a manual
+      // reload.
+      await uiExpect(page.getByText(name).first()).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Round-trip via /api/groups to confirm DB persistence and
+      // capture the id for cleanup. The list endpoint is unfiltered
+      // (no ?search=), so we walk the small result set ourselves —
+      // groups don't have a search-by-name handler at the time of
+      // writing, and adding one for tests would be tail-wagging-dog.
+      const id = await withAdminContext(async (ctx, headers) => {
+        const res = await ctx.get(`${BACKEND_URL}/api/groups`, { headers });
+        uiExpect(res.status()).toBe(200);
+        const body = (await res.json()) as {
+          data: Array<{ id: number; name: string }>;
+        };
+        const match = body.data.find((g) => g.name === name);
+        uiExpect(
+          match,
+          `group "${name}" not found via /api/groups`,
+        ).toBeDefined();
+        return match!.id;
+      });
+
+      // Hand the id to the factory so its teardown deletes it.
+      groupFactory.track(id);
     },
   );
 });
