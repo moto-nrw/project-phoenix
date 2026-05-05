@@ -16,7 +16,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     archiveTimetableTemplatesVersion,
 		Description: archiveTimetableTemplatesDescription,
-		DependsOn:   []string{backfillDefaultCalendarPeriodsVersion},
+		DependsOn:   []string{createCalendarPeriodsVersion},
 	})
 
 	Migrations.MustRegister(

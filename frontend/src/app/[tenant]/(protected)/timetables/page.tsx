@@ -147,10 +147,31 @@ function firstVisibleSchoolDateInPeriod(
   return targetISO;
 }
 
+function schoolYearPeriodDefaults(anchor: Date): {
+  name: string;
+  startDate: string;
+  endDate: string;
+} {
+  const anchorYear = anchor.getFullYear();
+  const startsInCurrentYear = anchor.getMonth() >= 7;
+  const startYear = startsInCurrentYear ? anchorYear : anchorYear - 1;
+  const endYear = startYear + 1;
+
+  return {
+    name: `Schuljahr ${startYear}/${endYear}`,
+    startDate: `${startYear}-08-01`,
+    endDate: `${endYear}-07-31`,
+  };
+}
+
 function TimetablesContent() {
   const searchParams = useSearchParams();
   const { status } = useSession({ required: true });
-  const { success: toastSuccess, error: toastError } = useToast();
+  const {
+    success: toastSuccess,
+    error: toastError,
+    warning: toastWarning,
+  } = useToast();
   const tenantMutate = useTenantMutate();
 
   const [view, setView] = useState<TimetableView>(() =>
@@ -458,6 +479,7 @@ function TimetablesContent() {
         ? yearFetchToISO
         : toISO;
   const weekDays = useMemo(() => getWeekdays(weekRange.from), [weekRange.from]);
+  const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
   const periodContextDays =
     view === "month" ? monthDays : view === "year" ? yearMonths : weekDays;
   const periodContextDayISOs = useMemo(
@@ -582,6 +604,16 @@ function TimetablesContent() {
     () => uniqueAssignedPeriods(periodAssignments),
     [periodAssignments],
   );
+  const weekPeriodAssignments = useMemo(
+    () => mapPeriodsForDates(calendarPeriods, weekDayISOs),
+    [calendarPeriods, weekDayISOs],
+  );
+  const weekHasFullPeriodCoverage = useMemo(
+    () =>
+      weekPeriodAssignments.length > 0 &&
+      weekPeriodAssignments.every((assignment) => assignment.period !== null),
+    [weekPeriodAssignments],
+  );
   const defaultTemplatePeriod = useMemo(
     () =>
       findPeriodForDate(
@@ -606,23 +638,17 @@ function TimetablesContent() {
   );
   const showTemplatePeriodField = assignedPeriods.length !== 1;
   const periodCreateDefaults = useMemo(() => {
-    const end = new Date(weekRange.from);
-    end.setFullYear(end.getFullYear() + 1);
-    end.setDate(end.getDate() - 1);
-    const start = fromISO;
-    const endISO = toISODate(end);
-    const startYear = weekRange.from.getFullYear();
-    const endYear = end.getFullYear();
+    const defaults = schoolYearPeriodDefaults(weekRange.from);
     return {
-      name: `Schuljahr ${startYear}/${endYear}`,
+      name: defaults.name,
       periodType: "school_year" as const,
-      startDate: start,
-      endDate: endISO,
+      startDate: defaults.startDate,
+      endDate: defaults.endDate,
       weekCycleLength: "1",
       weekCycleAnchor: "",
       isActive: true,
     };
-  }, [fromISO, weekRange.from]);
+  }, [weekRange.from]);
   const conflictCount = useMemo(
     () =>
       instances.reduce((sum, inst) => sum + inst.conflictWarnings.length, 0),
@@ -636,16 +662,24 @@ function TimetablesContent() {
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
 
   const handleMaterialize = useCallback(async () => {
+    if (!weekHasFullPeriodCoverage) {
+      toastWarning(
+        "Lege zuerst eine aktive Planungsperiode für diese Woche an.",
+      );
+      openPeriodCreate();
+      return;
+    }
+
     try {
       const result = await timetableService.materialize(fromISO, toISO);
 
       // The backend reports preconditions (no active calendar period, no
       // templates) as typed warnings rather than HTTP errors so the run
-      // logs cleanly. Surface them as error toasts so the admin sees the
-      // actual reason instead of a misleading "0 angelegt" success message.
+      // logs cleanly. Surface them as warnings so the admin sees the actual
+      // reason instead of a misleading "0 angelegt" success message.
       if (result.warnings.length > 0) {
         for (const w of result.warnings) {
-          toastError(w.message);
+          toastWarning(w.message);
         }
         // For "no_active_period" specifically: open the period editor so
         // the admin can fix the precondition without leaving the planner.
@@ -680,8 +714,10 @@ function TimetablesContent() {
     exceptionConflictsSWRKey,
     toastSuccess,
     toastError,
+    toastWarning,
     tenantMutate,
     openPeriodCreate,
+    weekHasFullPeriodCoverage,
   ]);
 
   const handleLifecycle = useCallback(
@@ -862,7 +898,7 @@ function TimetablesContent() {
         ? calendarPeriods.find((p) => p.id === periodId)
         : null;
       if (!period) {
-        toastError(
+        toastWarning(
           "Keine aktive Planungsperiode - Serie kann nicht eingeplant werden.",
         );
         openPeriodCreate();
@@ -892,7 +928,7 @@ function TimetablesContent() {
         const warnings = Array.from(warningsByCode.values());
         if (warnings.length > 0) {
           for (const warning of warnings) {
-            toastError(warning.message);
+            toastWarning(warning.message);
           }
           if (warnings.some((w) => w.code === "no_active_period")) {
             openPeriodCreate();
@@ -928,6 +964,7 @@ function TimetablesContent() {
       swrKey,
       tenantMutate,
       toastError,
+      toastWarning,
       toastSuccess,
     ],
   );
@@ -1061,31 +1098,47 @@ function TimetablesContent() {
               </div>
               <div className="flex flex-col gap-1">
                 <h3 className="text-base font-semibold text-slate-900">
-                  Diese Woche hat noch keine Termine
+                  {weekHasFullPeriodCoverage
+                    ? "Diese Woche hat noch keine Termine"
+                    : "Diese Woche hat keine Planungsperiode"}
                 </h3>
                 <p className="max-w-sm text-sm text-slate-500">
-                  Lege einen Termin an und entscheide dort, ob er einmalig ist
-                  oder sich wiederholt.
+                  {weekHasFullPeriodCoverage
+                    ? "Lege einen Termin an und entscheide dort, ob er einmalig ist oder sich wiederholt."
+                    : "Lege zuerst eine aktive Planungsperiode an. Danach kannst du Serien und Termine für diese Woche planen."}
                 </p>
               </div>
               <div className="mt-2 flex flex-wrap justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleMaterialize();
-                  }}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
-                >
-                  <CalendarPlusIcon className="h-3.5 w-3.5" aria-hidden />
-                  Serien einplanen
-                </button>
-                <button
-                  type="button"
-                  onClick={openEventCreate}
-                  className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                >
-                  Termin anlegen
-                </button>
+                {weekHasFullPeriodCoverage ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleMaterialize();
+                      }}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
+                    >
+                      <CalendarPlusIcon className="h-3.5 w-3.5" aria-hidden />
+                      Serien einplanen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openEventCreate}
+                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      Termin anlegen
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openPeriodCreate}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
+                  >
+                    <CalendarPlusIcon className="h-3.5 w-3.5" aria-hidden />
+                    Planungsperiode anlegen
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1148,7 +1201,9 @@ function TimetablesContent() {
         }}
         onRepeat={(instance) => {
           if (assignedPeriods.length === 0) {
-            toastError("Lege zuerst eine Planungsperiode für diese Woche an.");
+            toastWarning(
+              "Lege zuerst eine Planungsperiode für diese Woche an.",
+            );
             openPeriodCreate();
             return;
           }
