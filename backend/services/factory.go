@@ -504,6 +504,27 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
+	// Per-status decision emails dispatched by the DecisionService
+	// (PR 8 slice 2). One renderer per kind keeps subjects + templates
+	// independent and makes future copy updates contained.
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentApproved,
+		platform.RendererFunc(enrollment.NewEnrollmentApprovedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentWaitlisted,
+		platform.RendererFunc(enrollment.NewEnrollmentWaitlistedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentRejected,
+		platform.RendererFunc(enrollment.NewEnrollmentRejectedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -691,10 +712,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		RequestRepo:      repos.Request,
-		RequestChildRepo: repos.RequestChild,
-		PhaseRepo:        repos.Phase,
-		Logger:           logger.With("service", "enrollment-decision"),
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		PhaseRepo:                repos.Phase,
+		PersonRepo:               repos.Person,
+		StudentRepo:              repos.Student,
+		StudentGuardianRepo:      repos.StudentGuardian,
+		GuardianProfileRepo:      repos.GuardianProfile,
+		StudentEnrollmentRepo:    repos.StudentEnrollment,
+		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		FrontendURL:              frontendURL,
+		Logger:                   logger.With("service", "enrollment-decision"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{

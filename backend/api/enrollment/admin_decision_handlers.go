@@ -3,17 +3,20 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // AdminRequestSummary is the wire shape for the admin list page.
@@ -180,7 +183,7 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	reviewedBy := int64(claims.ID)
 
-	var updated *enrollmentModels.RequestChild
+	var outcome *enrollmentService.DecideOutcome
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		out, e := rs.DecisionService.Decide(ctx, enrollmentService.DecideInput{
 			RequestID:  requestID,
@@ -189,12 +192,13 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 			Reason:     body.Reason,
 			ReviewedBy: reviewedBy,
 		})
-		updated = out
+		outcome = out
 		return e
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, enrollmentService.ErrDecisionChildNotFound):
+		case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
+			errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		case errors.Is(err, enrollmentService.ErrDecisionInvalidStatus),
 			errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal):
@@ -205,6 +209,15 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Post-tx: schedule guardian invitation if the approval pipeline
+	// asked for one. Best-effort — failure here doesn't roll back the
+	// approval (records are already committed). Logging captures the
+	// failure for the admin to chase via "Re-send invitation".
+	if outcome != nil && outcome.PendingInvite != nil && rs.GuardianInvitationService != nil {
+		go rs.dispatchPostDecisionInvite(r.Context(), outcome.PendingInvite)
+	}
+
+	updated := outcome.Child
 	common.Respond(w, r, http.StatusOK, AdminRequestChild{
 		ID:               strconv.FormatInt(updated.ID, 10),
 		FirstName:        updated.FirstName,
@@ -217,4 +230,36 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		ReviewedBy:       updated.ReviewedBy,
 		ActivationMode:   updated.ActivationMode,
 	}, "Decision applied")
+}
+
+// dispatchPostDecisionInvite fires the guardian invitation flow after
+// the approval tx commits. Runs in its own goroutine so the HTTP
+// response isn't blocked on SMTP / outbox writes; the invitation
+// service writes to platform.email_outbox synchronously, then the
+// outbox worker dispatches the email asynchronously on its own tick.
+func (rs *Resource) dispatchPostDecisionInvite(parentCtx context.Context, invite *enrollmentService.PendingGuardianInvite) {
+	// Detach from request lifetime so the goroutine isn't cancelled by
+	// the response writer flushing. Re-attach tenant from the parent so
+	// the invitation service's tenant-scoped writes resolve.
+	tenantID := tenant.FromContext(parentCtx)
+	bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	bgCtx = tenant.WithTenantID(bgCtx, tenantID)
+
+	// Wrap in a tenant tx so the invitation service's repo writes pick
+	// up the right RLS scope. The service has its own RunInTx that
+	// reuses an existing tx context, so this stays a single tx.
+	err := tenant.WithTenantTx(bgCtx, rs.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := rs.GuardianInvitationService.Create(txCtx, authService.GuardianInvitationCreateRequest{
+			GuardianProfileID: invite.GuardianProfileID,
+			CreatedBy:         invite.CreatedBy,
+		})
+		return e
+	})
+	if err != nil {
+		slog.Default().Warn("post-decision guardian invitation failed",
+			slog.Int64("guardian_profile_id", invite.GuardianProfileID),
+			slog.Int64("created_by", invite.CreatedBy),
+			slog.String("error", err.Error()))
+	}
 }

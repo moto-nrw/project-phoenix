@@ -13,27 +13,30 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // Resource bundles the handler methods + their dependencies.
 type Resource struct {
-	FormSchemaService   enrollmentService.FormSchemaService
-	CareOfferingService enrollmentService.CareOfferingService
-	RequestService      enrollmentService.RequestService
-	CaptchaService      enrollmentService.CaptchaService
-	PhaseService        enrollmentService.PhaseService
-	DecisionService     enrollmentService.DecisionService
-	SchoolRepo          platformModels.SchoolRepository
-	PhaseRepo           enrollmentModels.PhaseRepository
-	db                  *bun.DB
+	FormSchemaService         enrollmentService.FormSchemaService
+	CareOfferingService       enrollmentService.CareOfferingService
+	RequestService            enrollmentService.RequestService
+	CaptchaService            enrollmentService.CaptchaService
+	PhaseService              enrollmentService.PhaseService
+	DecisionService           enrollmentService.DecisionService
+	GuardianInvitationService authService.GuardianInvitationService
+	SchoolRepo                platformModels.SchoolRepository
+	PhaseRepo                 enrollmentModels.PhaseRepository
+	db                        *bun.DB
 }
 
 // NewResource constructs the enrollment API resource. PR 7 added the
 // RequestService + CaptchaService for the public submission flow.
 // PR A of the phase model wires PhaseService + PhaseRepo so the public
 // + admin endpoints can resolve phase rows. PR 8 wires DecisionService
-// for the admin review/accept/reject UI.
+// for the admin review/accept/reject UI; slice 2 also wires the
+// GuardianInvitationService so post-approval invites can fire.
 func NewResource(
 	formSchemaSvc enrollmentService.FormSchemaService,
 	careOfferingSvc enrollmentService.CareOfferingService,
@@ -41,20 +44,22 @@ func NewResource(
 	captchaSvc enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,
 	decisionSvc enrollmentService.DecisionService,
+	guardianInvitationSvc authService.GuardianInvitationService,
 	schoolRepo platformModels.SchoolRepository,
 	phaseRepo enrollmentModels.PhaseRepository,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
-		FormSchemaService:   formSchemaSvc,
-		CareOfferingService: careOfferingSvc,
-		RequestService:      requestSvc,
-		CaptchaService:      captchaSvc,
-		PhaseService:        phaseSvc,
-		DecisionService:     decisionSvc,
-		SchoolRepo:          schoolRepo,
-		PhaseRepo:           phaseRepo,
-		db:                  db,
+		FormSchemaService:         formSchemaSvc,
+		CareOfferingService:       careOfferingSvc,
+		RequestService:            requestSvc,
+		CaptchaService:            captchaSvc,
+		PhaseService:              phaseSvc,
+		DecisionService:           decisionSvc,
+		GuardianInvitationService: guardianInvitationSvc,
+		SchoolRepo:                schoolRepo,
+		PhaseRepo:                 phaseRepo,
+		db:                        db,
 	}
 }
 

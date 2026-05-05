@@ -80,3 +80,23 @@ func (r *RequestChildRepository) UpdateStatus(ctx context.Context, id int64, new
 	}
 	return nil
 }
+
+// LinkCreatedStudent stamps the request_children row with the id of the
+// student created on approval, so the admin UI can navigate from a
+// historical request to the resulting student profile.
+func (r *RequestChildRepository) LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.RequestChild)(nil)).
+		ModelTableExpr(requestChildTableExpr).
+		Set("created_student_id = ?", studentID).
+		Where(`"request_child".id = ?`, requestChildID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to link created student: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("request child %d not found", requestChildID)
+	}
+	return nil
+}

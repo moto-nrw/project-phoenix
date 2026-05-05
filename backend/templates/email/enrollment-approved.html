@@ -1,0 +1,47 @@
+{{define "enrollment-approved.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
+    </div>
+    <h1>Anmeldung bestätigt</h1>
+
+    <p>Sehr geehrte/r {{.GuardianFirstName}} {{.GuardianLastName}},</p>
+
+    <p>wir freuen uns, Ihnen mitteilen zu können, dass die Anmeldung erfolgreich bestätigt wurde.{{if .PhaseName}} Phase: <strong>{{.PhaseName}}</strong>.{{end}}</p>
+
+    {{if .ChildNames}}
+    <div class="highlight-box" style="background-color: #ecfdf5; border-left: 4px solid #83CD2D;">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{if eq (len .ChildNames) 1}}Bestätigtes Kind:{{else}}Bestätigte Kinder:{{end}}</strong></p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .ChildNames}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+
+    {{if .StatusReason}}
+    <p style="margin-top: 16px; font-size: 14px;"><strong>Anmerkung der Schule:</strong> {{.StatusReason}}</p>
+    {{end}}
+
+    <p style="margin-top: 16px;">Den vollständigen Stand Ihrer Anmeldung können Sie weiterhin hier einsehen:</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.StatusURL}}">Anmeldungsstatus ansehen</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.StatusURL}}">{{.StatusURL}}</a>
+    </div>
+
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Wie geht es weiter?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Sie erhalten ggf. in Kürze eine separate E-Mail mit einem Einladungslink, um sich im Eltern-Portal zu registrieren. Dort können Sie alle Informationen rund um die Betreuung Ihres Kindes einsehen und verwalten.</p>
+    </div>
+</div>
+
+{{template "footer" .}}
+{{end}}

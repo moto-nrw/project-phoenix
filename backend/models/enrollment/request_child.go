@@ -63,10 +63,12 @@ func (c *RequestChild) IsTerminal() bool {
 }
 
 // RequestChildRepository describes the DB operations PR 5/7/8 need. PR 5
-// only implements + tests Create/ListByRequestID/UpdateStatus; PR 7 + 8
-// extend.
+// only implements + tests Create/ListByRequestID/UpdateStatus; PR 8
+// adds LinkCreatedStudent to back-link the row to the student record
+// created on approval.
 type RequestChildRepository interface {
 	Create(ctx context.Context, child *RequestChild) error
 	ListByRequestID(ctx context.Context, requestID int64) ([]*RequestChild, error)
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
+	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
 }

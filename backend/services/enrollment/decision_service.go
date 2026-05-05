@@ -5,9 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // DecisionService sentinel errors. Mapped to HTTP status codes by the
@@ -48,6 +52,31 @@ type DecideInput struct {
 	ReviewedBy int64  // admin's auth account id
 }
 
+// DecideOutcome is what the admin handler gets back from Decide. It
+// carries the refreshed RequestChild plus an optional follow-up
+// instruction asking the handler to issue a guardian invitation
+// post-commit (after the tenant tx the handler owns completes).
+//
+// We surface the invitation as a side-effect rather than firing it from
+// inside the service so:
+//   - the invitation flow's own DB writes happen only if the approval
+//     tx committed cleanly
+//   - the handler can apply best-effort error handling without rolling
+//     back the approval
+type DecideOutcome struct {
+	Child         *enrollmentModels.RequestChild
+	PendingInvite *PendingGuardianInvite
+}
+
+// PendingGuardianInvite is the post-commit hook for fresh approvals
+// where the guardian doesn't yet have a portal account. The handler is
+// expected to call services/auth.GuardianInvitationService.Create with
+// these values once the tenant tx commits.
+type PendingGuardianInvite struct {
+	GuardianProfileID int64
+	CreatedBy         int64 // admin auth account id (for audit)
+}
+
 // RequestSummary is the admin-list shape: one row per request with
 // per-child counts so the admin can scan the queue without expanding
 // every detail page.
@@ -64,29 +93,50 @@ type RequestFilters struct {
 	ChildStatus string // matches when ANY child carries this status
 }
 
-// DecisionService backs the admin review UI. Slice 1 ships per-child
-// status mutations; the downstream creation of users.students,
-// guardian_profiles, students_guardians, and activities.student_enrollments
-// rides in slice 2 alongside parent + guardian-invite emails.
+// DecisionService backs the admin review UI. Slice 2 wires the full
+// approval pipeline: status mutation + downstream record creation
+// (users.persons / users.students / users.guardian_profiles /
+// users.students_guardians / activities.student_enrollments) + outbox
+// enqueue for parent decision emails. The guardian invitation is
+// surfaced via DecideOutcome.PendingInvite so the handler can fire it
+// post-commit.
 type DecisionService interface {
 	List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error)
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
-	Decide(ctx context.Context, input DecideInput) (*enrollmentModels.RequestChild, error)
+	Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error)
 }
 
 // DecisionServiceConfig is the dep-injection bundle.
 type DecisionServiceConfig struct {
-	RequestRepo      enrollmentModels.RequestRepository
-	RequestChildRepo enrollmentModels.RequestChildRepository
-	PhaseRepo        enrollmentModels.PhaseRepository
-	Logger           *slog.Logger
+	RequestRepo              enrollmentModels.RequestRepository
+	RequestChildRepo         enrollmentModels.RequestChildRepository
+	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	CareOfferingRepo         enrollmentModels.CareOfferingRepository
+	PhaseRepo                enrollmentModels.PhaseRepository
+	PersonRepo               users.PersonRepository
+	StudentRepo              users.StudentRepository
+	StudentGuardianRepo      users.StudentGuardianRepository
+	GuardianProfileRepo      users.GuardianProfileRepository
+	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
+	OutboxEnqueuer           OutboxEnqueuer
+	FrontendURL              string
+	Logger                   *slog.Logger
 }
 
 type decisionService struct {
-	requestRepo      enrollmentModels.RequestRepository
-	requestChildRepo enrollmentModels.RequestChildRepository
-	phaseRepo        enrollmentModels.PhaseRepository
-	logger           *slog.Logger
+	requestRepo              enrollmentModels.RequestRepository
+	requestChildRepo         enrollmentModels.RequestChildRepository
+	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	careOfferingRepo         enrollmentModels.CareOfferingRepository
+	phaseRepo                enrollmentModels.PhaseRepository
+	personRepo               users.PersonRepository
+	studentRepo              users.StudentRepository
+	studentGuardianRepo      users.StudentGuardianRepository
+	guardianProfileRepo      users.GuardianProfileRepository
+	studentEnrollmentRepo    activities.StudentEnrollmentRepository
+	outboxEnqueuer           OutboxEnqueuer
+	frontendURL              string
+	logger                   *slog.Logger
 }
 
 func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
@@ -95,10 +145,19 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		logger = slog.Default()
 	}
 	return &decisionService{
-		requestRepo:      cfg.RequestRepo,
-		requestChildRepo: cfg.RequestChildRepo,
-		phaseRepo:        cfg.PhaseRepo,
-		logger:           logger,
+		requestRepo:              cfg.RequestRepo,
+		requestChildRepo:         cfg.RequestChildRepo,
+		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
+		careOfferingRepo:         cfg.CareOfferingRepo,
+		phaseRepo:                cfg.PhaseRepo,
+		personRepo:               cfg.PersonRepo,
+		studentRepo:              cfg.StudentRepo,
+		studentGuardianRepo:      cfg.StudentGuardianRepo,
+		guardianProfileRepo:      cfg.GuardianProfileRepo,
+		studentEnrollmentRepo:    cfg.StudentEnrollmentRepo,
+		outboxEnqueuer:           cfg.OutboxEnqueuer,
+		frontendURL:              cfg.FrontendURL,
+		logger:                   logger,
 	}
 }
 
@@ -148,16 +207,19 @@ func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Re
 	return &RequestSummary{Request: req, Phase: phase, Children: children}, nil
 }
 
-// Decide updates a single child's status. Slice 1 only mutates the
-// row + audit fields; slice 2 will wrap this in a tx with downstream
-// student/guardian/enrollment creation when status==approved.
+// Decide updates a single child's status. When status==approved the
+// service also creates the downstream records (Person + Student +
+// GuardianProfile + StudentGuardian + StudentEnrollment[s]) inside the
+// same tenant tx the handler provides — failure of any one rolls the
+// whole approval back. Parent decision emails are enqueued via the
+// outbox in the same tx; guardian invitation creation is returned as a
+// PendingGuardianInvite for the handler to fire post-commit.
 //
-// Idempotency: applying the same status twice is a no-op. Applying a
-// new status to an already-terminal child (approved/rejected/
-// withdrawn) returns ErrDecisionAlreadyTerminal — admin must use the
-// dedicated "promote waitlisted" or "revoke approval" flows for those
-// transitions (deferred to slice 2).
-func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*enrollmentModels.RequestChild, error) {
+// Idempotency: applying the same status twice is a no-op. Re-applying
+// any new status to an already-terminal child (approved/rejected/
+// withdrawn) returns ErrDecisionAlreadyTerminal — admins must use
+// dedicated revoke/promote flows for those (deferred).
+func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error) {
 	if input.RequestID <= 0 {
 		return nil, fmt.Errorf("%w: request_id required", ErrDecisionInvalidStatus)
 	}
@@ -166,6 +228,15 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*enrol
 	}
 	if !validDecisionStatuses[input.Status] {
 		return nil, fmt.Errorf("%w: %s", ErrDecisionInvalidStatus, input.Status)
+	}
+
+	request, err := s.requestRepo.FindByID(ctx, input.RequestID)
+	if err != nil {
+		return nil, ErrDecisionRequestNotFound
+	}
+	phase, err := s.phaseRepo.FindByID(ctx, request.PhaseID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
 
 	children, err := s.requestChildRepo.ListByRequestID(ctx, input.RequestID)
@@ -186,7 +257,7 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*enrol
 
 	// No-op: same status. Don't bump reviewed_at when nothing changes.
 	if target.Status == string(input.Status) {
-		return target, nil
+		return &DecideOutcome{Child: target}, nil
 	}
 
 	// Block transitions out of a terminal status. Promotion flows
@@ -202,6 +273,20 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*enrol
 		reasonPtr = &reason
 	}
 
+	outcome := &DecideOutcome{}
+
+	// Approval is the heavy path: create downstream records first so
+	// any failure rolls back BEFORE we flip the status. The status
+	// update closes the loop after the records exist; if it fails the
+	// records are still rolled back via the surrounding tenant tx.
+	if input.Status == DecisionApproved {
+		invite, err := s.applyApproval(ctx, request, target, phase, input.ReviewedBy)
+		if err != nil {
+			return nil, err
+		}
+		outcome.PendingInvite = invite
+	}
+
 	if err := s.requestChildRepo.UpdateStatus(ctx, target.ID, string(input.Status), reasonPtr, input.ReviewedBy); err != nil {
 		return nil, fmt.Errorf("decision: update child status: %w", err)
 	}
@@ -210,7 +295,16 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*enrol
 		slog.Int64("request_id", input.RequestID),
 		slog.Int64("child_id", input.ChildID),
 		slog.String("status", string(input.Status)),
-		slog.Int64("reviewed_by", input.ReviewedBy))
+		slog.Int64("reviewed_by", input.ReviewedBy),
+		slog.Bool("created_records", input.Status == DecisionApproved),
+	)
+
+	// Enqueue parent decision email. Best-effort: log on error but
+	// don't roll back the approval. (Outbox writes share the outer tx,
+	// so a hard failure WILL roll back — log+swallow keeps the
+	// behaviour aligned with submit's "delivery is downstream of the
+	// decision".)
+	s.enqueueDecisionEmail(ctx, request, target, phase, input.Status, reasonPtr)
 
 	// Refetch to surface DB-managed fields (reviewed_at, updated_at).
 	refreshed, err := s.findChildByID(ctx, input.RequestID, input.ChildID)
@@ -218,9 +312,300 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*enrol
 		// Fall back to the in-memory copy with the new status applied.
 		target.Status = string(input.Status)
 		target.StatusReason = reasonPtr
-		return target, nil
+		outcome.Child = target
+		return outcome, nil
 	}
-	return refreshed, nil
+	outcome.Child = refreshed
+	return outcome, nil
+}
+
+// applyApproval creates the downstream records that an approval
+// implies. Runs inside the outer tenant tx the handler provides — every
+// repo call shares that tx via base.GetDB(ctx, db).
+//
+// Returns a PendingGuardianInvite when the guardian needs an invitation
+// (no existing portal account) so the handler can fire it post-commit.
+func (s *decisionService) applyApproval(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	child *enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+	reviewedBy int64,
+) (*PendingGuardianInvite, error) {
+	if s.personRepo == nil || s.studentRepo == nil || s.guardianProfileRepo == nil ||
+		s.studentGuardianRepo == nil {
+		return nil, fmt.Errorf("decision: approval requires user repos (person/student/guardian)")
+	}
+
+	// 1. Resolve or create the guardian profile (per-tenant).
+	guardian, profileWasNew, err := s.resolveGuardianProfile(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("decision: resolve guardian: %w", err)
+	}
+
+	// 2. Person row for the child. DateOfBirth is required so a copy
+	// is fine.
+	dob := child.DateOfBirth
+	person := &users.Person{
+		FirstName: child.FirstName,
+		LastName:  child.LastName,
+		Birthday:  &dob,
+	}
+	if err := person.Validate(); err != nil {
+		return nil, fmt.Errorf("decision: validate person: %w", err)
+	}
+	if err := s.personRepo.Create(ctx, person); err != nil {
+		return nil, fmt.Errorf("decision: create person: %w", err)
+	}
+
+	// 3. Student row pinned to the phase's service window. Status
+	// 'pending' lets the activate-students scheduler flip to 'active'
+	// when ServiceStartDate arrives.
+	schoolClass := s.gradeToClass(child.TargetGradeLevel)
+	enrolledFrom := phase.ServiceStartDate
+	enrolledUntil := phase.ServiceEndDate
+	guardianEmail := request.GuardianEmail
+	guardianPhone := request.GuardianPhone
+
+	student := &users.Student{
+		PersonID:      person.ID,
+		SchoolClass:   schoolClass,
+		Status:        users.StudentStatusPending,
+		EnrolledFrom:  &enrolledFrom,
+		EnrolledUntil: &enrolledUntil,
+		GuardianEmail: &guardianEmail,
+		GuardianPhone: guardianPhone,
+	}
+	if err := student.Validate(); err != nil {
+		return nil, fmt.Errorf("decision: validate student: %w", err)
+	}
+	if err := s.studentRepo.Create(ctx, student); err != nil {
+		return nil, fmt.Errorf("decision: create student: %w", err)
+	}
+
+	// 4. Link student ↔ guardian as the primary relationship.
+	rel := &users.StudentGuardian{
+		StudentID:          student.ID,
+		GuardianProfileID:  guardian.ID,
+		RelationshipType:   "guardian",
+		IsPrimary:          true,
+		IsEmergencyContact: true,
+		CanPickup:          true,
+	}
+	if err := rel.Validate(); err != nil {
+		return nil, fmt.Errorf("decision: validate student_guardian: %w", err)
+	}
+	if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+		return nil, fmt.Errorf("decision: create student_guardian: %w", err)
+	}
+
+	// 5. Materialize per-care-offering enrollments. Every offering the
+	// parent picked that is bound to an activity_group becomes a row
+	// in activities.student_enrollments. Offerings without an activity
+	// group (pure schedule-only offerings) are skipped.
+	if err := s.materializeEnrollments(ctx, child.ID, student.ID, phase); err != nil {
+		return nil, err
+	}
+
+	// 6. Stamp the request_children row with the resulting student id
+	// so the admin UI can link to the new student record. Failure is
+	// fatal — if we can't link them, future revoke flows can't reverse
+	// the approval cleanly.
+	if err := s.linkCreatedStudent(ctx, child.ID, student.ID); err != nil {
+		return nil, fmt.Errorf("decision: link created student: %w", err)
+	}
+
+	// 7. Decide whether to schedule a guardian invitation. Skip when
+	// the guardian already has a portal account (per the design Q
+	// answer: "when they already have an account we do not need to
+	// create a new one").
+	if !guardian.HasAccount && guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
+		s.logger.Debug("decision: scheduling guardian invitation",
+			slog.Int64("guardian_profile_id", guardian.ID),
+			slog.Bool("profile_was_new", profileWasNew),
+		)
+		return &PendingGuardianInvite{
+			GuardianProfileID: guardian.ID,
+			CreatedBy:         reviewedBy,
+		}, nil
+	}
+	return nil, nil
+}
+
+// resolveGuardianProfile finds an existing tenant-scoped guardian by
+// email or creates a new one. Phone numbers from the submission are
+// NOT migrated into guardian_phone_numbers in slice 2 — that's a
+// separate hop the admin guardian editor already supports if they want
+// to enrich the profile later.
+func (s *decisionService) resolveGuardianProfile(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+) (*users.GuardianProfile, bool, error) {
+	email := strings.TrimSpace(strings.ToLower(request.GuardianEmail))
+
+	if email != "" {
+		existing, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+		if err == nil && existing != nil {
+			return existing, false, nil
+		}
+		// errors.Is(sql.ErrNoRows) and "not found" both flow through;
+		// we don't distinguish — if the lookup fails we still create.
+	}
+
+	// Build a fresh profile.
+	first := strings.TrimSpace(request.GuardianFirstName)
+	last := strings.TrimSpace(request.GuardianLastName)
+
+	profile := &users.GuardianProfile{
+		FirstName:              first,
+		LastName:               last,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	if email != "" {
+		emailCopy := email
+		profile.Email = &emailCopy
+	}
+	if err := profile.Validate(); err != nil {
+		return nil, false, fmt.Errorf("decision: validate guardian profile: %w", err)
+	}
+	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+		return nil, false, fmt.Errorf("decision: create guardian profile: %w", err)
+	}
+	return profile, true, nil
+}
+
+// gradeToClass renders the optional grade level into the student's
+// school_class field. The student schema uses free-form text; we land
+// "1", "2", … when the grade is provided and "" otherwise. Admins can
+// rename via the student profile UI later.
+func (s *decisionService) gradeToClass(grade *int16) string {
+	if grade == nil || *grade == 0 {
+		return ""
+	}
+	return strconv.Itoa(int(*grade))
+}
+
+// materializeEnrollments writes one activities.student_enrollments row
+// per RequestChildOffering whose CareOffering points at an activity
+// group. Offerings without an activity_group_id are skipped (e.g.
+// schedule-only offerings have no group to enroll into).
+func (s *decisionService) materializeEnrollments(
+	ctx context.Context,
+	requestChildID, studentID int64,
+	phase *enrollmentModels.Phase,
+) error {
+	if s.requestChildOfferingRepo == nil || s.careOfferingRepo == nil ||
+		s.studentEnrollmentRepo == nil {
+		// Wired without the offering repos: skip silently. Approvals
+		// will still create the student record; the admin can attach
+		// activity groups later via the activity admin UI.
+		s.logger.Warn("decision: enrollment repos missing; skipping activity materialization",
+			slog.Int64("request_child_id", requestChildID),
+			slog.Int64("student_id", studentID))
+		return nil
+	}
+
+	links, err := s.requestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	if err != nil {
+		return fmt.Errorf("decision: list child offerings: %w", err)
+	}
+
+	validFrom := phase.ServiceStartDate
+	validUntil := phase.ServiceEndDate
+
+	for _, link := range links {
+		offering, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID)
+		if err != nil || offering == nil {
+			s.logger.Warn("decision: care offering missing for child link",
+				slog.Int64("request_child_id", requestChildID),
+				slog.Int64("care_offering_id", link.CareOfferingID))
+			continue
+		}
+		if offering.ActivityGroupID == nil || *offering.ActivityGroupID == 0 {
+			// Schedule-only offering — no activity group, nothing to enroll into.
+			continue
+		}
+		row := &activities.StudentEnrollment{
+			StudentID:       studentID,
+			ActivityGroupID: *offering.ActivityGroupID,
+			ValidFrom:       validFrom,
+			ValidUntil:      &validUntil,
+		}
+		if err := row.Validate(); err != nil {
+			return fmt.Errorf("decision: validate enrollment: %w", err)
+		}
+		if err := s.studentEnrollmentRepo.Create(ctx, row); err != nil {
+			return fmt.Errorf("decision: create enrollment: %w", err)
+		}
+	}
+	return nil
+}
+
+// linkCreatedStudent stamps request_children.created_student_id so the
+// admin UI can link from a historical request back to the new student.
+func (s *decisionService) linkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error {
+	return s.requestChildRepo.LinkCreatedStudent(ctx, requestChildID, studentID)
+}
+
+// enqueueDecisionEmail enqueues a parent decision email matching the
+// new status. Only approved/waitlisted/rejected get emails; transitions
+// to under_review are admin-internal.
+func (s *decisionService) enqueueDecisionEmail(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	child *enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+	status DecisionStatus,
+	reason *string,
+) {
+	if s.outboxEnqueuer == nil {
+		return
+	}
+
+	var kind string
+	switch status {
+	case DecisionApproved:
+		kind = platformModels.EmailKindEnrollmentApproved
+	case DecisionWaitlisted:
+		kind = platformModels.EmailKindEnrollmentWaitlisted
+	case DecisionRejected:
+		kind = platformModels.EmailKindEnrollmentRejected
+	default:
+		// under_review (and any future intermediate status) is
+		// admin-internal — parent stays on the existing status email.
+		return
+	}
+
+	logoURL := s.frontendURL + "/images/moto_transparent.png"
+	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.frontendURL, request.StatusToken)
+
+	payload := map[string]any{
+		EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
+		EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
+		EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
+		EnrollmentPayloadStatusURL:         statusURL,
+		EnrollmentPayloadLogoURL:           logoURL,
+		EnrollmentPayloadChildNames:        []string{child.FirstName + " " + child.LastName},
+		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
+		"phase_name":                       phase.Name,
+	}
+	if phase != nil && phase.ShowStatusReasonToParent && reason != nil && *reason != "" {
+		payload["status_reason"] = *reason
+	}
+
+	if err := s.outboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
+		Kind:              kind,
+		Payload:           payload,
+		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
+		RelatedEntityID:   request.ID,
+	}); err != nil {
+		s.logger.Error("decision: enqueue parent decision email failed",
+			slog.Int64("request_id", request.ID),
+			slog.Int64("child_id", child.ID),
+			slog.String("kind", kind),
+			slog.String("error", err.Error()))
+	}
 }
 
 func (s *decisionService) findChildByID(ctx context.Context, requestID, childID int64) (*enrollmentModels.RequestChild, error) {
