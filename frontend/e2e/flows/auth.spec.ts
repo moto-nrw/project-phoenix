@@ -22,16 +22,19 @@ test.describe("Login", () => {
     await page.fill('input[name="password"]', ADMIN.password);
     await page.click('button:has-text("Anmelden")');
 
-    // After successful login NextAuth redirects away from /login — assert
-    // both halves: navigation occurred AND the protected header is mounted
-    // with the admin's display name.
-    await page.waitForURL((url) => !/\/login(\/|$)/.test(url.pathname), {
-      timeout: 15000,
-    });
-    await expect(page.locator('input[name="email"]')).toHaveCount(0);
+    // After successful login NextAuth redirects away from /login. Wait for
+    // the authenticated shell — the admin display-name button — as the
+    // single canonical "we are past login" signal. Asserting on URL or
+    // email-input absence first races the "Sie werden weitergeleitet…"
+    // interstitial under parallel load: the URL has already left /login
+    // but the protected shell is not mounted yet, so input[name="email"]
+    // can still be present on the interstitial page. The display-name
+    // button only renders inside the protected layout, so its visibility
+    // is the real gate.
     await expect(
       page.getByRole("button").filter({ hasText: ADMIN.displayName }).first(),
-    ).toBeVisible({ timeout: 15000 });
+    ).toBeVisible({ timeout: 20000 });
+    await expect(page).not.toHaveURL(/\/login(\/|$)/);
   });
 
   test("rejects wrong password and stays on the login form", async ({

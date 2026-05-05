@@ -26,6 +26,11 @@ on:
         type: boolean
         default: true
   workflow_dispatch:
+    inputs:
+      run-e2e:
+        type: boolean
+        default: true
+        description: "Run the E2E suite (uncheck to no-op)"
 
 defaults:
   run:

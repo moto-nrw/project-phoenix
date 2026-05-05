@@ -1,3 +1,6 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 /**
  * Single source of truth for E2E test data.
  *
@@ -11,6 +14,17 @@
  * Both are part of the static `DemoStaff` array in
  * `backend/seed/api/data.go`, so their identity is stable across runs.
  */
+
+// Resolve relative to THIS FILE so STORAGE_STATE_PATH is correct regardless
+// of process.cwd(). Playwright resolves relative `storageState` paths
+// against cwd for both writes (page.context().storageState({ path })) and
+// reads (project use.storageState), so a relative form silently scattered
+// auth artifacts to <cwd>/e2e/.auth/ when the suite was launched from
+// anywhere other than frontend/. Anchoring to the file's own URL via
+// import.meta.url keeps the resolution invariant.
+const HERE = dirname(fileURLToPath(import.meta.url));
+// helpers/ → e2e/ → frontend/
+const FRONTEND_DIR = resolve(HERE, "..", "..");
 
 export const TENANT_SLUG = "demo-school";
 export const TENANT_NAME = "Demo School";
@@ -58,6 +72,6 @@ export const STAFF = {
 export type Role = "admin" | "staff";
 
 export const STORAGE_STATE_PATH: Record<Role, string> = {
-  admin: "e2e/.auth/admin.json",
-  staff: "e2e/.auth/staff.json",
+  admin: resolve(FRONTEND_DIR, "e2e", ".auth", "admin.json"),
+  staff: resolve(FRONTEND_DIR, "e2e", ".auth", "staff.json"),
 };

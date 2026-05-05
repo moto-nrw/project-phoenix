@@ -12,12 +12,19 @@ test.describe("Tenant switch", () => {
   }) => {
     await page.goto("/");
 
+    // Wait until the post-login redirect chain has settled on the actual
+    // dashboard before looking for the switcher. Asserting on the
+    // switcher straight after `goto("/")` races the "Einrichtung wechseln"
+    // interstitial under default parallel load — the page is still on the
+    // redirect/loading flow and the protected shell hasn't mounted yet.
+    await page.waitForURL(/\/dashboard(\/|$)/, { timeout: 20000 });
+
     // The TenantSwitcher only renders when the user has access to more than
     // one tenant. `scripts/seed-e2e.sh` chains in seed-e2e-multi-tenant.sh
     // for exactly this reason, so the dropdown MUST be present here. If it
     // isn't, the seed is broken — fail loudly rather than skip silently.
     const switcherTrigger = page.getByRole("button", { name: TENANT_NAME });
-    await expect(switcherTrigger.first()).toBeVisible({ timeout: 10000 });
+    await expect(switcherTrigger.first()).toBeVisible({ timeout: 20000 });
 
     // Open the dropdown and pick the second tenant.
     await switcherTrigger.first().click();

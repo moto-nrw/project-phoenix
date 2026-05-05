@@ -141,10 +141,14 @@ uiTest.describe("Student list UI", () => {
 
       // PageHeaderWithSearch renders two inputs (mobile + desktop) with the
       // same placeholder; only one is visible at a given breakpoint, so
-      // filter to that one rather than relying on document order.
+      // filter to that one rather than relying on document order. Use
+      // .filter({ visible: true }) — the modern, documented form — instead
+      // of .locator("visible=true"); both work today but the filter form
+      // is unambiguous about acting on the parent locator rather than
+      // looking like a descendant search.
       const searchBox = page
         .getByPlaceholder("Schüler suchen...")
-        .locator("visible=true");
+        .filter({ visible: true });
       await searchBox.fill(first.first_name);
 
       // After filtering, the first student is still there but the second
@@ -193,14 +197,25 @@ uiTest.describe("Student list UI", () => {
       await klasseInput.fill(newClass);
 
       // Speichern button is disabled while !isDirty AND while saving.
-      // After fill() it must be enabled; after click it eventually flips
-      // back to disabled because the parent re-derives originalDraft
-      // from the freshly-saved student. That transition is our "save
-      // landed" signal — more reliable than waiting for a toast.
+      // After fill() it must be enabled. The button is *supposed* to flip
+      // back to disabled once the parent re-derives originalDraft from
+      // the freshly-saved student, but that transition lags behind the
+      // successful PUT under default parallel load — long enough that
+      // toBeDisabled() can time out even though the DB write already
+      // landed. Wait on the network response itself: deterministic, not
+      // dependent on a downstream UI re-render race.
       const saveButton = page.getByRole("button", { name: /^Speichern$/ });
       await uiExpect(saveButton).toBeEnabled({ timeout: 5000 });
+
+      const putResponsePromise = page.waitForResponse(
+        (resp) =>
+          resp.url().includes(`/api/students/${student.id}`) &&
+          resp.request().method() === "PUT",
+        { timeout: 15000 },
+      );
       await saveButton.click();
-      await uiExpect(saveButton).toBeDisabled({ timeout: 15000 });
+      const putResponse = await putResponsePromise;
+      uiExpect(putResponse.status()).toBe(200);
 
       // Round-trip via HTTP — the only way to know the change actually
       // hit the DB and is not just a stale form re-render.
@@ -269,8 +284,16 @@ uiTest.describe("Student list UI", () => {
       // Row visible in the master/detail list. The list filters
       // client-side, so the freshly-created student must appear without
       // needing a manual reload.
+      //
+      // Use getByRole("button", …) — NOT getByText — because the success
+      // toast that fires after creation also contains the student's full
+      // name ("Schüler 'Max Mustermann' wurde erfolgreich erstellt"). With
+      // getByText().first() the toast wins the locator race under load,
+      // and toBeVisible then polls a paragraph that auto-hides after ~4s,
+      // producing a false-red. List rows are <button>s; the toast is a
+      // <p inside [role=status]>, so getByRole disambiguates cleanly.
       await uiExpect(
-        page.getByText(`${firstName} ${lastName}`).first(),
+        page.getByRole("button", { name: `${firstName} ${lastName}` }).first(),
       ).toBeVisible({ timeout: 10000 });
 
       // Round-trip: the row in the list comes from the same SWR fetch
@@ -315,7 +338,6 @@ uiTest.describe("Student list UI", () => {
       const student = await studentFactory.create({
         first_name: `UIDelete${uniqueSuffix()}`,
       });
-      const fullName = `${student.first_name} ${student.last_name}`;
 
       // Land directly on the detail view for our student so the
       // detailActions slot (which holds the Löschen trigger) renders.
@@ -340,26 +362,32 @@ uiTest.describe("Student list UI", () => {
         dialog.getByRole("heading", { name: "Schüler löschen?" }),
       ).toBeVisible();
 
-      await dialog.getByRole("button", { name: "Löschen" }).click();
-
       // useDeleteConfirmation.confirmDelete (src/hooks/useDeleteConfirmation.ts)
       // hides the modal *synchronously* and then fires the delete callback
       // fire-and-forget. So `dialog.toBeHidden()` resolves long before the
       // DELETE request completes — checking the API too early would race
-      // and falsely see the row as still existing. Waiting for the list
-      // row to disappear is the canonical "delete fully landed" signal:
-      // the page-level handleDeleteStudent calls tenantMutate after the
-      // DELETE response returns, which triggers SWR revalidation, which
-      // removes the row.
-      await uiExpect(page.getByText(fullName)).toHaveCount(0, {
-        timeout: 15000,
-      });
+      // and falsely see the row as still existing. Polling the list row
+      // for disappearance is also unreliable: the master/detail layout
+      // can keep the deleted student's name rendered in the right-hand
+      // detail pane after the row leaves the list, so getByText(fullName)
+      // hits zero only after a second SWR cycle. Wait on the DELETE
+      // response itself — the only signal that's both deterministic and
+      // consistent across master/detail layout variants.
+      const deleteResponsePromise = page.waitForResponse(
+        (resp) =>
+          resp.url().includes(`/api/students/${student.id}`) &&
+          resp.request().method() === "DELETE",
+        { timeout: 15000 },
+      );
+      await dialog.getByRole("button", { name: "Löschen" }).click();
+      const deleteResponse = await deleteResponsePromise;
+      uiExpect(deleteResponse.status()).toBe(200);
 
-      // Backend confirmation: now that the list row is gone, the API
-      // must return 404. A still-existing row at this point would mean
-      // SWR optimistically dropped the row but the backend never
-      // committed the delete — the exact silent-failure class this
-      // test catches.
+      // Backend confirmation: the proxy returned 200, so the API must
+      // also return 404 on a follow-up GET. A still-existing student at
+      // this point would mean the proxy lied (rare) or the backend
+      // accepted the DELETE without committing (the exact silent-failure
+      // class this test catches).
       await withAdminContext(async (ctx, headers) => {
         const res = await ctx.get(`${BACKEND_URL}/api/students/${student.id}`, {
           headers,

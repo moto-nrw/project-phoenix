@@ -1,6 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 import { BASE_URL, STORAGE_STATE_PATH } from "./e2e/helpers/seed-data";
 
+// Single source of truth for "where is the E2E backend?". Read from the
+// same env var that helpers/iot.ts uses (E2E_BACKEND_URL) so HTTP-only
+// specs and the spawned Next.js dev server agree on the target. When
+// unset (the common local case), both fall through to localhost:8081.
+const E2E_BACKEND_URL = process.env.E2E_BACKEND_URL ?? "http://localhost:8081";
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -16,6 +22,14 @@ export default defineConfig({
   // container; 4 keeps suite runtime low without making auth/UI tests flaky
   // under load. CI uses 1 worker for full determinism.
   workers: process.env.CI ? 1 : 4,
+  // Per-test timeout. The default 30s is tight for UI specs that drive a
+  // cold dev server: a first-hit page.goto under 4-way parallel load can
+  // burn 15–25s on Next.js lazy compilation alone before the spec even
+  // starts asserting, leaving too little room for the rest of the test.
+  // 60s gives headroom for cold compile + form render + waitForResponse
+  // chains without masking a genuine hang. CI runs with workers=1 and
+  // warm caches, so it'll never come close to this ceiling.
+  timeout: 60_000,
   reporter: "html",
   use: {
     baseURL: BASE_URL,
@@ -87,8 +101,8 @@ export default defineConfig({
     env: {
       // Bind Next.js to :3030 (also passed via --port; both honored).
       PORT: "3030",
-      NEXT_PUBLIC_API_URL: "http://localhost:8081",
-      API_URL: "http://localhost:8081",
+      NEXT_PUBLIC_API_URL: E2E_BACKEND_URL,
+      API_URL: E2E_BACKEND_URL,
       // Override TENANT_DOMAIN for the spawned dev server so the suite gets
       // production-shaped cookie behavior (.localtest.me cookie scope) needed
       // for the tenant-switch flow. The canonical dev default is `localhost`,
@@ -96,6 +110,14 @@ export default defineConfig({
       // fine for everyday dev, wrong for E2E.
       TENANT_DOMAIN: "localtest.me",
       NEXT_PUBLIC_TENANT_DOMAIN: "localtest.me",
+      // Pin the operator subdomain to the localtest.me + :3030 origin so
+      // proxy.ts:isOperatorHost() and lib/operator-url.ts:isOperatorSubdomain()
+      // recognize the operator URL in this run mode. Without this override,
+      // those guards still compare against the dev default (operator.localhost
+      // :3000) and a request to operator.localtest.me:3030 would be routed to
+      // the tenant selector instead of the operator app — silently wrong, hard
+      // to debug if a future spec exercises the operator surface.
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localtest.me:3030",
     },
   },
 });

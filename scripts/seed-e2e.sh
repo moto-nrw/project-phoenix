@@ -46,11 +46,64 @@ OPERATOR_EMAIL="operator@e2e.local"
 OPERATOR_PASSWORD="E2EOp1234!"
 OPERATOR_PIN="1234"
 
-# Bring up the e2e profile services. Idempotent — `up -d` is a no-op if
-# they are already healthy. We only target the two services we need so we
-# don't accidentally start the dev `frontend`/`server`/`postgres` stack.
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Both .env and docker-compose.yml are gitignored — devs manage their own
+# customisations of the tracked .env.example / docker-compose.example.yml.
+# On a fresh clone neither file exists, and the docker compose calls below
+# would either fail with "no configuration file provided" or silently
+# substitute empty strings for required env vars (PHOENIX_AUTH_PASSWORD,
+# AUTH_JWT_SECRET, POSTGRES_PASSWORD) — which then makes server-e2e exit
+# at startup before the healthcheck can even run, surfacing as a confusing
+# unhealthy-container failure with no actionable error.
+#
+# Materialise from the examples when missing. NEVER overwrite an existing
+# file so dev-side customisations are preserved; the stale-compose check
+# below catches the one pre-existing case that's not safe to leave alone.
+
+if [ ! -f "$REPO_ROOT/.env" ]; then
+  echo ".env not found — creating from .env.example"
+  echo "  NOTE: .env.example ships with placeholder secrets that are fine for"
+  echo "  local dev / E2E but MUST be replaced before pushing to staging or"
+  echo "  production (AUTH_JWT_SECRET / POSTGRES_PASSWORD / etc.)."
+  cp "$REPO_ROOT/.env.example" "$REPO_ROOT/.env"
+fi
+
+if [ ! -f "$REPO_ROOT/docker-compose.yml" ]; then
+  echo "docker-compose.yml not found — creating from docker-compose.example.yml"
+  cp "$REPO_ROOT/docker-compose.example.yml" "$REPO_ROOT/docker-compose.yml"
+fi
+
+# Defence against stale gitignored compose files from BEFORE this branch:
+# `server-e2e` and `postgres-test` were added recently, so a pre-existing
+# local docker-compose.yml may still lack them. The next `docker compose
+# up server-e2e` would otherwise fail with "no such service: server-e2e"
+# instead of something actionable. Don't silently overwrite — surface
+# the mismatch with a clear remediation hint.
+if ! grep -qE '^\s+server-e2e:' "$REPO_ROOT/docker-compose.yml"; then
+  echo "error: docker-compose.yml is missing the server-e2e service." >&2
+  echo "" >&2
+  echo "Your local docker-compose.yml predates the e2e profile services" >&2
+  echo "added in this branch. Either:" >&2
+  echo "  - rm docker-compose.yml && rerun this script" >&2
+  echo "    (creates a fresh copy from docker-compose.example.yml)" >&2
+  echo "  - or merge the postgres-test + server-e2e blocks from" >&2
+  echo "    docker-compose.example.yml into your local file" >&2
+  exit 1
+fi
+
+# Bring up the e2e profile services. We force-recreate server-e2e so any
+# backend code change since the last run is picked up: server-e2e runs
+# `go run . serve` (no hot reload — air would clash with the dev `server`
+# service that shares the same ./backend:/app mount), so a healthy-but-
+# stale container would otherwise keep serving the previous binary while
+# the seeder writes fresh data, producing misleading test results.
+# postgres-test does NOT need recreation — its data is wiped by
+# `migrate reset` below, and recreating drops the cached page cache for
+# no benefit.
 echo "Bringing up isolated E2E backend (postgres-test + server-e2e)..."
-docker compose up -d --wait postgres-test server-e2e
+docker compose up -d --wait postgres-test
+docker compose up -d --wait --force-recreate --no-deps server-e2e
 
 echo "Resetting test database (operator: $OPERATOR_EMAIL)..."
 # Override OPERATOR_* env so the bootstrap migration creates our E2E

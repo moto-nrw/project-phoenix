@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * Single source of truth for reading the deterministic seeder's output
  * (`backend/.seed-state-e2e.json`). The seeder writes this file from
  * inside the `server-e2e` container, which mounts `./backend:/app`, so
- * the host sees it at `<repo>/backend/.seed-state-e2e.json`. Tests run
- * from `frontend/`, so we resolve up one level.
+ * the host sees it at `<repo>/backend/.seed-state-e2e.json`.
  *
  * Why the `-e2e` suffix: both the dev `server` and `server-e2e`
  * containers mount the same `./backend` directory. Without a separate
@@ -27,8 +27,19 @@ import { resolve } from "node:path";
  * to track new fields.
  */
 
+// Resolve relative to THIS FILE, not process.cwd(). The previous cwd-based
+// resolution silently broke whenever Playwright was launched from anywhere
+// other than `frontend/` (e.g. `pnpm --dir frontend exec playwright test`
+// from the repo root, IDE run configs, wrapper scripts) — the path then
+// pointed at `<repo>/../backend/.seed-state-e2e.json`, outside the repo,
+// and every helper threw "Run ./scripts/seed-e2e.sh first" even though the
+// seed file existed. fileURLToPath/dirname is invariant against cwd.
+const HERE = dirname(fileURLToPath(import.meta.url));
 const SEED_STATE_PATH = resolve(
-  process.cwd(),
+  HERE,
+  // helpers/ → e2e/ → frontend/ → <repo>
+  "..",
+  "..",
   "..",
   "backend",
   ".seed-state-e2e.json",

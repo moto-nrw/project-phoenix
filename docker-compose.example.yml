@@ -203,7 +203,12 @@ services:
       TZ: ${TZ}
       LOG_LEVEL: ${LOG_LEVEL}
       LOG_TEXTLOGGING: ${LOG_TEXTLOGGING}
-      PORT: ${PORT}
+      # Hardcoded — not ${PORT} — because the host mapping `8081:8080`
+      # above and the seed/Playwright config (localhost:8081) all assume
+      # the container listens on 8080 internally. Inheriting PORT from
+      # the shared root .env would let a developer who customised PORT
+      # for their dev backend silently break the entire E2E stack.
+      PORT: "8080"
       # Override: target postgres-test on its in-network port (5432). The
       # phoenix_test DB has no SSL certs mounted, so sslmode=disable.
       DB_DSN: postgres://postgres:${POSTGRES_PASSWORD}@postgres-test:5432/phoenix_test?sslmode=disable
@@ -249,7 +254,14 @@ services:
       SESSION_CLEANUP_ENABLED: "false"
       SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES}
       SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES}
-      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN}
+      # Hardcoded — not ${OGS_DEVICE_PIN} — because seed-e2e.sh writes a
+      # fixed staff PIN ("1234") into .seed-state-e2e.json that Playwright
+      # reads via getDevicePIN(). Inheriting from the shared root .env
+      # would let a developer who customised OGS_DEVICE_PIN locally serve
+      # tests with a server-side PIN that doesn't match the seeded one,
+      # producing 401s on every /api/iot/* request. Keep this in sync
+      # with OPERATOR_PIN in scripts/seed-e2e.sh.
+      OGS_DEVICE_PIN: "1234"
       OPERATOR_EMAIL: ${OPERATOR_EMAIL}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
       OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME}
@@ -259,6 +271,23 @@ services:
     # processes against one tmp dir corrupts the build. The test backend
     # doesn't need hot reload, only a stable serve.
     command: ["sh", "-c", "go run . migrate && go run . serve"]
+    # Without a healthcheck, `docker compose up -d --wait` only blocks
+    # until the container is RUNNING — not until `go run` has finished
+    # compiling and the HTTP server is actually listening. On a cold
+    # local run or fresh CI runner, that startup window is 30–60s and
+    # the next steps in seed-e2e.sh (`migrate reset`, `seed`, multi-
+    # tenant operator login) would race the server, surfacing as
+    # confusing "connection refused" failures even though Compose
+    # reported success. /health returns 200 OK once Chi is wired up,
+    # so polling it gives us a deterministic ready-signal.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      # 90s grace period covers `go run` cold compile + migrations on
+      # underpowered CI runners without papering over a real hang.
+      start_period: 90s
 
 volumes:
   postgres:
