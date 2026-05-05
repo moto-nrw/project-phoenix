@@ -173,6 +173,7 @@ function buildStudentQueryParams(filters?: {
   search?: string;
   inHouse?: boolean;
   groupId?: string;
+  roomId?: string;
   page?: number;
   pageSize?: number;
   includePickupTimes?: boolean;
@@ -183,6 +184,10 @@ function buildStudentQueryParams(filters?: {
   if (filters?.inHouse !== undefined)
     params.append("in_house", filters.inHouse.toString());
   if (filters?.groupId) params.append("group_id", filters.groupId);
+  // room_id narrows the list to students currently checked-in to any
+  // active group taking place in this room (#1323). Backend joins via
+  // active.visits → active.groups; see api/students/list_helpers.go.
+  if (filters?.roomId) params.append("room_id", filters.roomId);
   if (filters?.page) params.append("page", filters.page.toString());
   if (filters?.pageSize)
     params.append("page_size", filters.pageSize.toString());
@@ -746,6 +751,7 @@ export const studentService = {
     search?: string;
     inHouse?: boolean;
     groupId?: string;
+    roomId?: string;
     page?: number;
     pageSize?: number;
     includePickupTimes?: boolean;

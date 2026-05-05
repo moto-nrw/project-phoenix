@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  Suspense,
+  useCallback,
+  useRef,
+} from "react";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { formatFloor, mapRoomsResponse } from "~/lib/room-helpers";
@@ -11,6 +20,7 @@ import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { RoomDetailModal } from "~/components/rooms";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -45,10 +55,29 @@ function RoomsPageContent() {
     },
   });
   const router = useTenantRouter();
+  const searchParams = useSearchParams();
+  const updateUrlParams = useUpdateUrlParams();
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("all");
-  const [occupiedFilter, setOccupiedFilter] = useState("all");
+  // ?room={id} drives the detail modal so deep links work and the back
+  // button closes the overlay. Same convention as /database/* pages.
+  const selectedRoomId = searchParams.get("room");
+
+  // Filters are local React state for snappy UI, but their initial
+  // value comes from the URL so they SURVIVE a remount when the user
+  // drills /rooms → /students/X → browser back. The student page's
+  // BackButton pushes back to /rooms with the params we tucked into
+  // ?from= (see students-in-room-section.tsx), so on remount the URL
+  // re-hydrates the React state.
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
+  const [buildingFilter, setBuildingFilter] = useState(
+    () => searchParams.get("building") ?? "all",
+  );
+  const [occupiedFilter, setOccupiedFilter] = useState(
+    () => searchParams.get("status") ?? "all",
+  );
+
   const [isMobile, setIsMobile] = useState(false);
 
   // Handle mobile detection
@@ -60,6 +89,40 @@ function RoomsPageContent() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Mirror local filter state into the URL so the current history entry
+  // always reflects the user's view. Without this, typing a filter while
+  // the URL is bare /rooms means closing a just-opened room modal pops
+  // back to a URL that never carried those filters — they would survive
+  // in React state for now, but a refresh, share, or future remount
+  // would silently drop them. router.replace keeps the entry count
+  // unchanged, so handleSelectRoom's push and handleCloseDetail's
+  // router.back() still work as documented. The early-return guards
+  // against the searchParams → updateUrlParams identity churn that
+  // would otherwise re-fire this effect after each replace.
+  useEffect(() => {
+    const currentSearch = searchParams.get("search") ?? "";
+    const currentBuilding = searchParams.get("building") ?? "all";
+    const currentStatus = searchParams.get("status") ?? "all";
+    if (
+      currentSearch === searchTerm &&
+      currentBuilding === buildingFilter &&
+      currentStatus === occupiedFilter
+    ) {
+      return;
+    }
+    updateUrlParams({
+      search: searchTerm || null,
+      building: buildingFilter !== "all" ? buildingFilter : null,
+      status: occupiedFilter !== "all" ? occupiedFilter : null,
+    });
+  }, [
+    searchTerm,
+    buildingFilter,
+    occupiedFilter,
+    searchParams,
+    updateUrlParams,
+  ]);
 
   // Fetch rooms with SWR (automatic caching, deduplication, revalidation)
   // Global SSE in TenantAuthWrapper handles cache invalidation automatically
@@ -143,10 +206,65 @@ function RoomsPageContent() {
     return filtered;
   }, [roomsData, searchTerm, buildingFilter, occupiedFilter]);
 
-  // Handle room selection
-  const handleSelectRoom = (room: Room) => {
-    router.push(`/rooms/${room.id}`);
-  };
+  // Track whether the click handler just pushed an entry. Used by the
+  // effect below to stamp a marker into the resulting history entry.
+  const justPushedRef = useRef(false);
+
+  // Open the detail modal by pushing ?room={id} as a NEW history entry
+  // (not replace), so the browser Back button closes the overlay
+  // instead of skipping past the rooms page. Bake the current filter
+  // state into the URL so it survives the round-trip through a child's
+  // detail page (student-card click → /students/X → back).
+  const handleSelectRoom = useCallback(
+    (room: Room) => {
+      const next = new URLSearchParams(searchParams.toString());
+      if (searchTerm) next.set("search", searchTerm);
+      else next.delete("search");
+      if (buildingFilter !== "all") next.set("building", buildingFilter);
+      else next.delete("building");
+      if (occupiedFilter !== "all") next.set("status", occupiedFilter);
+      else next.delete("status");
+      next.set("room", room.id);
+      justPushedRef.current = true;
+      router.push(`/rooms?${next.toString()}`);
+    },
+    [router, searchParams, searchTerm, buildingFilter, occupiedFilter],
+  );
+
+  // After router.push commits, mark the now-current history entry as
+  // "we pushed this". Stored in window.history.state so it survives
+  // page remounts — i.e. when the user drills /rooms → /students/X and
+  // returns via browser back, the marker is still there even though
+  // the React component was unmounted in between.
+  useEffect(() => {
+    if (!justPushedRef.current || typeof window === "undefined") return;
+    justPushedRef.current = false;
+    window.history.replaceState(
+      { ...(window.history.state ?? {}), roomModalPushed: true },
+      "",
+    );
+  }, [searchParams]);
+
+  // Close by POPPING the modal entry rather than replacing in place.
+  // Replace would leave two consecutive /rooms entries in history, so
+  // the first browser Back after closing would appear to do nothing.
+  // Fall back to replace only when there's no in-app entry to pop
+  // (e.g. user landed directly on /rooms?room=… via a deep link, or
+  // got here from the student page's in-app back which pushed a fresh
+  // untagged entry).
+  const handleCloseDetail = useCallback(() => {
+    const state = typeof window !== "undefined" ? window.history.state : null;
+    const wasPushedByUs =
+      state &&
+      typeof state === "object" &&
+      "roomModalPushed" in state &&
+      (state as { roomModalPushed?: unknown }).roomModalPushed === true;
+    if (wasPushedByUs) {
+      router.back();
+    } else {
+      updateUrlParams({ room: null });
+    }
+  }, [router, updateUrlParams]);
 
   // Get unique values for filters
   const uniqueBuildings = useMemo(() => {
@@ -449,6 +567,8 @@ function RoomsPageContent() {
           })}
         </div>
       )}
+
+      <RoomDetailModal roomId={selectedRoomId} onClose={handleCloseDetail} />
     </div>
   );
 }

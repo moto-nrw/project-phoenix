@@ -6,8 +6,53 @@ vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
+// Hoisted mutable state so individual tests can flip the simulated URL
+// (?room={id}) and re-render to exercise open / close transitions.
+const { searchParamsState } = vi.hoisted(() => ({
+  searchParamsState: { roomParam: null as string | null },
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(),
+  // searchParams.toString() is consumed by handleSelectRoom when building
+  // the new history entry, so the mock must expose it.
+  useSearchParams: vi.fn(() => ({
+    get: vi.fn((key: string) =>
+      key === "room" ? searchParamsState.roomParam : null,
+    ),
+    toString: vi.fn(() =>
+      searchParamsState.roomParam ? `room=${searchParamsState.roomParam}` : "",
+    ),
+  })),
+  usePathname: vi.fn(() => "/test-tenant/rooms"),
+}));
+
+const mockUpdateUrlParams = vi.fn();
+vi.mock("~/hooks/useUpdateUrlParams", () => ({
+  useUpdateUrlParams: () => mockUpdateUrlParams,
+}));
+
+vi.mock("~/components/rooms", () => ({
+  // Surface the onClose handler as a clickable element so tests can
+  // exercise the modal-close branch (back vs. updateUrlParams).
+  RoomDetailModal: ({
+    roomId,
+    onClose,
+  }: {
+    roomId: string | null;
+    onClose: () => void;
+  }) =>
+    roomId ? (
+      <div data-testid="room-detail-modal" data-room-id={roomId}>
+        <button
+          type="button"
+          data-testid="room-detail-modal-close"
+          onClick={onClose}
+        >
+          close
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("swr", () => ({
@@ -92,10 +137,19 @@ const mockRooms = [
 
 describe("RoomsPage", () => {
   const mockPush = vi.fn();
+  const mockBack = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useRouter).mockReturnValue({ push: mockPush } as never);
+    searchParamsState.roomParam = null;
+    // Reset jsdom's per-entry history state so the close handler reads
+    // a clean slate. Without this, a marker left by a previous test
+    // would leak into the next.
+    window.history.replaceState(null, "");
+    vi.mocked(useRouter).mockReturnValue({
+      push: mockPush,
+      back: mockBack,
+    } as never);
     vi.mocked(useSession).mockReturnValue({
       data: { user: { id: "1" } },
       status: "authenticated",
@@ -161,7 +215,7 @@ describe("RoomsPage", () => {
     });
   });
 
-  it("navigates to room detail on card click", () => {
+  it("pushes ?room={id} as a new history entry on card click", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: mockRooms,
       isLoading: false,
@@ -172,7 +226,91 @@ describe("RoomsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Raum 101/i }));
 
-    expect(mockPush).toHaveBeenCalledWith("/test-tenant/rooms/1");
+    // Opening the modal must use router.push (not replace) so the
+    // browser Back button closes the overlay instead of skipping past
+    // the rooms page. mockPush is the underlying next/navigation router
+    // that useTenantRouter wraps.
+    expect(mockPush).toHaveBeenCalledWith("/test-tenant/rooms?room=1");
+    // updateUrlParams (which uses replace internally) must NOT be called
+    // for opening — only for closing.
+    expect(mockUpdateUrlParams).not.toHaveBeenCalledWith({ room: "1" });
+  });
+
+  it("pops the modal entry on close after open (back, not replace)", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    const { rerender } = render(<RoomsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Raum 101/i }));
+
+    // Simulate the URL update that production would receive from
+    // router.push: flip the mocked searchParam and re-render so the
+    // modal mounts and exposes the close affordance.
+    searchParamsState.roomParam = "1";
+    rerender(<RoomsPage />);
+
+    fireEvent.click(screen.getByTestId("room-detail-modal-close"));
+
+    // After open-then-close, history must collapse to a single /rooms
+    // entry. Replace would leave [/rooms, /rooms] and Back would appear
+    // to do nothing — the close path has to pop the modal entry.
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(mockUpdateUrlParams).not.toHaveBeenCalledWith({ room: null });
+  });
+
+  it("still pops the modal entry after a /rooms → /students → /rooms remount", () => {
+    // Verifies the marker that drives the close decision lives on
+    // window.history.state, not in component state. Otherwise drilling
+    // into a child and pressing browser Back would remount /rooms with
+    // a fresh ref, and the close path would silently fall back to
+    // replace — leaving the duplicate-/rooms history bug intact.
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    // 1. First mount: open the modal. The effect tags the now-current
+    //    history entry with roomModalPushed=true.
+    const first = render(<RoomsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Raum 101/i }));
+    searchParamsState.roomParam = "1";
+    first.rerender(<RoomsPage />);
+
+    // 2. Simulate the user navigating away (drill into a student) and
+    //    returning via browser back: same history entry, fresh React
+    //    component instance.
+    first.unmount();
+    render(<RoomsPage />);
+
+    // 3. Close from the remounted page. The marker on history.state
+    //    survives, so close still pops via router.back.
+    fireEvent.click(screen.getByTestId("room-detail-modal-close"));
+
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(mockUpdateUrlParams).not.toHaveBeenCalledWith({ room: null });
+  });
+
+  it("falls back to replace when closing a deep-linked modal entry", () => {
+    // User landed on /rooms?room=2 directly (refresh / shared link), so
+    // there is no in-app prior /rooms entry to pop. router.back() would
+    // leave the page; updateUrlParams clears the param in place instead.
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+    searchParamsState.roomParam = "2";
+
+    render(<RoomsPage />);
+
+    fireEvent.click(screen.getByTestId("room-detail-modal-close"));
+
+    expect(mockUpdateUrlParams).toHaveBeenCalledWith({ room: null });
+    expect(mockBack).not.toHaveBeenCalled();
   });
 
   it("shows error message when rooms fetch fails", () => {

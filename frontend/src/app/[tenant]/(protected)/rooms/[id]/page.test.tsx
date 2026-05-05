@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import RoomDetailPage from "./page";
 
@@ -14,6 +14,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => ({
     get: vi.fn((key: string) => (key === "from" ? "/rooms" : null)),
   }),
+  // StudentsInRoomSection (rendered by RoomDetailContent) reads pathname
+  // to decide whether to use /rooms/{id} or /rooms?room={id} as the
+  // student-page referrer. Default to the legacy subpage URL for tests
+  // entering via /rooms/[id].
+  usePathname: () => "/test-tenant/rooms/1",
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -24,6 +29,14 @@ vi.mock("next-auth/react", () => ({
       },
     },
   })),
+}));
+
+// useRoomDetail now goes through useSWRAuth so SSE invalidations can
+// refresh the room header (#1374). Mock the SWR layer to drive the
+// page from controlled state instead of intercepting raw fetch.
+const mockUseSWRAuth = vi.fn();
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: (...args: unknown[]) => mockUseSWRAuth(...args),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -92,53 +105,96 @@ vi.mock("~/lib/room-helpers", () => ({
   }),
 }));
 
-const mockRoom = {
-  id: 1,
+// Page test focuses on the room header / status / history rendered by
+// RoomDetailContent. The live "Kinder im Raum" section has its own
+// dedicated test file — stub it here so this test isn't entangled with
+// its data fetching.
+vi.mock("~/components/rooms/students-in-room-section", () => ({
+  StudentsInRoomSection: () => <div data-testid="students-in-room-section" />,
+}));
+
+interface FrontendRoom {
+  id: string;
+  name: string;
+  building?: string;
+  floor?: number;
+  capacity?: number;
+  category?: string;
+  isOccupied: boolean;
+  groupName?: string;
+  activityName?: string;
+  supervisorName?: string;
+  deviceId?: string;
+  studentCount?: number;
+  color?: string;
+}
+
+interface FrontendHistoryEntry {
+  id: string;
+  timestamp: string;
+  groupName?: string;
+  activityName?: string;
+  category?: string;
+  supervisorName?: string;
+  studentCount?: number;
+  duration_minutes?: number;
+  entry_type: "entry" | "exit";
+}
+
+const setRoomDetail = (state: {
+  data?: { room: FrontendRoom; history: FrontendHistoryEntry[] };
+  isLoading?: boolean;
+  error?: unknown;
+}) => {
+  mockUseSWRAuth.mockReturnValue({
+    data: state.data,
+    isLoading: state.isLoading ?? false,
+    error: state.error ?? null,
+  });
+};
+
+const mockRoom: FrontendRoom = {
+  id: "1",
   name: "Raum 101",
   building: "Hauptgebäude",
   floor: 1,
   capacity: 30,
   category: "Klassenraum",
-  is_occupied: false,
-  group_name: null,
-  activity_name: null,
-  supervisor_name: null,
-  device_id: "device-1",
-  student_count: 0,
+  isOccupied: false,
+  deviceId: "device-1",
+  studentCount: 0,
   color: "#4F46E5",
 };
 
-const mockOccupiedRoom = {
+const mockOccupiedRoom: FrontendRoom = {
   ...mockRoom,
-  is_occupied: true,
-  group_name: "OGS Gruppe A",
-  activity_name: "Basteln",
-  supervisor_name: "Max Mustermann",
-  student_count: 15,
+  isOccupied: true,
+  groupName: "OGS Gruppe A",
+  activityName: "Basteln",
+  supervisorName: "Max Mustermann",
+  studentCount: 15,
 };
 
-const mockRoomHistory = [
+const mockRoomHistory: FrontendHistoryEntry[] = [
   {
-    id: 1,
-    room_id: 1,
+    id: "1",
     timestamp: "2024-01-15T10:00:00Z",
-    group_name: "OGS Gruppe A",
-    activity_name: "Basteln",
+    groupName: "OGS Gruppe A",
+    activityName: "Basteln",
     category: "Kreativ",
-    supervisor_name: "Max Mustermann",
-    student_count: 12,
+    supervisorName: "Max Mustermann",
+    studentCount: 12,
     duration_minutes: 60,
     entry_type: "entry",
   },
   {
-    id: 2,
-    room_id: 1,
+    id: "2",
     timestamp: "2024-01-15T11:00:00Z",
-    group_name: "OGS Gruppe A",
-    activity_name: "Basteln",
+    groupName: "OGS Gruppe A",
+    activityName: "Basteln",
     category: "Kreativ",
-    supervisor_name: "Max Mustermann",
-    student_count: 12,
+    supervisorName: "Max Mustermann",
+    studentCount: 12,
     duration_minutes: 60,
     entry_type: "exit",
   },
@@ -147,291 +203,148 @@ const mockRoomHistory = [
 describe("RoomDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn();
+    mockUseSWRAuth.mockReset();
   });
 
   it("renders loading state initially", () => {
-    vi.mocked(global.fetch).mockImplementation(
-      () => new Promise(() => {}), // Never resolves
-    );
+    setRoomDetail({ data: undefined, isLoading: true });
 
     render(<RoomDetailPage />);
 
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
-  it("renders room details after loading", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
+  it("renders room details after loading", () => {
+    setRoomDetail({ data: { room: mockRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      // Room name appears in title
-      const roomNames = screen.getAllByText("Raum 101");
-      expect(roomNames.length).toBeGreaterThan(0);
-    });
+    const roomNames = screen.getAllByText("Raum 101");
+    expect(roomNames.length).toBeGreaterThan(0);
   });
 
-  it("displays room information", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
+  it("displays room information", () => {
+    setRoomDetail({ data: { room: mockRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("info-card-Rauminformationen"),
-      ).toBeInTheDocument();
-      expect(screen.getByTestId("info-item-Raumname")).toBeInTheDocument();
-    });
+    expect(
+      screen.getByTestId("info-card-Rauminformationen"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("info-item-Raumname")).toBeInTheDocument();
   });
 
-  it("displays status badge as free when room is not occupied", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
+  it("displays status badge as free when room is not occupied", () => {
+    setRoomDetail({ data: { room: mockRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      // "Frei" appears in badge and also in info items
-      const freeElements = screen.getAllByText("Frei");
-      expect(freeElements.length).toBeGreaterThan(0);
-    });
+    // "Frei" appears in badge and also in info items
+    const freeElements = screen.getAllByText("Frei");
+    expect(freeElements.length).toBeGreaterThan(0);
   });
 
-  it("displays status badge as occupied when room is occupied", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockOccupiedRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
+  it("displays status badge as occupied when room is occupied", () => {
+    setRoomDetail({ data: { room: mockOccupiedRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      // "Belegt" appears in badge and also in info items
-      const occupiedElements = screen.getAllByText("Belegt");
-      expect(occupiedElements.length).toBeGreaterThan(0);
-    });
+    // "Belegt" appears in badge and also in info items
+    const occupiedElements = screen.getAllByText("Belegt");
+    expect(occupiedElements.length).toBeGreaterThan(0);
   });
 
-  it("displays current occupation info when room is occupied", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockOccupiedRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
+  it("displays current occupation info when room is occupied", () => {
+    setRoomDetail({ data: { room: mockOccupiedRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText("OGS Gruppe A")).toBeInTheDocument();
-      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
-    });
+    expect(screen.getByText("OGS Gruppe A")).toBeInTheDocument();
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
   });
 
-  it("displays room history", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoomHistory }),
-      } as Response);
+  it("displays room history", () => {
+    setRoomDetail({
+      data: { room: mockRoom, history: mockRoomHistory },
+    });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("info-card-Belegungshistorie"),
-      ).toBeInTheDocument();
-    });
+    expect(
+      screen.getByTestId("info-card-Belegungshistorie"),
+    ).toBeInTheDocument();
   });
 
-  it("displays empty history message when no history", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
+  it("displays empty history message when no history", () => {
+    setRoomDetail({ data: { room: mockRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Keine Belegungshistorie verfügbar."),
-      ).toBeInTheDocument();
-    });
+    expect(
+      screen.getByText("Keine Belegungshistorie verfügbar."),
+    ).toBeInTheDocument();
   });
 
-  it("shows error state when room fetch fails", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-    } as Response);
+  it("shows error state when room fetch fails", () => {
+    setRoomDetail({ error: new Error("network down") });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Fehler beim Laden der Raumdaten."),
-      ).toBeInTheDocument();
-    });
+    expect(
+      screen.getByText("Fehler beim Laden der Raumdaten."),
+    ).toBeInTheDocument();
   });
 
-  it("handles back button click", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-    } as Response);
+  it("handles back button click", () => {
+    setRoomDetail({ error: new Error("network down") });
 
     render(<RoomDetailPage />);
-
-    await waitFor(() => {
-      const backButton = screen.getByText("Zurück");
-      expect(backButton).toBeInTheDocument();
-    });
 
     fireEvent.click(screen.getByText("Zurück"));
     expect(mockPush).toHaveBeenCalledWith("/test-tenant/rooms");
   });
 
-  it("displays building and floor information", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
+  it("displays building and floor information", () => {
+    setRoomDetail({ data: { room: mockRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      // The component combines building and floor with " · "
-      const buildingElements = screen.getAllByText(/Hauptgebäude/);
-      expect(buildingElements.length).toBeGreaterThan(0);
-    });
+    // The component combines building and floor with " · "
+    const buildingElements = screen.getAllByText(/Hauptgebäude/);
+    expect(buildingElements.length).toBeGreaterThan(0);
   });
 
-  it("displays category information", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
+  it("displays category information", () => {
+    setRoomDetail({ data: { room: mockRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      // Category appears in header and info items
-      const categoryElements = screen.getAllByText("Klassenraum");
-      expect(categoryElements.length).toBeGreaterThan(0);
-    });
+    // Category appears in header and info items
+    const categoryElements = screen.getAllByText("Klassenraum");
+    expect(categoryElements.length).toBeGreaterThan(0);
   });
 
-  it("handles history fetch failure gracefully", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-      } as Response);
+  it("displays student count when room is occupied", () => {
+    setRoomDetail({ data: { room: mockOccupiedRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      // Room should still render (name appears multiple times)
-      const roomNames = screen.getAllByText("Raum 101");
-      expect(roomNames.length).toBeGreaterThan(0);
-    });
-
-    consoleSpy.mockRestore();
+    // Scope to the existing "Aktuell anwesend" InfoItem so the assertion
+    // pins down the room-info-card badge specifically. The new live
+    // "Kinder im Raum" section also contains the word "Kinder", so an
+    // unscoped getByText(/Kinder/) would now match multiple nodes.
+    const infoItem = screen.getByTestId("info-item-Aktuell anwesend");
+    expect(within(infoItem).getByText(/15/)).toBeInTheDocument();
+    expect(within(infoItem).getByText(/Kinder/)).toBeInTheDocument();
   });
 
-  it("displays student count when room is occupied", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockOccupiedRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
+  it("displays back button with correct referrer", () => {
+    setRoomDetail({ data: { room: mockRoom, history: [] } });
 
     render(<RoomDetailPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText(/15/)).toBeInTheDocument();
-      expect(screen.getByText(/Kinder/)).toBeInTheDocument();
-    });
-  });
-
-  it("displays back button with correct referrer", async () => {
-    vi.mocked(global.fetch)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: mockRoom }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
-
-    render(<RoomDetailPage />);
-
-    await waitFor(() => {
-      const backButton = screen.getByTestId("back-button");
-      expect(backButton).toHaveAttribute("data-referrer", "/rooms");
-    });
+    const backButton = screen.getByTestId("back-button");
+    expect(backButton).toHaveAttribute("data-referrer", "/rooms");
   });
 });
 
