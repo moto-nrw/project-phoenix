@@ -1735,16 +1735,6 @@ function renderDesktopStatusBadge(
 
 // ─── WeeklySummary helpers ────────────────────────────────────────────────────
 
-function getWeeklySummaryColor(summary: WeeklySummary): string {
-  if (summary.isOverWeeklyMax) return "text-red-600";
-  if (summary.deltaMinutes === null || summary.targetMinutes === null)
-    return "text-gray-500";
-  const threshold = summary.targetMinutes * 0.05;
-  if (Math.abs(summary.deltaMinutes) <= threshold) return "text-green-600";
-  if (summary.deltaMinutes > 0) return "text-amber-600";
-  return "text-gray-600";
-}
-
 function getWeeklySummaryBgColor(summary: WeeklySummary): string {
   if (summary.isOverWeeklyMax) return "bg-red-50";
   if (summary.deltaMinutes === null || summary.targetMinutes === null)
@@ -1755,39 +1745,22 @@ function getWeeklySummaryBgColor(summary: WeeklySummary): string {
   return "bg-gray-50";
 }
 
-function WeeklySummaryDelta({ summary }: { readonly summary: WeeklySummary }) {
-  if (summary.deltaMinutes === null) return null;
-  const color = getWeeklySummaryColor(summary);
-  const sign = summary.deltaMinutes > 0 ? "+" : "";
-  return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${color}`}>
-      {sign}
-      {formatDuration(Math.abs(summary.deltaMinutes))}
-    </span>
-  );
-}
-
 function WeeklySummaryRow({ summary }: { readonly summary: WeeklySummary }) {
   const bgColor = getWeeklySummaryBgColor(summary);
   return (
     <div
       className={`flex items-center justify-between rounded-xl ${bgColor} px-3 py-2.5`}
     >
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-gray-500">
-          KW {summary.weekNumber} Soll/Ist
+      <span className="text-xs font-medium text-gray-500">
+        KW {summary.weekNumber} Ist/Soll
+      </span>
+      <span className="text-xs text-gray-600">
+        <span className="font-medium">
+          {formatDuration(summary.totalNetMinutes)}
         </span>
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-gray-600">
-          <span className="font-medium">
-            {formatDuration(summary.totalNetMinutes)}
-          </span>
-          <span className="text-gray-400"> / </span>
-          <span>{formatDuration(summary.targetMinutes)}</span>
-        </span>
-        <WeeklySummaryDelta summary={summary} />
-      </div>
+        <span className="text-gray-400"> / </span>
+        <span>{formatDuration(summary.targetMinutes)}</span>
+      </span>
     </div>
   );
 }
@@ -2360,9 +2333,9 @@ function WeekTable({
                 <tr className="border-t border-gray-100 bg-gray-50/30">
                   <td
                     colSpan={4}
-                    className="px-6 py-3 text-right text-sm font-medium text-gray-400"
+                    className="py-3 pr-6 pl-[46px] text-left text-sm font-medium text-gray-400"
                   >
-                    KW {summary.weekNumber} Soll/Ist
+                    KW {summary.weekNumber} Ist/Soll
                   </td>
                   <td className="px-4 py-3 text-center text-sm">
                     <span className="font-medium text-gray-600">
@@ -2373,9 +2346,7 @@ function WeekTable({
                       {formatDuration(summary.targetMinutes)}
                     </span>
                   </td>
-                  <td colSpan={2} className="px-4 py-3 text-center">
-                    <WeeklySummaryDelta summary={summary} />
-                  </td>
+                  <td colSpan={2} />
                 </tr>
               )}
             </tfoot>
