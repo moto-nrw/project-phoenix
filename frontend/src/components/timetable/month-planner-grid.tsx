@@ -3,6 +3,8 @@
 import { AlertTriangle, CalendarDays } from "lucide-react";
 
 import {
+  getActivityColor,
+  getActivityLightTint,
   getGermanWeekdayShort,
   groupInstancesByDate,
   toISODate,
@@ -46,19 +48,13 @@ export function MonthPlannerGrid({
           const dayInstances = grouped.get(iso) ?? [];
           const isToday = iso === todayISO;
           const outsideMonth = day.getMonth() !== currentMonth;
-          const cancelled = dayInstances.filter(
-            (inst) => inst.status === "cancelled",
-          ).length;
-          const active = dayInstances.filter(
-            (inst) => inst.status === "active",
-          ).length;
           const conflicts = dayInstances.reduce(
             (sum, inst) => sum + inst.conflictWarnings.length,
             0,
           );
 
-          const visibleTitles = dayInstances.slice(0, 3);
-          const moreCount = dayInstances.length - visibleTitles.length;
+          const visibleInstances = dayInstances.slice(0, 4);
+          const moreCount = dayInstances.length - visibleInstances.length;
 
           return (
             <button
@@ -91,33 +87,52 @@ export function MonthPlannerGrid({
                 </div>
               ) : (
                 <div className="mt-2 space-y-1">
-                  <div className="text-[12px] font-semibold text-slate-900">
-                    {dayInstances.length} Termin
-                    {dayInstances.length === 1 ? "" : "e"}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {active > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-700">
+                  {visibleInstances.map((inst) => {
+                    const isCancelled = inst.status === "cancelled";
+                    const isActive = inst.status === "active";
+                    const hasConflict = inst.conflictWarnings.length > 0;
+
+                    return (
+                      <div
+                        key={inst.id}
+                        className={`flex min-w-0 items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px] ${
+                          isCancelled
+                            ? "border-dashed border-[#FF3130] bg-slate-50 text-slate-400 line-through"
+                            : "border-slate-200/60 text-slate-700"
+                        }`}
+                        style={{
+                          backgroundColor: isCancelled
+                            ? undefined
+                            : getActivityLightTint(inst.activityType),
+                        }}
+                      >
                         <span
-                          className="h-1 w-1 rounded-full bg-[#83CD2D]"
+                          className="h-2 w-1 shrink-0 rounded-full"
+                          style={{
+                            backgroundColor: isCancelled
+                              ? "#FF3130"
+                              : getActivityColor(inst.activityType),
+                          }}
                           aria-hidden
                         />
-                        {active} läuft
-                      </span>
-                    )}
-                    {cancelled > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-700">
-                        <span
-                          className="h-1 w-1 rounded-full bg-[#FF3130]"
-                          aria-hidden
-                        />
-                        {cancelled} abgesagt
-                      </span>
-                    )}
-                  </div>
-                  <div className="line-clamp-2 text-[11px] text-slate-500">
-                    {visibleTitles.map((inst) => inst.title).join(", ")}
-                  </div>
+                        <span className="min-w-0 flex-1 truncate font-medium">
+                          {inst.title}
+                        </span>
+                        {isActive && !isCancelled && (
+                          <span
+                            className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#83CD2D]"
+                            aria-label="läuft"
+                          />
+                        )}
+                        {hasConflict && (
+                          <AlertTriangle
+                            className="h-3 w-3 shrink-0 text-[#A16207]"
+                            aria-label={`${inst.conflictWarnings.length} Konflikte`}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                   {moreCount > 0 && (
                     <div className="text-[10px] font-medium text-slate-500">
                       + {moreCount} weitere
