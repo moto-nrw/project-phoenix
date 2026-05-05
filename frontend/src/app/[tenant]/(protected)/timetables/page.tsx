@@ -196,6 +196,9 @@ function TimetablesContent() {
     searchParams.get("period"),
   );
   const [eventModalOpen, setEventModalOpen] = useState(false);
+  const [eventDefaultRepeat, setEventDefaultRepeat] = useState<
+    "none" | "weekly"
+  >("none");
   const [editingInstance, setEditingInstance] =
     useState<EnrichedInstance | null>(null);
   const [editingTemplate, setEditingTemplate] =
@@ -881,6 +884,15 @@ function TimetablesContent() {
     setEditingInstance(null);
     setEditingTemplate(null);
     setConvertingInstance(null);
+    setEventDefaultRepeat("none");
+    setEventModalOpen(true);
+  }, []);
+
+  const openSeriesCreate = useCallback(() => {
+    setEditingInstance(null);
+    setEditingTemplate(null);
+    setConvertingInstance(null);
+    setEventDefaultRepeat("weekly");
     setEventModalOpen(true);
   }, []);
 
@@ -1161,6 +1173,7 @@ function TimetablesContent() {
                 setEditingInstance(instance);
                 setEditingTemplate(null);
                 setConvertingInstance(null);
+                setEventDefaultRepeat("none");
                 setEventModalOpen(true);
               }}
               onSubstitute={handleSubstitute}
@@ -1176,11 +1189,12 @@ function TimetablesContent() {
           ) : (
             <TemplateList
               templates={templates}
-              onCreate={openEventCreate}
+              onCreate={openSeriesCreate}
               onEdit={(template) => {
                 setEditingInstance(null);
                 setConvertingInstance(null);
                 setEditingTemplate(template);
+                setEventDefaultRepeat("weekly");
                 setEventModalOpen(true);
               }}
               onApply={(template) => void handleApplyTemplate(template)}
@@ -1197,6 +1211,7 @@ function TimetablesContent() {
           setEditingInstance(instance);
           setEditingTemplate(null);
           setConvertingInstance(null);
+          setEventDefaultRepeat("none");
           setEventModalOpen(true);
         }}
         onRepeat={(instance) => {
@@ -1210,6 +1225,7 @@ function TimetablesContent() {
           setEditingInstance(null);
           setEditingTemplate(null);
           setConvertingInstance(instance);
+          setEventDefaultRepeat("weekly");
           setEventModalOpen(true);
         }}
         staffNames={staffNames}
@@ -1225,6 +1241,7 @@ function TimetablesContent() {
           setEditingInstance(null);
           setEditingTemplate(null);
           setConvertingInstance(null);
+          setEventDefaultRepeat("none");
         }}
         defaultDate={selectedDay ?? fromISO}
         weekFrom={fromISO}
@@ -1235,6 +1252,7 @@ function TimetablesContent() {
         initialInstance={editingInstance}
         initialSeries={editingTemplate}
         convertInstance={convertingInstance}
+        defaultRepeat={eventDefaultRepeat}
         onSaved={(result) => {
           void tenantMutate(swrKey);
           void tenantMutate(gapsSWRKey);

@@ -38,7 +38,7 @@ export function TemplateList({
           onClick={onCreate}
           className="mt-2 inline-flex items-center gap-1 rounded-md bg-slate-900 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-slate-700"
         >
-          + Ersten Serientermin anlegen
+          + Serientermin anlegen
         </button>
       </div>
     );

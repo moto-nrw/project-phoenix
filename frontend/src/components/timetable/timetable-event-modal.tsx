@@ -1,10 +1,19 @@
 "use client";
 
+import { Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverClose,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -33,6 +42,8 @@ interface RoomOption {
 interface PersonOption {
   id: string;
   name: string;
+  schoolClass?: string;
+  groupName?: string;
 }
 
 interface BackendRoomsEnvelope {
@@ -79,6 +90,7 @@ interface TimetableEventModalProps {
   initialInstance?: EnrichedInstance | null;
   initialSeries?: TimetableTemplate | null;
   convertInstance?: EnrichedInstance | null;
+  defaultRepeat?: RepeatMode;
 }
 
 const logger = createLogger({ component: "TimetableEventModal" });
@@ -117,6 +129,7 @@ function weekdayLabel(iso: number): string {
 function emptyForm(
   defaultDate: string,
   defaultCalendarPeriodId?: string | null,
+  defaultRepeat: RepeatMode = "none",
 ): EventFormState {
   const weekday = isoWeekday(defaultDate);
   return {
@@ -128,7 +141,7 @@ function emptyForm(
     type: "care",
     categoryId: "",
     notes: "",
-    repeat: "none",
+    repeat: defaultRepeat,
     weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
     calendarPeriodId: defaultCalendarPeriodId ?? "",
     studentIds: [],
@@ -193,6 +206,22 @@ function seriesWeekPattern(repeat: RepeatMode): number {
   return repeat === "biweekly" ? 2 : 0;
 }
 
+function sortPeople<T extends PersonOption>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const classCompare = (a.schoolClass ?? "").localeCompare(
+      b.schoolClass ?? "",
+      "de",
+    );
+    if (classCompare !== 0) return classCompare;
+    const groupCompare = (a.groupName ?? "").localeCompare(
+      b.groupName ?? "",
+      "de",
+    );
+    if (groupCompare !== 0) return groupCompare;
+    return a.name.localeCompare(b.name, "de");
+  });
+}
+
 export function TimetableEventModal({
   isOpen,
   onClose,
@@ -206,10 +235,11 @@ export function TimetableEventModal({
   initialInstance = null,
   initialSeries = null,
   convertInstance = null,
+  defaultRepeat = "none",
 }: TimetableEventModalProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [form, setForm] = useState<EventFormState>(() =>
-    emptyForm(defaultDate, defaultCalendarPeriodId),
+    emptyForm(defaultDate, defaultCalendarPeriodId, defaultRepeat),
   );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
@@ -233,7 +263,7 @@ export function TimetableEventModal({
           ? formFromInstance(convertInstance, defaultCalendarPeriodId, "weekly")
           : initialInstance
             ? formFromInstance(initialInstance, defaultCalendarPeriodId)
-            : emptyForm(defaultDate, defaultCalendarPeriodId),
+            : emptyForm(defaultDate, defaultCalendarPeriodId, defaultRepeat),
     );
     setValidationError(null);
     setLoadingRefs(true);
@@ -268,6 +298,8 @@ export function TimetableEventModal({
           res.students.map((student) => ({
             id: student.id,
             name: student.name,
+            schoolClass: student.school_class,
+            groupName: student.group_name,
           })),
         )
         .catch((err: unknown) => {
@@ -295,8 +327,8 @@ export function TimetableEventModal({
         );
         setRooms(sortedRooms);
         setCategories(sortedCategories);
-        setStudents(studentData);
-        setStaff(staffData);
+        setStudents(sortPeople(studentData));
+        setStaff(sortPeople(staffData));
         setForm((prev) =>
           prev.categoryId || sortedCategories.length === 0
             ? prev
@@ -308,6 +340,7 @@ export function TimetableEventModal({
     convertInstance,
     defaultCalendarPeriodId,
     defaultDate,
+    defaultRepeat,
     initialInstance,
     initialSeries,
     isOpen,
@@ -505,12 +538,365 @@ export function TimetableEventModal({
         : "Termin";
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={title}
-      footer={
-        <div className="flex items-center justify-end gap-2">
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <SlideOverContent widthClass="sm:w-[760px]">
+        <SlideOverHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <SlideOverTitle>{title}</SlideOverTitle>
+              <SlideOverDescription>
+                {isSeriesFlow
+                  ? "Wiederkehrenden Termin mit Kindern und Personal planen."
+                  : "Einmaligen Termin im Stundenplan anlegen."}
+              </SlideOverDescription>
+            </div>
+            <SlideOverClose asChild>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100"
+                aria-label="Schließen"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            </SlideOverClose>
+          </div>
+        </SlideOverHeader>
+
+        <form
+          id="timetable-event-form"
+          onSubmit={(event) => void handleSubmit(event)}
+          className="flex-1 overflow-y-auto px-5 py-4"
+        >
+          <div className="flex flex-col gap-5">
+            {initialInstance && initialInstance.status !== "planned" && (
+              <div className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]">
+                Nur geplante Termine können bearbeitet werden.
+              </div>
+            )}
+
+            <Field label="Titel" htmlFor="event_title" required>
+              <Input
+                id="event_title"
+                value={form.title}
+                onChange={(event) => update("title", event.target.value)}
+                placeholder="z. B. Mensa, Lernzeit 1a, Yoga AG"
+                maxLength={255}
+                autoFocus
+                required
+              />
+            </Field>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Field label="Datum" htmlFor="event_date" required>
+                <Input
+                  id="event_date"
+                  type="date"
+                  value={form.date}
+                  onChange={(event) => {
+                    const nextDate = event.target.value;
+                    const nextWeekday = isoWeekday(nextDate);
+                    update("date", nextDate);
+                    if (!isSeriesFlow && nextWeekday >= 1 && nextWeekday <= 5) {
+                      update("weekdays", [nextWeekday]);
+                    }
+                  }}
+                  required
+                />
+              </Field>
+              <Field label="Start" htmlFor="event_start" required>
+                <Input
+                  id="event_start"
+                  type="time"
+                  value={form.startTime}
+                  onChange={(event) => update("startTime", event.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Ende" htmlFor="event_end" required>
+                <Input
+                  id="event_end"
+                  type="time"
+                  value={form.endTime}
+                  onChange={(event) => update("endTime", event.target.value)}
+                  required
+                />
+              </Field>
+            </div>
+
+            <Field label="Raum" htmlFor="event_room" required>
+              <select
+                id="event_room"
+                value={form.roomId}
+                onChange={(event) => update("roomId", event.target.value)}
+                disabled={loadingRefs}
+                required
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-100"
+              >
+                <option value="">
+                  {loadingRefs ? "Lade Räume ..." : "Raum auswählen ..."}
+                </option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.building
+                      ? `${room.building} - ${room.name}`
+                      : room.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-slate-700">
+                Wiederholen
+              </span>
+              <div className="inline-flex w-fit rounded-md bg-slate-100 p-0.5">
+                {REPEAT_OPTIONS.map((option) => {
+                  const isActive = form.repeat === option.value;
+                  const disabled = isEditingSeries && option.value === "none";
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        update("repeat", option.value);
+                        if (
+                          option.value !== "none" &&
+                          form.weekdays.length === 0
+                        ) {
+                          const weekday = isoWeekday(form.date);
+                          update(
+                            "weekdays",
+                            weekday >= 1 && weekday <= 5 ? [weekday] : [1],
+                          );
+                        }
+                      }}
+                      className={`rounded px-3 py-1.5 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                        isActive
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {isSeriesFlow && (
+              <>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Typ <span className="ml-0.5 text-[#FF3130]">*</span>
+                  </span>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {TYPE_OPTIONS.map((option) => {
+                      const isActive = form.type === option.value;
+                      const color = getActivityColor(option.value);
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => update("type", option.value)}
+                          className={`flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left transition-colors ${
+                            isActive
+                              ? "border-2 bg-white"
+                              : "border border-slate-200 bg-slate-50 hover:bg-white"
+                          }`}
+                          style={isActive ? { borderColor: color } : undefined}
+                        >
+                          <span
+                            className="text-sm font-semibold"
+                            style={{ color: isActive ? color : "#374151" }}
+                          >
+                            {option.label}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            {option.hint}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Wochentage <span className="ml-0.5 text-[#FF3130]">*</span>
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {WEEKDAYS.map((iso) => {
+                      const isActive = form.weekdays.includes(iso);
+                      return (
+                        <button
+                          key={iso}
+                          type="button"
+                          onClick={() => toggleWeekday(iso)}
+                          className={`min-w-[44px] rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                            isActive
+                              ? "border-[#5080D8] bg-[#5080D8] text-white"
+                              : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                          }`}
+                          aria-pressed={isActive}
+                        >
+                          {weekdayLabel(iso)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Kategorie" htmlFor="event_category" required>
+                    <select
+                      id="event_category"
+                      value={form.categoryId}
+                      onChange={(event) =>
+                        update("categoryId", event.target.value)
+                      }
+                      required
+                      disabled={loadingRefs}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-100"
+                    >
+                      <option value="">
+                        {loadingRefs
+                          ? "Lade Kategorien ..."
+                          : "Kategorie wählen ..."}
+                      </option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  {showPeriodField ? (
+                    <Field
+                      label="Planungsperiode"
+                      htmlFor="event_period"
+                      required
+                    >
+                      <select
+                        id="event_period"
+                        value={form.calendarPeriodId}
+                        onChange={(event) =>
+                          update("calendarPeriodId", event.target.value)
+                        }
+                        required
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+                      >
+                        <option value="">Periode auswählen ...</option>
+                        {calendarPeriods.map((period) => (
+                          <option key={period.id} value={period.id}>
+                            {period.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  ) : (
+                    <div className="flex flex-col justify-end gap-1">
+                      <span className="text-xs font-semibold text-slate-700">
+                        Planungsperiode
+                      </span>
+                      <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
+                        <span className="truncate">
+                          Gilt in{" "}
+                          <span className="font-semibold text-slate-800">
+                            {calendarPeriods.find(
+                              (p) => p.id === form.calendarPeriodId,
+                            )?.name ?? "der aktuellen Planungsperiode"}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <MultiSelectField
+              label="Kinder"
+              options={students}
+              value={form.studentIds}
+              onChange={(ids) => update("studentIds", ids)}
+              metadata="student"
+            />
+
+            <MultiSelectField
+              label="Personal"
+              options={staff}
+              value={form.staffIds}
+              onChange={(ids) => {
+                update("staffIds", ids);
+                if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
+                  update("primaryStaffId", "");
+                }
+              }}
+              metadata="staff"
+            />
+
+            {isSeriesFlow && form.staffIds.length > 0 && (
+              <Field label="Hauptverantwortlich" htmlFor="event_primary_staff">
+                <select
+                  id="event_primary_staff"
+                  value={form.primaryStaffId}
+                  onChange={(event) =>
+                    update("primaryStaffId", event.target.value)
+                  }
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+                >
+                  <option value="">Keine Auswahl</option>
+                  {staff
+                    .filter((person) => form.staffIds.includes(person.id))
+                    .map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {person.name}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+            )}
+
+            {!isSeriesFlow && (
+              <Field label="Notiz" htmlFor="event_notes">
+                <textarea
+                  id="event_notes"
+                  value={form.notes}
+                  onChange={(event) => update("notes", event.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+                />
+              </Field>
+            )}
+
+            {isSeriesFlow && calendarPeriods.length === 0 && (
+              <div
+                role="alert"
+                className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]"
+              >
+                Für diese Woche gibt es keine aktive Planungsperiode. Lege
+                zuerst eine Periode im Kopfbereich an.
+              </div>
+            )}
+
+            {validationError && (
+              <div
+                role="alert"
+                className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]"
+              >
+                {validationError}
+              </div>
+            )}
+          </div>
+        </form>
+
+        <SlideOverFooter className="flex-row items-center justify-end">
           <Button
             type="button"
             variant="outline"
@@ -531,314 +917,9 @@ export function TimetableEventModal({
           >
             Speichern
           </Button>
-        </div>
-      }
-    >
-      <form
-        id="timetable-event-form"
-        onSubmit={(event) => void handleSubmit(event)}
-        className="flex flex-col gap-4"
-      >
-        {initialInstance && initialInstance.status !== "planned" && (
-          <div className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]">
-            Nur geplante Termine können bearbeitet werden.
-          </div>
-        )}
-
-        <Field label="Titel" htmlFor="event_title" required>
-          <Input
-            id="event_title"
-            value={form.title}
-            onChange={(event) => update("title", event.target.value)}
-            placeholder="z. B. Mensa, Lernzeit 1a, Yoga AG"
-            maxLength={255}
-            autoFocus
-            required
-          />
-        </Field>
-
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Datum" htmlFor="event_date" required>
-            <Input
-              id="event_date"
-              type="date"
-              value={form.date}
-              onChange={(event) => {
-                const nextDate = event.target.value;
-                const nextWeekday = isoWeekday(nextDate);
-                update("date", nextDate);
-                if (!isSeriesFlow && nextWeekday >= 1 && nextWeekday <= 5) {
-                  update("weekdays", [nextWeekday]);
-                }
-              }}
-              required
-            />
-          </Field>
-          <Field label="Start" htmlFor="event_start" required>
-            <Input
-              id="event_start"
-              type="time"
-              value={form.startTime}
-              onChange={(event) => update("startTime", event.target.value)}
-              required
-            />
-          </Field>
-          <Field label="Ende" htmlFor="event_end" required>
-            <Input
-              id="event_end"
-              type="time"
-              value={form.endTime}
-              onChange={(event) => update("endTime", event.target.value)}
-              required
-            />
-          </Field>
-        </div>
-
-        <Field label="Raum" htmlFor="event_room" required>
-          <select
-            id="event_room"
-            value={form.roomId}
-            onChange={(event) => update("roomId", event.target.value)}
-            disabled={loadingRefs}
-            required
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-100"
-          >
-            <option value="">
-              {loadingRefs ? "Lade Räume ..." : "Raum auswählen ..."}
-            </option>
-            {rooms.map((room) => (
-              <option key={room.id} value={room.id}>
-                {room.building ? `${room.building} - ${room.name}` : room.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold text-slate-700">
-            Wiederholen
-          </span>
-          <div className="inline-flex rounded-md bg-slate-100 p-0.5">
-            {REPEAT_OPTIONS.map((option) => {
-              const isActive = form.repeat === option.value;
-              const disabled = isEditingSeries && option.value === "none";
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    update("repeat", option.value);
-                    if (option.value !== "none" && form.weekdays.length === 0) {
-                      const weekday = isoWeekday(form.date);
-                      update(
-                        "weekdays",
-                        weekday >= 1 && weekday <= 5 ? [weekday] : [1],
-                      );
-                    }
-                  }}
-                  className={`rounded px-3 py-1.5 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                    isActive
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {isSeriesFlow && (
-          <>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-slate-700">
-                Typ <span className="ml-0.5 text-[#FF3130]">*</span>
-              </span>
-              <div className="grid grid-cols-3 gap-2">
-                {TYPE_OPTIONS.map((option) => {
-                  const isActive = form.type === option.value;
-                  const color = getActivityColor(option.value);
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => update("type", option.value)}
-                      className={`flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left transition-colors ${
-                        isActive
-                          ? "border-2 bg-white"
-                          : "border border-slate-200 bg-slate-50 hover:bg-white"
-                      }`}
-                      style={isActive ? { borderColor: color } : undefined}
-                    >
-                      <span
-                        className="text-sm font-semibold"
-                        style={{ color: isActive ? color : "#374151" }}
-                      >
-                        {option.label}
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        {option.hint}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-slate-700">
-                Wochentage <span className="ml-0.5 text-[#FF3130]">*</span>
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {WEEKDAYS.map((iso) => {
-                  const isActive = form.weekdays.includes(iso);
-                  return (
-                    <button
-                      key={iso}
-                      type="button"
-                      onClick={() => toggleWeekday(iso)}
-                      className={`min-w-[44px] rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors ${
-                        isActive
-                          ? "border-[#5080D8] bg-[#5080D8] text-white"
-                          : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                      }`}
-                      aria-pressed={isActive}
-                    >
-                      {weekdayLabel(iso)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Kategorie" htmlFor="event_category" required>
-                <select
-                  id="event_category"
-                  value={form.categoryId}
-                  onChange={(event) => update("categoryId", event.target.value)}
-                  required
-                  disabled={loadingRefs}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-100"
-                >
-                  <option value="">
-                    {loadingRefs
-                      ? "Lade Kategorien ..."
-                      : "Kategorie wählen ..."}
-                  </option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              {showPeriodField ? (
-                <Field label="Planungsperiode" htmlFor="event_period" required>
-                  <select
-                    id="event_period"
-                    value={form.calendarPeriodId}
-                    onChange={(event) =>
-                      update("calendarPeriodId", event.target.value)
-                    }
-                    required
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
-                  >
-                    <option value="">Periode auswählen ...</option>
-                    {calendarPeriods.map((period) => (
-                      <option key={period.id} value={period.id}>
-                        {period.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              ) : (
-                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                  Gilt in{" "}
-                  <span className="font-semibold">
-                    {calendarPeriods.find((p) => p.id === form.calendarPeriodId)
-                      ?.name ?? "der aktuellen Planungsperiode"}
-                  </span>
-                  .
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        <MultiSelectField
-          label="Kinder"
-          options={students}
-          value={form.studentIds}
-          onChange={(ids) => update("studentIds", ids)}
-        />
-
-        <MultiSelectField
-          label="Personal"
-          options={staff}
-          value={form.staffIds}
-          onChange={(ids) => {
-            update("staffIds", ids);
-            if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
-              update("primaryStaffId", "");
-            }
-          }}
-        />
-
-        {isSeriesFlow && form.staffIds.length > 0 && (
-          <Field label="Hauptverantwortlich" htmlFor="event_primary_staff">
-            <select
-              id="event_primary_staff"
-              value={form.primaryStaffId}
-              onChange={(event) => update("primaryStaffId", event.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
-            >
-              <option value="">Keine Auswahl</option>
-              {staff
-                .filter((person) => form.staffIds.includes(person.id))
-                .map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-        )}
-
-        {!isSeriesFlow && (
-          <Field label="Notiz" htmlFor="event_notes">
-            <textarea
-              id="event_notes"
-              value={form.notes}
-              onChange={(event) => update("notes", event.target.value)}
-              rows={3}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
-            />
-          </Field>
-        )}
-
-        {isSeriesFlow && calendarPeriods.length === 0 && (
-          <div
-            role="alert"
-            className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]"
-          >
-            Für diese Woche gibt es keine aktive Planungsperiode. Lege zuerst
-            eine Periode im Kopfbereich an.
-          </div>
-        )}
-
-        {validationError && (
-          <div
-            role="alert"
-            className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]"
-          >
-            {validationError}
-          </div>
-        )}
-      </form>
-    </Modal>
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 
@@ -869,31 +950,189 @@ function MultiSelectField({
   options,
   value,
   onChange,
+  metadata,
 }: {
   label: string;
   options: PersonOption[];
   value: string[];
   onChange: (value: string[]) => void;
+  metadata: "student" | "staff";
 }) {
-  const selected = new Set(value);
+  const [query, setQuery] = useState("");
+  const [classFilter, setClassFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
+  const selected = useMemo(() => new Set(value), [value]);
+  const normalizedQuery = query.trim().toLocaleLowerCase("de");
+
+  const classOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          options
+            .map((option) => option.schoolClass?.trim())
+            .filter((item): item is string => Boolean(item)),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "de")),
+    [options],
+  );
+
+  const groupOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          options
+            .map((option) => option.groupName?.trim())
+            .filter((item): item is string => Boolean(item)),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "de")),
+    [options],
+  );
+
+  const filteredOptions = useMemo(
+    () =>
+      options.filter((option) => {
+        const matchesQuery =
+          normalizedQuery === "" ||
+          [option.name, option.schoolClass, option.groupName]
+            .filter(Boolean)
+            .join(" ")
+            .toLocaleLowerCase("de")
+            .includes(normalizedQuery);
+        const matchesClass =
+          classFilter === "all" || option.schoolClass === classFilter;
+        const matchesGroup =
+          groupFilter === "all" || option.groupName === groupFilter;
+        return matchesQuery && matchesClass && matchesGroup;
+      }),
+    [classFilter, groupFilter, normalizedQuery, options],
+  );
+
   const toggle = (id: string) => {
     const next = selected.has(id)
       ? value.filter((item) => item !== id)
       : [...value, id];
     onChange(next);
   };
+  const visibleIds = filteredOptions.map((option) => option.id);
+  const selectedVisibleCount = visibleIds.filter((id) =>
+    selected.has(id),
+  ).length;
+  const allVisibleSelected =
+    visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+  const hasFilters =
+    query.trim() !== "" || classFilter !== "all" || groupFilter !== "all";
+
+  const selectVisible = () => {
+    const next = Array.from(new Set([...value, ...visibleIds]));
+    onChange(next);
+  };
+
+  const clearVisible = () => {
+    const visibleSet = new Set(visibleIds);
+    onChange(value.filter((id) => !visibleSet.has(id)));
+  };
 
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs font-semibold text-slate-700">{label}</span>
-      <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+    <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-slate-700">{label}</span>
+        <span className="text-[11px] text-slate-500">
+          {value.length} ausgewählt
+        </span>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+        <label className="relative">
+          <span className="sr-only">{label} suchen</span>
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={`${label} suchen ...`}
+            className="h-9 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+          />
+        </label>
+        {metadata === "student" && classOptions.length > 0 && (
+          <select
+            value={classFilter}
+            onChange={(event) => setClassFilter(event.target.value)}
+            className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+            aria-label="Nach Klasse filtern"
+          >
+            <option value="all">Alle Klassen</option>
+            {classOptions.map((schoolClass) => (
+              <option key={schoolClass} value={schoolClass}>
+                {schoolClass}
+              </option>
+            ))}
+          </select>
+        )}
+        {metadata === "student" && groupOptions.length > 0 && (
+          <select
+            value={groupFilter}
+            onChange={(event) => setGroupFilter(event.target.value)}
+            className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+            aria-label="Nach Gruppe filtern"
+          >
+            <option value="all">Alle Gruppen</option>
+            {groupOptions.map((groupName) => (
+              <option key={groupName} value={groupName}>
+                {groupName}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={allVisibleSelected ? clearVisible : selectVisible}
+          disabled={visibleIds.length === 0}
+          className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {allVisibleSelected ? "Sichtbare abwählen" : "Sichtbare auswählen"}
+        </button>
+        {value.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+          >
+            Auswahl leeren
+          </button>
+        )}
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setClassFilter("all");
+              setGroupFilter("all");
+            }}
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+          >
+            Filter zurücksetzen
+          </button>
+        )}
+      </div>
+
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
         {options.length === 0 ? (
           <div className="px-2 py-3 text-xs text-slate-500">
             Keine Einträge gefunden
           </div>
+        ) : filteredOptions.length === 0 ? (
+          <div className="px-2 py-3 text-xs text-slate-500">
+            Keine passenden Einträge gefunden
+          </div>
         ) : (
-          <div className="grid gap-1 sm:grid-cols-2">
-            {options.map((option) => (
+          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredOptions.map((option) => (
               <label
                 key={option.id}
                 className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
@@ -904,17 +1143,21 @@ function MultiSelectField({
                   onChange={() => toggle(option.id)}
                   className="h-4 w-4 rounded border-slate-300 text-[#5080D8] focus:ring-[#5080D8]"
                 />
-                <span className="min-w-0 truncate">{option.name}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{option.name}</span>
+                  {(option.schoolClass || option.groupName) && (
+                    <span className="block truncate text-[11px] text-slate-400">
+                      {[option.schoolClass, option.groupName]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
+                </span>
               </label>
             ))}
           </div>
         )}
       </div>
-      {value.length > 0 && (
-        <span className="text-[11px] text-slate-500">
-          {value.length} ausgewählt
-        </span>
-      )}
     </div>
   );
 }
