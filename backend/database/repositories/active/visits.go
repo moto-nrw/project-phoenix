@@ -665,6 +665,33 @@ func (r *VisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64)
 	return count, nil
 }
 
+// ListActiveStudentIDsByRoomID returns the IDs of students currently
+// checked-in to any active (end_time IS NULL) group in the given room.
+// Callers push the IDs through the standard student list pipeline, which
+// handles display fields, GDPR redaction, and pagination.
+func (r *VisitRepository) ListActiveStudentIDsByRoomID(ctx context.Context, roomID int64) ([]int64, error) {
+	var ids []int64
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprActiveVisitsAsVisit).
+		ColumnExpr(`"visit".student_id`).
+		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
+		Where(`"group".room_id = ?`, roomID).
+		Where(`"group".end_time IS NULL`).
+		Where(`"visit".exit_time IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list active student IDs by room ID",
+			Err: err,
+		}
+	}
+	return ids, nil
+}
+
 // CountActiveByGroupID counts active visits in the given active group.
 func (r *VisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error) {
 	count, err := base.GetDB(ctx, r.db).NewSelect().
