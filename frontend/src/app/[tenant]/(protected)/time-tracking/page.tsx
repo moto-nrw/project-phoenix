@@ -1100,7 +1100,15 @@ function WeekChart({
     }
 
     return allDays.map((day) => {
-      if (!day) return { day: "", label: "", netMinutes: 0, breakMinutes: 0 };
+      if (!day) {
+        return {
+          dayKey: "",
+          dayShort: "",
+          label: "",
+          netMinutes: 0,
+          breakMinutes: 0,
+        };
+      }
 
       const dateKey = toISODate(day);
       const session = sessionMap.get(dateKey);
@@ -1125,9 +1133,14 @@ function WeekChart({
         breakMins = session.breakMinutes;
       }
 
+      const dayShort = DAY_NAMES[dayIndex] ?? "";
       return {
-        day: DAY_NAMES[dayIndex] ?? "",
-        label: `${DAY_NAMES[dayIndex] ?? ""} ${formatDateShort(day)}`,
+        // dayKey is the unique X-axis category. Two weeks worth of bars
+        // would otherwise collide on day names like "Mo"/"Di" and Recharts
+        // would route every hover for that category to the first bar.
+        dayKey: dateKey,
+        dayShort,
+        label: `${dayShort} ${formatDateShort(day)}`,
         netMinutes: netMins,
         breakMinutes: breakMins,
       };
@@ -1191,12 +1204,16 @@ function WeekChart({
           >
             <CartesianGrid vertical={false} />
             <XAxis
-              dataKey="day"
+              dataKey="dayKey"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
               fontSize={isMobile ? 10 : 11}
               interval={0}
+              tickFormatter={(value: string) => {
+                const found = chartData.find((entry) => entry.dayKey === value);
+                return found?.dayShort ?? "";
+              }}
             />
             <YAxis
               tickLine={false}
