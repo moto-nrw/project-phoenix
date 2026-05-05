@@ -3500,18 +3500,23 @@ function TimeTrackingContent() {
 
   // Calculate date range for data fetching
   // - Chart shows trailing 10 workdays ending at reference date
-  // - WeekView shows calendar week containing reference date
+  // - WeekView shows calendar week containing reference date, so the
+  //   fetch must include up to the Sunday of that week (otherwise days
+  //   after `ref` in the same week are never fetched and the table
+  //   silently drops them)
   const { toDate, chartFromDate, weekFromDate } = (() => {
     const ref = new Date();
     ref.setDate(ref.getDate() + weekOffset * 7);
     const days = getWeekDays(ref);
+    const sunday = days[6] ?? ref;
+    const fetchEnd = sunday.getTime() > ref.getTime() ? sunday : ref;
 
     // Chart needs ~14 days back to cover 10 workdays (worst case)
     const chartStart = new Date(ref);
     chartStart.setDate(chartStart.getDate() - 14);
 
     return {
-      toDate: toISODate(ref), // Reference date (today or offset)
+      toDate: toISODate(fetchEnd), // Sunday of reference week or today
       chartFromDate: toISODate(chartStart), // 14 days before reference
       weekFromDate: days[0] ? toISODate(days[0]) : "", // Monday of reference week
     };

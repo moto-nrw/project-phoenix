@@ -113,9 +113,10 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			if sickDay != nil && day.Equal(*sickDay) {
 				continue
 			}
-			if rng.Float64() > 0.95 {
-				continue
-			}
+
+			// Every weekday outside of vacation/sick gets a session so the
+			// demo data renders as a complete two-week timeline. Random
+			// skips made the calendar look broken to first-time viewers.
 
 			created, err := seedSessionViaAPI(rt, rng, day, loc)
 			if err != nil {
