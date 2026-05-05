@@ -521,20 +521,23 @@ function TemplateSelector({
       >
         Vorlage
       </label>
-      <select
-        id="arbeitszeitmodell-template-select"
-        value={selectedId}
-        onChange={(e) => onSelect(e.target.value)}
-        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-      >
-        <option value="">Bitte wählen…</option>
-        {templates.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}{" "}
-            {t.rotationLength > 1 ? `(${t.rotationLength} Wochen)` : ""}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          id="arbeitszeitmodell-template-select"
+          value={selectedId}
+          onChange={(e) => onSelect(e.target.value)}
+          className="w-full appearance-none rounded-lg border border-gray-200 py-2 pr-10 pl-3 text-sm focus:border-gray-400 focus:outline-none"
+        >
+          <option value="">Bitte wählen…</option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}{" "}
+              {t.rotationLength > 1 ? `(${t.rotationLength} Wochen)` : ""}
+            </option>
+          ))}
+        </select>
+        <DropdownChevron />
+      </div>
       {selected && <TemplatePreviewBlock model={selected} />}
     </div>
   );
@@ -622,18 +625,21 @@ function CustomEditor({
         >
           Rotation
         </label>
-        <select
-          id="arbeitszeitmodell-rotation-select"
-          value={rotationLength}
-          onChange={(e) => onRotationChange(parseInt(e.target.value, 10))}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-        >
-          {ROTATION_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            id="arbeitszeitmodell-rotation-select"
+            value={rotationLength}
+            onChange={(e) => onRotationChange(parseInt(e.target.value, 10))}
+            className="w-full appearance-none rounded-lg border border-gray-200 py-2 pr-10 pl-3 text-sm focus:border-gray-400 focus:outline-none"
+          >
+            {ROTATION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <DropdownChevron />
+        </div>
       </div>
 
       {rotationLength > 1 && (
@@ -683,19 +689,22 @@ function CustomEditor({
                 className="w-14 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none"
               />
               <span className="text-xs text-gray-400">h</span>
-              <select
-                value={mins}
-                onChange={(e) => {
-                  const m = parseInt(e.target.value, 10) || 0;
-                  onEntryChange(activeWeekTab, d, hours * 60 + m);
-                }}
-                className="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none"
-              >
-                <option value={0}>00</option>
-                <option value={15}>15</option>
-                <option value={30}>30</option>
-                <option value={45}>45</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={mins}
+                  onChange={(e) => {
+                    const m = parseInt(e.target.value, 10) || 0;
+                    onEntryChange(activeWeekTab, d, hours * 60 + m);
+                  }}
+                  className="w-16 appearance-none rounded-lg border border-gray-200 py-1.5 pr-6 pl-2 text-left text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none"
+                >
+                  <option value={0}>00</option>
+                  <option value={15}>15</option>
+                  <option value={30}>30</option>
+                  <option value={45}>45</option>
+                </select>
+                <DropdownChevron />
+              </div>
               <span className="text-xs text-gray-400">min</span>
               <span className="ml-auto text-xs text-gray-500 tabular-nums">
                 {formatDuration(minutes)}
@@ -759,6 +768,25 @@ function initialiseCustomEntries(
     }
   }
   return out;
+}
+
+function DropdownChevron() {
+  return (
+    <svg
+      className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 9l-7 7-7-7"
+      />
+    </svg>
+  );
 }
 
 function getISOWeek(date: Date): number {
