@@ -19,6 +19,8 @@ const (
 // pattern (e.g. "Vollzeit 40h Mo-Fr" or "Teilzeit 30h A/B"). Multiple staff
 // members can share a model, and a model can span up to four rotation weeks.
 type WorkTimeModel struct {
+	bun.BaseModel `bun:"schema:config,table:work_time_models"`
+
 	ID                 int64     `bun:"id,pk,autoincrement" json:"id"`
 	TenantID           int64     `bun:"tenant_id,notnull" json:"tenant_id"`
 	Name               string    `bun:"name,notnull" json:"name"`
@@ -64,6 +66,8 @@ func (m *WorkTimeModel) Validate() error {
 // slot inside a model. UNIQUE(model_id, week_index, day_of_week) is enforced at
 // the schema level.
 type WorkTimeModelEntry struct {
+	bun.BaseModel `bun:"schema:config,table:work_time_model_entries"`
+
 	ID            int64     `bun:"id,pk,autoincrement" json:"id"`
 	ModelID       int64     `bun:"model_id,notnull" json:"model_id"`
 	WeekIndex     int       `bun:"week_index,notnull" json:"week_index"`
@@ -89,9 +93,9 @@ func (e *WorkTimeModelEntry) BeforeAppendModel(query any) error {
 func (e *WorkTimeModelEntry) TableName() string { return tableWorkTimeModelEntries }
 
 func (e *WorkTimeModelEntry) Validate() error {
-	if e.ModelID <= 0 {
-		return errors.New("model_id is required")
-	}
+	// model_id is set right before insert by the repository, so validating
+	// it here would always fire on freshly built entries. The DB-level
+	// FK + NOT NULL on model_id enforces the relationship.
 	if e.WeekIndex < 0 || e.WeekIndex >= WorkTimeModelMaxRotation {
 		return errors.New("week_index must be between 0 and 3")
 	}

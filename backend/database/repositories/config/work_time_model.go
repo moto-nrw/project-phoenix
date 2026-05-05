@@ -28,12 +28,16 @@ func NewWorkTimeModelRepository(db *bun.DB) config.WorkTimeModelRepository {
 }
 
 // List returns every template visible to the active tenant, eagerly loading entries.
+//
+// Entries are loaded with an explicit second SELECT instead of bun's
+// Relation() helper because the latter dropped the schema qualifier on the
+// FROM clause and crashed with "relation \"work_time_model_entries\" does
+// not exist". Two queries is fine for tenant-scoped template lists.
 func (r *WorkTimeModelRepository) List(ctx context.Context) ([]*config.WorkTimeModel, error) {
 	var models []*config.WorkTimeModel
 	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&models).
 		ModelTableExpr(tableWorkTimeModels + ` AS "work_time_model"`).
-		Relation("Entries").
 		OrderExpr(`"work_time_model".name ASC`)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
@@ -43,7 +47,7 @@ func (r *WorkTimeModelRepository) List(ctx context.Context) ([]*config.WorkTimeM
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list work-time models: %w", err)
 	}
-	return models, nil
+	return r.attachEntries(ctx, models)
 }
 
 // FindByID resolves a single template with its entries; returns sql.ErrNoRows when missing.
@@ -52,7 +56,6 @@ func (r *WorkTimeModelRepository) FindByID(ctx context.Context, id int64) (*conf
 	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(model).
 		ModelTableExpr(tableWorkTimeModels+` AS "work_time_model"`).
-		Relation("Entries").
 		Where(`"work_time_model".id = ?`, id)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
@@ -62,7 +65,39 @@ func (r *WorkTimeModelRepository) FindByID(ctx context.Context, id int64) (*conf
 	if err := query.Scan(ctx); err != nil {
 		return nil, err
 	}
-	return model, nil
+
+	enriched, err := r.attachEntries(ctx, []*config.WorkTimeModel{model})
+	if err != nil {
+		return nil, err
+	}
+	return enriched[0], nil
+}
+
+func (r *WorkTimeModelRepository) attachEntries(ctx context.Context, models []*config.WorkTimeModel) ([]*config.WorkTimeModel, error) {
+	if len(models) == 0 {
+		return models, nil
+	}
+	ids := make([]int64, 0, len(models))
+	for _, m := range models {
+		ids = append(ids, m.ID)
+	}
+	var entries []*config.WorkTimeModelEntry
+	if err := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&entries).
+		ModelTableExpr(tableWorkTimeModelEntries+` AS "work_time_model_entry"`).
+		Where(`"work_time_model_entry".model_id IN (?)`, bun.List(ids)).
+		OrderExpr(`"work_time_model_entry".week_index ASC, "work_time_model_entry".day_of_week ASC`).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("load entries: %w", err)
+	}
+	byModel := make(map[int64][]*config.WorkTimeModelEntry, len(models))
+	for _, e := range entries {
+		byModel[e.ModelID] = append(byModel[e.ModelID], e)
+	}
+	for _, m := range models {
+		m.Entries = byModel[m.ID]
+	}
+	return models, nil
 }
 
 // Create inserts the template and its entries inside one transaction.
