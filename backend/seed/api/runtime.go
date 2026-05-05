@@ -15,7 +15,11 @@ type Runtime struct {
 	FixedSeeder      *FixedSeeder
 	Result           *SeedResult
 	State            *SeedState
-	Values           map[string]any
+	// SecondTenant is populated by secondTenantStep when scheduled,
+	// then serialised by buildStateStep into seed-state.json under
+	// the `second_tenant` key for E2E specs to read.
+	SecondTenant *SeedStateSecondTenant
+	Values       map[string]any
 }
 
 func newRuntime(seeder *Seeder, operatorEmail, operatorPassword, staffPIN string) *Runtime {

@@ -71,6 +71,49 @@ Usage:
 			StatePath:     statePath,
 		}
 
+		withSecondTenant, _ := cmd.Flags().GetBool("with-second-tenant")
+		if withSecondTenant {
+			secondSlug, _ := cmd.Flags().GetString("second-tenant-slug")
+			secondName, _ := cmd.Flags().GetString("second-tenant-name")
+			secondAdminEmail, _ := cmd.Flags().GetString("second-tenant-admin-email")
+			secondAdminPassword, _ := cmd.Flags().GetString("second-tenant-admin-password")
+			secondLinkEmail, _ := cmd.Flags().GetString("second-tenant-link-email")
+
+			// Defaults match the values the E2E suite expects via
+			// frontend/e2e/helpers/seed-state.ts. Devs can override
+			// each field individually for non-E2E experiments.
+			if secondSlug == "" {
+				secondSlug = "second-school"
+			}
+			if secondName == "" {
+				secondName = "Demo School 2"
+			}
+			if secondAdminEmail == "" {
+				secondAdminEmail = "admin-b@e2e.local"
+			}
+			if secondAdminPassword == "" {
+				if staffPassword != "" {
+					secondAdminPassword = staffPassword
+				} else {
+					log.Fatal("--with-second-tenant requires --second-tenant-admin-password (or --staff-password as a default)")
+				}
+			}
+			if secondLinkEmail == "" {
+				// demo1 is the OGS-Büro admin from the main seed; this
+				// is the account whose access matrix the tenant-switch
+				// spec depends on.
+				secondLinkEmail = "demo1@mail.de"
+			}
+
+			options.SecondTenant = &seedapi.SecondTenantOptions{
+				Slug:          secondSlug,
+				Name:          secondName,
+				AdminEmail:    secondAdminEmail,
+				AdminPassword: secondAdminPassword,
+				LinkEmail:     secondLinkEmail,
+			}
+		}
+
 		seeder := seedapi.NewSeeder(url, verbose, options)
 		result, err := seeder.Seed(ctx, email, password, pin)
 		if err != nil {
@@ -92,4 +135,14 @@ func init() {
 	seedCmd.Flags().String("staff-password", "", "Shared password for all 20 staff accounts (deterministic mode)")
 	seedCmd.Flags().String("admin-email", "", "Fixed email for bootstrap school admin (deterministic mode)")
 	seedCmd.Flags().String("state-path", seedapi.DefaultSeedStatePath, "Path to write the seed state JSON (E2E uses .seed-state-e2e.json to avoid colliding with dev seed)")
+
+	// Second-tenant provisioning: opt-in extension used by the E2E suite
+	// so the TenantSwitcher dropdown has >=2 mappings to render. Off by
+	// default — regular dev seeds stay single-tenant.
+	seedCmd.Flags().Bool("with-second-tenant", false, "Provision a sibling school under the same organization and link the named account into both (E2E tenant-switch coverage)")
+	seedCmd.Flags().String("second-tenant-slug", "", "Slug for the second school (default: second-school)")
+	seedCmd.Flags().String("second-tenant-name", "", "Display name for the second school (default: Demo School 2)")
+	seedCmd.Flags().String("second-tenant-admin-email", "", "Email for the second-school admin (default: admin-b@e2e.local)")
+	seedCmd.Flags().String("second-tenant-admin-password", "", "Password for the second-school admin (defaults to --staff-password if set)")
+	seedCmd.Flags().String("second-tenant-link-email", "", "Account email to link into both tenants (default: demo1@mail.de)")
 }

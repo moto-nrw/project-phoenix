@@ -155,6 +155,8 @@ jobs:
         working-directory: frontend
         env:
           CI: "true"
+          # Required by playwright.config.ts and helpers/iot.ts (no fallback)
+          E2E_BACKEND_URL: "http://localhost:8081"
         run: pnpm exec playwright test
 
       - name: Upload Playwright report

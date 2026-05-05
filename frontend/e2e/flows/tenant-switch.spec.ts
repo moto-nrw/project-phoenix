@@ -1,15 +1,16 @@
 import { test, expect } from "../fixtures";
-import {
-  TENANT_NAME,
-  SECOND_TENANT_NAME,
-  SECOND_TENANT_SLUG,
-  E2E_FRONTEND_PORT,
-} from "../helpers/seed-data";
+import { TENANT_NAME, E2E_FRONTEND_PORT } from "../helpers/seed-data";
+import { getSecondTenant } from "../helpers/seed-state";
 
 test.describe("Tenant switch", () => {
   test("admin with access to two tenants switches without re-login", async ({
     authenticatedPage: page,
   }) => {
+    // Slug + name come from .seed-state-e2e.json (written by the Go
+    // seeder's --with-second-tenant step) — never hardcoded here, so a
+    // future rename only touches the seeder defaults.
+    const second = getSecondTenant();
+
     await page.goto("/");
 
     // Wait until the post-login redirect chain has settled on the actual
@@ -20,20 +21,21 @@ test.describe("Tenant switch", () => {
     await page.waitForURL(/\/dashboard(\/|$)/, { timeout: 20000 });
 
     // The TenantSwitcher only renders when the user has access to more than
-    // one tenant. `scripts/seed-e2e.sh` chains in seed-e2e-multi-tenant.sh
-    // for exactly this reason, so the dropdown MUST be present here. If it
-    // isn't, the seed is broken — fail loudly rather than skip silently.
+    // one tenant. `scripts/seed-e2e.sh` always invokes the seeder with
+    // --with-second-tenant for exactly this reason, so the dropdown MUST
+    // be present here. If it isn't, the seed is broken — fail loudly
+    // rather than skip silently.
     const switcherTrigger = page.getByRole("button", { name: TENANT_NAME });
     await expect(switcherTrigger.first()).toBeVisible({ timeout: 20000 });
 
     // Open the dropdown and pick the second tenant.
     await switcherTrigger.first().click();
-    await page.getByRole("button", { name: SECOND_TENANT_NAME }).click();
+    await page.getByRole("button", { name: second.name }).click();
 
     // The switch flow does a hard navigation to the second subdomain.
     await page.waitForURL(
       new RegExp(
-        `^http://${SECOND_TENANT_SLUG}\\.localtest\\.me:${E2E_FRONTEND_PORT}`,
+        `^http://${second.slug}\\.localtest\\.me:${E2E_FRONTEND_PORT}`,
       ),
       { timeout: 15000 },
     );
@@ -46,7 +48,7 @@ test.describe("Tenant switch", () => {
 
     // The switcher trigger now reflects the new current tenant.
     await expect(
-      page.getByRole("button", { name: SECOND_TENANT_NAME }).first(),
+      page.getByRole("button", { name: second.name }).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 });

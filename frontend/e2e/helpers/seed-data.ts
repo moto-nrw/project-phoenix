@@ -42,12 +42,11 @@ export const TENANT_DOMAIN = "localtest.me";
 export const E2E_FRONTEND_PORT = 3030;
 export const BASE_URL = `http://${TENANT_SLUG}.${TENANT_DOMAIN}:${E2E_FRONTEND_PORT}`;
 
-// Optional second tenant created by `scripts/seed-e2e-multi-tenant.sh`.
-// Tests that depend on this should check for its presence and skip
-// gracefully when it is missing — the multi-tenant setup is opt-in.
-export const SECOND_TENANT_SLUG = "second-school";
-export const SECOND_TENANT_NAME = "Demo School 2";
-export const SECOND_BASE_URL = `http://${SECOND_TENANT_SLUG}.${TENANT_DOMAIN}:${E2E_FRONTEND_PORT}`;
+// Second-tenant constants live in seed-state.ts (`getSecondTenant()`)
+// because the seeder is the single source of truth for slug/name/admin
+// after we moved the multi-tenant provisioning into Go. Importing them
+// here would invert the dependency: the source of the slug should be
+// the seeder, not a frontend constant. See frontend/e2e/helpers/seed-state.ts.
 
 // Test-only credential. Used exclusively by the deterministic seeder for
 // the isolated postgres-test stack (server-e2e on :8081). Never exists in

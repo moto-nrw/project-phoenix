@@ -17,8 +17,8 @@ sudo ./scripts/setup-e2e-hosts.sh
 # 2. Bring up the isolated E2E backend + reset + seed (single tenant +
 #    second tenant for the switch flow). This script does
 #    `docker compose up -d --wait postgres-test server-e2e` internally
-#    and chains in seed-e2e-multi-tenant.sh, so you do NOT need a
-#    running dev stack and you do NOT need a second manual step.
+#    and invokes the Go seeder with --with-second-tenant, so you do NOT
+#    need a running dev stack and you do NOT need a second manual step.
 ./scripts/seed-e2e.sh
 
 # 3. Run the tests. Playwright starts its own Next.js dev server on :3030
@@ -26,8 +26,14 @@ sudo ./scripts/setup-e2e-hosts.sh
 #    server-e2e (:8081). Nothing of yours needs to be stopped.
 cd frontend
 pnpm exec playwright install chromium      # first time only
-pnpm exec playwright test
+pnpm run e2e                               # wraps playwright test + E2E_BACKEND_URL
 ```
+
+> `pnpm run e2e` is a thin wrapper around `playwright test` that sets the
+> required `E2E_BACKEND_URL=http://localhost:8081` env var. The bare
+> `pnpm exec playwright test` will refuse to start without it (no fallback,
+> per the project's "No fallbacks" rule in CLAUDE.md). If you prefer the
+> bare invocation, export `E2E_BACKEND_URL` yourself.
 
 The HTML report opens automatically on failure; otherwise: `pnpm exec playwright show-report`.
 

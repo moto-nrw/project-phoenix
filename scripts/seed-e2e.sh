@@ -80,7 +80,10 @@ fi
 # up server-e2e` would otherwise fail with "no such service: server-e2e"
 # instead of something actionable. Don't silently overwrite — surface
 # the mismatch with a clear remediation hint.
-if ! grep -qE '^\s+server-e2e:' "$REPO_ROOT/docker-compose.yml"; then
+# `\s` is a GNU extension; macOS/BSD grep does not honour it and would
+# match nothing, falsely flagging every developer's compose file as stale.
+# `[[:space:]]` is POSIX and works on both platforms.
+if ! grep -qE '^[[:space:]]+server-e2e:' "$REPO_ROOT/docker-compose.yml"; then
   echo "error: docker-compose.yml is missing the server-e2e service." >&2
   echo "" >&2
   echo "Your local docker-compose.yml predates the e2e profile services" >&2
@@ -122,6 +125,15 @@ echo "Seeding with deterministic flags..."
 # file, and vice versa. The two stacks share the same mounted ./backend
 # directory, so without this flag both seeds write to the same file.
 # Keep in sync with frontend/e2e/helpers/seed-state.ts:SEED_STATE_PATH.
+#
+# --with-second-tenant runs the second-school + account-link extension
+# step inside the Go seeder. It used to be a separate bash script
+# (seed-e2e-multi-tenant.sh) that did the same flow with curl/jq, but
+# bash couldn't differentiate between "409 — already there" and
+# "500 — contract broke" so real failures showed up later as flaky
+# tenant-switch test failures. The Go path uses typed APIError status
+# codes: 409 is silent, anything else is a hard failure with a clear
+# message naming the step.
 docker compose exec -T server-e2e go run main.go seed \
   --tenant-slug "$TENANT_SLUG" \
   --admin-email "$ADMIN_EMAIL" \
@@ -130,6 +142,7 @@ docker compose exec -T server-e2e go run main.go seed \
   --password "$OPERATOR_PASSWORD" \
   --pin "$OPERATOR_PIN" \
   --state-path .seed-state-e2e.json \
+  --with-second-tenant \
   --url http://localhost:8080  # NOSONAR S5332 — loopback only
 
 # The seeder writes .seed-state-e2e.json from inside the container as root.
@@ -142,15 +155,6 @@ docker compose exec -T server-e2e go run main.go seed \
 docker compose exec -T server-e2e chmod 644 .seed-state-e2e.json
 
 echo
-echo "Provisioning second tenant for tenant-switch coverage..."
-# The tenant-switch spec asserts the TenantSwitcher dropdown — which only
-# renders when the account has access to >=2 tenants. We always run the
-# multi-tenant setup so the canonical seed leaves the suite in a state
-# where every spec exercises real behaviour. The script is idempotent and
-# tolerates 409s on re-run.
-"$SCRIPT_DIR/seed-e2e-multi-tenant.sh"
-
-echo
 echo "Seed complete. Test stack:"
 echo "  backend:        $API_URL  (server-e2e -> postgres-test)"
 echo "  admin:          demo1@mail.de  / $STAFF_PASSWORD"
@@ -159,4 +163,9 @@ echo "  tenant URL:     http://${TENANT_SLUG}.localtest.me:3030  (only while Pla
 echo "  second tenant:  http://second-school.localtest.me:3030"  # NOSONAR S5332 — localtest.me resolves to 127.0.0.1
 echo
 echo "Run Playwright with:"
-echo "  cd frontend && pnpm exec playwright test"
+echo "  cd frontend && pnpm run e2e"
+echo
+echo "  (pnpm run e2e wraps playwright test and sets the required"
+echo "   E2E_BACKEND_URL env var. If you call playwright directly"
+echo "   you must export E2E_BACKEND_URL=$API_URL yourself —"
+echo "   playwright.config.ts and helpers/iot.ts refuse to load without it.)"

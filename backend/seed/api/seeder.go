@@ -35,6 +35,12 @@ type SeedOptions struct {
 	// E2E uses this to write to .seed-state-e2e.json so it never
 	// collides with the dev seeder's state file.
 	StatePath string
+	// SecondTenant, when non-nil, schedules an extra workflow step that
+	// provisions a sibling school under the same organization and links
+	// the named account into both tenants. Used by the E2E suite to give
+	// the TenantSwitcher dropdown >=2 mappings to render. Nil = the
+	// default single-tenant seed.
+	SecondTenant *SecondTenantOptions
 }
 
 // Seeder orchestrates the complete API-based seeding process

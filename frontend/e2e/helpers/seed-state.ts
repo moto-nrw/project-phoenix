@@ -74,12 +74,26 @@ interface SeedStateLookups {
   groups: Record<string, number>;
 }
 
+export interface SeedSecondTenant {
+  organization_id: number;
+  school_id: number;
+  slug: string;
+  name: string;
+  admin_email: string;
+  admin_password: string;
+  link_email: string;
+}
+
 export interface SeedState {
   device_pin: string;
   devices: Record<string, SeedDevice>;
   students: SeedStudent[];
   accounts: { admin: SeedAccount[]; betreuer: SeedAccount[] };
   lookups: SeedStateLookups;
+  // Present only when the seeder was run with --with-second-tenant
+  // (E2E tenant-switch coverage). Specs that exercise the switch flow
+  // should call `getSecondTenant()` and fail loudly if it is absent.
+  second_tenant?: SeedSecondTenant;
   // Top-level legacy mirrors of `lookups.*`. The Go seeder writes both
   // shapes in `Normalize()` for backwards compatibility, but we read
   // through `lookups.*` exclusively to avoid drifting between them.
@@ -276,6 +290,28 @@ export function getDevicePIN(): string {
     );
   }
   return pin;
+}
+
+/**
+ * Returns the second-tenant block written by `seed --with-second-tenant`.
+ * Throws if absent — the tenant-switch spec depends on this and there is
+ * no graceful degradation path: scripts/seed-e2e.sh always passes the
+ * flag, so a missing block means the seed is broken, not optional.
+ *
+ * Specs read slug/name/admin/etc. through this helper rather than
+ * hardcoded constants so renaming the second school requires touching
+ * exactly one place: the seeder defaults in backend/cmd/seed.go.
+ */
+export function getSecondTenant(): SeedSecondTenant {
+  const second = loadSeedState().second_tenant;
+  if (!second) {
+    throw new Error(
+      `seed-state has no second_tenant block. Re-run scripts/seed-e2e.sh ` +
+        `(it passes --with-second-tenant), or invoke the seeder manually with ` +
+        `--with-second-tenant if you reproduced it locally.`,
+    );
+  }
+  return second;
 }
 
 /**

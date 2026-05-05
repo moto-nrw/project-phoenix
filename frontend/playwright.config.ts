@@ -3,9 +3,22 @@ import { BASE_URL, STORAGE_STATE_PATH } from "./e2e/helpers/seed-data";
 
 // Single source of truth for "where is the E2E backend?". Read from the
 // same env var that helpers/iot.ts uses (E2E_BACKEND_URL) so HTTP-only
-// specs and the spawned Next.js dev server agree on the target. When
-// unset (the common local case), both fall through to localhost:8081.
-const E2E_BACKEND_URL = process.env.E2E_BACKEND_URL ?? "http://localhost:8081";
+// specs and the spawned Next.js dev server agree on the target.
+//
+// Required, no fallback: the project's "No fallbacks" rule (CLAUDE.md)
+// applies here too. A silent localhost:8081 default would mean
+// `pnpm exec playwright test` from a fresh shell silently runs against
+// whatever happens to be on :8081 — possibly the dev backend, possibly
+// nothing — instead of failing loud. `scripts/seed-e2e.sh` exports the
+// variable for local runs; CI sets it explicitly in `.github/workflows/e2e.yml`.
+const E2E_BACKEND_URL = process.env.E2E_BACKEND_URL;
+if (!E2E_BACKEND_URL) {
+  throw new Error(
+    "E2E_BACKEND_URL is not set. Run via scripts/seed-e2e.sh (which exports " +
+      "it for you) or export E2E_BACKEND_URL=http://localhost:8081 manually " +
+      "before invoking playwright test.",
+  );
+}
 
 export default defineConfig({
   testDir: "./e2e",

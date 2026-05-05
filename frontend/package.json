@@ -19,7 +19,9 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
-    "knip": "knip"
+    "knip": "knip",
+    "e2e": "E2E_BACKEND_URL=http://localhost:8081 playwright test",
+    "e2e:ui": "E2E_BACKEND_URL=http://localhost:8081 playwright test --ui"
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",

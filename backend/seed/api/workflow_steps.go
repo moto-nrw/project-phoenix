@@ -102,6 +102,12 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	state.Topology.Organizations = 1
 	state.Topology.Schools = 1
+	if rt.SecondTenant != nil {
+		// Second school lives under the same organization, so the org
+		// count stays 1 and only the school count bumps.
+		state.Topology.Schools = 2
+		state.SecondTenant = rt.SecondTenant
+	}
 	state.Topology.Mode = "full-demo"
 	state.Scenarios.DefaultPlayer = "pyreportal"
 	state.Scenarios.DefaultMode = "hybrid"
@@ -154,20 +160,35 @@ func (s printSummaryStep) Run(_ context.Context, rt *Runtime) error {
 }
 
 func fullDemoWorkflow(seeder *Seeder) Workflow {
+	steps := []Step{
+		healthCheckStep{},
+		operatorLoginStep{},
+		bootstrapTenantStep{seeder: seeder},
+		seedMasterDataStep{seeder: seeder},
+		markStudentsSickStep{},
+		seedPrivacyConsentsStep{},
+		seedAnnouncementsStep{},
+		seedSuggestionsStep{},
+	}
+
+	// Second-tenant provisioning runs after the main demo data is in
+	// place — it depends on the named LinkEmail account having been
+	// created by the master-data step, on the operator being logged in
+	// (so we can create the school + invite), and on roles existing in
+	// the new tenant. Inserting it here keeps buildStateStep below as
+	// the single point where SeedState is materialised.
+	if seeder.options.SecondTenant != nil {
+		steps = append(steps, secondTenantStep{seeder: seeder})
+	}
+
+	steps = append(steps,
+		buildStateStep{seeder: seeder},
+		writeSimulatorConfigStep{},
+		printSummaryStep{seeder: seeder},
+	)
+
 	return Workflow{
-		Name: "full-demo",
-		Steps: []Step{
-			healthCheckStep{},
-			operatorLoginStep{},
-			bootstrapTenantStep{seeder: seeder},
-			seedMasterDataStep{seeder: seeder},
-			markStudentsSickStep{},
-			seedPrivacyConsentsStep{},
-			seedAnnouncementsStep{},
-			seedSuggestionsStep{},
-			buildStateStep{seeder: seeder},
-			writeSimulatorConfigStep{},
-			printSummaryStep{seeder: seeder},
-		},
+		Name:  "full-demo",
+		Steps: steps,
 	}
 }
