@@ -3,8 +3,11 @@
 import { useMemo, useState } from "react";
 
 import { Modal } from "~/components/ui/modal";
-import type { StaffHistorySession } from "~/lib/staff-api";
-import { toIsoDayOfWeek } from "~/lib/staff-metrics-helpers";
+import type { StaffHistorySession, StaffSchedule } from "~/lib/staff-api";
+import {
+  resolveTargetForDate,
+  toIsoDayOfWeek,
+} from "~/lib/staff-metrics-helpers";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 
 import { formatSignedDuration } from "./staff-time-views";
@@ -27,14 +30,14 @@ export function StaffSessionTable({
   from,
   to,
   sessions,
-  targetByDow,
+  schedule,
   today,
   isAdminView,
 }: {
   readonly from: Date;
   readonly to: Date;
   readonly sessions: readonly StaffHistorySession[];
-  readonly targetByDow: Map<number, number>;
+  readonly schedule: StaffSchedule | null;
   readonly today: Date;
   readonly isAdminView: boolean;
 }) {
@@ -89,7 +92,7 @@ export function StaffSessionTable({
               const key = toDateKey(day);
               const dow = toIsoDayOfWeek(day);
               const session = sessionsByDate.get(key);
-              const target = targetByDow.get(dow) ?? 0;
+              const target = schedule ? resolveTargetForDate(schedule, day) : 0;
               const isWeekend = dow >= 5;
               const isFuture = day > today;
               const isToday = sameDay(day, today);

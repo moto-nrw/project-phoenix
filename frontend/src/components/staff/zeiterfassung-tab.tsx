@@ -57,14 +57,6 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     staffHistoryService.getHistory(staffId, visibleFromKey, visibleToKey),
   );
 
-  const targetByDow = useMemo(() => {
-    const map = new Map<number, number>();
-    for (const entry of schedule?.entries ?? []) {
-      map.set(entry.dayOfWeek, entry.targetMinutes);
-    }
-    return map;
-  }, [schedule]);
-
   if (scheduleLoading) {
     return <Loading fullPage={false} />;
   }
@@ -131,7 +123,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               from={visibleFrom}
               to={visibleTo}
               sessions={visibleSessions ?? []}
-              targetByDow={targetByDow}
+              schedule={schedule ?? null}
               today={today}
               isAdminView
             />

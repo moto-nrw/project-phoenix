@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import { Loading } from "~/components/ui/loading";
 import { staffHistoryService, staffScheduleService } from "~/lib/staff-api";
-import type { StaffHistorySession } from "~/lib/staff-api";
+import type { StaffHistorySession, StaffSchedule } from "~/lib/staff-api";
 import {
   computeStaffMetrics,
   startOfYear,
@@ -13,6 +13,15 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 
 import { KpiCards } from "./staff-time-views";
+
+const EMPTY_SCHEDULE: StaffSchedule = {
+  mode: "custom",
+  model: null,
+  rotationLength: 1,
+  rotationAnchorDate: "",
+  entries: [],
+  weeklyTotals: [],
+};
 
 // Quick-look summary tab for the staff detail page. Reads the schedule and
 // the YTD session history to derive Soll/Ist/Saldo and renders the KPI
@@ -34,11 +43,10 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     staffHistoryService.getHistory(staffId, ytdFrom, ytdTo),
   );
 
-  const scheduleEntries = useMemo(() => schedule?.entries ?? [], [schedule]);
-
   const metrics = useMemo(
-    () => computeStaffMetrics(scheduleEntries, ytdSessions ?? [], today),
-    [scheduleEntries, ytdSessions, today],
+    () =>
+      computeStaffMetrics(schedule ?? EMPTY_SCHEDULE, ytdSessions ?? [], today),
+    [schedule, ytdSessions, today],
   );
 
   if (scheduleLoading || ytdLoading) {

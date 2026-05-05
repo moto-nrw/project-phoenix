@@ -462,40 +462,91 @@ class StaffService {
 
 // Work Schedule types and service
 export interface ScheduleEntry {
-  id?: string;
+  weekIndex: number;
   dayOfWeek: number;
   targetMinutes: number;
-  validFrom?: string;
+}
+
+export interface ScheduleModelInfo {
+  id: string;
+  name: string;
+  rotationLength: number;
+  rotationAnchorDate: string;
 }
 
 export interface StaffSchedule {
+  mode: "template" | "custom";
+  model: ScheduleModelInfo | null;
+  rotationLength: number;
+  rotationAnchorDate: string;
   entries: ScheduleEntry[];
-  weeklyTotal: number;
+  weeklyTotals: number[];
 }
 
 interface BackendScheduleEntry {
-  id: number;
+  week_index: number;
   day_of_week: number;
   target_minutes: number;
-  valid_from: string;
+}
+
+interface BackendScheduleModel {
+  id: number;
+  name: string;
+  rotation_length: number;
+  rotation_anchor_date: string;
 }
 
 interface BackendScheduleResponse {
+  mode: "template" | "custom";
+  model: BackendScheduleModel | null;
+  rotation_length: number;
+  rotation_anchor_date: string;
   entries: BackendScheduleEntry[];
-  weekly_total: number;
+  weekly_totals: number[];
 }
 
 function mapScheduleResponse(data: BackendScheduleResponse): StaffSchedule {
   return {
+    mode: data.mode ?? "custom",
+    model: data.model
+      ? {
+          id: data.model.id.toString(),
+          name: data.model.name,
+          rotationLength: data.model.rotation_length,
+          rotationAnchorDate: data.model.rotation_anchor_date,
+        }
+      : null,
+    rotationLength: data.rotation_length ?? 1,
+    rotationAnchorDate: data.rotation_anchor_date ?? "",
     entries: (data.entries ?? []).map((e) => ({
-      id: e.id.toString(),
+      weekIndex: e.week_index,
       dayOfWeek: e.day_of_week,
       targetMinutes: e.target_minutes,
-      validFrom: e.valid_from,
     })),
-    weeklyTotal: data.weekly_total ?? 0,
+    weeklyTotals: data.weekly_totals ?? [],
   };
 }
+
+export interface UpdateScheduleCustomRequest {
+  mode: "custom";
+  rotationLength: number;
+  rotationAnchorDate?: string;
+  entries: Array<{
+    weekIndex: number;
+    dayOfWeek: number;
+    targetMinutes: number;
+  }>;
+  saveAsTemplate?: string;
+}
+
+export interface UpdateScheduleTemplateRequest {
+  mode: "template";
+  modelId: string;
+}
+
+export type UpdateScheduleRequest =
+  | UpdateScheduleCustomRequest
+  | UpdateScheduleTemplateRequest;
 
 export class StaffScheduleService {
   async getSchedule(staffId: string): Promise<StaffSchedule> {
@@ -508,14 +559,22 @@ export class StaffScheduleService {
 
   async updateSchedule(
     staffId: string,
-    entries: Array<{ dayOfWeek: number; targetMinutes: number }>,
+    update: UpdateScheduleRequest,
   ): Promise<StaffSchedule> {
-    const body = {
-      entries: entries.map((e) => ({
-        day_of_week: e.dayOfWeek,
-        target_minutes: e.targetMinutes,
-      })),
-    };
+    const body =
+      update.mode === "template"
+        ? { mode: "template", model_id: Number.parseInt(update.modelId, 10) }
+        : {
+            mode: "custom",
+            rotation_length: update.rotationLength,
+            rotation_anchor_date: update.rotationAnchorDate,
+            entries: update.entries.map((e) => ({
+              week_index: e.weekIndex,
+              day_of_week: e.dayOfWeek,
+              target_minutes: e.targetMinutes,
+            })),
+            save_as_template: update.saveAsTemplate,
+          };
     const response = await sessionFetch(`/api/staff/${staffId}/schedule`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -525,6 +584,54 @@ export class StaffScheduleService {
       data: BackendScheduleResponse;
     };
     return mapScheduleResponse(json.data);
+  }
+}
+
+// Work Time Models (tenant templates)
+export interface WorkTimeModelEntry {
+  weekIndex: number;
+  dayOfWeek: number;
+  targetMinutes: number;
+}
+
+export interface WorkTimeModel {
+  id: string;
+  name: string;
+  rotationLength: number;
+  rotationAnchorDate: string;
+  entries: WorkTimeModelEntry[];
+  weeklyTotals: number[];
+}
+
+interface BackendWorkTimeModel {
+  id: number;
+  name: string;
+  rotation_length: number;
+  rotation_anchor_date: string;
+  entries: BackendScheduleEntry[];
+  weekly_totals: number[];
+}
+
+function mapWorkTimeModel(m: BackendWorkTimeModel): WorkTimeModel {
+  return {
+    id: m.id.toString(),
+    name: m.name,
+    rotationLength: m.rotation_length,
+    rotationAnchorDate: m.rotation_anchor_date,
+    entries: (m.entries ?? []).map((e) => ({
+      weekIndex: e.week_index,
+      dayOfWeek: e.day_of_week,
+      targetMinutes: e.target_minutes,
+    })),
+    weeklyTotals: m.weekly_totals ?? [],
+  };
+}
+
+export class WorkTimeModelService {
+  async list(): Promise<WorkTimeModel[]> {
+    const response = await sessionFetch(`/api/work-time-models`);
+    const json = (await response.json()) as { data: BackendWorkTimeModel[] };
+    return (json.data ?? []).map(mapWorkTimeModel);
   }
 }
 
@@ -568,4 +675,5 @@ class StaffHistoryService {
 
 export const staffService = new StaffService();
 export const staffScheduleService = new StaffScheduleService();
+export const workTimeModelService = new WorkTimeModelService();
 export const staffHistoryService = new StaffHistoryService();

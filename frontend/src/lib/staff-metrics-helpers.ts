@@ -4,7 +4,11 @@
 // Sat/Sun are intentionally excluded from the Soll when they are 0 in the
 // schedule — the typical Mon–Fri use case.
 
-import type { ScheduleEntry, StaffHistorySession } from "./staff-api";
+import type {
+  ScheduleEntry,
+  StaffHistorySession,
+  StaffSchedule,
+} from "./staff-api";
 
 /**
  * Convert a JavaScript Date to our ISO dayOfWeek (0=Mon, 6=Sun).
@@ -36,27 +40,71 @@ export function parseSessionDate(input: string): Date | null {
 }
 
 /**
- * Build a map from dayOfWeek (0-6) to target minutes from a schedule.
+ * Build a single-week map from dayOfWeek (0-6) to target minutes for a
+ * specific rotation week. Useful for the simple-week display path; for the
+ * full pattern with rotation use {@link resolveTargetForDate}.
  */
-export function buildTargetMap(entries: ScheduleEntry[]): Map<number, number> {
+export function buildTargetMap(
+  entries: ScheduleEntry[],
+  weekIndex = 0,
+): Map<number, number> {
   const map = new Map<number, number>();
   for (const entry of entries) {
-    map.set(entry.dayOfWeek, entry.targetMinutes);
+    if (entry.weekIndex === weekIndex) {
+      map.set(entry.dayOfWeek, entry.targetMinutes);
+    }
   }
   return map;
 }
 
 /**
+ * Compute the rotation week index for a given calendar date relative to
+ * the schedule's anchor. Returns 0 for single-week patterns.
+ */
+export function resolveWeekIndex(
+  schedule: Pick<StaffSchedule, "rotationLength" | "rotationAnchorDate">,
+  date: Date,
+): number {
+  const rotation = Math.max(1, schedule.rotationLength);
+  if (rotation === 1) return 0;
+  const anchor = parseSessionDate(schedule.rotationAnchorDate);
+  if (!anchor) return 0;
+  const day = 24 * 60 * 60 * 1000;
+  const aMs = startOfWeek(anchor).getTime();
+  const dMs = startOfWeek(
+    new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+  ).getTime();
+  const weeks = Math.floor((dMs - aMs) / (7 * day));
+  const mod = weeks % rotation;
+  return mod < 0 ? mod + rotation : mod;
+}
+
+/**
+ * Look up the Soll-Minuten for a single calendar date, honouring rotation.
+ */
+export function resolveTargetForDate(
+  schedule: StaffSchedule,
+  date: Date,
+): number {
+  const weekIndex = resolveWeekIndex(schedule, date);
+  const dow = toIsoDayOfWeek(date);
+  for (const entry of schedule.entries) {
+    if (entry.weekIndex === weekIndex && entry.dayOfWeek === dow) {
+      return entry.targetMinutes;
+    }
+  }
+  return 0;
+}
+
+/**
  * Sum the schedule target minutes for all calendar days in [from, to]
- * (inclusive). Each day contributes its weekday's targetMinutes from the
- * schedule (or 0 if not set).
+ * (inclusive). Honours multi-week rotations via the schedule's anchor.
  */
 export function computeSollForRange(
-  entries: ScheduleEntry[],
+  schedule: StaffSchedule,
   from: Date,
   to: Date,
 ): number {
-  const targetByDow = buildTargetMap(entries);
   const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
   const dayMs = 24 * 60 * 60 * 1000;
@@ -66,8 +114,7 @@ export function computeSollForRange(
   for (let i = 0; i < totalDays; i++) {
     const day = new Date(start);
     day.setDate(day.getDate() + i);
-    const dow = toIsoDayOfWeek(day);
-    sum += targetByDow.get(dow) ?? 0;
+    sum += resolveTargetForDate(schedule, day);
   }
   return sum;
 }
@@ -192,7 +239,7 @@ export interface StaffMetrics {
  * counts days that have already happened.
  */
 export function computeStaffMetrics(
-  schedule: ScheduleEntry[],
+  schedule: StaffSchedule,
   sessions: StaffHistorySession[],
   now: Date,
 ): StaffMetrics {

@@ -17,7 +17,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Loading } from "~/components/ui/loading";
-import { DienstplanTab } from "~/components/staff/dienstplan-tab";
+import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 
@@ -318,8 +318,8 @@ function StaffDetailContent() {
       <Tabs defaultValue="uebersicht" className="w-full">
         <TabsList variant="line" className="mb-6 justify-start">
           <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
-          <TabsTrigger value="dienstplan">Dienstplan</TabsTrigger>
           <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
+          <TabsTrigger value="arbeitszeitmodell">Arbeitszeitmodell</TabsTrigger>
           <TabsTrigger value="abwesenheiten" disabled>
             Abwesenheiten
           </TabsTrigger>
@@ -335,12 +335,12 @@ function StaffDetailContent() {
           <UebersichtTab staffId={staffId} />
         </TabsPrimitive.Content>
 
-        <TabsPrimitive.Content value="dienstplan">
-          <DienstplanTab staffId={staffId} canEdit={canEdit} />
-        </TabsPrimitive.Content>
-
         <TabsPrimitive.Content value="zeiterfassung">
           <ZeiterfassungTab staffId={staffId} />
+        </TabsPrimitive.Content>
+
+        <TabsPrimitive.Content value="arbeitszeitmodell">
+          <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="abwesenheiten">
