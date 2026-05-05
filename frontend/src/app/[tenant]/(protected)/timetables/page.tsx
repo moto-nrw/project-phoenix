@@ -37,6 +37,7 @@ import {
   type WeekDensity,
 } from "~/components/timetable/timetable-toolbar";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
+import { YearPlannerGrid } from "~/components/timetable/year-planner-grid";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
@@ -53,16 +54,20 @@ import {
   chunkDateRange,
   formatWeekLabel,
   formatMonthLabel,
+  formatYearLabel,
   getMonthDays,
   getMonthRange,
   getWeekRange,
   getWeekdays,
+  getYearMonths,
+  getYearRange,
   toISODate,
 } from "~/lib/timetable-helpers";
 import type {
   EnrichedInstance,
   MaterializeWarning,
   TimetableTemplate,
+  WeeklyInstancesResponse,
 } from "~/lib/timetable-types";
 
 const logger = createLogger({ component: "TimetablesPage" });
@@ -75,7 +80,7 @@ function parseWeekOffset(raw: string | null): number {
 }
 
 function parseView(raw: string | null): TimetableView {
-  if (raw === "week" || raw === "series") return raw;
+  if (raw === "week" || raw === "year" || raw === "series") return raw;
   if (raw === "templates") return "series";
   return "month";
 }
@@ -93,10 +98,53 @@ function monthParam(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function parseYear(raw: string | null, month: Date): Date {
+  if (raw && /^\d{4}$/.test(raw)) {
+    return new Date(Number(raw), 0, 1);
+  }
+  return new Date(month.getFullYear(), 0, 1);
+}
+
+function yearParam(date: Date): string {
+  return String(date.getFullYear());
+}
+
 function weekOffsetForDate(dateISO: string): number {
   const current = getWeekRange(new Date(), 0).from;
   const target = getWeekRange(new Date(`${dateISO}T00:00:00`), 0).from;
   return Math.round((target.getTime() - current.getTime()) / 604800000);
+}
+
+function firstVisibleSchoolDateInPeriod(
+  period: CalendarPeriod,
+  targetISO: string,
+): string {
+  const periodStart = new Date(`${period.startDate}T00:00:00`);
+  const periodEnd = new Date(`${period.endDate}T00:00:00`);
+  const target = new Date(`${targetISO}T00:00:00`);
+  const day = target.getDay();
+
+  if (day === 6) {
+    const nextMonday = new Date(target);
+    nextMonday.setDate(target.getDate() + 2);
+    if (nextMonday <= periodEnd) return toISODate(nextMonday);
+
+    const previousFriday = new Date(target);
+    previousFriday.setDate(target.getDate() - 1);
+    if (previousFriday >= periodStart) return toISODate(previousFriday);
+  }
+
+  if (day === 0) {
+    const nextMonday = new Date(target);
+    nextMonday.setDate(target.getDate() + 1);
+    if (nextMonday <= periodEnd) return toISODate(nextMonday);
+
+    const previousFriday = new Date(target);
+    previousFriday.setDate(target.getDate() - 2);
+    if (previousFriday >= periodStart) return toISODate(previousFriday);
+  }
+
+  return targetISO;
 }
 
 function TimetablesContent() {
@@ -114,11 +162,17 @@ function TimetablesContent() {
   const [monthDate, setMonthDate] = useState(() =>
     parseMonth(searchParams.get("month")),
   );
+  const [yearDate, setYearDate] = useState(() =>
+    parseYear(searchParams.get("year"), parseMonth(searchParams.get("month"))),
+  );
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(
     () => searchParams.get("instance"),
   );
   const [selectedDay, setSelectedDay] = useState<string | null>(() =>
     searchParams.get("day"),
+  );
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(() =>
+    searchParams.get("period"),
   );
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [editingInstance, setEditingInstance] =
@@ -164,9 +218,12 @@ function TimetablesContent() {
       const qs = next.toString();
       setView(parseView(next.get("view")));
       setWeekOffset(parseWeekOffset(next.get("week")));
-      setMonthDate(parseMonth(next.get("month")));
+      const parsedMonth = parseMonth(next.get("month"));
+      setMonthDate(parsedMonth);
+      setYearDate(parseYear(next.get("year"), parsedMonth));
       setSelectedInstanceId(next.get("instance"));
       setSelectedDay(next.get("day"));
+      setSelectedPeriodId(next.get("period"));
 
       if (typeof window !== "undefined") {
         window.history.replaceState(
@@ -184,9 +241,12 @@ function TimetablesContent() {
       const next = new URLSearchParams(window.location.search);
       setView(parseView(next.get("view")));
       setWeekOffset(parseWeekOffset(next.get("week")));
-      setMonthDate(parseMonth(next.get("month")));
+      const parsedMonth = parseMonth(next.get("month"));
+      setMonthDate(parsedMonth);
+      setYearDate(parseYear(next.get("year"), parsedMonth));
       setSelectedInstanceId(next.get("instance"));
       setSelectedDay(next.get("day"));
+      setSelectedPeriodId(next.get("period"));
     };
     window.addEventListener("popstate", syncFromLocation);
     return () => window.removeEventListener("popstate", syncFromLocation);
@@ -206,13 +266,32 @@ function TimetablesContent() {
 
   const handleViewChange = useCallback(
     (nextView: TimetableView) => {
-      updateUrlParams({
+      const visibleDate =
+        view === "week"
+          ? new Date(
+              `${selectedDay ?? toISODate(getWeekRange(new Date(), weekOffset).from)}T00:00:00`,
+            )
+          : view === "month"
+            ? monthDate
+            : view === "year"
+              ? yearDate
+              : new Date();
+      const viewPatch: Record<string, string | null> = {
         view: nextView === "month" ? null : nextView,
         instance: null,
         day: null,
+      };
+      if (nextView === "year") {
+        viewPatch.year = yearParam(visibleDate);
+      }
+      if (nextView === "month") {
+        viewPatch.month = monthParam(visibleDate);
+      }
+      updateUrlParams({
+        ...viewPatch,
       });
     },
-    [updateUrlParams],
+    [monthDate, selectedDay, updateUrlParams, view, weekOffset, yearDate],
   );
 
   const handleMonthChange = useCallback(
@@ -227,6 +306,18 @@ function TimetablesContent() {
     [monthDate, updateUrlParams],
   );
 
+  const handleYearChange = useCallback(
+    (delta: number) => {
+      const next = new Date(yearDate);
+      next.setFullYear(next.getFullYear() + delta);
+      updateUrlParams({
+        year: yearParam(next),
+        instance: null,
+      });
+    },
+    [yearDate, updateUrlParams],
+  );
+
   const openWeekForDay = useCallback(
     (dateISO: string) => {
       const offset = weekOffsetForDate(dateISO);
@@ -235,6 +326,18 @@ function TimetablesContent() {
         week: offset === 0 ? null : String(offset),
         day: dateISO,
         instance: null,
+      });
+    },
+    [updateUrlParams],
+  );
+
+  const openMonthFromYear = useCallback(
+    (month: Date) => {
+      updateUrlParams({
+        view: null,
+        month: monthParam(month),
+        instance: null,
+        day: null,
       });
     },
     [updateUrlParams],
@@ -251,25 +354,55 @@ function TimetablesContent() {
           : target > period.endDate
             ? period.endDate
             : target;
-      const offset = weekOffsetForDate(targetISO);
+      const visibleDateISO = firstVisibleSchoolDateInPeriod(period, targetISO);
+      const visibleDate = new Date(`${visibleDateISO}T00:00:00`);
+
+      if (view === "series") {
+        updateUrlParams({
+          period: period.id,
+          instance: null,
+        });
+        return;
+      }
+
+      if (view === "month") {
+        updateUrlParams({
+          month: monthParam(visibleDate),
+          instance: null,
+          day: null,
+        });
+        return;
+      }
+
+      if (view === "year") {
+        updateUrlParams({
+          year: yearParam(visibleDate),
+          instance: null,
+          day: null,
+        });
+        return;
+      }
+
+      const offset = weekOffsetForDate(visibleDateISO);
       updateUrlParams({
-        view: "week",
         week: offset === 0 ? null : String(offset),
-        day: null,
+        day: visibleDateISO,
         instance: null,
       });
     },
-    [updateUrlParams],
+    [updateUrlParams, view],
   );
 
   const handleToolbarPrev = useCallback(() => {
     if (view === "week") handleWeekChange(weekOffset - 1);
     else if (view === "month") handleMonthChange(-1);
-  }, [view, weekOffset, handleWeekChange, handleMonthChange]);
+    else if (view === "year") handleYearChange(-1);
+  }, [view, weekOffset, handleWeekChange, handleMonthChange, handleYearChange]);
   const handleToolbarNext = useCallback(() => {
     if (view === "week") handleWeekChange(weekOffset + 1);
     else if (view === "month") handleMonthChange(1);
-  }, [view, weekOffset, handleWeekChange, handleMonthChange]);
+    else if (view === "year") handleYearChange(1);
+  }, [view, weekOffset, handleWeekChange, handleMonthChange, handleYearChange]);
   const handleToolbarToday = useCallback(() => {
     if (view === "week") {
       handleWeekChange(0);
@@ -277,6 +410,12 @@ function TimetablesContent() {
       const now = new Date();
       updateUrlParams({
         month: monthParam(new Date(now.getFullYear(), now.getMonth(), 1)),
+        instance: null,
+      });
+    } else if (view === "year") {
+      const now = new Date();
+      updateUrlParams({
+        year: yearParam(new Date(now.getFullYear(), 0, 1)),
         instance: null,
       });
     }
@@ -302,10 +441,25 @@ function TimetablesContent() {
   const toISO = toISODate(weekRange.to);
   const monthRange = useMemo(() => getMonthRange(monthDate), [monthDate]);
   const monthDays = useMemo(() => getMonthDays(monthDate), [monthDate]);
-  const fetchFromISO = view === "month" ? toISODate(monthRange.from) : fromISO;
-  const fetchToISO = view === "month" ? toISODate(monthRange.to) : toISO;
+  const yearRange = useMemo(() => getYearRange(yearDate), [yearDate]);
+  const yearMonths = useMemo(() => getYearMonths(yearDate), [yearDate]);
+  const yearFetchFromISO = toISODate(yearRange.from);
+  const yearFetchToISO = toISODate(yearRange.to);
+  const fetchFromISO =
+    view === "month"
+      ? toISODate(monthRange.from)
+      : view === "year"
+        ? yearFetchFromISO
+        : fromISO;
+  const fetchToISO =
+    view === "month"
+      ? toISODate(monthRange.to)
+      : view === "year"
+        ? yearFetchToISO
+        : toISO;
   const weekDays = useMemo(() => getWeekdays(weekRange.from), [weekRange.from]);
-  const periodContextDays = view === "month" ? monthDays : weekDays;
+  const periodContextDays =
+    view === "month" ? monthDays : view === "year" ? yearMonths : weekDays;
   const periodContextDayISOs = useMemo(
     () => periodContextDays.map(toISODate),
     [periodContextDays],
@@ -316,6 +470,7 @@ function TimetablesContent() {
     [weekRange.from, weekRange.to],
   );
   const monthLabel = useMemo(() => formatMonthLabel(monthDate), [monthDate]);
+  const yearLabel = useMemo(() => formatYearLabel(yearDate), [yearDate]);
 
   const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}`;
   const shouldLoadInstances = view !== "series";
@@ -325,7 +480,24 @@ function TimetablesContent() {
   const exceptionConflictsSWRKey = `timetable-exception-conflicts-${qualityFromISO}-${toISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
-    () => timetableService.getWeek(fetchFromISO, fetchToISO),
+    async () => {
+      if (view !== "year") {
+        return timetableService.getWeek(fetchFromISO, fetchToISO);
+      }
+
+      const chunks = chunkDateRange(fetchFromISO, fetchToISO, 56);
+      const responses = await Promise.all(
+        chunks.map((chunk) => timetableService.getWeek(chunk.from, chunk.to)),
+      );
+      return responses.reduce<WeeklyInstancesResponse>(
+        (merged, response) => ({
+          from: merged.from,
+          to: response.to,
+          instances: [...merged.instances, ...response.instances],
+        }),
+        { from: fetchFromISO, to: fetchToISO, instances: [] },
+      );
+    },
   );
   const { data: gapsData, isLoading: gapsLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadPlanQuality ? gapsSWRKey : null,
@@ -418,7 +590,10 @@ function TimetablesContent() {
       ),
     [calendarPeriods, fromISO, monthDate, view],
   );
-  const templatePeriodID = defaultTemplatePeriod?.id ?? assignedPeriods[0]?.id;
+  const templatePeriodID =
+    view === "series" && selectedPeriodId
+      ? selectedPeriodId
+      : (defaultTemplatePeriod?.id ?? assignedPeriods[0]?.id);
   const { data: templateData, isLoading: templatesLoading } = useSWRAuth(
     status === "authenticated" && templatePeriodID
       ? `timetable-templates-${templatePeriodID}`
@@ -771,7 +946,9 @@ function TimetablesContent() {
       : view === "month"
         ? monthDate.getFullYear() === new Date().getFullYear() &&
           monthDate.getMonth() === new Date().getMonth()
-        : true;
+        : view === "year"
+          ? yearDate.getFullYear() === new Date().getFullYear()
+          : true;
 
   return (
     <div className="flex flex-col gap-4 p-6">
@@ -781,6 +958,10 @@ function TimetablesContent() {
           <PeriodSwitcherDropdown
             periods={calendarPeriods}
             weekDays={periodContextDays}
+            view={view}
+            selectedPeriodId={
+              view === "series" ? (templatePeriodID ?? null) : null
+            }
             isLoading={periodsLoading}
             onCreate={openPeriodCreate}
             onEdit={openPeriodEdit}
@@ -800,7 +981,13 @@ function TimetablesContent() {
       <TimetableToolbar
         view={view}
         onViewChange={handleViewChange}
-        rangeLabel={view === "month" ? monthLabel : weekLabel}
+        rangeLabel={
+          view === "month"
+            ? monthLabel
+            : view === "year"
+              ? yearLabel
+              : weekLabel
+        }
         onPrev={handleToolbarPrev}
         onNext={handleToolbarNext}
         onToday={handleToolbarToday}
@@ -826,6 +1013,21 @@ function TimetablesContent() {
             monthDate={monthDate}
             instances={instances}
             todayISO={todayISO}
+            onDayClick={openWeekForDay}
+          />
+        ))}
+
+      {view === "year" &&
+        (isInstanceDataLoading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-8">
+            <Loading />
+          </div>
+        ) : (
+          <YearPlannerGrid
+            months={yearMonths}
+            instances={instances}
+            todayISO={todayISO}
+            onMonthClick={openMonthFromYear}
             onDayClick={openWeekForDay}
           />
         ))}

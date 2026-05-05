@@ -273,6 +273,26 @@ export function formatMonthLabel(ref: Date): string {
   });
 }
 
+export function getYearRange(ref: Date): { from: Date; to: Date } {
+  const from = new Date(ref.getFullYear(), 0, 1);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(ref.getFullYear(), 11, 31);
+  to.setHours(0, 0, 0, 0);
+  return { from, to };
+}
+
+export function getYearMonths(ref: Date): Date[] {
+  const months: Date[] = [];
+  for (let month = 0; month < 12; month++) {
+    months.push(new Date(ref.getFullYear(), month, 1));
+  }
+  return months;
+}
+
+export function formatYearLabel(ref: Date): string {
+  return String(ref.getFullYear());
+}
+
 /**
  * Status-to-German UI label. Surfaced as the badge on cards.
  */

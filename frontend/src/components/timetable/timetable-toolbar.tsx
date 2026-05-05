@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, MoreVertical, Plus } from "lucide-react";
 
-export type TimetableView = "week" | "month" | "series";
+export type TimetableView = "week" | "month" | "year" | "series";
 
 /**
  * Three discrete zoom levels for the week grid. Pixel-per-hour values are
@@ -57,6 +57,7 @@ interface TimetableToolbarProps {
 const VIEW_TABS: Array<{ id: TimetableView; label: string }> = [
   { id: "week", label: "Woche" },
   { id: "month", label: "Monat" },
+  { id: "year", label: "Jahr" },
   { id: "series", label: "Serien" },
 ];
 

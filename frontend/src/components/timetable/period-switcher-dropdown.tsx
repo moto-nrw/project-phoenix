@@ -30,6 +30,8 @@ import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
 interface PeriodSwitcherDropdownProps {
   periods: CalendarPeriod[];
   weekDays: Date[];
+  view?: "week" | "month" | "year" | "series";
+  selectedPeriodId?: string | null;
   isLoading?: boolean;
   /** Open the create modal. */
   onCreate: () => void;
@@ -47,6 +49,8 @@ interface PeriodGroup {
 export function PeriodSwitcherDropdown({
   periods,
   weekDays,
+  view = "week",
+  selectedPeriodId = null,
   isLoading = false,
   onCreate,
   onEdit,
@@ -65,14 +69,27 @@ export function PeriodSwitcherDropdown({
     [assignments],
   );
   const hasMissingDays = assignments.some((a) => a.period === null);
+  const showContextAssignments = view !== "year" && view !== "series";
+  const contextLabel = view === "month" ? "Dieser Monat" : "Diese Woche";
+  const selectedPeriod = selectedPeriodId
+    ? (periods.find((period) => period.id === selectedPeriodId) ?? null)
+    : null;
 
   // Headline label on the trigger pill.
   const triggerLabel =
-    assignedPeriods.length === 0
-      ? "Periode anlegen"
-      : assignedPeriods.length === 1 && !hasMissingDays
-        ? assignedPeriods[0]!.name
-        : "Grenzwoche";
+    view === "year"
+      ? "Planungsperioden"
+      : view === "series" && selectedPeriod
+        ? selectedPeriod.name
+        : view === "series"
+          ? "Planungsperioden"
+          : assignedPeriods.length === 0
+            ? "Periode anlegen"
+            : assignedPeriods.length === 1 && !hasMissingDays
+              ? assignedPeriods[0]!.name
+              : view === "week"
+                ? "Grenzwoche"
+                : "Mehrere Perioden";
 
   // Group all periods for the list section.
   const grouped = useMemo<PeriodGroup[]>(() => {
@@ -161,34 +178,42 @@ export function PeriodSwitcherDropdown({
             </p>
           </div>
 
-          {/* Per-day assignment (preserves Grenzwoche insight) */}
-          <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
-            <p className="mb-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-              Diese Woche
-            </p>
-            <div className="space-y-0.5">
-              {assignments.map((a, index) => {
-                const day = weekDays[index]!;
-                return (
-                  <div
-                    key={a.date}
-                    className="flex items-center justify-between gap-3 text-[11px]"
-                  >
-                    <span className="font-medium text-slate-500">
-                      {getGermanWeekdayShort(day)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-right text-slate-700">
-                      {a.period?.name ?? (
-                        <span className="text-amber-700">
-                          Keine aktive Periode
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
+          {showContextAssignments && view === "month" && (
+            <MonthPeriodSummary
+              assignedPeriods={assignedPeriods}
+              hasMissingDays={hasMissingDays}
+            />
+          )}
+
+          {showContextAssignments && view !== "month" && (
+            <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
+              <p className="mb-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+                {contextLabel}
+              </p>
+              <div className="space-y-0.5">
+                {assignments.map((a, index) => {
+                  const day = weekDays[index]!;
+                  return (
+                    <div
+                      key={a.date}
+                      className="flex items-center justify-between gap-3 text-[11px]"
+                    >
+                      <span className="font-medium text-slate-500">
+                        {getGermanWeekdayShort(day)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-right text-slate-700">
+                        {a.period?.name ?? (
+                          <span className="text-amber-700">
+                            Keine aktive Periode
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* All periods, grouped */}
           <div className="max-h-72 overflow-y-auto py-1">
@@ -198,9 +223,10 @@ export function PeriodSwitcherDropdown({
                   {group.label}
                 </p>
                 {group.periods.map((p) => {
-                  const isAssigned = assignedPeriods.some(
-                    (ap) => ap.id === p.id,
-                  );
+                  const isAssigned = selectedPeriodId
+                    ? p.id === selectedPeriodId
+                    : view !== "year" &&
+                      assignedPeriods.some((ap) => ap.id === p.id);
                   return (
                     <div key={p.id} className="flex items-center gap-1 px-2">
                       <button
@@ -259,6 +285,69 @@ export function PeriodSwitcherDropdown({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function MonthPeriodSummary({
+  assignedPeriods,
+  hasMissingDays,
+}: {
+  assignedPeriods: CalendarPeriod[];
+  hasMissingDays: boolean;
+}) {
+  if (assignedPeriods.length === 1 && !hasMissingDays) {
+    const period = assignedPeriods[0]!;
+    return (
+      <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
+        <p className="mb-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          Dieser Monat
+        </p>
+        <p className="text-[12px] text-slate-700">
+          Liegt komplett in{" "}
+          <span className="font-semibold text-slate-900">{period.name}</span>.
+        </p>
+      </div>
+    );
+  }
+
+  if (assignedPeriods.length === 0) {
+    return (
+      <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
+        <p className="mb-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          Dieser Monat
+        </p>
+        <p className="text-[12px] text-amber-700">
+          Für diesen Monat ist keine aktive Periode hinterlegt.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
+      <p className="mb-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+        Dieser Monat
+      </p>
+      <p className="mb-1.5 text-[12px] text-slate-700">
+        Umfasst mehrere Perioden.
+      </p>
+      <div className="space-y-0.5">
+        {assignedPeriods.map((period) => (
+          <p
+            key={period.id}
+            className="truncate text-[11px] text-slate-600 tabular-nums"
+          >
+            <span className="font-medium text-slate-800">{period.name}</span>{" "}
+            <span className="text-slate-400">{formatPeriodRange(period)}</span>
+          </p>
+        ))}
+        {hasMissingDays && (
+          <p className="text-[11px] text-amber-700">
+            Einige Tage haben keine aktive Periode.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
