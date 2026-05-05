@@ -1693,13 +1693,7 @@ func (rs *Resource) assignTemplateToStaff(ctx context.Context, staff *users.Staf
 	staff.WorkTimeModelID = &model.ID
 	anchor := model.RotationAnchorDate
 	staff.RotationAnchorDate = &anchor
-	if _, err := rs.db.NewUpdate().
-		Model(staff).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set("work_time_model_id = ?", model.ID).
-		Set("rotation_anchor_date = ?", anchor).
-		Where(`"staff".id = ?`, staff.ID).
-		Exec(ctx); err != nil {
+	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind template to staff: %w", err)
 	}
 	return nil
@@ -1745,20 +1739,12 @@ func (rs *Resource) applyCustomSchedule(ctx context.Context, staff *users.Staff,
 
 	// Custom mode unbinds any previously assigned template; otherwise the
 	// resolver would still hit the template path on reads.
-	updateQ := rs.db.NewUpdate().
-		Model(staff).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set("work_time_model_id = NULL").
-		Where(`"staff".id = ?`, staff.ID)
-	if !anchor.IsZero() {
-		updateQ = updateQ.Set("rotation_anchor_date = ?", anchor)
-	}
-	if _, err := updateQ.Exec(ctx); err != nil {
-		return fmt.Errorf("unbind template: %w", err)
-	}
 	staff.WorkTimeModelID = nil
 	if !anchor.IsZero() {
 		staff.RotationAnchorDate = &anchor
+	}
+	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
+		return fmt.Errorf("unbind template: %w", err)
 	}
 
 	if req.SaveAsTemplateName != "" {
@@ -1795,13 +1781,7 @@ func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff
 
 	staff.WorkTimeModelID = &model.ID
 	staff.RotationAnchorDate = &anchor
-	if _, err := rs.db.NewUpdate().
-		Model(staff).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set("work_time_model_id = ?", model.ID).
-		Set("rotation_anchor_date = ?", anchor).
-		Where(`"staff".id = ?`, staff.ID).
-		Exec(ctx); err != nil {
+	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind freshly created template: %w", err)
 	}
 	return nil
