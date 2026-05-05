@@ -159,6 +159,7 @@ func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail m
 	entries := make([]map[string]any, 0, configModels.DayFriday-configModels.DayMonday+1)
 	for d := configModels.DayMonday; d <= configModels.DayFriday; d++ {
 		entries = append(entries, map[string]any{
+			"week_index":     0,
 			"day_of_week":    d,
 			"target_minutes": timeTrackingDailyTargetMin,
 		})
@@ -168,7 +169,12 @@ func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail m
 	for _, cred := range staff {
 		staffID := staffIDByEmail[cred.Email]
 		path := fmt.Sprintf("/api/staff/%d/schedule", staffID)
-		if _, err := rt.Client.Put(path, map[string]any{"entries": entries}); err != nil {
+		body := map[string]any{
+			"mode":            "custom",
+			"rotation_length": 1,
+			"entries":         entries,
+		}
+		if _, err := rt.Client.Put(path, body); err != nil {
 			return count, fmt.Errorf("put schedule for staff %d: %w", staffID, err)
 		}
 		count += len(entries)

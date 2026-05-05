@@ -117,6 +117,7 @@ type Factory struct {
 	SettingValue      configModels.SettingValueRepository
 	SettingAudit      configModels.SettingAuditRepository
 	StaffWorkSchedule configModels.StaffWorkScheduleRepository
+	WorkTimeModel     configModels.WorkTimeModelRepository
 
 	// Suggestions domain
 	SuggestionPost        suggestionsModels.PostRepository
@@ -230,6 +231,7 @@ func NewFactory(db *bun.DB) *Factory {
 		SettingValue:      config.NewSettingValueRepository(db),
 		SettingAudit:      config.NewSettingAuditRepository(db),
 		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(db),
+		WorkTimeModel:     config.NewWorkTimeModelRepository(db),
 
 		// Suggestions repositories
 		SuggestionPost:        suggestionsRepo.NewPostRepository(db),

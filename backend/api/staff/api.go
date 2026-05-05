@@ -40,6 +40,7 @@ type Resource struct {
 	WorkSessionService  activeSvc.WorkSessionService
 	AbsenceRepo         active.StaffAbsenceRepository
 	ScheduleRepo        config.StaffWorkScheduleRepository
+	WorkTimeModelRepo   config.WorkTimeModelRepository
 	db                  *bun.DB
 	logger              *slog.Logger
 }
@@ -53,6 +54,7 @@ func NewResource(
 	workSessionService activeSvc.WorkSessionService,
 	absenceRepo active.StaffAbsenceRepository,
 	scheduleRepo config.StaffWorkScheduleRepository,
+	workTimeModelRepo config.WorkTimeModelRepository,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -66,6 +68,7 @@ func NewResource(
 		WorkSessionService:  workSessionService,
 		AbsenceRepo:         absenceRepo,
 		ScheduleRepo:        scheduleRepo,
+		WorkTimeModelRepo:   workTimeModelRepo,
 		db:                  db,
 		logger:              logger,
 	}
@@ -1453,22 +1456,53 @@ func (rs *Resource) UpdatePINHandler() http.HandlerFunc { return rs.updatePIN }
 
 // ScheduleEntryRequest represents a single day in the schedule
 type ScheduleEntryRequest struct {
+	WeekIndex     int `json:"week_index"`
 	DayOfWeek     int `json:"day_of_week"`
 	TargetMinutes int `json:"target_minutes"`
 }
 
 // ScheduleEntryResponse represents a single day in the schedule response
 type ScheduleEntryResponse struct {
-	ID            int64  `json:"id"`
-	DayOfWeek     int    `json:"day_of_week"`
-	TargetMinutes int    `json:"target_minutes"`
-	ValidFrom     string `json:"valid_from"`
+	WeekIndex     int `json:"week_index"`
+	DayOfWeek     int `json:"day_of_week"`
+	TargetMinutes int `json:"target_minutes"`
 }
 
-// ScheduleResponse wraps the full schedule
+// ScheduleModelInfo describes the assigned work-time template, when there is one.
+type ScheduleModelInfo struct {
+	ID                 int64  `json:"id"`
+	Name               string `json:"name"`
+	RotationLength     int    `json:"rotation_length"`
+	RotationAnchorDate string `json:"rotation_anchor_date"`
+}
+
+// ScheduleResponse wraps the resolved schedule with rotation metadata.
 type ScheduleResponse struct {
-	Entries     []ScheduleEntryResponse `json:"entries"`
-	WeeklyTotal int                     `json:"weekly_total"`
+	Mode               string                  `json:"mode"`
+	Model              *ScheduleModelInfo      `json:"model,omitempty"`
+	RotationLength     int                     `json:"rotation_length"`
+	RotationAnchorDate string                  `json:"rotation_anchor_date"`
+	Entries            []ScheduleEntryResponse `json:"entries"`
+	WeeklyTotals       []int                   `json:"weekly_totals"`
+	ValidFrom          string                  `json:"valid_from,omitempty"`
+}
+
+// scheduleUpdateRequest is the union body for PUT /api/staff/{id}/schedule.
+//
+// Mode "template": only ModelID is required. Existing custom entries are
+// archived and the staff is bound to the template.
+// Mode "custom":   RotationLength + Entries describe a per-staff pattern.
+//
+//	Entries that exceed the rotation are rejected.
+//	SaveAsTemplateName is optional; when set we additionally
+//	create a tenant template from the same payload and bind it.
+type scheduleUpdateRequest struct {
+	Mode               string                 `json:"mode"`
+	ModelID            *int64                 `json:"model_id,omitempty"`
+	RotationLength     int                    `json:"rotation_length,omitempty"`
+	RotationAnchorDate string                 `json:"rotation_anchor_date,omitempty"`
+	Entries            []ScheduleEntryRequest `json:"entries"`
+	SaveAsTemplateName string                 `json:"save_as_template,omitempty"`
 }
 
 // getSchedule handles GET /api/staff/{id}/schedule
@@ -1479,29 +1513,16 @@ func (rs *Resource) getSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify staff exists
-	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+	staff, err := rs.StaffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
 
-	entries, err := rs.ScheduleRepo.GetCurrentByStaffID(r.Context(), staffID)
+	resp, err := rs.buildScheduleResponse(r.Context(), staff)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
-	}
-
-	resp := ScheduleResponse{
-		Entries: make([]ScheduleEntryResponse, 0, len(entries)),
-	}
-	for _, e := range entries {
-		resp.Entries = append(resp.Entries, ScheduleEntryResponse{
-			ID:            e.ID,
-			DayOfWeek:     e.DayOfWeek,
-			TargetMinutes: e.TargetMinutes,
-			ValidFrom:     e.ValidFrom.Format("2006-01-02"),
-		})
-		resp.WeeklyTotal += e.TargetMinutes
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Schedule retrieved successfully")
@@ -1515,55 +1536,275 @@ func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify staff exists
-	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+	staff, err := rs.StaffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
 
-	var req struct {
-		Entries []ScheduleEntryRequest `json:"entries"`
-	}
+	var req scheduleUpdateRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-
-	// Convert request to model entries
-	entries := make([]*config.StaffWorkSchedule, 0, len(req.Entries))
-	for _, e := range req.Entries {
-		entries = append(entries, &config.StaffWorkSchedule{
-			DayOfWeek:     e.DayOfWeek,
-			TargetMinutes: e.TargetMinutes,
-		})
+	mode := req.Mode
+	if mode == "" {
+		// Backwards compatibility: missing mode + flat entries means the
+		// caller still uses the single-week, no-rotation contract.
+		mode = "custom"
+		if req.RotationLength == 0 {
+			req.RotationLength = 1
+		}
 	}
 
-	if err := rs.ScheduleRepo.ReplaceSchedule(r.Context(), staffID, entries); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+	switch mode {
+	case "template":
+		if req.ModelID == nil || *req.ModelID == 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("model_id is required for mode=template")))
+			return
+		}
+		if err := rs.assignTemplateToStaff(r.Context(), staff, *req.ModelID); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+	case "custom":
+		if err := rs.applyCustomSchedule(r.Context(), staff, req); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+	default:
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid mode %q", mode)))
 		return
 	}
 
-	// Re-fetch to return the saved state
-	saved, err := rs.ScheduleRepo.GetCurrentByStaffID(r.Context(), staffID)
+	refreshed, err := rs.StaffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	resp, err := rs.buildScheduleResponse(r.Context(), refreshed)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	resp := ScheduleResponse{
-		Entries: make([]ScheduleEntryResponse, 0, len(saved)),
-	}
-	for _, e := range saved {
-		resp.Entries = append(resp.Entries, ScheduleEntryResponse{
-			ID:            e.ID,
-			DayOfWeek:     e.DayOfWeek,
-			TargetMinutes: e.TargetMinutes,
-			ValidFrom:     e.ValidFrom.Format("2006-01-02"),
-		})
-		resp.WeeklyTotal += e.TargetMinutes
+	common.Respond(w, r, http.StatusOK, resp, "Schedule updated successfully")
+}
+
+func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staff) (*ScheduleResponse, error) {
+	if staff.WorkTimeModelID != nil && *staff.WorkTimeModelID > 0 {
+		model, err := rs.WorkTimeModelRepo.FindByID(ctx, *staff.WorkTimeModelID)
+		if err != nil {
+			return nil, fmt.Errorf("load assigned model: %w", err)
+		}
+		anchor := model.RotationAnchorDate
+		if staff.RotationAnchorDate != nil {
+			anchor = *staff.RotationAnchorDate
+		}
+		entries := make([]ScheduleEntryResponse, 0, len(model.Entries))
+		totals := make([]int, model.RotationLength)
+		for _, e := range model.Entries {
+			entries = append(entries, ScheduleEntryResponse{
+				WeekIndex:     e.WeekIndex,
+				DayOfWeek:     e.DayOfWeek,
+				TargetMinutes: e.TargetMinutes,
+			})
+			if e.WeekIndex >= 0 && e.WeekIndex < len(totals) {
+				totals[e.WeekIndex] += e.TargetMinutes
+			}
+		}
+		return &ScheduleResponse{
+			Mode: "template",
+			Model: &ScheduleModelInfo{
+				ID:                 model.ID,
+				Name:               model.Name,
+				RotationLength:     model.RotationLength,
+				RotationAnchorDate: model.RotationAnchorDate.Format("2006-01-02"),
+			},
+			RotationLength:     model.RotationLength,
+			RotationAnchorDate: anchor.Format("2006-01-02"),
+			Entries:            entries,
+			WeeklyTotals:       totals,
+		}, nil
 	}
 
-	common.Respond(w, r, http.StatusOK, resp, "Schedule updated successfully")
+	rows, err := rs.ScheduleRepo.GetCurrentByStaffID(ctx, staff.ID)
+	if err != nil {
+		return nil, fmt.Errorf("load custom schedule: %w", err)
+	}
+
+	rotation := 1
+	for _, row := range rows {
+		if row.RotationLength > rotation {
+			rotation = row.RotationLength
+		}
+	}
+	if rotation < 1 {
+		rotation = 1
+	}
+	totals := make([]int, rotation)
+	entries := make([]ScheduleEntryResponse, 0, len(rows))
+	var earliest *time.Time
+	for _, row := range rows {
+		entries = append(entries, ScheduleEntryResponse{
+			WeekIndex:     row.WeekIndex,
+			DayOfWeek:     row.DayOfWeek,
+			TargetMinutes: row.TargetMinutes,
+		})
+		if row.WeekIndex >= 0 && row.WeekIndex < rotation {
+			totals[row.WeekIndex] += row.TargetMinutes
+		}
+		if earliest == nil || row.ValidFrom.Before(*earliest) {
+			vf := row.ValidFrom
+			earliest = &vf
+		}
+	}
+	anchor := time.Time{}
+	if staff.RotationAnchorDate != nil {
+		anchor = *staff.RotationAnchorDate
+	} else if earliest != nil {
+		anchor = *earliest
+	}
+	resp := &ScheduleResponse{
+		Mode:               "custom",
+		RotationLength:     rotation,
+		RotationAnchorDate: anchor.Format("2006-01-02"),
+		Entries:            entries,
+		WeeklyTotals:       totals,
+	}
+	if earliest != nil {
+		resp.ValidFrom = earliest.Format("2006-01-02")
+	}
+	return resp, nil
+}
+
+func (rs *Resource) assignTemplateToStaff(ctx context.Context, staff *users.Staff, modelID int64) error {
+	model, err := rs.WorkTimeModelRepo.FindByID(ctx, modelID)
+	if err != nil {
+		return fmt.Errorf("template not found: %w", err)
+	}
+
+	// Archive any existing custom entries so the lookup chain stays
+	// unambiguous: template wins, custom rows are historic only.
+	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, nil); err != nil {
+		return fmt.Errorf("clear custom entries: %w", err)
+	}
+
+	staff.WorkTimeModelID = &model.ID
+	anchor := model.RotationAnchorDate
+	staff.RotationAnchorDate = &anchor
+	if _, err := rs.db.NewUpdate().
+		Model(staff).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Set("work_time_model_id = ?", model.ID).
+		Set("rotation_anchor_date = ?", anchor).
+		Where(`"staff".id = ?`, staff.ID).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("bind template to staff: %w", err)
+	}
+	return nil
+}
+
+func (rs *Resource) applyCustomSchedule(ctx context.Context, staff *users.Staff, req scheduleUpdateRequest) error {
+	rotation := req.RotationLength
+	if rotation == 0 {
+		rotation = 1
+	}
+	if rotation < 1 || rotation > config.WorkTimeModelMaxRotation {
+		return fmt.Errorf("rotation_length must be between 1 and %d", config.WorkTimeModelMaxRotation)
+	}
+
+	anchor := time.Time{}
+	if req.RotationAnchorDate != "" {
+		parsed, err := time.Parse("2006-01-02", req.RotationAnchorDate)
+		if err != nil {
+			return fmt.Errorf("invalid rotation_anchor_date: %w", err)
+		}
+		anchor = parsed
+	}
+
+	entries := make([]*config.StaffWorkSchedule, 0, len(req.Entries))
+	for _, e := range req.Entries {
+		if e.TargetMinutes <= 0 {
+			continue
+		}
+		if e.WeekIndex < 0 || e.WeekIndex >= rotation {
+			return fmt.Errorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
+		}
+		entries = append(entries, &config.StaffWorkSchedule{
+			WeekIndex:      e.WeekIndex,
+			RotationLength: rotation,
+			DayOfWeek:      e.DayOfWeek,
+			TargetMinutes:  e.TargetMinutes,
+		})
+	}
+
+	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+		return fmt.Errorf("write custom schedule: %w", err)
+	}
+
+	// Custom mode unbinds any previously assigned template; otherwise the
+	// resolver would still hit the template path on reads.
+	updateQ := rs.db.NewUpdate().
+		Model(staff).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Set("work_time_model_id = NULL").
+		Where(`"staff".id = ?`, staff.ID)
+	if !anchor.IsZero() {
+		updateQ = updateQ.Set("rotation_anchor_date = ?", anchor)
+	}
+	if _, err := updateQ.Exec(ctx); err != nil {
+		return fmt.Errorf("unbind template: %w", err)
+	}
+	staff.WorkTimeModelID = nil
+	if !anchor.IsZero() {
+		staff.RotationAnchorDate = &anchor
+	}
+
+	if req.SaveAsTemplateName != "" {
+		if err := rs.saveCustomAsTemplate(ctx, staff, req, rotation, anchor); err != nil {
+			return fmt.Errorf("save as template: %w", err)
+		}
+	}
+	return nil
+}
+
+func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff, req scheduleUpdateRequest, rotation int, anchor time.Time) error {
+	if anchor.IsZero() {
+		anchor = time.Now().Truncate(24 * time.Hour)
+	}
+	model := &config.WorkTimeModel{
+		Name:               req.SaveAsTemplateName,
+		RotationLength:     rotation,
+		RotationAnchorDate: anchor,
+	}
+	entries := make([]*config.WorkTimeModelEntry, 0, len(req.Entries))
+	for _, e := range req.Entries {
+		if e.TargetMinutes <= 0 {
+			continue
+		}
+		entries = append(entries, &config.WorkTimeModelEntry{
+			WeekIndex:     e.WeekIndex,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+		})
+	}
+	if err := rs.WorkTimeModelRepo.Create(ctx, model, entries); err != nil {
+		return err
+	}
+
+	staff.WorkTimeModelID = &model.ID
+	staff.RotationAnchorDate = &anchor
+	if _, err := rs.db.NewUpdate().
+		Model(staff).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Set("work_time_model_id = ?", model.ID).
+		Set("rotation_anchor_date = ?", anchor).
+		Where(`"staff".id = ?`, staff.ID).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("bind freshly created template: %w", err)
+	}
+	return nil
 }
 
 // getStaffHistory handles GET /api/staff/{id}/time-tracking/history?from=YYYY-MM-DD&to=YYYY-MM-DD

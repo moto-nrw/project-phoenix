@@ -21,17 +21,22 @@ const (
 	DaySunday    = 6
 )
 
-// StaffWorkSchedule defines target working hours for a staff member per day of week
+// StaffWorkSchedule defines target working hours for a staff member per day of week.
+// When WeekIndex is non-zero or RotationLength > 1 the entry belongs to a multi-week
+// rotation (e.g. A/B-Wochen). Existing rows from the single-week era default to
+// week_index=0 / rotation_length=1 and behave exactly as before.
 type StaffWorkSchedule struct {
-	ID            int64      `bun:"id,pk,autoincrement" json:"id"`
-	TenantID      int64      `bun:"tenant_id,notnull" json:"tenant_id"`
-	StaffID       int64      `bun:"staff_id,notnull" json:"staff_id"`
-	DayOfWeek     int        `bun:"day_of_week,notnull" json:"day_of_week"`
-	TargetMinutes int        `bun:"target_minutes,notnull" json:"target_minutes"`
-	ValidFrom     time.Time  `bun:"valid_from,notnull,type:date" json:"valid_from"`
-	ValidUntil    *time.Time `bun:"valid_until,type:date" json:"valid_until,omitempty"`
-	CreatedAt     time.Time  `bun:"created_at,notnull,default:now()" json:"created_at"`
-	UpdatedAt     time.Time  `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	ID             int64      `bun:"id,pk,autoincrement" json:"id"`
+	TenantID       int64      `bun:"tenant_id,notnull" json:"tenant_id"`
+	StaffID        int64      `bun:"staff_id,notnull" json:"staff_id"`
+	WeekIndex      int        `bun:"week_index,notnull,default:0" json:"week_index"`
+	RotationLength int        `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
+	DayOfWeek      int        `bun:"day_of_week,notnull" json:"day_of_week"`
+	TargetMinutes  int        `bun:"target_minutes,notnull" json:"target_minutes"`
+	ValidFrom      time.Time  `bun:"valid_from,notnull,type:date" json:"valid_from"`
+	ValidUntil     *time.Time `bun:"valid_until,type:date" json:"valid_until,omitempty"`
+	CreatedAt      time.Time  `bun:"created_at,notnull,default:now()" json:"created_at"`
+	UpdatedAt      time.Time  `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 }
 
 func (s *StaffWorkSchedule) BeforeAppendModel(query any) error {
@@ -60,6 +65,12 @@ func (s *StaffWorkSchedule) Validate() error {
 	}
 	if s.TargetMinutes < 0 || s.TargetMinutes > 720 {
 		return errors.New("target_minutes must be between 0 and 720 (12h)")
+	}
+	if s.RotationLength < 1 || s.RotationLength > 4 {
+		return errors.New("rotation_length must be between 1 and 4")
+	}
+	if s.WeekIndex < 0 || s.WeekIndex >= s.RotationLength {
+		return errors.New("week_index must be between 0 and rotation_length - 1")
 	}
 	if s.ValidFrom.IsZero() {
 		return errors.New("valid_from is required")

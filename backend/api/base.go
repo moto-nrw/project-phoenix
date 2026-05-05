@@ -39,6 +39,7 @@ import (
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
+	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
 
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
@@ -66,6 +67,7 @@ type API struct {
 	Import           *importAPI.Resource
 	Activities       *activitiesAPI.Resource
 	Staff            *staffAPI.Resource
+	WorkTimeModels   *worktimemodelsAPI.Resource
 	Feedback         *feedbackAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
 	Schedules        *schedulesAPI.Resource
@@ -298,7 +300,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student, db)
 	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, repoFactory.StaffWorkSchedule, db, logger.With("handler", "staff"))
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, repoFactory.StaffWorkSchedule, repoFactory.WorkTimeModel, db, logger.With("handler", "staff"))
+	api.WorkTimeModels = worktimemodelsAPI.NewResource(repoFactory.WorkTimeModel, db, logger.With("handler", "work-time-models"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
@@ -478,6 +481,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount staff resources
 		r.Mount("/staff", a.Staff.Router())
+		r.Mount("/work-time-models", a.WorkTimeModels.Router())
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())
