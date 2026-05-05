@@ -15,7 +15,7 @@ set -euo pipefail
 
 # The seeder targets server-e2e on host port 8081. The local-only guard
 # refuses anything that isn't loopback/localhost/Docker-internal.
-API_URL="${API_URL:-http://localhost:8081}"
+API_URL="${API_URL:-http://localhost:8081}"  # NOSONAR S5332 — loopback only, never a remote target
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/assert-local-url.sh
@@ -61,7 +61,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # file so dev-side customisations are preserved; the stale-compose check
 # below catches the one pre-existing case that's not safe to leave alone.
 
-if [ ! -f "$REPO_ROOT/.env" ]; then
+if [[ ! -f "$REPO_ROOT/.env" ]]; then
   echo ".env not found — creating from .env.example"
   echo "  NOTE: .env.example ships with placeholder secrets that are fine for"
   echo "  local dev / E2E but MUST be replaced before pushing to staging or"
@@ -69,7 +69,7 @@ if [ ! -f "$REPO_ROOT/.env" ]; then
   cp "$REPO_ROOT/.env.example" "$REPO_ROOT/.env"
 fi
 
-if [ ! -f "$REPO_ROOT/docker-compose.yml" ]; then
+if [[ ! -f "$REPO_ROOT/docker-compose.yml" ]]; then
   echo "docker-compose.yml not found — creating from docker-compose.example.yml"
   cp "$REPO_ROOT/docker-compose.example.yml" "$REPO_ROOT/docker-compose.yml"
 fi
@@ -130,7 +130,7 @@ docker compose exec -T server-e2e go run main.go seed \
   --password "$OPERATOR_PASSWORD" \
   --pin "$OPERATOR_PIN" \
   --state-path .seed-state-e2e.json \
-  --url http://localhost:8080
+  --url http://localhost:8080  # NOSONAR S5332 — loopback only
 
 # The seeder writes .seed-state-e2e.json from inside the container as root.
 # On Linux (CI runners), the bind-mounted file ends up owned by root and the
@@ -155,8 +155,8 @@ echo "Seed complete. Test stack:"
 echo "  backend:        $API_URL  (server-e2e -> postgres-test)"
 echo "  admin:          demo1@mail.de  / $STAFF_PASSWORD"
 echo "  staff:          demo11@mail.de / $STAFF_PASSWORD"
-echo "  tenant URL:     http://${TENANT_SLUG}.localtest.me:3030  (only while Playwright is running)"
-echo "  second tenant:  http://second-school.localtest.me:3030"
+echo "  tenant URL:     http://${TENANT_SLUG}.localtest.me:3030  (only while Playwright is running)"  # NOSONAR S5332 — localtest.me resolves to 127.0.0.1
+echo "  second tenant:  http://second-school.localtest.me:3030"  # NOSONAR S5332 — localtest.me resolves to 127.0.0.1
 echo
 echo "Run Playwright with:"
 echo "  cd frontend && pnpm exec playwright test"

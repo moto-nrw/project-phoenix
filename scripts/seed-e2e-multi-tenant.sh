@@ -21,7 +21,7 @@ set -euo pipefail
 
 # Defaults to the isolated E2E backend (server-e2e on :8081), set up by
 # scripts/seed-e2e.sh. Override only with another local URL.
-API_URL="${API_URL:-http://localhost:8081}"
+API_URL="${API_URL:-http://localhost:8081}"  # NOSONAR S5332 — loopback only, never a remote target
 
 # Guard against staging/production targets — every credential in this script
 # is well-known and would compromise a real environment.
@@ -57,7 +57,11 @@ done
 api_post() {
   local path=$1; local body=$2; shift 2
   local args=( -sS -X POST "$API_URL$path" -H "Content-Type: application/json" -d "$body" -w '\n%{http_code}' )
-  while [[ $# -gt 0 ]]; do args+=( -H "$1" ); shift; done
+  while [[ $# -gt 0 ]]; do
+    local hdr=$1
+    args+=( -H "$hdr" )
+    shift
+  done
   local out; out=$(curl "${args[@]}")
   local code=${out##*$'\n'}
   local payload=${out%$'\n'*}
@@ -176,5 +180,5 @@ fi
 echo
 echo "Multi-tenant setup complete."
 echo "  - $LINK_EMAIL now has active mappings for: demo-school, $SECOND_SLUG"
-echo "  - second tenant URL: http://${SECOND_SLUG}.localtest.me:3030 (only while Playwright is running)"
+echo "  - second tenant URL: http://${SECOND_SLUG}.localtest.me:3030 (only while Playwright is running)"  # NOSONAR S5332 — localtest.me resolves to 127.0.0.1
 echo "  - tenant switcher should now appear in the header for $LINK_EMAIL"

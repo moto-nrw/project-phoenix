@@ -47,6 +47,10 @@ assert_local_url() {
     localhost|::1|server|server-e2e|host.docker.internal|gateway.docker.internal)
       return 0
       ;;
+    *)
+      # Fall through to the IPv4-loopback regex check below; non-loopback
+      # hosts are rejected by the final exit 1.
+      ;;
   esac
 
   # Any IPv4 loopback (127.0.0.0/8).

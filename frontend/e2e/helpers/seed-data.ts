@@ -49,7 +49,12 @@ export const SECOND_TENANT_SLUG = "second-school";
 export const SECOND_TENANT_NAME = "Demo School 2";
 export const SECOND_BASE_URL = `http://${SECOND_TENANT_SLUG}.${TENANT_DOMAIN}:${E2E_FRONTEND_PORT}`;
 
-export const E2E_PASSWORD = "E2EPass1234!";
+// Test-only credential. Used exclusively by the deterministic seeder for
+// the isolated postgres-test stack (server-e2e on :8081). Never exists in
+// any real environment, never authenticates against any production system,
+// and is gitignored in seed-state JSON. The seeder accepts it as a flag,
+// so changing it here requires updating scripts/seed-e2e.sh in lockstep.
+export const E2E_PASSWORD = "E2EPass1234!"; // NOSONAR — test fixture, not a real credential
 
 export const ADMIN = {
   email: "demo1@mail.de",

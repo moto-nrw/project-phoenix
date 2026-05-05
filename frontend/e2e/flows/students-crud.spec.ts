@@ -1,3 +1,6 @@
+// NOSONAR S2187 — SonarCloud's Jasmine detector does not recognise
+// Playwright's `test(...)` blocks as test cases and false-flags the file
+// as empty. This spec contains real Playwright tests (uiTest / apiTest).
 import {
   test as uiTest,
   expect as uiExpect,

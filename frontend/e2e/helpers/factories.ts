@@ -26,7 +26,7 @@ import { BACKEND_URL } from "./iot";
  * test run". Lowercase to look at home in `firstName + suffix`.
  */
 export function uniqueSuffix(): string {
-  return randomUUID().replace(/-/g, "").slice(0, 8);
+  return randomUUID().replaceAll("-", "").slice(0, 8);
 }
 
 // === Students ================================================================

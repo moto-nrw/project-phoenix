@@ -46,6 +46,11 @@ type Fixtures = {
   groupFactory: GroupFactory;
 };
 
+// SonarCloud's React rules misidentify Playwright's fixture `use(...)`
+// callback as React's `use` Hook (typescript:S6440 / S6442). The two are
+// unrelated: in Playwright, `use` is the standard fixture-yield function
+// that signals "fixture setup done, run the test, then tear down". The
+// per-line NOSONAR comments below opt those specific call sites out.
 async function pageForRole(
   browser: Browser,
   storageState: string,
@@ -54,7 +59,7 @@ async function pageForRole(
   const context = await browser.newContext({ storageState });
   const page = await context.newPage();
   try {
-    await use(page);
+    await use(page); // NOSONAR — Playwright fixture callback, not React Hook
   } finally {
     await context.close();
   }
@@ -62,7 +67,7 @@ async function pageForRole(
 
 const baseWithFactories = base.extend<Fixtures>({
   authenticatedPage: async ({ page }, use) => {
-    await use(page);
+    await use(page); // NOSONAR — Playwright fixture callback, not React Hook
   },
   adminPage: async ({ browser }, use) => {
     await pageForRole(browser, STORAGE_STATE_PATH.admin, use);
@@ -77,13 +82,13 @@ const baseWithFactories = base.extend<Fixtures>({
   // oxlint-disable-next-line no-empty-pattern
   studentFactory: async ({}, use) => {
     const factory = makeStudentFactory();
-    await use(factory);
+    await use(factory); // NOSONAR — Playwright fixture callback, not React Hook
     await teardownStudents(factory._created());
   },
   // oxlint-disable-next-line no-empty-pattern
   groupFactory: async ({}, use) => {
     const factory = makeGroupFactory();
-    await use(factory);
+    await use(factory); // NOSONAR — Playwright fixture callback, not React Hook
     await teardownGroups(factory._created());
   },
 });

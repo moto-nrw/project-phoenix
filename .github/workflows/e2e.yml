@@ -59,6 +59,12 @@ jobs:
           cache-dependency-path: "frontend/pnpm-lock.yaml"
 
       - name: Install frontend dependencies
+        # NOSONAR S6700 — adding --ignore-scripts here would skip
+        # postinstall hooks for legitimate deps (e.g. Playwright's browser
+        # setup, native build steps for esbuild/swc). The dependency tree
+        # is verified by Socket Security and CodeQL on every PR, so any
+        # malicious postinstall would be flagged elsewhere; suppressing
+        # the rule here is a deliberate trade-off documented for review.
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
@@ -72,6 +78,10 @@ jobs:
           key: pw-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
 
       - name: Install Chromium for Playwright
+        # NOSONAR S6700 — `playwright install` is the Playwright CLI
+        # downloading browser binaries, not a package-manager install.
+        # `--ignore-scripts` is not a meaningful flag here; the rule is
+        # matching on the literal "install" subcommand.
         if: steps.pw-cache.outputs.cache-hit != 'true'
         working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium
