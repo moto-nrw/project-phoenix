@@ -1,55 +1,36 @@
 import { request as apiRequest } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { BACKEND_URL, IOT_HEADERS, getDeviceApiKey, getDevicePIN } from "./iot";
+import { BACKEND_URL, IOT_HEADERS } from "./iot";
+import {
+  getActivityId,
+  getAdminStaffId,
+  getDeviceApiKey,
+  getDevicePIN,
+  getRoomId,
+  getStudentByIndex,
+} from "./seed-state";
 
 /**
- * Stable hex RFID tag we assign to Felix Schneider for E2E. The backend
- * stores RFID card IDs as hex (case-insensitive), so anything outside
- * `[0-9a-fA-F]` would be rejected with "invalid RFID card ID format".
+ * Stable hex RFID tag we assign to the test student. Backend stores RFID
+ * card IDs as hex (case-insensitive); anything outside `[0-9a-fA-F]` is
+ * rejected with "invalid RFID card ID format".
  */
-const RFID_TAG_FELIX = "E2EFE110001";
+const RFID_TAG_TEST_STUDENT = "E2EFE110001";
 
-/** Education group "sternengruppe" — see backend/.seed-state.json lookups.groups. */
-const TEST_ACTIVITY_ID = 1;
-
-/** Room "OGS-Raum 1" — see backend/.seed-state.json lookups.rooms. */
-const TEST_ROOM_ID = 1;
-
-/** First seeded student — Felix Schneider, see backend/seed/api/data.go. */
-const TEST_STUDENT_ID = 1;
-
-const SEED_STATE_PATH = resolve(
-  process.cwd(),
-  "..",
-  "backend",
-  ".seed-state.json",
-);
-
-interface SeedState {
-  accounts: { admin: Array<{ email: string; staff_id: number }> };
-}
-
-let cachedAdminStaffID: number | undefined;
-
-/** Reads demo1's staff_id from the seeder state file. */
-function getDemo1StaffID(): number {
-  if (cachedAdminStaffID !== undefined) return cachedAdminStaffID;
-  const raw = readFileSync(SEED_STATE_PATH, "utf-8");
-  const state = JSON.parse(raw) as SeedState;
-  const demo1 = state.accounts.admin.find((a) => a.email === "demo1@mail.de");
-  if (!demo1?.staff_id) {
-    throw new Error(
-      `demo1@mail.de not found in ${SEED_STATE_PATH}.accounts.admin — re-seed first`,
-    );
-  }
-  cachedAdminStaffID = demo1.staff_id;
-  return demo1.staff_id;
-}
+/**
+ * Names of the seeded entities we want to use. We resolve them through
+ * the seed-state lookups (see helpers/seed-state.ts) rather than hardcoding
+ * IDs — the project's hermetic-tests rule (backend/CLAUDE.md) forbids
+ * `int64(1)` because seeder reorderings cause "no rows in result set".
+ */
+const TEST_ROOM_NAME = "OGS-Raum 1";
+const TEST_ACTIVITY_NAME = "Hausaufgaben";
+const TEST_ADMIN_EMAIL = "demo1@mail.de";
 
 export interface CheckinScenario {
   rfidTag: string;
   studentId: number;
+  studentFirstName: string;
+  studentLastName: string;
   roomId: number;
 }
 
@@ -65,23 +46,38 @@ export interface CheckinScenario {
  * exactly that shape, so that's what we use.
  *
  * Steps:
- *   1. Start an activity session as the device, with demo1 as supervisor.
- *      The endpoint takes care of `device_id` + supervisor wiring.
- *   2. Assign a known hex RFID tag to Felix Schneider — the seeder does
+ *   1. Resolve the test student / room / activity / supervisor by name
+ *      from .seed-state.json (no hardcoded IDs).
+ *   2. Start an activity session as the device, with the resolved
+ *      supervisor. The endpoint takes care of `device_id` + supervisor
+ *      wiring.
+ *   3. Assign a known hex RFID tag to the test student — the seeder does
  *      not populate `users.rfid_cards` for any student.
  *
- * Both steps tolerate prior runs (4xx → assume already-set), so the
- * scenario can be set up repeatedly without `migrate reset`.
+ * Both API steps tolerate prior runs (using `force: true` for the session,
+ * idempotent re-assign for the RFID tag), so the scenario can be set up
+ * repeatedly without `migrate reset`.
  */
 export async function setupCheckinScenario(): Promise<CheckinScenario> {
+  const student = getStudentByIndex(0);
+  const roomId = getRoomId(TEST_ROOM_NAME);
+  const activityId = getActivityId(TEST_ACTIVITY_NAME);
+  const supervisorStaffId = getAdminStaffId(TEST_ADMIN_EMAIL);
+
   const ctx = await apiRequest.newContext();
   try {
-    await ensureActivitySessionForDevice(ctx);
-    await ensureRfidAssignment(ctx);
+    await ensureActivitySessionForDevice(ctx, {
+      activityId,
+      roomId,
+      supervisorStaffId,
+    });
+    await ensureRfidAssignment(ctx, student.id);
     return {
-      rfidTag: RFID_TAG_FELIX,
-      studentId: TEST_STUDENT_ID,
-      roomId: TEST_ROOM_ID,
+      rfidTag: RFID_TAG_TEST_STUDENT,
+      studentId: student.id,
+      studentFirstName: student.first_name,
+      studentLastName: student.last_name,
+      roomId,
     };
   } finally {
     await ctx.dispose();
@@ -90,7 +86,16 @@ export async function setupCheckinScenario(): Promise<CheckinScenario> {
 
 type ApiContext = Awaited<ReturnType<typeof apiRequest.newContext>>;
 
-async function ensureActivitySessionForDevice(ctx: ApiContext): Promise<void> {
+interface SessionParams {
+  activityId: number;
+  roomId: number;
+  supervisorStaffId: number;
+}
+
+async function ensureActivitySessionForDevice(
+  ctx: ApiContext,
+  params: SessionParams,
+): Promise<void> {
   const headers = {
     ...IOT_HEADERS.apiKeyAndPin(getDeviceApiKey(), getDevicePIN()),
     "Content-Type": "application/json",
@@ -102,9 +107,9 @@ async function ensureActivitySessionForDevice(ctx: ApiContext): Promise<void> {
   const res = await ctx.post(`${BACKEND_URL}/api/iot/session/start`, {
     headers,
     data: {
-      activity_id: TEST_ACTIVITY_ID,
-      room_id: TEST_ROOM_ID,
-      supervisor_ids: [getDemo1StaffID()],
+      activity_id: params.activityId,
+      room_id: params.roomId,
+      supervisor_ids: [params.supervisorStaffId],
       force: true,
     },
     failOnStatusCode: false,
@@ -117,24 +122,24 @@ async function ensureActivitySessionForDevice(ctx: ApiContext): Promise<void> {
   }
 }
 
-async function ensureRfidAssignment(ctx: ApiContext): Promise<void> {
+async function ensureRfidAssignment(
+  ctx: ApiContext,
+  studentId: number,
+): Promise<void> {
   // The handler (backend/api/students/rfid_handlers.go:assignRFIDTag) is
   // idempotent end-to-end: re-assigning the same tag, or moving a tag
   // between students, both return 200. Anything outside 2xx is a real
   // failure (401 auth broken, 404 wrong student id, 400 bad payload) that
   // we want surfaced — masking 4xx hid exactly those cases and made the
   // checkin test fail later with a misleading "no student matches RFID".
-  const res = await ctx.post(
-    `${BACKEND_URL}/api/students/${TEST_STUDENT_ID}/rfid`,
-    {
-      headers: {
-        ...IOT_HEADERS.apiKeyAndPin(getDeviceApiKey(), getDevicePIN()),
-        "Content-Type": "application/json",
-      },
-      data: { rfid_tag: RFID_TAG_FELIX },
-      failOnStatusCode: false,
+  const res = await ctx.post(`${BACKEND_URL}/api/students/${studentId}/rfid`, {
+    headers: {
+      ...IOT_HEADERS.apiKeyAndPin(getDeviceApiKey(), getDevicePIN()),
+      "Content-Type": "application/json",
     },
-  );
+    data: { rfid_tag: RFID_TAG_TEST_STUDENT },
+    failOnStatusCode: false,
+  });
 
   if (!res.ok()) {
     throw new Error(

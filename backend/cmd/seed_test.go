@@ -40,6 +40,7 @@ func TestSeedCmd_Flags(t *testing.T) {
 	assert.NotNil(t, f.Lookup("tenant-slug"))
 	assert.NotNil(t, f.Lookup("staff-password"))
 	assert.NotNil(t, f.Lookup("admin-email"))
+	assert.NotNil(t, f.Lookup("state-path"))
 }
 
 func TestSeedCmd_FlagDefaults(t *testing.T) {
@@ -102,4 +103,8 @@ func TestSeedCmd_FlagTypes(t *testing.T) {
 	adminEmailFlag := f.Lookup("admin-email")
 	require.NotNil(t, adminEmailFlag)
 	assert.Equal(t, "", adminEmailFlag.DefValue)
+
+	statePathFlag := f.Lookup("state-path")
+	require.NotNil(t, statePathFlag)
+	assert.Equal(t, ".seed-state.json", statePathFlag.DefValue)
 }

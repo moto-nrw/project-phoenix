@@ -18,9 +18,26 @@ set -euo pipefail
 API_URL="${API_URL:-http://localhost:8081}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=assert-local-url.sh
-source "$SCRIPT_DIR/assert-local-url.sh"
+# shellcheck source=lib/assert-local-url.sh
+source "$SCRIPT_DIR/lib/assert-local-url.sh"
 assert_local_url "$API_URL"
+
+# Pre-flight: refuse to seed if :3030 is already taken. Playwright's
+# webServer is configured with reuseExistingServer=false, so it will try
+# to spawn its own dev server on :3030 and fail with EADDRINUSE later.
+# Catch it now with a useful message instead of letting Playwright's
+# error scroll past 200 lines of Next.js startup output.
+if (echo > /dev/tcp/127.0.0.1/3030) >/dev/null 2>&1; then
+  echo "error: port 3030 is already in use." >&2
+  echo "       The Playwright suite spawns its own Next.js dev server on :3030 — it cannot proceed while" >&2
+  echo "       another process is bound there." >&2
+  echo
+  echo "       Find the offender:" >&2
+  echo "         lsof -nP -iTCP:3030 -sTCP:LISTEN" >&2
+  echo
+  echo "       Common causes: an aborted earlier Playwright run, or a stale 'pnpm run dev --port 3030'." >&2
+  exit 1
+fi
 
 TENANT_SLUG="demo-school"
 ADMIN_EMAIL="admin@e2e.local"
@@ -46,6 +63,12 @@ docker compose exec -T \
   server-e2e go run main.go migrate reset
 
 echo "Seeding with deterministic flags..."
+# --state-path writes to .seed-state-e2e.json (instead of the default
+# .seed-state.json) so a developer running `docker compose run server
+# ./main seed` against the dev stack does not overwrite the E2E state
+# file, and vice versa. The two stacks share the same mounted ./backend
+# directory, so without this flag both seeds write to the same file.
+# Keep in sync with frontend/e2e/helpers/seed-state.ts:SEED_STATE_PATH.
 docker compose exec -T server-e2e go run main.go seed \
   --tenant-slug "$TENANT_SLUG" \
   --admin-email "$ADMIN_EMAIL" \
@@ -53,6 +76,7 @@ docker compose exec -T server-e2e go run main.go seed \
   --email "$OPERATOR_EMAIL" \
   --password "$OPERATOR_PASSWORD" \
   --pin "$OPERATOR_PIN" \
+  --state-path .seed-state-e2e.json \
   --url http://localhost:8080
 
 echo
@@ -69,8 +93,8 @@ echo "Seed complete. Test stack:"
 echo "  backend:        $API_URL  (server-e2e -> postgres-test)"
 echo "  admin:          demo1@mail.de  / $STAFF_PASSWORD"
 echo "  staff:          demo11@mail.de / $STAFF_PASSWORD"
-echo "  tenant URL:     http://${TENANT_SLUG}.localtest.me:3000"
-echo "  second tenant:  http://second-school.localtest.me:3000"
+echo "  tenant URL:     http://${TENANT_SLUG}.localtest.me:3030  (only while Playwright is running)"
+echo "  second tenant:  http://second-school.localtest.me:3030"
 echo
 echo "Run Playwright with:"
 echo "  cd frontend && pnpm exec playwright test"

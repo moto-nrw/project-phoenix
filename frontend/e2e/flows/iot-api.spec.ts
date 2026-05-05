@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { apiTest as test, apiExpect as expect } from "../fixtures";
 import {
   BACKEND_URL,
   IOT_HEADERS,
@@ -14,21 +14,40 @@ import {
  * that no one notices in this repo's tests.
  *
  * These run as pure HTTP requests — no browser, no UI, no auth fixture.
+ *
+ * Error-string contract: PyrePortal's `ERROR_TRANSLATIONS` map in
+ * `PyrePortal/src/services/api.ts` matches these substrings exactly:
+ *
+ *   - "invalid device API key"
+ *   - "device API key is required"
+ *   - "invalid API key format"
+ *   - "invalid staff PIN"
+ *   - "staff PIN is required"
+ *
+ * If the backend changes any of those strings, the kiosk falls back to a
+ * generic German error and a real diagnostic gets buried. The tests
+ * below assert on the *exact* substrings — looser regex like /api key/i
+ * would let drift slip through silently.
  */
 
 test.describe("IoT API auth contract", () => {
-  test("missing Authorization header returns 401", async ({ request }) => {
+  test("missing Authorization header returns 401 with the exact PyrePortal substring", async ({
+    request,
+  }) => {
     const res = await request.get(`${BACKEND_URL}/api/iot/config`);
     expect(res.status()).toBe(401);
 
     const body = (await res.json()) as { status?: string; error?: string };
     expect(body.status).toBe("error");
-    // PyrePortal maps this exact substring to a German UI message.
-    // If the wording changes, coordinate with PyrePortal/src/services/api.ts.
-    expect(body.error).toMatch(/api key/i);
+    // PyrePortal matches this exact substring → "API-Schlüssel nicht
+    // konfiguriert. Bitte .env Datei prüfen.". Coordinate any change with
+    // PyrePortal/src/services/api.ts:ERROR_TRANSLATIONS before merging.
+    expect(body.error ?? "").toContain("device API key is required");
   });
 
-  test("invalid API key returns 401", async ({ request }) => {
+  test("invalid API key returns 401 with the exact PyrePortal substring", async ({
+    request,
+  }) => {
     const res = await request.get(`${BACKEND_URL}/api/iot/config`, {
       headers: IOT_HEADERS.apiKey("dev_not_a_real_key"),
     });
@@ -36,10 +55,11 @@ test.describe("IoT API auth contract", () => {
 
     const body = (await res.json()) as { status?: string; error?: string };
     expect(body.status).toBe("error");
-    expect(body.error).toMatch(/api key/i);
+    // PyrePortal: → "API-Schlüssel ungültig. Bitte Geräte-Konfiguration prüfen."
+    expect(body.error ?? "").toContain("invalid device API key");
   });
 
-  test("malformed Authorization header (no Bearer prefix) returns 401", async ({
+  test("malformed Authorization header (no Bearer prefix) returns 401 with the exact PyrePortal substring", async ({
     request,
   }) => {
     const apiKey = getDeviceApiKey();
@@ -50,9 +70,10 @@ test.describe("IoT API auth contract", () => {
 
     const body = (await res.json()) as { status?: string; error?: string };
     expect(body.status).toBe("error");
-    // Backend distinguishes "format" from "missing" — the message specifically
-    // mentions Bearer to guide kiosk integrators.
-    expect(body.error).toMatch(/bearer/i);
+    // Backend emits "invalid API key format - use Bearer token". PyrePortal
+    // matches the prefix → "API-Schlüssel Format ungültig. Bearer Token
+    // erwartet.". Asserting the substring keeps both halves stable.
+    expect(body.error ?? "").toContain("invalid API key format");
   });
 });
 
@@ -131,13 +152,14 @@ test.describe("PIN-protected endpoints", () => {
     const apiKey = getDeviceApiKey();
     const res = await request.post(`${BACKEND_URL}/api/iot/checkin`, {
       headers: IOT_HEADERS.apiKey(apiKey),
-      data: { rfid_tag: "TEST-RFID-001" },
+      data: { student_rfid: "TEST-RFID-001" },
     });
     expect(res.status()).toBe(401);
 
     const body = (await res.json()) as { status?: string; error?: string };
     expect(body.status).toBe("error");
-    expect(body.error?.toLowerCase() ?? "").toContain("pin");
+    // PyrePortal: → "PIN nicht angegeben."
+    expect(body.error ?? "").toContain("staff PIN is required");
   });
 
   test("POST /api/iot/checkin with wrong PIN returns 401", async ({
@@ -146,13 +168,14 @@ test.describe("PIN-protected endpoints", () => {
     const apiKey = getDeviceApiKey();
     const res = await request.post(`${BACKEND_URL}/api/iot/checkin`, {
       headers: IOT_HEADERS.apiKeyAndPin(apiKey, "0000"),
-      data: { rfid_tag: "TEST-RFID-001" },
+      data: { student_rfid: "TEST-RFID-001" },
     });
     expect(res.status()).toBe(401);
 
     const body = (await res.json()) as { status?: string; error?: string };
     expect(body.status).toBe("error");
-    expect(body.error?.toLowerCase() ?? "").toContain("pin");
+    // PyrePortal: → "Ungültiger PIN. Bitte erneut versuchen."
+    expect(body.error ?? "").toContain("invalid staff PIN");
   });
 
   // Sanity check: the PIN we derived from seed state actually works. We
@@ -165,7 +188,7 @@ test.describe("PIN-protected endpoints", () => {
     const pin = getDevicePIN();
     const res = await request.post(`${BACKEND_URL}/api/iot/checkin`, {
       headers: IOT_HEADERS.apiKeyAndPin(apiKey, pin),
-      data: { rfid_tag: "TEST-DOES-NOT-EXIST" },
+      data: { student_rfid: "TEST-DOES-NOT-EXIST" },
     });
     expect(res.status()).not.toBe(401);
   });

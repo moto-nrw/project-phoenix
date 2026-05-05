@@ -3,6 +3,7 @@ import {
   TENANT_NAME,
   SECOND_TENANT_NAME,
   SECOND_TENANT_SLUG,
+  E2E_FRONTEND_PORT,
 } from "../helpers/seed-data";
 
 test.describe("Tenant switch", () => {
@@ -24,7 +25,9 @@ test.describe("Tenant switch", () => {
 
     // The switch flow does a hard navigation to the second subdomain.
     await page.waitForURL(
-      new RegExp(`^http://${SECOND_TENANT_SLUG}\\.localtest\\.me:3000`),
+      new RegExp(
+        `^http://${SECOND_TENANT_SLUG}\\.localtest\\.me:${E2E_FRONTEND_PORT}`,
+      ),
       { timeout: 15000 },
     );
 

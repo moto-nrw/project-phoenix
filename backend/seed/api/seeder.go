@@ -30,6 +30,11 @@ type SeedOptions struct {
 	TenantSlug    string // Fixed tenant slug instead of demo-school-{timestamp}
 	StaffPassword string // Shared password for all 20 staff accounts
 	AdminEmail    string // Fixed email for the bootstrap school admin
+	// StatePath overrides where the seed state JSON is written. Empty
+	// means DefaultSeedStatePath (".seed-state.json" relative to CWD).
+	// E2E uses this to write to .seed-state-e2e.json so it never
+	// collides with the dev seeder's state file.
+	StatePath string
 }
 
 // Seeder orchestrates the complete API-based seeding process

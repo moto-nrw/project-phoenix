@@ -62,11 +62,13 @@ Usage:
 		tenantSlug, _ := cmd.Flags().GetString("tenant-slug")
 		staffPassword, _ := cmd.Flags().GetString("staff-password")
 		adminEmail, _ := cmd.Flags().GetString("admin-email")
+		statePath, _ := cmd.Flags().GetString("state-path")
 
 		options := seedapi.SeedOptions{
 			TenantSlug:    tenantSlug,
 			StaffPassword: staffPassword,
 			AdminEmail:    adminEmail,
+			StatePath:     statePath,
 		}
 
 		seeder := seedapi.NewSeeder(url, verbose, options)
@@ -89,4 +91,5 @@ func init() {
 	seedCmd.Flags().String("tenant-slug", "", "Fixed tenant slug (deterministic mode, requires migrate reset before re-seeding)")
 	seedCmd.Flags().String("staff-password", "", "Shared password for all 20 staff accounts (deterministic mode)")
 	seedCmd.Flags().String("admin-email", "", "Fixed email for bootstrap school admin (deterministic mode)")
+	seedCmd.Flags().String("state-path", seedapi.DefaultSeedStatePath, "Path to write the seed state JSON (E2E uses .seed-state-e2e.json to avoid colliding with dev seed)")
 }

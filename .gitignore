@@ -160,6 +160,7 @@ eggs/
 lib/
 lib64/
 !frontend/src/lib/
+!scripts/lib/
 parts/
 sdist/
 var/
@@ -460,6 +461,7 @@ docker-compose.sonar.yml
 
 backend/simulator/iot/simulator.yaml
 backend/.seed-state.json
+backend/.seed-state-e2e.json
 .cache_ggshield
 gitleaks-report.json
 

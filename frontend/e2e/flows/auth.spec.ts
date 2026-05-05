@@ -75,10 +75,15 @@ test.describe("Logout", () => {
       .click();
 
     // After signOut, NextAuth redirects to / which on a tenant subdomain
-    // re-renders the login form.
+    // re-renders the login form. Wait for the form to appear AND for the
+    // banner profile trigger to be gone — checking just the input would
+    // race a transitional render where both the banner (still showing the
+    // name) and the login form are momentarily mounted.
     await page.waitForSelector('input[name="email"]', { timeout: 15000 });
     await expect(page.locator('input[name="email"]')).toBeVisible();
-    await expect(page.getByText(ADMIN.displayName)).toHaveCount(0);
+    await expect(
+      page.getByRole("banner").getByRole("button", { name: ADMIN.displayName }),
+    ).toHaveCount(0, { timeout: 10000 });
   });
 });
 

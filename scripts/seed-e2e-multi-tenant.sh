@@ -26,8 +26,8 @@ API_URL="${API_URL:-http://localhost:8081}"
 # Guard against staging/production targets — every credential in this script
 # is well-known and would compromise a real environment.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=assert-local-url.sh
-source "$SCRIPT_DIR/assert-local-url.sh"
+# shellcheck source=lib/assert-local-url.sh
+source "$SCRIPT_DIR/lib/assert-local-url.sh"
 assert_local_url "$API_URL"
 
 # Operator account (matches scripts/seed-e2e.sh)
@@ -49,9 +49,11 @@ done
 
 # --- helpers ------------------------------------------------------------------
 
-# api_post PATH BODY [BEARER] [EXTRA_HEADER...]
-# Returns: HTTP body on stdout, HTTP status code on stderr (or in $? as 0/non-0).
-# We bypass curl's --fail because we want to inspect 409s.
+# api_post PATH BODY [EXTRA_HEADER...]
+# Prints the HTTP body on stdout and returns 0 for 2xx/3xx, 1 otherwise.
+# We bypass curl's --fail because we want to inspect 409s. Note: shell exit
+# codes wrap mod 256, so returning the raw HTTP code (e.g. 256, 512) could
+# silently mean "success". A boolean is enough for callers.
 api_post() {
   local path=$1; local body=$2; shift 2
   local args=( -sS -X POST "$API_URL$path" -H "Content-Type: application/json" -d "$body" -w '\n%{http_code}' )
@@ -60,7 +62,7 @@ api_post() {
   local code=${out##*$'\n'}
   local payload=${out%$'\n'*}
   echo "$payload"
-  return $(( code >= 400 ? code : 0 ))
+  return $(( code >= 400 ? 1 : 0 ))
 }
 
 api_get() {
@@ -174,5 +176,5 @@ fi
 echo
 echo "Multi-tenant setup complete."
 echo "  - $LINK_EMAIL now has active mappings for: demo-school, $SECOND_SLUG"
-echo "  - second tenant URL: http://${SECOND_SLUG}.localtest.me:3000"
+echo "  - second tenant URL: http://${SECOND_SLUG}.localtest.me:3030 (only while Playwright is running)"
 echo "  - tenant switcher should now appear in the header for $LINK_EMAIL"

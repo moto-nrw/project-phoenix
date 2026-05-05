@@ -1,0 +1,198 @@
+name: E2E (Playwright)
+
+# Reusable workflow that runs the Playwright E2E suite against an isolated
+# Docker stack (postgres-test + server-e2e). Triggered by main.yml when
+# either backend/ or frontend/ changes. Manual dispatch is also supported
+# for ad-hoc runs.
+#
+# What this does, end-to-end:
+#   1. Materialise docker-compose.yml + .env from the checked-in templates.
+#   2. Add *.localtest.me /etc/hosts entries (defense-in-depth — public DNS
+#      already resolves them, but corporate runners sometimes block public
+#      wildcard DNS).
+#   3. ./scripts/seed-e2e.sh brings up postgres-test + server-e2e, runs
+#      `migrate reset`, seeds the deterministic data, and provisions the
+#      second tenant for the tenant-switch spec.
+#   4. Playwright spawns its own `pnpm run dev` against server-e2e:8081
+#      (overridden via webServer.env in playwright.config.ts) and runs the
+#      suite headless.
+#   5. On failure, the HTML report and the seeder's .seed-state.json are
+#      uploaded as artifacts.
+
+on:
+  workflow_call:
+    inputs:
+      run-e2e:
+        type: boolean
+        default: true
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  e2e:
+    if: ${{ inputs.run-e2e }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: "frontend/pnpm-lock.yaml"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        with:
+          path: ~/.cache/ms-playwright
+          # Pin cache key to the @playwright/test version so a bump
+          # invalidates the cache automatically.
+          key: pw-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
+      - name: Install Chromium for Playwright
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Chromium system deps (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        working-directory: frontend
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Materialise docker-compose.yml
+        run: cp docker-compose.example.yml docker-compose.yml
+
+      - name: Generate ephemeral CI secrets
+        # Generate fresh, random per-run secrets and propagate via
+        # $GITHUB_ENV so subsequent steps see them as env vars. This avoids
+        # hardcoding any secret-shaped strings in the workflow file (which
+        # secret scanners like GitGuardian flag, even when the strings are
+        # CI-only test fixtures). Hex output keeps `sed` substitutions safe
+        # (no special characters to escape). 32-byte JWT/NEXTAUTH secrets
+        # produce 64 hex chars — well above the 32-char minimum the backend
+        # enforces at startup.
+        run: |
+          {
+            echo "CI_AUTH_JWT_SECRET=$(openssl rand -hex 32)"
+            echo "CI_NEXTAUTH_SECRET=$(openssl rand -hex 32)"
+            echo "CI_POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "CI_ADMIN_PASSWORD=$(openssl rand -hex 16)"
+            echo "CI_OPERATOR_PASSWORD=$(openssl rand -hex 16)"
+          } >> "$GITHUB_ENV"
+
+      - name: Materialise root .env for docker compose
+        # docker compose reads ${VAR} from .env at the repo root. The example
+        # file already has CI-safe defaults for everything we touch (Mailpit,
+        # localhost CORS, debug logging) — we only override secrets that
+        # MUST be non-placeholder for the backend to boot successfully.
+        run: |
+          cp .env.example .env
+          sed -i "s|^AUTH_JWT_SECRET=.*|AUTH_JWT_SECRET=${CI_AUTH_JWT_SECRET}|" .env
+          sed -i "s|^NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=${CI_NEXTAUTH_SECRET}|" .env
+          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${CI_POSTGRES_PASSWORD}|" .env
+          sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=${CI_ADMIN_PASSWORD}|" .env
+          # The seeder overrides OPERATOR_* with E2E values, but a non-empty
+          # default keeps the bootstrap migration from refusing to run.
+          sed -i "s|^OPERATOR_PASSWORD=.*|OPERATOR_PASSWORD=${CI_OPERATOR_PASSWORD}|" .env
+
+      - name: Materialise frontend .env.local
+        # Playwright spawns `pnpm run dev`, which loads frontend/.env.local.
+        # SKIP_ENV_VALIDATION lets the dev server boot without a real
+        # POSTHOG/Sentry key. webServer.env in playwright.config.ts overrides
+        # NEXT_PUBLIC_API_URL/TENANT_DOMAIN at spawn time, so the values
+        # below only need to be syntactically valid. NEXTAUTH_SECRET MUST
+        # match the value written into the root .env above so the backend
+        # and the spawned Next.js dev server validate the same JWT signing
+        # key — that is why both files reference $CI_NEXTAUTH_SECRET.
+        working-directory: frontend
+        run: |
+          cp .env.example .env.local
+          {
+            echo ""
+            echo "# CI overrides"
+            echo "SKIP_ENV_VALIDATION=true"
+            echo "NEXTAUTH_SECRET=${CI_NEXTAUTH_SECRET}"
+          } >> .env.local
+
+      - name: Add localtest.me /etc/hosts entries
+        # Public DNS already resolves *.localtest.me to 127.0.0.1, but some
+        # CI network policies block public wildcards. Adding explicit entries
+        # makes the suite robust either way. The script is idempotent.
+        run: sudo ./scripts/setup-e2e-hosts.sh
+
+      - name: Seed E2E backend (postgres-test + server-e2e + multi-tenant)
+        run: ./scripts/seed-e2e.sh
+
+      - name: Run Playwright tests
+        working-directory: frontend
+        env:
+          CI: "true"
+        run: pnpm exec playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Upload seeder state on failure
+        # Useful for debugging "demo-device-001 missing in seed state" errors.
+        # The E2E seed writes to .seed-state-e2e.json (separate from the dev
+        # seed's .seed-state.json) — see scripts/seed-e2e.sh and
+        # frontend/e2e/helpers/seed-state.ts for the matching path.
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: seed-state
+          path: backend/.seed-state-e2e.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Capture backend logs on failure
+        # Write to files instead of dumping straight into the job log.
+        # `docker compose logs` without --tail can produce tens of
+        # thousands of lines (postgres especially) which floods GitHub's
+        # job-log UI and gets truncated mid-output, exactly when you
+        # need it for triage. --tail=2000 covers any realistic failure
+        # window; --no-color strips ANSI escapes so the file is grep-able.
+        # `|| true` prevents this step from masking the real test failure
+        # if `docker compose` itself errors out (e.g. service already down).
+        if: failure()
+        run: |
+          mkdir -p backend-logs
+          docker compose --profile e2e logs --no-color --tail=2000 server-e2e \
+            > backend-logs/server-e2e.log 2>&1 || true
+          docker compose --profile e2e logs --no-color --tail=2000 postgres-test \
+            > backend-logs/postgres-test.log 2>&1 || true
+
+      - name: Upload backend logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backend-logs
+          path: backend-logs/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down docker stack
+        if: always()
+        run: docker compose --profile e2e down --volumes --remove-orphans

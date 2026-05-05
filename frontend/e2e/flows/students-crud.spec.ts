@@ -1,7 +1,12 @@
-import { test as uiTest, expect as uiExpect } from "../fixtures";
-import { test as apiTest, expect as apiExpect } from "@playwright/test";
+import {
+  test as uiTest,
+  expect as uiExpect,
+  apiTest,
+  apiExpect,
+} from "../fixtures";
 import { withAdminContext } from "../helpers/admin-api";
 import { BACKEND_URL } from "../helpers/iot";
+import { getTwoDistinctStudents } from "../helpers/seed-state";
 
 /**
  * Student CRUD coverage. The full create → read → update → delete cycle is
@@ -108,19 +113,27 @@ uiTest.describe("Student list UI", () => {
   uiTest(
     "admin sees seeded students on /database/students and can filter by search",
     async ({ authenticatedPage: page }) => {
+      // Two seeded students with distinct first AND last names. Pulled
+      // from .seed-state.json instead of hardcoding names so a future
+      // seeder reorder can't make this test silently match the wrong rows
+      // — and the search-filter assertion below relies on the names being
+      // distinguishable.
+      const [first, second] = getTwoDistinctStudents();
+      const firstFullName = `${first.first_name} ${first.last_name}`;
+      const secondFullName = `${second.first_name} ${second.last_name}`;
+
       // The Kinder admin view lives under /database/students; bare /students
       // is reserved for the staff search/check-in flow.
       await page.goto("/database/students");
 
-      // The first seeded student is Felix Schneider (DemoStudents[0]). Wait
-      // for him to appear — accommodates SWR/SSR loading.
-      await uiExpect(page.getByText("Felix Schneider").first()).toBeVisible({
+      // First seeded student must show up — accommodates SWR/SSR loading.
+      await uiExpect(page.getByText(firstFullName).first()).toBeVisible({
         timeout: 15000,
       });
 
       // Sanity check: another seeded student should also be visible. If both
       // appear, we know the list is rendering, not just one stub.
-      await uiExpect(page.getByText("Emma Meyer").first()).toBeVisible({
+      await uiExpect(page.getByText(secondFullName).first()).toBeVisible({
         timeout: 5000,
       });
 
@@ -130,13 +143,14 @@ uiTest.describe("Student list UI", () => {
       const searchBox = page
         .getByPlaceholder("Schüler suchen...")
         .locator("visible=true");
-      await searchBox.fill("Felix");
+      await searchBox.fill(first.first_name);
 
-      // After filtering, Felix is still there but Emma should be gone.
-      await uiExpect(page.getByText("Felix Schneider").first()).toBeVisible({
+      // After filtering, the first student is still there but the second
+      // (whose first name differs) must be gone.
+      await uiExpect(page.getByText(firstFullName).first()).toBeVisible({
         timeout: 5000,
       });
-      await uiExpect(page.getByText("Emma Meyer")).toHaveCount(0, {
+      await uiExpect(page.getByText(secondFullName)).toHaveCount(0, {
         timeout: 5000,
       });
     },

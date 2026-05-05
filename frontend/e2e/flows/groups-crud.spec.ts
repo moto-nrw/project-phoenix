@@ -1,7 +1,12 @@
-import { test as uiTest, expect as uiExpect } from "../fixtures";
-import { test as apiTest, expect as apiExpect } from "@playwright/test";
+import {
+  test as uiTest,
+  expect as uiExpect,
+  apiTest,
+  apiExpect,
+} from "../fixtures";
 import { withAdminContext } from "../helpers/admin-api";
 import { BACKEND_URL } from "../helpers/iot";
+import { getFirstTwoGroupDisplayNames } from "../helpers/seed-state";
 
 /**
  * Group CRUD coverage. We test the API contract end-to-end (create group →
@@ -125,12 +130,15 @@ uiTest.describe("Group list UI", () => {
     async ({ authenticatedPage: page }) => {
       await page.goto("/database/groups");
 
-      // Two of the seeded groups, capitalised display names per backend.
-      // If both render, the list is wired up — not just one stub.
-      await uiExpect(page.getByText("Sternengruppe").first()).toBeVisible({
+      // Two seeded group display names pulled from the seeder's lookup
+      // table — no hardcoded "Sternengruppe"/"Bärengruppe" so the test
+      // survives a seeder reorder. If both render, the list is wired up,
+      // not just one stub.
+      const [firstGroup, secondGroup] = getFirstTwoGroupDisplayNames();
+      await uiExpect(page.getByText(firstGroup).first()).toBeVisible({
         timeout: 15000,
       });
-      await uiExpect(page.getByText("Bärengruppe").first()).toBeVisible({
+      await uiExpect(page.getByText(secondGroup).first()).toBeVisible({
         timeout: 5000,
       });
     },

@@ -108,10 +108,14 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Normalize()
 
 	rt.State = state
-	if err := WriteSeedState(state, DefaultSeedStatePath); err != nil {
+	statePath := s.seeder.options.StatePath
+	if statePath == "" {
+		statePath = DefaultSeedStatePath
+	}
+	if err := WriteSeedState(state, statePath); err != nil {
 		return err
 	}
-	fmt.Printf("Seed state written to %s\n", DefaultSeedStatePath)
+	fmt.Printf("Seed state written to %s\n", statePath)
 	return nil
 }
 

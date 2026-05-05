@@ -13,8 +13,9 @@
 #   - backend/cmd/safeguard.go (Go)
 # Keep the allowlist in sync across all three.
 #
-# Usage:
-#   source "$(dirname "$0")/lib/assert-local-url.sh"
+# Usage (from a script in scripts/):
+#   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#   source "$SCRIPT_DIR/lib/assert-local-url.sh"
 #   assert_local_url "$API_URL"
 # ==============================================================================
 
@@ -26,6 +27,11 @@ assert_local_url() {
   fi
 
   # Strip scheme, then everything after the first / or :, lowercased.
+  # NOTE: Bracketed IPv6 URLs (http://[::1]:8081) are not supported here —
+  # the second sed splits on the first colon and would mangle the address.
+  # Currently fine because the allowlist only contains the bare ::1 form
+  # (used as a Docker hostname), not the URL form. Add a dedicated IPv6
+  # branch if a caller ever needs http://[::1]/.
   local host
   host=$(printf '%s' "$url" \
     | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##' \

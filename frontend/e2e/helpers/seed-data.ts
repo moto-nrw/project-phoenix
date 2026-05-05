@@ -20,14 +20,20 @@ export const TENANT_NAME = "Demo School";
 // tenant switching shares sessions across subdomains. See the matching
 // TENANT_DOMAIN value in the root .env.
 export const TENANT_DOMAIN = "localtest.me";
-export const BASE_URL = `http://${TENANT_SLUG}.${TENANT_DOMAIN}:3000`;
+
+// E2E runs on :3030 so a developer's dev frontend on :3000 can keep
+// running alongside. Must stay in sync with playwright.config.ts:webServer
+// and with server-e2e's CORS_ALLOWED_ORIGINS in docker-compose.example.yml.
+// :3030 (not :3001) because :3001 is commonly taken by other dev tools.
+export const E2E_FRONTEND_PORT = 3030;
+export const BASE_URL = `http://${TENANT_SLUG}.${TENANT_DOMAIN}:${E2E_FRONTEND_PORT}`;
 
 // Optional second tenant created by `scripts/seed-e2e-multi-tenant.sh`.
 // Tests that depend on this should check for its presence and skip
 // gracefully when it is missing — the multi-tenant setup is opt-in.
 export const SECOND_TENANT_SLUG = "second-school";
 export const SECOND_TENANT_NAME = "Demo School 2";
-export const SECOND_BASE_URL = `http://${SECOND_TENANT_SLUG}.${TENANT_DOMAIN}:3000`;
+export const SECOND_BASE_URL = `http://${SECOND_TENANT_SLUG}.${TENANT_DOMAIN}:${E2E_FRONTEND_PORT}`;
 
 export const E2E_PASSWORD = "E2EPass1234!";
 

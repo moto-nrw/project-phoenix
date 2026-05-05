@@ -48,3 +48,11 @@ export const test = base.extend<Fixtures>({
 });
 
 export { expect } from "@playwright/test";
+
+/**
+ * Re-exports for HTTP-only specs that do not need an authenticated Page.
+ * Using these instead of importing directly from `@playwright/test` keeps
+ * every test file going through this module — so README guidance ("never
+ * import test/expect from @playwright/test") holds for the whole suite.
+ */
+export { test as apiTest, expect as apiExpect } from "@playwright/test";
