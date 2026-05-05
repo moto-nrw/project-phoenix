@@ -27,7 +27,7 @@ import { StudentsInRoomSection } from "./students-in-room-section";
 
 const logger = createLogger({ component: "RoomDetailContent" });
 
-export interface Room {
+interface Room {
   id: string;
   name: string;
   building?: string;

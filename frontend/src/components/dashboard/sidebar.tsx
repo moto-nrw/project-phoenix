@@ -356,6 +356,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!from) return "/students/search";
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
+    // Drill-in from a room ("Kinder im Raum") — both the legacy subpage
+    // /rooms/{id} and the modal URL /rooms?room={id} count, so the
+    // sidebar reflects the actual entry path in either flow.
+    if (from.startsWith("/rooms/") || from.startsWith("/rooms?"))
+      return "/rooms";
     if (from.startsWith("/students/search")) return "/students/search";
     return "/students/search";
   };
