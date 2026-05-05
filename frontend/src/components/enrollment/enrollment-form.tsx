@@ -323,13 +323,15 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
                 onChange={(v) => updateChild(i, { last_name: v })}
                 required
               />
-              <Input
-                label="Geburtsdatum *"
-                type="date"
-                value={child.date_of_birth}
-                onChange={(v) => updateChild(i, { date_of_birth: v })}
-                required
-              />
+              <div>
+                <span className="block text-xs font-medium text-gray-600">
+                  Geburtsdatum *
+                </span>
+                <DateOfBirthPicker
+                  value={child.date_of_birth}
+                  onChange={(v) => updateChild(i, { date_of_birth: v })}
+                />
+              </div>
               <label className="block">
                 <span className="block text-xs font-medium text-gray-600">
                   Klassenstufe
@@ -671,4 +673,155 @@ function ExistingChildrenPanel({
       </ul>
     </div>
   );
+}
+
+// DateOfBirthPicker — three-dropdown picker (Tag / Monat / Jahr).
+// Calendar widgets are awkward for DOB because parents need to jump
+// 5-10 years back; native <input type="date"> auto-validates partial
+// year input and snaps back. Three <select>s let parents pick fast
+// without touching a keyboard. Wire format stays YYYY-MM-DD.
+const MONTH_LABELS = [
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
+];
+
+function DateOfBirthPicker({
+  value,
+  onChange,
+}: {
+  readonly value: string;
+  readonly onChange: (v: string) => void;
+}) {
+  // Internal state so partial selections (only day picked, only month
+  // picked, etc.) survive between renders. We sync from `value` when
+  // it changes externally (e.g. "Übernehmen" prefill), then push the
+  // full YYYY-MM-DD upward only when all three parts are filled.
+  const [day, setDay] = useState("");
+  const [month, setMonth] = useState("");
+  const [year, setYear] = useState("");
+
+  useEffect(() => {
+    const parsed = parseDOBParts(value);
+    if (parsed) {
+      setDay(parsed.day);
+      setMonth(parsed.month);
+      setYear(parsed.year);
+    } else if (value === "") {
+      setDay("");
+      setMonth("");
+      setYear("");
+    }
+    // value is the only external driver; re-sync only on incoming changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const currentYear = new Date().getFullYear();
+  const years: number[] = [];
+  for (let y = currentYear; y >= currentYear - 25; y--) years.push(y);
+
+  const daysInMonth =
+    month && year ? new Date(Number(year), Number(month), 0).getDate() : 31;
+
+  const emit = (d: string, m: string, y: string) => {
+    if (!d || !m || !y) {
+      // Don't blank the parent on partial selections — wait until all
+      // three are picked. The parent's `value` may already be empty;
+      // that's fine.
+      onChange("");
+      return;
+    }
+    const dd = d.padStart(2, "0");
+    const mm = m.padStart(2, "0");
+    onChange(`${y}-${mm}-${dd}`);
+  };
+
+  const handleDay = (v: string) => {
+    setDay(v);
+    emit(v, month, year);
+  };
+  const handleMonth = (v: string) => {
+    setMonth(v);
+    // If the new month has fewer days than the picked day, clamp.
+    if (day && year) {
+      const max = new Date(Number(year), Number(v), 0).getDate();
+      if (Number(day) > max) {
+        const clamped = String(max);
+        setDay(clamped);
+        emit(clamped, v, year);
+        return;
+      }
+    }
+    emit(day, v, year);
+  };
+  const handleYear = (v: string) => {
+    setYear(v);
+    emit(day, month, v);
+  };
+
+  return (
+    <div className="mt-1 grid grid-cols-3 gap-2">
+      <select
+        value={day}
+        onChange={(e) => handleDay(e.target.value)}
+        className="rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
+        aria-label="Tag"
+      >
+        <option value="">Tag</option>
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
+          <option key={d} value={String(d)}>
+            {d}
+          </option>
+        ))}
+      </select>
+      <select
+        value={month}
+        onChange={(e) => handleMonth(e.target.value)}
+        className="rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
+        aria-label="Monat"
+      >
+        <option value="">Monat</option>
+        {MONTH_LABELS.map((label, idx) => (
+          <option key={label} value={String(idx + 1)}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <select
+        value={year}
+        onChange={(e) => handleYear(e.target.value)}
+        className="rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
+        aria-label="Jahr"
+      >
+        <option value="">Jahr</option>
+        {years.map((y) => (
+          <option key={y} value={String(y)}>
+            {y}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function parseDOBParts(
+  value: string,
+): { day: string; month: string; year: string } | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return null;
+  return {
+    year: m[1] ?? "",
+    month: String(Number(m[2])), // strip leading zero so the <select> matches
+    day: String(Number(m[3])),
+  };
 }
