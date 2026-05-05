@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight, MoreVertical, Plus } from "lucide-react";
 
 export type TimetableView = "week" | "month" | "year" | "series";
@@ -52,6 +53,7 @@ interface TimetableToolbarProps {
   onDensityChange?: (next: WeekDensity) => void;
   /** Primary add actions live in the toolbar to keep chrome on one row. */
   onAddInstance?: () => void;
+  planWeekAction?: ReactNode;
 }
 
 const VIEW_TABS: Array<{ id: TimetableView; label: string }> = [
@@ -73,6 +75,7 @@ export function TimetableToolbar({
   density,
   onDensityChange,
   onAddInstance,
+  planWeekAction,
 }: TimetableToolbarProps) {
   const showRangeNav = view !== "series";
   const showDensity = view === "week" && density && onDensityChange;
@@ -153,10 +156,6 @@ export function TimetableToolbar({
       {/* Spacer pushes everything below to the right */}
       <div className="flex-1" />
 
-      {showDensity && (
-        <DensityMenu density={density} onDensityChange={onDensityChange} />
-      )}
-
       {onAddInstance && (
         <div className="flex items-center gap-1.5">
           <button
@@ -168,6 +167,12 @@ export function TimetableToolbar({
             Termin
           </button>
         </div>
+      )}
+
+      {planWeekAction}
+
+      {showDensity && (
+        <DensityMenu density={density} onDensityChange={onDensityChange} />
       )}
     </div>
   );

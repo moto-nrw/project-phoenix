@@ -1340,7 +1340,7 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 
 	t.Run("finds available slots between timeframes", func(t *testing.T) {
 		// ARRANGE - Create two timeframes with a gap
-		baseTime := time.Now().Add(1 * time.Hour).Truncate(time.Hour)
+		baseTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		endTime1 := baseTime.Add(1 * time.Hour)
 		startTime2 := baseTime.Add(3 * time.Hour)
 		endTime2 := baseTime.Add(4 * time.Hour)
@@ -1362,7 +1362,7 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 
 	t.Run("returns empty when no slots available", func(t *testing.T) {
 		// ARRANGE - Create a continuous timeframe
-		startTime := time.Now().Add(1 * time.Hour).Truncate(time.Hour)
+		startTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		endTime := startTime.Add(10 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
 		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)

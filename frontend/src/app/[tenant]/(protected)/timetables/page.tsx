@@ -10,10 +10,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  CalendarDays as CalendarDaysIcon,
-  CalendarPlus as CalendarPlusIcon,
-} from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { Loading } from "~/components/ui/loading";
@@ -1016,14 +1012,6 @@ function TimetablesContent() {
             onEdit={openPeriodEdit}
             onSelect={jumpToPeriod}
           />
-          {view === "week" && instances.length > 0 && (
-            <PlanningMenu
-              onMaterialize={handleMaterialize}
-              onReplan={handleReplanWeek}
-              weekLabel={weekLabel}
-              emphasis="secondary"
-            />
-          )}
         </div>
       </header>
 
@@ -1045,6 +1033,17 @@ function TimetablesContent() {
         density={density}
         onDensityChange={setDensity}
         onAddInstance={openEventCreate}
+        planWeekAction={
+          view === "week" && weekHasFullPeriodCoverage ? (
+            <PlanningMenu
+              onMaterialize={handleMaterialize}
+              onReplan={handleReplanWeek}
+              weekLabel={weekLabel}
+              emphasis="accent"
+              label="Angebote einplanen"
+            />
+          ) : null
+        }
       />
 
       {shouldLoadInstances && (
@@ -1097,62 +1096,19 @@ function TimetablesContent() {
               dayStartHour={dayStartHour}
               dayEndHour={dayEndHour}
               hourHeightPx={hourHeightPx}
+              emptyState={
+                instances.length === 0 && !error
+                  ? {
+                      title: weekHasFullPeriodCoverage
+                        ? "Diese Woche hat noch keine Termine"
+                        : "Diese Woche hat keine Planungsperiode",
+                      description: weekHasFullPeriodCoverage
+                        ? "Plane Angebote über die Toolbar oder lege einen einzelnen Termin an."
+                        : "Lege zuerst eine aktive Planungsperiode an.",
+                    }
+                  : undefined
+              }
             />
-          )}
-
-          {!isInstanceDataLoading && instances.length === 0 && !error && (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-6 py-16 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                <CalendarDaysIcon
-                  className="h-6 w-6 text-slate-400"
-                  aria-hidden
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <h3 className="text-base font-semibold text-slate-900">
-                  {weekHasFullPeriodCoverage
-                    ? "Diese Woche hat noch keine Termine"
-                    : "Diese Woche hat keine Planungsperiode"}
-                </h3>
-                <p className="max-w-sm text-sm text-slate-500">
-                  {weekHasFullPeriodCoverage
-                    ? "Lege einen Termin an und entscheide dort, ob er einmalig ist oder sich wiederholt."
-                    : "Lege zuerst eine aktive Planungsperiode an. Danach kannst du Serien und Termine für diese Woche planen."}
-                </p>
-              </div>
-              <div className="mt-2 flex flex-wrap justify-center gap-2">
-                {weekHasFullPeriodCoverage ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleMaterialize();
-                      }}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
-                    >
-                      <CalendarPlusIcon className="h-3.5 w-3.5" aria-hidden />
-                      Serien einplanen
-                    </button>
-                    <button
-                      type="button"
-                      onClick={openEventCreate}
-                      className="inline-flex h-8 items-center rounded-md border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                    >
-                      Termin anlegen
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={openPeriodCreate}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
-                  >
-                    <CalendarPlusIcon className="h-3.5 w-3.5" aria-hidden />
-                    Planungsperiode anlegen
-                  </button>
-                )}
-              </div>
-            </div>
           )}
 
           {instances.length > 0 && (

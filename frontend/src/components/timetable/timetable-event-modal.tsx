@@ -487,17 +487,17 @@ export function TimetableEventModal({
         return;
       }
 
-      const created = await timetableService.createTemplate({
-        ...seriesBody(parsed.roomId, parsed.categoryId),
-        materialize_from: weekFrom,
-        materialize_to: weekTo,
-      });
-
       if (convertInstance) {
+        const created = await timetableService.createTemplate(
+          seriesBody(parsed.roomId, parsed.categoryId),
+        );
         await timetableService.update(
           convertInstance.id,
           instanceBody(parsed.roomId, created.templateId),
         );
+        if (weekFrom && weekTo) {
+          await timetableService.materialize(weekFrom, weekTo);
+        }
         toastSuccess("Termin wiederholt");
         onSaved({
           kind: "series",
@@ -505,6 +505,11 @@ export function TimetableEventModal({
           linkedInstanceId: convertInstance.id,
         });
       } else {
+        const created = await timetableService.createTemplate({
+          ...seriesBody(parsed.roomId, parsed.categoryId),
+          materialize_from: weekFrom,
+          materialize_to: weekTo,
+        });
         const count = created.instancesCreated ?? 0;
         toastSuccess(
           count > 0

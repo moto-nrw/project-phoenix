@@ -29,7 +29,8 @@ interface PlanningMenuProps {
   weekLabel: string;
   disabled?: boolean;
   /** When true, renders the trigger as a primary slate-900 solid button. */
-  emphasis?: "primary" | "secondary";
+  emphasis?: "primary" | "secondary" | "accent";
+  label?: string;
 }
 
 export function PlanningMenu({
@@ -38,6 +39,7 @@ export function PlanningMenu({
   weekLabel,
   disabled = false,
   emphasis = "secondary",
+  label = "Woche planen",
 }: PlanningMenuProps) {
   const [open, setOpen] = useState(false);
   const [materializing, setMaterializing] = useState(false);
@@ -85,7 +87,9 @@ export function PlanningMenu({
   const triggerClass =
     emphasis === "primary"
       ? "bg-slate-900 text-white hover:bg-slate-700"
-      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
+      : emphasis === "accent"
+        ? "bg-[#83CD2D] text-slate-950 hover:bg-[#74b827]"
+        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
 
   return (
     <>
@@ -103,11 +107,7 @@ export function PlanningMenu({
           ) : (
             <CalendarPlus className="h-3.5 w-3.5" aria-hidden />
           )}
-          {materializing
-            ? "Plane …"
-            : replanning
-              ? "Berechne …"
-              : "Woche planen"}
+          {materializing ? "Plane …" : replanning ? "Berechne …" : label}
           <ChevronDown
             className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
             aria-hidden

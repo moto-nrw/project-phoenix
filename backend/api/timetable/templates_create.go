@@ -285,9 +285,12 @@ func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.T
 			if tf == nil {
 				continue
 			}
-			// Match exact start; FindByTimeRange may return overlapping
-			// windows depending on impl, so be precise.
-			if tf.StartTime.Equal(start) && tf.EndTime != nil && tf.EndTime.Equal(end) {
+			// Match exact clock times; FindByTimeRange may return overlapping
+			// windows depending on impl, so be precise. Do not use
+			// time.Time.Equal here: schedule.timeframes stores SQL TIME, and
+			// drivers may decode TIME with a different date anchor than the
+			// handler's parseClockTime uses.
+			if sameClockTime(tf.StartTime, start) && tf.EndTime != nil && sameClockTime(*tf.EndTime, end) {
 				return tf.ID, nil
 			}
 		}
@@ -305,6 +308,13 @@ func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.T
 		return 0, fmt.Errorf("create timeframe: %w", err)
 	}
 	return tf.ID, nil
+}
+
+func sameClockTime(a, b time.Time) bool {
+	return a.Hour() == b.Hour() &&
+		a.Minute() == b.Minute() &&
+		a.Second() == b.Second() &&
+		a.Nanosecond() == b.Nanosecond()
 }
 
 // isValidActivityType matches the constants in models/activities/group.go.

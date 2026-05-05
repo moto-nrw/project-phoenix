@@ -212,12 +212,12 @@ func createTestActivitySchedule(
 }
 
 // createTestTimeframeRow inserts a schedule.timeframes row at the given
-// Berlin-local wall-clock. Mirrors the production flow so the repo's
-// timezone.WallClock round-trip preserves HH:MM.
+// timezone-free wall-clock. Mirrors the production flow where admins submit
+// HH:MM strings and the backend stores them as SQL TIME.
 func createTestTimeframeRow(t *testing.T, db *bun.DB, startHHMM, endHHMM string) *schedule.Timeframe {
 	t.Helper()
-	start := parseBerlinHHMM(t, startHHMM)
-	end := parseBerlinHHMM(t, endHHMM)
+	start := parseHHMM(t, startHHMM)
+	end := parseHHMM(t, endHHMM)
 	row := &schedule.Timeframe{
 		StartTime:   start,
 		EndTime:     &end,

@@ -375,14 +375,9 @@ func (s *materializationService) materializeTemplate(
 				continue
 			}
 
-			// schedule.timeframes stores start/end as TIMESTAMPTZ, so
-			// tf.StartTime carries a timezone (typically the server's local
-			// zone). schedule.activity_instances.start_time is plain TIME,
-			// which is wall-clock only. Passing the tz-aware value directly
-			// causes bun to serialize via UTC — "08:00 CEST" would land as
-			// "06:00" in the TIME column. Extract the wall-clock components
-			// in the timeframe's OWN location and rebuild as UTC so both
-			// sides of the round-trip agree.
+			// Both schedule.timeframes and schedule.activity_instances store
+			// clock values as SQL TIME. Normalise through WallClock anyway so
+			// driver-specific date anchors never affect comparisons or writes.
 			base := materialParams{
 				StartTime: extractTimeOfDay(tf.StartTime),
 				EndTime:   extractTimeOfDay(*tf.EndTime),

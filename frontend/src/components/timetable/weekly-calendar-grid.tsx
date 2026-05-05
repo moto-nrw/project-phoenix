@@ -44,6 +44,10 @@ interface WeeklyCalendarGridProps {
   dayEndHour: number;
   /** Pixel height per hour row. Driven by zoom controls. */
   hourHeightPx: number;
+  emptyState?: {
+    title: string;
+    description: string;
+  };
 }
 
 export function WeeklyCalendarGrid({
@@ -55,6 +59,7 @@ export function WeeklyCalendarGrid({
   dayStartHour,
   dayEndHour,
   hourHeightPx,
+  emptyState,
 }: WeeklyCalendarGridProps) {
   const grouped = groupInstancesByDate(instances);
   const hours = Array.from(
@@ -114,7 +119,7 @@ export function WeeklyCalendarGrid({
       </div>
 
       {/* Scrollable body */}
-      <div className="max-h-[720px] overflow-y-auto">
+      <div className="relative max-h-[720px] overflow-y-auto">
         <div
           className="grid"
           style={{
@@ -227,6 +232,19 @@ export function WeeklyCalendarGrid({
             );
           })}
         </div>
+
+        {emptyState && (
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
+            <div className="max-w-sm rounded-lg border border-slate-200 bg-white/95 px-4 py-3 text-center shadow-sm backdrop-blur">
+              <h3 className="text-sm font-semibold text-slate-900">
+                {emptyState.title}
+              </h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                {emptyState.description}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -15,7 +15,6 @@ import {
   CircleX,
   DoorOpen,
   Pencil,
-  Play,
   Repeat,
   Square,
   StickyNote,
@@ -325,7 +324,12 @@ export function InstanceDetailSlideOver({
                       students={rows}
                       studentNames={studentNames}
                       pendingStudentId={pendingStudentId}
-                      onAttendancePatch={onAttendancePatch}
+                      onAttendancePatch={
+                        instance.status === "active" ||
+                        instance.status === "completed"
+                          ? onAttendancePatch
+                          : undefined
+                      }
                       handleAttendancePatch={handleAttendancePatch}
                     />
                   ))}
@@ -336,22 +340,6 @@ export function InstanceDetailSlideOver({
 
           <SlideOverFooter>
             <div className="flex flex-wrap items-center gap-2">
-              {instance.status === "planned" && (
-                <Button
-                  variant="success"
-                  size="sm"
-                  type="button"
-                  onClick={() => void handleLifecycle("start")}
-                  isLoading={pendingAction === "start"}
-                  loadingText="Starte …"
-                  disabled={pendingAction !== null}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Play className="h-4 w-4" />
-                    Starten
-                  </span>
-                </Button>
-              )}
               {instance.status === "planned" && !editDeferred && onEdit && (
                 <Button
                   variant="outline"
