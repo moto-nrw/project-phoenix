@@ -11,13 +11,11 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockPush }),
 }));
 
-const mockUsePathname = vi.fn(() => "/test-tenant/rooms");
 const mockUseSearchParams = vi.fn(() => ({
   get: vi.fn(() => null),
   toString: vi.fn(() => "room=42"),
 }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => mockUsePathname(),
   useSearchParams: () => mockUseSearchParams(),
 }));
 
@@ -26,45 +24,12 @@ vi.mock("~/lib/swr", () => ({
   useSWRAuth: (...args: unknown[]) => mockUseSWRAuth(...args),
 }));
 
-vi.mock("~/lib/hooks/use-user-context", () => ({
-  useUserContext: () => ({
-    userContext: {
-      educationalGroupIds: [],
-      educationalGroupRoomNames: [],
-      supervisedRoomNames: [],
-    },
-    isLoading: false,
-    error: null,
-  }),
-}));
-
-vi.mock("~/lib/pickup-helpers", async () => {
-  const actual = await vi.importActual<typeof import("~/lib/pickup-helpers")>(
-    "~/lib/pickup-helpers",
-  );
-  return {
-    ...actual,
-    useMinuteClock: () => new Date("2026-01-01T10:00:00Z"),
-  };
-});
-
 // Light mocks for visual primitives — we want to assert behaviors (text,
 // button visibility, click handlers), not the exact rendering of every UI
-// atom imported transitively.
-vi.mock("~/components/ui/info-card", () => ({
-  InfoCard: ({
-    title,
-    children,
-  }: {
-    title: string;
-    children: React.ReactNode;
-  }) => (
-    <section data-testid="info-card" aria-label={title}>
-      <h2>{title}</h2>
-      {children}
-    </section>
-  ),
-}));
+// atom imported transitively. The "Kinder im Raum" section now renders
+// its own <section aria-label> wrapper instead of going through InfoCard
+// (#1323 review — quiet section headers across the slide-over), so no
+// info-card mock is needed.
 
 vi.mock("~/components/ui/button", () => ({
   Button: ({
@@ -90,44 +55,34 @@ vi.mock("~/components/ui/loading", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/student-presence-badge", () => ({
-  StudentPresenceBadge: () => <span data-testid="presence-badge" />,
-}));
-
-vi.mock("~/components/students/student-card", () => ({
-  StudentCard: ({
+vi.mock("~/components/students/compact-student-card", () => ({
+  CompactStudentCard: ({
     studentId,
     firstName,
     lastName,
+    schoolClass,
+    groupName,
     onClick,
-    extraContent,
   }: {
     studentId: string;
-    firstName: string;
-    lastName: string;
-    onClick: () => void;
-    extraContent: React.ReactNode;
+    firstName?: string;
+    lastName?: string;
+    schoolClass?: string;
+    groupName?: string;
+    onClick?: () => void;
   }) => (
     <button
       type="button"
-      data-testid={`student-card-${studentId}`}
+      data-testid={`compact-student-card-${studentId}`}
+      data-school-class={schoolClass}
+      data-group-name={groupName}
       onClick={onClick}
     >
       <span>
         {firstName} {lastName}
       </span>
-      <div>{extraContent}</div>
     </button>
   ),
-  StudentInfoRow: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  SchoolClassIcon: () => <span />,
-  GroupIcon: () => <span />,
-  PickupTimeRow: ({ pickupTime }: { pickupTime?: string }) =>
-    pickupTime ? <div data-testid="pickup-row">{pickupTime}</div> : null,
-  ArrivalTimeRow: ({ arrivalTime }: { arrivalTime?: string }) =>
-    arrivalTime ? <div data-testid="arrival-row">{arrivalTime}</div> : null,
 }));
 
 // ----------------------------------------------------------------------------
@@ -140,9 +95,6 @@ interface MockStudent {
   second_name: string;
   school_class: string;
   group_name?: string;
-  arrival_time?: string;
-  pickup_time?: string;
-  has_full_access?: boolean;
 }
 
 const makeStudent = (overrides: Partial<MockStudent> = {}): MockStudent => ({
@@ -172,8 +124,6 @@ const setSWR = (state: {
 beforeEach(() => {
   mockPush.mockReset();
   mockUseSWRAuth.mockReset();
-  // Default to the modal context (URL is /rooms, not /rooms/{id}).
-  mockUsePathname.mockReturnValue("/test-tenant/rooms");
 });
 
 // ----------------------------------------------------------------------------
@@ -236,9 +186,34 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      expect(screen.getByTestId("student-card-1")).toBeInTheDocument();
-      expect(screen.getByTestId("student-card-2")).toBeInTheDocument();
-      expect(screen.getByTestId("student-card-3")).toBeInTheDocument();
+      expect(screen.getByTestId("compact-student-card-1")).toBeInTheDocument();
+      expect(screen.getByTestId("compact-student-card-2")).toBeInTheDocument();
+      expect(screen.getByTestId("compact-student-card-3")).toBeInTheDocument();
+    });
+
+    it("forwards school_class and group_name to the compact card", () => {
+      // The minimal card shows just identity (name + class + group). The
+      // section must pass those fields through unmodified — earlier
+      // versions used StudentCard with extraContent and arrival/pickup
+      // rows; that complexity is gone, but the identifiers must remain
+      // visible so staff can recognise the child.
+      setSWR({
+        data: {
+          students: [
+            makeStudent({
+              id: "1",
+              school_class: "2b",
+              group_name: "Füchse",
+            }),
+          ],
+        },
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      const card = screen.getByTestId("compact-student-card-1");
+      expect(card.getAttribute("data-school-class")).toBe("2b");
+      expect(card.getAttribute("data-group-name")).toBe("Füchse");
     });
 
     it("uses the singular noun when exactly one child is present", () => {
@@ -349,66 +324,13 @@ describe("StudentsInRoomSection", () => {
     });
   });
 
-  describe("redacted access", () => {
-    it("hides arrival/pickup rows when has_full_access is false", () => {
-      // Backend skips enriching arrival/pickup fields for students the
-      // viewer has no full access to. Without the gate, these rows would
-      // render as misleading "—" placeholders. Match the redaction
-      // behaviour the Kindersuche page already uses.
-      setSWR({
-        data: {
-          students: [
-            makeStudent({
-              id: "1",
-              has_full_access: false,
-              arrival_time: "08:00",
-              pickup_time: "16:00",
-            }),
-          ],
-        },
-      });
-
-      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
-
-      expect(screen.queryByTestId("arrival-row")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("pickup-row")).not.toBeInTheDocument();
-    });
-
-    it("renders arrival/pickup rows when has_full_access is true or omitted", () => {
-      setSWR({
-        data: {
-          students: [
-            makeStudent({
-              id: "1",
-              has_full_access: true,
-              arrival_time: "08:00",
-              pickup_time: "16:00",
-            }),
-            makeStudent({
-              id: "2",
-              arrival_time: "08:30",
-              pickup_time: "15:30",
-            }),
-          ],
-        },
-      });
-
-      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
-
-      // Two students with full access ⇒ two of each row rendered.
-      expect(screen.getAllByTestId("arrival-row")).toHaveLength(2);
-      expect(screen.getAllByTestId("pickup-row")).toHaveLength(2);
-    });
-  });
-
   describe("navigation", () => {
-    it("encodes the full URL as from= in the modal context (preserves filters)", () => {
-      // Pathname /rooms (no /:roomId suffix) means the section is
-      // being rendered inside the responsive modal. The from= URL
+    it("encodes the full URL as from= in the slide-over context (preserves filters)", () => {
+      // The section now only renders inside the slide-over (legacy
+      // /rooms/{id} subpage is a server-side redirect). The from= URL
       // must carry the COMPLETE current query string — including any
       // grid filters (search, building, status) — so the user lands
       // back on their narrowed view, not a reset grid.
-      mockUsePathname.mockReturnValue("/test-tenant/rooms");
       mockUseSearchParams.mockReturnValueOnce({
         get: vi.fn(() => null),
         toString: vi.fn(
@@ -419,7 +341,7 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      fireEvent.click(screen.getByTestId("student-card-7"));
+      fireEvent.click(screen.getByTestId("compact-student-card-7"));
 
       // ? inside from= must be URL-encoded; & inside likewise. Without
       // encoding the outer query parser splits at the inner '?' and
@@ -431,19 +353,19 @@ describe("StudentsInRoomSection", () => {
       );
     });
 
-    it("uses /rooms/{id} as from= when rendered on the legacy subpage", () => {
-      // Pathname /rooms/42 means the section is being rendered on the
-      // standalone /rooms/[id] page (deep link / fallback). Preserve
-      // that as the referrer so back returns to the same subpage.
-      mockUsePathname.mockReturnValue("/test-tenant/rooms/42");
+    it("falls back to /rooms?room={id} when no query string is present", () => {
+      mockUseSearchParams.mockReturnValueOnce({
+        get: vi.fn(() => null),
+        toString: vi.fn(() => ""),
+      });
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      fireEvent.click(screen.getByTestId("student-card-7"));
+      fireEvent.click(screen.getByTestId("compact-student-card-7"));
 
       expect(mockPush).toHaveBeenCalledWith(
-        `/students/7?from=${encodeURIComponent("/rooms/42")}`,
+        `/students/7?from=${encodeURIComponent("/rooms?room=42")}`,
       );
     });
 

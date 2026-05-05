@@ -4,8 +4,8 @@ import { RoomDetailModal } from "./room-detail-modal";
 
 // ----------------------------------------------------------------------------
 // Mocks — every dependency below is stubbed so the test only exercises this
-// component's branching (mobile/desktop, roomId null, nested-modal guards),
-// not the heavy room-detail body or session/auth machinery.
+// component's branching (mobile/desktop direction, roomId null, nested-modal
+// guards), not the heavy room-detail body or session/auth machinery.
 // ----------------------------------------------------------------------------
 
 const mockUseIsMobile = vi.fn(() => false);
@@ -23,34 +23,21 @@ vi.mock("~/components/dashboard/modal-context", () => ({
 }));
 
 vi.mock("./room-detail-content", () => ({
-  RoomDetailLoader: ({ roomId }: { roomId: string }) => (
-    <div data-testid="room-detail-loader">loader for {roomId}</div>
+  // The modal now passes its X close button into RoomDetailLoader via
+  // `headerAction`. Render that slot inside the mock so the close-button
+  // tests below can find the X by testid.
+  RoomDetailLoader: ({
+    roomId,
+    headerAction,
+  }: {
+    roomId: string;
+    headerAction?: React.ReactNode;
+  }) => (
+    <div data-testid="room-detail-loader">
+      loader for {roomId}
+      {headerAction}
+    </div>
   ),
-}));
-
-// Capture every prop passed to <Modal> so we can assert title, widthClass,
-// and verify onClose by calling the captured handler directly.
-type ModalProps = {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  widthClass?: string;
-  children: React.ReactNode;
-};
-const modalProps = vi.fn<(props: ModalProps) => void>();
-vi.mock("~/components/ui/modal", () => ({
-  Modal: (props: ModalProps) => {
-    modalProps(props);
-    return props.isOpen ? (
-      <div data-testid="modal-shell" data-width={props.widthClass}>
-        <button type="button" onClick={props.onClose} data-testid="modal-close">
-          Close
-        </button>
-        <div data-testid="modal-title">{props.title}</div>
-        {props.children}
-      </div>
-    ) : null;
-  },
 }));
 
 // Capture every prop passed to the Drawer primitives so we can drive
@@ -59,6 +46,8 @@ vi.mock("~/components/ui/modal", () => ({
 type DrawerProps = {
   open: boolean;
   onOpenChange: (next: boolean) => void;
+  direction?: "top" | "bottom" | "left" | "right";
+  shouldScaleBackground?: boolean;
   children: React.ReactNode;
 };
 type DrawerContentProps = {
@@ -73,7 +62,9 @@ vi.mock("~/components/ui/drawer", () => ({
   Drawer: (props: DrawerProps) => {
     drawerProps(props);
     return props.open ? (
-      <div data-testid="drawer-shell">{props.children}</div>
+      <div data-testid="drawer-shell" data-direction={props.direction}>
+        {props.children}
+      </div>
     ) : null;
   },
   DrawerContent: (props: DrawerContentProps) => {
@@ -85,6 +76,27 @@ vi.mock("~/components/ui/drawer", () => ({
   ),
   DrawerTitle: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="drawer-title">{children}</div>
+  ),
+  // Vaul's Close primitive — modal renders an X button via this on
+  // desktop. Mock it as a plain button so the close-button test below
+  // can assert presence and click without portals/dialogs.
+  DrawerClose: ({
+    children,
+    className,
+    "aria-label": ariaLabel,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    "aria-label"?: string;
+  }) => (
+    <button
+      type="button"
+      data-testid="drawer-close"
+      aria-label={ariaLabel}
+      className={className}
+    >
+      {children}
+    </button>
   ),
 }));
 
@@ -100,75 +112,99 @@ describe("RoomDetailModal", () => {
       openModal: vi.fn(),
       closeModal: vi.fn(),
     });
-    modalProps.mockReset();
     drawerProps.mockReset();
     drawerContentProps.mockReset();
   });
 
-  describe("desktop branch (Modal)", () => {
+  describe("desktop branch (right-side slide-over)", () => {
     beforeEach(() => {
       mockUseIsMobile.mockReturnValue(false);
     });
 
-    it("renders the Modal with the wide width class and the loader body when a roomId is provided", () => {
+    it("renders the Drawer with direction=right and the loader body when a roomId is provided", () => {
       const onClose = vi.fn();
       render(<RoomDetailModal roomId="42" onClose={onClose} />);
 
-      const shell = screen.getByTestId("modal-shell");
+      const shell = screen.getByTestId("drawer-shell");
       expect(shell).toBeInTheDocument();
-      // The detail view needs more horizontal space than the default form modal.
-      expect(shell.getAttribute("data-width")).toContain("max-w-4xl");
-      // A non-empty title pushes the close button into its own header bar
-      // so it does not collide with the room name in the body.
-      expect(screen.getByTestId("modal-title").textContent).toBe("Raumdetails");
+      expect(shell.getAttribute("data-direction")).toBe("right");
+      // Title is sr-only but must still be present for accessibility.
+      expect(screen.getByTestId("drawer-title").textContent).toBe(
+        "Raumdetails",
+      );
       expect(screen.getByTestId("room-detail-loader").textContent).toBe(
         "loader for 42",
       );
     });
 
-    it("renders the Modal but no body when roomId is null (closed deep-link state)", () => {
-      const onClose = vi.fn();
-      render(<RoomDetailModal roomId={null} onClose={onClose} />);
+    it("disables shouldScaleBackground on the right-side panel (only applies to bottom sheet)", () => {
+      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      const lastCall = drawerProps.mock.calls.at(-1);
+      expect(lastCall?.[0].shouldScaleBackground).toBe(false);
+    });
 
-      // open=false → mocked Modal returns null entirely.
-      expect(screen.queryByTestId("modal-shell")).not.toBeInTheDocument();
-      // And the loader is not invoked when roomId is null even if open were
-      // true — verified by absence here.
+    it("renders no shell when roomId is null (closed deep-link state)", () => {
+      render(<RoomDetailModal roomId={null} onClose={vi.fn()} />);
+      expect(screen.queryByTestId("drawer-shell")).not.toBeInTheDocument();
       expect(
         screen.queryByTestId("room-detail-loader"),
       ).not.toBeInTheDocument();
-      const lastCall = modalProps.mock.calls.at(-1);
-      expect(lastCall?.[0].isOpen).toBe(false);
+      const lastCall = drawerProps.mock.calls.at(-1);
+      expect(lastCall?.[0].open).toBe(false);
     });
 
-    it("forwards onClose so the Modal's close button triggers the callback", () => {
+    it("forwards onClose via onOpenChange(false)", () => {
       const onClose = vi.fn();
       render(<RoomDetailModal roomId="42" onClose={onClose} />);
-      screen.getByTestId("modal-close").click();
+      const lastCall = drawerProps.mock.calls.at(-1);
+      lastCall![0].onOpenChange(false);
       expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders an explicit X close button with an aria-label on desktop", () => {
+      // Reviewer asked for an X — Esc + outside-click alone aren't
+      // discoverable on desktop, especially for keyboard-aware users.
+      // The button is a Vaul DrawerClose so vaul handles dismissal
+      // automatically (no extra onClick wiring needed).
+      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      const close = screen.getByTestId("drawer-close");
+      expect(close).toBeInTheDocument();
+      expect(close.getAttribute("aria-label")).toBe("Raumdetails schließen");
     });
   });
 
-  describe("mobile branch (Drawer)", () => {
+  describe("mobile branch (bottom drawer)", () => {
     beforeEach(() => {
       mockUseIsMobile.mockReturnValue(true);
     });
 
-    it("renders the Drawer shell with the loader when a roomId is provided", () => {
+    it("renders the Drawer with direction=bottom and the loader when a roomId is provided", () => {
       const onClose = vi.fn();
       render(<RoomDetailModal roomId="7" onClose={onClose} />);
 
-      expect(screen.getByTestId("drawer-shell")).toBeInTheDocument();
+      const shell = screen.getByTestId("drawer-shell");
+      expect(shell).toBeInTheDocument();
+      expect(shell.getAttribute("data-direction")).toBe("bottom");
       expect(screen.getByTestId("room-detail-loader").textContent).toBe(
         "loader for 7",
       );
-      // Title is sr-only but must still be present for accessibility.
       expect(screen.getByTestId("drawer-title").textContent).toBe(
         "Raumdetails",
       );
     });
 
-    it("renders the Drawer body but no loader when roomId is null", () => {
+    it("hides the X close button on mobile (drag handle / swipe carries the affordance)", () => {
+      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      expect(screen.queryByTestId("drawer-close")).not.toBeInTheDocument();
+    });
+
+    it("keeps shouldScaleBackground on the bottom sheet (iOS-style scale animation)", () => {
+      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      const lastCall = drawerProps.mock.calls.at(-1);
+      expect(lastCall?.[0].shouldScaleBackground).toBe(true);
+    });
+
+    it("renders no shell when roomId is null", () => {
       render(<RoomDetailModal roomId={null} onClose={vi.fn()} />);
       expect(screen.queryByTestId("drawer-shell")).not.toBeInTheDocument();
       expect(
@@ -194,27 +230,36 @@ describe("RoomDetailModal", () => {
       lastDrawerCall![0].onOpenChange(true);
       expect(onClose).not.toHaveBeenCalled();
     });
+  });
 
-    it("swallows outside-click and Escape when a nested modal is open (prevents drawer dismissal under it)", () => {
-      mockUseModal.mockReturnValue({
-        isModalOpen: true,
-        openModal: vi.fn(),
-        closeModal: vi.fn(),
-      });
+  describe("nested-modal guards (apply on both branches)", () => {
+    it.each([
+      ["desktop", false],
+      ["mobile", true],
+    ])(
+      "swallows outside-click and Escape on %s when a nested modal is open",
+      (_label, isMobile) => {
+        mockUseIsMobile.mockReturnValue(isMobile);
+        mockUseModal.mockReturnValue({
+          isModalOpen: true,
+          openModal: vi.fn(),
+          closeModal: vi.fn(),
+        });
 
-      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+        render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
 
-      const lastContentCall = drawerContentProps.mock.calls.at(-1);
-      expect(lastContentCall).toBeDefined();
+        const lastContentCall = drawerContentProps.mock.calls.at(-1);
+        expect(lastContentCall).toBeDefined();
 
-      const outsideEvent = { preventDefault: vi.fn() };
-      lastContentCall![0].onInteractOutside!(outsideEvent);
-      expect(outsideEvent.preventDefault).toHaveBeenCalledTimes(1);
+        const outsideEvent = { preventDefault: vi.fn() };
+        lastContentCall![0].onInteractOutside!(outsideEvent);
+        expect(outsideEvent.preventDefault).toHaveBeenCalledTimes(1);
 
-      const escapeEvent = { preventDefault: vi.fn() };
-      lastContentCall![0].onEscapeKeyDown!(escapeEvent);
-      expect(escapeEvent.preventDefault).toHaveBeenCalledTimes(1);
-    });
+        const escapeEvent = { preventDefault: vi.fn() };
+        lastContentCall![0].onEscapeKeyDown!(escapeEvent);
+        expect(escapeEvent.preventDefault).toHaveBeenCalledTimes(1);
+      },
+    );
 
     it("lets outside-click and Escape pass through when no nested modal is open", () => {
       mockUseModal.mockReturnValue({

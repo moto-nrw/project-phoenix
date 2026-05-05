@@ -12,7 +12,15 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import {
+  Building2,
+  CalendarClock,
+  CircleDot,
+  Layers,
+  Tag,
+  UserCog,
+  Users,
+} from "lucide-react";
 import { Loading } from "~/components/ui/loading";
 import { useSWRAuth } from "~/lib/swr";
 import {
@@ -334,179 +342,165 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
   };
 }
 
+// Icon-row layout for the room-detail card (#1323 review).
+// Each row: a brand-tinted icon on the left, then a stacked
+// label (small, muted) + value (regular, bold) — same shape as the
+// reference screenshot's DETAILS section. Keeps every field the old
+// InfoItem layout had, just denser and with a clearer visual anchor
+// per row so staff can scan vertically by icon.
+function IconDetailRow({
+  icon,
+  label,
+  value,
+}: Readonly<{
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}>) {
+  return (
+    // items-center vertically centers the icon box against the
+    // label+value text block. Earlier `items-start` + mt-0.5 nudge
+    // tried to align the icon with the small label, which left it
+    // visually too high relative to the bold value below.
+    <div className="flex items-center gap-3 py-1">
+      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-[#5080D8]/10 text-[#5080D8]">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs leading-tight text-gray-500">{label}</p>
+        <p className="truncate text-sm leading-tight font-medium text-gray-900">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 interface RoomDetailContentProps {
   readonly room: Room;
   readonly history: readonly RoomHistoryEntry[];
+  // Optional slot rendered in the header row next to the StatusBadge.
+  // Used by the slide-over to drop its X close button alongside the
+  // room name and badge so they share one clean line. The master-detail
+  // database page leaves it undefined — its container owns close
+  // affordances elsewhere.
+  readonly headerAction?: React.ReactNode;
 }
 
-export function RoomDetailContent({ room, history }: RoomDetailContentProps) {
+export function RoomDetailContent({
+  room,
+  history,
+  headerAction,
+}: RoomDetailContentProps) {
   const activities = groupHistoryByActivity([...history]);
   const groupedActivities = groupByDate(activities);
 
   return (
     <div>
-      {/* Room Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-              {room.name}
-            </h1>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-600 sm:gap-4">
-              {(room.building !== undefined || room.floor !== undefined) && (
-                <>
-                  <span>
-                    {room.building &&
-                      room.floor !== undefined &&
-                      `${room.building} · ${formatFloor(room.floor)}`}
-                    {room.building && room.floor === undefined && room.building}
-                    {!room.building &&
-                      room.floor !== undefined &&
-                      formatFloor(room.floor)}
-                  </span>
-                  {room.category && <span className="hidden sm:inline">•</span>}
-                </>
-              )}
-              {room.category && (
-                <span className="truncate">{room.category}</span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex-shrink-0 pb-3">
-            <StatusBadge isOccupied={room.isOccupied} />
-          </div>
+      {/* Room Header — name, status badge, and (in the slide-over) the
+          X close button on a single line (#1323 review).
+          Layout choices:
+            • Badge sits tight to the heading (no flex-1 on h1) so the
+              status reads as part of the title, not a far-right tag.
+            • X gets ml-auto, so it always anchors to the far right.
+            • leading-tight on h1 collapses the bold heading's line-box
+              so it visually centers with the smaller badge + icon
+              button instead of floating above them. */}
+      <div className="mb-6 flex items-center gap-2">
+        <h1 className="min-w-0 truncate text-2xl leading-tight font-bold text-gray-900 md:text-3xl">
+          {room.name}
+        </h1>
+        <div className="flex-shrink-0">
+          <StatusBadge isOccupied={room.isOccupied} />
         </div>
+        {headerAction && (
+          <div className="ml-auto flex-shrink-0">{headerAction}</div>
+        )}
       </div>
 
       <div className="space-y-4 sm:space-y-6">
-        <InfoCard
-          title="Rauminformationen"
-          icon={
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+        {/* Compact icon-row block — every field that used to live in the
+            old "Rauminformationen" InfoItem stack is here, but each row
+            is anchored by a brand-tinted icon so the eye can scan
+            vertically without re-reading labels. Review feedback
+            (#1323): the previous label-on-top / value-below layout
+            wasted vertical space in the narrow slide-over. */}
+        {/* Quiet section header (option A from #1323 review): small
+            uppercase label instead of the bold h2 + tinted icon box.
+            Inverts the previous size hierarchy where the heading
+            outweighed the data underneath — now the heading is a quiet
+            anchor and the IconDetailRow values carry the visual weight.
+            Card outline / padding stay so the section is still
+            visually grouped. */}
+        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+          <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+            Rauminformationen
+          </h2>
+          <div className="space-y-1">
+            {/* Raumname intentionally omitted — already in the h1
+                header above; review feedback (#1323): redundant. */}
+            {room.building && (
+              <IconDetailRow
+                icon={<Building2 className="h-4 w-4" />}
+                label="Gebäude"
+                value={room.building}
               />
-            </svg>
-          }
-        >
-          <InfoItem label="Raumname" value={room.name} />
-          {room.building && <InfoItem label="Gebäude" value={room.building} />}
-          {room.floor !== undefined && (
-            <InfoItem label="Etage" value={formatFloor(room.floor)} />
-          )}
-          {room.category && (
-            <InfoItem label="Kategorie" value={room.category} />
-          )}
-          <InfoItem
-            label="Status"
-            value={room.isOccupied ? "Belegt" : "Frei"}
-          />
-
-          {room.isOccupied && room.groupName && (
-            <>
-              <InfoItem
+            )}
+            {room.floor !== undefined && (
+              <IconDetailRow
+                icon={<Layers className="h-4 w-4" />}
+                label="Etage"
+                value={formatFloor(room.floor)}
+              />
+            )}
+            {room.category && (
+              <IconDetailRow
+                icon={<Tag className="h-4 w-4" />}
+                label="Kategorie"
+                value={room.category}
+              />
+            )}
+            <IconDetailRow
+              icon={<CircleDot className="h-4 w-4" />}
+              label="Status"
+              value={room.isOccupied ? "Belegt" : "Frei"}
+            />
+            {room.isOccupied && room.groupName && (
+              <IconDetailRow
+                icon={<CalendarClock className="h-4 w-4" />}
                 label="Aktuelle Aktivität"
-                value={
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-800">
-                      <svg
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                        />
-                      </svg>
-                      {room.groupName}
-                    </span>
-                  </div>
-                }
+                value={room.groupName}
               />
-              {room.studentCount !== undefined && room.studentCount > 0 && (
-                <InfoItem
+            )}
+            {room.isOccupied &&
+              room.studentCount !== undefined &&
+              room.studentCount > 0 && (
+                <IconDetailRow
+                  icon={<Users className="h-4 w-4" />}
                   label="Aktuell anwesend"
-                  value={
-                    <span className="inline-flex items-center gap-1.5">
-                      <svg
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                        />
-                      </svg>
-                      {room.studentCount}{" "}
-                      {room.studentCount === 1 ? "Kind" : "Kinder"}
-                    </span>
-                  }
+                  value={`${room.studentCount} ${
+                    room.studentCount === 1 ? "Kind" : "Kinder"
+                  }`}
                 />
               )}
-              {room.supervisorName && (
-                <InfoItem
-                  label="Aktuelle Aufsicht"
-                  value={
-                    <span className="inline-flex items-center gap-1.5">
-                      <svg
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-                        />
-                      </svg>
-                      {room.supervisorName}
-                    </span>
-                  }
-                />
-              )}
-            </>
-          )}
-        </InfoCard>
+            {room.isOccupied && room.supervisorName && (
+              <IconDetailRow
+                icon={<UserCog className="h-4 w-4" />}
+                label="Aktuelle Aufsicht"
+                value={room.supervisorName}
+              />
+            )}
+          </div>
+        </div>
 
         <StudentsInRoomSection roomId={room.id} roomName={room.name} />
 
-        <InfoCard
-          title="Belegungshistorie"
-          icon={
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          }
-        >
+        {/* Quiet section header to match the Rauminformationen block
+            above (#1323). */}
+        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+          <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+            Belegungshistorie
+          </h2>
           {groupedActivities.length === 0 ? (
             <div className="py-8 text-center text-gray-500">
               Keine Belegungshistorie verfügbar.
@@ -592,7 +586,7 @@ export function RoomDetailContent({ room, history }: RoomDetailContentProps) {
               ))}
             </div>
           )}
-        </InfoCard>
+        </div>
       </div>
     </div>
   );
@@ -601,6 +595,7 @@ export function RoomDetailContent({ room, history }: RoomDetailContentProps) {
 interface RoomDetailLoaderProps {
   readonly roomId: string;
   readonly emptyAction?: React.ReactNode;
+  readonly headerAction?: React.ReactNode;
 }
 
 /**
@@ -613,6 +608,7 @@ interface RoomDetailLoaderProps {
 export function RoomDetailLoader({
   roomId,
   emptyAction,
+  headerAction,
 }: RoomDetailLoaderProps) {
   const { room, history, loading, error } = useRoomDetail(roomId);
 
@@ -631,5 +627,11 @@ export function RoomDetailLoader({
     );
   }
 
-  return <RoomDetailContent room={room} history={history} />;
+  return (
+    <RoomDetailContent
+      room={room}
+      history={history}
+      headerAction={headerAction}
+    />
+  );
 }

@@ -349,19 +349,19 @@ const baseRoom = {
 };
 
 describe("RoomDetailContent", () => {
-  it("renders 'Frei' when the room is unoccupied and hides the activity rows", () => {
+  it("renders 'Frei' and hides the activity/supervisor rows when the room is unoccupied", () => {
     render(
       <Wrapper>
         <RoomDetailContent room={{ ...baseRoom }} history={[]} />
       </Wrapper>,
     );
-    expect(screen.getAllByText(/Frei/)[0]).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("info-item-Aktuelle Aktivität"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("info-item-Aktuelle Aufsicht"),
-    ).not.toBeInTheDocument();
+    // "Frei" renders in the StatusBadge AND in the Rauminformationen
+    // Status row — both must be present to give staff the same signal
+    // wherever they look.
+    expect(screen.getAllByText(/Frei/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("Aktuelle Aktivität")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aktuell anwesend")).not.toBeInTheDocument();
   });
 
   it("renders 'Belegt', the activity, supervisor, and student count when occupied", () => {
@@ -379,14 +379,16 @@ describe("RoomDetailContent", () => {
         />
       </Wrapper>,
     );
-    expect(screen.getAllByText(/Belegt/)[0]).toBeInTheDocument();
+    // "Belegt" appears in the badge and the Status DetailRow.
+    expect(screen.getAllByText(/Belegt/).length).toBeGreaterThanOrEqual(2);
+    // DetailRow pairs label + value as siblings; assert both are present.
+    expect(screen.getByText("Aktuelle Aktivität")).toBeInTheDocument();
+    expect(screen.getByText("Schildkröten")).toBeInTheDocument();
+    expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+    expect(screen.getByText("Birgit Braun")).toBeInTheDocument();
+    expect(screen.getByText("Aktuell anwesend")).toBeInTheDocument();
     // student_count !== 1 → the "Kinder" plural branch runs.
-    expect(screen.getByTestId("info-item-Aktuell anwesend")).toHaveTextContent(
-      "5 Kinder",
-    );
-    expect(screen.getByTestId("info-item-Aktuelle Aufsicht")).toHaveTextContent(
-      "Birgit Braun",
-    );
+    expect(screen.getByText("5 Kinder")).toBeInTheDocument();
   });
 
   it("uses the singular 'Kind' when student count is exactly 1", () => {
@@ -403,12 +405,32 @@ describe("RoomDetailContent", () => {
         />
       </Wrapper>,
     );
-    expect(screen.getByTestId("info-item-Aktuell anwesend")).toHaveTextContent(
-      "1 Kind",
-    );
+    expect(screen.getByText("1 Kind")).toBeInTheDocument();
   });
 
-  it("renders the building · floor · category line when present", () => {
+  it("hides the supervisor and student-count rows when those fields are missing", () => {
+    // Defensive: if the backend doesn't report a supervisor/count yet
+    // (e.g. group is in transition), the detail block must collapse —
+    // empty rows would look like "Aktuelle Aufsicht: —" placeholders
+    // which is worse UX than just not showing them.
+    render(
+      <Wrapper>
+        <RoomDetailContent
+          room={{ ...baseRoom, isOccupied: true, groupName: "Schildkröten" }}
+          history={[]}
+        />
+      </Wrapper>,
+    );
+    expect(screen.getByText("Aktuelle Aktivität")).toBeInTheDocument();
+    expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aktuell anwesend")).not.toBeInTheDocument();
+  });
+
+  it("renders Gebäude / Etage / Kategorie rows but NOT a separate Raumname row", () => {
+    // Raumname intentionally omitted from the detail block — review
+    // feedback (#1323): the room name is already the h1 above the
+    // detail card, so a "Raumname: …" row was pure redundancy. The
+    // remaining static fields must still all render.
     render(
       <Wrapper>
         <RoomDetailContent
@@ -422,12 +444,37 @@ describe("RoomDetailContent", () => {
         />
       </Wrapper>,
     );
-    // formatFloor mock returns "Etage 2"
-    expect(screen.getByText(/Hauptgebäude · Etage 2/)).toBeInTheDocument();
-    expect(screen.getAllByText(/Gruppenraum/).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Raumname")).not.toBeInTheDocument();
+    expect(screen.getByText("Gebäude")).toBeInTheDocument();
+    expect(screen.getByText("Hauptgebäude")).toBeInTheDocument();
+    expect(screen.getByText("Etage")).toBeInTheDocument();
+    expect(screen.getByText("Kategorie")).toBeInTheDocument();
+    expect(screen.getByText("Gruppenraum")).toBeInTheDocument();
   });
 
-  it("falls back to building-only when floor is missing, and floor-only when building is missing", () => {
+  it("does not render the legacy building · floor · category subline under the header", () => {
+    // The "Hauptgebäude · Etage 2" subline that used to sit under the
+    // h1 was removed (#1323) — those values now live exclusively in
+    // the IconDetailRow list, so showing them twice was clutter.
+    render(
+      <Wrapper>
+        <RoomDetailContent
+          room={{
+            ...baseRoom,
+            building: "Hauptgebäude",
+            floor: 2,
+            category: "Gruppenraum",
+          }}
+          history={[]}
+        />
+      </Wrapper>,
+    );
+    expect(
+      screen.queryByText(/Hauptgebäude · Etage 2/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the building or the floor in the detail block when only one is present", () => {
     const { rerender } = render(
       <Wrapper>
         <RoomDetailContent
