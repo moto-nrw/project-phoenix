@@ -246,13 +246,6 @@ func parseHHMM(t *testing.T, hhmm string) time.Time {
 	return time.Date(2000, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
 }
 
-func parseBerlinHHMM(t *testing.T, hhmm string) time.Time {
-	t.Helper()
-	parsed, err := time.Parse("15:04", hhmm)
-	require.NoError(t, err)
-	return time.Date(2024, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, timezone.Berlin)
-}
-
 // -----------------------------------------------------------------------------
 // Happy paths
 // -----------------------------------------------------------------------------
