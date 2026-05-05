@@ -420,7 +420,7 @@ function TimetablesContent() {
   );
   const templatePeriodID = defaultTemplatePeriod?.id ?? assignedPeriods[0]?.id;
   const { data: templateData, isLoading: templatesLoading } = useSWRAuth(
-    status === "authenticated" && view === "series" && templatePeriodID
+    status === "authenticated" && templatePeriodID
       ? `timetable-templates-${templatePeriodID}`
       : null,
     () => timetableService.getTemplates(templatePeriodID),
