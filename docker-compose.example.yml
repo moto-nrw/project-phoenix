@@ -7,7 +7,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - 8080:8080
+      - "${SERVER_HOST_PORT}:8080"
     volumes:
       # Mount source code for hot reload
       - ./backend:/app
@@ -70,7 +70,7 @@ services:
       args:
         BUILDKIT_INLINE_CACHE: 1
     ports:
-      - "3000:3000"
+      - "${FRONTEND_HOST_PORT}:3000"
     environment:
       TZ: ${TZ}
       AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY}
@@ -123,7 +123,7 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     ports:
-      - 5432:5432
+      - "${POSTGRES_HOST_PORT}:5432"
     volumes:
       - postgres:/var/lib/postgresql/data
       - ./config/ssl/postgres/certs/server.crt:/var/lib/postgresql/ssl/server.crt:ro
@@ -152,8 +152,8 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - "8025:8025"   # Web UI
-      - "1025:1025"   # SMTP
+      - "${MAILPIT_HOST_PORT}:8025"   # Web UI
+      - "${MAILPIT_SMTP_HOST_PORT}:1025"   # SMTP
     environment:
       MP_MAX_MESSAGES: 500
 
