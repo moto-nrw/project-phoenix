@@ -59,8 +59,25 @@ Platform Operator (moto)
 
 - **Subdomain mode**: `{slug}.localhost:3000` → proxy rewrites to `/[tenant]/*` internally
 - **Operator isolation**: `operator.localhost:3000` → rewrites to `/operator/*`, separate session
+- **Parents isolation**: `parents.localhost:3000` → rewrites to `/parents/*`, separate session (cross-tenant guardian portal)
 - **Tenant resolution**: `[tenant]/layout.tsx` validates slug via `/auth/tenant/resolve?slug=...` (cached 5min)
 - **Tenant switching**: `POST /auth/switch-tenant` returns new JWT scoped to target school
+
+### Three Portals — Strict Session Isolation
+
+Each portal runs as its own NextAuth instance with a host-only cookie + dedicated `basePath`. The cookies are invisible across hosts by design; the proxy redirects cross-host paths back to their canonical subdomain.
+
+| Portal | Host | Cookie | basePath | JWT scope | Backend login |
+|---|---|---|---|---|---|
+| Tenant (staff) | `{slug}.{TENANT_DOMAIN}` | `next-auth.session-token` (domain-scoped) | `/api/auth` | `""` (or `"org"`) | `POST /auth/login` |
+| Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` (host-only) | `/api/operator/auth` | `"platform"` | `POST /operator/auth/login` |
+| Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` (host-only) | `/api/parent/auth` | `"parent"` | `POST /parent/auth/login` |
+
+**Login policy** (enforced in `services/auth/auth_login*.go`):
+- Tenant login refuses guardian-only accounts (returns `ErrParentMustUseParentPortal` → 403). Dual-role accounts (e.g. teacher AND guardian at the same school) pass through unchanged.
+- Parents login requires guardian role on at least one tenant mapping (`ErrAccountNoGuardianRole` → 403).
+- `auth/jwt/TenantMiddleware` rejects `scope=parent` tokens with 401 (defense-in-depth on top of cookie isolation).
+- `auth/jwt/ParentMiddleware` rejects everything except `scope=parent`; mounted on `/parent/*` protected routes.
 
 ### Key Env Vars
 
@@ -69,10 +86,13 @@ Platform Operator (moto)
 | `TENANT_DOMAIN` | Base domain for subdomain extraction (e.g., `localhost`, `moto-app.de`) |
 | `NEXT_PUBLIC_TENANT_DOMAIN` | Client-side tenant domain |
 | `NEXT_PUBLIC_OPERATOR_HOSTNAME` | Operator subdomain (e.g., `operator.localhost:3000`) |
+| `NEXT_PUBLIC_PARENTS_HOSTNAME` | Parents subdomain (e.g., `parents.localhost:3000`) |
+| `FRONTEND_URL` | Backend-side staff/admin URL (used in admin notification emails) |
+| `PARENTS_URL` | Backend-side parents-portal URL (used in every parent-facing email link). Falls back to `FRONTEND_URL` if unset; production must be `https://`. |
 
 ### Reserved Slugs
 
-Both backend (`models/platform/organization.go`) and frontend (`lib/reserved-slugs.ts`) maintain matching lists of reserved slugs (www, api, operator, grafana, etc.) that cannot be used as tenant subdomains. **These must stay in sync.**
+Both backend (`models/platform/organization.go`) and frontend (`lib/reserved-slugs.ts`) maintain matching lists of reserved slugs (www, api, operator, parents, grafana, etc.) that cannot be used as tenant subdomains. **These must stay in sync.**
 
 ### Cross-Repo Impact
 
