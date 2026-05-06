@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import { roomService } from "~/lib/api";
 import StudentSearchPage from "./page";
 
 // Mock next-auth/react
@@ -304,6 +305,9 @@ describe("StudentSearchPage", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockSearchParams.delete("status");
+    mockSearchParams.delete("room_id");
+    mockSearchParams.delete("room_name");
+    window.history.replaceState(null, "", "/students/search");
 
     // Reset useSession mock to authenticated state
     const sessionModule = await import("next-auth/react");
@@ -1612,6 +1616,135 @@ describe("StudentSearchPage", () => {
       expect(
         screen.getByRole("option", { name: "Raum 101" }),
       ).toBeInTheDocument();
+    });
+
+    it("requests a large first page for the room filter options", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useImmutableSWR).mockImplementation(
+        (key, fetcher) => {
+          if (key === "search-rooms-list") {
+            void (fetcher as () => Promise<unknown>)();
+            return {
+              data: [],
+              isLoading: false,
+              error: null,
+            } as ReturnType<typeof swrModule.useImmutableSWR>;
+          }
+
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useImmutableSWR>;
+        },
+      );
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(roomService.getRooms).toHaveBeenCalledWith({
+          page: 1,
+          pageSize: 1000,
+        });
+      });
+    });
+
+    it("syncs room selection changes into the URL", async () => {
+      mockSearchParams.set("room_id", "42");
+      mockSearchParams.set("room_name", "Alter Raum");
+      window.history.replaceState(
+        { preserved: true },
+        "",
+        "/students/search?room_id=42&room_name=Alter+Raum&status=anwesend",
+      );
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-room")).toHaveValue("42");
+      });
+
+      fireEvent.change(screen.getByTestId("filter-room"), {
+        target: { value: "101" },
+      });
+
+      const url = new URL(window.location.href);
+      expect(url.searchParams.get("room_id")).toBe("101");
+      expect(url.searchParams.get("room_name")).toBe("Raum 101");
+      expect(url.searchParams.get("status")).toBe("anwesend");
+      expect(window.history.state).toEqual({ preserved: true });
+    });
+
+    it("removes only room params when clearing the room filter", async () => {
+      mockSearchParams.set("room_id", "42");
+      mockSearchParams.set("room_name", "Alter Raum");
+      window.history.replaceState(
+        { preserved: true },
+        "",
+        "/students/search?room_id=42&room_name=Alter+Raum&status=anwesend",
+      );
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-room")).toHaveValue("42");
+      });
+
+      fireEvent.change(screen.getByTestId("filter-room"), {
+        target: { value: "" },
+      });
+
+      const url = new URL(window.location.href);
+      expect(url.searchParams.has("room_id")).toBe(false);
+      expect(url.searchParams.has("room_name")).toBe(false);
+      expect(url.searchParams.get("status")).toBe("anwesend");
+      expect(window.history.state).toEqual({ preserved: true });
+    });
+
+    it("does not group status-only locations as rooms", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: {
+          students: [
+            {
+              id: "5",
+              first_name: "Nina",
+              second_name: "Status",
+              school_class: "1a",
+              current_location: "Anwesend",
+              has_full_access: true,
+            },
+            {
+              id: "6",
+              first_name: "Rita",
+              second_name: "Redacted",
+              school_class: "1a",
+              current_location: "Anwesend",
+              has_full_access: false,
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Nina")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "room" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Kein Raum")).toBeInTheDocument();
+        expect(screen.getByText("Nicht einsehbar")).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByRole("heading", { name: "Anwesend" }),
+      ).not.toBeInTheDocument();
     });
   });
 });

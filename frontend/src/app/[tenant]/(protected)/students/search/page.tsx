@@ -21,6 +21,7 @@ import { useUserContext } from "~/lib/hooks/use-user-context";
 import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
+  LOCATION_STATUSES,
   isHomeLocation,
   isPresentLocation,
   isSchoolyardLocation,
@@ -131,6 +132,8 @@ function statusLabelForStudent(student: Student): string {
 }
 
 function roomLabelForStudent(student: Student): string {
+  if (student.has_full_access === false) return "Nicht einsehbar";
+
   const location = student.current_location?.trim();
   if (!location || isHomeLocation(location)) return "Kein Raum";
   if (isTransitLocation(location)) return "Unterwegs";
@@ -139,6 +142,9 @@ function roomLabelForStudent(student: Student): string {
   if (separatorIndex >= 0) {
     const room = location.slice(separatorIndex + 1).trim();
     return room || "Kein Raum";
+  }
+  if (Object.values(LOCATION_STATUSES).some((status) => status === location)) {
+    return "Kein Raum";
   }
   return location;
 }
@@ -320,7 +326,7 @@ function SearchPageContent() {
     "search-rooms-list",
     async () => {
       try {
-        return await roomService.getRooms();
+        return await roomService.getRooms({ page: 1, pageSize: 1000 });
       } catch {
         logger.warn("could not load rooms for filter");
         return [];
@@ -362,21 +368,28 @@ function SearchPageContent() {
     },
   );
 
-  // Clearing the room filter resets state AND strips room_id/room_name from
-  // the URL so a refresh doesn't silently re-hydrate a filter the user has
-  // just removed. window.history.replaceState avoids a Next.js navigation,
-  // which would discard SWR data and flash the loading skeleton. Merge into
-  // the existing state object instead of replacing it — App Router stashes
-  // routing metadata (scroll restoration, RSC cache keys) on
-  // window.history.state, and clobbering it with `{}` can degrade browser
+  // Keep room state and room_id/room_name query params in sync without a
+  // Next.js navigation, which would discard SWR data and flash the loading
+  // skeleton. Merge into the existing state object instead of replacing it —
+  // App Router stashes routing metadata (scroll restoration, RSC cache keys)
+  // on window.history.state, and clobbering it with `{}` can degrade browser
   // back/forward into a hard reload for this entry.
-  const clearRoomFilter = useCallback(() => {
-    setSelectedRoomId("");
-    setSelectedRoomName("");
+  const updateRoomFilter = useCallback((roomId: string, roomName: string) => {
+    setSelectedRoomId(roomId);
+    setSelectedRoomName(roomName);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
-      url.searchParams.delete("room_id");
-      url.searchParams.delete("room_name");
+      if (roomId) {
+        url.searchParams.set("room_id", roomId);
+        if (roomName) {
+          url.searchParams.set("room_name", roomName);
+        } else {
+          url.searchParams.delete("room_name");
+        }
+      } else {
+        url.searchParams.delete("room_id");
+        url.searchParams.delete("room_name");
+      }
       window.history.replaceState(
         window.history.state ?? null,
         "",
@@ -384,6 +397,10 @@ function SearchPageContent() {
       );
     }
   }, []);
+
+  const clearRoomFilter = useCallback(() => {
+    updateRoomFilter("", "");
+  }, [updateRoomFilter]);
 
   const students = studentsData?.students ?? [];
 
@@ -492,8 +509,10 @@ function SearchPageContent() {
             return;
           }
           const room = rooms.find((r) => r.id === v);
-          setSelectedRoomId(v);
-          setSelectedRoomName(room?.name ?? "");
+          updateRoomFilter(
+            v,
+            room?.name ?? (v === selectedRoomId ? selectedRoomName : ""),
+          );
         },
         options: [
           { value: "", label: "Alle Räume" },
@@ -619,6 +638,7 @@ function SearchPageContent() {
       selectedRoomName,
       orderedRoomOptions,
       clearRoomFilter,
+      updateRoomFilter,
       sortMode,
       groupMode,
     ],

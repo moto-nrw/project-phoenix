@@ -368,6 +368,8 @@ describe("api.ts helper functions", () => {
           category: "classroom",
           occupied: true,
           search: "test",
+          page: 1,
+          pageSize: 1000,
         });
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -376,6 +378,8 @@ describe("api.ts helper functions", () => {
         expect(callUrl).toContain("category=classroom");
         expect(callUrl).toContain("occupied=true");
         expect(callUrl).toContain("search=test");
+        expect(callUrl).toContain("page=1");
+        expect(callUrl).toContain("page_size=1000");
       } finally {
         restore();
       }
@@ -1843,6 +1847,8 @@ describe("api.ts helper functions", () => {
           category: "lab",
           occupied: false,
           search: "chemistry",
+          page: 1,
+          pageSize: 1000,
         });
 
         const url = vi.mocked(fetchWithRetry).mock.calls[0]?.[0] ?? "";
@@ -1851,6 +1857,8 @@ describe("api.ts helper functions", () => {
         expect(url).toContain("category=lab");
         expect(url).toContain("occupied=false");
         expect(url).toContain("search=chemistry");
+        expect(url).toContain("page=1");
+        expect(url).toContain("page_size=1000");
       } finally {
         restore();
       }
