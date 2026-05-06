@@ -205,6 +205,15 @@ jobs:
             echo "hostname=operator.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      - name: Determine parents hostname
+        id: parents_hostname
+        run: |
+          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+            echo "hostname=parents.staging.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "hostname=parents.moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
       - name: Determine tenant domain
         id: tenant_domain
         run: |
@@ -227,6 +236,7 @@ jobs:
             API_URL=http://server:8080
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
             NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
+            NEXT_PUBLIC_PARENTS_HOSTNAME=${{ steps.parents_hostname.outputs.hostname }}
             TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
