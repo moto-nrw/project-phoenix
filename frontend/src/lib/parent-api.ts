@@ -1,0 +1,101 @@
+/**
+ * Parent-portal client API. Symmetric to the operator-api / tenant
+ * api-helpers split — every call goes through a Next.js proxy route
+ * under /api/parent/* which forwards (with the parent NextAuth
+ * session token) to the backend /parent/* endpoints.
+ *
+ * Types here mirror backend/api/parent/me_handlers.go. int64 ids
+ * arrive as strings per the project's frontend convention.
+ */
+
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ParentAPI" });
+
+export type ChildStatus = "pending" | "active" | "inactive" | "alumnus";
+
+export interface Child {
+  readonly student_id: string;
+  readonly tenant_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly school_class?: string;
+  readonly status: ChildStatus;
+  readonly enrolled_from?: string; // ISO date
+  readonly enrolled_until?: string; // ISO date
+  readonly school_name: string;
+  readonly school_slug: string;
+}
+
+interface ApiEnvelope<T> {
+  readonly status?: string;
+  readonly data?: T;
+}
+
+async function getJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const body = (await response.json()) as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      // Body wasn't JSON — keep the generic message.
+    }
+    logger.error("parent_api_request_failed", {
+      url,
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  const json = (await response.json()) as ApiEnvelope<T>;
+  // Backend wraps in { status, data }; some routes return data directly.
+  if (json && typeof json === "object" && "data" in json) {
+    return json.data as T;
+  }
+  return json as unknown as T;
+}
+
+/**
+ * Fetches every child linked to the calling parent's account, across
+ * every active tenant mapping. The response is already sorted (school
+ * → first name → last name) by the backend.
+ */
+export async function listMyChildren(): Promise<Child[]> {
+  return getJson<Child[]>("/api/parent/me/children");
+}
+
+/**
+ * Groups a flat children list by school_slug. Used by the dashboard
+ * to render one card per school. Insertion order matches the input,
+ * which is already sorted by school_name on the backend.
+ */
+export function groupBySchool(children: readonly Child[]): {
+  schoolName: string;
+  schoolSlug: string;
+  children: Child[];
+}[] {
+  const groups = new Map<
+    string,
+    { schoolName: string; schoolSlug: string; children: Child[] }
+  >();
+  for (const child of children) {
+    const existing = groups.get(child.school_slug);
+    if (existing) {
+      existing.children.push(child);
+      continue;
+    }
+    groups.set(child.school_slug, {
+      schoolName: child.school_name,
+      schoolSlug: child.school_slug,
+      children: [child],
+    });
+  }
+  return [...groups.values()];
+}
