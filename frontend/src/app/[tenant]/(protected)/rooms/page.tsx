@@ -1,16 +1,30 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  Suspense,
+  useCallback,
+  useRef,
+} from "react";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
-import { formatFloor, mapRoomsResponse } from "~/lib/room-helpers";
+import {
+  formatFloor,
+  getRoomCategoryColor,
+  mapRoomsResponse,
+} from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { RoomDetailModal } from "~/components/rooms";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -29,13 +43,54 @@ interface Room {
   studentCount?: number;
 }
 
-// Kategorie-zu-Farbe Mapping
-const categoryColors: Record<string, string> = {
-  "Normaler Raum": "#4F46E5",
-  Gruppenraum: "#10B981",
-  Themenraum: "#8B5CF6",
-  Sport: "#EC4899",
-};
+// Brand color hex codes via LOCATION_COLORS (CLAUDE.md §0,
+// lib/location-helper.ts): OTHER_ROOM (#5080D8) for blue accents,
+// HOME (#FF3130) for occupied/error, GROUP_ROOM (#83CD2D) for free
+// (with #4a7a15 text for AA contrast on the tinted background).
+
+// Single skeleton card that matches the populated room card's outer
+// shell: same rounded-3xl, same min-h-[180px], same flex layout so the
+// page doesn't reshuffle on swap. Pulse blocks stand in for title row,
+// meta line, status pill, two middle rows, and the footer hint.
+function RoomCardSkeleton() {
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+      <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
+      <div className="relative flex min-h-[180px] flex-col p-6">
+        <div className="mb-3 flex items-start justify-between">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-5 w-2/3 animate-pulse rounded bg-gray-200" />
+            <div className="h-3 w-1/3 animate-pulse rounded bg-gray-200" />
+          </div>
+          <div className="ml-3 h-6 w-16 flex-shrink-0 animate-pulse rounded-full bg-gray-200" />
+        </div>
+        <div className="flex-1 space-y-2">
+          <div className="h-3 w-3/4 animate-pulse rounded bg-gray-200" />
+          <div className="h-3 w-1/2 animate-pulse rounded bg-gray-200" />
+        </div>
+        <div className="mt-2 h-3 w-24 animate-pulse rounded bg-gray-200" />
+      </div>
+    </div>
+  );
+}
+
+function RoomsGridSkeleton() {
+  // Eight cards covers two rows on the largest grid (2xl: 4 columns);
+  // smaller breakpoints fill more rows naturally. Same gap + column
+  // breakpoints as the populated grid below so the swap is purely a
+  // child-level change, not a container reshape.
+  return (
+    <output
+      aria-label="Räume werden geladen"
+      data-testid="rooms-grid-skeleton"
+      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+    >
+      {Array.from({ length: 8 }).map((_, i) => (
+        <RoomCardSkeleton key={i} />
+      ))}
+    </output>
+  );
+}
 
 function RoomsPageContent() {
   const { status } = useSession({
@@ -45,10 +100,29 @@ function RoomsPageContent() {
     },
   });
   const router = useTenantRouter();
+  const searchParams = useSearchParams();
+  const updateUrlParams = useUpdateUrlParams();
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("all");
-  const [occupiedFilter, setOccupiedFilter] = useState("all");
+  // ?room={id} drives the detail modal so deep links work and the back
+  // button closes the overlay. Same convention as /database/* pages.
+  const selectedRoomId = searchParams.get("room");
+
+  // Filters are local React state for snappy UI, but their initial
+  // value comes from the URL so they SURVIVE a remount when the user
+  // drills /rooms → /students/X → browser back. The student page's
+  // BackButton pushes back to /rooms with the params we tucked into
+  // ?from= (see students-in-room-section.tsx), so on remount the URL
+  // re-hydrates the React state.
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
+  const [buildingFilter, setBuildingFilter] = useState(
+    () => searchParams.get("building") ?? "all",
+  );
+  const [occupiedFilter, setOccupiedFilter] = useState(
+    () => searchParams.get("status") ?? "all",
+  );
+
   const [isMobile, setIsMobile] = useState(false);
 
   // Handle mobile detection
@@ -60,6 +134,40 @@ function RoomsPageContent() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Mirror local filter state into the URL so the current history entry
+  // always reflects the user's view. Without this, typing a filter while
+  // the URL is bare /rooms means closing a just-opened room modal pops
+  // back to a URL that never carried those filters — they would survive
+  // in React state for now, but a refresh, share, or future remount
+  // would silently drop them. router.replace keeps the entry count
+  // unchanged, so handleSelectRoom's push and handleCloseDetail's
+  // router.back() still work as documented. The early-return guards
+  // against the searchParams → updateUrlParams identity churn that
+  // would otherwise re-fire this effect after each replace.
+  useEffect(() => {
+    const currentSearch = searchParams.get("search") ?? "";
+    const currentBuilding = searchParams.get("building") ?? "all";
+    const currentStatus = searchParams.get("status") ?? "all";
+    if (
+      currentSearch === searchTerm &&
+      currentBuilding === buildingFilter &&
+      currentStatus === occupiedFilter
+    ) {
+      return;
+    }
+    updateUrlParams({
+      search: searchTerm || null,
+      building: buildingFilter !== "all" ? buildingFilter : null,
+      status: occupiedFilter !== "all" ? occupiedFilter : null,
+    });
+  }, [
+    searchTerm,
+    buildingFilter,
+    occupiedFilter,
+    searchParams,
+    updateUrlParams,
+  ]);
 
   // Fetch rooms with SWR (automatic caching, deduplication, revalidation)
   // Global SSE in TenantAuthWrapper handles cache invalidation automatically
@@ -92,10 +200,7 @@ function RoomsPageContent() {
       // Apply color defaults
       return roomsData.map((room) => ({
         ...room,
-        color:
-          room.color ??
-          (room.category ? categoryColors[room.category] : undefined) ??
-          "#6B7280",
+        color: room.color ?? getRoomCategoryColor(room.category),
       }));
     },
     {
@@ -143,10 +248,65 @@ function RoomsPageContent() {
     return filtered;
   }, [roomsData, searchTerm, buildingFilter, occupiedFilter]);
 
-  // Handle room selection
-  const handleSelectRoom = (room: Room) => {
-    router.push(`/rooms/${room.id}`);
-  };
+  // Track whether the click handler just pushed an entry. Used by the
+  // effect below to stamp a marker into the resulting history entry.
+  const justPushedRef = useRef(false);
+
+  // Open the detail modal by pushing ?room={id} as a NEW history entry
+  // (not replace), so the browser Back button closes the overlay
+  // instead of skipping past the rooms page. Bake the current filter
+  // state into the URL so it survives the round-trip through a child's
+  // detail page (student-card click → /students/X → back).
+  const handleSelectRoom = useCallback(
+    (room: Room) => {
+      const next = new URLSearchParams(searchParams.toString());
+      if (searchTerm) next.set("search", searchTerm);
+      else next.delete("search");
+      if (buildingFilter !== "all") next.set("building", buildingFilter);
+      else next.delete("building");
+      if (occupiedFilter !== "all") next.set("status", occupiedFilter);
+      else next.delete("status");
+      next.set("room", room.id);
+      justPushedRef.current = true;
+      router.push(`/rooms?${next.toString()}`);
+    },
+    [router, searchParams, searchTerm, buildingFilter, occupiedFilter],
+  );
+
+  // After router.push commits, mark the now-current history entry as
+  // "we pushed this". Stored in window.history.state so it survives
+  // page remounts — i.e. when the user drills /rooms → /students/X and
+  // returns via browser back, the marker is still there even though
+  // the React component was unmounted in between.
+  useEffect(() => {
+    if (!justPushedRef.current || typeof window === "undefined") return;
+    justPushedRef.current = false;
+    window.history.replaceState(
+      { ...(window.history.state ?? {}), roomModalPushed: true },
+      "",
+    );
+  }, [searchParams]);
+
+  // Close by POPPING the modal entry rather than replacing in place.
+  // Replace would leave two consecutive /rooms entries in history, so
+  // the first browser Back after closing would appear to do nothing.
+  // Fall back to replace only when there's no in-app entry to pop
+  // (e.g. user landed directly on /rooms?room=… via a deep link, or
+  // got here from the student page's in-app back which pushed a fresh
+  // untagged entry).
+  const handleCloseDetail = useCallback(() => {
+    const state = typeof window !== "undefined" ? window.history.state : null;
+    const wasPushedByUs =
+      state &&
+      typeof state === "object" &&
+      "roomModalPushed" in state &&
+      (state as { roomModalPushed?: unknown }).roomModalPushed === true;
+    if (wasPushedByUs) {
+      router.back();
+    } else {
+      updateUrlParams({ room: null });
+    }
+  }, [router, updateUrlParams]);
 
   // Get unique values for filters
   const uniqueBuildings = useMemo(() => {
@@ -226,7 +386,10 @@ function RoomsPageContent() {
     return filters;
   }, [searchTerm, buildingFilter, occupiedFilter]);
 
-  if (status === "loading" || loading) {
+  // Auth-loading: nothing to render until NextAuth resolves the session
+  // (the `useSession({ required: true })` callback redirects on
+  // unauthenticated). Keep the existing loader for this branch.
+  if (status === "loading") {
     return <Loading fullPage={false} />;
   }
 
@@ -268,15 +431,22 @@ function RoomsPageContent() {
         }}
       />
 
-      {/* Error Display */}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
           {error}
         </div>
       )}
 
-      {/* Room Cards Grid */}
-      {filteredRooms.length === 0 ? (
+      {/* Room Cards Grid — skeleton mirrors the populated grid's column
+          breakpoints and per-card shape (rounded-3xl, min-h-[180px],
+          header row + meta line + status pill, middle content rows,
+          footer hint) so the grid area doesn't visibly resize when real
+          data arrives. Review feedback (#1323): a generic spinner
+          collapsed the header row into a tiny payload, then the layout
+          jumped open when rooms loaded. */}
+      {loading ? (
+        <RoomsGridSkeleton />
+      ) : filteredRooms.length === 0 ? (
         <div className="py-12 text-center">
           <div className="flex flex-col items-center gap-4">
             <svg
@@ -311,20 +481,16 @@ function RoomsPageContent() {
                 type="button"
                 key={room.id}
                 onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-blue-200/50 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-[#5080D8]/30 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
               >
-                {/* Modern gradient overlay */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
-                {/* Subtle inner glow */}
+                <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
                 <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                {/* Modern border highlight */}
-                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-[#5080D8]/40"></div>
 
                 <div className="relative flex min-h-[180px] flex-col p-6">
-                  {/* Top section: Header with room name and status */}
                   <div className="mb-3 flex items-start justify-between">
                     <div className="min-w-0 flex-1">
-                      <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
+                      <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-[#5080D8]">
                         {room.name}
                       </h3>
                       {(room.building !== undefined ||
@@ -343,19 +509,18 @@ function RoomsPageContent() {
                       )}
                     </div>
 
-                    {/* Status indicator */}
                     <span
                       className={`ml-3 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
                         room.isOccupied
-                          ? "bg-red-100 text-red-700"
-                          : "bg-green-100 text-green-700"
+                          ? "bg-[#FF3130]/15 text-[#FF3130]"
+                          : "bg-[#83CD2D]/15 text-[#4a7a15]"
                       }`}
                     >
                       <span
                         className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
                           room.isOccupied
-                            ? "animate-pulse bg-red-500"
-                            : "bg-green-500"
+                            ? "animate-pulse bg-[#FF3130]"
+                            : "bg-[#83CD2D]"
                         }`}
                       ></span>
                       {room.isOccupied ? "Belegt" : "Frei"}
@@ -432,23 +597,22 @@ function RoomsPageContent() {
                     )}
                   </div>
 
-                  {/* Bottom section: Tap hint (always at bottom) */}
-                  <p className="mt-2 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
+                  <p className="mt-2 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-[#5080D8]">
                     Tippen für mehr Infos
                   </p>
 
-                  {/* Decorative elements */}
                   <div className="absolute top-4 left-4 h-4 w-4 animate-ping rounded-full bg-white/20"></div>
                   <div className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full bg-white/30"></div>
                 </div>
 
-                {/* Glowing border effect on hover */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-[#5080D8]/15 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
               </button>
             );
           })}
         </div>
       )}
+
+      <RoomDetailModal roomId={selectedRoomId} onClose={handleCloseDetail} />
     </div>
   );
 }

@@ -110,7 +110,22 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("database-students-list") ||
             key.includes("search-students-") ||
             key.includes("tracking-supervisions-") ||
-            key.includes("tracking-indicators-")),
+            key.includes("tracking-indicators-") ||
+            // Live "Kinder im Raum" view on /rooms/{id}. Cache key shape is
+            // "room-students-{roomId}" — see
+            // components/rooms/students-in-room-section.tsx. Student
+            // checkin/checkout events do not carry room_id, so we cannot
+            // narrow further here; refetching the section's SWR key is
+            // cheap and gives the page live data without polling.
+            // NOTE: includes() (not startsWith) — useSWRAuth prefixes keys
+            // with the tenant slug, so the real key is
+            // "<tenant>:room-students-1" and startsWith would never match.
+            key.includes("room-students-") ||
+            // Room header in the detail modal/subpage — supervisor,
+            // groupName, studentCount, isOccupied. Without this, the
+            // "Aktuell anwesend: X" InfoItem stays stale while the
+            // section above it refreshes (#1374).
+            key.includes("room-detail-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -192,7 +207,11 @@ export function useGlobalSSE(): SSEHookState {
           typeof key === "string" &&
           (key.includes("supervision") ||
             key.includes("active") ||
-            key.includes("rooms")),
+            key.includes("rooms") ||
+            // Detail modal/subpage header (#1374) — activity_start /
+            // activity_end change groupName/activityName/isOccupied,
+            // which the room summary in the modal reflects.
+            key.includes("room-detail-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),

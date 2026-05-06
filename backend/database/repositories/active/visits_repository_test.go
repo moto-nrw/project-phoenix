@@ -1227,3 +1227,159 @@ func TestVisitsRepository_GetCurrentByStudentIDs_Deduplication(t *testing.T) {
 		assert.Contains(t, visitMap, data.Student1.ID)
 	})
 }
+
+// ============================================================================
+// ListActiveStudentIDsByRoomID Tests
+// ============================================================================
+
+func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("returns IDs of currently checked-in students", func(t *testing.T) {
+		now := time.Now()
+		v1 := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-10 * time.Minute),
+		}
+		v2 := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-5 * time.Minute),
+		}
+		require.NoError(t, repo.Create(ctx, v1))
+		require.NoError(t, repo.Create(ctx, v2))
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", v1.ID)
+			testpkg.CleanupTableRecords(t, db, "active.visits", v2.ID)
+		}()
+
+		ids, err := repo.ListActiveStudentIDsByRoomID(ctx, data.Room)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []int64{data.Student1.ID, data.Student2.ID}, ids)
+	})
+
+	t.Run("excludes visits whose exit_time is set", func(t *testing.T) {
+		now := time.Now()
+		exitTime := now.Add(-2 * time.Minute)
+		open := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-10 * time.Minute),
+		}
+		closed := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-30 * time.Minute),
+			ExitTime:      &exitTime,
+		}
+		require.NoError(t, repo.Create(ctx, open))
+		require.NoError(t, repo.Create(ctx, closed))
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", open.ID)
+			testpkg.CleanupTableRecords(t, db, "active.visits", closed.ID)
+		}()
+
+		ids, err := repo.ListActiveStudentIDsByRoomID(ctx, data.Room)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{data.Student1.ID}, ids,
+			"a visit with exit_time IS NOT NULL must not surface — the student already left")
+	})
+
+	t.Run("excludes visits whose group has end_time set", func(t *testing.T) {
+		// New room + a closed active group on it. A visit with exit_time IS NULL
+		// should still be hidden because the session itself is over.
+		room := testpkg.CreateTestRoom(t, db, "EndedSessionRoom")
+		groupRepo := repositories.NewFactory(db).ActiveGroup
+		now := time.Now()
+		endTime := now.Add(-1 * time.Minute)
+		closedGroup := &active.Group{
+			StartTime:      now.Add(-1 * time.Hour),
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        base.Int64Ptr(data.ActivityGroup),
+			RoomID:         room.ID,
+			EndTime:        &endTime,
+		}
+		require.NoError(t, groupRepo.Create(ctx, closedGroup))
+		v := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: closedGroup.ID,
+			EntryTime:     now.Add(-30 * time.Minute),
+		}
+		require.NoError(t, repo.Create(ctx, v))
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", v.ID)
+			cleanupActiveGroupRecords(t, db, closedGroup.ID)
+			testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
+		}()
+
+		ids, err := repo.ListActiveStudentIDsByRoomID(ctx, room.ID)
+		require.NoError(t, err)
+		assert.Empty(t, ids,
+			"a visit attached to a group with end_time IS NOT NULL must not surface — the session is closed")
+	})
+
+	t.Run("returns empty for room with no active visits", func(t *testing.T) {
+		emptyRoom := testpkg.CreateTestRoom(t, db, "EmptyListRoom")
+		defer testpkg.CleanupActivityFixtures(t, db, emptyRoom.ID)
+
+		ids, err := repo.ListActiveStudentIDsByRoomID(ctx, emptyRoom.ID)
+		require.NoError(t, err)
+		assert.Empty(t, ids)
+	})
+
+	t.Run("respects tenant scoping", func(t *testing.T) {
+		// A visit is created in tenant 1; querying with tenant 2 context must
+		// return zero IDs. This pins the TenantWhere clause in the repo.
+		now := time.Now()
+		v := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now.Add(-1 * time.Minute),
+		}
+		require.NoError(t, repo.Create(ctx, v))
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", v.ID)
+
+		otherTenant := testpkg.TenantContext(2)
+		ids, err := repo.ListActiveStudentIDsByRoomID(otherTenant, data.Room)
+		require.NoError(t, err)
+		assert.Empty(t, ids,
+			"querying as tenant 2 must not see tenant 1's visits — RLS / tenant filter regression")
+	})
+
+	t.Run("aggregates students across multiple active groups in the same room", func(t *testing.T) {
+		// Same room can host more than one concurrent active group. The repo
+		// must union students across all of them.
+		groupRepo := repositories.NewFactory(db).ActiveGroup
+		now := time.Now()
+		secondGroup := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        base.Int64Ptr(data.ActivityGroup),
+			RoomID:         data.Room,
+		}
+		require.NoError(t, groupRepo.Create(ctx, secondGroup))
+
+		v1 := &active.Visit{StudentID: data.Student1.ID, ActiveGroupID: data.ActiveGroup.ID, EntryTime: now}
+		v2 := &active.Visit{StudentID: data.Student2.ID, ActiveGroupID: secondGroup.ID, EntryTime: now}
+		require.NoError(t, repo.Create(ctx, v1))
+		require.NoError(t, repo.Create(ctx, v2))
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", v1.ID)
+			testpkg.CleanupTableRecords(t, db, "active.visits", v2.ID)
+			cleanupActiveGroupRecords(t, db, secondGroup.ID)
+		}()
+
+		ids, err := repo.ListActiveStudentIDsByRoomID(ctx, data.Room)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []int64{data.Student1.ID, data.Student2.ID}, ids)
+	})
+}

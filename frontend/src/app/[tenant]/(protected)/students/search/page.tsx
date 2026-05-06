@@ -83,6 +83,12 @@ function SearchPageContent() {
     ? initialStatus
     : "all";
 
+  // Room filter — populated when the user lands here from the room detail
+  // page's "In Kindersuche öffnen" link (#1323). room_name is purely a
+  // display affordance for the chip; the backend filter only uses room_id.
+  const initialRoomId = searchParams.get("room_id") ?? "";
+  const initialRoomName = searchParams.get("room_name") ?? "";
+
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
@@ -94,6 +100,8 @@ function SearchPageContent() {
   const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
   const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>("all");
   const [sortMode, setSortMode] = useState<"default" | "arrival">("default");
+  const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
+  const [selectedRoomName, setSelectedRoomName] = useState(initialRoomName);
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -148,7 +156,7 @@ function SearchPageContent() {
 
   // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)
   // Note: User context is only for badge styling, not for fetching students
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}`;
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -161,6 +169,15 @@ function SearchPageContent() {
       return await studentService.getStudents({
         search: debouncedSearchTerm,
         groupId: selectedGroup,
+        roomId: selectedRoomId || undefined,
+        // When filtering by room, this page is the "see all" target the
+        // room-detail modal links to (#1374). The modal itself caps at
+        // 200 cards and shows a truncation notice; this page must show
+        // every occupant so the overflow link actually delivers.
+        // 1000 covers any realistic combined-group / assembly-room
+        // session well above what backend ParsePagination would return
+        // by default (50). General search keeps the default.
+        pageSize: selectedRoomId ? 1000 : undefined,
         includePickupTimes: true,
         includeArrivalTimes: true,
       });
@@ -171,6 +188,29 @@ function SearchPageContent() {
     },
   );
 
+  // Clearing the room filter resets state AND strips room_id/room_name from
+  // the URL so a refresh doesn't silently re-hydrate a filter the user has
+  // just removed. window.history.replaceState avoids a Next.js navigation,
+  // which would discard SWR data and flash the loading skeleton. Merge into
+  // the existing state object instead of replacing it — App Router stashes
+  // routing metadata (scroll restoration, RSC cache keys) on
+  // window.history.state, and clobbering it with `{}` can degrade browser
+  // back/forward into a hard reload for this entry.
+  const clearRoomFilter = () => {
+    setSelectedRoomId("");
+    setSelectedRoomName("");
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("room_id");
+      url.searchParams.delete("room_name");
+      window.history.replaceState(
+        window.history.state ?? null,
+        "",
+        url.toString(),
+      );
+    }
+  };
+
   const students = studentsData?.students ?? [];
 
   // Tracking indicators for student cards
@@ -180,7 +220,7 @@ function SearchPageContent() {
   );
   const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
     trackingStudentIds.length > 0
-      ? `tracking-indicators-${debouncedSearchTerm}-${selectedGroup}`
+      ? `tracking-indicators-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}`
       : null,
     async () => activeService.getTrackingIndicators(trackingStudentIds),
     { keepPreviousData: true, revalidateOnFocus: false },
@@ -307,6 +347,34 @@ function SearchPageContent() {
           { value: "none", label: "Keine Abholzeit" },
         ],
       },
+      // Room (#1323): only surfaces when a deep-link from a room detail
+      // page set ?room_id=…. Following the established pattern of this
+      // page (every active filter must be clearable through the filter
+      // sheet, since activeFilterDisplay="count" hides chips), the room
+      // appears here with two options — its own value plus "Alle Räume"
+      // to clear. Same UX a user would use to clear a Dashboard "Krank"
+      // deep-link via the Anwesenheit dropdown.
+      ...(selectedRoomId
+        ? [
+            {
+              id: "room",
+              label: "Raum",
+              type: "dropdown" as const,
+              value: selectedRoomId,
+              onChange: (value: string | string[]) => {
+                const v = Array.isArray(value) ? value[0] : value;
+                if (!v) clearRoomFilter();
+              },
+              options: [
+                {
+                  value: selectedRoomId,
+                  label: selectedRoomName || `Raum #${selectedRoomId}`,
+                },
+                { value: "", label: "Alle Räume" },
+              ],
+            },
+          ]
+        : []),
       ...(trackingLabels && trackingLabels.length > 0
         ? [
             {
@@ -338,6 +406,8 @@ function SearchPageContent() {
       groups,
       studentsData,
       sortMode,
+      selectedRoomId,
+      selectedRoomName,
     ],
   );
 
@@ -368,6 +438,19 @@ function SearchPageContent() {
         id: "group",
         label: groupName,
         onRemove: () => setSelectedGroup(""),
+      });
+    }
+
+    if (selectedRoomId) {
+      // Fall back to "Raum #{id}" when no room_name was passed in the URL
+      // (e.g. an old bookmark) — better than rendering an empty chip.
+      const label = selectedRoomName
+        ? `Raum: ${selectedRoomName}`
+        : `Raum #${selectedRoomId}`;
+      filters.push({
+        id: "room",
+        label,
+        onRemove: clearRoomFilter,
       });
     }
 
@@ -418,6 +501,8 @@ function SearchPageContent() {
     trackingFilter,
     trackingLabels,
     groups,
+    selectedRoomId,
+    selectedRoomName,
   ]);
 
   // Apply additional client-side filtering for attendance statuses and year
@@ -599,6 +684,7 @@ function SearchPageContent() {
             setAttendanceFilter("all");
             setPickupTimeFilter("all");
             setTrackingFilter("all");
+            clearRoomFilter();
           }}
         />
       </div>
@@ -691,6 +777,33 @@ function SearchPageContent() {
               </div>
             );
           }
+          // Preserve the active room filter in the back-link so stepping
+          // from a room → child → back returns to the same filtered list
+          // (#1323). Plain `/students/search` would drop room_id/room_name.
+          // Encoding is only needed when a query string is appended; the
+          // bare path stays unencoded so existing call sites/tests keep
+          // matching the established `from=/students/search` shape.
+          //
+          // Also forward `?status=` (attendanceFilter) — it is the only
+          // URL-rehydrating refinement on this page beyond the room
+          // filter, and the dashboard deep-links here with it. Without
+          // forwarding it, drilling into a child after narrowing by
+          // status silently broadens the result set on back. The other
+          // local refinements (search term, group, year, pickup,
+          // tracking, sort) are not URL-rehydrated on this page, so
+          // forwarding them would not survive the remount anyway.
+          const buildFromParam = (() => {
+            const statusFilter =
+              attendanceFilter !== "all" ? attendanceFilter : "";
+            if (!selectedRoomId && !statusFilter) return "/students/search";
+            const qs = new URLSearchParams();
+            if (selectedRoomId) {
+              qs.set("room_id", selectedRoomId);
+              if (selectedRoomName) qs.set("room_name", selectedRoomName);
+            }
+            if (statusFilter) qs.set("status", statusFilter);
+            return encodeURIComponent(`/students/search?${qs.toString()}`);
+          })();
           return (
             <div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
@@ -707,7 +820,7 @@ function SearchPageContent() {
                       lastName={student.second_name}
                       onClick={() =>
                         router.push(
-                          `/students/${student.id}?from=/students/search`,
+                          `/students/${student.id}?from=${buildFromParam}`,
                         )
                       }
                       checkinMode={isBinaryMode && schoolCheckin.isActive}

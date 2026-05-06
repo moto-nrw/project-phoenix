@@ -17,11 +17,17 @@ type studentListParams struct {
 	lastName            string
 	location            string
 	groupID             int64
+	roomID              int64
 	search              string
 	page                int
 	pageSize            int
 	includePickupTimes  bool
 	includeArrivalTimes bool
+	// studentIDs is an optional pre-filter populated by upstream resolution
+	// (e.g., room_id → active visits) before the SQL list query runs. When
+	// set, buildBaseFilter adds `student.id IN (...)` so the standard
+	// school_class / guardian_name / pagination pipeline still applies.
+	studentIDs []int64
 }
 
 // studentAccessContext is an alias for the shared common.StudentAccessContext
@@ -43,6 +49,16 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 	if groupIDStr := r.URL.Query().Get("group_id"); groupIDStr != "" {
 		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
 			params.groupID = groupID
+		}
+	}
+
+	// Parse room ID if provided. Filters the list to students currently
+	// checked-in to any active group taking place in this room (joins via
+	// active.visits → active.groups). Used by the "In Kindersuche öffnen"
+	// link from the room detail page (#1323).
+	if roomIDStr := r.URL.Query().Get("room_id"); roomIDStr != "" {
+		if roomID, err := strconv.ParseInt(roomIDStr, 10, 64); err == nil {
+			params.roomID = roomID
 		}
 	}
 
@@ -69,6 +85,13 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")
+	}
+	if len(p.studentIDs) > 0 {
+		ids := make([]interface{}, len(p.studentIDs))
+		for i, id := range p.studentIDs {
+			ids[i] = id
+		}
+		filter.In("id", ids...)
 	}
 	return filter
 }

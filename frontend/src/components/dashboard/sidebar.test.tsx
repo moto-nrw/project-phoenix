@@ -355,6 +355,34 @@ describe("Sidebar", () => {
       expect(searchLink).toHaveClass("bg-gray-100");
     });
 
+    it("highlights rooms when coming from a room detail page", () => {
+      mockUsePathname.mockReturnValue("/students/321");
+      const mockGet = vi.fn((key: string) =>
+        key === "from" ? "/rooms/42" : null,
+      );
+      mockUseSearchParams.mockReturnValue(createMockSearchParams(mockGet));
+
+      render(<Sidebar />);
+
+      const roomsLink = screen.getByText("Räume").closest("a");
+      expect(roomsLink).toHaveClass("bg-gray-100");
+    });
+
+    it("highlights rooms when coming from the room detail modal", () => {
+      // Modal flow at /rooms?room={id} (#1374) — sidebar highlight has
+      // to match the legacy subpage drill-in for the same UX.
+      mockUsePathname.mockReturnValue("/students/321");
+      const mockGet = vi.fn((key: string) =>
+        key === "from" ? "/rooms?room=42" : null,
+      );
+      mockUseSearchParams.mockReturnValue(createMockSearchParams(mockGet));
+
+      render(<Sidebar />);
+
+      const roomsLink = screen.getByText("Räume").closest("a");
+      expect(roomsLink).toHaveClass("bg-gray-100");
+    });
+
     it("defaults to student search when no from param", () => {
       mockUsePathname.mockReturnValue("/students/100");
       mockUseSearchParams.mockReturnValue(createMockSearchParams(() => null));

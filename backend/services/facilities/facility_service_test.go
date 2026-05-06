@@ -163,6 +163,44 @@ func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
+
+	t.Run("aggregates summary across all active groups in the room", func(t *testing.T) {
+		// ARRANGE — two concurrent active groups in one room (Schulhof
+		// Freispiel + Garten, Sporthalle combined groups, etc). Each
+		// group has its own checked-in student so the count must sum
+		// across groups, not pick one arbitrarily (#1374).
+		room := testpkg.CreateTestRoom(t, db, "Occupancy-MultiGroup")
+		ag1 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup-A")
+		ag2 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup-B")
+		active1 := testpkg.CreateTestActiveGroup(t, db, ag1.ID, room.ID)
+		active2 := testpkg.CreateTestActiveGroup(t, db, ag2.ID, room.ID)
+
+		student1 := testpkg.CreateTestStudent(t, db, "MGStu", "One", "1a")
+		student2 := testpkg.CreateTestStudent(t, db, "MGStu", "Two", "1a")
+		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, active1.ID, time.Now(), nil)
+		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, active2.ID, time.Now(), nil)
+
+		defer testpkg.CleanupActivityFixtures(
+			t, db,
+			room.ID, ag1.ID, ag2.ID, active1.ID, active2.ID,
+			student1.ID, student2.ID, visit1.ID, visit2.ID,
+		)
+
+		// ACT
+		result, err := service.GetRoomWithOccupancy(ctx, room.ID)
+
+		// ASSERT — count must sum (2), not pick one (1).
+		require.NoError(t, err)
+		assert.True(t, result.IsOccupied)
+		assert.Equal(t, 2, result.StudentCount,
+			"student count must sum across all active groups in the room")
+		require.NotNil(t, result.GroupName)
+		// Both group names must appear in the aggregated label so the
+		// header doesn't silently disagree with the merged "Kinder im
+		// Raum" section. ORDER BY in the SQL keeps this deterministic.
+		assert.Contains(t, *result.GroupName, "MultiGroup-A")
+		assert.Contains(t, *result.GroupName, "MultiGroup-B")
+	})
 }
 
 // ============================================================================
