@@ -30,6 +30,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/feedback"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
+	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
@@ -98,6 +99,9 @@ type Factory struct {
 	EnrollmentRequest      enrollment.RequestService
 	EnrollmentPhase        enrollment.PhaseService
 	EnrollmentDecision     enrollment.DecisionService
+
+	// Parent (cross-tenant guardian portal — PR 9)
+	Parent parent.Service
 }
 
 // NewFactory creates a new services factory
@@ -731,6 +735,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                   logger.With("service", "enrollment-decision"),
 	})
 
+	parentService := parent.NewService(parent.ServiceConfig{
+		ChildRepo: repos.ParentChild,
+		DB:        db,
+		Logger:    logger.With("service", "parent"),
+	})
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
@@ -808,5 +818,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentRequest:      enrollmentRequestService,
 		EnrollmentPhase:        enrollmentPhaseService,
 		EnrollmentDecision:     enrollmentDecisionService,
+
+		Parent: parentService,
 	}, nil
 }

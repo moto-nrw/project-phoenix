@@ -405,7 +405,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// side effects (e.g. auto-creating the Schulhof/WC rooms when the
 	// corresponding checkout toggle flips on).
 	api.Operator.OnSettingValueSet(onSettingValueSet)
-	api.Parent = parentAPI.NewResource(api.Services.Auth, db)
+	api.Parent = parentAPI.NewResource(api.Services.Auth, api.Services.Parent, db)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware

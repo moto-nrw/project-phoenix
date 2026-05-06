@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
+	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	suggestionsRepo "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
@@ -26,6 +27,7 @@ import (
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
@@ -151,6 +153,9 @@ type Factory struct {
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
 	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
 	Phase                enrollmentModels.PhaseRepository
+
+	// Parent domain (cross-tenant guardian portal — PR 9)
+	ParentChild parentModels.ChildRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -271,5 +276,8 @@ func NewFactory(db *bun.DB) *Factory {
 		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
 		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                enrollment.NewPhaseRepository(db),
+
+		// Parent (cross-tenant guardian portal — PR 9)
+		ParentChild: parentRepo.NewChildRepository(db),
 	}
 }

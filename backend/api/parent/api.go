@@ -24,19 +24,26 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
 // Resource bundles the parent-portal HTTP handlers + their deps.
 type Resource struct {
-	AuthService authService.AuthService
-	db          *bun.DB
+	AuthService   authService.AuthService
+	ParentService parentService.Service
+	db            *bun.DB
 }
 
 // NewResource builds the parent-portal resource.
-func NewResource(auth authService.AuthService, db *bun.DB) *Resource {
+func NewResource(
+	auth authService.AuthService,
+	parent parentService.Service,
+	db *bun.DB,
+) *Resource {
 	return &Resource{
-		AuthService: auth,
-		db:          db,
+		AuthService:   auth,
+		ParentService: parent,
+		db:            db,
 	}
 }
 
@@ -62,7 +69,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.ParentMiddleware)
 
-		// Routes added by commit 5 (cross-tenant children list, etc.)
+		// Cross-tenant children list — every student the parent is
+		// linked to, across every active tenant mapping. Account id
+		// is read from claims, never from URL or body.
+		r.Get("/me/children", rs.listMyChildren)
 	})
 
 	return r
