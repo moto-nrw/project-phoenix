@@ -196,3 +196,71 @@ docker compose exec -T postgres psql -U postgres -c \
    LEFT JOIN auth.roles r ON r.id = ar.role_id
    WHERE a.email = 'test@mail.de';"
 ```
+
+---
+
+## PR 11 — Embedded enrollment for logged-in parents
+
+PR 11 adds the "Neue Anmeldung" path inside the parents portal: cross-tenant
+school picker + the existing public enrollment form embedded under the parent
+session, with autofill, captcha skipped, and the invitation queue
+short-circuited when the request gets approved.
+
+Run these steps after the PR 9 smoke test passes.
+
+### Step 9 — School picker
+
+1. Log in at `http://parents.localhost:3000/parents/login`.
+2. From the dashboard, click **+ Neue Anmeldung** (top-right).
+3. URL should change to `/parents/enroll`. The page lists every (school, open
+   phase) pair the parent could submit a new enrollment to.
+4. Schools where the parent already has a child show a green
+   **"Bereits ein Kind angemeldet"** badge and appear at the top of the list.
+
+If the list is empty, no school has an open enrollment phase right now —
+either set `ph.is_active=true` and clear `enrollment_close_at`, or open a phase
+in the admin UI under Anmeldungen → Phasen.
+
+### Step 10 — Embedded form + autofill
+
+1. Click any phase card. URL becomes `/parents/enroll/{slug}/{phaseId}`.
+2. The same form the public path uses appears, but **guardian fields are
+   prefilled** (first name, last name, email, primary phone if set on the
+   guardian profile in that school).
+3. Existing children already linked to the guardian appear as a panel above
+   the child cards — clicking **Übernehmen** copies first/last/grade into a
+   form slot.
+4. The captcha widget should be **absent** — parent JWT is the trust signal.
+
+If autofill is missing, check that `/api/parent/enrollments/{slug}/profile`
+returns 200 (DevTools → Network).
+
+### Step 11 — Authenticated submit + skip-invite
+
+1. Fill in any missing required fields (DOB, consents) and submit.
+2. The browser routes to `/enroll/status/{token}?submitted=1` (the public
+   status URL the form generates — same as the public path).
+3. Inspect the resulting `enrollment.requests` row:
+   ```bash
+   docker compose exec -T postgres psql -U postgres -c \
+     "SELECT id, guardian_email, guardian_account_id, submitted_at
+      FROM enrollment.requests ORDER BY id DESC LIMIT 1;"
+   ```
+   `guardian_account_id` should match the parent's account id (NOT NULL).
+4. Approve the request from the admin UI (or via the decision endpoint).
+5. Outbox should NOT contain a fresh `guardian_invitation` row for this
+   parent — the decision service skipped the invitation because the
+   `guardian_account_id` was already attached:
+   ```bash
+   docker compose exec -T postgres psql -U postgres -c \
+     "SELECT id, kind, status, created_at FROM platform.email_outbox
+      WHERE kind = 'guardian_invitation' ORDER BY id DESC LIMIT 5;"
+   ```
+   The most recent row should be older than the just-submitted request.
+6. The new tenant should appear in `auth.account_tenants` for the parent's
+   account with `status = 'active'`.
+
+If you DO see a fresh invitation row, the by-ID attach silently fell through
+to the email path — check the server logs for
+`decision: linked approval to existing global account` and confirm the
+`via_request_account_id=true` field is set.

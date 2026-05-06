@@ -79,6 +79,8 @@ Each portal runs as its own NextAuth instance with a host-only cookie + dedicate
 - `auth/jwt/TenantMiddleware` rejects `scope=parent` tokens with 401 (defense-in-depth on top of cookie isolation).
 - `auth/jwt/ParentMiddleware` rejects everything except `scope=parent`; mounted on `/parent/*` protected routes.
 
+**Embedded enrollment** (PR 11): the parents portal serves the public enrollment form at `/parents/enroll/{slug}/{phaseId}` via the same `EnrollmentForm` component used by `{slug}.TENANT_DOMAIN/enroll/{phaseId}`. The form takes optional `profileFetcher`, `submitter`, and `skipCaptcha` props so the parent path swaps in `/api/parent/enrollments/{slug}/{profile,submit}` (parent JWT, captcha skipped) without any duplication. Parent-authenticated submits stamp `enrollment.requests.guardian_account_id`; the decision service prefers attaching by ID over the email-based path so the existing-account skip-invite optimization fires cleanly even if the parent edits the email field on the form.
+
 ### Key Env Vars
 
 | Var | Purpose |
