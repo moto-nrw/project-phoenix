@@ -617,9 +617,8 @@ export function parseTimeToMinutes(time: string): number {
 /**
  * Pixel coordinates for a single event block within a day column.
  *
- * - `top` is offset from the grid's hour 0 line (i.e. the `dayStartHour`
- *   gridline). May be negative if the event starts before `dayStartHour` —
- *   the grid is expected to clip with overflow:auto and let the user scroll.
+ * - `top` is offset from the grid's first rendered hour line. Callers should
+ *   pass a dayStartHour that includes any off-hours events they want reachable.
  * - `height` is clamped to `MIN_BLOCK_HEIGHT_PX` so 5-minute events stay
  *   tappable.
  */

@@ -167,6 +167,29 @@ func (h *Hub) BroadcastToAll(event Event) error {
 	return nil
 }
 
+// BroadcastToTenant sends an event to every connected client for one tenant,
+// regardless of group subscriptions.
+func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for client := range h.clients {
+		if client.TenantID != tenantID {
+			continue
+		}
+		select {
+		case client.Channel <- event:
+		default:
+			h.getLogger().Warn("SSE client channel full, skipping broadcast-to-tenant",
+				slog.Int64("user_id", client.UserID),
+				slog.Int64("tenant_id", tenantID),
+				slog.String("event_type", string(event.Type)),
+			)
+		}
+	}
+	return nil
+}
+
 // GetClientCount returns the total number of connected clients (for monitoring)
 func (h *Hub) GetClientCount() int {
 	h.mu.RLock()

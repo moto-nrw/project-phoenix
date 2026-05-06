@@ -158,6 +158,38 @@ func TestListInstances_HappyPath(t *testing.T) {
 	assert.Equal(t, 0, item.PresentStudentsCount)
 }
 
+func TestListInstances_CompletedBridgeIsNotLive(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+	template := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("List-Live-Template-%d", time.Now().UnixNano()))
+	activeGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, s.db, tenant.FromContext(s.ctx), template.ID, s.roomID)
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &template.ID,
+		ActiveGroupID:   &activeGroup.ID,
+		Status:          schedule.InstanceStatusCompleted,
+		StartHHMM:       "12:00",
+		EndHHMM:         "13:00",
+		Title:           "Completed historical bridge",
+	})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", activeGroup.ID)
+		testpkg.CleanupActivityFixtures(t, s.db, template.ID)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	assert.Equal(t, schedule.InstanceStatusCompleted, got.Instances[0].Status)
+	assert.False(t, got.Instances[0].IsLive)
+}
+
 func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	s := buildListSetup(t)
 	defer s.cleanupFn()

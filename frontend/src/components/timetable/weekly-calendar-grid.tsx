@@ -23,6 +23,7 @@ import {
   getEventBlockPosition,
   getGermanWeekdayShort,
   groupInstancesByDate,
+  parseTimeToMinutes,
   toISODate,
 } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
@@ -62,11 +63,31 @@ export function WeeklyCalendarGrid({
   emptyState,
 }: WeeklyCalendarGridProps) {
   const grouped = groupInstancesByDate(instances);
+  const eventStarts = instances
+    .map((instance) => parseTimeToMinutes(instance.startTime))
+    .filter((minutes) => Number.isFinite(minutes));
+  const eventEnds = instances
+    .map((instance) => parseTimeToMinutes(instance.endTime))
+    .filter((minutes) => Number.isFinite(minutes));
+  const renderStartHour =
+    eventStarts.length > 0
+      ? Math.max(
+          0,
+          Math.min(dayStartHour, Math.floor(Math.min(...eventStarts) / 60)),
+        )
+      : dayStartHour;
+  const renderEndHour =
+    eventEnds.length > 0
+      ? Math.min(
+          24,
+          Math.max(dayEndHour, Math.ceil(Math.max(...eventEnds) / 60)),
+        )
+      : dayEndHour;
   const hours = Array.from(
-    { length: dayEndHour - dayStartHour + 1 },
-    (_, i) => dayStartHour + i,
+    { length: renderEndHour - renderStartHour + 1 },
+    (_, i) => renderStartHour + i,
   );
-  const gridHeightPx = (dayEndHour - dayStartHour) * hourHeightPx;
+  const gridHeightPx = (renderEndHour - renderStartHour) * hourHeightPx;
 
   // Re-render every minute so the now-line moves smoothly.
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -149,7 +170,11 @@ export function WeeklyCalendarGrid({
             const dayInstances = grouped.get(iso) ?? [];
             const laned = assignBlockLanes(dayInstances);
             const nowOffset = isToday
-              ? getCurrentTimeOffset(hourHeightPx, dayStartHour, dayEndHour)
+              ? getCurrentTimeOffset(
+                  hourHeightPx,
+                  renderStartHour,
+                  renderEndHour,
+                )
               : null;
 
             return (
@@ -160,7 +185,7 @@ export function WeeklyCalendarGrid({
               >
                 {/* Hour grid lines */}
                 {hours.slice(1, -1).map((hour) => {
-                  const top = (hour - dayStartHour) * hourHeightPx;
+                  const top = (hour - renderStartHour) * hourHeightPx;
                   return (
                     <div
                       key={hour}
@@ -173,7 +198,7 @@ export function WeeklyCalendarGrid({
                 {/* Half-hour grid lines (lighter) */}
                 {hours.slice(0, -1).map((hour) => {
                   const top =
-                    (hour - dayStartHour) * hourHeightPx + hourHeightPx / 2;
+                    (hour - renderStartHour) * hourHeightPx + hourHeightPx / 2;
                   return (
                     <div
                       key={`half-${hour}`}
@@ -189,7 +214,7 @@ export function WeeklyCalendarGrid({
                     instance.startTime,
                     instance.endTime,
                     hourHeightPx,
-                    dayStartHour,
+                    renderStartHour,
                   );
                   const widthPct = 100 / laneCount;
                   return (

@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // createInstanceRequest is the JSON body accepted by POST /instances.
@@ -134,8 +135,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		CreatedByStaffID: createdByPtr,
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"create instance failed", err))
+		renderCreateInstanceError(w, r, err)
 		return
 	}
 
@@ -162,4 +162,30 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusCreated, enriched, "Instance created")
+}
+
+func renderCreateInstanceError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case isUniqueViolationOnConstraint(err, "idx_activity_instances_template_unique"):
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("instance already exists for this template/date/start_time"),
+			"duplicate_instance",
+		))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"create instance failed", err))
+	}
+}
+
+func isUniqueViolationOnConstraint(err error, constraintName string) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr pgdriver.Error
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Field('C') == "23505" && pgErr.Field('n') == constraintName
 }

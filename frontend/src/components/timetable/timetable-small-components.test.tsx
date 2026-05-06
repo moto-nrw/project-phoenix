@@ -275,4 +275,48 @@ describe("small timetable components", () => {
     expect(onMonthClick).toHaveBeenCalledWith(new Date("2026-05-01T00:00:00"));
     expect(onDayClick).toHaveBeenCalledWith("2026-05-04");
   });
+
+  it("keeps week events outside configured hours reachable", () => {
+    const weekDays = [
+      new Date("2026-05-04T00:00:00"),
+      new Date("2026-05-05T00:00:00"),
+      new Date("2026-05-06T00:00:00"),
+      new Date("2026-05-07T00:00:00"),
+      new Date("2026-05-08T00:00:00"),
+    ];
+    const early: EnrichedInstance = {
+      ...instance,
+      id: "early",
+      title: "Frühtermin",
+      startTime: "08:00",
+      endTime: "09:00",
+    };
+    const late: EnrichedInstance = {
+      ...instance,
+      id: "late",
+      title: "Spättermin",
+      startTime: "18:30",
+      endTime: "19:00",
+    };
+
+    render(
+      <WeeklyCalendarGrid
+        weekDays={weekDays}
+        instances={[early, late]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={60}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /frühtermin/i })).toHaveStyle({
+      top: "0px",
+    });
+    expect(screen.getByRole("button", { name: /spättermin/i })).toHaveStyle({
+      top: "630px",
+    });
+  });
 });

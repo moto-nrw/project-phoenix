@@ -28,9 +28,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// spyBroadcaster captures BroadcastToAll calls for assertions. BroadcastToGroup
-// is not exercised by the overdue tick (instances are still planned → no
-// active.group yet) but we implement it for the interface.
+// spyBroadcaster captures tenant broadcasts for assertions. BroadcastToGroup is
+// not exercised by the overdue tick (instances are still planned → no
+// active.group yet), and BroadcastToAll is implemented only for the interface.
 type spyBroadcaster struct {
 	mu   sync.Mutex
 	all  []realtime.Event
@@ -48,6 +48,14 @@ func (b *spyBroadcaster) BroadcastToGroup(_ int64, _ string, e realtime.Event) e
 	return nil
 }
 func (b *spyBroadcaster) BroadcastToAll(e realtime.Event) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.fail {
+		return fmt.Errorf("forced failure")
+	}
+	return nil
+}
+func (b *spyBroadcaster) BroadcastToTenant(_ int64, e realtime.Event) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.all = append(b.all, e)

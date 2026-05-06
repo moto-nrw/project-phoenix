@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,10 +23,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -245,6 +249,58 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 	s.mock.createErr = errors.New("insert failed")
 	errW := doCreate(t, router, body)
 	assert.Equal(t, http.StatusInternalServerError, errW.Code)
+
+	s.mock.createErr = fmt.Errorf("wrapped: %w", scheduleSvc.ErrInvalidInstanceReference)
+	refW := doCreate(t, router, body)
+	assert.Equal(t, http.StatusBadRequest, refW.Code)
+}
+
+func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Dupe-Room-%d", suffix))
+	template := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Create-Dupe-Template-%d", suffix))
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().
+			TableExpr("schedule.activity_instances").
+			Where("activity_group_id = ?", template.ID).
+			Where("tenant_id = ?", tenant.FromContext(ctx)).
+			Exec(ctx)
+		testpkg.CleanupActivityFixtures(t, db, template.ID, room.ID)
+	})
+
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	require.NoError(t, err)
+	res := NewResource(Dependencies{
+		ActivityInstanceRepo: repoFactory.ActivityInstance,
+		InstanceStaffRepo:    repoFactory.InstanceStaff,
+		InstanceStudentRepo:  repoFactory.InstanceStudent,
+		RoomRepo:             repoFactory.Room,
+		ActivityGroupRepo:    repoFactory.ActivityGroup,
+		InstanceService:      serviceFactory.Instance,
+		DB:                   db,
+	})
+	router := createRouter(ctx, res)
+
+	body := map[string]any{
+		"date":              time.Now().AddDate(0, 0, 1).Format("2006-01-02"),
+		"start_time":        "10:00",
+		"end_time":          "11:00",
+		"title":             "Duplicate slot",
+		"room_id":           room.ID,
+		"activity_group_id": template.ID,
+	}
+
+	first := doCreate(t, router, body)
+	require.Equal(t, http.StatusCreated, first.Code, "body=%s", first.Body.String())
+
+	second := doCreate(t, router, body)
+	assert.Equal(t, http.StatusConflict, second.Code, "body=%s", second.Body.String())
+	assert.Contains(t, second.Body.String(), "duplicate_instance")
 }
 
 func TestCreateInstance_UnwiredResource(t *testing.T) {

@@ -255,7 +255,7 @@ func (rs *Resource) enrichInstance(
 		Notes:                 inst.Notes,
 		Status:                inst.Status,
 		IsSpontaneous:         inst.IsSpontaneous,
-		IsLive:                inst.ActiveGroupID != nil,
+		IsLive:                inst.Status == scheduleModel.InstanceStatusActive && inst.ActiveGroupID != nil,
 		ActivityGroupID:       inst.ActivityGroupID,
 		ActivityType:          activityType,
 		RoomID:                inst.RoomID,

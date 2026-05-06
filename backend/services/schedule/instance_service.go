@@ -35,6 +35,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -51,6 +52,11 @@ var (
 	// this to 409. The error message carries the current status so clients
 	// can show a useful diagnostic without re-fetching.
 	ErrInvalidInstanceTransition = errors.New("invalid instance transition")
+
+	// ErrInvalidInstanceReference is returned when a caller supplies a
+	// tenant-scoped foreign id that does not resolve in the current tenant.
+	// Handlers map this to 400.
+	ErrInvalidInstanceReference = errors.New("invalid instance reference")
 )
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -123,8 +129,7 @@ type ReplanWeekResult struct {
 }
 
 // InstanceServiceDependencies aggregates wiring. All repo fields are required;
-// the optional-ish ones are Broadcaster (nil → no SSE), RoomRepo and
-// ActivityGroupRepo (nil → SSE lacks human-readable names, not a failure).
+// Broadcaster is optional (nil → no SSE).
 type InstanceServiceDependencies struct {
 	InstanceRepo      scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
@@ -134,6 +139,8 @@ type InstanceServiceDependencies struct {
 	VisitRepo         activeModel.VisitRepository
 	RoomRepo          facilitiesModel.RoomRepository
 	ActivityGroupRepo activitiesModel.GroupRepository
+	StaffRepo         usersModel.StaffRepository
+	StudentRepo       usersModel.StudentRepository
 	ActiveService     ActiveSessionEnder
 	Materialization   MaterializationService
 	Broadcaster       realtime.Broadcaster
@@ -145,13 +152,19 @@ type instanceService struct {
 	deps InstanceServiceDependencies
 }
 
+type tenantBroadcaster interface {
+	BroadcastToTenant(tenantID int64, event realtime.Event) error
+}
+
 // NewInstanceService constructs an InstanceService. Panics if a required
 // dependency is nil — the service has no sensible degraded mode for lifecycle
 // transitions, so the factory must wire it completely at startup.
 func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
-		deps.ActiveService == nil || deps.Materialization == nil || deps.DB == nil {
+		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
+		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
+		deps.DB == nil {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
 	return &instanceService{deps: deps}
@@ -378,6 +391,9 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 	if tenantID <= 0 {
 		return nil, &ScheduleError{Op: "create instance", Err: errors.New("no tenant in context")}
 	}
+	if err := s.validateInstanceReferences(ctx, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, req.CreatedByStaffID); err != nil {
+		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
+	}
 
 	inst := &scheduleModel.ActivityInstance{
 		Date:            req.Date,
@@ -447,6 +463,9 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
+	if err := s.validateInstanceReferences(ctx, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
+		return nil, &ScheduleError{Op: "update instance: validate references", Err: err}
+	}
 
 	instance.Date = req.Date
 	instance.StartTime = req.StartTime
@@ -505,6 +524,75 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		}
 	}
 	return instance, nil
+}
+
+func (s *instanceService) validateInstanceReferences(
+	ctx context.Context,
+	roomID int64,
+	activityGroupID *int64,
+	staffIDs []int64,
+	studentIDs []int64,
+	createdByStaffID *int64,
+) error {
+	if roomID <= 0 {
+		return fmt.Errorf("%w: invalid room_id", ErrInvalidInstanceReference)
+	}
+	if room, err := s.deps.RoomRepo.FindByID(ctx, roomID); err != nil || room == nil {
+		if err != nil && !isNotFoundDBError(err) {
+			return fmt.Errorf("validate room_id: %w", err)
+		}
+		return fmt.Errorf("%w: invalid room_id", ErrInvalidInstanceReference)
+	}
+
+	if activityGroupID != nil {
+		if *activityGroupID <= 0 {
+			return fmt.Errorf("%w: invalid activity_group_id", ErrInvalidInstanceReference)
+		}
+		group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
+		if err != nil || group == nil {
+			if err != nil && !isNotFoundDBError(err) {
+				return fmt.Errorf("validate activity_group_id: %w", err)
+			}
+			return fmt.Errorf("%w: invalid activity_group_id", ErrInvalidInstanceReference)
+		}
+	}
+
+	uniqueStaffIDs := uniquePositiveInt64(staffIDs)
+	if len(uniqueStaffIDs) > 0 {
+		found, err := s.deps.StaffRepo.FindByIDs(ctx, uniqueStaffIDs)
+		if err != nil {
+			return fmt.Errorf("validate staff_ids: %w", err)
+		}
+		if len(found) != len(uniqueStaffIDs) {
+			return fmt.Errorf("%w: invalid staff_ids", ErrInvalidInstanceReference)
+		}
+	}
+
+	if createdByStaffID != nil {
+		if *createdByStaffID <= 0 {
+			return fmt.Errorf("%w: invalid created_by_staff_id", ErrInvalidInstanceReference)
+		}
+		staff, err := s.deps.StaffRepo.FindByID(ctx, *createdByStaffID)
+		if err != nil || staff == nil {
+			if err != nil && !isNotFoundDBError(err) {
+				return fmt.Errorf("validate created_by_staff_id: %w", err)
+			}
+			return fmt.Errorf("%w: invalid created_by_staff_id", ErrInvalidInstanceReference)
+		}
+	}
+
+	uniqueStudentIDs := uniquePositiveInt64(studentIDs)
+	if len(uniqueStudentIDs) > 0 {
+		found, err := s.deps.StudentRepo.FindByIDs(ctx, uniqueStudentIDs)
+		if err != nil {
+			return fmt.Errorf("validate student_ids: %w", err)
+		}
+		if len(found) != len(uniqueStudentIDs) {
+			return fmt.Errorf("%w: invalid student_ids", ErrInvalidInstanceReference)
+		}
+	}
+
+	return nil
 }
 
 func uniquePositiveInt64(ids []int64) []int64 {
@@ -692,11 +780,19 @@ func (s *instanceService) broadcastInstanceEvent(
 				slog.String("error", err.Error()),
 			)
 		}
+	}
+	tenantScopedBroadcaster, ok := s.deps.Broadcaster.(tenantBroadcaster)
+	if !ok {
+		s.getLogger().Warn("SSE tenant broadcast unsupported",
+			slog.String("event_type", string(eventType)),
+			slog.Int64("tenant_id", tenantID),
+		)
 		return
 	}
-	if err := s.deps.Broadcaster.BroadcastToAll(event); err != nil {
-		s.getLogger().Warn("SSE broadcast-all failed",
+	if err := tenantScopedBroadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		s.getLogger().Warn("SSE broadcast-to-tenant failed",
 			slog.String("event_type", string(eventType)),
+			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
 	}

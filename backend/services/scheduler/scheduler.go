@@ -1741,7 +1741,11 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	}
 }
 
-// emitInstanceOverdue builds the SSE envelope and fires it as BroadcastToAll:
+type tenantBroadcaster interface {
+	BroadcastToTenant(tenantID int64, event realtime.Event) error
+}
+
+// emitInstanceOverdue builds the SSE envelope and fires it tenant-wide:
 // a planned instance has no bridged active.group yet, so there is no group-
 // scoped topic to route through. Admin dashboard subscribers pick it up.
 func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, inst *scheduleModel.ActivityInstance) {
@@ -1756,7 +1760,15 @@ func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, ins
 		InstanceStartTime: &instanceStart,
 		RoomID:            &roomIDStr,
 	})
-	if err := s.overdueBroadcaster.BroadcastToAll(event); err != nil {
+	tenantScopedBroadcaster, ok := s.overdueBroadcaster.(tenantBroadcaster)
+	if !ok {
+		s.getLogger().Warn("overdue tick: tenant broadcast unsupported",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("instance_id", inst.ID),
+		)
+		return
+	}
+	if err := tenantScopedBroadcaster.BroadcastToTenant(tenantID, event); err != nil {
 		s.getLogger().Warn("overdue tick: broadcast failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("instance_id", inst.ID),

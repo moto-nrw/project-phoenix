@@ -133,6 +133,10 @@ func TestUpdateInstance_ServiceErrors(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, conflict.Code)
 	assert.Contains(t, conflict.Body.String(), "invalid_transition")
 
+	s.mock.updateErr = fmt.Errorf("wrapped: %w", scheduleSvc.ErrInvalidInstanceReference)
+	badReference := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
+	assert.Equal(t, http.StatusBadRequest, badReference.Code)
+
 	s.mock.updateErr = fmt.Errorf("database down")
 	internal := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusInternalServerError, internal.Code)

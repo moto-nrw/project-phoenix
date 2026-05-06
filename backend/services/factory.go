@@ -379,6 +379,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:         repos.ActiveVisit,
 		RoomRepo:          repos.Room,
 		ActivityGroupRepo: repos.ActivityGroup,
+		StaffRepo:         repos.Staff,
+		StudentRepo:       repos.Student,
 		ActiveService:     activeService,
 		Materialization:   materializationService,
 		Broadcaster:       realtimeHub,

@@ -158,6 +158,8 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 	switch {
 	case errors.Is(err, scheduleSvc.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "invalid_transition"))
 	default:

@@ -22,8 +22,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +40,7 @@ import (
 type lifecycleSetup struct {
 	svc      scheduleSvc.InstanceService
 	factory  *services.Factory
+	repos    *repositories.Factory
 	db       *bun.DB
 	ctx      context.Context
 	roomID   int64
@@ -45,6 +48,27 @@ type lifecycleSetup struct {
 	student1 int64
 	student2 int64
 	tmplID   int64
+}
+
+type recordingInstanceBroadcaster struct {
+	groupEvents  []realtime.Event
+	tenantID     int64
+	tenantEvents []realtime.Event
+}
+
+func (b *recordingInstanceBroadcaster) BroadcastToGroup(_ int64, _ string, event realtime.Event) error {
+	b.groupEvents = append(b.groupEvents, event)
+	return nil
+}
+
+func (b *recordingInstanceBroadcaster) BroadcastToAll(event realtime.Event) error {
+	return nil
+}
+
+func (b *recordingInstanceBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
+	b.tenantID = tenantID
+	b.tenantEvents = append(b.tenantEvents, event)
+	return nil
 }
 
 // buildLifecycle prepares the minimum scaffold for instance-lifecycle tests:
@@ -84,6 +108,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	return &lifecycleSetup{
 		svc:      serviceFactory.Instance,
 		factory:  serviceFactory,
+		repos:    repoFactory,
 		db:       db,
 		ctx:      ctx,
 		roomID:   room.ID,
@@ -92,6 +117,26 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 		student2: student2.ID,
 		tmplID:   templateRow.ID,
 	}
+}
+
+func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broadcaster) scheduleSvc.InstanceService {
+	return scheduleSvc.NewInstanceService(scheduleSvc.InstanceServiceDependencies{
+		InstanceRepo:      s.repos.ActivityInstance,
+		InstanceStaffRepo: s.repos.InstanceStaff,
+		InstanceStudents:  s.repos.InstanceStudent,
+		ActiveGroupRepo:   s.repos.ActiveGroup,
+		SupervisorRepo:    s.repos.GroupSupervisor,
+		VisitRepo:         s.repos.ActiveVisit,
+		RoomRepo:          s.repos.Room,
+		ActivityGroupRepo: s.repos.ActivityGroup,
+		StaffRepo:         s.repos.Staff,
+		StudentRepo:       s.repos.Student,
+		ActiveService:     s.factory.Active,
+		Materialization:   s.factory.Materialization,
+		Broadcaster:       broadcaster,
+		DB:                s.db,
+		Logger:            slog.Default(),
+	})
 }
 
 // seedInstance inserts one planned activity_instance plus optional staff
@@ -185,6 +230,26 @@ func TestInstance_Start_HappyPath(t *testing.T) {
 		testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sups[0].ID)
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
 	})
+}
+
+func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
+	s := buildLifecycle(t)
+	broadcaster := &recordingInstanceBroadcaster{}
+	svc := instanceServiceWithBroadcaster(s, broadcaster)
+
+	ai := seedInstance(t, s, true, false)
+	result, err := svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
+	})
+
+	require.Len(t, broadcaster.groupEvents, 1)
+	require.Len(t, broadcaster.tenantEvents, 1)
+	assert.Equal(t, tenant.FromContext(s.ctx), broadcaster.tenantID)
+	assert.Equal(t, realtime.EventInstanceStarted, broadcaster.groupEvents[0].Type)
+	assert.Equal(t, realtime.EventInstanceStarted, broadcaster.tenantEvents[0].Type)
+	assert.Equal(t, broadcaster.groupEvents[0].ActiveGroupID, broadcaster.tenantEvents[0].ActiveGroupID)
 }
 
 func TestInstance_Complete_HappyPath(t *testing.T) {
@@ -535,6 +600,55 @@ func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
 	assert.Equal(t, 2, studentRows, "duplicate and non-positive student ids must be ignored")
 }
 
+func TestInstance_Create_RejectsCrossTenantReferences(t *testing.T) {
+	s := buildLifecycle(t)
+	const foreignTenantID int64 = 99002
+	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, foreignTenantID) })
+
+	foreignRoom := testpkg.CreateTestRoomForTenant(t, s.db, foreignTenantID, "LC-Foreign-Room")
+	foreignStaff := testpkg.CreateTestStaffForTenant(t, s.db, foreignTenantID, "LC", "ForeignStaff")
+	foreignStudent := testpkg.CreateTestStudentForTenant(t, s.db, foreignTenantID, "LC", "ForeignStudent", "3b")
+	foreignTemplate := testpkg.CreateTestActivityGroupForTenant(t, s.db, foreignTenantID, "LC-Foreign-Template")
+
+	valid := scheduleSvc.CreateInstanceInput{
+		Date:            time.Date(2026, 5, 9, 0, 0, 0, 0, time.UTC),
+		StartTime:       time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+		Title:           "Cross tenant should fail",
+		RoomID:          s.roomID,
+		ActivityGroupID: &s.tmplID,
+		StaffIDs:        []int64{s.staffID},
+		StudentIDs:      []int64{s.student1},
+	}
+
+	cases := []struct {
+		name   string
+		mutate func(*scheduleSvc.CreateInstanceInput)
+	}{
+		{name: "room", mutate: func(in *scheduleSvc.CreateInstanceInput) { in.RoomID = foreignRoom.ID }},
+		{name: "activity group", mutate: func(in *scheduleSvc.CreateInstanceInput) { in.ActivityGroupID = &foreignTemplate.ID }},
+		{name: "staff", mutate: func(in *scheduleSvc.CreateInstanceInput) { in.StaffIDs = []int64{foreignStaff.ID} }},
+		{name: "student", mutate: func(in *scheduleSvc.CreateInstanceInput) { in.StudentIDs = []int64{foreignStudent.ID} }},
+		{name: "created by", mutate: func(in *scheduleSvc.CreateInstanceInput) { in.CreatedByStaffID = &foreignStaff.ID }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := valid
+			tc.mutate(&req)
+			before := countRowsWhere(t, s, "schedule.activity_instances", "room_id", req.RoomID)
+
+			inst, err := s.svc.Create(s.ctx, req)
+
+			require.Error(t, err)
+			assert.Nil(t, inst)
+			assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceReference)
+			assert.Equal(t, before, countRowsWhere(t, s, "schedule.activity_instances", "room_id", req.RoomID))
+		})
+	}
+}
+
 func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 	s := buildLifecycle(t)
 
@@ -585,6 +699,55 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 
 	row := fetchAttendance(t, s, ai.ID, s.student2)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
+}
+
+func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *testing.T) {
+	s := buildLifecycle(t)
+	const foreignTenantID int64 = 99002
+	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, foreignTenantID) })
+
+	foreignRoom := testpkg.CreateTestRoomForTenant(t, s.db, foreignTenantID, "LC-Update-Foreign-Room")
+	foreignStaff := testpkg.CreateTestStaffForTenant(t, s.db, foreignTenantID, "LC", "UpdateForeignStaff")
+	foreignStudent := testpkg.CreateTestStudentForTenant(t, s.db, foreignTenantID, "LC", "UpdateForeignStudent", "4b")
+	foreignTemplate := testpkg.CreateTestActivityGroupForTenant(t, s.db, foreignTenantID, "LC-Update-Foreign-Template")
+
+	ai := seedInstance(t, s, true, true)
+	valid := scheduleSvc.UpdateInstanceInput{
+		Date:            time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+		StartTime:       time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
+		Title:           "Cross tenant update should fail",
+		RoomID:          s.roomID,
+		ActivityGroupID: &s.tmplID,
+		StaffIDs:        []int64{s.staffID},
+		StudentIDs:      []int64{s.student1},
+	}
+
+	cases := []struct {
+		name   string
+		mutate func(*scheduleSvc.UpdateInstanceInput)
+	}{
+		{name: "room", mutate: func(in *scheduleSvc.UpdateInstanceInput) { in.RoomID = foreignRoom.ID }},
+		{name: "activity group", mutate: func(in *scheduleSvc.UpdateInstanceInput) { in.ActivityGroupID = &foreignTemplate.ID }},
+		{name: "staff", mutate: func(in *scheduleSvc.UpdateInstanceInput) { in.StaffIDs = []int64{foreignStaff.ID} }},
+		{name: "student", mutate: func(in *scheduleSvc.UpdateInstanceInput) { in.StudentIDs = []int64{foreignStudent.ID} }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := valid
+			tc.mutate(&req)
+
+			updated, err := s.svc.UpdatePlanned(s.ctx, ai.ID, req)
+
+			require.Error(t, err)
+			assert.Nil(t, updated)
+			assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceReference)
+			assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_staff", "instance_id", ai.ID))
+			assert.Equal(t, 2, countRowsWhere(t, s, "schedule.instance_students", "instance_id", ai.ID))
+		})
+	}
 }
 
 func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
