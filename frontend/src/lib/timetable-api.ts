@@ -7,10 +7,6 @@
  * - start(id), complete(id),     → POST   /instances/{id}/{action}
  *   cancel(id)
  * - materialize(from?, to?)      → POST   /materialize
- *
- * Spontaneous create (POST /instances) and edit (PUT /instances/{id}) are
- * intentionally not exposed yet — the backend handlers will land in a
- * follow-up PR.
  */
 
 import { getSession } from "next-auth/react";

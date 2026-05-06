@@ -574,9 +574,10 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 #### F2 — Admin planner (current PR)
 
-- [ ] **WP-F2** — Admin weekly planner UI (current branch, in progress: polish before shipping)
-  - **Already functional:** month view, week view, calendar-period CRUD, recurring template CRUD/archive, manual materialization, one-off instance CRUD, instance start/complete/cancel, conflict warnings, staff gaps, substitute action, re-plan-week.
-  - **Remaining for WP-F2 completion:** UI/UX polish only. Tighten wording, simplify the header/period dropdown, close dropdowns on outside click, make empty/loading states calmer, improve action labels (`Starten`, `Beenden`, `Absagen`) and make conflicts easier to understand.
+- [x] **WP-F2** — Admin weekly planner UI (current branch)
+  - **Shipped scope:** month view, week view, calendar-period CRUD, recurring template CRUD, manual materialization, one-off instance CRUD, instance complete/cancel, conflict warnings, staff gaps, substitute action, re-plan-week.
+  - **Scope decision:** The admin planner is a planning and correction surface. Starting planned instances from the planner is intentionally deferred; the operational start flow belongs to `/active-supervisions` (F3-F4), where staff already work during live operations.
+  - **Deferred follow-up:** Recurring template archive remains a later planner-lifecycle polish item (see F12), not a blocker for F2.
   - **Non-goal for WP-F2:** staff-facing operational flow. That belongs to F3-F6 plus F8 below.
 
 #### F3 — Staff operations from the plan
@@ -610,6 +611,9 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 - [ ] **WP-F9** — Calendar period admin UI beyond the planner header
 - [ ] **WP-F10** — Student day view in frontend (currently API-only)
 - [ ] **WP-F11** — Automatic auto-start (E19 level 3)
+- [ ] **WP-F12** — Recurring template archive action
+  - Add archive action to the series UI with confirmation, success/error toast, and SWR refresh for the affected `timetable-templates-*` cache.
+  - Backend and proxy support already exist via `DELETE /api/timetable/templates/{id}`; this is frontend wiring only.
 
 ### Backend dependency map
 
