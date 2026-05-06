@@ -182,6 +182,8 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Put("/{id}", rs.updateInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Delete("/{id}", rs.deleteInstance)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/re-plan-week", rs.replanWeek)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/start", rs.startInstance)

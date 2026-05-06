@@ -129,6 +129,28 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, resp, "Instance cancelled")
 }
 
+// deleteInstance handles DELETE /instances/{id}. Only already-cancelled
+// instances can be deleted; other statuses return the same 409 contract as
+// lifecycle transitions.
+func (rs *Resource) deleteInstance(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
+		return
+	}
+	if rs.instanceService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
+		return
+	}
+
+	if err := rs.instanceService.DeleteCancelled(r.Context(), id); err != nil {
+		renderInstanceLifecycleError(w, r, err)
+		return
+	}
+
+	common.RespondNoContent(w, r)
+}
+
 // renderInstanceLifecycleError maps service-layer sentinel errors to HTTP
 // status codes. Unknown errors fall through to 500 to avoid leaking a
 // potentially wrong 4xx for a real database failure.

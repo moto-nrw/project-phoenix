@@ -238,6 +238,18 @@ class TimetableService {
     return mapInstance(raw);
   }
 
+  async deleteCancelled(instanceId: string): Promise<void> {
+    const response = await fetch(`/api/timetable/instances/${instanceId}`, {
+      method: "DELETE",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+    await unwrap<unknown>(response);
+    logger.info("cancelled_instance_deleted", {
+      instance_id: instanceId,
+    });
+  }
+
   /**
    * POST /api/timetable/instances/{id}/start.
    * Transitions a planned instance to active and creates the active.group

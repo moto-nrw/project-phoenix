@@ -65,6 +65,7 @@ type InstanceService interface {
 	Start(ctx context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error)
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
+	DeleteCancelled(ctx context.Context, instanceID int64) error
 	ReplanWeek(ctx context.Context, from, to time.Time) (*ReplanWeekResult, error)
 	Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error)
 	UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error)
@@ -340,6 +341,29 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*schedu
 
 	s.broadcastInstanceEvent(ctx, realtime.EventInstanceCancelled, instance, nil, nil)
 	return instance, nil
+}
+
+// DeleteCancelled permanently removes a cancelled instance. Planned, active,
+// and completed instances stay protected: deleting those would hide scheduled
+// work, live sessions, or attendance history without the explicit cancellation
+// audit step.
+func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64) error {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return err
+	}
+	if instance.Status != scheduleModel.InstanceStatusCancelled {
+		return fmt.Errorf("%w: cannot delete instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+	if err := s.deps.InstanceRepo.Delete(ctx, instance.ID); err != nil {
+		return &ScheduleError{Op: "delete cancelled instance", Err: err}
+	}
+	s.getLogger().Info("cancelled instance deleted",
+		slog.Int64("tenant_id", tenant.FromContext(ctx)),
+		slog.Int64("instance_id", instance.ID),
+		slog.String("date", instance.Date.Format("2006-01-02")),
+	)
+	return nil
 }
 
 // Create inserts a new activity instance and optionally pre-assigns staff.

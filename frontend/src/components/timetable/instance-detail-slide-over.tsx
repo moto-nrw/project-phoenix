@@ -8,7 +8,7 @@
  * assigned staff, children, attendance state, and admin corrections.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 import {
   CheckCircle2,
@@ -19,6 +19,7 @@ import {
   Square,
   StickyNote,
   Timer,
+  Trash2,
   TriangleAlert,
   UserCheck,
   Users,
@@ -53,6 +54,7 @@ interface InstanceDetailSlideOverProps {
   instance: EnrichedInstance | null;
   onClose: () => void;
   onLifecycleAction: (action: LifecycleAction) => Promise<void>;
+  onDeleteCancelled?: (instance: EnrichedInstance) => Promise<void>;
   onEdit?: (instance: EnrichedInstance) => void;
   onRepeat?: (instance: EnrichedInstance) => void;
   staffNames?: Map<string, string>;
@@ -135,6 +137,7 @@ export function InstanceDetailSlideOver({
   instance,
   onClose,
   onLifecycleAction,
+  onDeleteCancelled,
   onEdit,
   onRepeat,
   staffNames = new Map(),
@@ -145,6 +148,8 @@ export function InstanceDetailSlideOver({
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
   );
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(false);
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
   const students = useMemo(
     () =>
@@ -164,12 +169,31 @@ export function InstanceDetailSlideOver({
     [students],
   );
 
+  useEffect(() => {
+    setDeleteConfirm(false);
+  }, [instance?.id]);
+
   const handleLifecycle = async (action: LifecycleAction) => {
+    setDeleteConfirm(false);
     setPendingAction(action);
     try {
       await onLifecycleAction(action);
     } finally {
       setPendingAction(null);
+    }
+  };
+
+  const handleDeleteCancelled = async () => {
+    if (!instance || !onDeleteCancelled) return;
+    if (!deleteConfirm) {
+      setDeleteConfirm(true);
+      return;
+    }
+    setPendingDelete(true);
+    try {
+      await onDeleteCancelled(instance);
+    } finally {
+      setPendingDelete(false);
     }
   };
 
@@ -410,10 +434,37 @@ export function InstanceDetailSlideOver({
                 </span>
               )}
               {instance.status === "cancelled" && (
-                <span className="inline-flex items-center gap-2 text-xs text-slate-500">
-                  <CircleX className="h-4 w-4" />
-                  Diese Aktivität wurde abgesagt.
-                </span>
+                <>
+                  <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                    <CircleX className="h-4 w-4" />
+                    Diese Aktivität wurde abgesagt.
+                  </span>
+                  {onDeleteCancelled && (
+                    <Button
+                      variant="outline_danger"
+                      size="sm"
+                      type="button"
+                      onClick={() => void handleDeleteCancelled()}
+                      isLoading={pendingDelete}
+                      loadingText="Lösche …"
+                      disabled={pendingAction !== null || pendingDelete}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Trash2 className="h-4 w-4" />
+                        {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
+                      </span>
+                    </Button>
+                  )}
+                  {deleteConfirm && !pendingDelete && (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                      onClick={() => setDeleteConfirm(false)}
+                    >
+                      Löschen abbrechen
+                    </button>
+                  )}
+                </>
               )}
             </div>
             {editDeferred && (

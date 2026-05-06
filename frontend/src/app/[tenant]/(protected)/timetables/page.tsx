@@ -909,6 +909,39 @@ function TimetablesContent() {
     [exceptionConflictsSWRKey, swrKey, tenantMutate, toastError, toastSuccess],
   );
 
+  const handleDeleteCancelledInstance = useCallback(
+    async (instance: EnrichedInstance) => {
+      try {
+        await timetableService.deleteCancelled(instance.id);
+        toastSuccess("Abgesagter Termin gelöscht");
+        updateUrlParams({ instance: null });
+        await tenantMutate(swrKey);
+        await tenantMutate(gapsSWRKey);
+        await tenantMutate(exceptionConflictsSWRKey);
+      } catch (err) {
+        logger.error("instance_delete_failed", {
+          instance_id: instance.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toastError(
+          err instanceof Error
+            ? err.message
+            : "Termin konnte nicht gelöscht werden",
+        );
+        throw err;
+      }
+    },
+    [
+      exceptionConflictsSWRKey,
+      gapsSWRKey,
+      swrKey,
+      tenantMutate,
+      toastError,
+      toastSuccess,
+      updateUrlParams,
+    ],
+  );
+
   const openEventCreate = useCallback(() => {
     setEditingInstance(null);
     setEditingTemplate(null);
@@ -1197,6 +1230,7 @@ function TimetablesContent() {
         instance={selectedInstance}
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
+        onDeleteCancelled={handleDeleteCancelledInstance}
         onEdit={(instance) => {
           setEditingInstance(instance);
           setEditingTemplate(null);
