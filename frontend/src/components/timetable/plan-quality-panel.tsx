@@ -24,6 +24,7 @@ interface PlanQualityPanelProps {
   conflicts: ExceptionConflict[];
   staff: Staff[];
   loading: boolean;
+  error?: string | null;
   onSelectInstance: (instanceId: string) => void;
   onEditInstance: (instanceId: string) => void;
   onSubstitute: (
@@ -56,6 +57,7 @@ export function PlanQualityPanel({
   conflicts,
   staff,
   loading,
+  error,
   onSelectInstance,
   onEditInstance,
   onSubstitute,
@@ -80,6 +82,7 @@ export function PlanQualityPanel({
     (sum, inst) => sum + inst.absentStaffCount,
     0,
   );
+  const hasError = !!error;
   const issueCount = gaps.length + conflicts.length + conflictCount;
   const availableStaff = useMemo(
     () => staff.filter((item) => item.workStatus !== "checked_out"),
@@ -113,11 +116,13 @@ export function PlanQualityPanel({
       <div>
         <h2 className="text-sm font-bold text-slate-900">Planstatus</h2>
         <p className="mt-0.5 text-xs text-slate-500">
-          {loading
-            ? "Prüfe Personal, Konflikte und Ausnahmen …"
-            : issueCount === 0
-              ? "Diese Ansicht hat keine offenen Planungsprobleme."
-              : `${issueCount} Punkt(e), die vor dem Betrieb geprüft werden sollten.`}
+          {hasError
+            ? "Planstatus konnte nicht vollständig geprüft werden."
+            : loading
+              ? "Prüfe Personal, Konflikte und Ausnahmen …"
+              : issueCount === 0
+                ? "Diese Ansicht hat keine offenen Planungsprobleme."
+                : `${issueCount} Punkt(e), die vor dem Betrieb geprüft werden sollten.`}
         </p>
       </div>
 
@@ -147,6 +152,19 @@ export function PlanQualityPanel({
           tone={absentStaffCount > 0 ? "warning" : "neutral"}
         />
       </div>
+
+      {hasError && (
+        <div className="mt-4 rounded-md border border-[#FDE68A] bg-[#FFFBEB] p-3 text-xs text-[#713F12]">
+          <div className="flex items-center gap-2 font-bold">
+            <TriangleAlert className="h-4 w-4" />
+            Prüfung unvollständig
+          </div>
+          <p className="mt-1">
+            {error ??
+              "Mindestens ein Planstatus-Check konnte nicht geladen werden."}
+          </p>
+        </div>
+      )}
 
       {(gaps.length > 0 || conflicts.length > 0) && (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">

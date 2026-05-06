@@ -520,17 +520,24 @@ function TimetablesContent() {
       );
     },
   );
-  const { data: gapsData, isLoading: gapsLoading } = useSWRAuth(
+  const {
+    data: gapsData,
+    error: gapsError,
+    isLoading: gapsLoading,
+  } = useSWRAuth(
     status === "authenticated" && shouldLoadPlanQuality ? gapsSWRKey : null,
     () => timetableService.getGaps(qualityFromISO, toISO),
   );
-  const { data: exceptionConflictData, isLoading: conflictsLoading } =
-    useSWRAuth(
-      status === "authenticated" && shouldLoadPlanQuality
-        ? exceptionConflictsSWRKey
-        : null,
-      () => timetableService.getExceptionConflicts(qualityFromISO, toISO),
-    );
+  const {
+    data: exceptionConflictData,
+    error: conflictsError,
+    isLoading: conflictsLoading,
+  } = useSWRAuth(
+    status === "authenticated" && shouldLoadPlanQuality
+      ? exceptionConflictsSWRKey
+      : null,
+    () => timetableService.getExceptionConflicts(qualityFromISO, toISO),
+  );
   const { data: staffData } = useSWRAuth(
     status === "authenticated" ? "timetable-staff-list" : null,
     () => staffService.getAllStaff(),
@@ -555,6 +562,24 @@ function TimetablesContent() {
       ? error.message
       : String(error)
     : null;
+  const gapsErrorMessage = gapsError
+    ? gapsError instanceof Error
+      ? gapsError.message
+      : String(gapsError)
+    : null;
+  const conflictsErrorMessage = conflictsError
+    ? conflictsError instanceof Error
+      ? conflictsError.message
+      : String(conflictsError)
+    : null;
+  const planQualityErrorMessage =
+    gapsErrorMessage && conflictsErrorMessage
+      ? `Personal-Lücken und Ausnahmen konnten nicht geprüft werden: ${gapsErrorMessage}; ${conflictsErrorMessage}`
+      : gapsErrorMessage
+        ? `Personal-Lücken konnten nicht geprüft werden: ${gapsErrorMessage}`
+        : conflictsErrorMessage
+          ? `Ausnahmen konnten nicht geprüft werden: ${conflictsErrorMessage}`
+          : null;
 
   useEffect(() => {
     if (!errorMessage) return;
@@ -571,6 +596,14 @@ function TimetablesContent() {
     logger.error("periods_load_failed", { error: message });
     toastError(`Planungsperioden konnten nicht geladen werden: ${message}`);
   }, [periodsError, toastError]);
+
+  useEffect(() => {
+    if (!planQualityErrorMessage) return;
+    logger.error("plan_quality_load_failed", {
+      error: planQualityErrorMessage,
+    });
+    toastError("Planstatus konnte nicht vollständig geladen werden.");
+  }, [planQualityErrorMessage, toastError]);
 
   // Memoise on data?.instances so the reference is stable between renders
   // when SWR returns the same response (the linter warns when arrays are
@@ -1118,6 +1151,7 @@ function TimetablesContent() {
               conflicts={exceptionConflicts}
               staff={staff}
               loading={gapsLoading || conflictsLoading}
+              error={planQualityErrorMessage}
               onSelectInstance={(instanceId) =>
                 updateUrlParams({ instance: instanceId })
               }
