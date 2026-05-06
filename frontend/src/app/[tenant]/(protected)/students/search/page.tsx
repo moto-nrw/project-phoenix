@@ -48,6 +48,7 @@ import {
 } from "~/lib/hooks/use-school-checkin-mode";
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
+import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -323,7 +324,7 @@ function SearchPageContent() {
   );
 
   const { data: rooms = [] } = useImmutableSWR<Room[]>(
-    "search-rooms-list",
+    SEARCH_ROOMS_LIST_CACHE_KEY,
     async () => {
       try {
         return await roomService.getRooms({ page: 1, pageSize: 1000 });
