@@ -457,7 +457,13 @@ describe("RoomsPage", () => {
 
     render(<RoomsPage />);
 
-    expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
+    // The data-loading state is now a content-shaped skeleton grid in
+    // place of the generic <Loading> spinner — the page header still
+    // renders, only the card grid is replaced with skeleton cards
+    // (review feedback #1323). Same business assertion ("a loading
+    // state is announced while data is fetched"), new selector
+    // matching the new skeleton's aria-label.
+    expect(screen.getByLabelText("Räume werden geladen")).toBeInTheDocument();
   });
 
   it("filters by free status when occupied filter set to free", async () => {

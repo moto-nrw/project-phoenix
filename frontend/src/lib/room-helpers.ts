@@ -5,6 +5,27 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RoomHelpers" });
 
+// Hex accent per room category — used by the rooms grid card and the
+// room-detail history timeline so a category reads the same way in both
+// places. Fallback for unknown / missing categories is the neutral
+// gray below. Single source of truth: previously this map was duplicated
+// in rooms/page.tsx and components/rooms/room-detail-content.tsx.
+export const ROOM_CATEGORY_COLORS: Record<string, string> = {
+  "Normaler Raum": "#4F46E5",
+  Gruppenraum: "#10B981",
+  Themenraum: "#8B5CF6",
+  Sport: "#EC4899",
+};
+
+export const ROOM_CATEGORY_FALLBACK_COLOR = "#6B7280";
+
+export function getRoomCategoryColor(
+  category: string | null | undefined,
+): string {
+  if (!category) return ROOM_CATEGORY_FALLBACK_COLOR;
+  return ROOM_CATEGORY_COLORS[category] ?? ROOM_CATEGORY_FALLBACK_COLOR;
+}
+
 // Backend types (from Go structs)
 export interface BackendRoom {
   id: number;

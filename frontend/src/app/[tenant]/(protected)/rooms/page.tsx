@@ -14,7 +14,11 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
-import { formatFloor, mapRoomsResponse } from "~/lib/room-helpers";
+import {
+  formatFloor,
+  getRoomCategoryColor,
+  mapRoomsResponse,
+} from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -39,18 +43,55 @@ interface Room {
   studentCount?: number;
 }
 
-// Kategorie-zu-Farbe Mapping
-const categoryColors: Record<string, string> = {
-  "Normaler Raum": "#4F46E5",
-  Gruppenraum: "#10B981",
-  Themenraum: "#8B5CF6",
-  Sport: "#EC4899",
-};
-
 // Brand color hex codes via LOCATION_COLORS (CLAUDE.md §0,
 // lib/location-helper.ts): OTHER_ROOM (#5080D8) for blue accents,
 // HOME (#FF3130) for occupied/error, GROUP_ROOM (#83CD2D) for free
 // (with #4a7a15 text for AA contrast on the tinted background).
+
+// Single skeleton card that matches the populated room card's outer
+// shell: same rounded-3xl, same min-h-[180px], same flex layout so the
+// page doesn't reshuffle on swap. Pulse blocks stand in for title row,
+// meta line, status pill, two middle rows, and the footer hint.
+function RoomCardSkeleton() {
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+      <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
+      <div className="relative flex min-h-[180px] flex-col p-6">
+        <div className="mb-3 flex items-start justify-between">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-5 w-2/3 animate-pulse rounded bg-gray-200" />
+            <div className="h-3 w-1/3 animate-pulse rounded bg-gray-200" />
+          </div>
+          <div className="ml-3 h-6 w-16 flex-shrink-0 animate-pulse rounded-full bg-gray-200" />
+        </div>
+        <div className="flex-1 space-y-2">
+          <div className="h-3 w-3/4 animate-pulse rounded bg-gray-200" />
+          <div className="h-3 w-1/2 animate-pulse rounded bg-gray-200" />
+        </div>
+        <div className="mt-2 h-3 w-24 animate-pulse rounded bg-gray-200" />
+      </div>
+    </div>
+  );
+}
+
+function RoomsGridSkeleton() {
+  // Eight cards covers two rows on the largest grid (2xl: 4 columns);
+  // smaller breakpoints fill more rows naturally. Same gap + column
+  // breakpoints as the populated grid below so the swap is purely a
+  // child-level change, not a container reshape.
+  return (
+    <output
+      aria-label="Räume werden geladen"
+      data-testid="rooms-grid-skeleton"
+      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+    >
+      {Array.from({ length: 8 }).map((_, i) => (
+        <RoomCardSkeleton key={i} />
+      ))}
+    </output>
+  );
+}
+
 function RoomsPageContent() {
   const { status } = useSession({
     required: true,
@@ -159,10 +200,7 @@ function RoomsPageContent() {
       // Apply color defaults
       return roomsData.map((room) => ({
         ...room,
-        color:
-          room.color ??
-          (room.category ? categoryColors[room.category] : undefined) ??
-          "#6B7280",
+        color: room.color ?? getRoomCategoryColor(room.category),
       }));
     },
     {
@@ -348,7 +386,10 @@ function RoomsPageContent() {
     return filters;
   }, [searchTerm, buildingFilter, occupiedFilter]);
 
-  if (status === "loading" || loading) {
+  // Auth-loading: nothing to render until NextAuth resolves the session
+  // (the `useSession({ required: true })` callback redirects on
+  // unauthenticated). Keep the existing loader for this branch.
+  if (status === "loading") {
     return <Loading fullPage={false} />;
   }
 
@@ -396,8 +437,16 @@ function RoomsPageContent() {
         </div>
       )}
 
-      {/* Room Cards Grid */}
-      {filteredRooms.length === 0 ? (
+      {/* Room Cards Grid — skeleton mirrors the populated grid's column
+          breakpoints and per-card shape (rounded-3xl, min-h-[180px],
+          header row + meta line + status pill, middle content rows,
+          footer hint) so the grid area doesn't visibly resize when real
+          data arrives. Review feedback (#1323): a generic spinner
+          collapsed the header row into a tiny payload, then the layout
+          jumped open when rooms loaded. */}
+      {loading ? (
+        <RoomsGridSkeleton />
+      ) : filteredRooms.length === 0 ? (
         <div className="py-12 text-center">
           <div className="flex flex-col items-center gap-4">
             <svg

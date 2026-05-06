@@ -28,7 +28,7 @@ import {
   calculateDuration,
   formatDuration,
 } from "~/lib/date-helpers";
-import { formatFloor } from "~/lib/room-helpers";
+import { formatFloor, getRoomCategoryColor } from "~/lib/room-helpers";
 import { createLogger } from "~/lib/logger";
 import { StudentsInRoomSection } from "./students-in-room-section";
 
@@ -115,13 +115,6 @@ interface BackendRoomHistoryEntry {
   reason?: string;
 }
 
-const categoryColors: Record<string, string> = {
-  "Normaler Raum": "#4F46E5",
-  Gruppenraum: "#10B981",
-  Themenraum: "#8B5CF6",
-  Sport: "#EC4899",
-};
-
 function mapBackendToFrontendRoom(backendRoom: BackendRoom): Room {
   return {
     id: String(backendRoom.id),
@@ -136,12 +129,7 @@ function mapBackendToFrontendRoom(backendRoom: BackendRoom): Room {
     supervisorName: backendRoom.supervisor_names ?? backendRoom.supervisor_name,
     deviceId: backendRoom.device_id,
     studentCount: backendRoom.student_count,
-    color:
-      backendRoom.color ??
-      (backendRoom.category
-        ? categoryColors[backendRoom.category]
-        : undefined) ??
-      "#6B7280",
+    color: backendRoom.color ?? getRoomCategoryColor(backendRoom.category),
   };
 }
 
@@ -524,9 +512,9 @@ export function RoomDetailContent({
                       );
                       const duration =
                         activity.duration_minutes ?? actualDuration;
-                      const categoryColor = activity.category
-                        ? (categoryColors[activity.category] ?? "#6B7280")
-                        : "#6B7280";
+                      const categoryColor = getRoomCategoryColor(
+                        activity.category,
+                      );
 
                       return (
                         <div

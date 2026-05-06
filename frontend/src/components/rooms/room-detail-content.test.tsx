@@ -124,6 +124,11 @@ vi.mock("~/lib/date-helpers", () => ({
 
 vi.mock("~/lib/room-helpers", () => ({
   formatFloor: (n: number) => `Etage ${n}`,
+  // RoomDetailContent reads category accents through this helper after
+  // the categoryColors map was lifted into room-helpers.ts. Keep the stub
+  // deterministic so the timeline cards render without hitting the real
+  // module's imports.
+  getRoomCategoryColor: () => "#6B7280",
 }));
 
 // ----------------------------------------------------------------------------
