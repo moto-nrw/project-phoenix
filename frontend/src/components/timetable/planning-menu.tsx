@@ -134,8 +134,8 @@ export function PlanningMenu({
                   Lücken füllen
                 </div>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                  Erstellt fehlende Termine aus den Serien. Bestehende Termine
-                  bleiben unverändert.
+                  Legt fehlende Termine aus den Serien an. Bestehende Termine
+                  werden nicht geändert.
                 </p>
               </div>
             </button>
@@ -159,9 +159,9 @@ export function PlanningMenu({
                   Woche neu berechnen
                 </div>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                  Setzt geplante Termine zurück und legt sie neu aus den Serien
-                  an. Aktive, abgesagte und manuell angelegte Termine bleiben
-                  erhalten.
+                  Löscht noch nicht gestartete Serientermine dieser Woche und
+                  erstellt sie neu aus den Serien. Laufende, abgesagte und
+                  manuell angelegte Termine bleiben erhalten.
                 </p>
               </div>
             </button>
@@ -215,11 +215,10 @@ function ReplanConfirmDialog({
             Woche neu berechnen?
           </h3>
           <p className="mt-1.5 text-sm text-slate-600">
-            Alle geplanten Serientermine in{" "}
+            Noch nicht gestartete Serientermine in{" "}
             <span className="font-semibold text-slate-900">{weekLabel}</span>{" "}
             werden gelöscht und anhand der aktuellen Serien neu erstellt.
-            Manuell angelegte Termine, laufende und abgesagte Termine bleiben
-            erhalten.
+            Laufende, abgesagte und manuell angelegte Termine bleiben erhalten.
           </p>
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-5 py-3">
