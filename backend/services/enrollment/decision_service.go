@@ -136,7 +136,8 @@ type DecisionServiceConfig struct {
 	AccountRoleRepo          authModels.AccountRoleRepository
 	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           OutboxEnqueuer
-	FrontendURL              string
+	FrontendURL              string // not used by parent-facing emails today; kept for future admin links
+	ParentsURL               string // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
 	Logger                   *slog.Logger
 }
 
@@ -157,6 +158,7 @@ type decisionService struct {
 	roleRepo                 authModels.RoleRepository
 	outboxEnqueuer           OutboxEnqueuer
 	frontendURL              string
+	parentsURL               string
 	logger                   *slog.Logger
 }
 
@@ -182,7 +184,14 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		roleRepo:                 cfg.RoleRepo,
 		outboxEnqueuer:           cfg.OutboxEnqueuer,
 		frontendURL:              cfg.FrontendURL,
-		logger:                   logger,
+		parentsURL: func() string {
+			parents := strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
+			if parents != "" {
+				return parents
+			}
+			return strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
+		}(),
+		logger: logger,
 	}
 }
 
@@ -623,8 +632,8 @@ func (s *decisionService) enqueueDecisionEmail(
 		return
 	}
 
-	logoURL := s.frontendURL + "/images/moto_transparent.png"
-	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.frontendURL, request.StatusToken)
+	logoURL := s.parentsURL + "/images/moto_transparent.png"
+	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.parentsURL, request.StatusToken)
 
 	payload := map[string]any{
 		EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,

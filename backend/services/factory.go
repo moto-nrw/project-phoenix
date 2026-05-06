@@ -143,6 +143,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
 
+	// Parents-portal URL — used for every parent-facing email link
+	// (status, decision emails, guardian invitation accept). Falls
+	// back to the staff frontendURL when unset so dev keeps working
+	// without an explicit value, but production must set it
+	// explicitly to https://parents.{TENANT_DOMAIN}.
+	rawParentsURL := viper.GetString("parents_url")
+	parentsURL := strings.TrimRight(rawParentsURL, "/")
+	if parentsURL == "" {
+		parentsURL = frontendURL
+	}
+	if appEnv == "production" && !strings.HasPrefix(parentsURL, "https://") {
+		return nil, fmt.Errorf("PARENTS_URL must use https:// in production (received %q)", rawParentsURL)
+	}
+
 	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
 	if invitationExpiryHours <= 0 {
 		invitationExpiryHours = 48
@@ -479,7 +493,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Dispatcher:          dispatcher,
 		OutboxEnqueuer:      platform.NewAuthOutboxAdapter(emailOutboxService),
 		SettingsResolver:    settingsService,
-		FrontendURL:         frontendURL,
+		FrontendURL:         parentsURL, // accept link goes to the parents portal, not the staff frontend
 		DefaultFrom:         defaultFrom,
 		FallbackExpiry:      invitationTokenExpiry,
 		DB:                  db,
@@ -703,7 +717,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RateLimitRepo:            repos.SubmissionRateLimit,
 		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
 		Settings:                 settingsService,
-		FrontendURL:              frontendURL,
+		FrontendURL:              frontendURL, // admin notification email
+		ParentsURL:               parentsURL,  // parent confirmation/status emails
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-request"),
 	})
@@ -732,6 +747,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
 		FrontendURL:              frontendURL,
+		ParentsURL:               parentsURL,
 		Logger:                   logger.With("service", "enrollment-decision"),
 	})
 

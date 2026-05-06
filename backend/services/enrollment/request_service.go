@@ -127,7 +127,8 @@ type RequestServiceConfig struct {
 	RateLimitRepo            enrollmentModels.SubmissionRateLimitRepository
 	OutboxEnqueuer           OutboxEnqueuer
 	Settings                 RequestSettingsResolver
-	FrontendURL              string
+	FrontendURL              string // staff/admin URLs only (admin notification email link)
+	ParentsURL               string // parent-facing URLs (status link, logo). Falls back to FrontendURL when empty.
 	DB                       *bun.DB
 	Logger                   *slog.Logger
 }
@@ -159,6 +160,7 @@ type requestService struct {
 	outboxEnqueuer           OutboxEnqueuer
 	settings                 RequestSettingsResolver
 	frontendURL              string
+	parentsURL               string
 	db                       *bun.DB
 	txHandler                *modelBase.TxHandler
 	logger                   *slog.Logger
@@ -183,9 +185,16 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 		outboxEnqueuer:           cfg.OutboxEnqueuer,
 		settings:                 cfg.Settings,
 		frontendURL:              strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
-		db:                       cfg.DB,
-		txHandler:                modelBase.NewTxHandler(cfg.DB),
-		logger:                   logger,
+		parentsURL: func() string {
+			parents := strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
+			if parents != "" {
+				return parents
+			}
+			return strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
+		}(),
+		db:        cfg.DB,
+		txHandler: modelBase.NewTxHandler(cfg.DB),
+		logger:    logger,
 	}
 }
 
@@ -523,7 +532,7 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 	}
 
 	schoolName := s.lookupSchoolName(ctx, tenantID)
-	logoURL := s.frontendURL + "/images/moto_transparent.png"
+	logoURL := s.parentsURL + "/images/moto_transparent.png"
 	childNames := make([]string, 0, len(children))
 	for _, c := range children {
 		childNames = append(childNames, fmt.Sprintf("%s %s", c.FirstName, c.LastName))
@@ -637,11 +646,13 @@ func newStatusToken() (string, error) {
 }
 
 func (s *requestService) statusURL(token string) string {
-	frontend := s.frontendURL
-	if frontend == "" {
-		frontend = "http://localhost:3000"
+	// Status link is parent-facing — sent in the submitted/approved/
+	// waitlisted/rejected emails. Routes to the parents portal.
+	host := s.parentsURL
+	if host == "" {
+		host = "http://localhost:3000"
 	}
-	return fmt.Sprintf("%s/enroll/status/%s", frontend, token)
+	return fmt.Sprintf("%s/enroll/status/%s", host, token)
 }
 
 func (s *requestService) isEnrollmentEnabled(ctx context.Context) bool {
