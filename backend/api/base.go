@@ -42,6 +42,7 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
+	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 
 	"github.com/moto-nrw/project-phoenix/database"
@@ -85,6 +86,7 @@ type API struct {
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
+	Parent   *parentAPI.Resource
 	Platform *platformAPI.Resource
 }
 
@@ -403,6 +405,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// side effects (e.g. auto-creating the Schulhof/WC rooms when the
 	// corresponding checkout toggle flips on).
 	api.Operator.OnSettingValueSet(onSettingValueSet)
+	api.Parent = parentAPI.NewResource(api.Services.Auth, db)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
@@ -559,4 +562,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 		a.Operator.SetInvitationRateLimiter(invitationLimiter.Middleware())
 	}
 	a.Router.Mount("/operator", a.Operator.Router())
+
+	// Parent (cross-tenant guardian portal). Mounted at the root level
+	// like /auth and /operator. Public /parent/auth/login + protected
+	// /parent/* routes (the protected ones get added in commit 5).
+	a.Router.Mount("/parent", a.Parent.Router())
 }

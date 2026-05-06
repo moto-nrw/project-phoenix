@@ -18,6 +18,7 @@ const (
 	ScopeTenant   = ""         // Regular user within a single school
 	ScopeOrg      = "org"      // Organization-level user (sees all schools in org)
 	ScopePlatform = "platform" // Platform operator (moto DevOps, sees everything)
+	ScopeParent   = "parent"   // Cross-tenant guardian — sees children across all linked schools
 )
 
 // WithTenantID returns a new context with the tenant ID set.
@@ -73,6 +74,11 @@ func IsPlatformScope(ctx context.Context) bool {
 // IsOrgScope returns true if the context scope is "org".
 func IsOrgScope(ctx context.Context) bool {
 	return ScopeFromContext(ctx) == ScopeOrg
+}
+
+// IsParentScope returns true if the context scope is "parent".
+func IsParentScope(ctx context.Context) bool {
+	return ScopeFromContext(ctx) == ScopeParent
 }
 
 // NewContext returns a context pre-populated with tenant ID and org ID.

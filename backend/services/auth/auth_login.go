@@ -43,6 +43,15 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 		return "", "", err
 	}
 
+	// Tenant-portal policy: a guardian-only account at this tenant
+	// must use the parents portal. Refuse with a sentinel the frontend
+	// turns into "use https://parents.{TENANT_DOMAIN}/". Accounts that
+	// are also staff/admin/teacher pass through unchanged.
+	if IsGuardianOnlyForTenant(metadata.roleNames) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
+		return "", "", &AuthError{Op: "login", Err: ErrParentMustUseParentPortal}
+	}
+
 	// Create refresh token with resolved tenant ID
 	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
 	if err != nil {
