@@ -44,7 +44,15 @@ func (s *Service) LoginParentWithAudit(
 	// Done inside an admin tx because account_tenants + account_roles
 	// have RLS that requires app.current_tenant_id, which we don't have
 	// during a public login.
+	//
+	// We also capture the first tenant where the role hits — that
+	// tenant becomes the housekeeping tenant_id for the refresh token
+	// row (auth.tokens has a NOT NULL FK to platform.schools, so we
+	// can't store tenant_id=0). The JWT itself carries tenant_id=0 +
+	// scope=parent; the row's tenant is purely for the FK constraint
+	// and RLS bookkeeping. Refresh path keys off scope, not tenant_id.
 	hasGuardianRole := false
+	var firstGuardianTenantID int64
 	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
 		mappings, listErr := txService.repos.AccountTenant.FindActiveByAccountID(adminCtx, account.ID)
@@ -63,6 +71,7 @@ func (s *Service) LoginParentWithAudit(
 				}
 				if strings.EqualFold(role.Name, guardianRoleName) {
 					hasGuardianRole = true
+					firstGuardianTenantID = m.TenantID
 					return nil
 				}
 			}
@@ -77,10 +86,10 @@ func (s *Service) LoginParentWithAudit(
 		return "", "", &AuthError{Op: "parent login", Err: ErrAccountNoGuardianRole}
 	}
 
-	// Refresh token has tenant_id=0 — parent JWTs intentionally aren't
-	// bound to any single school, and the per-action tenant comes from
-	// the picked child via the cross-tenant aggregation endpoint.
-	token, err := s.createRefreshTokenWithRetry(ctx, account, 0)
+	// Pin the refresh token row to the first guardian tenant for the
+	// FK + RLS. The token's purpose is parent-scope (cross-tenant on
+	// read), but the row needs a real tenant_id to satisfy the schema.
+	token, err := s.createRefreshTokenWithRetry(ctx, account, firstGuardianTenantID)
 	if err != nil {
 		return "", "", err
 	}
