@@ -2,7 +2,25 @@
 
 import { useState, useCallback, useEffect } from "react";
 
-type AccordionSection = "groups" | "supervisions" | "database" | null;
+type AccordionSection =
+  | "groups"
+  | "supervisions"
+  | "database"
+  | "enrollments"
+  | null;
+
+// Paths that belong to the enrollments accordion. Centralized so the
+// sidebar's render code and the auto-expand logic stay in sync.
+const ENROLLMENT_PATH_PREFIXES = [
+  "/admin/enrollments",
+  "/enrollment-phases",
+  "/enrollment-form",
+  "/care-offerings",
+];
+
+function isEnrollmentPath(p: string): boolean {
+  return ENROLLMENT_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
 
@@ -18,12 +36,14 @@ function sectionFromPathname(
   if (pathname.startsWith("/ogs-groups")) return "groups";
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
+  if (isEnrollmentPath(pathname)) return "enrollments";
 
   // Child pages: keep the originating accordion section open
   if (fromParam) {
     if (fromParam.startsWith("/ogs-groups")) return "groups";
     if (fromParam.startsWith("/active-supervisions")) return "supervisions";
     if (fromParam.startsWith("/database")) return "database";
+    if (isEnrollmentPath(fromParam)) return "enrollments";
   }
 
   return null;
@@ -55,7 +75,8 @@ export function useSidebarAccordion(
     if (
       stored === "groups" ||
       stored === "supervisions" ||
-      stored === "database"
+      stored === "database" ||
+      stored === "enrollments"
     ) {
       setExpanded(stored);
     }

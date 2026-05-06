@@ -252,6 +252,17 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/permissions", label: "Berechtigungen" },
 ];
 
+// Static sub-pages for Anmeldungen accordion (admin only). Order is
+// most-used first: review queue → setup pages. The first sub-item
+// is labeled "Übersicht" rather than "Anmeldungen" to avoid clashing
+// with the parent section label.
+const ENROLLMENTS_SUB_PAGES = [
+  { href: "/admin/enrollments", label: "Übersicht" },
+  { href: "/enrollment-phases", label: "Phasen" },
+  { href: "/care-offerings", label: "Betreuungsangebote" },
+  { href: "/enrollment-form", label: "Formular" },
+];
+
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
   childGroupId: string | null,
@@ -590,6 +601,27 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
   }, [toggle, pathname, router]);
 
+  const isOnEnrollmentsPage = ENROLLMENTS_SUB_PAGES.some((p) =>
+    pathname.startsWith(p.href),
+  );
+
+  const handleEnrollmentsToggle = useCallback(() => {
+    // Hub = the request review queue. Mirrors handleDatabaseToggle's
+    // navigate-on-expand behavior so clicking the section label always
+    // ends up on a useful page rather than just toggling chevrons.
+    const onSection = ENROLLMENTS_SUB_PAGES.some((p) =>
+      pathname.startsWith(p.href),
+    );
+    if (!onSection) {
+      toggle("enrollments");
+      router.push("/admin/enrollments");
+    } else if (pathname === "/admin/enrollments") {
+      toggle("enrollments");
+    } else {
+      router.push("/admin/enrollments");
+    }
+  }, [toggle, pathname, router]);
+
   // Caregiver accordions are driven by the explicit caregiver role.
   // Show staff accordions for caregivers (user/teacher role) and for admins
   // only when the admin_supervision_overview setting is confirmed enabled
@@ -845,6 +877,32 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   href={page.href}
                   label={page.label}
                   isActive={pathname === page.href}
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
+
+          {/* Anmeldungen accordion (admin only). Bundles the four
+              enrollment-management surfaces — request review queue,
+              phases, care offerings, and form schema — that admins
+              use across the parent enrollment lifecycle. */}
+          {userIsAdmin && (
+            <SidebarAccordionSection
+              icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              label="Anmeldungen"
+              activeColor="text-[#83CD2D]"
+              isExpanded={expanded === "enrollments"}
+              onToggle={handleEnrollmentsToggle}
+              isActive={isOnEnrollmentsPage}
+              isIconActive={isOnEnrollmentsPage}
+              hasChildren={ENROLLMENTS_SUB_PAGES.length > 0}
+            >
+              {ENROLLMENTS_SUB_PAGES.map((page) => (
+                <SidebarSubItem
+                  key={page.href}
+                  href={page.href}
+                  label={page.label}
+                  isActive={pathname.startsWith(page.href)}
                 />
               ))}
             </SidebarAccordionSection>
