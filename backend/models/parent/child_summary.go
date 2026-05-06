@@ -53,3 +53,40 @@ type ChildRepository interface {
 	// name, then last name. Soft-deleted persons are filtered out.
 	ListByAccount(ctx context.Context, accountID int64) ([]*ChildSummary, error)
 }
+
+// EnrollablePhase is one row in the parent's enrollment picker —
+// (school, open phase) pair. A school with multiple open phases shows
+// up multiple times; the frontend groups by SchoolID.
+//
+// "Open" here means: phase.is_active AND
+//
+//	(enrollment_open_at IS NULL OR enrollment_open_at <= now) AND
+//	(enrollment_close_at IS NULL OR enrollment_close_at >= now)
+//
+// AlreadyLinked is true when the parent's account already has an
+// active mapping to this school (i.e. they already have at least one
+// child here). The frontend uses it to sort linked schools first and
+// label them differently from "new" schools.
+type EnrollablePhase struct {
+	SchoolID          int64      `json:"school_id"`
+	SchoolName        string     `json:"school_name"`
+	SchoolSlug        string     `json:"school_slug"`
+	PhaseID           int64      `json:"phase_id"`
+	PhaseName         string     `json:"phase_name"`
+	PhaseKind         string     `json:"phase_kind"`
+	ServiceStartDate  time.Time  `json:"service_start_date"`
+	ServiceEndDate    time.Time  `json:"service_end_date"`
+	EnrollmentOpenAt  *time.Time `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt *time.Time `json:"enrollment_close_at,omitempty"`
+	AlreadyLinked     bool       `json:"already_linked"`
+}
+
+// EnrollablePhaseRepository is the cross-tenant lookup for the parent
+// enrollment picker. Same admin-tx requirement as ChildRepository.
+type EnrollablePhaseRepository interface {
+	// ListEnrollable returns every (school, active+open phase) pair,
+	// flagged with whether the given account already has a tenant
+	// mapping to that school. Sorted by AlreadyLinked DESC (linked
+	// schools first), then school name, then phase service start.
+	ListEnrollable(ctx context.Context, accountID int64) ([]*EnrollablePhase, error)
+}

@@ -752,9 +752,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	parentService := parent.NewService(parent.ServiceConfig{
-		ChildRepo: repos.ParentChild,
-		DB:        db,
-		Logger:    logger.With("service", "parent"),
+		ChildRepo:           repos.ParentChild,
+		EnrollablePhaseRepo: repos.ParentEnrollablePhase,
+		DB:                  db,
+		Logger:              logger.With("service", "parent"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{

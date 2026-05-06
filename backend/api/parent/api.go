@@ -73,6 +73,12 @@ func (rs *Resource) Router() chi.Router {
 		// linked to, across every active tenant mapping. Account id
 		// is read from claims, never from URL or body.
 		r.Get("/me/children", rs.listMyChildren)
+
+		// Cross-tenant enrollable schools list — every (school, open
+		// phase) the parent could enroll a new child at, with a flag
+		// for schools the parent already has children at. Powers the
+		// "Neue Anmeldung" school picker in the parents app.
+		r.Get("/me/enrollable-schools", rs.listEnrollableSchools)
 	})
 
 	return r

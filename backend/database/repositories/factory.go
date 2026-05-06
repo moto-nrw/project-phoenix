@@ -154,8 +154,9 @@ type Factory struct {
 	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
 	Phase                enrollmentModels.PhaseRepository
 
-	// Parent domain (cross-tenant guardian portal — PR 9)
-	ParentChild parentModels.ChildRepository
+	// Parent domain (cross-tenant guardian portal — PR 9+)
+	ParentChild           parentModels.ChildRepository
+	ParentEnrollablePhase parentModels.EnrollablePhaseRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -277,7 +278,8 @@ func NewFactory(db *bun.DB) *Factory {
 		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                enrollment.NewPhaseRepository(db),
 
-		// Parent (cross-tenant guardian portal — PR 9)
-		ParentChild: parentRepo.NewChildRepository(db),
+		// Parent (cross-tenant guardian portal — PR 9+)
+		ParentChild:           parentRepo.NewChildRepository(db),
+		ParentEnrollablePhase: parentRepo.NewEnrollablePhaseRepository(db),
 	}
 }
