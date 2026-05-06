@@ -298,6 +298,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Get shell auth mode
   const { mode } = useShellAuth();
 
+  // Parent mode renders a header-only shell — no bottom nav. The
+  // dashboard surfaces the only nav target ("Übersicht") and per-
+  // child links directly, so a 4-tab bottom bar would be empty.
+  if (mode === "parent") {
+    return null;
+  }
+
   // Check if current path matches nav item
   const isActiveRoute = useCallback(
     (href: string, activePaths?: string[]) => {

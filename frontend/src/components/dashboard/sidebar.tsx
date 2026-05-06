@@ -683,6 +683,38 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   }
 
+  // Parent mode: minimal sidebar — Übersicht (dashboard) + bottom
+  // logout. The dashboard itself surfaces the "Neue Anmeldung" CTA
+  // and the per-child links, so the sidebar is intentionally tiny.
+  if (mode === "parent") {
+    return (
+      <aside
+        className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+      >
+        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+          <nav className="flex-1 space-y-1 p-3 lg:p-4 xl:p-3">
+            <Link href="/parents" className={getLinkClasses("/parents")}>
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                />
+              </svg>
+              <span>Übersicht</span>
+            </Link>
+          </nav>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}

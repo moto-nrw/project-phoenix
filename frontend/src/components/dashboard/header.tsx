@@ -65,9 +65,11 @@ export function Header() {
   const userRole =
     mode === "operator"
       ? "Operator"
-      : userRoles.includes("admin")
-        ? "Admin"
-        : "Betreuer";
+      : mode === "parent"
+        ? "Eltern"
+        : userRoles.includes("admin")
+          ? "Admin"
+          : "Betreuer";
 
   // Scroll effect for header shrinking (hysteresis to prevent flicker)
   useEffect(() => {
