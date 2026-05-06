@@ -384,8 +384,24 @@ func (s *decisionService) applyApproval(
 	// invitation accept path overwrites the password hash, which is
 	// the wrong UX when the parent already has a working password from
 	// another school.
-	if guardian.AccountID == nil && guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
-		linked, err := s.attachExistingAccountIfPresent(ctx, guardian)
+	//
+	// PR 11/4: when the request carries guardian_account_id (parent
+	// submitted while logged in), prefer the by-ID lookup over the
+	// email lookup. A parent who edits their email in the form would
+	// otherwise miss the attach step and trigger an invitation that
+	// overwrites their existing password. The by-ID path is also
+	// strictly cheaper — no platform-wide email index hit.
+	if guardian.AccountID == nil {
+		var (
+			linked bool
+			err    error
+		)
+		switch {
+		case request.GuardianAccountID != nil && *request.GuardianAccountID > 0:
+			linked, err = s.attachExistingAccountByID(ctx, guardian, *request.GuardianAccountID)
+		case guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "":
+			linked, err = s.attachExistingAccountIfPresent(ctx, guardian)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("decision: attach existing account: %w", err)
 		}
@@ -394,6 +410,7 @@ func (s *decisionService) applyApproval(
 				slog.Int64("guardian_profile_id", guardian.ID),
 				slog.Int64("tenant_id", tenant.FromContext(ctx)),
 				slog.Bool("profile_was_new", profileWasNew),
+				slog.Bool("via_request_account_id", request.GuardianAccountID != nil),
 			)
 		}
 	}
@@ -759,6 +776,65 @@ func (s *decisionService) attachExistingAccountIfPresent(
 	guardian.AccountID = &account.ID
 	guardian.HasAccount = true
 
+	return true, nil
+}
+
+// attachExistingAccountByID links the guardian profile to the account
+// identified by accountID directly, bypassing the email lookup that
+// attachExistingAccountIfPresent uses. Called when the enrollment
+// request was submitted by an authenticated parent (PR 11) — the
+// JWT-derived account_id is more authoritative than the email field
+// (which the parent could have typed differently in the form).
+//
+// Same downstream steps as the email-based path: account_tenants
+// mapping + guardian role for the new tenant + LinkAccount on the
+// per-tenant profile. Returns true on success so the caller skips the
+// invitation enqueue.
+func (s *decisionService) attachExistingAccountByID(
+	ctx context.Context,
+	guardian *users.GuardianProfile,
+	accountID int64,
+) (bool, error) {
+	if s.accountRepo == nil || s.accountTenantRepo == nil ||
+		s.accountRoleRepo == nil || s.roleRepo == nil {
+		return false, nil
+	}
+	account, err := s.accountRepo.FindByID(ctx, accountID)
+	if err != nil || account == nil {
+		// Account was deleted between submission and decision — fall
+		// back to email lookup so the approval still goes through.
+		s.logger.Warn("decision: request guardian_account_id no longer resolvable, falling back to email",
+			slog.Int64("guardian_account_id", accountID),
+		)
+		if guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
+			return s.attachExistingAccountIfPresent(ctx, guardian)
+		}
+		return false, nil
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return false, fmt.Errorf("attach by id: tenant not in context")
+	}
+
+	now := time.Now()
+	mapping := &authModels.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    tenantID,
+		Status:      authModels.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
+		return false, fmt.Errorf("attach by id: account_tenants: %w", err)
+	}
+	if err := s.ensureGuardianRoleForTenant(ctx, account.ID); err != nil {
+		return false, err
+	}
+	if err := s.guardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
+		return false, fmt.Errorf("attach by id: link profile: %w", err)
+	}
+	guardian.AccountID = &account.ID
+	guardian.HasAccount = true
 	return true, nil
 }
 
