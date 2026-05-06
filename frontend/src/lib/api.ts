@@ -295,6 +295,15 @@ function buildRoomQueryParams(filters?: {
  * Returns empty array for invalid formats with warning.
  */
 function parseRoomsResponse(responseData: unknown): BackendRoom[] {
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData &&
+    Array.isArray((responseData as { data?: unknown }).data)
+  ) {
+    return (responseData as { data: BackendRoom[] }).data;
+  }
+
   if (!responseData || !Array.isArray(responseData)) {
     logger.warn("invalid response format for rooms", {
       response_type: typeof responseData,

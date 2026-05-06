@@ -138,6 +138,9 @@ vi.mock("~/lib/api", () => ({
   groupService: {
     getGroups: vi.fn(() => Promise.resolve([])),
   },
+  roomService: {
+    getRooms: vi.fn(() => Promise.resolve([])),
+  },
 }));
 
 vi.mock("~/lib/swr", () => ({

@@ -229,6 +229,7 @@ const mockStudents = [
     school_class: "1a",
     group_name: "Gruppe A",
     current_location: "Raum 101",
+    arrival_time: "08:00",
     pickup_time: "15:30",
     has_full_access: true,
   },
@@ -239,6 +240,7 @@ const mockStudents = [
     school_class: "2b",
     group_name: "Gruppe B",
     current_location: "Zuhause",
+    arrival_time: "08:30",
     has_full_access: true,
   },
   {
@@ -248,6 +250,7 @@ const mockStudents = [
     school_class: "1a",
     group_name: "Gruppe A",
     current_location: "Unterwegs",
+    arrival_time: "08:15",
     pickup_time: "16:00",
     has_full_access: true,
   },
@@ -258,6 +261,7 @@ const mockStudents = [
     school_class: "3c",
     group_name: "Gruppe C",
     current_location: "Schulhof",
+    arrival_time: "09:00",
     has_full_access: true,
   },
 ];
@@ -276,6 +280,14 @@ vi.mock("~/lib/api", () => ({
         { id: "1", name: "Gruppe A" },
         { id: "2", name: "Gruppe B" },
         { id: "3", name: "Gruppe C" },
+      ]),
+    ),
+  },
+  roomService: {
+    getRooms: vi.fn(() =>
+      Promise.resolve([
+        { id: "101", name: "Raum 101", isOccupied: true },
+        { id: "102", name: "Raum 102", isOccupied: false },
       ]),
     ),
   },
@@ -303,15 +315,28 @@ describe("StudentSearchPage", () => {
 
     // Reset SWR mock data for each test
     const swrModule = await import("~/lib/swr");
-    vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
-      data: [
-        { id: "1", name: "Gruppe A" },
-        { id: "2", name: "Gruppe B" },
-        { id: "3", name: "Gruppe C" },
-      ],
-      isLoading: false,
-      error: null,
-    } as ReturnType<typeof swrModule.useImmutableSWR>);
+    vi.mocked(swrModule.useImmutableSWR).mockImplementation((key) => {
+      if (key === "search-rooms-list") {
+        return {
+          data: [
+            { id: "101", name: "Raum 101", isOccupied: true },
+            { id: "102", name: "Raum 102", isOccupied: false },
+          ],
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useImmutableSWR>;
+      }
+
+      return {
+        data: [
+          { id: "1", name: "Gruppe A" },
+          { id: "2", name: "Gruppe B" },
+          { id: "3", name: "Gruppe C" },
+        ],
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useImmutableSWR>;
+    });
     vi.mocked(swrModule.useSWRAuth).mockReturnValue({
       data: { students: mockStudents },
       isLoading: false,
@@ -461,6 +486,21 @@ describe("StudentSearchPage", () => {
   });
 
   describe("Year Filtering", () => {
+    it("renders the school year filter as a stage dropdown", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-year")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByRole("option", { name: "Alle Stufen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Stufe 1" }),
+      ).toBeInTheDocument();
+    });
+
     it("filters students by school year when year filter changes", async () => {
       render(<StudentSearchPage />);
 
@@ -1512,6 +1552,66 @@ describe("StudentSearchPage", () => {
       expect(screen.getByText("Anna")).toBeInTheDocument();
       expect(screen.getByText("Tom")).toBeInTheDocument();
       expect(screen.getByText("Lisa")).toBeInTheDocument();
+    });
+
+    it("offers pickup sorting as a dedicated sort mode", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId("filter-sort"), {
+        target: { value: "pickup" },
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-sort")).toHaveValue("pickup"),
+      );
+      expect(screen.getByText("Max")).toBeInTheDocument();
+      expect(screen.getByText("Tom")).toBeInTheDocument();
+    });
+
+    it("filters by a specific arrival time", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
+        target: { value: "08:15" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Tom")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Max")).not.toBeInTheDocument();
+      expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+      expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+    });
+
+    it("groups the result list when a grouping mode is selected", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "status" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId("student-group")).toHaveLength(4);
+      });
+      expect(screen.getAllByText("Anwesend").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Abwesend").length).toBeGreaterThan(0);
+    });
+
+    it("shows the room filter even without a room deep-link", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-room")).toBeInTheDocument();
+      });
+      expect(
+        screen.getByRole("option", { name: "Raum 101" }),
+      ).toBeInTheDocument();
     });
   });
 });

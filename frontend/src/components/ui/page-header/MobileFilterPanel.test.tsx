@@ -185,7 +185,7 @@ describe("MobileFilterPanel", () => {
       },
     ];
 
-    it("renders dropdown options as list", () => {
+    it("renders single-select dropdown options inside a select", () => {
       render(
         <MobileFilterPanel
           isOpen={true}
@@ -194,12 +194,19 @@ describe("MobileFilterPanel", () => {
         />,
       );
 
-      expect(screen.getByText("Alle Räume")).toBeInTheDocument();
-      expect(screen.getByText("Raum 101")).toBeInTheDocument();
-      expect(screen.getByText("Raum 102")).toBeInTheDocument();
+      expect(screen.getByTestId("filter-room")).toHaveValue("all");
+      expect(
+        screen.getByRole("option", { name: "Alle Räume" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Raum 101 (5)" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Raum 102 (3)" }),
+      ).toBeInTheDocument();
     });
 
-    it("shows count when provided", () => {
+    it("includes counts in single-select option labels", () => {
       render(
         <MobileFilterPanel
           isOpen={true}
@@ -208,8 +215,12 @@ describe("MobileFilterPanel", () => {
         />,
       );
 
-      expect(screen.getByText("(5)")).toBeInTheDocument();
-      expect(screen.getByText("(3)")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Raum 101 (5)" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Raum 102 (3)" }),
+      ).toBeInTheDocument();
     });
   });
 

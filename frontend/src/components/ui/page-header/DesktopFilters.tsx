@@ -13,7 +13,7 @@ export function DesktopFilters({
   className = "",
 }: Readonly<DesktopFiltersProps>) {
   return (
-    <div className={`flex gap-2 ${className}`}>
+    <div className={`flex flex-wrap gap-2 ${className}`}>
       {filters.map((filter) => (
         <FilterControl key={filter.id} filter={filter} />
       ))}
