@@ -594,6 +594,8 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 #### F3 — Staff operations from the plan
 
+**Implementation cut:** F3 and F4 should ship together in one PR. F3 alone only shows planned work; F4 turns that card into the operational action that starts the planned instance and prevents duplicate unlinked live groups.
+
 - [ ] **WP-F3** — Planned items in `/active-supervisions` ("Jetzt geplant")
   - Show planned instances for today in an operational window: `now - 15min` through `now + 15min`, plus overdue planned instances.
   - Cards show title, time, room, assigned staff, expected child count, conflict/gap status and a clear **Jetzt starten** action.
@@ -669,7 +671,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 **Aktueller Stand:** WP-F2 ist abgeschlossen. Der Admin-Stundenplan ist jetzt als Planungswerkzeug nutzbar: Buero/Admin kann Perioden, Serien, konkrete Termine, Personal-Luecken, Ersatz und Neuplanung pflegen.
 
-**Naechster Produktwert:** WP-F3/F4/F5/F8 zusammen machen den Stundenplan operativ: geplante Aktivitaeten erscheinen in `/active-supervisions`, koennen dort gestartet werden, zeigen erwartete Kinder und aktualisieren ohne manuellen Refresh.
+**Naechster Produktwert:** WP-F3/F4 sind der naechste gemeinsame PR-Schnitt: geplante Aktivitaeten erscheinen in `/active-supervisions` und koennen dort direkt gestartet werden. WP-F5/F8 folgen darauf, damit laufende Instanzen erwartete Kinder zeigen und ohne manuellen Refresh aktualisieren.
 
 **Danach muss Timetable in die echten Startpunkte rein:** F13/F14 verbinden geplante Instanzen und spontane Aktivitaeten mit PyrePortal/Geraeten. Das Ziel ist: Ein Geraet startet nicht blind eine neue Live-Gruppe, sondern erkennt zuerst den passenden geplanten Termin. Spontane Aktivitaeten bleiben moeglich, aber nur in expliziten Zeitfenstern und mit Timetable-Instance fuer Reporting.
 
