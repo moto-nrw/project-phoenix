@@ -254,7 +254,7 @@ interface UseRoomDetailResult {
   error: string | null;
 }
 
-export function useRoomDetail(roomId: string): UseRoomDetailResult {
+function useRoomDetail(roomId: string): UseRoomDetailResult {
   const { data: session } = useSession();
   const token = session?.user?.token;
 

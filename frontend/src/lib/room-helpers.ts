@@ -10,14 +10,14 @@ const logger = createLogger({ component: "RoomHelpers" });
 // places. Fallback for unknown / missing categories is the neutral
 // gray below. Single source of truth: previously this map was duplicated
 // in rooms/page.tsx and components/rooms/room-detail-content.tsx.
-export const ROOM_CATEGORY_COLORS: Record<string, string> = {
+const ROOM_CATEGORY_COLORS: Record<string, string> = {
   "Normaler Raum": "#4F46E5",
   Gruppenraum: "#10B981",
   Themenraum: "#8B5CF6",
   Sport: "#EC4899",
 };
 
-export const ROOM_CATEGORY_FALLBACK_COLOR = "#6B7280";
+const ROOM_CATEGORY_FALLBACK_COLOR = "#6B7280";
 
 export function getRoomCategoryColor(
   category: string | null | undefined,
