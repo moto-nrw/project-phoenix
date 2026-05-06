@@ -1,11 +1,15 @@
 "use client";
 
-import { use } from "react";
+import { use, useCallback } from "react";
 import Link from "next/link";
 // eslint-disable-next-line no-restricted-imports -- parent portal uses bare paths, no tenant-router
 import { useRouter } from "next/navigation";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { TenantProvider } from "~/components/tenant/tenant-provider";
+import {
+  fetchParentEnrollmentProfile,
+  submitParentEnrollment,
+} from "~/lib/parent-api";
 
 interface PageProps {
   readonly params: Promise<{ tenantSlug: string; phaseId: string }>;
@@ -34,6 +38,16 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
     }
   };
 
+  const profileFetcher = useCallback(
+    () => fetchParentEnrollmentProfile(tenantSlug),
+    [tenantSlug],
+  );
+  const submitter = useCallback(
+    (payload: Parameters<typeof submitParentEnrollment>[1]) =>
+      submitParentEnrollment(tenantSlug, payload),
+    [tenantSlug],
+  );
+
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
       <header className="space-y-2">
@@ -56,6 +70,9 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
           phaseID={phaseId}
           gradeLevelMax={4}
           onSubmitted={handleSubmitted}
+          profileFetcher={profileFetcher}
+          submitter={submitter}
+          skipCaptcha
         />
       </TenantProvider>
     </main>

@@ -38,10 +38,31 @@ const DAY_LABELS: Record<string, string> = {
   sun: "So",
 };
 
+import type {
+  SubmitEnrollmentPayload,
+  SubmitEnrollmentResult,
+} from "~/lib/enrollment-submission-api";
+
 interface Props {
   readonly phaseID: string;
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
+  /**
+   * Optional overrides for the autofill fetcher and submitter — used
+   * by the parents portal to swap in parent-scope endpoints
+   * (/api/parent/...) instead of the default tenant-scope ones. When
+   * unset, the form falls back to the public path.
+   */
+  readonly profileFetcher?: () => Promise<MeProfileResponse | null>;
+  readonly submitter?: (
+    payload: SubmitEnrollmentPayload,
+  ) => Promise<SubmitEnrollmentResult>;
+  /**
+   * Hide the captcha widget. Set true when the caller has already
+   * authenticated the user (e.g. parent JWT), so the backend's
+   * authenticated submit endpoint will skip captcha verification.
+   */
+  readonly skipCaptcha?: boolean;
 }
 
 /**
@@ -56,7 +77,14 @@ interface Props {
  * adds custom fields on top. PR 5 enforced this distinction in the
  * model's CoreFieldKeys map.
  */
-export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
+export function EnrollmentForm({
+  phaseID,
+  gradeLevelMax,
+  onSubmitted,
+  profileFetcher,
+  submitter,
+  skipCaptcha,
+}: Props) {
   const { tenantSlug } = useTenant();
   const [schema, setSchema] = useState<PublicFormSchema | null>(null);
   const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
@@ -85,11 +113,12 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
       setLoading(true);
       setError(null);
       try {
+        const profileLoader = profileFetcher ?? fetchMyEnrollmentProfile;
         const [schemaResult, offeringsResult, profileResult] =
           await Promise.all([
             fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null),
             fetchPublicCareOfferings(tenantSlug, phaseID),
-            fetchMyEnrollmentProfile().catch(() => null),
+            profileLoader().catch(() => null),
           ]);
         if (cancelled) return;
         setSchema(schemaResult);
@@ -124,7 +153,7 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug, phaseID]);
+  }, [tenantSlug, phaseID, profileFetcher]);
 
   const updateChild = (index: number, patch: Partial<ChildDraft>) => {
     setChildren((prev) =>
@@ -179,7 +208,7 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
 
     setSubmitting(true);
     try {
-      const result = await submitEnrollment(tenantSlug, {
+      const payload: SubmitEnrollmentPayload = {
         phase_id: Number(phaseID),
         guardian_first_name: guardianFirstName.trim(),
         guardian_last_name: guardianLastName.trim(),
@@ -192,8 +221,11 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
           photo: photoConsent,
         },
         children: payloadChildren,
-        captcha_token: captchaToken || undefined,
-      });
+        captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
+      };
+      const result = submitter
+        ? await submitter(payload)
+        : await submitEnrollment(tenantSlug, payload);
       onSubmitted(result.status_url);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
@@ -443,12 +475,14 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
         />
       </section>
 
-      <input
-        type="hidden"
-        name="captcha_token"
-        value={captchaToken}
-        onChange={(e) => setCaptchaToken(e.target.value)}
-      />
+      {!skipCaptcha && (
+        <input
+          type="hidden"
+          name="captcha_token"
+          value={captchaToken}
+          onChange={(e) => setCaptchaToken(e.target.value)}
+        />
+      )}
       {/*
         Captcha widget: PR 7 ships the form skeleton + the backend
         Verify path. The Cloudflare Turnstile widget is injected by
@@ -457,6 +491,8 @@ export function EnrollmentForm({ phaseID, gradeLevelMax, onSubmitted }: Props) {
         with the token, which a small companion component picks up.
         Until that wiring lands, captcha can be disabled per-tenant
         via enrollment.require_captcha=false for development/testing.
+        skipCaptcha=true skips the widget entirely — set by callers
+        that have already authenticated the user (parent JWT path).
       */}
 
       <button

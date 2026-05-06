@@ -9,6 +9,11 @@
  */
 
 import { createLogger } from "~/lib/logger";
+import type {
+  MeProfileResponse,
+  SubmitEnrollmentPayload,
+  SubmitEnrollmentResult,
+} from "~/lib/enrollment-submission-api";
 
 const logger = createLogger({ component: "ParentAPI" });
 
@@ -93,6 +98,87 @@ export async function listMyChildren(): Promise<Child[]> {
  */
 export async function listEnrollableSchools(): Promise<EnrollablePhase[]> {
   return getJson<EnrollablePhase[]>("/api/parent/me/enrollable-schools");
+}
+
+/**
+ * Fetches the parent's autofill payload for the embedded enrollment
+ * form, scoped to a specific tenant slug. Returns null on 401 so the
+ * form can render without prefill rather than failing — matches the
+ * public path's fetchMyEnrollmentProfile contract.
+ */
+export async function fetchParentEnrollmentProfile(
+  tenantSlug: string,
+): Promise<MeProfileResponse | null> {
+  const response = await fetch(
+    `/api/parent/enrollments/${encodeURIComponent(tenantSlug)}/profile`,
+    { cache: "no-store" },
+  );
+  if (response.status === 401) {
+    return null;
+  }
+  if (!response.ok) {
+    let message = `Profile request failed (${response.status})`;
+    try {
+      const body = (await response.json()) as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      // Body wasn't JSON — keep the generic message.
+    }
+    logger.error("parent_profile_request_failed", {
+      tenant_slug: tenantSlug,
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
+  const json = (await response.json()) as { data?: MeProfileResponse };
+  return (json.data ?? (json as unknown as MeProfileResponse)) || null;
+}
+
+/**
+ * Submits an enrollment from the parents portal. Backend stamps
+ * guardian_account_id from the parent JWT and skips captcha
+ * verification — the JWT itself is the anti-bot signal. Reuses the
+ * same payload + result shape as the public submitEnrollment so the
+ * EnrollmentForm can consume both paths interchangeably.
+ */
+export async function submitParentEnrollment(
+  tenantSlug: string,
+  payload: SubmitEnrollmentPayload,
+): Promise<SubmitEnrollmentResult> {
+  const response = await fetch(
+    `/api/parent/enrollments/${encodeURIComponent(tenantSlug)}/submit`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!response.ok) {
+    let message = "Anmeldung konnte nicht übermittelt werden";
+    try {
+      const body = (await response.json()) as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      // Body wasn't JSON — keep the generic message.
+    }
+    logger.error("parent_submit_failed", {
+      tenant_slug: tenantSlug,
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
+  const json = (await response.json()) as {
+    data?: SubmitEnrollmentResult;
+    request_id?: string;
+    status_url?: string;
+  };
+  if (json.data) return json.data;
+  return {
+    request_id: json.request_id ?? "",
+    status_url: json.status_url ?? "",
+  };
 }
 
 /**

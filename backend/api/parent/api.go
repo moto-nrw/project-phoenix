@@ -23,27 +23,35 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
 // Resource bundles the parent-portal HTTP handlers + their deps.
 type Resource struct {
-	AuthService   authService.AuthService
-	ParentService parentService.Service
-	db            *bun.DB
+	AuthService    authService.AuthService
+	ParentService  parentService.Service
+	RequestService enrollmentService.RequestService
+	SchoolRepo     platformModels.SchoolRepository
+	db             *bun.DB
 }
 
 // NewResource builds the parent-portal resource.
 func NewResource(
 	auth authService.AuthService,
 	parent parentService.Service,
+	requestSvc enrollmentService.RequestService,
+	schoolRepo platformModels.SchoolRepository,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
-		AuthService:   auth,
-		ParentService: parent,
-		db:            db,
+		AuthService:    auth,
+		ParentService:  parent,
+		RequestService: requestSvc,
+		SchoolRepo:     schoolRepo,
+		db:             db,
 	}
 }
 
@@ -79,6 +87,19 @@ func (rs *Resource) Router() chi.Router {
 		// for schools the parent already has children at. Powers the
 		// "Neue Anmeldung" school picker in the parents app.
 		r.Get("/me/enrollable-schools", rs.listEnrollableSchools)
+
+		// Per-school autofill payload for the embedded enrollment
+		// form. Tenant resolved from the {tenantSlug} path segment;
+		// account from the parent JWT. Returns guardian fields from
+		// the guardian_profile in that tenant (or claims if none) +
+		// any students already linked to the guardian profile.
+		r.Get("/enrollments/{tenantSlug}/profile", rs.getEnrollmentProfile)
+
+		// Authenticated submit. Stamps guardian_account_id on the
+		// resulting enrollment.requests row, skips captcha (parent
+		// already authenticated), and forwards to the same
+		// RequestService.Submit the public path uses.
+		r.Post("/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
 	})
 
 	return r

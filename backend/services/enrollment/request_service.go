@@ -65,6 +65,13 @@ type SubmitRequest struct {
 	ConsentFlags      map[string]any
 	CustomData        map[string]any
 
+	// GuardianAccountID is set when the submission comes from an
+	// authenticated parent on the parents portal. The handler verifies
+	// the account has access to req.TenantID before passing it through.
+	// Stamped onto the request row so PR 11/4 can skip the invitation
+	// when an account already exists. nil = anonymous public submission.
+	GuardianAccountID *int64
+
 	Children []SubmitChild
 }
 
@@ -274,6 +281,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		request := &enrollmentModels.Request{
 			SchemaID:           schemaID,
 			PhaseID:            phase.ID,
+			GuardianAccountID:  req.GuardianAccountID,
 			GuardianFirstName:  strings.TrimSpace(req.GuardianFirstName),
 			GuardianLastName:   strings.TrimSpace(req.GuardianLastName),
 			GuardianEmail:      strings.ToLower(strings.TrimSpace(req.GuardianEmail)),
