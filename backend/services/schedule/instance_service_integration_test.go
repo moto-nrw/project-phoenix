@@ -491,6 +491,154 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	assert.True(t, instanceExists(t, s, cancelled), "cancelled must survive")
 }
 
+func TestInstance_ReplanWeek_RejectsInvalidWindowAndMissingTenant(t *testing.T) {
+	s := buildLifecycle(t)
+	from := time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
+
+	_, err := s.svc.ReplanWeek(s.ctx, from, to)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "to_date")
+
+	_, err = s.svc.ReplanWeek(context.Background(), to, from)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no tenant")
+}
+
+func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
+	s := buildLifecycle(t)
+	createdBy := s.staffID
+
+	inst, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:             time.Date(2026, 5, 4, 0, 0, 0, 0, time.UTC),
+		StartTime:        time.Date(1, 1, 1, 9, 30, 0, 0, time.UTC),
+		EndTime:          time.Date(1, 1, 1, 10, 15, 0, 0, time.UTC),
+		Title:            "Create service test",
+		RoomID:           s.roomID,
+		ActivityGroupID:  &s.tmplID,
+		StaffIDs:         []int64{s.staffID, s.staffID, 0, -40},
+		StudentIDs:       []int64{s.student1, s.student1, s.student2, -20},
+		CreatedByStaffID: &createdBy,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	assert.Equal(t, scheduleModels.InstanceStatusPlanned, inst.Status)
+	assert.False(t, inst.IsSpontaneous)
+	require.NotNil(t, inst.CreatedBy)
+	assert.Equal(t, createdBy, *inst.CreatedBy)
+	assert.Equal(t, "09:30", inst.StartTime.Format("15:04"))
+
+	staffRows := countRowsWhere(t, s, "schedule.instance_staff", "instance_id", inst.ID)
+	studentRows := countRowsWhere(t, s, "schedule.instance_students", "instance_id", inst.ID)
+	assert.Equal(t, 1, staffRows, "duplicate and non-positive staff ids must be ignored")
+	assert.Equal(t, 2, studentRows, "duplicate and non-positive student ids must be ignored")
+}
+
+func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
+	s := buildLifecycle(t)
+
+	inst, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:      time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC),
+		StartTime: time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+		Title:     "Spontaneous service test",
+		RoomID:    s.roomID,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+	assert.True(t, inst.IsSpontaneous)
+	assert.Nil(t, inst.ActivityGroupID)
+
+	_, err = s.svc.Create(context.Background(), scheduleSvc.CreateInstanceInput{
+		Date:      time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC),
+		StartTime: time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+		Title:     "No tenant",
+		RoomID:    s.roomID,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no tenant")
+}
+
+func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, true)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, ai.ID, scheduleSvc.UpdateInstanceInput{
+		Date:       time.Date(2026, 5, 7, 0, 0, 0, 0, time.UTC),
+		StartTime:  time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+		EndTime:    time.Date(1, 1, 1, 17, 30, 0, 0, time.UTC),
+		Title:      "Updated planned instance",
+		RoomID:     s.roomID,
+		StaffIDs:   []int64{s.staffID, s.staffID},
+		StudentIDs: []int64{s.student2},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "Updated planned instance", updated.Title)
+	assert.Equal(t, "16:00", updated.StartTime.Format("15:04"))
+	assert.True(t, updated.IsSpontaneous, "nil ActivityGroupID should toggle to spontaneous")
+	assert.Nil(t, updated.ActivityGroupID)
+	assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_staff", "instance_id", ai.ID))
+	assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_students", "instance_id", ai.ID))
+
+	row := fetchAttendance(t, s, ai.ID, s.student2)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
+}
+
+func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
+	for _, status := range []string{
+		scheduleModels.InstanceStatusActive,
+		scheduleModels.InstanceStatusCompleted,
+		scheduleModels.InstanceStatusCancelled,
+	} {
+		t.Run(status, func(t *testing.T) {
+			s := buildLifecycle(t)
+			ai := seedInstance(t, s, false, false)
+			forceSetInstanceStatus(t, s, ai.ID, status)
+
+			_, err := s.svc.UpdatePlanned(s.ctx, ai.ID, scheduleSvc.UpdateInstanceInput{
+				Date:      time.Date(2026, 5, 8, 0, 0, 0, 0, time.UTC),
+				StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
+				EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+				Title:     "Should fail",
+				RoomID:    s.roomID,
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
+		})
+	}
+}
+
+func TestInstance_DeleteCancelled_OnlyCancelled(t *testing.T) {
+	for _, status := range []string{
+		scheduleModels.InstanceStatusPlanned,
+		scheduleModels.InstanceStatusActive,
+		scheduleModels.InstanceStatusCompleted,
+	} {
+		t.Run("rejects "+status, func(t *testing.T) {
+			s := buildLifecycle(t)
+			ai := seedInstance(t, s, false, false)
+			forceSetInstanceStatus(t, s, ai.ID, status)
+
+			err := s.svc.DeleteCancelled(s.ctx, ai.ID)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
+			assert.True(t, instanceExists(t, s, ai.ID))
+		})
+	}
+
+	t.Run("deletes cancelled", func(t *testing.T) {
+		s := buildLifecycle(t)
+		ai := seedInstance(t, s, false, false)
+		forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCancelled)
+
+		require.NoError(t, s.svc.DeleteCancelled(s.ctx, ai.ID))
+		assert.False(t, instanceExists(t, s, ai.ID))
+	})
+}
+
 func insertInstance(t *testing.T, s *lifecycleSetup, date time.Time, status string, spontaneous bool) int64 {
 	t.Helper()
 	row := &scheduleModels.ActivityInstance{
@@ -509,6 +657,19 @@ func insertInstance(t *testing.T, s *lifecycleSetup, date time.Time, status stri
 	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
 	return row.ID
+}
+
+func countRowsWhere(t *testing.T, s *lifecycleSetup, table, column string, value int64) int {
+	t.Helper()
+	var count int
+	err := s.db.NewSelect().
+		TableExpr(table).
+		ColumnExpr("COUNT(*)").
+		Where(column+" = ?", value).
+		Where("tenant_id = ?", 1).
+		Scan(s.ctx, &count)
+	require.NoError(t, err)
+	return count
 }
 
 func instanceExists(t *testing.T, s *lifecycleSetup, id int64) bool {

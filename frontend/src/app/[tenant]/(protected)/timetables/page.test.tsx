@@ -424,7 +424,11 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onSaved: (result: { kind: "instance"; instance: { id: string } }) => void;
+    onSaved: (
+      result:
+        | { kind: "instance"; instance: { id: string } }
+        | { kind: "series"; seriesId: string; linkedInstanceId?: string },
+    ) => void;
   }) =>
     isOpen ? (
       <div>
@@ -436,6 +440,18 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
           onClick={() => onSaved({ kind: "instance", instance: { id: "42" } })}
         >
           event-save
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSaved({
+              kind: "series",
+              seriesId: "7",
+              linkedInstanceId: "42",
+            })
+          }
+        >
+          event-save-series
         </button>
       </div>
     ) : null,
@@ -621,6 +637,10 @@ describe("TimetablesPage", () => {
 
     fireEvent.click(screen.getByText("create-period"));
     expect(screen.getByText("period-save")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("period-close"));
+    expect(screen.queryByText("period-save")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("create-period"));
     fireEvent.click(screen.getByText("period-save"));
     await waitFor(() =>
       expect(mockTenantMutate).toHaveBeenCalledWith(
@@ -680,6 +700,11 @@ describe("TimetablesPage", () => {
     await waitFor(() =>
       expect(screen.getByText("detail-delete")).toBeVisible(),
     );
+    fireEvent.click(screen.getByText("detail-repeat"));
+    expect(screen.getByText("event-save-series")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("event-save-series"));
+    await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
+
     fireEvent.click(screen.getByText("detail-delete"));
     await waitFor(() => expect(mockDeleteCancelled).toHaveBeenCalledWith("42"));
   });

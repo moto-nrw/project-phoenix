@@ -234,6 +234,52 @@ describe("TimetableEventModal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("filters and bulk-selects visible student rows", async () => {
+    mockFetchStudents.mockResolvedValue({
+      students: [
+        {
+          id: "21",
+          name: "Max Kind",
+          school_class: "1a",
+          group_name: "OGS Blau",
+        },
+        {
+          id: "22",
+          name: "Mila Kind",
+          school_class: "2b",
+          group_name: "OGS Rot",
+        },
+      ],
+    });
+    renderModal();
+
+    await screen.findByText("Haus A - Mensa");
+    expect(screen.getByText("Max Kind")).toBeInTheDocument();
+    expect(screen.getByText("Mila Kind")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Kinder suchen ..."), {
+      target: { value: "Mila" },
+    });
+    expect(screen.queryByText("Max Kind")).not.toBeInTheDocument();
+    expect(screen.getByText("Mila Kind")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Sichtbare auswählen" })[0]!,
+    );
+    expect(screen.getByText("1 ausgewählt")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filter zurücksetzen" }),
+    );
+    expect(screen.getByText("Max Kind")).toBeInTheDocument();
+    expect(screen.getByText("Mila Kind")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Auswahl leeren" })[0]!,
+    );
+    expect(screen.getAllByText("0 ausgewählt").length).toBeGreaterThan(0);
+  });
+
   it("validates shared fields before submitting", async () => {
     renderModal();
 

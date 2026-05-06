@@ -1309,8 +1309,10 @@ func TestScheduleService_CheckConflict(t *testing.T) {
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
 		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
 
-		// ACT - Check for conflict outside the timeframe (1 hour after it ends)
-		checkStart := endTime.Add(1 * time.Hour)
+		// ACT - Check for conflict outside the timeframe and outside seeded
+		// daytime slots. schedule.timeframes stores wall-clock TIME values, so
+		// the calendar date does not isolate this query from seeded fixtures.
+		checkStart := time.Date(3000, 6, 15, 22, 0, 0, 0, time.UTC)
 		checkEnd := checkStart.Add(1 * time.Hour)
 		hasConflict, conflicts, err := service.CheckConflict(ctx, checkStart, checkEnd)
 

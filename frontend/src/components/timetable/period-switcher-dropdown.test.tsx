@@ -130,4 +130,61 @@ describe("PeriodSwitcherDropdown", () => {
     );
     expect(screen.getByRole("button", { name: /Sommerferien/ })).toBeVisible();
   });
+
+  it("summarizes month period coverage for full, missing, and mixed months", () => {
+    const fullMonthDays = [
+      new Date("2026-08-03T00:00:00"),
+      new Date("2026-08-10T00:00:00"),
+    ];
+
+    const { rerender } = render(
+      <PeriodSwitcherDropdown
+        periods={basePeriods}
+        weekDays={fullMonthDays}
+        view="month"
+        onCreate={vi.fn()}
+        onEdit={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Schuljahr/ }));
+    expect(screen.getByText(/Liegt komplett in/)).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    rerender(
+      <PeriodSwitcherDropdown
+        periods={basePeriods}
+        weekDays={[new Date("2026-06-01T00:00:00")]}
+        view="month"
+        onCreate={vi.fn()}
+        onEdit={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Periode anlegen" }));
+    expect(
+      screen.getByText(/Für diesen Monat ist keine aktive Periode hinterlegt/),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    rerender(
+      <PeriodSwitcherDropdown
+        periods={basePeriods}
+        weekDays={[
+          new Date("2026-07-31T00:00:00"),
+          new Date("2026-08-03T00:00:00"),
+        ]}
+        view="month"
+        onCreate={vi.fn()}
+        onEdit={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Mehrere Perioden/ }));
+    expect(screen.getByText("Umfasst mehrere Perioden.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Einige Tage haben keine aktive Periode."),
+    ).toBeInTheDocument();
+  });
 });

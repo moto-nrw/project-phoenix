@@ -45,7 +45,7 @@ func buildListSetup(t *testing.T) *listSetup {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("List-Room-%d", suffix))
 
 	cleanup := func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
+		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	}
 
 	res := NewResource(Dependencies{

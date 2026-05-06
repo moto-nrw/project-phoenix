@@ -12,9 +12,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,7 +52,7 @@ func buildCreateSetup(t *testing.T) *createSetup {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Room-%d", suffix))
 
 	cleanup := func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
+		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	}
 
 	mock := &mockInstanceService{}
@@ -181,6 +183,18 @@ func TestCreateInstance_Validation(t *testing.T) {
 			body: map[string]any{"date": tomorrow, "start_time": "2:00 PM", "end_time": "15:00", "title": "X", "room_id": s.roomID},
 		},
 		{
+			name: "invalid date format",
+			body: map[string]any{"date": "tomorrow", "start_time": "14:00", "end_time": "15:00", "title": "X", "room_id": s.roomID},
+		},
+		{
+			name: "invalid end time format",
+			body: map[string]any{"date": tomorrow, "start_time": "14:00", "end_time": "later", "title": "X", "room_id": s.roomID},
+		},
+		{
+			name: "title too long",
+			body: map[string]any{"date": tomorrow, "start_time": "14:00", "end_time": "15:00", "title": strings.Repeat("x", 256), "room_id": s.roomID},
+		},
+		{
 			name: "end before start",
 			body: map[string]any{"date": tomorrow, "start_time": "15:00", "end_time": "14:00", "title": "X", "room_id": s.roomID},
 		},
@@ -191,4 +205,60 @@ func TestCreateInstance_Validation(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 		})
 	}
+}
+
+func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
+	s := buildCreateSetup(t)
+	defer s.cleanupFn()
+	router := createRouter(s.ctx, s.res)
+
+	template := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Create-Bound-%d", time.Now().UnixNano()))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "activities.groups", template.ID) })
+	templateID := template.ID
+	tomorrow := time.Now().AddDate(0, 0, 1)
+	persisted := testpkg.CreateTestActivityInstance(t, s.db, tomorrow, s.roomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &templateID,
+		StartHHMM:       "10:00",
+		EndHHMM:         "11:00",
+		Title:           "Template-bound extra slot",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", persisted.ID) })
+	s.mock.createRes = persisted
+
+	body := map[string]any{
+		"date":              tomorrow.Format("2006-01-02"),
+		"start_time":        "10:00",
+		"end_time":          "11:00",
+		"title":             "Template-bound extra slot",
+		"room_id":           s.roomID,
+		"activity_group_id": templateID,
+		"student_ids":       []int64{70, 80},
+	}
+
+	w := doCreate(t, router, body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	require.NotNil(t, s.mock.lastCreate)
+	require.NotNil(t, s.mock.lastCreate.ActivityGroupID)
+	assert.Equal(t, templateID, *s.mock.lastCreate.ActivityGroupID)
+	assert.Equal(t, []int64{70, 80}, s.mock.lastCreate.StudentIDs)
+
+	s.mock.createErr = errors.New("insert failed")
+	errW := doCreate(t, router, body)
+	assert.Equal(t, http.StatusInternalServerError, errW.Code)
+}
+
+func TestCreateInstance_UnwiredResource(t *testing.T) {
+	s := buildCreateSetup(t)
+	defer s.cleanupFn()
+	router := createRouter(s.ctx, NewResource(Dependencies{InstanceService: s.mock}))
+
+	body := map[string]any{
+		"date":       time.Now().AddDate(0, 0, 1).Format("2006-01-02"),
+		"start_time": "10:00",
+		"end_time":   "11:00",
+		"title":      "Unwired",
+		"room_id":    s.roomID,
+	}
+	w := doCreate(t, router, body)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
