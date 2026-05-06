@@ -67,28 +67,25 @@ function mapStudentResponse(
     group_supervisors?: SupervisorContact[];
   };
 
+  // Spread upstream-mapped student so future Student fields propagate without
+  // touching this whitelist. Explicit lines below either coerce nullish to a
+  // default (first_name/group_id/...) or apply access-control gating.
   return {
-    id: mappedStudent.id,
+    ...mappedStudent,
     first_name: mappedStudent.first_name ?? "",
     second_name: mappedStudent.second_name ?? "",
-    name: mappedStudent.name,
-    school_class: mappedStudent.school_class,
     group_id: mappedStudent.group_id ?? "",
     group_name: mappedStudent.group_name ?? "",
-    current_location: mappedStudent.current_location,
+    bus: mappedStudent.bus ?? false,
+    buskind: mappedStudent.bus ?? false,
+    current_room: undefined,
     location_since: hasAccess
       ? (mappedStudent.location_since ?? undefined)
       : undefined,
-    bus: mappedStudent.bus ?? false,
-    current_room: undefined,
-    birthday: mappedStudent.birthday ?? undefined,
-    buskind: mappedStudent.bus ?? false,
     extra_info: hasAccess ? (mappedStudent.extra_info ?? undefined) : undefined,
     supervisor_notes: hasAccess
       ? (mappedStudent.supervisor_notes ?? undefined)
       : undefined,
-    health_info: mappedStudent.health_info ?? undefined,
-    pickup_status: mappedStudent.pickup_status ?? undefined,
     sick: hasAccess ? (mappedStudent.sick ?? false) : false,
     sick_since: hasAccess ? (mappedStudent.sick_since ?? undefined) : undefined,
     excused: hasAccess ? (mappedStudent.excused ?? false) : false,
