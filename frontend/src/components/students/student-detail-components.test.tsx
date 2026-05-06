@@ -156,6 +156,69 @@ describe("StudentDetailHeader", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Per-room color forwarding (Issue #1381) — the header builds a `badgeStudent`
+  // object from the incoming student before passing it to LocationBadge. A
+  // prior whitelist version of that object dropped `current_room_color`, which
+  // left the detail-page badge stuck on the default Anwesend blue while
+  // /students/search rendered the configured hex correctly. This regression
+  // test fails if anyone reintroduces the whitelist (or any other field
+  // filtering between `student` and the badge).
+  // ---------------------------------------------------------------------------
+  describe("LocationBadge field forwarding (Issue #1381)", () => {
+    afterEach(() => cleanup());
+
+    it("forwards current_room_color to the LocationBadge", () => {
+      const studentInRoom: ExtendedStudent = {
+        ...mockStudent,
+        // contextAware mode only paints the per-room hex when the viewer has
+        // detailed access. has_full_access bypasses the OGS-group check and
+        // keeps the test independent of myGroups wiring.
+        has_full_access: true,
+        current_location: "Anwesend - Bibliothek",
+        current_room_color: "#A3D977",
+      };
+
+      render(
+        <StudentDetailHeader
+          student={studentInRoom}
+          myGroups={[]}
+          myGroupRooms={[]}
+          mySupervisedRooms={[]}
+        />,
+      );
+
+      // The badge renders the room name as its label; closest("span") grabs
+      // the styled wrapper that carries backgroundColor inline.
+      const badgeContainer = screen.getByText("Bibliothek").closest("span");
+      expect(badgeContainer).toHaveStyle({ backgroundColor: "#A3D977" });
+    });
+
+    it("falls back to the default room color when current_room_color is null", () => {
+      const studentInRoom: ExtendedStudent = {
+        ...mockStudent,
+        has_full_access: true,
+        current_location: "Anwesend - Bibliothek",
+        current_room_color: null,
+      };
+
+      render(
+        <StudentDetailHeader
+          student={studentInRoom}
+          myGroups={[]}
+          myGroupRooms={[]}
+          mySupervisedRooms={[]}
+        />,
+      );
+
+      const badgeContainer = screen.getByText("Bibliothek").closest("span");
+      // OTHER_ROOM blue is the documented fallback (see location-badge tests
+      // for Issue #1324). Asserting on a non-default color guards against
+      // accidentally passing the per-room override through as `undefined`.
+      expect(badgeContainer).not.toHaveStyle({ backgroundColor: "#A3D977" });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // TodayTimeStatusInlineRow — covers planned/actual rendering, absent flow,
   // exception dot, and the "(geplant: …)" parenthetical.
   //
