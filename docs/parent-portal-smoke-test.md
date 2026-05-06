@@ -6,23 +6,11 @@ How to verify PR 9 end-to-end on your dev machine. Should take ~10 minutes.
 
 ## Prerequisites
 
-### A. Hosts file
+### A. DNS — nothing to do
 
-Add `parents.localhost` to your Windows hosts file (your browser runs on Windows, even when the rest of dev runs in WSL).
+`parents.localhost` resolves automatically to `127.0.0.1` because `.localhost` is a reserved TLD (RFC 6761). Modern browsers + Windows handle this without any hosts-file edit. The exact same way `operator.localhost:3000` already works for you.
 
-1. Open Notepad **as administrator**
-2. File → Open → paste path: `C:\Windows\System32\drivers\etc\hosts` (set file filter to "All files")
-3. Add at the bottom:
-   ```
-   127.0.0.1 parents.localhost
-   ```
-4. Save
-
-Verify from a terminal:
-```bash
-ping parents.localhost
-# Should reply from 127.0.0.1
-```
+If for some reason it doesn't resolve (older OS, restricted network), the fallback is to add `127.0.0.1 parents.localhost` to `C:\Windows\System32\drivers\etc\hosts` (Notepad as admin). But you almost certainly won't need to.
 
 ### B. Env vars
 
