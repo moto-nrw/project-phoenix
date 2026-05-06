@@ -7,12 +7,20 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// guardianRoleName is the auth.roles.name value the guardian invitation
+// flow uses on accept. Mirrored here so an approval that finds an
+// existing account can attach the role for the new tenant directly.
+const guardianRoleName = "guardian"
 
 // DecisionService sentinel errors. Mapped to HTTP status codes by the
 // admin handlers.
@@ -106,7 +114,12 @@ type DecisionService interface {
 	Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error)
 }
 
-// DecisionServiceConfig is the dep-injection bundle.
+// DecisionServiceConfig is the dep-injection bundle. The auth-side
+// repos (Account/AccountTenant/AccountRole/Role) are the slice-2-fix
+// addition: they let an approval that touches a known email attach
+// the new tenant directly to the parent's existing portal account
+// instead of mailing an invite that would overwrite their password
+// on accept.
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
@@ -118,6 +131,10 @@ type DecisionServiceConfig struct {
 	StudentGuardianRepo      users.StudentGuardianRepository
 	GuardianProfileRepo      users.GuardianProfileRepository
 	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
+	AccountRepo              authModels.AccountRepository
+	AccountTenantRepo        authModels.AccountTenantRepository
+	AccountRoleRepo          authModels.AccountRoleRepository
+	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           OutboxEnqueuer
 	FrontendURL              string
 	Logger                   *slog.Logger
@@ -134,6 +151,10 @@ type decisionService struct {
 	studentGuardianRepo      users.StudentGuardianRepository
 	guardianProfileRepo      users.GuardianProfileRepository
 	studentEnrollmentRepo    activities.StudentEnrollmentRepository
+	accountRepo              authModels.AccountRepository
+	accountTenantRepo        authModels.AccountTenantRepository
+	accountRoleRepo          authModels.AccountRoleRepository
+	roleRepo                 authModels.RoleRepository
 	outboxEnqueuer           OutboxEnqueuer
 	frontendURL              string
 	logger                   *slog.Logger
@@ -155,6 +176,10 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		studentGuardianRepo:      cfg.StudentGuardianRepo,
 		guardianProfileRepo:      cfg.GuardianProfileRepo,
 		studentEnrollmentRepo:    cfg.StudentEnrollmentRepo,
+		accountRepo:              cfg.AccountRepo,
+		accountTenantRepo:        cfg.AccountTenantRepo,
+		accountRoleRepo:          cfg.AccountRoleRepo,
+		roleRepo:                 cfg.RoleRepo,
 		outboxEnqueuer:           cfg.OutboxEnqueuer,
 		frontendURL:              cfg.FrontendURL,
 		logger:                   logger,
@@ -341,6 +366,27 @@ func (s *decisionService) applyApproval(
 	guardian, profileWasNew, err := s.resolveGuardianProfile(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("decision: resolve guardian: %w", err)
+	}
+
+	// 1b. Cross-tenant account check. If the email already has a global
+	// auth.accounts row (from another school's enrollment, an admin
+	// invitation, etc.), attach the new tenant + this profile to it
+	// directly. This bypasses the invitation flow entirely — the
+	// invitation accept path overwrites the password hash, which is
+	// the wrong UX when the parent already has a working password from
+	// another school.
+	if guardian.AccountID == nil && guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
+		linked, err := s.attachExistingAccountIfPresent(ctx, guardian)
+		if err != nil {
+			return nil, fmt.Errorf("decision: attach existing account: %w", err)
+		}
+		if linked {
+			s.logger.Info("decision: linked approval to existing global account",
+				slog.Int64("guardian_profile_id", guardian.ID),
+				slog.Int64("tenant_id", tenant.FromContext(ctx)),
+				slog.Bool("profile_was_new", profileWasNew),
+			)
+		}
 	}
 
 	// 2. Person row for the child. DateOfBirth is required so a copy
@@ -619,4 +665,121 @@ func (s *decisionService) findChildByID(ctx context.Context, requestID, childID 
 		}
 	}
 	return nil, ErrDecisionChildNotFound
+}
+
+// attachExistingAccountIfPresent looks up the parent email in the
+// global auth.accounts table (no tenant_id — emails are unique
+// platform-wide). If a row exists, it ensures the new tenant is
+// represented in account_tenants + account_roles, and links the
+// per-tenant guardian profile to that account_id. Returns true when
+// the attachment happened so the caller can skip enqueueing an
+// invitation.
+//
+// Why this exists (slice-2 follow-up): without this step, an admin
+// approving the same parent at a second school would queue another
+// guardian-invitation email, and the accept flow's
+// createOrFindAccount overwrites the existing password hash. This
+// surfaces as "I just got accepted at school B and now my school A
+// password no longer works." Linking directly here keeps the parent
+// silent and on the same credentials.
+func (s *decisionService) attachExistingAccountIfPresent(
+	ctx context.Context,
+	guardian *users.GuardianProfile,
+) (bool, error) {
+	if s.accountRepo == nil || s.accountTenantRepo == nil ||
+		s.accountRoleRepo == nil || s.roleRepo == nil {
+		// Auth repos not wired — fall back to the original invitation
+		// flow. Test factories that don't bring up the auth side will
+		// hit this path.
+		return false, nil
+	}
+	if guardian.Email == nil || strings.TrimSpace(*guardian.Email) == "" {
+		return false, nil
+	}
+
+	email := strings.TrimSpace(strings.ToLower(*guardian.Email))
+	account, err := s.accountRepo.FindByEmail(ctx, email)
+	if err != nil {
+		// Not-found is the common case (parent has no portal account
+		// yet) — treat it as "nothing to attach", let the invitation
+		// flow run. We don't import the auth package's notfound
+		// detection here; instead we rely on the FindByEmail wrapper
+		// returning a typed DatabaseError on real failures. Logging
+		// at debug level covers both branches.
+		s.logger.Debug("decision: account lookup result",
+			slog.String("email", email),
+			slog.String("error", err.Error()),
+		)
+		return false, nil
+	}
+	if account == nil {
+		return false, nil
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return false, fmt.Errorf("attach: tenant not in context")
+	}
+
+	// 1. account_tenants mapping. Create is idempotent (ON CONFLICT
+	// DO NOTHING on (account_id, tenant_id)).
+	now := time.Now()
+	mapping := &authModels.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    tenantID,
+		Status:      authModels.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
+		return false, fmt.Errorf("attach: account_tenants: %w", err)
+	}
+
+	// 2. Guardian role for this tenant. AccountRoleRepo.Create has no
+	// ON CONFLICT, so check first via FindByAccountAndRole (which
+	// honours tenant scope from context) and only create when missing.
+	if err := s.ensureGuardianRoleForTenant(ctx, account.ID); err != nil {
+		return false, err
+	}
+
+	// 3. Link the per-tenant guardian profile row to the global
+	// account. LinkAccount also flips has_account=true so future
+	// approvals for the same profile see the linked state.
+	if err := s.guardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
+		return false, fmt.Errorf("attach: link profile: %w", err)
+	}
+	guardian.AccountID = &account.ID
+	guardian.HasAccount = true
+
+	return true, nil
+}
+
+// ensureGuardianRoleForTenant assigns the guardian base role for the
+// current tenant, idempotently. Mirrors the linkProfileToAccount step
+// in services/auth.guardianInvitationService so a parent linked here
+// gets the same role footprint as one who came in via the invite
+// accept flow.
+func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accountID int64) error {
+	role, err := s.roleRepo.FindByName(ctx, guardianRoleName)
+	if err != nil {
+		return fmt.Errorf("attach: guardian role lookup: %w", err)
+	}
+	if role == nil {
+		return fmt.Errorf("attach: guardian role not found")
+	}
+
+	existing, err := s.accountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
+	if err == nil && existing != nil {
+		// Already assigned for this tenant (FindByAccountAndRole
+		// honours tenant scope) — nothing to do.
+		return nil
+	}
+
+	assignment := &authModels.AccountRole{
+		AccountID: accountID,
+		RoleID:    role.ID,
+	}
+	if err := s.accountRoleRepo.Create(ctx, assignment); err != nil {
+		return fmt.Errorf("attach: create account_role: %w", err)
+	}
+	return nil
 }
