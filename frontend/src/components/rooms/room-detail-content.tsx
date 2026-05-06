@@ -21,7 +21,6 @@ import {
   UserCog,
   Users,
 } from "lucide-react";
-import { Loading } from "~/components/ui/loading";
 import { useSWRAuth } from "~/lib/swr";
 import {
   formatDate,
@@ -167,12 +166,14 @@ function StatusBadge({ isOccupied }: Readonly<{ isOccupied: boolean }>) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold ${
-        isOccupied ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+        isOccupied
+          ? "bg-[#FF3130]/15 text-[#FF3130]"
+          : "bg-[#83CD2D]/15 text-[#4a7a15]"
       }`}
     >
       <span
         className={`mr-2 h-2 w-2 rounded-full ${
-          isOccupied ? "animate-pulse bg-red-500" : "bg-green-500"
+          isOccupied ? "animate-pulse bg-[#FF3130]" : "bg-[#83CD2D]"
         }`}
       />
       {isOccupied ? "Belegt" : "Frei"}
@@ -573,7 +574,7 @@ export function RoomDetailContent({
                                 Ende: {formatTime(activity.exitTimestamp)}
                               </span>
                             ) : (
-                              <span className="font-medium text-blue-600">
+                              <span className="font-medium text-[#5080D8]">
                                 Laufend
                               </span>
                             )}
@@ -589,6 +590,109 @@ export function RoomDetailContent({
         </div>
       </div>
     </div>
+  );
+}
+
+// Content-shaped skeleton for the loading state. Mirrors the three card
+// shells of the loaded layout (Rauminformationen / Kinder im Raum /
+// Belegungshistorie) so the slide-over body doesn't visibly resize when
+// real data arrives — review feedback #1323. Pulse-animated placeholders
+// for header text, badge, icon-rows, and child rows. Keeps role="status"
+// + aria-label so the previous business assertion ("loading state is
+// announced to AT") is preserved.
+function SkeletonLine({ className = "" }: { readonly className?: string }) {
+  return <div className={`animate-pulse rounded bg-gray-200 ${className}`} />;
+}
+
+function SkeletonCardShell({
+  heading,
+  children,
+}: Readonly<{ heading: string; children: React.ReactNode }>) {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+      <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+        {heading}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+function SkeletonIconRow() {
+  // Mirrors IconDetailRow: 28×28 icon box, label line, value line.
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <div className="h-7 w-7 flex-shrink-0 animate-pulse rounded-md bg-gray-200" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <SkeletonLine className="h-2.5 w-16" />
+        <SkeletonLine className="h-3 w-32" />
+      </div>
+    </div>
+  );
+}
+
+function SkeletonStudentRow() {
+  // Mirrors CompactStudentCard: full-width pill with name + meta line.
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+      <SkeletonLine className="h-4 w-40" />
+      <SkeletonLine className="mt-2 h-3 w-24" />
+    </div>
+  );
+}
+
+function RoomDetailSkeleton() {
+  return (
+    <output
+      aria-label="Raumdetails werden geladen"
+      data-testid="room-detail-skeleton"
+      className="block"
+    >
+      {/* Header row — name + status pill, same line as the loaded view. */}
+      <div className="mb-6 flex items-center gap-2">
+        <SkeletonLine className="h-7 w-48 md:h-8 md:w-64" />
+        <SkeletonLine className="h-6 w-16 rounded-full" />
+      </div>
+
+      <div className="space-y-4 sm:space-y-6">
+        <SkeletonCardShell heading="Rauminformationen">
+          <div className="space-y-1">
+            <SkeletonIconRow />
+            <SkeletonIconRow />
+            <SkeletonIconRow />
+            <SkeletonIconRow />
+          </div>
+        </SkeletonCardShell>
+
+        <SkeletonCardShell heading="Kinder im Raum">
+          {/* Subline (count + Kindersuche button) and three child rows. */}
+          <div className="flex items-end justify-between gap-3">
+            <SkeletonLine className="h-3 w-40" />
+            <SkeletonLine className="h-7 w-32 rounded-lg" />
+          </div>
+          <div className="mt-4 flex flex-col gap-2">
+            <SkeletonStudentRow />
+            <SkeletonStudentRow />
+            <SkeletonStudentRow />
+          </div>
+        </SkeletonCardShell>
+
+        <SkeletonCardShell heading="Belegungshistorie">
+          <div className="space-y-3">
+            <div className="rounded-lg border border-gray-100 bg-white p-4">
+              <SkeletonLine className="h-1 w-full -translate-y-2 rounded-full" />
+              <SkeletonLine className="h-4 w-32" />
+              <SkeletonLine className="mt-2 h-3 w-48" />
+            </div>
+            <div className="rounded-lg border border-gray-100 bg-white p-4">
+              <SkeletonLine className="h-1 w-full -translate-y-2 rounded-full" />
+              <SkeletonLine className="h-4 w-40" />
+              <SkeletonLine className="mt-2 h-3 w-36" />
+            </div>
+          </div>
+        </SkeletonCardShell>
+      </div>
+    </output>
   );
 }
 
@@ -613,13 +717,13 @@ export function RoomDetailLoader({
   const { room, history, loading, error } = useRoomDetail(roomId);
 
   if (loading) {
-    return <Loading message="Laden..." fullPage={false} />;
+    return <RoomDetailSkeleton />;
   }
 
   if (error || !room) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
           {error ?? "Raum nicht gefunden"}
         </div>
         {emptyAction}

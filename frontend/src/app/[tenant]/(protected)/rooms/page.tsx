@@ -47,6 +47,10 @@ const categoryColors: Record<string, string> = {
   Sport: "#EC4899",
 };
 
+// Brand color hex codes via LOCATION_COLORS (CLAUDE.md §0,
+// lib/location-helper.ts): OTHER_ROOM (#5080D8) for blue accents,
+// HOME (#FF3130) for occupied/error, GROUP_ROOM (#83CD2D) for free
+// (with #4a7a15 text for AA contrast on the tinted background).
 function RoomsPageContent() {
   const { status } = useSession({
     required: true,
@@ -386,9 +390,8 @@ function RoomsPageContent() {
         }}
       />
 
-      {/* Error Display */}
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
           {error}
         </div>
       )}
@@ -429,20 +432,16 @@ function RoomsPageContent() {
                 type="button"
                 key={room.id}
                 onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-blue-200/50 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-[#5080D8]/30 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
               >
-                {/* Modern gradient overlay */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
-                {/* Subtle inner glow */}
+                <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
                 <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                {/* Modern border highlight */}
-                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-[#5080D8]/40"></div>
 
                 <div className="relative flex min-h-[180px] flex-col p-6">
-                  {/* Top section: Header with room name and status */}
                   <div className="mb-3 flex items-start justify-between">
                     <div className="min-w-0 flex-1">
-                      <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
+                      <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-[#5080D8]">
                         {room.name}
                       </h3>
                       {(room.building !== undefined ||
@@ -461,19 +460,18 @@ function RoomsPageContent() {
                       )}
                     </div>
 
-                    {/* Status indicator */}
                     <span
                       className={`ml-3 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
                         room.isOccupied
-                          ? "bg-red-100 text-red-700"
-                          : "bg-green-100 text-green-700"
+                          ? "bg-[#FF3130]/15 text-[#FF3130]"
+                          : "bg-[#83CD2D]/15 text-[#4a7a15]"
                       }`}
                     >
                       <span
                         className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
                           room.isOccupied
-                            ? "animate-pulse bg-red-500"
-                            : "bg-green-500"
+                            ? "animate-pulse bg-[#FF3130]"
+                            : "bg-[#83CD2D]"
                         }`}
                       ></span>
                       {room.isOccupied ? "Belegt" : "Frei"}
@@ -550,18 +548,15 @@ function RoomsPageContent() {
                     )}
                   </div>
 
-                  {/* Bottom section: Tap hint (always at bottom) */}
-                  <p className="mt-2 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
+                  <p className="mt-2 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-[#5080D8]">
                     Tippen für mehr Infos
                   </p>
 
-                  {/* Decorative elements */}
                   <div className="absolute top-4 left-4 h-4 w-4 animate-ping rounded-full bg-white/20"></div>
                   <div className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full bg-white/30"></div>
                 </div>
 
-                {/* Glowing border effect on hover */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-[#5080D8]/15 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
               </button>
             );
           })}

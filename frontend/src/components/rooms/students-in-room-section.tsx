@@ -18,7 +18,6 @@ import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth } from "~/lib/swr";
 import { Alert } from "~/components/ui/alert";
-import { Loading } from "~/components/ui/loading";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
@@ -133,7 +132,7 @@ export function StudentsInRoomSection({
       {isTruncated && (
         <div
           role="status"
-          className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+          className="mt-3 rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 p-3 text-sm text-[#7a5c00]"
         >
           Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
           {hiddenCount} weitere {hiddenCount === 1 ? "Kind ist" : "Kinder sind"}{" "}
@@ -166,6 +165,20 @@ interface StudentsInRoomBodyProps {
   readonly router: ReturnType<typeof useTenantRouter>;
 }
 
+// Single student-row skeleton matching CompactStudentCard's outer shell
+// (rounded-xl border, px-4 py-3, name line + meta line). The skeleton
+// list lives inside the same `flex flex-col gap-2` wrapper the populated
+// list uses, so swapping skeleton → real cards causes zero layout shift
+// (review feedback #1323).
+function StudentRowSkeleton() {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+      <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
+      <div className="mt-2 h-3 w-24 animate-pulse rounded bg-gray-200" />
+    </div>
+  );
+}
+
 function StudentsInRoomBody({
   fromReferrer,
   loading,
@@ -182,14 +195,37 @@ function StudentsInRoomBody({
     );
   }
 
+  // All three states (loading / empty / loaded) live inside the same
+  // `flex flex-col gap-2` wrapper so the section's vertical footprint
+  // stays stable across them. Without this, the loading placeholder
+  // (was: <Loading> with pt-24 pb-12) was a different shape than the
+  // populated list, and the section visibly resized when data arrived.
   if (loading && students.length === 0) {
-    return <Loading message="Kinderliste wird geladen..." fullPage={false} />;
+    return (
+      <output
+        aria-label="Kinderliste wird geladen"
+        data-testid="students-in-room-skeleton"
+        className="flex flex-col gap-2"
+      >
+        <StudentRowSkeleton />
+        <StudentRowSkeleton />
+        <StudentRowSkeleton />
+        <StudentRowSkeleton />
+      </output>
+    );
   }
 
   if (students.length === 0) {
+    // Empty state styled as a single card-shaped row so it occupies
+    // similar vertical space to a populated row instead of collapsing
+    // to a single text line. Same outer wrapper as the populated list
+    // → no layout shift between empty and loaded states for the same
+    // room.
     return (
-      <div className="py-8 text-center text-gray-500">
-        Aktuell keine Kinder im Raum.
+      <div className="flex flex-col gap-2">
+        <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">
+          Aktuell keine Kinder im Raum.
+        </div>
       </div>
     );
   }

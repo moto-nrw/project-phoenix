@@ -72,11 +72,11 @@ vi.mock("~/lib/swr", async () => {
   };
 });
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ message }: { message?: string }) => (
-    <div data-testid="loading">{message}</div>
-  ),
-}));
+// Loading widget is no longer used by RoomDetailLoader (replaced with a
+// content-shaped RoomDetailSkeleton in #1323 review). The test below now
+// targets the skeleton's data-testid + role="status" instead of the old
+// "loading" testid — same business assertion (a loading state IS shown
+// while SWR fetches), new selector that matches the new shape.
 
 vi.mock("~/components/ui/info-card", () => ({
   InfoCard: ({
@@ -566,8 +566,10 @@ describe("RoomDetailContent", () => {
 // ----------------------------------------------------------------------------
 
 describe("RoomDetailLoader states", () => {
-  it("renders the Loading placeholder while the SWR fetch is in flight", () => {
+  it("renders the content-shaped skeleton while the SWR fetch is in flight", () => {
     // fetch returns a never-resolving promise → SWR stays in loading state.
+    // The skeleton mirrors the three-card content layout so the slide-over
+    // body doesn't visibly resize when real data arrives (#1323 review).
     mockFetch.mockReturnValue(new Promise(() => {}));
 
     render(
@@ -576,7 +578,12 @@ describe("RoomDetailLoader states", () => {
       </Wrapper>,
     );
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.getByTestId("room-detail-skeleton")).toBeInTheDocument();
+    // role="status" + aria-label preserves the AT-announcement contract
+    // the previous Loading widget provided.
+    expect(
+      screen.getByRole("status", { name: "Raumdetails werden geladen" }),
+    ).toBeInTheDocument();
   });
 
   it("renders the supplied emptyAction below the error message on fetch failure", async () => {

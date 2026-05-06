@@ -42,7 +42,7 @@ export function CompactStudentCard({
       onClick={onClick}
       aria-label={`${firstName} ${lastName} – Profil öffnen`}
       data-testid={`compact-student-card-${studentId}`}
-      className="group w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition-colors duration-150 hover:border-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-blue-500/40 focus:outline-none"
+      className="group w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition-colors duration-150 hover:border-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none"
     >
       <p className="truncate text-base font-semibold text-gray-900">
         {firstName} {lastName}

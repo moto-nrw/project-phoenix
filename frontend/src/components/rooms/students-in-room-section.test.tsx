@@ -49,11 +49,11 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ message }: { message: string }) => (
-    <div data-testid="loading">{message}</div>
-  ),
-}));
+// Loading widget is no longer used here (replaced with a content-shaped
+// StudentRowSkeleton in #1323 review). Tests below assert the skeleton's
+// data-testid + role="status" instead of the old "loading" testid — same
+// business assertion (a loading state IS shown while SWR fetches), new
+// selector that matches the new skeleton shape.
 
 vi.mock("~/components/students/compact-student-card", () => ({
   CompactStudentCard: ({
@@ -132,12 +132,21 @@ beforeEach(() => {
 
 describe("StudentsInRoomSection", () => {
   describe("loading and error states", () => {
-    it("shows the loading indicator while fetching", () => {
+    it("shows the content-shaped skeleton while fetching", () => {
       setSWR({ data: undefined, isLoading: true });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      // Skeleton mirrors the populated CompactStudentCard list shape so
+      // the section doesn't visibly resize when real students arrive
+      // (#1323 review). role="status" + aria-label preserves the AT
+      // announcement contract the previous Loading widget provided.
+      expect(
+        screen.getByTestId("students-in-room-skeleton"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("status", { name: "Kinderliste wird geladen" }),
+      ).toBeInTheDocument();
     });
 
     it("renders an error alert if the fetch fails", () => {

@@ -67,27 +67,32 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
           <DrawerTitle>Raumdetails</DrawerTitle>
         </DrawerHeader>
         <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 sm:px-6 sm:pt-6">
-          {roomId ? (
-            <RoomDetailLoader
-              roomId={roomId}
-              // Inline X close button — flows into the room header row
-              // alongside the room name + status badge so the slide-over
-              // header is one balanced line. Desktop only: the bottom
-              // sheet dismisses via its drag handle. The button itself is
-              // a Vaul DrawerClose, so vaul handles dismissal — no manual
-              // onClick wiring needed.
-              headerAction={
-                !isMobile ? (
-                  <DrawerClose
-                    aria-label="Raumdetails schließen"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-blue-500/40 focus:outline-none"
-                  >
-                    <X className="h-5 w-5" aria-hidden="true" />
-                  </DrawerClose>
-                ) : undefined
-              }
-            />
-          ) : null}
+          {/* min-h-[60vh] keeps the mobile bottom sheet from collapsing
+              when the loader / error fallback returns a tiny payload.
+              No-op on desktop — the side panel is already h-full. */}
+          <div className="min-h-[60vh]">
+            {roomId ? (
+              <RoomDetailLoader
+                roomId={roomId}
+                // Inline X close button — flows into the room header row
+                // alongside the room name + status badge so the slide-over
+                // header is one balanced line. Desktop only: the bottom
+                // sheet dismisses via its drag handle. The button itself is
+                // a Vaul DrawerClose, so vaul handles dismissal — no manual
+                // onClick wiring needed.
+                headerAction={
+                  !isMobile ? (
+                    <DrawerClose
+                      aria-label="Raumdetails schließen"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none"
+                    >
+                      <X className="h-5 w-5" aria-hidden="true" />
+                    </DrawerClose>
+                  ) : undefined
+                }
+              />
+            ) : null}
+          </div>
         </div>
       </DrawerContent>
     </Drawer>
