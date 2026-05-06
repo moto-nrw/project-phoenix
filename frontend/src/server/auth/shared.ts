@@ -267,6 +267,72 @@ export async function performOperatorLogin(
   }
 }
 
+export async function performParentLogin(
+  email: string,
+  password: string,
+  isDev: boolean,
+  forwardHeaders?: Record<string, string>,
+): Promise<{
+  access_token: string;
+  refresh_token: string;
+  status?: number;
+} | null> {
+  const apiUrl = getServerApiUrl();
+
+  if (isDev) {
+    logger.debug("attempting parent login", {
+      api_url: `${apiUrl}/parent/auth/login`,
+    });
+  }
+
+  try {
+    const response = await fetch(`${apiUrl}/parent/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...forwardHeaders },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (isDev) {
+      logger.debug("parent login response received", {
+        status: response.status,
+      });
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      logger.error("parent login failed", {
+        status: response.status,
+        error: text,
+      });
+      return { access_token: "", refresh_token: "", status: response.status };
+    }
+
+    const envelope = (await response.json()) as {
+      status: string;
+      data: {
+        access_token: string;
+        refresh_token: string;
+      };
+    };
+
+    if (isDev) {
+      logger.debug("parent login response parsed", {
+        has_tokens: !!envelope.data.access_token,
+      });
+    }
+
+    return {
+      access_token: envelope.data.access_token,
+      refresh_token: envelope.data.refresh_token,
+    };
+  } catch (error) {
+    logger.error("parent authentication error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
 export async function performLogin(
   email: string,
   password: string,
