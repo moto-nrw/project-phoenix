@@ -168,7 +168,7 @@ export function EnrollmentFormEditor() {
         <div className="space-y-3">
           {fields.map((field, index) => (
             <FieldEditorRow
-              key={`${index}-${field.key}`}
+              key={index}
               field={field}
               index={index}
               total={fields.length}
