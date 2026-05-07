@@ -58,6 +58,15 @@ type RequestListFilters struct {
 	ChildStatus string
 }
 
+// DuplicateChildKey identifies one (first_name, last_name) pair the
+// caller wants to dedup against existing enrollments in a phase.
+// Comparison is case-insensitive, with leading/trailing whitespace
+// trimmed at the SQL layer.
+type DuplicateChildKey struct {
+	FirstName string
+	LastName  string
+}
+
 // RequestRepository describes the DB operations PR 5/7/8 need.
 type RequestRepository interface {
 	Create(ctx context.Context, req *Request) error
@@ -68,4 +77,12 @@ type RequestRepository interface {
 	// first. PR 8's admin review UI consumes this; the parent-facing
 	// flows never call it.
 	ListAdmin(ctx context.Context, filters RequestListFilters) ([]*Request, error)
+
+	// FindActiveDuplicate returns the names of any children for which a
+	// non-terminal-rejected/withdrawn enrollment already exists for the
+	// same (phase_id, guardian_email). Empty result means safe to
+	// proceed. Used by the submit flow to block accidental
+	// double-submits without affecting different parents or different
+	// child names.
+	FindActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []DuplicateChildKey) ([]DuplicateChildKey, error)
 }

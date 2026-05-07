@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"net/mail"
 	"strings"
@@ -32,6 +33,7 @@ var (
 	ErrRequestNotFound        = errors.New("enrollment request not found")
 	ErrEditNotAllowed         = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed     = errors.New("child cannot be withdrawn in its current state")
+	ErrDuplicateEnrollment    = errors.New("an active enrollment already exists for this parent and child in this phase")
 )
 
 // Rate-limit thresholds. Hardcoded for now — if individual schools
@@ -111,6 +113,14 @@ type RequestService interface {
 	GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error)
 	Edit(ctx context.Context, token string, patch EditPatch) error
 	Withdraw(ctx context.Context, token string, childID int64) error
+	// IsEnrollmentEnabled reports whether the per-tenant master toggle
+	// (enrollment.enabled setting) is on for the tenant in ctx. Public
+	// form-load endpoints call this so a deactivated tenant returns a
+	// 404 at the picker/schema step instead of letting the parent fill
+	// in a whole form before being rejected at submit. Caller must
+	// already be inside a tenant-tx so the settings repo can read the
+	// per-tenant override.
+	IsEnrollmentEnabled(ctx context.Context) bool
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -229,6 +239,17 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		return nil, ErrEnrollmentWindowClosed
 	}
 
+	// Build the dedup key list once; the actual check + insert happens
+	// inside the write tx below, after we've taken an advisory lock to
+	// serialize concurrent submits for the same (phase, email).
+	dupKeys := make([]enrollmentModels.DuplicateChildKey, 0, len(req.Children))
+	for _, c := range req.Children {
+		dupKeys = append(dupKeys, enrollmentModels.DuplicateChildKey{
+			FirstName: c.FirstName,
+			LastName:  c.LastName,
+		})
+	}
+
 	openOfferings, err := s.careOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
 		return nil, fmt.Errorf("submit: load phase offerings: %w", err)
@@ -272,7 +293,31 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		createdRequest  *enrollmentModels.Request
 		createdChildren []*enrollmentModels.RequestChild
 	)
-	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		// Serialize concurrent submits for the same (phase, guardian
+		// email) so two parallel requests can't both pass the dedup
+		// check and then both insert. The lock auto-releases at tx
+		// commit/rollback. Phase ID is the first key, FNV-64 hash of
+		// the lowercased email is the second — pg_advisory_xact_lock
+		// takes two int4s OR one int8.
+		emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
+		emailHash := fnvHash64(emailLC)
+		if _, err := tx.ExecContext(txCtx, `SELECT pg_advisory_xact_lock(?, ?)`, int32(phase.ID&0x7fffffff), int32(emailHash&0x7fffffff)); err != nil {
+			return fmt.Errorf("submit: acquire dedup lock: %w", err)
+		}
+
+		// Dedup check runs inside the lock so the result is stable for
+		// the rest of the tx. Different parents or different child
+		// names slip past untouched; rejected/withdrawn rows are
+		// ignored, so a parent can re-apply after a denial.
+		dupes, dupErr := s.requestRepo.FindActiveDuplicate(txCtx, phase.ID, req.GuardianEmail, dupKeys)
+		if dupErr != nil {
+			return fmt.Errorf("submit: duplicate check: %w", dupErr)
+		}
+		if len(dupes) > 0 {
+			return ErrDuplicateEnrollment
+		}
+
 		var schemaID *int64
 		if schema != nil {
 			id := schema.ID
@@ -661,6 +706,21 @@ func (s *requestService) statusURL(token string) string {
 		host = "http://localhost:3000"
 	}
 	return fmt.Sprintf("%s/enroll/status/%s", host, token)
+}
+
+// IsEnrollmentEnabled is the public counterpart of isEnrollmentEnabled
+// so HTTP handlers can gate their form-load endpoints without reaching
+// into the settings package directly.
+func (s *requestService) IsEnrollmentEnabled(ctx context.Context) bool {
+	return s.isEnrollmentEnabled(ctx)
+}
+
+// fnvHash64 returns a 64-bit FNV-1a hash of the input. Used to derive
+// a stable advisory-lock key from the lowercased guardian email.
+func fnvHash64(s string) uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(s))
+	return h.Sum64()
 }
 
 func (s *requestService) isEnrollmentEnabled(ctx context.Context) bool {

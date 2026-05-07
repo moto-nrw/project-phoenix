@@ -48,6 +48,10 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		AlreadyLinked     bool       `bun:"already_linked"`
 	}
 
+	// We INNER JOIN config.setting_values on enrollment.enabled=true so a
+	// tenant whose master toggle is off (or never set) drops out of the
+	// list entirely. The registry default for enrollment.enabled is
+	// false, so "no override" must be treated as disabled.
 	const query = `
 		SELECT
 			sch.id        AS school_id,
@@ -64,6 +68,10 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		FROM enrollment.phases AS ph
 		JOIN platform.schools AS sch
 			ON sch.id = ph.tenant_id
+		JOIN config.setting_values AS sv
+			ON sv.tenant_id = ph.tenant_id
+			AND sv.setting_key = 'enrollment.enabled'
+			AND sv.value::text = 'true'
 		LEFT JOIN auth.account_tenants AS at
 			ON at.tenant_id  = ph.tenant_id
 			AND at.account_id = ?

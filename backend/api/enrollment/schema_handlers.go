@@ -95,6 +95,9 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		}
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
+				return enrollmentService.ErrEnrollmentDisabled
+			}
 			phase, phaseErr := rs.PhaseRepo.FindByID(txCtx, phaseID)
 			if phaseErr != nil {
 				return errors.New("phase not found")
@@ -113,7 +116,8 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		})
 	})
 	if resolveErr != nil {
-		if errors.Is(resolveErr, enrollmentService.ErrNoActiveSchema) {
+		if errors.Is(resolveErr, enrollmentService.ErrEnrollmentDisabled) ||
+			errors.Is(resolveErr, enrollmentService.ErrNoActiveSchema) {
 			common.RenderError(w, r, common.ErrorNotFound(resolveErr))
 			return
 		}

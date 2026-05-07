@@ -515,6 +515,11 @@ func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
 // TestRequestService_Submit_RateLimitsByEmail walks the configured
 // per-email threshold (5 submissions / 24h). The 6th attempt for the
 // same email must return ErrRateLimited even when the IP varies.
+//
+// We vary the child first/last name per iteration so the per-(parent,
+// child, phase) duplicate guard added in the parent-enrollment fixup
+// doesn't short-circuit the rate-limit path; the rate-limit bucket is
+// keyed on (tenant_id, email) so child identity is independent.
 func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
@@ -524,6 +529,8 @@ func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		req := validSubmission(env.phaseID)
 		req.RemoteIP = "10.0.0." + strconv.Itoa(i+1)
+		req.Children[0].FirstName = "Lina" + strconv.Itoa(i)
+		req.Children[0].LastName = "Beispiel" + strconv.Itoa(i)
 		_, err := env.svc.Submit(ctx, req)
 		require.NoError(t, err, "attempt %d should succeed", i+1)
 	}
@@ -531,6 +538,8 @@ func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
 	// 6th attempt → over the email threshold.
 	req := validSubmission(env.phaseID)
 	req.RemoteIP = "10.0.0.99"
+	req.Children[0].FirstName = "LinaOver"
+	req.Children[0].LastName = "BeispielOver"
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrRateLimited),
@@ -567,6 +576,10 @@ func TestRequestService_Submit_RateLimitsByIP(t *testing.T) {
 // TestRequestService_Submit_RateLimitTenantIsolation verifies that one
 // tenant burning through its bucket can't rate-limit another tenant.
 // The bucket key is (tenant_id, key_type, key_value).
+//
+// Same caveat as RateLimitsByEmail: child first/last names vary per
+// iteration so the duplicate guard doesn't reject before the
+// rate-limit bucket fills.
 func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
@@ -576,6 +589,8 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		req := validSubmission(env.phaseID)
 		req.RemoteIP = "10.0.0." + strconv.Itoa(i+1)
+		req.Children[0].FirstName = "Lina" + strconv.Itoa(i)
+		req.Children[0].LastName = "Beispiel" + strconv.Itoa(i)
 		_, err := env.svc.Submit(ctx, req)
 		require.NoError(t, err)
 	}
@@ -583,6 +598,8 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	// Tenant 1 hits the limit.
 	overReq := validSubmission(env.phaseID)
 	overReq.RemoteIP = "10.0.0.99"
+	overReq.Children[0].FirstName = "LinaOver"
+	overReq.Children[0].LastName = "BeispielOver"
 	_, err := env.svc.Submit(ctx, overReq)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, enrollmentService.ErrRateLimited))

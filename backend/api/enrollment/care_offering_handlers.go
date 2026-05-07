@@ -317,6 +317,9 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		}
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
+				return enrollmentService.ErrEnrollmentDisabled
+			}
 			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
 			offerings = list
 			return listErr
@@ -374,12 +377,19 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 		}
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
+				return enrollmentService.ErrEnrollmentDisabled
+			}
 			list, listErr := rs.PhaseRepo.ListPublicOpen(txCtx, time.Now())
 			phases = list
 			return listErr
 		})
 	})
 	if err != nil {
+		if errors.Is(err, enrollmentService.ErrEnrollmentDisabled) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}

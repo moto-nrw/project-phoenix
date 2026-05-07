@@ -194,6 +194,11 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		// offering is at capacity and the tenant's overflow mode is
 		// 'reject'. Parents should re-pick or wait.
 		http.Error(w, err.Error(), http.StatusConflict)
+	case errors.Is(err, enrollmentService.ErrDuplicateEnrollment):
+		// 409 Conflict: the same guardian email already has an active
+		// (non-rejected, non-withdrawn) enrollment for one of these
+		// children in this phase.
+		http.Error(w, "Für dieses Kind liegt in dieser Phase bereits eine Anmeldung vor.", http.StatusConflict)
 	case errors.Is(err, enrollmentService.ErrRateLimited):
 		// 429 Too Many Requests. Hard-coded retry hint avoids leaking
 		// the exact remaining seconds.
