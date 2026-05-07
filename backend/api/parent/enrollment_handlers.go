@@ -347,7 +347,7 @@ func mapParentSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrCareOfferingFull):
 		http.Error(w, err.Error(), http.StatusConflict)
 	case errors.Is(err, enrollmentService.ErrDuplicateEnrollment):
-		http.Error(w, "Für dieses Kind liegt in dieser Phase bereits eine Anmeldung vor.", http.StatusConflict)
+		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung vor."))
 	case errors.Is(err, enrollmentService.ErrRateLimited):
 		w.Header().Set("Retry-After", "3600")
 		http.Error(w, err.Error(), http.StatusTooManyRequests)
