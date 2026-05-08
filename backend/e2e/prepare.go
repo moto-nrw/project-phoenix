@@ -46,7 +46,7 @@ func Prepare(ctx context.Context, options PrepareOptions) error {
 	seeder := seedapi.NewSeeder(options.URL, options.Verbose, seedapi.SeedOptions{
 		Scenario: options.Scenario,
 	})
-	if _, err := seeder.Seed(ctx, identity.OperatorEmail, identity.OperatorPassword, identity.StaffPIN); err != nil {
+	if _, err := seeder.PrepareE2E(ctx, identity.OperatorEmail, identity.OperatorPassword, identity.StaffPIN); err != nil {
 		return fmt.Errorf("seed e2e scenario %q: %w", options.Scenario, err)
 	}
 

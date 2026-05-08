@@ -14,16 +14,15 @@ cd frontend
 pnpm exec playwright install chromium      # first time only
 
 # 2. Golden path: backend reset + Go seeder scenario + Playwright run.
-pnpm run e2e
+cd ..
+./scripts/e2e.sh
 ```
 
-`pnpm run e2e` is the one supported command for both local use and CI.
-Playwright's `webServer` owns the canonical harness lifecycle by starting one
-long-lived harness command. That command brings up the E2E Docker stack from
-`../docker-compose.example.yml`, runs `go run main.go e2e prepare`, copies the
-freshly-written Go manifest onto the host as `backend/.e2e-manifest.json`,
-starts the dedicated Next.js dev server from that manifest, and tears the
-whole stack down when Playwright exits.
+`./scripts/e2e.sh` is the one supported full-flow command for both local use
+and CI. It brings up the isolated Docker stack from
+`../docker-compose.example.yml`, runs `go run main.go e2e prepare`, and then
+hands off to Playwright. Playwright's `webServer` starts only the dedicated
+Next.js dev server from the emitted Go manifest.
 The run never mutates checked-in source files. The only required local
 prerequisite is a valid root `.env`.
 
@@ -33,13 +32,12 @@ The HTML report opens automatically on failure; otherwise: `pnpm exec playwright
 
 ```
 e2e/
-├── contract.generated.ts   Generated Go-owned Zod schema + inferred manifest types
-├── contract.ts             Thin reader over the generated contract + tenant URL builder
+├── contract.ts             Thin reader over the Go manifest + tenant URL builder
 ├── auth.ts                 Browser-auth helpers and storageState contract
 ├── auth.setup.ts           Setup project: verifies contract, logs in once per role, writes storageState
 ├── api.ts                  Session-backed API auth bridge (`storageState` -> `/api/auth/token` -> backend Bearer)
-├── web-server.mjs          The one harness process Playwright starts via `webServer`
-├── fixtures.ts             Playwright fixtures over scenario data, auth contexts, and a few shared harness helpers
+├── frontend-server.mjs     Starts the E2E frontend from manifest runtime only
+├── fixtures.ts             Playwright fixtures over scenario data and auth contexts
 ├── flows/                  Feature tests, organised by domain
 ├── .auth/                  (gitignored) Saved session cookies per role
 └── screenshots/            (gitignored) Screenshots from failures / debug
@@ -47,15 +45,14 @@ e2e/
 
 The flow is:
 
-1. **Playwright webServer** starts exactly one harness command, which brings up the isolated Docker stack, runs `go run main.go e2e prepare`, copies the resulting manifest onto the host, then starts the dedicated E2E frontend.
+1. **`./scripts/e2e.sh`** owns orchestration: isolated Docker stack up, Go prepare run, Playwright invocation, teardown.
 2. **Go-owned E2E prepare command** resets the isolated DB, seeds the deterministic multi-tenant world, and writes one manifest: `backend/.e2e-manifest.json`.
-3. **Manifest contract** includes scenario data, harness runtime (`backend_url`, `tenant_domain`, `frontend_port`, operator host), and an explicit Go-owned `setup.auth` contract that tells Playwright what the auth setup requires.
+3. **Playwright webServer** reads only manifest runtime and starts the dedicated E2E frontend.
 4. **Setup project** reads that manifest, verifies the declared `setup.auth` preconditions, signs in as each role, and saves the resulting browser `storageState` under `e2e/.auth/`.
-5. **Contract layer** is split on purpose: `contract.generated.ts` is a checked-in artifact generated from the Go manifest contract, and `contract.ts` only parses that schema and builds tenant URLs.
-6. **Auth layer** (`auth.ts` + `auth.setup.ts`) owns browser login, readiness checks, and `storageState`.
-7. **API bridge** (`api.ts`) derives backend Bearer tokens from the setup-written browser session via `/api/auth/token`, so UI auth and API auth cannot drift apart.
-8. **Fixtures** stay focused: `fixtures.ts` re-exposes typed scenario data, ready-to-use session-backed auth contexts, and thin reusable helpers. Stateful E2E situations such as "student already present" are provisioned by Go and shipped through the manifest instead of being assembled ad hoc in Playwright.
-9. **Cross-role tests** (e.g. "admin creates X, staff sees X") use the `adminPage` / `staffPage` fixtures from `fixtures.ts`, which spawn fresh contexts backed by the same storageState files.
+5. **Auth layer** (`auth.ts` + `auth.setup.ts`) owns browser login, readiness checks, and `storageState`.
+6. **API bridge** (`api.ts`) derives backend Bearer tokens from the setup-written browser session via `/api/auth/token`, so UI auth and API auth cannot drift apart.
+7. **Fixtures** stay focused: `fixtures.ts` re-exposes manifest-backed scenario data plus session-backed auth contexts. Stateful E2E situations such as "student already present" are provisioned by Go and shipped through the manifest instead of being assembled ad hoc in Playwright.
+8. **Cross-role tests** (e.g. "admin creates X, staff sees X") use the `adminPage` / `staffPage` fixtures from `fixtures.ts`, which spawn fresh contexts backed by the same storageState files.
 
 ## Fixtures
 
@@ -86,13 +83,13 @@ test("admin creates a group, staff sees it", async ({
 
 | Fixture                   | Behaviour                                                                                                      |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `tenantSwitchScenario`    | Multi-tenant switch data: primary/secondary tenants plus canonical actor display name.                         |
+| `primaryTenant`           | Primary tenant from the Go manifest.                                                                            |
+| `secondaryTenant`         | Secondary tenant from the Go manifest; fixture throws if the scenario did not produce one.                     |
 | `studentSearchScenario`   | Seeded search/filter pair with stable expected names.                                                          |
 | `presentReadyStudent`     | Go-provisioned student fixture that is already checked in when the suite starts.                               |
 | `groupVisibilityScenario` | Seeded visibility pair with stable expected group names.                                                       |
 | `checkinScenario`         | Seeded RFID/check-in data: student, room, activity, RFID tag, device, supervisor.                              |
 | `checkinDevice`           | Canonical seeded device credentials for raw IoT auth-path HTTP tests.                                          |
-| `checkinHarness`          | Thin check-in helper: canonical scan call plus current-visit lookup against the stable backend contract.       |
 | `app`                     | Tenant URL builder (`app.primary(...)`, `app.secondary(...)`, `app.tenant(...)`).                              |
 | `authenticatedPage`       | Project default `page`, already logged in as that project's role.                                              |
 | `backendApi`              | Raw backend API context with only `baseURL` set, for unauthenticated/negative cases.                           |
@@ -102,7 +99,7 @@ test("admin creates a group, staff sees it", async ({
 | `adminPage`               | Fresh context as the admin actor, regardless of project.                                                       |
 | `staffPage`               | Fresh context as the staff actor, regardless of project.                                                       |
 
-For HTTP-only specs (no browser — e.g. `iot-api.spec.ts`, `checkin.spec.ts`, the API halves of CRUD tests) use `apiTest` / `apiExpect` from `../fixtures`. Same Playwright `test` and `expect`, just re-exported under different names so every spec file goes through `fixtures.ts` and picks up the shared API fixtures. For check-in flows, prefer `checkinHarness` over raw `/current-visit` or `/api/iot/checkin` calls inside the spec body; if a spec needs a student already in a browser-visible present state, use the Go-provisioned `presentReadyStudent` fixture instead of manufacturing that state in Playwright.
+For HTTP-only specs (no browser — e.g. `iot-api.spec.ts`, `checkin.spec.ts`, the API halves of CRUD tests) use `apiTest` / `apiExpect` from `../fixtures`. Same Playwright `test` and `expect`, just re-exported under different names so every spec file goes through `fixtures.ts` and picks up the shared API fixtures. If a spec needs a student already in a browser-visible present state, use the Go-provisioned `presentReadyStudent` fixture instead of manufacturing that state in Playwright.
 
 ```typescript
 import { apiTest as test, apiExpect as expect } from "../fixtures";
@@ -119,13 +116,11 @@ The Playwright harness reads all seeded actors, tenant topology, device
 credentials, scenario-specific fixtures, and harness runtime from the Go
 seeder's dedicated manifest. `auth.setup.ts` verifies that canonical
 contract, creates browser `storageState`, and nothing else machine-readable is
-introduced on the frontend side. `contract.generated.ts` owns the typed
-manifest schema because it is generated from the Go contract; `contract.ts`
-only reads it and builds URLs. `auth.setup.ts` owns browser login and session
-materialization.
+introduced on the frontend side. `contract.ts` only reads the emitted manifest
+and builds URLs. `auth.setup.ts` owns browser login and session materialization.
 `api.ts` turns that browser session into backend API auth when fixtures need
-HTTP contexts. `fixtures.ts` exposes seeded data, ready-to-use auth contexts,
-and thin shared helpers, while Go owns the machine-readable scenarios and any
+HTTP contexts. `fixtures.ts` exposes seeded data and ready-to-use auth contexts,
+while Go owns the machine-readable scenarios and any
 prepared runtime states such as the `presentReadyStudent` fixture.
 Do not hardcode emails, passwords, tenant slugs, room names, activity names,
 API keys, RFID tags, or "first seeded student" assumptions in specs.
@@ -267,17 +262,17 @@ The bare domain shows a tenant selector, not a login form (see `src/app/page.tsx
 | Setup test times out on `input[name="email"]`             | Wrong tenant host — the harness should open `http://demo-school.localtest.me:3030/` via `app.primary(routes.root)`.                                         |
 | `EADDRINUSE :3030` when starting Playwright               | Something else (a previous abandoned `pnpm run dev`?) is on :3030. Kill it: `lsof -nP -iTCP:3030 -sTCP:LISTEN`, then `kill <pid>`.                          |
 | `DNS_PROBE_FINISHED_NXDOMAIN` for `*.localtest.me`        | No internet — `localtest.me` resolves over public DNS. Add `127.0.0.1 demo-school.localtest.me second-school.localtest.me` to `/etc/hosts` for offline use. |
-| Setup test fails on "Anmelden" with "Ungültige Eingabe"   | Seeder hasn't been run, or the emitted manifest / credentials no longer match the active DB state. Re-run `pnpm run e2e`.                                   |
+| Setup test fails on "Anmelden" with "Ungültige Eingabe"   | Seeder hasn't been run, or the emitted manifest / credentials no longer match the active DB state. Re-run `./scripts/e2e.sh`.                               |
 | `Executable doesn't exist` on first run                   | Run `pnpm exec playwright install chromium`.                                                                                                                |
-| Tests pass locally but fail in CI                         | The canonical `pnpm run e2e` flow may have diverged from CI assumptions — check the uploaded seed manifest and backend logs.                                |
+| Tests pass locally but fail in CI                         | The canonical `./scripts/e2e.sh` flow may have diverged from CI assumptions — check the uploaded seed manifest and backend logs.                            |
 | Cookies appear but tests still see the login form         | Stale `storageState` after seeder change — `rm -rf e2e/.auth` and re-run.                                                                                   |
-| `tenant-switch.spec.ts` fails on "TenantSwitcher visible" | The Go-owned E2E world did not materialize both tenants cleanly — re-run `pnpm run e2e` or inspect `backend/.e2e-manifest.json`.                            |
+| `tenant-switch.spec.ts` fails on "TenantSwitcher visible" | The Go-owned E2E world did not materialize both tenants cleanly — re-run `./scripts/e2e.sh` or inspect `backend/.e2e-manifest.json`.                        |
 
 ## Raw Playwright flags
 
-`pnpm run e2e` is the canonical full-flow command. When you need direct
-Playwright flags for debugging, call Playwright directly instead of adding
-wrapper logic back into the harness:
+`./scripts/e2e.sh` is the canonical full-flow command. When you need direct
+Playwright flags for debugging, prepare the world once with that script, then
+call Playwright directly instead of adding wrapper logic back into the harness:
 
 ```bash
 cd frontend

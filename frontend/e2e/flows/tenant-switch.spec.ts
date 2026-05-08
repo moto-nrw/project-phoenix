@@ -6,10 +6,10 @@ test.describe("Tenant switch", () => {
     authenticatedPage: page,
     app,
     authSessions,
-    tenantSwitchScenario,
+    primaryTenant,
+    secondaryTenant,
   }) => {
-    const { primaryTenant, secondaryTenant, actorDisplayName } =
-      tenantSwitchScenario;
+    const actorDisplayName = authSessions.admin.displayName;
 
     await page.goto(app.primary(routes.root));
 

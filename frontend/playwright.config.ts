@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 import { STORAGE_STATE_PATH } from "./e2e/auth";
+import { getE2ERuntime } from "./e2e/contract";
+
+const runtime = getE2ERuntime();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -28,8 +31,8 @@ export default defineConfig({
   timeout: 60_000,
   reporter: "html",
   webServer: {
-    command: "pnpm run e2e:harness",
-    port: 3030,
+    command: "node ./e2e/frontend-server.mjs",
+    port: runtime.frontend_port,
     timeout: 180_000,
     reuseExistingServer: false,
     gracefulShutdown: {

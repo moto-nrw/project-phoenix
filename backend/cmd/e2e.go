@@ -2,11 +2,9 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	appe2e "github.com/moto-nrw/project-phoenix/e2e"
-	contract "github.com/moto-nrw/project-phoenix/e2e/contract"
 	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 	"github.com/spf13/cobra"
 )
@@ -42,21 +40,9 @@ var e2ePrepareCmd = &cobra.Command{
 	},
 }
 
-var e2ePrintContractCmd = &cobra.Command{
-	Use:   "print-contract-ts",
-	Short: "print the generated TypeScript E2E contract to stdout",
-	Long:  `Prints the Go-owned Playwright manifest contract as a generated TypeScript module so the frontend consumes the exact backend shape instead of hand-maintaining a second copy.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if _, err := fmt.Fprint(cmd.OutOrStdout(), contract.TypeScriptModule()); err != nil {
-			log.Fatal(err)
-		}
-	},
-}
-
 func init() {
 	RootCmd.AddCommand(e2eCmd)
 	e2eCmd.AddCommand(e2ePrepareCmd)
-	e2eCmd.AddCommand(e2ePrintContractCmd)
 
 	e2ePrepareCmd.Flags().String("scenario", scenarios.DefaultPrepareScenario().Name, "Named E2E scenario")
 	e2ePrepareCmd.Flags().String("url", appe2e.DefaultSeedURL, "Backend API URL")

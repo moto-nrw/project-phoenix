@@ -90,12 +90,21 @@ func NewSeeder(baseURL string, verbose bool, options SeedOptions) *Seeder {
 
 // Seed executes the complete seeding workflow
 func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*SeedResult, error) {
+	return s.runWorkflow(ctx, email, password, staffPIN, fullDemoWorkflow(s))
+}
+
+// PrepareE2E executes the canonical scenario-backed E2E workflow and writes
+// the dedicated manifest artifact consumed by Playwright.
+func (s *Seeder) PrepareE2E(ctx context.Context, email, password, staffPIN string) (*SeedResult, error) {
+	return s.runWorkflow(ctx, email, password, staffPIN, e2eWorkflow(s))
+}
+
+func (s *Seeder) runWorkflow(ctx context.Context, email, password, staffPIN string, workflow Workflow) (*SeedResult, error) {
 	if s.optionsErr != nil {
 		return nil, fmt.Errorf("invalid seed options: %w", s.optionsErr)
 	}
 
 	runtime := newRuntime(s, email, password, staffPIN)
-	workflow := fullDemoWorkflow(s)
 	if err := workflow.Run(ctx, runtime); err != nil {
 		var stepErr *StepError
 		if errors.As(err, &stepErr) {
@@ -465,11 +474,15 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	if statePath == "" {
 		statePath = DefaultSeedStatePath
 	}
-	if s.options.Scenario == SeedScenarioE2E {
+	if s.isE2EScenario() {
 		fmt.Printf("  %s   (dedicated Playwright E2E manifest)\n", statePath)
 	} else {
 		fmt.Printf("  %s   (seed state with credentials & IDs)\n", statePath)
 		fmt.Println("  simulator.yaml  (simulator configuration)")
 	}
 	fmt.Println()
+}
+
+func (s *Seeder) isE2EScenario() bool {
+	return s.options.Scenario == SeedScenarioE2E
 }

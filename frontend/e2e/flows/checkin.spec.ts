@@ -1,4 +1,64 @@
+import type { APIRequestContext } from "@playwright/test";
 import { apiTest as test, apiExpect as expect } from "../fixtures";
+import type { E2ECheckinFixture } from "../contract";
+
+type CurrentVisit = {
+  id: number;
+} | null;
+
+type CheckinScanResult = {
+  student_id: number;
+  student_name?: string;
+  action: string;
+  visit_id?: number | null;
+};
+
+async function getCurrentVisit(
+  studentId: number,
+  adminApi: APIRequestContext,
+): Promise<CurrentVisit> {
+  const visitRes = await adminApi.get(
+    `/api/students/${studentId}/current-visit`,
+    {
+      failOnStatusCode: false,
+    },
+  );
+  if (visitRes.status() === 200) {
+    const body = (await visitRes.json()) as {
+      data?: {
+        id: number;
+      } | null;
+    };
+    return body.data ?? null;
+  }
+
+  throw new Error(
+    `current-visit lookup failed for student ${studentId} (${visitRes.status()}): ${await visitRes.text()}`,
+  );
+}
+
+async function scanCheckin(
+  deviceApi: APIRequestContext,
+  checkinScenario: E2ECheckinFixture,
+): Promise<CheckinScanResult> {
+  const res = await deviceApi.post("/api/iot/checkin", {
+    data: {
+      student_rfid: checkinScenario.rfid_tag,
+      action: "checkin",
+      room_id: checkinScenario.room.id,
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(
+      `device checkin failed (${res.status()}): ${await res.text()}`,
+    );
+  }
+
+  const body = (await res.json()) as {
+    data: CheckinScanResult;
+  };
+  return body.data;
+}
 
 /**
  * Full RFID check-in / check-out flow. Exercises the same code path the
@@ -16,10 +76,11 @@ import { apiTest as test, apiExpect as expect } from "../fixtures";
 
 test.describe("RFID check-in / check-out toggle", () => {
   test("two scans toggle the student between checked-in and checked-out", async ({
-    checkinHarness,
+    adminApi,
     checkinScenario,
+    deviceApi,
   }) => {
-    const firstScan = await checkinHarness.scan();
+    const firstScan = await scanCheckin(deviceApi, checkinScenario);
     expect(firstScan.student_id).toBe(checkinScenario.student.id);
     // Student name comes from the manifest-backed fixture, not a hardcoded "Felix"
     // — keeps the test honest if the seeder ever reorders students.
@@ -36,7 +97,10 @@ test.describe("RFID check-in / check-out toggle", () => {
     // Verify state is persisted in active.visits — the API can return
     // visit_id without writing the row if the service layer breaks (e.g.
     // a forgotten Commit). Issue #1142 calls this out explicitly.
-    const visitAfterFirst = await checkinHarness.currentVisit();
+    const visitAfterFirst = await getCurrentVisit(
+      checkinScenario.student.id,
+      adminApi,
+    );
     if (firstScan.action === "checked_in") {
       expect(
         visitAfterFirst,
@@ -50,7 +114,7 @@ test.describe("RFID check-in / check-out toggle", () => {
       ).toBeNull();
     }
 
-    const secondScan = await checkinHarness.scan();
+    const secondScan = await scanCheckin(deviceApi, checkinScenario);
     expect(secondScan.student_id).toBe(checkinScenario.student.id);
     expect(secondScan.action).toMatch(
       /^(checked_in|checked_out|checked_out_daily)$/,
@@ -58,7 +122,10 @@ test.describe("RFID check-in / check-out toggle", () => {
     expect(secondScan.action).not.toBe(firstScan.action);
 
     // After the toggle, the active.visits state must flip too.
-    const visitAfterSecond = await checkinHarness.currentVisit();
+    const visitAfterSecond = await getCurrentVisit(
+      checkinScenario.student.id,
+      adminApi,
+    );
     if (secondScan.action === "checked_in") {
       expect(visitAfterSecond).not.toBeNull();
       expect(visitAfterSecond?.id).toBe(secondScan.visit_id);

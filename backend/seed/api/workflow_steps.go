@@ -205,17 +205,38 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		steps = append(steps, secondTenantStep{seeder: seeder})
 	}
 
-	if seeder.options.Scenario == SeedScenarioE2E {
-		steps = append(steps, provisionE2ECheckinStep{seeder: seeder})
-		steps = append(steps, writeE2EManifestStep{seeder: seeder})
-	} else {
-		steps = append(steps, buildSeedStateStep{seeder: seeder})
-		steps = append(steps, writeSimulatorConfigStep{})
-	}
+	steps = append(steps, buildSeedStateStep{seeder: seeder})
+	steps = append(steps, writeSimulatorConfigStep{})
 	steps = append(steps, printSummaryStep{seeder: seeder})
 
 	return Workflow{
 		Name:  "full-demo",
+		Steps: steps,
+	}
+}
+
+func e2eWorkflow(seeder *Seeder) Workflow {
+	steps := []Step{
+		healthCheckStep{},
+		operatorLoginStep{},
+		bootstrapTenantStep{seeder: seeder},
+		seedMasterDataStep{seeder: seeder},
+		markStudentsSickStep{},
+		seedPrivacyConsentsStep{},
+		seedAnnouncementsStep{},
+		seedSuggestionsStep{},
+	}
+
+	if seeder.options.SecondTenant != nil {
+		steps = append(steps, secondTenantStep{seeder: seeder})
+	}
+
+	steps = append(steps, provisionE2ECheckinStep{seeder: seeder})
+	steps = append(steps, writeE2EManifestStep{seeder: seeder})
+	steps = append(steps, printSummaryStep{seeder: seeder})
+
+	return Workflow{
+		Name:  "e2e-prepare",
 		Steps: steps,
 	}
 }

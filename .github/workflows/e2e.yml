@@ -7,12 +7,11 @@ name: E2E (Playwright)
 #
 # What this does, end-to-end:
 #   1. Materialise .env from the checked-in templates.
-#   2. `pnpm run e2e` starts Playwright directly.
-#   3. Playwright webServer starts one long-lived harness command.
-#      That command brings up postgres-test + server-e2e, runs
-#      `go run main.go e2e prepare`, copies the Go-owned manifest onto the
-#      host, then starts the dedicated Next.js dev server on the E2E port.
-#   4. The suite runs headless against that manifest-backed harness.
+#   2. `./scripts/e2e.sh` brings up postgres-test + server-e2e, runs
+#      `go run main.go e2e prepare`, then hands off to Playwright.
+#   3. Playwright's webServer starts only the dedicated Next.js dev server
+#      from the emitted Go manifest.
+#   4. The suite runs headless against that manifest-backed frontend.
 #   5. On failure, the HTML report, E2E manifest, and backend logs are
 #      uploaded as artifacts.
 
@@ -117,31 +116,11 @@ jobs:
           # default keeps the bootstrap migration from refusing to run.
           sed -i "s|^OPERATOR_PASSWORD=.*|OPERATOR_PASSWORD=${CI_OPERATOR_PASSWORD}|" .env
 
-      - name: Materialise frontend .env.local
-        # The harness command spawned by Playwright starts `pnpm run dev`,
-        # which loads frontend/.env.local.
-        # SKIP_ENV_VALIDATION lets the dev server boot without a real
-        # POSTHOG/Sentry key. frontend/e2e/web-server.mjs overrides
-        # NEXT_PUBLIC_API_URL/TENANT_DOMAIN at spawn time, so the values
-        # below only need to be syntactically valid. NEXTAUTH_SECRET MUST
-        # match the value written into the root .env above so the backend
-        # and the spawned Next.js dev server validate the same JWT signing
-        # key — that is why both files reference $CI_NEXTAUTH_SECRET.
-        working-directory: frontend
-        run: |
-          cp .env.example .env.local
-          {
-            echo ""
-            echo "# CI overrides"
-            echo "SKIP_ENV_VALIDATION=true"
-            echo "NEXTAUTH_SECRET=${CI_NEXTAUTH_SECRET}"
-          } >> .env.local
-
       - name: Run canonical E2E flow
-        working-directory: frontend
         env:
           CI: "true"
-        run: pnpm run e2e
+          NEXTAUTH_SECRET: ${{ env.CI_NEXTAUTH_SECRET }}
+        run: ./scripts/e2e.sh
 
       - name: Upload Playwright report
         if: failure()
@@ -153,9 +132,8 @@ jobs:
 
       - name: Upload E2E manifest on failure
         # Useful for debugging "demo-device-001 missing in E2E manifest" errors.
-        # The Playwright harness writes a dedicated .e2e-manifest.json contract
-        # (separate from the dev seed's .seed-state.json) — see
-        # frontend/e2e/web-server.mjs and frontend/e2e/contract.generated.ts for the matching path.
+        # The Go prepare pipeline writes a dedicated .e2e-manifest.json
+        # contract (separate from the dev seed's .seed-state.json).
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

@@ -100,7 +100,7 @@ By default, dev uses `TENANT_DOMAIN=localhost`. Tenant switching works, but cook
 
 To match production cookie behavior in dev (switch tenants without re-login), opt in:
 
-1. Set `TENANT_DOMAIN=localtest.me` and `NEXT_PUBLIC_TENANT_DOMAIN=localtest.me` in your `.env` (and `frontend/.env.local`).
+1. Set `TENANT_DOMAIN=localtest.me` and `NEXT_PUBLIC_TENANT_DOMAIN=localtest.me` in your `.env`.
 2. Run `sudo ./scripts/setup-e2e-hosts.sh` once to add `*.localtest.me` entries to `/etc/hosts` (needed for offline use; online, `localtest.me` resolves to `127.0.0.1` via public DNS).
 3. Access tenants at `{slug}.localtest.me:3000` instead of `{slug}.localhost:3000`.
 
@@ -215,7 +215,6 @@ The application will be available at:
 2. **Configure environment files**:
    ```bash
    cp backend/dev.env.example backend/dev.env
-   cp frontend/.env.local.example frontend/.env.local
    # Edit the files with your settings
    ```
 

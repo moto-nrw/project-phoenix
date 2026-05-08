@@ -21,7 +21,6 @@
     "typecheck": "tsc --noEmit",
     "knip": "knip",
     "e2e": "playwright test",
-    "e2e:harness": "node ./e2e/web-server.mjs",
     "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
