@@ -421,6 +421,30 @@ describe("StudentsPage", () => {
     });
   });
 
+  it("filters students by last name", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Muster" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters students by reversed full name", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Mustermann Max" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
   it("filters students by guardian name (name_lg)", async () => {
     render(<StudentsPage />);
 
@@ -444,6 +468,18 @@ describe("StudentsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
       // Anna is in 2b, so should be filtered out
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters students by group name", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Gruppe A" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
       expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
     });
   });
