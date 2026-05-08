@@ -8,22 +8,19 @@ import (
 )
 
 const (
-	ManifestPath    = ".e2e-manifest.json"
-	ManifestVersion = "7"
+	StatePath    = ".e2e-state.json"
+	StateVersion = "1"
 )
 
-// Manifest is the machine-readable contract between the Go-owned E2E world
-// builder and the Playwright harness.
-type Manifest struct {
-	Version   string           `json:"version"`
-	Runtime   Runtime          `json:"runtime"`
-	Scenario  ScenarioMetadata `json:"scenario"`
-	Setup     Setup            `json:"setup"`
-	Tenants   Tenants          `json:"tenants"`
-	Actors    Actors           `json:"actors"`
-	Switching *Switching       `json:"switching,omitempty"`
-	Devices   Devices          `json:"devices"`
-	Fixtures  Fixtures         `json:"fixtures"`
+// State is the single machine-readable contract between the Go-owned E2E
+// world builder, the Playwright setup project, and the Go orchestrator.
+type State struct {
+	Version    string     `json:"version"`
+	Runtime    Runtime    `json:"runtime"`
+	World      World      `json:"world"`
+	Setup      Setup      `json:"setup"`
+	Fixtures   Fixtures   `json:"fixtures"`
+	Assertions Assertions `json:"assertions"`
 }
 
 type Runtime struct {
@@ -33,6 +30,13 @@ type Runtime struct {
 	OperatorHostname string `json:"operator_hostname"`
 	NextAuthSecret   string `json:"nextauth_secret"`
 	AuthTrustHost    bool   `json:"auth_trust_host"`
+}
+
+type World struct {
+	Scenario ScenarioMetadata `json:"scenario"`
+	Tenants  Tenants          `json:"tenants"`
+	Actors   Actors           `json:"actors"`
+	Devices  Devices          `json:"devices"`
 }
 
 type ScenarioMetadata struct {
@@ -74,12 +78,6 @@ type Actor struct {
 	DisplayName string `json:"display_name"`
 	Role        string `json:"role"`
 	StaffID     int64  `json:"staff_id"`
-}
-
-type Switching struct {
-	LinkEmail string `json:"link_email"`
-	Verified  bool   `json:"verified"`
-	Actor     Actor  `json:"actor"`
 }
 
 type Devices struct {
@@ -150,102 +148,119 @@ type CheckinFixture struct {
 	Supervisor Actor       `json:"supervisor"`
 }
 
+type Assertions struct {
+	Switching SwitchingAssertion `json:"switching"`
+}
+
+type SwitchingAssertion struct {
+	Required  bool   `json:"required"`
+	Verified  bool   `json:"verified"`
+	LinkEmail string `json:"link_email,omitempty"`
+	Actor     *Actor `json:"actor,omitempty"`
+}
+
 type OperatorCredentials struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-func (m *Manifest) Normalize() {
-	if m == nil {
+func (s *State) Normalize() {
+	if s == nil {
 		return
 	}
-	if m.Version == "" {
-		m.Version = ManifestVersion
+	if s.Version == "" {
+		s.Version = StateVersion
 	}
 }
 
-func (m *Manifest) Validate() error {
-	if m == nil {
-		return fmt.Errorf("manifest is nil")
+func (s *State) Validate() error {
+	if s == nil {
+		return fmt.Errorf("state is nil")
 	}
-	if m.Runtime.BackendURL == "" {
-		return fmt.Errorf("manifest.runtime.backend_url is required")
+	if s.Runtime.BackendURL == "" {
+		return fmt.Errorf("state.runtime.backend_url is required")
 	}
-	if m.Runtime.TenantDomain == "" {
-		return fmt.Errorf("manifest.runtime.tenant_domain is required")
+	if s.Runtime.TenantDomain == "" {
+		return fmt.Errorf("state.runtime.tenant_domain is required")
 	}
-	if m.Runtime.FrontendPort <= 0 {
-		return fmt.Errorf("manifest.runtime.frontend_port must be > 0")
+	if s.Runtime.FrontendPort <= 0 {
+		return fmt.Errorf("state.runtime.frontend_port must be > 0")
 	}
-	if m.Runtime.OperatorHostname == "" {
-		return fmt.Errorf("manifest.runtime.operator_hostname is required")
+	if s.Runtime.OperatorHostname == "" {
+		return fmt.Errorf("state.runtime.operator_hostname is required")
 	}
-	if m.Runtime.NextAuthSecret == "" {
-		return fmt.Errorf("manifest.runtime.nextauth_secret is required")
+	if s.Runtime.NextAuthSecret == "" {
+		return fmt.Errorf("state.runtime.nextauth_secret is required")
 	}
-	if m.Scenario.Name == "" {
-		return fmt.Errorf("manifest.scenario.name is required")
+	if s.World.Scenario.Name == "" {
+		return fmt.Errorf("state.world.scenario.name is required")
 	}
-	if m.Scenario.Mode == "" {
-		return fmt.Errorf("manifest.scenario.mode is required")
+	if s.World.Scenario.Mode == "" {
+		return fmt.Errorf("state.world.scenario.mode is required")
 	}
-	if len(m.Setup.Auth.Roles) == 0 {
-		return fmt.Errorf("manifest.setup.auth.roles must not be empty")
+	if len(s.Setup.Auth.Roles) == 0 {
+		return fmt.Errorf("state.setup.auth.roles must not be empty")
 	}
-	if m.Tenants.Primary.Slug == "" {
-		return fmt.Errorf("manifest.tenants.primary.slug is required")
+	if s.World.Tenants.Primary.Slug == "" {
+		return fmt.Errorf("state.world.tenants.primary.slug is required")
 	}
-	if m.Actors.Admin.Email == "" {
-		return fmt.Errorf("manifest.actors.admin.email is required")
+	if s.World.Actors.Admin.Email == "" {
+		return fmt.Errorf("state.world.actors.admin.email is required")
 	}
-	if m.Actors.Staff.Email == "" {
-		return fmt.Errorf("manifest.actors.staff.email is required")
+	if s.World.Actors.Staff.Email == "" {
+		return fmt.Errorf("state.world.actors.staff.email is required")
 	}
-	if m.Devices.DefaultCheckin.Key == "" {
-		return fmt.Errorf("manifest.devices.default_checkin.key is required")
+	if s.World.Devices.DefaultCheckin.Key == "" {
+		return fmt.Errorf("state.world.devices.default_checkin.key is required")
 	}
-	if m.Devices.DefaultCheckin.APIKey == "" {
-		return fmt.Errorf("manifest.devices.default_checkin.api_key is required")
+	if s.World.Devices.DefaultCheckin.APIKey == "" {
+		return fmt.Errorf("state.world.devices.default_checkin.api_key is required")
 	}
-	if m.Devices.DefaultCheckin.PIN == "" {
-		return fmt.Errorf("manifest.devices.default_checkin.pin is required")
+	if s.World.Devices.DefaultCheckin.PIN == "" {
+		return fmt.Errorf("state.world.devices.default_checkin.pin is required")
 	}
-	if m.Fixtures.Checkin.RFIDTag == "" {
-		return fmt.Errorf("manifest.fixtures.checkin.rfid_tag is required")
+	if s.Fixtures.Checkin.RFIDTag == "" {
+		return fmt.Errorf("state.fixtures.checkin.rfid_tag is required")
+	}
+	if s.Setup.Auth.RequiresSecondaryTenant && s.World.Tenants.Secondary == nil {
+		return fmt.Errorf("state.setup.auth.requires_secondary_tenant requires world.tenants.secondary")
+	}
+	if s.Setup.Auth.RequiresVerifiedSwitching && !s.Assertions.Switching.Verified {
+		return fmt.Errorf("state.setup.auth.requires_verified_switching requires assertions.switching.verified")
 	}
 	return nil
 }
 
-func WriteManifest(manifest *Manifest, path string) error {
-	manifest.Normalize()
-	if err := manifest.Validate(); err != nil {
-		return fmt.Errorf("validate e2e manifest: %w", err)
+func WriteState(state *State, path string) error {
+	state.Normalize()
+	if err := state.Validate(); err != nil {
+		return fmt.Errorf("validate e2e state: %w", err)
 	}
-	data, err := json.MarshalIndent(manifest, "", "  ")
+	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal e2e manifest: %w", err)
+		return fmt.Errorf("marshal e2e state: %w", err)
 	}
 	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return fmt.Errorf("write e2e manifest: %w", err)
+		return fmt.Errorf("write e2e state: %w", err)
 	}
 	return nil
 }
 
-func LoadManifest(path string) (*Manifest, error) {
+func LoadState(path string) (*State, error) {
 	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
-		return nil, fmt.Errorf("read e2e manifest: %w", err)
+		return nil, fmt.Errorf("read e2e state: %w", err)
 	}
-	var manifest Manifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return nil, fmt.Errorf("unmarshal e2e manifest: %w", err)
+	var state State
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, fmt.Errorf("unmarshal e2e state: %w", err)
 	}
-	if manifest.Version != "" && manifest.Version != ManifestVersion {
-		return nil, fmt.Errorf("unsupported e2e manifest version: %s", manifest.Version)
+	if state.Version != "" && state.Version != StateVersion {
+		return nil, fmt.Errorf("unsupported e2e state version: %s", state.Version)
 	}
-	manifest.Normalize()
-	if err := manifest.Validate(); err != nil {
-		return nil, fmt.Errorf("validate e2e manifest: %w", err)
+	state.Normalize()
+	if err := state.Validate(); err != nil {
+		return nil, fmt.Errorf("validate e2e state: %w", err)
 	}
-	return &manifest, nil
+	return &state, nil
 }

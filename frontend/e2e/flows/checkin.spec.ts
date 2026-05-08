@@ -1,10 +1,20 @@
 import type { APIRequestContext } from "@playwright/test";
 import { apiTest as test, apiExpect as expect } from "../fixtures";
-import type { E2ECheckinFixture } from "../contract";
 
 type CurrentVisit = {
   id: number;
 } | null;
+
+type CheckinScenario = {
+  student: {
+    id: number;
+    first_name: string;
+  };
+  room: {
+    id: number;
+  };
+  rfid_tag: string;
+};
 
 type CheckinScanResult = {
   student_id: number;
@@ -39,7 +49,7 @@ async function getCurrentVisit(
 
 async function scanCheckin(
   deviceApi: APIRequestContext,
-  checkinScenario: E2ECheckinFixture,
+  checkinScenario: CheckinScenario,
 ): Promise<CheckinScanResult> {
   const res = await deviceApi.post("/api/iot/checkin", {
     data: {

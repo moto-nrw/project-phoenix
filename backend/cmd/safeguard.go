@@ -45,12 +45,12 @@ func isLocalHostname(hostname string) bool {
 	return false
 }
 
-// Keep in sync with the canonical Playwright harness:
-// `frontend/e2e/harness.ts` boots the isolated backend via docker compose and
-// `frontend/e2e/contract.ts` reads the resulting Go-owned manifest.
+// Keep in sync with the canonical E2E harness:
+// `go run . e2e run` / `go run . e2e up` boot the isolated backend and the
+// Playwright harness reads the resulting Go-owned E2E state file.
 var localDockerHostnames = map[string]bool{
 	"server":                  true,
-	"server-e2e":              true,
+	"backend":                 true,
 	"host.docker.internal":    true,
 	"gateway.docker.internal": true,
 }

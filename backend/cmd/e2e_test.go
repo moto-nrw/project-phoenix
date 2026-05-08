@@ -22,7 +22,7 @@ func TestE2ECmd_IsRegisteredOnRoot(t *testing.T) {
 func TestE2EPrepareCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "prepare", e2ePrepareCmd.Use)
 	assert.Contains(t, e2ePrepareCmd.Short, "canonical Playwright world")
-	assert.Contains(t, e2ePrepareCmd.Long, ".e2e-manifest.json")
+	assert.Contains(t, e2ePrepareCmd.Long, ".e2e-state.json")
 	assert.NotNil(t, e2ePrepareCmd.Run)
 }
 
@@ -52,4 +52,16 @@ func TestE2EHostsCmd_FlagDefaults(t *testing.T) {
 	scenarioFlag := f.Lookup("scenario")
 	require.NotNil(t, scenarioFlag)
 	assert.Equal(t, scenarios.DefaultPrepareScenario().Name, scenarioFlag.DefValue)
+}
+
+func TestE2ERunCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "run", e2eRunCmd.Use)
+	assert.Contains(t, e2eRunCmd.Short, "end-to-end")
+	assert.NotNil(t, e2eRunCmd.Run)
+}
+
+func TestE2EUpCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "up", e2eUpCmd.Use)
+	assert.Contains(t, e2eUpCmd.Short, "manual testing")
+	assert.NotNil(t, e2eUpCmd.Run)
 }

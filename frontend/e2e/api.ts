@@ -2,8 +2,18 @@ import {
   request as apiRequest,
   type APIRequestContext,
 } from "@playwright/test";
-import { getE2ERuntime } from "./contract";
 import { type TenantSession } from "./auth";
+import { getE2EState } from "./state";
+
+type RuntimeState = {
+  runtime: {
+    backend_url: string;
+  };
+};
+
+function backendBaseURL(): string {
+  return (getE2EState() as RuntimeState).runtime.backend_url;
+}
 
 async function resolveAccessTokenFromSession(
   session: TenantSession,
@@ -43,7 +53,7 @@ async function resolveAccessTokenFromSession(
 
 export async function createBackendApiContext(): Promise<APIRequestContext> {
   return apiRequest.newContext({
-    baseURL: getE2ERuntime().backend_url,
+    baseURL: backendBaseURL(),
   });
 }
 
@@ -52,7 +62,7 @@ export async function createTenantApiContext(
 ): Promise<APIRequestContext> {
   const token = await resolveAccessTokenFromSession(session);
   return apiRequest.newContext({
-    baseURL: getE2ERuntime().backend_url,
+    baseURL: backendBaseURL(),
     extraHTTPHeaders: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -65,7 +75,7 @@ export async function createDeviceApiContext(device: {
   pin: string;
 }): Promise<APIRequestContext> {
   return apiRequest.newContext({
-    baseURL: getE2ERuntime().backend_url,
+    baseURL: backendBaseURL(),
     extraHTTPHeaders: {
       Authorization: `Bearer ${device.api_key}`,
       "X-Staff-PIN": device.pin,

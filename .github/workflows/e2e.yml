@@ -1,19 +1,10 @@
 name: E2E (Playwright)
 
-# Reusable workflow that runs the Playwright E2E suite against an isolated
-# Docker stack (postgres-test + server-e2e). Triggered by main.yml when
-# either backend/ or frontend/ changes. Manual dispatch is also supported
-# for ad-hoc runs.
-#
-# What this does, end-to-end:
-#   1. Materialise .env from the checked-in templates.
-#   2. `./scripts/e2e.sh` brings up postgres-test + server-e2e, runs
-#      `go run main.go e2e prepare`, then hands off to Playwright.
-#   3. Playwright's webServer starts only the dedicated Next.js dev server
-#      from the emitted Go contract.
-#   4. The suite runs headless against that manifest-backed frontend.
-#   5. On failure, the HTML report, E2E manifest, and backend logs are
-#      uploaded as artifacts.
+# Reusable workflow that runs the canonical Go-owned E2E harness. CI prepares
+# dependencies, exports ephemeral secrets into the process environment, then
+# invokes exactly the same `go run . e2e run` command that developers use
+# locally. The Go orchestrator owns infra startup, world preparation, frontend
+# boot, Playwright execution, teardown, and backend-log capture.
 
 on:
   workflow_call:
@@ -84,43 +75,23 @@ jobs:
         run: pnpm exec playwright install-deps chromium
 
       - name: Generate ephemeral CI secrets
-        # Generate fresh, random per-run secrets and propagate via
-        # $GITHUB_ENV so subsequent steps see them as env vars. This avoids
-        # hardcoding any secret-shaped strings in the workflow file (which
-        # secret scanners like GitGuardian flag, even when the strings are
-        # CI-only test fixtures). Hex output keeps `sed` substitutions safe
-        # (no special characters to escape). 32-byte JWT/NEXTAUTH secrets
-        # produce 64 hex chars — well above the 32-char minimum the backend
-        # enforces at startup.
         run: |
           {
-            echo "CI_AUTH_JWT_SECRET=$(openssl rand -hex 32)"
-            echo "CI_NEXTAUTH_SECRET=$(openssl rand -hex 32)"
-            echo "CI_POSTGRES_PASSWORD=$(openssl rand -hex 16)"
-            echo "CI_ADMIN_PASSWORD=$(openssl rand -hex 16)"
-            echo "CI_OPERATOR_PASSWORD=$(openssl rand -hex 16)"
+            echo "AUTH_JWT_SECRET=$(openssl rand -hex 32)"
+            echo "NEXTAUTH_SECRET=$(openssl rand -hex 32)"
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "ADMIN_PASSWORD=$(openssl rand -hex 16)"
+            echo "OPERATOR_PASSWORD=$(openssl rand -hex 16)"
           } >> "$GITHUB_ENV"
 
-      - name: Materialise root .env for docker compose
-        # docker compose reads ${VAR} from .env at the repo root. The example
-        # file already has CI-safe defaults for everything we touch (Mailpit,
-        # localhost CORS, debug logging) — we only override secrets that
-        # MUST be non-placeholder for the backend to boot successfully.
-        run: |
-          cp .env.example .env
-          sed -i "s|^AUTH_JWT_SECRET=.*|AUTH_JWT_SECRET=${CI_AUTH_JWT_SECRET}|" .env
-          sed -i "s|^NEXTAUTH_SECRET=.*|NEXTAUTH_SECRET=${CI_NEXTAUTH_SECRET}|" .env
-          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${CI_POSTGRES_PASSWORD}|" .env
-          sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=${CI_ADMIN_PASSWORD}|" .env
-          # The seeder overrides OPERATOR_* with E2E values, but a non-empty
-          # default keeps the bootstrap migration from refusing to run.
-          sed -i "s|^OPERATOR_PASSWORD=.*|OPERATOR_PASSWORD=${CI_OPERATOR_PASSWORD}|" .env
+      - name: Materialize root .env for the canonical harness
+        run: cp .env.example .env
 
       - name: Run canonical E2E flow
         env:
           CI: "true"
-          NEXTAUTH_SECRET: ${{ env.CI_NEXTAUTH_SECRET }}
-        run: ./scripts/e2e.sh
+        working-directory: backend
+        run: go run . e2e run --scenario e2e-multi-tenant
 
       - name: Upload Playwright report
         if: failure()
@@ -130,44 +101,20 @@ jobs:
           path: frontend/playwright-report/
           retention-days: 7
 
-      - name: Upload E2E manifest on failure
-        # Useful for debugging "demo-device-001 missing in E2E manifest" errors.
-        # The Go prepare pipeline writes a dedicated .e2e-manifest.json
-        # contract (separate from the dev seed's .seed-state.json).
+      - name: Upload E2E state on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-manifest
-          path: backend/.e2e-manifest.json
+          name: e2e-state
+          path: backend/.e2e-state.json
           retention-days: 7
           if-no-files-found: ignore
-
-      - name: Capture backend logs on failure
-        # Write to files instead of dumping straight into the job log.
-        # `docker compose logs` without --tail can produce tens of
-        # thousands of lines (postgres especially) which floods GitHub's
-        # job-log UI and gets truncated mid-output, exactly when you
-        # need it for triage. --tail=2000 covers any realistic failure
-        # window; --no-color strips ANSI escapes so the file is grep-able.
-        # `|| true` prevents this step from masking the real test failure
-        # if `docker compose` itself errors out (e.g. service already down).
-        if: failure()
-        run: |
-          mkdir -p backend-logs
-          docker compose -f docker-compose.example.yml --profile e2e logs --no-color --tail=2000 server-e2e \
-            > backend-logs/server-e2e.log 2>&1 || true
-          docker compose -f docker-compose.example.yml --profile e2e logs --no-color --tail=2000 postgres-test \
-            > backend-logs/postgres-test.log 2>&1 || true
 
       - name: Upload backend logs on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: backend-logs
-          path: backend-logs/
+          path: backend/.e2e-artifacts/backend-logs/
           retention-days: 7
           if-no-files-found: ignore
-
-      - name: Tear down docker stack
-        if: always()
-        run: docker compose -f docker-compose.example.yml --profile e2e down --volumes --remove-orphans

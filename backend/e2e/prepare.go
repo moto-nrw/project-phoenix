@@ -27,7 +27,7 @@ func (o *PrepareOptions) normalize() {
 }
 
 // Prepare rebuilds the canonical multi-tenant E2E world and writes the single
-// manifest contract consumed by Playwright.
+// state contract consumed by Playwright.
 func Prepare(ctx context.Context, options PrepareOptions) error {
 	options.normalize()
 	definition, ok := scenarios.Lookup(options.Scenario)
@@ -52,7 +52,7 @@ func Prepare(ctx context.Context, options PrepareOptions) error {
 		return fmt.Errorf("seed e2e scenario %q: %w", options.Scenario, err)
 	}
 
-	fmt.Printf("Canonical E2E world is ready. Manifest written to %s\n", contract.ManifestPath)
+	fmt.Printf("Canonical E2E world is ready. State written to %s\n", contract.StatePath)
 	return nil
 }
 

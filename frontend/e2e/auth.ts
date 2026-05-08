@@ -1,21 +1,60 @@
 import { expect, type Page } from "@playwright/test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  E2E_SCENARIO_MODE_MULTI_TENANT,
-  E2E_SETUP_ROLE_ADMIN,
-  E2E_SETUP_ROLE_STAFF,
-  getAppUrls,
-  getE2EManifest,
-  type E2EAuthSetup,
-  type SeedAdminActor,
-  type SeedStaffActor,
-} from "./contract";
+import { getE2EState } from "./state";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = resolve(HERE, "..");
 
-type TenantActor = SeedAdminActor | SeedStaffActor;
+const SCENARIO_MODE_MULTI_TENANT = "multi-tenant";
+const SETUP_ROLE_ADMIN = "admin";
+const SETUP_ROLE_STAFF = "staff";
+
+type E2ETwitterTenant = {
+  slug: string;
+};
+
+type TenantActor = {
+  email: string;
+  password: string;
+  display_name: string;
+  role: string;
+  staff_id: number;
+};
+
+type E2EAuthSetup = {
+  roles: string[];
+  requires_secondary_tenant: boolean;
+  requires_verified_switching: boolean;
+};
+
+type AuthState = {
+  runtime: {
+    tenant_domain: string;
+    frontend_port: number;
+  };
+  world: {
+    scenario: {
+      mode: string;
+    };
+    tenants: {
+      primary: E2ETwitterTenant;
+      secondary?: E2ETwitterTenant;
+    };
+    actors: {
+      admin: TenantActor;
+      staff: TenantActor;
+    };
+  };
+  setup: {
+    auth: E2EAuthSetup;
+  };
+  assertions: {
+    switching: {
+      verified: boolean;
+    };
+  };
+};
 
 export type Role = "admin" | "staff";
 
@@ -45,6 +84,10 @@ export interface AuthSetupContract {
 
 let cachedAuthSetup: AuthSetupContract | undefined;
 
+function readAuthState(): AuthState {
+  return getE2EState() as AuthState;
+}
+
 function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -56,35 +99,39 @@ function profileTriggerLocator(page: Page, displayName: string) {
     .first();
 }
 
+function tenantOrigin(state: AuthState, tenant: E2ETwitterTenant): string {
+  return `http://${tenant.slug}.${state.runtime.tenant_domain}:${state.runtime.frontend_port}`;
+}
+
 function buildAuthSetupContract(): AuthSetupContract {
-  const manifest = getE2EManifest();
-  const app = getAppUrls();
+  const state = readAuthState();
+  const primaryAppRoot = tenantOrigin(state, state.world.tenants.primary);
 
   return {
     admin: {
       role: "admin",
-      actor: manifest.actors.admin,
-      email: manifest.actors.admin.email,
-      password: manifest.actors.admin.password,
-      displayName: manifest.actors.admin.display_name,
+      actor: state.world.actors.admin,
+      email: state.world.actors.admin.email,
+      password: state.world.actors.admin.password,
+      displayName: state.world.actors.admin.display_name,
       storageStatePath: STORAGE_STATE_PATH.admin,
-      appRoot: app.primary(),
+      appRoot: primaryAppRoot,
       readyIndicator: {
         kind: "display-name",
-        value: manifest.actors.admin.display_name,
+        value: state.world.actors.admin.display_name,
       },
     },
     staff: {
       role: "staff",
-      actor: manifest.actors.staff,
-      email: manifest.actors.staff.email,
-      password: manifest.actors.staff.password,
-      displayName: manifest.actors.staff.display_name,
+      actor: state.world.actors.staff,
+      email: state.world.actors.staff.email,
+      password: state.world.actors.staff.password,
+      displayName: state.world.actors.staff.display_name,
       storageStatePath: STORAGE_STATE_PATH.staff,
-      appRoot: app.primary(),
+      appRoot: primaryAppRoot,
       readyIndicator: {
         kind: "display-name",
-        value: manifest.actors.staff.display_name,
+        value: state.world.actors.staff.display_name,
       },
     },
   };
@@ -97,24 +144,21 @@ export function getAuthSetupContract(): AuthSetupContract {
   return cachedAuthSetup;
 }
 
-export function verifyHarnessManifest(): void {
-  const manifest = getE2EManifest();
-  verifyAuthSetup(manifest.setup.auth, manifest);
-  expect(manifest.scenario.mode).toBe(E2E_SCENARIO_MODE_MULTI_TENANT);
+export function verifyHarnessState(): void {
+  const state = readAuthState();
+  verifyAuthSetup(state.setup.auth, state);
+  expect(state.world.scenario.mode).toBe(SCENARIO_MODE_MULTI_TENANT);
 }
 
-function verifyAuthSetup(
-  setup: E2EAuthSetup,
-  manifest = getE2EManifest(),
-): void {
-  expect(setup.roles).toEqual([E2E_SETUP_ROLE_ADMIN, E2E_SETUP_ROLE_STAFF]);
+function verifyAuthSetup(setup: E2EAuthSetup, state = readAuthState()): void {
+  expect(setup.roles).toEqual([SETUP_ROLE_ADMIN, SETUP_ROLE_STAFF]);
 
   if (setup.requires_secondary_tenant) {
-    expect(manifest.tenants.secondary).toBeTruthy();
+    expect(state.world.tenants.secondary).toBeTruthy();
   }
 
   if (setup.requires_verified_switching) {
-    expect(manifest.switching?.verified).toBe(true);
+    expect(state.assertions.switching.verified).toBe(true);
   }
 }
 

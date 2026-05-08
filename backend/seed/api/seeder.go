@@ -37,7 +37,7 @@ type SeedOptions struct {
 	// lets the scenario layer choose a scenario-specific path; if no
 	// scenario claims it, the seeder falls back to DefaultSeedStatePath
 	// (".seed-state.json" relative to CWD). E2E uses this hook to write
-	// to contract.ManifestPath so it never collides with the dev seed file.
+	// to contract.StatePath so it never collides with the dev seed file.
 	StatePath string
 	// SecondTenant, when non-nil, schedules an extra workflow step that
 	// provisions a sibling school under the same organization and links

@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file:
+      - ../.e2e.compose.env
+    volumes:
+      - postgres_e2e:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: phoenix_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d phoenix_test"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - 8081:8080
+    volumes:
+      - ../:/app
+      - go_mod_cache:/go/pkg/mod
+    env_file:
+      - ../.e2e.compose.env
+    command: ["sh", "-c", "go run . migrate && go run . serve"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 90s
+
+volumes:
+  postgres_e2e:
+  go_mod_cache:

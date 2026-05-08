@@ -41,7 +41,7 @@ func ApplyScenarioDefaults(options *SeedOptions) error {
 		options.TenantSlug = definition.Seed.TenantSlug
 	}
 	if options.StatePath == "" {
-		options.StatePath = contract.ManifestPath
+		options.StatePath = contract.StatePath
 	}
 	if options.StaffPassword == "" {
 		options.StaffPassword = definition.Seed.StaffPassword

@@ -23,13 +23,6 @@ services:
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY}
       AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY}
-      # E2E prepare emits a complete harness contract, including the exact
-      # frontend auth settings the Playwright-spawned Next.js server must
-      # boot with. Mirror these two frontend env vars into server-e2e so the
-      # Go prepare step can read them once and write one self-contained
-      # contract instead of relying on frontend-side fallbacks.
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD}
@@ -164,13 +157,11 @@ services:
     environment:
       MP_MAX_MESSAGES: 500
 
-  # Test database for integration tests AND Playwright E2E.
-  # Start (Go tests):    docker compose --profile test up -d postgres-test
-  # Start (E2E stack):   docker compose --profile e2e up -d
-  # Uses isolated network to prevent "network still in use" on `docker compose down`
+  # Test database for integration tests. The canonical E2E harness owns its
+  # own isolated Compose topology under backend/e2e/compose.yml.
   postgres-test:
     image: postgres:17-alpine
-    profiles: ["test", "e2e"]
+    profiles: ["test"]
     restart: unless-stopped
     ports:
       - "${TEST_DB_PORT}:5432"
@@ -185,114 +176,6 @@ services:
       interval: 1s
       timeout: 1s
       retries: 5
-
-  # Isolated backend bound to postgres-test, used by Playwright E2E tests so
-  # Playwright-owned harness setup no longer wipes the developer's dev DB on every run. Mirrors
-  # the dev `server` service env-for-env so behaviour matches; only DB_DSN
-  # (points at postgres-test, sslmode=disable) and APP_ENV (=test) differ.
-  # Reachable from the host on :8081.
-  #
-  # Start with: docker compose --profile e2e up -d
-  server-e2e:
-    profiles: ["e2e"]
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.dev
-    depends_on:
-      postgres-test:
-        condition: service_healthy
-    ports:
-      - 8081:8080
-    volumes:
-      - ./backend:/app
-      - go_mod_cache:/go/pkg/mod
-    environment:
-      TZ: ${TZ}
-      LOG_LEVEL: ${LOG_LEVEL}
-      LOG_TEXTLOGGING: ${LOG_TEXTLOGGING}
-      # Hardcoded — not ${PORT} — because the host mapping `8081:8080`
-      # above and the seed/Playwright config (localhost:8081) all assume
-      # the container listens on 8080 internally. Inheriting PORT from
-      # the shared root .env would let a developer who customised PORT
-      # for their dev backend silently break the entire E2E stack.
-      PORT: "8080"
-      # Override: target postgres-test on its in-network port (5432). The
-      # phoenix_test DB has no SSL certs mounted, so sslmode=disable.
-      DB_DSN: postgres://postgres:${POSTGRES_PASSWORD}@postgres-test:5432/phoenix_test?sslmode=disable
-      APP_ENV: test
-      DB_DEBUG: ${DB_DEBUG}
-      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
-      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY}
-      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD}
-      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS}
-      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME}
-      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST}
-      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT}
-      EMAIL_SMTP_USER: ${EMAIL_SMTP_USER}
-      EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD}
-      FRONTEND_URL: ${FRONTEND_URL}
-      NEXT_PUBLIC_OPERATOR_HOSTNAME: ${NEXT_PUBLIC_OPERATOR_HOSTNAME}
-      INVITATION_TOKEN_EXPIRY_HOURS: ${INVITATION_TOKEN_EXPIRY_HOURS}
-      PASSWORD_RESET_TOKEN_EXPIRY_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRY_MINUTES}
-      ENABLE_CORS: ${ENABLE_CORS}
-      # E2E frontend lives on :3030 (so it can coexist with the dev frontend
-      # on :3000 and with other tools that might claim :3001). The dev-
-      # targeted CORS allowlist in .env points at :3000, so override here.
-      # Wildcard form `*.localtest.me:3030` covers both demo-school and
-      # second-school subdomains via host suffix match.
-      CORS_ALLOWED_ORIGINS: "*.localtest.me:3030,http://localhost:3030"
-      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED}
-      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE}
-      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST}
-      RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE: ${RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE}
-      SECURITY_LOGGING_ENABLED: ${SECURITY_LOGGING_ENABLED}
-      SENTRY_DSN: ${SENTRY_DSN}
-      # Schedulers off — E2E suite assumes nothing fires mid-test.
-      CLEANUP_SCHEDULER_ENABLED: "false"
-      CLEANUP_SCHEDULER_TIME: ${CLEANUP_SCHEDULER_TIME}
-      CLEANUP_SCHEDULER_TIMEOUT_MINUTES: ${CLEANUP_SCHEDULER_TIMEOUT_MINUTES}
-      SESSION_END_SCHEDULER_ENABLED: "false"
-      SESSION_END_TIME: ${SESSION_END_TIME}
-      SESSION_END_TIMEOUT_MINUTES: ${SESSION_END_TIMEOUT_MINUTES}
-      STUDENT_DAILY_CHECKOUT_TIME: ${STUDENT_DAILY_CHECKOUT_TIME}
-      SESSION_CLEANUP_ENABLED: "false"
-      SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES}
-      SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES}
-      # Canonical E2E runtime: keep the device PIN owned by the dedicated
-      # server-e2e service instead of requiring the wrapper script to override
-      # a developer-local root .env value at runtime.
-      OGS_DEVICE_PIN: "1234"
-      OPERATOR_EMAIL: ${OPERATOR_EMAIL}
-      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
-      OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME}
-      SUGGESTION_NOTIFY_EMAIL: ${SUGGESTION_NOTIFY_EMAIL}
-    # `go run` instead of `air` — both server and server-e2e mount the
-    # same ./backend:/app and air writes to ./tmp/main; running two air
-    # processes against one tmp dir corrupts the build. The test backend
-    # doesn't need hot reload, only a stable serve.
-    command: ["sh", "-c", "go run . migrate && go run . serve"]
-    # Without a healthcheck, `docker compose up -d --wait` only blocks
-    # until the container is RUNNING — not until `go run` has finished
-    # compiling and the HTTP server is actually listening. On a cold
-    # local run or fresh CI runner, that startup window is 30–60s and
-    # the next steps in the Playwright harness (`go run main.go e2e prepare`)
-    # would race the server, surfacing as
-    # confusing "connection refused" failures even though Compose
-    # reported success. /health returns 200 OK once Chi is wired up,
-    # so polling it gives us a deterministic ready-signal for the harness.
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      # 90s grace period covers `go run` cold compile + migrations on
-      # underpowered CI runners without papering over a real hang.
-      start_period: 90s
 
 volumes:
   postgres:

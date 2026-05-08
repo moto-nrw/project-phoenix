@@ -126,26 +126,26 @@ func (s buildSeedStateStep) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
-type writeE2EManifestStep struct {
+type writeE2EStateStep struct {
 	seeder *Seeder
 }
 
-func (writeE2EManifestStep) Name() string { return "Writing E2E manifest" }
+func (writeE2EStateStep) Name() string { return "Writing E2E state" }
 
-func (s writeE2EManifestStep) Run(_ context.Context, rt *Runtime) error {
-	manifest, err := s.seeder.buildE2EManifest(rt)
+func (s writeE2EStateStep) Run(_ context.Context, rt *Runtime) error {
+	state, err := s.seeder.buildE2EState(rt)
 	if err != nil {
 		return err
 	}
 
 	statePath := s.seeder.options.StatePath
 	if statePath == "" {
-		statePath = contract.ManifestPath
+		statePath = contract.StatePath
 	}
-	if err := contract.WriteManifest(manifest, statePath); err != nil {
+	if err := contract.WriteState(state, statePath); err != nil {
 		return err
 	}
-	fmt.Printf("E2E manifest written to %s\n", statePath)
+	fmt.Printf("E2E state written to %s\n", statePath)
 	return nil
 }
 
@@ -232,7 +232,7 @@ func e2eWorkflow(seeder *Seeder) Workflow {
 	}
 
 	steps = append(steps, provisionE2ECheckinStep{seeder: seeder})
-	steps = append(steps, writeE2EManifestStep{seeder: seeder})
+	steps = append(steps, writeE2EStateStep{seeder: seeder})
 	steps = append(steps, printSummaryStep{seeder: seeder})
 
 	return Workflow{

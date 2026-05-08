@@ -44,8 +44,8 @@ type SecondTenantOptions struct {
 }
 
 // SeedStateSecondTenant is the internal handoff object the provisioning
-// step passes to the E2E manifest builder. It is NOT serialized directly;
-// buildE2EManifest folds it into the dedicated Playwright contract so the
+// step passes to the E2E state builder. It is NOT serialized directly;
+// buildE2EState folds it into the dedicated Playwright contract so the
 // harness reads a single machine-readable artifact.
 type SeedStateSecondTenant struct {
 	OrganizationID int64  `json:"organization_id"`

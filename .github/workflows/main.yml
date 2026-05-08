@@ -45,15 +45,12 @@ jobs:
               - 'frontend/e2e/**'
               - 'frontend/playwright.config.ts'
               - 'frontend/.env.example'
-              - 'scripts/setup-e2e-hosts.sh'
-              - 'scripts/e2e.sh'
-              - 'docker-compose.example.yml'
               # e2e.yml materialises the entire stack from the env templates
-              # below (cp .env.example .env), so changes to the keys/defaults
-              # the suite assumes must always trigger E2E. frontend/.env.example
-              # is also matched by `frontend/**` above in theory, but
-              # minimatch dotfile semantics under `**` are unreliable across
-              # versions — list it explicitly.
+              # below (cp .env.example .env), so changes to the keys the
+              # harness consumes must always trigger E2E. frontend/.env.example
+              # is also matched by `frontend/**` above in theory, but minimatch
+              # dotfile semantics under `**` are unreliable across versions —
+              # list it explicitly.
               - '.env.example'
             ci:
               - '.github/**'

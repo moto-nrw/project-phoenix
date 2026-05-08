@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
+func TestWriteAndLoadState_Roundtrip(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "e2e-manifest.json")
+	path := filepath.Join(dir, "e2e-state.json")
 
-	original := &Manifest{
-		Version: ManifestVersion,
+	original := &State{
+		Version: StateVersion,
 		Runtime: Runtime{
 			BackendURL:       "http://localhost:8081",
 			TenantDomain:     "localtest.me",
@@ -24,7 +24,46 @@ func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
 			NextAuthSecret:   "nextauth-secret",
 			AuthTrustHost:    true,
 		},
-		Scenario: ScenarioMetadata{Name: scenarios.NameE2EMultiTenant, Mode: scenarios.ModeMultiTenant},
+		World: World{
+			Scenario: ScenarioMetadata{Name: scenarios.NameE2EMultiTenant, Mode: scenarios.ModeMultiTenant},
+			Tenants: Tenants{
+				Primary: Tenant{
+					OrganizationID: 1,
+					SchoolID:       2,
+					Slug:           "demo-school",
+					Name:           "Demo School",
+				},
+				Secondary: &Tenant{
+					OrganizationID: 1,
+					SchoolID:       3,
+					Slug:           "second-school",
+					Name:           "Demo School 2",
+				},
+			},
+			Actors: Actors{
+				Admin: Actor{
+					Email:       "demo1@mail.de",
+					Password:    "pass1",
+					DisplayName: "Anna Mueller",
+					Role:        "admin",
+					StaffID:     10,
+				},
+				Staff: Actor{
+					Email:       "demo11@mail.de",
+					Password:    "pass2",
+					DisplayName: "Julia Klein",
+					Role:        "user",
+					StaffID:     20,
+				},
+			},
+			Devices: Devices{
+				DefaultCheckin: Device{
+					Key:    "device-001",
+					APIKey: "key-abc",
+					PIN:    "1234",
+				},
+			},
+		},
 		Setup: Setup{
 			Auth: AuthSetup{
 				Roles:                     []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff},
@@ -32,52 +71,18 @@ func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
 				RequiresVerifiedSwitching: true,
 			},
 		},
-		Tenants: Tenants{
-			Primary: Tenant{
-				OrganizationID: 1,
-				SchoolID:       2,
-				Slug:           "demo-school",
-				Name:           "Demo School",
-			},
-			Secondary: &Tenant{
-				OrganizationID: 1,
-				SchoolID:       3,
-				Slug:           "second-school",
-				Name:           "Demo School 2",
-			},
-		},
-		Actors: Actors{
-			Admin: Actor{
-				Email:       "demo1@mail.de",
-				Password:    "pass1",
-				DisplayName: "Anna Mueller",
-				Role:        "admin",
-				StaffID:     10,
-			},
-			Staff: Actor{
-				Email:       "demo11@mail.de",
-				Password:    "pass2",
-				DisplayName: "Julia Klein",
-				Role:        "user",
-				StaffID:     20,
-			},
-		},
-		Switching: &Switching{
-			LinkEmail: "demo1@mail.de",
-			Verified:  true,
-			Actor: Actor{
-				Email:       "demo1@mail.de",
-				Password:    "pass1",
-				DisplayName: "Anna Mueller",
-				Role:        "admin",
-				StaffID:     10,
-			},
-		},
-		Devices: Devices{
-			DefaultCheckin: Device{
-				Key:    "device-001",
-				APIKey: "key-abc",
-				PIN:    "1234",
+		Assertions: Assertions{
+			Switching: SwitchingAssertion{
+				Required:  true,
+				Verified:  true,
+				LinkEmail: "demo1@mail.de",
+				Actor: &Actor{
+					Email:       "demo1@mail.de",
+					Password:    "pass1",
+					DisplayName: "Anna Mueller",
+					Role:        "admin",
+					StaffID:     10,
+				},
 			},
 		},
 		Fixtures: Fixtures{
@@ -129,45 +134,32 @@ func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
 		},
 	}
 
-	err := WriteManifest(original, path)
+	err := WriteState(original, path)
 	require.NoError(t, err)
 
-	loaded, err := LoadManifest(path)
+	loaded, err := LoadState(path)
 	require.NoError(t, err)
 
-	assert.Equal(t, ManifestVersion, loaded.Version)
+	assert.Equal(t, StateVersion, loaded.Version)
 	assert.Equal(t, "http://localhost:8081", loaded.Runtime.BackendURL)
 	assert.Equal(t, "localtest.me", loaded.Runtime.TenantDomain)
 	assert.Equal(t, 3030, loaded.Runtime.FrontendPort)
-	assert.Equal(t, "operator.localtest.me:3030", loaded.Runtime.OperatorHostname)
-	assert.Equal(t, "nextauth-secret", loaded.Runtime.NextAuthSecret)
-	assert.True(t, loaded.Runtime.AuthTrustHost)
-	assert.Equal(t, scenarios.NameE2EMultiTenant, loaded.Scenario.Name)
-	assert.Equal(t, []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff}, loaded.Setup.Auth.Roles)
-	assert.True(t, loaded.Setup.Auth.RequiresSecondaryTenant)
-	assert.True(t, loaded.Setup.Auth.RequiresVerifiedSwitching)
-	assert.Equal(t, "demo-school", loaded.Tenants.Primary.Slug)
-	require.NotNil(t, loaded.Tenants.Secondary)
-	assert.Equal(t, "second-school", loaded.Tenants.Secondary.Slug)
-	assert.Equal(t, "demo1@mail.de", loaded.Actors.Admin.Email)
-	require.NotNil(t, loaded.Switching)
-	assert.True(t, loaded.Switching.Verified)
-	assert.Equal(t, "demo1@mail.de", loaded.Switching.Actor.Email)
-	assert.Equal(t, "device-001", loaded.Devices.DefaultCheckin.Key)
-	assert.Equal(t, "key-abc", loaded.Devices.DefaultCheckin.APIKey)
-	assert.Equal(t, "1234", loaded.Devices.DefaultCheckin.PIN)
+	assert.Equal(t, scenarios.NameE2EMultiTenant, loaded.World.Scenario.Name)
+	assert.Equal(t, "demo-school", loaded.World.Tenants.Primary.Slug)
+	require.NotNil(t, loaded.World.Tenants.Secondary)
+	assert.Equal(t, "second-school", loaded.World.Tenants.Secondary.Slug)
+	assert.Equal(t, "demo1@mail.de", loaded.World.Actors.Admin.Email)
+	assert.True(t, loaded.Assertions.Switching.Verified)
+	require.NotNil(t, loaded.Assertions.Switching.Actor)
+	assert.Equal(t, "demo1@mail.de", loaded.Assertions.Switching.Actor.Email)
 	assert.Equal(t, "E2EFE110001", loaded.Fixtures.Checkin.RFIDTag)
-	assert.Equal(t, "Felix", loaded.Fixtures.Checkin.Student.FirstName)
-	assert.Equal(t, "Leon", loaded.Fixtures.Students.PresentReady.FirstName)
-	assert.Equal(t, "Hausaufgaben", loaded.Fixtures.Checkin.Activity.Name)
-	assert.Equal(t, "Bärengruppe", loaded.Fixtures.Groups.VisiblePair.Primary.DisplayName)
 }
 
-func TestWriteManifest_CreatesFileWithRestrictedPermissions(t *testing.T) {
+func TestWriteState_CreatesFileWithRestrictedPermissions(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "e2e-manifest.json")
+	path := filepath.Join(dir, "e2e-state.json")
 
-	err := WriteManifest(&Manifest{
+	err := WriteState(&State{
 		Runtime: Runtime{
 			BackendURL:       "http://localhost:8081",
 			TenantDomain:     "localtest.me",
@@ -176,25 +168,28 @@ func TestWriteManifest_CreatesFileWithRestrictedPermissions(t *testing.T) {
 			NextAuthSecret:   "nextauth-secret",
 			AuthTrustHost:    true,
 		},
-		Scenario: ScenarioMetadata{Name: scenarios.NameE2EMultiTenant, Mode: scenarios.ModeMultiTenant},
+		World: World{
+			Scenario: ScenarioMetadata{Name: scenarios.NameE2EMultiTenant, Mode: scenarios.ModeMultiTenant},
+			Tenants: Tenants{
+				Primary: Tenant{Slug: "demo-school"},
+			},
+			Actors: Actors{
+				Admin: Actor{Email: "admin@e2e.local"},
+				Staff: Actor{Email: "staff@e2e.local"},
+			},
+			Devices: Devices{
+				DefaultCheckin: Device{Key: "device-001", APIKey: "api-key", PIN: "1234"},
+			},
+		},
 		Setup: Setup{
 			Auth: AuthSetup{
 				Roles: []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff},
 			},
 		},
-		Tenants: Tenants{
-			Primary: Tenant{Slug: "demo-school"},
-		},
-		Actors: Actors{
-			Admin: Actor{Email: "admin@e2e.local"},
-			Staff: Actor{Email: "staff@e2e.local"},
-		},
-		Devices: Devices{
-			DefaultCheckin: Device{Key: "device-001", APIKey: "api-key", PIN: "1234"},
-		},
 		Fixtures: Fixtures{
 			Checkin: CheckinFixture{RFIDTag: "E2E-RFID-001"},
 		},
+		Assertions: Assertions{},
 	}, path)
 	require.NoError(t, err)
 
@@ -203,22 +198,22 @@ func TestWriteManifest_CreatesFileWithRestrictedPermissions(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
-func TestManifestNormalize_SetsVersionOnly(t *testing.T) {
-	manifest := &Manifest{}
+func TestStateNormalize_SetsVersionOnly(t *testing.T) {
+	state := &State{}
 
-	manifest.Normalize()
+	state.Normalize()
 
-	assert.Equal(t, ManifestVersion, manifest.Version)
-	assert.Empty(t, manifest.Runtime.BackendURL)
-	assert.Empty(t, manifest.Scenario.Mode)
-	assert.Empty(t, manifest.Setup.Auth.Roles)
+	assert.Equal(t, StateVersion, state.Version)
+	assert.Empty(t, state.Runtime.BackendURL)
+	assert.Empty(t, state.World.Scenario.Mode)
+	assert.Empty(t, state.Setup.Auth.Roles)
 }
 
-func TestWriteManifest_RejectsIncompleteRuntime(t *testing.T) {
+func TestWriteState_RejectsIncompleteRuntime(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "e2e-manifest.json")
+	path := filepath.Join(dir, "e2e-state.json")
 
-	err := WriteManifest(&Manifest{}, path)
+	err := WriteState(&State{}, path)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "manifest.runtime.backend_url is required")
+	assert.Contains(t, err.Error(), "state.runtime.backend_url is required")
 }

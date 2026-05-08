@@ -5,9 +5,9 @@ import {
   assertSessionReady,
   getAuthSetupContract,
   loginViaUI,
-  verifyHarnessManifest,
+  verifyHarnessState,
 } from "./auth";
-import { getE2EManifest } from "./contract";
+import { getE2EState } from "./state";
 
 setup.describe.configure({ mode: "serial" });
 
@@ -22,10 +22,10 @@ function authSessions() {
   return getAuthSetupContract();
 }
 
-setup("e2e manifest contract is valid", async () => {
+setup("e2e state contract is valid", async () => {
   resetAuthArtifacts();
-  getE2EManifest();
-  verifyHarnessManifest();
+  getE2EState();
+  verifyHarnessState();
 });
 
 setup("authenticate as admin", async ({ page }) => {

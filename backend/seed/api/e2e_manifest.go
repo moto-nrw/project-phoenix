@@ -8,23 +8,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 )
 
-func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
+func (s *Seeder) buildE2EState(rt *Runtime) (*contract.State, error) {
 	if rt == nil {
-		return nil, fmt.Errorf("cannot build e2e manifest: runtime is nil")
+		return nil, fmt.Errorf("cannot build e2e state: runtime is nil")
 	}
 	if rt.Bootstrap == nil {
-		return nil, fmt.Errorf("cannot build e2e manifest: bootstrap state is nil")
+		return nil, fmt.Errorf("cannot build e2e state: bootstrap state is nil")
 	}
 	if rt.FixedSeeder == nil {
-		return nil, fmt.Errorf("cannot build e2e manifest: fixed seeder is nil")
+		return nil, fmt.Errorf("cannot build e2e state: fixed seeder is nil")
 	}
 	if rt.StaffPIN == "" {
-		return nil, fmt.Errorf("cannot build e2e manifest: staff PIN missing")
+		return nil, fmt.Errorf("cannot build e2e state: staff PIN missing")
 	}
 	scenarioDefinition, ok := scenarios.Lookup(s.options.Scenario)
 	if !ok {
 		return nil, fmt.Errorf(
-			"cannot build e2e manifest: unknown scenario %q",
+			"cannot build e2e state: unknown scenario %q",
 			s.options.Scenario,
 		)
 	}
@@ -45,18 +45,14 @@ func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
 	deviceAPIKey, ok := rt.FixedSeeder.deviceKeys[scenarioDefinition.Fixtures.Checkin.DeviceKey]
 	if !ok || deviceAPIKey == "" {
 		return nil, fmt.Errorf(
-			"cannot build e2e manifest: device %q missing API key",
+			"cannot build e2e state: device %q missing API key",
 			scenarioDefinition.Fixtures.Checkin.DeviceKey,
 		)
 	}
 
-	manifest := &contract.Manifest{
-		Version: contract.ManifestVersion,
+	state := &contract.State{
+		Version: contract.StateVersion,
 		Runtime: s.options.E2ERuntime,
-		Scenario: contract.ScenarioMetadata{
-			Name: scenarioDefinition.Name,
-			Mode: scenarioDefinition.Mode,
-		},
 		Setup: contract.Setup{
 			Auth: contract.AuthSetup{
 				Roles:                     append([]string(nil), scenarioDefinition.Auth.Roles...),
@@ -64,57 +60,69 @@ func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
 				RequiresVerifiedSwitching: scenarioDefinition.Auth.RequiresVerifiedSwitching,
 			},
 		},
-		Tenants: contract.Tenants{
-			Primary: contract.Tenant{
-				OrganizationID: rt.Bootstrap.OrganizationID,
-				SchoolID:       rt.Bootstrap.SchoolID,
-				Slug:           rt.Bootstrap.TenantSlug,
-				Name:           rt.Bootstrap.SchoolName,
+		World: contract.World{
+			Scenario: contract.ScenarioMetadata{
+				Name: scenarioDefinition.Name,
+				Mode: scenarioDefinition.Mode,
 			},
-		},
-		Actors: contract.Actors{
-			Admin: adminActor,
-			Staff: staffActor,
-			Operator: &contract.OperatorCredentials{
-				Email:    rt.OperatorEmail,
-				Password: rt.OperatorPassword,
+			Tenants: contract.Tenants{
+				Primary: contract.Tenant{
+					OrganizationID: rt.Bootstrap.OrganizationID,
+					SchoolID:       rt.Bootstrap.SchoolID,
+					Slug:           rt.Bootstrap.TenantSlug,
+					Name:           rt.Bootstrap.SchoolName,
+				},
 			},
-		},
-		Devices: contract.Devices{
-			DefaultCheckin: contract.Device{
-				Key:    scenarioDefinition.Fixtures.Checkin.DeviceKey,
-				APIKey: deviceAPIKey,
-				PIN:    rt.StaffPIN,
+			Actors: contract.Actors{
+				Admin: adminActor,
+				Staff: staffActor,
+				Operator: &contract.OperatorCredentials{
+					Email:    rt.OperatorEmail,
+					Password: rt.OperatorPassword,
+				},
+			},
+			Devices: contract.Devices{
+				DefaultCheckin: contract.Device{
+					Key:    scenarioDefinition.Fixtures.Checkin.DeviceKey,
+					APIKey: deviceAPIKey,
+					PIN:    rt.StaffPIN,
+				},
 			},
 		},
 		Fixtures: fixtures,
+		Assertions: contract.Assertions{
+			Switching: contract.SwitchingAssertion{
+				Required: scenarioDefinition.Auth.RequiresVerifiedSwitching,
+			},
+		},
 	}
 
 	if rt.SecondTenant != nil {
-		manifest.Tenants.Secondary = &contract.Tenant{
+		state.World.Tenants.Secondary = &contract.Tenant{
 			OrganizationID: rt.SecondTenant.OrganizationID,
 			SchoolID:       rt.SecondTenant.SchoolID,
 			Slug:           rt.SecondTenant.Slug,
 			Name:           rt.SecondTenant.Name,
 		}
-		manifest.Switching = &contract.Switching{
-			LinkEmail: rt.SecondTenant.LinkEmail,
+		state.Assertions.Switching = contract.SwitchingAssertion{
+			Required:  true,
 			Verified:  true,
-			Actor:     adminActor,
+			LinkEmail: rt.SecondTenant.LinkEmail,
+			Actor:     &adminActor,
 		}
 	}
 
-	manifest.Normalize()
-	if err := manifest.Validate(); err != nil {
-		return nil, fmt.Errorf("cannot build e2e manifest: %w", err)
+	state.Normalize()
+	if err := state.Validate(); err != nil {
+		return nil, fmt.Errorf("cannot build e2e state: %w", err)
 	}
-	return manifest, nil
+	return state, nil
 }
 
 func resolveE2EAdminActor(fs *FixedSeeder, secondTenant *SeedStateSecondTenant) (contract.Actor, error) {
 	adminCred, err := resolveE2EAdminCredential(fs, secondTenant)
 	if err != nil {
-		return contract.Actor{}, fmt.Errorf("cannot build e2e manifest: %w", err)
+		return contract.Actor{}, fmt.Errorf("cannot build e2e state: %w", err)
 	}
 	return actorFromStaffCredential(fs, adminCred, "admin")
 }
@@ -124,7 +132,7 @@ func resolveE2EStaffActor(fs *FixedSeeder, definition scenarios.Definition) (con
 	staffCred, ok := staffCredentialByEmail(fs, staffEmail)
 	if !ok {
 		return contract.Actor{}, fmt.Errorf(
-			"cannot build e2e manifest: scenario staff account %q is not present in fixed seeder output",
+			"cannot build e2e state: scenario staff account %q is not present in fixed seeder output",
 			staffEmail,
 		)
 	}
@@ -134,34 +142,34 @@ func resolveE2EStaffActor(fs *FixedSeeder, definition scenarios.Definition) (con
 func buildE2EFixtures(fs *FixedSeeder, adminActor contract.Actor, definition scenarios.Definition) (contract.Fixtures, error) {
 	searchPrimary, err := studentRefByName(fs, definition.Fixtures.Students.SearchPairPrimary)
 	if err != nil {
-		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
+		return contract.Fixtures{}, fmt.Errorf("cannot build e2e state: %w", err)
 	}
 	searchSecondary, err := studentRefByName(fs, definition.Fixtures.Students.SearchPairSecondary)
 	if err != nil {
-		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
+		return contract.Fixtures{}, fmt.Errorf("cannot build e2e state: %w", err)
 	}
 	presentReady, err := studentRefByName(fs, definition.Fixtures.Students.PresentReady.Student)
 	if err != nil {
-		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
+		return contract.Fixtures{}, fmt.Errorf("cannot build e2e state: %w", err)
 	}
 	groupPrimary, err := groupRefByKey(fs, definition.Fixtures.Groups.VisiblePrimaryKey)
 	if err != nil {
-		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
+		return contract.Fixtures{}, fmt.Errorf("cannot build e2e state: %w", err)
 	}
 	groupSecondary, err := groupRefByKey(fs, definition.Fixtures.Groups.VisibleSecondaryKey)
 	if err != nil {
-		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
+		return contract.Fixtures{}, fmt.Errorf("cannot build e2e state: %w", err)
 	}
 	checkinStudent, err := studentRefByName(fs, definition.Fixtures.Checkin.Student)
 	if err != nil {
-		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
+		return contract.Fixtures{}, fmt.Errorf("cannot build e2e state: %w", err)
 	}
 
 	checkinRoomName := definition.Fixtures.Checkin.RoomName
 	checkinRoomID, ok := fs.roomIDs[checkinRoomName]
 	if !ok || checkinRoomID <= 0 {
 		return contract.Fixtures{}, fmt.Errorf(
-			`cannot build e2e manifest: room %q missing from fixed seeder output`,
+			`cannot build e2e state: room %q missing from fixed seeder output`,
 			checkinRoomName,
 		)
 	}
@@ -169,13 +177,13 @@ func buildE2EFixtures(fs *FixedSeeder, adminActor contract.Actor, definition sce
 	checkinActivityID, ok := fs.activityIDs[checkinActivityName]
 	if !ok || checkinActivityID <= 0 {
 		return contract.Fixtures{}, fmt.Errorf(
-			`cannot build e2e manifest: activity %q missing from fixed seeder output`,
+			`cannot build e2e state: activity %q missing from fixed seeder output`,
 			checkinActivityName,
 		)
 	}
 	checkinRFID, ok := fs.studentRFID[checkinStudent.ID]
 	if !ok || checkinRFID == "" {
-		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: RFID tag missing for checkin fixture student %d", checkinStudent.ID)
+		return contract.Fixtures{}, fmt.Errorf("cannot build e2e state: RFID tag missing for checkin fixture student %d", checkinStudent.ID)
 	}
 
 	return contract.Fixtures{

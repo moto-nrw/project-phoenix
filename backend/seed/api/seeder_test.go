@@ -239,7 +239,7 @@ func TestApplyScenarioDefaults_E2E(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, definition.Seed.TenantSlug, opts.TenantSlug)
-	assert.Equal(t, contract.ManifestPath, opts.StatePath)
+	assert.Equal(t, contract.StatePath, opts.StatePath)
 	assert.Equal(t, definition.Seed.StaffPassword, opts.StaffPassword)
 	assert.Equal(t, definition.Seed.BootstrapAdminEmail, opts.AdminEmail)
 	require.NotNil(t, opts.SecondTenant)
@@ -293,7 +293,7 @@ func TestIdentityForScenario_UnknownFails(t *testing.T) {
 	assert.Contains(t, err.Error(), `unknown seed scenario "does-not-exist"`)
 }
 
-func TestBuildE2EManifest(t *testing.T) {
+func TestBuildE2EState(t *testing.T) {
 	definition := scenarios.MustLookup(SeedScenarioE2E)
 	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E, E2ERuntime: contract.Runtime{
 		BackendURL:       "http://localhost:8081",
@@ -338,34 +338,34 @@ func TestBuildE2EManifest(t *testing.T) {
 	rt.FixedSeeder.deviceKeys[DemoDevices[0].DeviceID] = "device-key-123"
 	rt.FixedSeeder.studentRFID[100] = definition.Fixtures.Checkin.RFIDTag
 
-	e2e, err := s.buildE2EManifest(rt)
+	e2e, err := s.buildE2EState(rt)
 	require.NoError(t, err)
 	require.NotNil(t, e2e)
-	assert.Equal(t, contract.ManifestVersion, e2e.Version)
+	assert.Equal(t, contract.StateVersion, e2e.Version)
 	assert.Equal(t, "http://localhost:8081", e2e.Runtime.BackendURL)
 	assert.Equal(t, "localtest.me", e2e.Runtime.TenantDomain)
 	assert.Equal(t, 3030, e2e.Runtime.FrontendPort)
 	assert.Equal(t, "operator.localtest.me:3030", e2e.Runtime.OperatorHostname)
 	assert.Equal(t, "nextauth-secret", e2e.Runtime.NextAuthSecret)
 	assert.True(t, e2e.Runtime.AuthTrustHost)
-	assert.Equal(t, SeedScenarioE2E, e2e.Scenario.Name)
-	assert.Equal(t, "multi-tenant", e2e.Scenario.Mode)
+	assert.Equal(t, SeedScenarioE2E, e2e.World.Scenario.Name)
+	assert.Equal(t, "multi-tenant", e2e.World.Scenario.Mode)
 	assert.Equal(t, []string{"admin", "staff"}, e2e.Setup.Auth.Roles)
 	assert.True(t, e2e.Setup.Auth.RequiresSecondaryTenant)
 	assert.True(t, e2e.Setup.Auth.RequiresVerifiedSwitching)
-	assert.Equal(t, "demo-school", e2e.Tenants.Primary.Slug)
-	require.NotNil(t, e2e.Tenants.Secondary)
-	assert.Equal(t, "second-school", e2e.Tenants.Secondary.Slug)
-	assert.Equal(t, "demo1@mail.de", e2e.Actors.Admin.Email)
-	assert.Equal(t, "Julia Klein", e2e.Actors.Staff.DisplayName)
-	require.NotNil(t, e2e.Actors.Operator)
-	assert.Equal(t, "operator@e2e.local", e2e.Actors.Operator.Email)
-	require.NotNil(t, e2e.Switching)
-	assert.True(t, e2e.Switching.Verified)
-	assert.Equal(t, "demo1@mail.de", e2e.Switching.Actor.Email)
-	assert.Equal(t, DemoDevices[0].DeviceID, e2e.Devices.DefaultCheckin.Key)
-	assert.Equal(t, "device-key-123", e2e.Devices.DefaultCheckin.APIKey)
-	assert.Equal(t, "1234", e2e.Devices.DefaultCheckin.PIN)
+	assert.Equal(t, "demo-school", e2e.World.Tenants.Primary.Slug)
+	require.NotNil(t, e2e.World.Tenants.Secondary)
+	assert.Equal(t, "second-school", e2e.World.Tenants.Secondary.Slug)
+	assert.Equal(t, "demo1@mail.de", e2e.World.Actors.Admin.Email)
+	assert.Equal(t, "Julia Klein", e2e.World.Actors.Staff.DisplayName)
+	require.NotNil(t, e2e.World.Actors.Operator)
+	assert.Equal(t, "operator@e2e.local", e2e.World.Actors.Operator.Email)
+	assert.True(t, e2e.Assertions.Switching.Verified)
+	require.NotNil(t, e2e.Assertions.Switching.Actor)
+	assert.Equal(t, "demo1@mail.de", e2e.Assertions.Switching.Actor.Email)
+	assert.Equal(t, DemoDevices[0].DeviceID, e2e.World.Devices.DefaultCheckin.Key)
+	assert.Equal(t, "device-key-123", e2e.World.Devices.DefaultCheckin.APIKey)
+	assert.Equal(t, "1234", e2e.World.Devices.DefaultCheckin.PIN)
 	assert.Equal(t, "demo-device-001", e2e.Fixtures.Checkin.DeviceKey)
 	assert.Equal(t, definition.Fixtures.Checkin.RFIDTag, e2e.Fixtures.Checkin.RFIDTag)
 	assert.Equal(t, "Hausaufgaben", e2e.Fixtures.Checkin.Activity.Name)
@@ -379,7 +379,7 @@ func TestBuildE2EManifest(t *testing.T) {
 	assert.Equal(t, "bärengruppe", e2e.Fixtures.Groups.VisiblePair.Secondary.Key)
 }
 
-func TestBuildE2EManifest_SwitchingActorMustBeAdmin(t *testing.T) {
+func TestBuildE2EState_SwitchingActorMustBeAdmin(t *testing.T) {
 	definition := scenarios.MustLookup(SeedScenarioE2E)
 	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E}}
 	rt := &Runtime{
@@ -417,13 +417,13 @@ func TestBuildE2EManifest_SwitchingActorMustBeAdmin(t *testing.T) {
 	rt.FixedSeeder.deviceKeys[DemoDevices[0].DeviceID] = "device-key-123"
 	rt.FixedSeeder.studentRFID[1] = definition.Fixtures.Checkin.RFIDTag
 
-	e2e, err := s.buildE2EManifest(rt)
+	e2e, err := s.buildE2EState(rt)
 	require.Error(t, err)
 	assert.Nil(t, e2e)
 	assert.Contains(t, err.Error(), `switching account "demo1@mail.de" is not present`)
 }
 
-func TestBuildE2EManifest_MissingAdminFails(t *testing.T) {
+func TestBuildE2EState_MissingAdminFails(t *testing.T) {
 	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E}}
 	rt := &Runtime{
 		Bootstrap:   &bootstrapSeedState{SchoolID: 2, SchoolName: "Demo School", TenantSlug: "demo-school"},
@@ -435,14 +435,14 @@ func TestBuildE2EManifest_MissingAdminFails(t *testing.T) {
 	}
 	rt.FixedSeeder.staffIDs["Julia Klein"] = 21
 
-	e2e, err := s.buildE2EManifest(rt)
+	e2e, err := s.buildE2EState(rt)
 	require.Error(t, err)
 	assert.Nil(t, e2e)
 	assert.Contains(t, err.Error(), "no OGS-Büro admin account present")
 }
 
-func TestWriteE2EManifestStep_MissingManifest_HardFails(t *testing.T) {
-	statePath := filepath.Join(t.TempDir(), ".e2e-manifest.json")
+func TestWriteE2EStateStep_MissingState_HardFails(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), ".e2e-state.json")
 	seeder := NewSeeder("http://localhost:8080", false, SeedOptions{
 		Scenario:  SeedScenarioE2E,
 		StatePath: statePath,
@@ -456,9 +456,9 @@ func TestWriteE2EManifestStep_MissingManifest_HardFails(t *testing.T) {
 		TenantSlug:     "demo-school",
 	}
 
-	err := writeE2EManifestStep{seeder: seeder}.Run(context.Background(), rt)
+	err := writeE2EStateStep{seeder: seeder}.Run(context.Background(), rt)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot build e2e manifest")
+	assert.Contains(t, err.Error(), "cannot build e2e state")
 	_, statErr := os.Stat(statePath)
 	assert.ErrorIs(t, statErr, os.ErrNotExist)
 }
