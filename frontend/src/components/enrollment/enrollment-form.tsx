@@ -101,6 +101,10 @@ export function EnrollmentForm({
   const [emailConsent, setEmailConsent] = useState(false);
   const [photoConsent, setPhotoConsent] = useState(false);
   const [children, setChildren] = useState<ChildDraft[]>([blankChild()]);
+  // Request-level custom fields (applies_to_child=false). Stored
+  // separately from per-child custom data because their values are
+  // shared across all children in the submission.
+  const [customData, setCustomData] = useState<Record<string, unknown>>({});
   const [captchaToken, setCaptchaToken] = useState("");
   const [profile, setProfile] = useState<MeProfileResponse | null>(null);
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
@@ -220,6 +224,7 @@ export function EnrollmentForm({
           email_contact: emailConsent,
           photo: photoConsent,
         },
+        custom_data: customData,
         children: payloadChildren,
         captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
       };
@@ -279,6 +284,26 @@ export function EnrollmentForm({
           />
         </div>
       </section>
+
+      {schema?.fields.some((f) => !f.applies_to_child) && (
+        <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Weitere Angaben
+          </h2>
+          {schema.fields
+            .filter((f) => !f.applies_to_child)
+            .map((f) => (
+              <CustomFieldInput
+                key={f.key}
+                field={f}
+                value={customData[f.key]}
+                onChange={(v) =>
+                  setCustomData((prev) => ({ ...prev, [f.key]: v }))
+                }
+              />
+            ))}
+        </section>
+      )}
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
