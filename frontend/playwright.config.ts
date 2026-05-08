@@ -2,7 +2,6 @@ import { defineConfig, devices } from "@playwright/test";
 import { STORAGE_STATE_PATH } from "./e2e/auth";
 
 export default defineConfig({
-  globalSetup: "./e2e/global-setup.ts",
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -28,6 +27,18 @@ export default defineConfig({
   // warm caches, so it'll never come close to this ceiling.
   timeout: 60_000,
   reporter: "html",
+  webServer: {
+    command: "pnpm run e2e:harness",
+    port: 3030,
+    timeout: 180_000,
+    reuseExistingServer: false,
+    gracefulShutdown: {
+      signal: "SIGTERM",
+      timeout: 15_000,
+    },
+    stdout: "pipe",
+    stderr: "pipe",
+  },
   use: {
     // `retries: 0` is intentional (see comment above), so `on-first-retry`
     // would write traces never. `retain-on-failure` keeps a full trace

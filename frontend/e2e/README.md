@@ -18,11 +18,12 @@ pnpm run e2e
 ```
 
 `pnpm run e2e` is the one supported command for both local use and CI.
-Playwright's `globalSetup` owns the canonical harness lifecycle: it brings
-up the E2E Docker stack from `../docker-compose.example.yml`, runs
-`go run main.go e2e prepare`, reads the freshly-written Go manifest for
-runtime wiring, starts the dedicated Next.js dev server from that manifest,
-and returns the teardown that stops both frontend and backend afterwards.
+Playwright's `webServer` owns the canonical harness lifecycle by starting one
+long-lived harness command. That command brings up the E2E Docker stack from
+`../docker-compose.example.yml`, runs `go run main.go e2e prepare`, copies the
+freshly-written Go manifest onto the host as `backend/.e2e-manifest.json`,
+starts the dedicated Next.js dev server from that manifest, and tears the
+whole stack down when Playwright exits.
 The run never mutates checked-in source files. The only required local
 prerequisite is a valid root `.env`.
 
@@ -37,6 +38,7 @@ e2e/
 ├── auth.ts                 Browser-auth helpers and storageState contract
 ├── auth.setup.ts           Setup project: verifies contract, logs in once per role, writes storageState
 ├── api.ts                  Session-backed API auth bridge (`storageState` -> `/api/auth/token` -> backend Bearer)
+├── web-server.mjs          The one harness process Playwright starts via `webServer`
 ├── fixtures.ts             Playwright fixtures over scenario data, auth contexts, and a few shared harness helpers
 ├── flows/                  Feature tests, organised by domain
 ├── .auth/                  (gitignored) Saved session cookies per role
@@ -45,7 +47,7 @@ e2e/
 
 The flow is:
 
-1. **Playwright global setup** starts the isolated Docker stack, runs `go run main.go e2e prepare`, reads the resulting manifest runtime, then starts the dedicated E2E frontend only after the backend world is ready.
+1. **Playwright webServer** starts exactly one harness command, which brings up the isolated Docker stack, runs `go run main.go e2e prepare`, copies the resulting manifest onto the host, then starts the dedicated E2E frontend.
 2. **Go-owned E2E prepare command** resets the isolated DB, seeds the deterministic multi-tenant world, and writes one manifest: `backend/.e2e-manifest.json`.
 3. **Manifest contract** includes scenario data, harness runtime (`backend_url`, `tenant_domain`, `frontend_port`, operator host), and an explicit Go-owned `setup.auth` contract that tells Playwright what the auth setup requires.
 4. **Setup project** reads that manifest, verifies the declared `setup.auth` preconditions, signs in as each role, and saves the resulting browser `storageState` under `e2e/.auth/`.
