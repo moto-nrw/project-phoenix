@@ -197,7 +197,7 @@ type RawState = {
   };
   fixtures: {
     students: {
-      present_ready: RawStudentRef;
+      sick_present: RawStudentRef;
       search_pair: RawStudentPair;
     };
     groups: {
@@ -389,8 +389,8 @@ export function getCheckinDevice(): Device {
   return mapDevice(getRawState().world.devices.default_checkin);
 }
 
-export function getPresentReadyStudent(): StudentRef {
-  return mapStudent(getRawState().fixtures.students.present_ready);
+export function getSickPresentStudent(): StudentRef {
+  return mapStudent(getRawState().fixtures.students.sick_present);
 }
 
 export function getStudentSearchProbe(): StudentSearchProbe {

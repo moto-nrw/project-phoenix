@@ -408,7 +408,7 @@ func TestBuildE2EState(t *testing.T) {
 	assert.Equal(t, int64(11), e2e.Fixtures.Checkin.Supervisor.StaffID)
 	assert.Equal(t, "Felix", e2e.Fixtures.Students.SearchPair.Primary.FirstName)
 	assert.Equal(t, "Emma", e2e.Fixtures.Students.SearchPair.Secondary.FirstName)
-	assert.Equal(t, "Leon", e2e.Fixtures.Students.PresentReady.FirstName)
+	assert.Equal(t, "Leon", e2e.Fixtures.Students.SickPresent.FirstName)
 	assert.Equal(t, "sternengruppe", e2e.Fixtures.Groups.VisiblePair.Primary.Key)
 	assert.Equal(t, "Sternengruppe", e2e.Fixtures.Groups.VisiblePair.Primary.DisplayName)
 	assert.Equal(t, "bärengruppe", e2e.Fixtures.Groups.VisiblePair.Secondary.Key)
@@ -509,8 +509,9 @@ func TestProvisionE2ECheckinFixture(t *testing.T) {
 	definition := scenarios.MustLookup(SeedScenarioE2E)
 	var sawSessionStart bool
 	var sawCheckinRFIDAssign bool
-	var sawPresentRFIDAssign bool
-	var sawPresentReadyCheckin bool
+	var sawSickRFIDAssign bool
+	var sawSickPresentCheckin bool
+	var sawSickPresentMarked bool
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -526,15 +527,19 @@ func TestProvisionE2ECheckinFixture(t *testing.T) {
 			assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"student_id":100}}`)
 		case "/api/students/102/rfid":
-			sawPresentRFIDAssign = true
+			sawSickRFIDAssign = true
 			assert.Equal(t, "Bearer device-key-123", r.Header.Get("Authorization"))
 			assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"student_id":102}}`)
 		case "/api/iot/checkin":
-			sawPresentReadyCheckin = true
+			sawSickPresentCheckin = true
 			assert.Equal(t, "Bearer device-key-123", r.Header.Get("Authorization"))
 			assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"student_id":102,"action":"checked_in","visit_id":88}}`)
+		case "/api/students/102":
+			sawSickPresentMarked = true
+			assert.Equal(t, http.MethodPut, r.Method)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":102,"sick":true}}`)
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -565,16 +570,18 @@ func TestProvisionE2ECheckinFixture(t *testing.T) {
 			LinkEmail: "demo1@mail.de",
 		},
 	}
+	rt.Client = NewClientWithAdapter(rt.Adapter, false)
 
 	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E}}
 	err := s.provisionE2ECheckinFixture(context.Background(), rt)
 	require.NoError(t, err)
 	assert.True(t, sawSessionStart)
 	assert.True(t, sawCheckinRFIDAssign)
-	assert.True(t, sawPresentRFIDAssign)
-	assert.True(t, sawPresentReadyCheckin)
+	assert.True(t, sawSickRFIDAssign)
+	assert.True(t, sawSickPresentCheckin)
+	assert.True(t, sawSickPresentMarked)
 	assert.Equal(t, definition.Fixtures.Checkin.RFIDTag, fs.studentRFID[100])
-	assert.Equal(t, definition.Fixtures.Students.PresentReady.RFIDTag, fs.studentRFID[102])
+	assert.Equal(t, definition.Fixtures.Students.SickPresent.RFIDTag, fs.studentRFID[102])
 }
 
 func TestSeedResult_ZeroValues(t *testing.T) {

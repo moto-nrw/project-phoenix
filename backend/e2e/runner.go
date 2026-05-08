@@ -24,7 +24,6 @@ import (
 const (
 	frontendReadyTimeout = 3 * time.Minute
 	e2eComposeProject    = "phoenix-e2e"
-	e2eComposeEnvFile    = ".e2e.compose.env"
 	e2eBackendService    = "backend"
 	e2ePostgresService   = "postgres"
 )
@@ -97,7 +96,7 @@ type harnessSession struct {
 	paths      harnessPaths
 	scenario   string
 	verbose    bool
-	composeEnv string
+	composeEnv []string
 }
 
 func newHarnessSession(paths harnessPaths, scenario string, verbose bool) (*harnessSession, error) {
@@ -106,7 +105,7 @@ func newHarnessSession(paths harnessPaths, scenario string, verbose bool) (*harn
 		return nil, fmt.Errorf("unknown e2e scenario %q", scenario)
 	}
 
-	envPath, err := materializeComposeEnv(paths.repoRoot, paths.backendRoot, definition)
+	composeEnv, err := buildComposeEnv(paths.repoRoot, definition)
 	if err != nil {
 		return nil, err
 	}
@@ -115,16 +114,13 @@ func newHarnessSession(paths harnessPaths, scenario string, verbose bool) (*harn
 		paths:      paths,
 		scenario:   scenario,
 		verbose:    verbose,
-		composeEnv: envPath,
+		composeEnv: composeEnv,
 	}, nil
 }
 
 func (s *harnessSession) cleanup() {
 	_ = s.captureInfraLogs()
 	_ = s.stopInfra(context.Background())
-	if s.composeEnv != "" {
-		_ = os.Remove(s.composeEnv)
-	}
 }
 
 func (s *harnessSession) startInfra(ctx context.Context) error {
@@ -135,6 +131,7 @@ func (s *harnessSession) startInfra(ctx context.Context) error {
 	return runCommand(
 		ctx,
 		s.paths.repoRoot,
+		s.composeEnv,
 		os.Stdout,
 		os.Stderr,
 		"docker",
@@ -146,6 +143,7 @@ func (s *harnessSession) stopInfra(ctx context.Context) error {
 	return runCommand(
 		ctx,
 		s.paths.repoRoot,
+		s.composeEnv,
 		io.Discard,
 		io.Discard,
 		"docker",
@@ -163,7 +161,7 @@ func (s *harnessSession) prepareWorld(ctx context.Context) error {
 	if s.verbose {
 		args = append(args, "--verbose")
 	}
-	return runCommand(ctx, s.paths.repoRoot, os.Stdout, os.Stderr, "docker", s.composeArgs(args...)...)
+	return runCommand(ctx, s.paths.repoRoot, s.composeEnv, os.Stdout, os.Stderr, "docker", s.composeArgs(args...)...)
 }
 
 func (s *harnessSession) loadState() (*contract.State, error) {
@@ -201,7 +199,17 @@ func (s *harnessSession) startFrontend(state *contract.State) (*managedProcess, 
 }
 
 func (s *harnessSession) runPlaywright(ctx context.Context) error {
-	return runCommand(ctx, s.paths.frontendDir, os.Stdout, os.Stderr, "pnpm", "exec", "playwright", "test")
+	return runCommand(
+		ctx,
+		s.paths.frontendDir,
+		append(os.Environ(), "PHOENIX_E2E_HARNESS=1"),
+		os.Stdout,
+		os.Stderr,
+		"pnpm",
+		"exec",
+		"playwright",
+		"test",
+	)
 }
 
 func (s *harnessSession) captureInfraLogs() error {
@@ -227,6 +235,7 @@ func (s *harnessSession) writeComposeLogs(service, path string) error {
 
 	cmd := exec.Command("docker", s.composeArgs("logs", "--no-color", "--tail=2000", service)...)
 	cmd.Dir = s.paths.repoRoot
+	cmd.Env = s.composeEnv
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	if err := cmd.Run(); err != nil {
@@ -286,11 +295,11 @@ func resolveHarnessPaths() (harnessPaths, error) {
 	}, nil
 }
 
-func materializeComposeEnv(repoRoot, backendRoot string, definition scenarios.Definition) (string, error) {
+func buildComposeEnv(repoRoot string, definition scenarios.Definition) ([]string, error) {
 	basePath := filepath.Join(repoRoot, ".env")
 	baseEnv, err := godotenv.Read(basePath)
 	if err != nil {
-		return "", fmt.Errorf("read %s: %w; copy .env.example to .env before running the E2E harness", basePath, err)
+		return nil, fmt.Errorf("read %s: %w; copy .env.example to .env before running the E2E harness", basePath, err)
 	}
 
 	for key := range baseEnv {
@@ -301,31 +310,13 @@ func materializeComposeEnv(repoRoot, backendRoot string, definition scenarios.De
 
 	overrides, err := composeRuntimeEnv(definition, baseEnv)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	for key, value := range overrides {
 		baseEnv[key] = value
 	}
 
-	keys := make([]string, 0, len(baseEnv))
-	for key := range baseEnv {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	var output strings.Builder
-	for _, key := range keys {
-		output.WriteString(key)
-		output.WriteByte('=')
-		output.WriteString(baseEnv[key])
-		output.WriteByte('\n')
-	}
-
-	path := filepath.Join(backendRoot, e2eComposeEnvFile)
-	if err := os.WriteFile(path, []byte(output.String()), 0o600); err != nil {
-		return "", fmt.Errorf("write compose env override file: %w", err)
-	}
-	return path, nil
+	return mergeEnv(os.Environ(), baseEnv), nil
 }
 
 func composeRuntimeEnv(definition scenarios.Definition, baseEnv map[string]string) (map[string]string, error) {
@@ -411,9 +402,36 @@ func waitForHTTP(rawURL string, timeout time.Duration) error {
 	return fmt.Errorf("timed out waiting for %s: %w", rawURL, lastErr)
 }
 
-func runCommand(ctx context.Context, dir string, stdout, stderr io.Writer, name string, args ...string) error {
+func mergeEnv(parent []string, overrides map[string]string) []string {
+	merged := make(map[string]string, len(parent)+len(overrides))
+	for _, entry := range parent {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		merged[key] = value
+	}
+	for key, value := range overrides {
+		merged[key] = value
+	}
+
+	keys := make([]string, 0, len(merged))
+	for key := range merged {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, key+"="+merged[key])
+	}
+	return out
+}
+
+func runCommand(ctx context.Context, dir string, env []string, stdout, stderr io.Writer, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	cmd.Env = env
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {

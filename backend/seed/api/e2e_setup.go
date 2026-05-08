@@ -12,8 +12,8 @@ import (
 type e2eCheckinProvision struct {
 	studentID         int64
 	studentRFIDTag    string
-	presentStudentID  int64
-	presentRFIDTag    string
+	sickStudentID     int64
+	sickRFIDTag       string
 	roomID            int64
 	activityID        int64
 	supervisorStaffID int64
@@ -21,6 +21,10 @@ type e2eCheckinProvision struct {
 }
 
 func (s *Seeder) provisionE2ECheckinFixture(ctx context.Context, rt *Runtime) error {
+	if rt == nil || rt.Client == nil {
+		return fmt.Errorf("e2e checkin fixture requires tenant API client")
+	}
+
 	definition, ok := scenarios.Lookup(s.options.Scenario)
 	if !ok {
 		return fmt.Errorf("unknown e2e scenario %q", s.options.Scenario)
@@ -58,24 +62,24 @@ func (s *Seeder) provisionE2ECheckinFixture(ctx context.Context, rt *Runtime) er
 		return fmt.Errorf("assign e2e RFID tag: %w", err)
 	}
 
-	presentAssignPath := fmt.Sprintf("/api/students/%d/rfid", provision.presentStudentID)
-	if _, err := deviceClient.PostWithHeaders(presentAssignPath, map[string]any{
-		"rfid_tag": provision.presentRFIDTag,
+	sickAssignPath := fmt.Sprintf("/api/students/%d/rfid", provision.sickStudentID)
+	if _, err := deviceClient.PostWithHeaders(sickAssignPath, map[string]any{
+		"rfid_tag": provision.sickRFIDTag,
 	}, map[string]string{
 		"X-Staff-PIN": rt.StaffPIN,
 	}); err != nil {
-		return fmt.Errorf("assign present-ready E2E RFID tag: %w", err)
+		return fmt.Errorf("assign sick-present E2E RFID tag: %w", err)
 	}
 
 	checkinRaw, err := deviceClient.PostWithHeaders("/api/iot/checkin", map[string]any{
-		"student_rfid": provision.presentRFIDTag,
+		"student_rfid": provision.sickRFIDTag,
 		"action":       "checkin",
 		"room_id":      provision.roomID,
 	}, map[string]string{
 		"X-Staff-PIN": rt.StaffPIN,
 	})
 	if err != nil {
-		return fmt.Errorf("prepare present-ready e2e student: %w", err)
+		return fmt.Errorf("prepare sick-present e2e student: %w", err)
 	}
 
 	var checkinResp struct {
@@ -85,24 +89,31 @@ func (s *Seeder) provisionE2ECheckinFixture(ctx context.Context, rt *Runtime) er
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(checkinRaw, &checkinResp); err != nil {
-		return fmt.Errorf("parse present-ready e2e checkin response: %w", err)
+		return fmt.Errorf("parse sick-present e2e checkin response: %w", err)
 	}
-	if checkinResp.Data.StudentID != provision.presentStudentID {
+	if checkinResp.Data.StudentID != provision.sickStudentID {
 		return fmt.Errorf(
-			"prepare present-ready e2e student: expected student %d, got %d",
-			provision.presentStudentID,
+			"prepare sick-present e2e student: expected student %d, got %d",
+			provision.sickStudentID,
 			checkinResp.Data.StudentID,
 		)
 	}
 	if checkinResp.Data.Action != "checked_in" {
 		return fmt.Errorf(
-			"prepare present-ready e2e student: expected checked_in action, got %q",
+			"prepare sick-present e2e student: expected checked_in action, got %q",
 			checkinResp.Data.Action,
 		)
 	}
 
+	if _, err := rt.Client.Put(fmt.Sprintf("/api/students/%d", provision.sickStudentID), map[string]any{
+		"sick":    true,
+		"excused": false,
+	}); err != nil {
+		return fmt.Errorf("mark sick-present e2e student sick: %w", err)
+	}
+
 	rt.FixedSeeder.studentRFID[provision.studentID] = provision.studentRFIDTag
-	rt.FixedSeeder.studentRFID[provision.presentStudentID] = provision.presentRFIDTag
+	rt.FixedSeeder.studentRFID[provision.sickStudentID] = provision.sickRFIDTag
 	return nil
 }
 
@@ -121,9 +132,9 @@ func (s *Seeder) resolveE2ECheckinProvision(rt *Runtime, definition scenarios.De
 	if err != nil {
 		return e2eCheckinProvision{}, err
 	}
-	presentStudentID, err := lookupSeededStudentID(
+	sickStudentID, err := lookupSeededStudentID(
 		rt.FixedSeeder,
-		definition.Fixtures.Students.PresentReady.Student,
+		definition.Fixtures.Students.SickPresent.Student,
 	)
 	if err != nil {
 		return e2eCheckinProvision{}, err
@@ -168,8 +179,8 @@ func (s *Seeder) resolveE2ECheckinProvision(rt *Runtime, definition scenarios.De
 	return e2eCheckinProvision{
 		studentID:         studentID,
 		studentRFIDTag:    definition.Fixtures.Checkin.RFIDTag,
-		presentStudentID:  presentStudentID,
-		presentRFIDTag:    definition.Fixtures.Students.PresentReady.RFIDTag,
+		sickStudentID:     sickStudentID,
+		sickRFIDTag:       definition.Fixtures.Students.SickPresent.RFIDTag,
 		roomID:            roomID,
 		activityID:        activityID,
 		supervisorStaffID: supervisorStaffID,

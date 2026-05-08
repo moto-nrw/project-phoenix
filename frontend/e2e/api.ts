@@ -12,10 +12,8 @@ import {
   type StudentRef,
 } from "./state";
 
-export type PresentReadyStudentCard = {
+export type SickPresentStudentCard = {
   fullName: string;
-  markSick(): Promise<void>;
-  clearSick(): Promise<void>;
 };
 
 export type CheckinScan = {
@@ -164,24 +162,11 @@ export async function createDeviceApiContext(
   });
 }
 
-export function createPresentReadyStudentCard(
+export function createSickPresentStudentCard(
   student: StudentRef,
-  adminApi: APIRequestContext,
-): PresentReadyStudentCard {
+): SickPresentStudentCard {
   return {
     fullName: fullName(student),
-    async markSick(): Promise<void> {
-      const response = await adminApi.put(`/api/students/${student.id}`, {
-        data: { sick: true, excused: false },
-      });
-      await requireOK(response, "mark present-ready student sick");
-    },
-    async clearSick(): Promise<void> {
-      const response = await adminApi.put(`/api/students/${student.id}`, {
-        data: { sick: false },
-      });
-      await requireOK(response, "clear present-ready student sick flag");
-    },
   };
 }
 

@@ -463,7 +463,6 @@ backend/simulator/iot/simulator.yaml
 backend/.seed-state.json
 backend/.e2e-state.json
 backend/.e2e-artifacts/
-backend/.e2e.compose.env
 frontend/.e2e-frontend.log
 .cache_ggshield
 gitleaks-report.json

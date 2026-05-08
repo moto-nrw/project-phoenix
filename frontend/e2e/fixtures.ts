@@ -14,11 +14,11 @@ import {
   createBackendApiContext,
   createDeviceApiContext,
   createIotContract,
-  createPresentReadyStudentCard,
+  createSickPresentStudentCard,
   createTenantApiContext,
   type CheckinFlow,
   type IotContract,
-  type PresentReadyStudentCard,
+  type SickPresentStudentCard,
 } from "./api";
 import {
   makeGroupFactory,
@@ -33,7 +33,7 @@ import {
   getCheckinDevice,
   getCheckinScenario,
   getGroupVisibilityProbe,
-  getPresentReadyStudent,
+  getSickPresentStudent,
   getPrimaryTenant,
   getStudentSearchProbe,
   requireSecondaryTenant,
@@ -48,7 +48,7 @@ type Fixtures = {
   authSessions: AuthSetupContract;
   primaryTenant: Tenant;
   secondaryTenant: Tenant;
-  presentReadyStudentCard: PresentReadyStudentCard;
+  sickPresentStudentCard: SickPresentStudentCard;
   studentSearchProbe: StudentSearchProbe;
   groupVisibilityProbe: GroupVisibilityProbe;
   checkinFlow: CheckinFlow;
@@ -173,11 +173,9 @@ const baseWithFixtures = base.extend<Fixtures>({
   groupVisibilityProbe: async ({}, use) => {
     await use(getGroupVisibilityProbe()); // NOSONAR
   },
-  presentReadyStudentCard: async ({ adminApi }, use) => {
-    const card = createPresentReadyStudentCard(
-      getPresentReadyStudent(),
-      adminApi,
-    );
+  // oxlint-disable-next-line no-empty-pattern
+  sickPresentStudentCard: async ({}, use) => {
+    const card = createSickPresentStudentCard(getSickPresentStudent());
     await use(card); // NOSONAR — Playwright fixture callback, not React Hook
   },
   checkinFlow: async ({ adminApi, deviceApi }, use) => {

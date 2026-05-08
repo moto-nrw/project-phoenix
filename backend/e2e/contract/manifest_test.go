@@ -103,7 +103,7 @@ func TestWriteAndLoadState_Roundtrip(t *testing.T) {
 						Class:     "Klasse 1a",
 					},
 				},
-				PresentReady: StudentRef{
+				SickPresent: StudentRef{
 					ID:        102,
 					FirstName: "Leon",
 					LastName:  "Koch",

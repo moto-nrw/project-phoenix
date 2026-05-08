@@ -42,7 +42,7 @@ type StudentNameRef struct {
 	LastName  string
 }
 
-type PresentReadyStudentSelection struct {
+type SickPresentStudentSelection struct {
 	Student StudentNameRef
 	RFIDTag string
 }
@@ -50,7 +50,7 @@ type PresentReadyStudentSelection struct {
 type StudentFixtureSelection struct {
 	SearchPairPrimary   StudentNameRef
 	SearchPairSecondary StudentNameRef
-	PresentReady        PresentReadyStudentSelection
+	SickPresent         SickPresentStudentSelection
 }
 
 type GroupFixtureSelection struct {
@@ -125,7 +125,7 @@ func Lookup(name string) (Definition, bool) {
 						FirstName: "Emma",
 						LastName:  "Meyer",
 					},
-					PresentReady: PresentReadyStudentSelection{
+					SickPresent: SickPresentStudentSelection{
 						Student: StudentNameRef{
 							FirstName: "Leon",
 							LastName:  "Koch",

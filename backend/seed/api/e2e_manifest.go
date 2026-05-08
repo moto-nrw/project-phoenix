@@ -148,7 +148,7 @@ func buildE2EFixtures(fs *FixedSeeder, adminActor contract.Actor, definition sce
 	if err != nil {
 		return contract.Fixtures{}, fmt.Errorf("cannot build e2e state: %w", err)
 	}
-	presentReady, err := studentRefByName(fs, definition.Fixtures.Students.PresentReady.Student)
+	sickPresent, err := studentRefByName(fs, definition.Fixtures.Students.SickPresent.Student)
 	if err != nil {
 		return contract.Fixtures{}, fmt.Errorf("cannot build e2e state: %w", err)
 	}
@@ -192,7 +192,7 @@ func buildE2EFixtures(fs *FixedSeeder, adminActor contract.Actor, definition sce
 				Primary:   searchPrimary,
 				Secondary: searchSecondary,
 			},
-			PresentReady: presentReady,
+			SickPresent: sickPresent,
 		},
 		Groups: contract.GroupFixtures{
 			VisiblePair: contract.GroupPair{

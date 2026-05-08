@@ -1,6 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 import { STORAGE_STATE_PATH } from "./e2e/auth";
 
+if (process.env.PHOENIX_E2E_HARNESS !== "1") {
+  throw new Error(
+    "Raw Playwright runs are not supported. Use the canonical E2E flow: cd frontend && pnpm e2e",
+  );
+}
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,

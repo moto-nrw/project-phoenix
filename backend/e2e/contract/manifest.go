@@ -97,8 +97,8 @@ type Fixtures struct {
 }
 
 type StudentFixtures struct {
-	SearchPair   StudentPair `json:"search_pair"`
-	PresentReady StudentRef  `json:"present_ready"`
+	SearchPair  StudentPair `json:"search_pair"`
+	SickPresent StudentRef  `json:"sick_present"`
 }
 
 type StudentPair struct {

@@ -16,8 +16,9 @@ Dieser Befehl übernimmt alles:
 5. Playwright ausführen
 6. Logs/Artefakte erfassen und wieder aufräumen
 
-CI ruft denselben Befehl auf. `pnpm e2e` ist nur der stabile Einstiegspunkt;
-die Orchestrierung bleibt im Go-Harness.
+CI ruft denselben Befehl auf. `pnpm e2e` ist der einzige stabile
+Einstiegspunkt; Raw-Playwright-Aufrufe brechen bewusst ab, damit keine Tests
+gegen alte State- oder Auth-Artefakte laufen.
 
 Wenn dein Rechner `*.localtest.me` nicht auflösen kann:
 
