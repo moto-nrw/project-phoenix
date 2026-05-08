@@ -409,6 +409,18 @@ describe("StudentsPage", () => {
     });
   });
 
+  it("filters students by full name across first and last name", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Max Mu" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
   it("filters students by guardian name (name_lg)", async () => {
     render(<StudentsPage />);
 
