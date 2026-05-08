@@ -47,6 +47,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -305,24 +306,183 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
 	// Shared side-effect hook: when checkout.schulhof_enabled or
 	// checkout.wc_enabled flips on (regardless of who flipped it), make sure
-	// the corresponding system room exists. Registered on BOTH the tenant-
-	// admin resource and the operator resource so that either writer triggers
-	// infrastructure provisioning.
-	onSettingValueSet := func(ctx context.Context, _ int64, key string, value any) error {
-		boolVal, ok := value.(bool)
-		if !ok || !boolVal {
-			return nil // only trigger on enable (true), not disable
+	// the corresponding system room exists. Also runs on disable transitions
+	// for operations.student_photos_enabled to purge already-stored photos
+	// — admin-confirmed in the UI before reaching here. Registered on BOTH
+	// the tenant-admin resource and the operator resource so that either
+	// writer triggers the side effect.
+	//
+	// The hook fires on PUT and DELETE (reset). DELETE forwards the registry
+	// default as the post-reset effective value, so resetting
+	// student_photos_enabled (default: false) purges photos exactly like
+	// PUT value=false would.
+	//
+	// Two-phase contract: the closure returned alongside (postCommit, err) is
+	// invoked ONLY after the surrounding tenant tx commits. Non-transactional
+	// work that must not happen on rollback (file unlinks, external calls)
+	// belongs there. In-tx work (DB writes, infrastructure provisioning that
+	// participates in the tx) goes in the synchronous body.
+	// broadcastStudentDataChanged tells the AFFECTED tenant's clients to
+	// drop their cached student data and refetch. Used for tenant-wide
+	// changes that affect what /api/students/* returns for every student
+	// at once — disabling photos clears photo_url across the board,
+	// re-enabling brings photo_url + consent metadata back even though
+	// the rows themselves didn't change. Both cases require a cache-bust
+	// because students-* SWR caches store the response shape, not the
+	// underlying row, so the response shape changing is the trigger.
+	//
+	// Scoping: routed via BroadcastToTenant so a photo-toggle on school A
+	// does not invalidate every ogs-students-*, search-students-*,
+	// room-students-* and student-detail-* SWR cache on every other open
+	// tenant tab on the platform — the on-receive handler in
+	// use-global-sse.ts treats any student_updated as "blow away every
+	// student cache", which fans out the cost of one toggle into N
+	// unrelated tenants' refetch storms.
+	//
+	// `student_updated` is the existing event the global SSE handler
+	// (use-global-sse.ts) maps to a bulk invalidation of student-detail-*,
+	// ogs-students-*, search-students-*, room-students-*, etc., so we
+	// reuse it instead of inventing a new event type. Source labels make
+	// the trigger visible in log review.
+	broadcastStudentDataChanged := func(tenantID int64, source string) {
+		if api.Services.RealtimeHub == nil {
+			return
 		}
+		s := source
+		event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{
+			Source: &s,
+		})
+		if err := api.Services.RealtimeHub.BroadcastToTenant(tenantID, event); err != nil {
+			logger.Warn("student_updated broadcast failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("source", s),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
 
+	purgeStudentPhotosInTx := func(ctx context.Context, tenantID int64) (func(), error) {
+		urls, err := repoFactory.Student.PurgeAllPhotos(ctx)
+		if err != nil {
+			return nil, err
+		}
+		// Capture the URL list and unlink the files only after the tenant
+		// tx commits. If the commit later fails (lock timeout, pool drop,
+		// postgres restart mid-flight), the photo_path UPDATEs roll back —
+		// running RemoveImage inside the tx would have orphaned the rows
+		// (DB still pointing at /uploads/.../p_xxx.jpg, bytes already gone
+		// → permanent 404 on every avatar until manual recovery).
+		return func() {
+			for _, url := range urls {
+				path, resolveErr := apiCommon.ResolveStoredPath("public", url, apiCommon.StudentPhotoStoredURLPrefix)
+				if resolveErr != nil {
+					logger.Warn("could not resolve student photo path during feature-disable purge",
+						slog.String("stored_url", url),
+						slog.String("error", resolveErr.Error()),
+					)
+					continue
+				}
+				apiCommon.RemoveImage(path)
+			}
+			if len(urls) > 0 {
+				logger.Info("student photos purged after feature disable",
+					slog.Int("cleared_count", len(urls)),
+				)
+			}
+			// Broadcast unconditionally — even if `urls` was empty. Other
+			// open tabs may still hold render-state derived from a *prior*
+			// enabled cycle (a re-disable after re-enable inside one
+			// session): a stale `photos_enabled=true` signal in cached
+			// schema responses, render decisions made off it, etc. The
+			// SSE event is cheap and idempotent on the receive side.
+			broadcastStudentDataChanged(tenantID, "tenant_photos_disabled")
+		}, nil
+	}
+	// notifyTenantSettingsChanged returns a post-commit closure that fans out
+	// a tenant_settings_changed SSE event for keys whose value travels through
+	// /auth/tenant/resolve. Tenant tabs (including ones on a different origin
+	// from the writer — i.e. an operator at operator.<domain> flipping a
+	// setting that affects <slug>.<domain> tabs) re-resolve their tenant
+	// context on receipt, which keeps feature gates (student_photos_enabled)
+	// in sync without forcing a manual reload. The in-browser BroadcastChannel
+	// in lib/settings-broadcast.ts is same-origin only and does not cover this.
+	//
+	// Scoping: routed via BroadcastToTenant so only clients connected to
+	// the AFFECTED school receive the event. A previous implementation used
+	// BroadcastToAll, which made every connected tab on the platform
+	// re-resolve its own tenant on every settings change — a multi-school
+	// deployment would see one operator toggle fan out into N
+	// /auth/tenant/resolve calls for unrelated tenants. School A's clients
+	// have Client.TenantID = A, so they receive A's events; school B sees
+	// nothing for an A-side change.
+	notifyTenantSettingsChanged := func(tenantID int64, key string) func() {
+		return func() {
+			if api.Services.RealtimeHub == nil {
+				return
+			}
+			source := key
+			event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
+				Source: &source,
+			})
+			if err := api.Services.RealtimeHub.BroadcastToTenant(tenantID, event); err != nil {
+				logger.Warn("tenant_settings_changed broadcast failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("key", key),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+	}
+
+	onSettingValueSet := func(ctx context.Context, tenantID int64, key string, value any) (func(), error) {
 		switch key {
 		case configModel.KeyCheckoutSchulhofEnabled:
+			boolVal, ok := value.(bool)
+			if !ok || !boolVal {
+				return nil, nil
+			}
 			_, err := api.Services.Schulhof.EnsureInfrastructure(ctx, 0)
-			return err
+			return nil, err
 		case configModel.KeyCheckoutWCEnabled:
+			boolVal, ok := value.(bool)
+			if !ok || !boolVal {
+				return nil, nil
+			}
 			_, err := api.Services.WC.EnsureInfrastructure(ctx)
-			return err
+			return nil, err
+		case configModel.KeyStudentPhotosEnabled:
+			// Both directions need three signals to other tabs:
+			//   - tenant_settings_changed → re-resolve TenantContext so
+			//     feature gates flip without a manual reload.
+			//   - student_updated → bulk-invalidate student-* SWR caches
+			//     because the JSON shape returned by /api/students/*
+			//     changes on every flip: disabling strips photo_url,
+			//     enabling brings photo_url + preserved consent metadata
+			//     back. Without this on the enable path, tabs that
+			//     fetched students while photos were off keep showing
+			//     them photo-less even after re-enable.
+			//   - (disable only) post-commit file unlinks via the purge
+			//     closure.
+			notify := notifyTenantSettingsChanged(tenantID, key)
+			boolVal, ok := value.(bool)
+			if !ok || boolVal {
+				return func() {
+					broadcastStudentDataChanged(tenantID, "tenant_photos_enabled")
+					notify()
+				}, nil
+			}
+			purge, err := purgeStudentPhotosInTx(ctx, tenantID)
+			if err != nil {
+				return nil, err
+			}
+			return func() {
+				if purge != nil {
+					purge()
+				}
+				notify()
+			}, nil
 		default:
-			return nil
+			return nil, nil
 		}
 	}
 	api.Settings.OnValueSet(onSettingValueSet)
@@ -382,6 +542,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SuggestionsService:         api.Services.OperatorSuggestions,
 		AnnouncementsService:       api.Services.Announcement,
 		SettingsService:            api.Services.Settings,
+		SchoolRepo:                 repoFactory.School,
 		TokenAuth:                  nil, // Created internally by operator API
 		DB:                         db,
 	})

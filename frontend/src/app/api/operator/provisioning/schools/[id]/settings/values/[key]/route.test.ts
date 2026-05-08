@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { RouteContext } from "~/lib/route-wrapper-utils";
 
-const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
-  mockAuth: vi.fn(),
-  mockFetch: vi.fn(),
-  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-}));
+const { mockAuth, mockFetch, mockGetServerApiUrl, mockRevalidateTag } =
+  vi.hoisted(() => ({
+    mockAuth: vi.fn(),
+    mockFetch: vi.fn(),
+    mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+    mockRevalidateTag: vi.fn(),
+  }));
 
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockAuth,
@@ -15,6 +17,10 @@ vi.mock("~/server/auth/operator", () => ({
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
+}));
+
+vi.mock("next/cache", () => ({
+  revalidateTag: mockRevalidateTag,
 }));
 
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -117,6 +123,103 @@ describe("PUT /api/operator/provisioning/schools/[id]/settings/values/[key]", ()
 
     expect(response.status).toBe(500);
   });
+
+  it("busts tenant resolve cache for tenant-affecting keys", async () => {
+    // Photo-flag writes return school_slug so the proxy can invalidate the
+    // slug-keyed `tenant-${slug}` Next.js tag the [tenant]/layout.tsx fetch
+    // populates from /auth/tenant/resolve.
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "success",
+        data: { school_slug: "musterschule" },
+      }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10/settings/values/operations.student_photos_enabled",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: false }),
+      },
+    );
+    const context: RouteContext = {
+      params: Promise.resolve({
+        id: "10",
+        key: "operations.student_photos_enabled",
+      }),
+    };
+    const response = await PUT(request, context);
+
+    expect(response.status).toBe(200);
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-musterschule", {
+      expire: 0,
+    });
+  });
+
+  it("does NOT bust cache for non-tenant-resolve-affecting keys", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "success",
+        data: { school_slug: "musterschule" },
+      }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10/settings/values/operations.session_end_time",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: "18:30" }),
+      },
+    );
+    const context: RouteContext = {
+      params: Promise.resolve({
+        id: "10",
+        key: "operations.session_end_time",
+      }),
+    };
+    await PUT(request, context);
+
+    expect(mockRevalidateTag).not.toHaveBeenCalled();
+  });
+
+  it("skips cache bust when backend omits school_slug", async () => {
+    // Defensive: the backend logs but never propagates a slug-lookup
+    // failure (the mutation already committed). The proxy must tolerate the
+    // missing slug without crashing — at worst the cache TTL recovers it.
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "success", data: {} }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10/settings/values/operations.student_photos_enabled",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: false }),
+      },
+    );
+    const context: RouteContext = {
+      params: Promise.resolve({
+        id: "10",
+        key: "operations.student_photos_enabled",
+      }),
+    };
+    const response = await PUT(request, context);
+
+    expect(response.status).toBe(200);
+    expect(mockRevalidateTag).not.toHaveBeenCalled();
+  });
 });
 
 describe("DELETE /api/operator/provisioning/schools/[id]/settings/values/[key]", () => {
@@ -194,5 +297,37 @@ describe("DELETE /api/operator/provisioning/schools/[id]/settings/values/[key]",
     const response = await DELETE(request, context);
 
     expect(response.status).toBe(500);
+  });
+
+  it("busts tenant resolve cache on reset of tenant-affecting keys", async () => {
+    // Reset (DELETE) of the photo flag returns school_slug so the proxy can
+    // invalidate `tenant-${slug}` here too. Without this, "Zurücksetzen" on
+    // operations.student_photos_enabled would keep tenant users staring at
+    // the stale resolve payload until cache TTL expiry.
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "success",
+        data: { school_slug: "musterschule" },
+      }),
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10/settings/values/operations.student_photos_enabled",
+      { method: "DELETE" },
+    );
+    const context: RouteContext = {
+      params: Promise.resolve({
+        id: "10",
+        key: "operations.student_photos_enabled",
+      }),
+    };
+    await DELETE(request, context);
+
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-musterschule", {
+      expire: 0,
+    });
   });
 });

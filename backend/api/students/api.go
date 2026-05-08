@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -183,6 +184,31 @@ func (rs *Resource) Router() chi.Router {
 		// attendance.web_checkin_access setting is the fine gate enforced inside
 		// the handler (group_supervisors vs all_staff).
 		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
+
+		// Student photo (Datenverwaltung). Upload + delete gate on
+		// users:update (same permission as Stammdaten edit). The serve route
+		// uses users:read so any staff member who can see the student's
+		// profile can render the avatar. Setting + consent are enforced
+		// inside the handlers — see api/students/photo.go.
+		// uploadStudentPhoto deliberately does NOT use `withTx`: the
+		// outer middleware tx would start before the handler reads the
+		// multipart body, pinning a bun pool connection for the full
+		// duration of the parse + disk save (slow clients on 5 MiB
+		// bodies can drag this out for tens of seconds). The handler
+		// runs ParseImage + SaveImage outside any tx, then opens its
+		// own short WithTenantTx for the auth + DB writes — same
+		// pattern serveStudentPhoto uses for the same reason.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/photo", rs.uploadStudentPhoto)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/photo", rs.deleteStudentPhoto)
+		// serveStudentPhoto deliberately does NOT use `withTx`: TenantTxMiddleware
+		// would keep the bun pool connection bound for the full lifetime of the
+		// response, including the file-stream Write loop. Pages rendering many
+		// avatars or slow clients downloading large photos would each pin a
+		// connection — under load this starves unrelated requests. Instead the
+		// handler opens its own short WithTenantTx for the auth + setting checks
+		// and resolves the on-disk path inside it; the actual bytes stream
+		// AFTER that tx commits and releases the connection. See photo.go.
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/photo/{filename}", rs.serveStudentPhoto)
 	})
 
 	// Device-authenticated routes for RFID devices.
@@ -355,8 +381,12 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve the photo feature flag once per request — populatePhotoFields
+	// runs per student, and the settings cache lookup is cheap but not free.
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
+
 	// Build and filter responses
-	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot)
+	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, photosEnabled)
 
 	// Apply in-memory pagination if person-based filters were used
 	if params.hasPersonFilters() {
@@ -458,11 +488,11 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 }
 
 // buildStudentResponses builds filtered student responses
-func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) []StudentResponse {
+func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) []StudentResponse {
 	responses := make([]StudentResponse, 0, len(students))
 
 	for _, student := range students {
-		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot)
+		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot, photosEnabled)
 		if response != nil {
 			responses = append(responses, *response)
 		}
@@ -472,7 +502,7 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users
 }
 
 // buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
-func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) *StudentResponse {
+func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) *StudentResponse {
 	hasFullAccess := accessCtx.HasFullAccessToStudent(student)
 
 	// Get person data from snapshot
@@ -496,7 +526,7 @@ func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *use
 	}
 
 	// Build response
-	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot)
+	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot, photosEnabled)
 
 	// Apply location filter
 	if !matchesLocationFilter(params.location, studentResponse.Location, hasFullAccess) {
@@ -524,6 +554,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
 	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
 	response := StudentDetailResponse{
 		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -531,6 +562,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			Person:        person,
 			Group:         group,
 			HasFullAccess: hasFullAccess,
+			PhotosEnabled: photosEnabled,
 		}, StudentResponseServices{
 			ActiveService: rs.ActiveService,
 			PersonService: rs.PersonService,
@@ -679,11 +711,13 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 	common.Respond(w, r, http.StatusCreated, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,
 		Person:        person,
 		Group:         group,
 		HasFullAccess: hasFullAccess,
+		PhotosEnabled: photosEnabled,
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
@@ -814,6 +848,46 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	}
 }
 
+// photoConsentTransition describes a consent toggle on update. The handler
+// uses RemovedPhotoPath to delete the file *after* the DB transaction commits,
+// keeping consent withdrawal atomic with the file unlink.
+type photoConsentTransition struct {
+	GrantedNow       bool   // false→true: stamp _at/_by below
+	WithdrawnNow     bool   // true→false: nil out _at/_by/path; file removed by caller
+	RemovedPhotoPath string // filesystem URL to RemoveImage on the way out
+}
+
+// applyPhotoConsent reconciles req.PhotoConsentGiven with the student's
+// existing consent state. Returns the transition so the handler can apply
+// audit fields (acting account, timestamp) and remove the photo file when
+// consent is withdrawn — the model can't do either by itself because both
+// require request context.
+func applyPhotoConsent(req *UpdateStudentRequest, student *users.Student) photoConsentTransition {
+	if req.PhotoConsentGiven == nil {
+		return photoConsentTransition{}
+	}
+	hadConsent := student.PhotoConsentGivenAt != nil
+	wantConsent := *req.PhotoConsentGiven
+
+	if !hadConsent && wantConsent {
+		return photoConsentTransition{GrantedNow: true}
+	}
+	if hadConsent && !wantConsent {
+		// Capture the path *before* nilling so the handler can clean up the
+		// file post-commit. Nil out all three columns so the model write
+		// reflects the withdrawn state in a single update.
+		removed := ""
+		if student.PhotoPath != nil {
+			removed = *student.PhotoPath
+		}
+		student.PhotoPath = nil
+		student.PhotoConsentGivenAt = nil
+		student.PhotoConsentGivenBy = nil
+		return photoConsentTransition{WithdrawnNow: true, RemovedPhotoPath: removed}
+	}
+	return photoConsentTransition{}
+}
+
 // applySickStatus handles sick status updates with SickSince timestamp logic
 func applySickStatus(req *UpdateStudentRequest, student *users.Student) {
 	if req.Sick == nil {
@@ -864,8 +938,35 @@ func checkSickExcusedConflict(req *UpdateStudentRequest, student *users.Student)
 	return nil
 }
 
-func (rs *Resource) broadcastStudentUpdated(studentID int64) {
+// broadcastStudentUpdated emits an SSE student_updated event to the
+// AFFECTED tenant's connected clients only. use-global-sse.ts treats
+// that event as "invalidate every student / room / dashboard cache in
+// this tab", so a global fan-out (BroadcastToAll) would force tabs in
+// schools B…N to refetch unrelated data whenever school A edits one
+// student or one avatar. Routing via BroadcastToTenant — the helper
+// already added in this branch for tenant_settings_changed — keeps the
+// invalidation scoped to the school that actually changed.
+//
+// Callers MUST pass tenantID from request context (tenant.FromContext)
+// or from a captured value inside an after-commit hook. Passing zero
+// no-ops the broadcast rather than fanning out, since
+// BroadcastToTenant rejects zero tenant IDs by definition (no Client
+// has TenantID == 0).
+func (rs *Resource) broadcastStudentUpdated(tenantID, studentID int64) {
 	if rs.Broadcaster == nil {
+		return
+	}
+	if tenantID <= 0 {
+		// Defensive: a missing tenant context means we don't know which
+		// school's clients should invalidate. Logging the case so a
+		// future caller that forgets to thread tenantID through gets a
+		// breadcrumb instead of silent loss.
+		if rs.Logger != nil {
+			rs.Logger.Warn(
+				"skipping student_updated broadcast — no tenant context",
+				"student_id", studentID,
+			)
+		}
 		return
 	}
 
@@ -874,9 +975,10 @@ func (rs *Resource) broadcastStudentUpdated(studentID int64) {
 		Source: &source,
 	})
 
-	if err := rs.Broadcaster.BroadcastToAll(event); err != nil && rs.Logger != nil {
+	if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && rs.Logger != nil {
 		rs.Logger.Warn(
 			"failed to broadcast student update",
+			"tenant_id", tenantID,
 			"student_id", studentID,
 			"error", err.Error(),
 		)
@@ -931,27 +1033,203 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wasSick := boolPtrValue(student.Sick)
-	wasExcused := boolPtrValue(student.Excused)
 	statusHistoryNow := time.Now()
 
-	// Update student fields using helper function
-	applyStudentFieldUpdates(req, student)
+	// In-tx sentinel: a concurrent partial update committed between our
+	// pre-tx conflict check and the locked-row re-check below produced
+	// the forbidden sick && excused state. Mapped to 409 +
+	// SICK_EXCUSED_CONFLICT in the outer error switch so the frontend
+	// can prompt the user the same way it does for a synchronous
+	// conflict. errors.Is keeps the dispatch resilient to wrapping.
+	errSickExcusedConflict := errors.New("sick and excused conflict on locked row")
 
-	// Persist person and student updates in tenant transaction
+	// In-tx sentinel: a concurrent delete removed the student row
+	// between parseAndGetStudent above and the locked re-read below.
+	// The non-racy path returns 404; bare sql.ErrNoRows would otherwise
+	// fall through to a 500 for a legitimate concurrent delete.
+	errStudentNotFoundUnderLock := errors.New("student deleted between snapshot and lock")
+
+	// In-tx sentinel: the pre-tx canUpdateStudent check ran on
+	// student.GroupID from the snapshot. canUpdateStudent decides off
+	// group membership, so a concurrent admin moving the student into
+	// a different group between snapshot and lock can leave the caller
+	// without write authority on the locked row. Re-checking against
+	// fresh closes that window. Mapped to 403 in the outer switch so
+	// the response status matches what the pre-tx gate would emit.
+	errStudentReassigned := errors.New("student reassigned out of caller's scope mid-update")
+
+	// Persist person and student updates in tenant transaction. The patch
+	// (field updates + photo-consent transition) is applied INSIDE the tx
+	// against a freshly locked row read via FindByIDForUpdate, not against
+	// the pre-tx student snapshot. Without this, a concurrent photo upload
+	// that commits between parseAndGetStudent and this tx would have its
+	// photo_path silently clobbered when StudentRepo.Update writes the
+	// stale snapshot back, and a consent withdrawal would unlink the OLD
+	// file while leaving the freshly-uploaded file orphaned on disk. The
+	// upload/delete handlers in photo.go already use this same pattern.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Order matters: lock + re-check the sick/excused invariant
+		// BEFORE any other writes in this tx. The handler maps the
+		// SICK_EXCUSED_CONFLICT sentinel to a 4xx, and TenantTxMiddleware
+		// only rolls back on 5xx — so a 409 path with PersonService.Update
+		// already executed would commit the person change while the
+		// client is told the save failed. Running the check first keeps
+		// the conflict response atomic: either the whole patch lands or
+		// nothing does.
+
+		// LockPhotoFeature only when consent is actually being toggled —
+		// the per-tenant advisory lock serialises against feature
+		// disable/purge, and we don't want every name/notes edit to
+		// queue behind those operations. Field-only updates are still
+		// safe against concurrent photo writes because we re-read the
+		// row FOR UPDATE below and apply the patch on top of fresh.
+		consentChanging := req.PhotoConsentGiven != nil &&
+			(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
+		if consentChanging {
+			if err := rs.StudentRepo.LockPhotoFeature(ctx); err != nil {
+				return err
+			}
+		}
+
+		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		if err != nil {
+			// Concurrent delete between parseAndGetStudent and this
+			// locked re-read — surface as 404 instead of letting the
+			// raw sql.ErrNoRows fall through to 500.
+			if errors.Is(err, sql.ErrNoRows) {
+				return errStudentNotFoundUnderLock
+			}
+			return err
+		}
+
+		// Re-run the per-student write gate against the LOCKED row.
+		// The pre-tx check at line ~1003 ran on student.GroupID from
+		// the snapshot; canUpdateStudent decides off group membership,
+		// so a concurrent admin moving the student into a different
+		// group between snapshot and lock can leave the caller without
+		// authority on the row we're about to mutate. Re-checking on
+		// fresh closes that window — the 403-mapped sentinel rolls
+		// back the entire tx (including the still-pending person
+		// update further down), keeping the response atomic.
+		//
+		// Running the check BEFORE PersonService.Update is mandatory
+		// for the same reason the sick/excused re-check is — see the
+		// order rationale at the top of this closure.
+		if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
+			return errStudentReassigned
+		}
+
+		// Re-validate the sick/excused invariant against the LOCKED row.
+		// The pre-tx check at line ~986 ran on a stale snapshot; with
+		// the patch-on-fresh model, two concurrent partial updates can
+		// otherwise merge into the forbidden sick && excused state:
+		//   T1 commits {sick:true} on a row with excused=false
+		//   T2 reads pre-tx snapshot (sick=false, excused=false), passes
+		//     the early check with {excused:true}, opens its tx, locks
+		//     fresh (now sick=true), applyStudentFieldUpdates only sets
+		//     excused — sick stays at the now-true fresh value, and we
+		//     write the invariant-violating row.
+		// Re-running the check against fresh closes that window. Older
+		// last-write-wins behaviour didn't have this hazard because
+		// Update overwrote every column with the snapshot's value, so
+		// only one of the two flags could end up true.
+		//
+		// Running the check BEFORE PersonService.Update is mandatory:
+		// see the order rationale at the top of this closure.
+		if err := checkSickExcusedConflict(req, fresh); err != nil {
+			return errSickExcusedConflict
+		}
+
+		// Person update runs only AFTER the conflict check passes — a
+		// 409 returned past this point would otherwise be committed by
+		// TenantTxMiddleware (it only rolls back on 5xx).
 		if personResult.updated {
 			if err := rs.PersonService.Update(ctx, person); err != nil {
 				return err
 			}
 		}
-		if err := rs.persistStudentStatusHistory(ctx, student, wasSick, wasExcused, statusHistoryNow); err != nil {
+
+		// Pre-update flags read from the LOCKED row, not the pre-tx
+		// snapshot, so status history reflects the actual transition the
+		// commit performs (e.g. a concurrent excused-toggle that won the
+		// race becomes the wasExcused baseline for ours).
+		wasSick := boolPtrValue(fresh.Sick)
+		wasExcused := boolPtrValue(fresh.Excused)
+
+		// Re-apply the request patch on top of the locked row. This is
+		// the SAME helper trio used pre-tx in the previous version of
+		// this handler — moved here so all writes flow through `fresh`
+		// instead of the stale `student` snapshot.
+		applyStudentFieldUpdates(req, fresh)
+		photoTransition := applyPhotoConsent(req, fresh)
+		if photoTransition.GrantedNow {
+			stampPhotoConsent(ctx, fresh)
+		}
+
+		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow); err != nil {
 			rs.logStatusHistoryError(student.ID, err)
 			return err
 		}
-		return rs.StudentRepo.Update(ctx, student)
+		if err := rs.StudentRepo.Update(ctx, fresh); err != nil {
+			return err
+		}
+
+		// Consent withdrawn — schedule the orphaned-file unlink for
+		// AFTER the OUTERMOST tenant tx commits. Students sit behind
+		// TenantTxMiddleware, so this WithTenantTx is reusing the
+		// middleware's transaction; running the unlink before that
+		// commit would leave the row pointing at a deleted file if the
+		// outer commit later fails.
+		if photoTransition.WithdrawnNow && photoTransition.RemovedPhotoPath != "" {
+			removed := photoTransition.RemovedPhotoPath
+			tenant.RegisterAfterCommit(ctx, func() {
+				removeStudentPhotoFile(removed, rs.Logger)
+			})
+		}
+
+		// Defer the SSE broadcast to AFTER the outer tx commits — same
+		// reasoning as the file unlink above. Subscribers refetch the
+		// student row when they receive the event, and on a route wrapped
+		// by TenantTxMiddleware this WithTenantTx has only reused the
+		// middleware's transaction at this point. Broadcasting now would
+		// race other tabs into refetching the OLD row (the change is not
+		// yet visible) and they would never receive a second invalidation
+		// — the avatar / consent / status would stay stale until manual
+		// refresh. Photo consent withdrawal is the user-visible failure
+		// mode flagged in review.
+		// Capture both IDs into the after-commit closure so the broadcast
+		// stays scoped to THIS tenant even if anything reads tenantID off
+		// context after the tx releases.
+		studentID := student.ID
+		capturedTenantID := tenantID
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.broadcastStudentUpdated(capturedTenantID, studentID)
+		})
+		return nil
 	}); err != nil {
+		// 409 the same way the pre-tx check does — frontend uses the
+		// SICK_EXCUSED_CONFLICT code to prompt the user to switch states.
+		// Other tx errors stay as 500.
+		if errors.Is(err, errSickExcusedConflict) {
+			renderError(w, r, ErrorConflictWithCode(
+				errors.New("a student cannot be both sick and excused at the same time"),
+				ErrCodeSickExcusedConflict,
+			))
+			return
+		}
+		// 403 mirrors what the pre-tx canUpdateStudent gate emits —
+		// the locked row showed the student is no longer in a group
+		// the caller supervises.
+		if errors.Is(err, errStudentReassigned) {
+			renderError(w, r, ErrorForbidden(errors.New("you can only update students in groups you supervise")))
+			return
+		}
+		// 404 when a concurrent delete won the race for the row.
+		if errors.Is(err, errStudentNotFoundUnderLock) {
+			renderError(w, r, ErrorNotFound(errors.New("student not found")))
+			return
+		}
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -969,14 +1247,15 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Admin users and group supervisors can see full data including detailed location
 	// Explicitly verify access level based on the checks performed above
 	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
-	rs.broadcastStudentUpdated(updatedStudent.ID)
 
 	// Return the updated student with person data
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       updatedStudent,
 		Person:        person,
 		Group:         group,
 		HasFullAccess: hasFullAccess,
+		PhotosEnabled: photosEnabled,
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
@@ -999,9 +1278,30 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete the student and associated person record in tenant transaction
+	// Delete the student and associated person record in tenant transaction.
+	// The photo URL is captured INSIDE the tx from the locked row (not from
+	// the pre-tx student snapshot) so a concurrent upload can't leave a new
+	// file orphaned on disk. The unlink itself runs via RegisterAfterCommit
+	// — student routes are wrapped in TenantTxMiddleware, so this
+	// WithTenantTx merely reuses the middleware's transaction; running the
+	// unlink before the OUTER commit would leave the row pointing at a
+	// deleted file if the outer commit later rolls back.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Re-read FOR UPDATE to capture whichever photo_path is current at
+		// the moment of delete (a concurrent upload may have replaced it
+		// since parseAndGetStudent ran). FindByIDForUpdate also row-locks
+		// against any in-flight upload tx, so we either see its committed
+		// photo_path here or it sees our deleted row and aborts.
+		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		if err != nil {
+			return err
+		}
+		var photoToRemove string
+		if fresh.PhotoPath != nil {
+			photoToRemove = *fresh.PhotoPath
+		}
+
 		// Delete the student first
 		if err := rs.StudentRepo.Delete(ctx, student.ID); err != nil {
 			return err
@@ -1013,6 +1313,13 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 			slog.Default().Error("failed to delete associated person record",
 				slog.Int64("person_id", student.PersonID),
 				slog.String("error", err.Error()))
+		}
+
+		if photoToRemove != "" {
+			removed := photoToRemove
+			tenant.RegisterAfterCommit(ctx, func() {
+				removeStudentPhotoFile(removed, rs.Logger)
+			})
 		}
 		return nil
 	}); err != nil {

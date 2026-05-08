@@ -47,6 +47,15 @@ func (b *spyBroadcaster) BroadcastToGroup(_ int64, _ string, e realtime.Event) e
 	}
 	return nil
 }
+func (b *spyBroadcaster) BroadcastToTenant(_ int64, e realtime.Event) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.all = append(b.all, e)
+	if b.fail {
+		return fmt.Errorf("forced failure")
+	}
+	return nil
+}
 func (b *spyBroadcaster) BroadcastToAll(e realtime.Event) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()

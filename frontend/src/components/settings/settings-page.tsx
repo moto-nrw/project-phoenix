@@ -2,12 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { mutate as swrMutate } from "swr";
 import { createLogger } from "~/lib/logger";
 import {
   fetchSettingsSchema,
   setSettingValue,
   resetSettingValue,
 } from "~/lib/settings-api";
+import { notifySettingsChanged } from "~/lib/settings-broadcast";
+import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
 import type { SettingsSchema, SchemaTab } from "~/lib/settings-api";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -81,6 +85,7 @@ interface SettingsContentProps {
 function SettingsContent({ tabKey }: SettingsContentProps) {
   const { status: sessionStatus } = useSession();
   const { refresh: refreshSupervision } = useOptionalSupervision();
+  const router = useRouter();
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +126,21 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
       } else {
         setError(null);
         logger.info("setting_value_saved", { key });
+        // For settings that ride along the tenant-resolve response, the
+        // BroadcastChannel ping doesn't reach *this* tab — refresh the
+        // current Server Component tree so the cached [tenant]/layout.tsx
+        // re-fetches and the TenantContext picks up the new value
+        // without a full browser reload.
+        if (TENANT_RESOLVE_AFFECTING_KEYS.has(key)) {
+          router.refresh();
+        }
+        // Bust the SWR `settings-schema` cache *in this tab* and broadcast
+        // the change to every other tab of this origin. SWR caches are
+        // per-window — without the broadcast, toggling "Kinderfotos
+        // aktivieren" in the settings tab leaves the Datenverwaltung tab
+        // pointing at the old value until reload.
+        void swrMutate("settings-schema");
+        notifySettingsChanged();
         // Update schema state locally so values persist across tab switches.
         setSchema((prev) => {
           if (!prev) return prev;
@@ -188,7 +208,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
       }
       return errorMsg;
     },
-    [refreshSupervision],
+    [refreshSupervision, router],
   );
 
   const handleReset = useCallback(
@@ -199,6 +219,16 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
       } else {
         setError(null);
         logger.info("setting_value_reset", { key });
+
+        // Same-tab tenant-resolve refresh — see handleSave for the
+        // detailed reasoning.
+        if (TENANT_RESOLVE_AFFECTING_KEYS.has(key)) {
+          router.refresh();
+        }
+        // Bust the SWR `settings-schema` cache (same reason as in handleSave)
+        // and notify other tabs.
+        void swrMutate("settings-schema");
+        notifySettingsChanged();
 
         // Background sync: re-fetch schema to get the default value
         // without blocking the UI or showing a loading spinner.
@@ -218,7 +248,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
       }
       return errorMsg;
     },
-    [refreshSupervision],
+    [refreshSupervision, router],
   );
 
   if (loading) {

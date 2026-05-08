@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -23,32 +24,11 @@ import (
 // AccessAdminOnly setting (e.g. the OGS device PIN). Surfaced as HTTP 403.
 const errAdminOnlyForOperator = "this setting is admin-only and cannot be modified by operators"
 
-// errPresenceModeSwitchBlockedMsg is the German user-facing copy returned
-// when an operator tries to flip operations.presence_mode while students are
-// still checked in for the day. staticcheck ST1005 (capitalization / trailing
-// punctuation) is waived at the callsite with a nolint directive, matching
-// the convention in api/groups for German user-facing errors.
 const errPresenceModeSwitchBlockedMsg = "Moduswechsel während aktiver Anwesenheit nicht möglich. Bitte zunächst Tagesabschluss durchführen."
 
-// ErrPresenceModeSwitchBlocked is the sentinel returned by
-// enforcePresenceModeSwitchGuard so callers can branch on it via errors.Is
-// without relying on string equality (which breaks the moment any wrapper
-// modifies the message). Mirrors the SettingsService error pattern
-// (DefinitionNotFoundError / InvalidValueError).
-//
 //nolint:staticcheck // ST1005: German user-facing message
 var ErrPresenceModeSwitchBlocked = errors.New(errPresenceModeSwitchBlockedMsg)
 
-// enforcePresenceModeSwitchGuard rejects an in-progress write to
-// operations.presence_mode when any student is currently checked in for the
-// tenant. Runs inside the same tenant transaction as the write itself so RLS
-// scopes the attendance query automatically. Callers may bypass the guard
-// with `?force=true` for operational recovery.
-//
-// Why guard only the switch, not every write: the cascading impact of
-// flipping presence mode mid-day (stale open visits, SSE events mis-keyed,
-// device UX inconsistent with the tenant it's authenticated for) is far
-// larger than any other operator setting. Other keys don't need this.
 func enforcePresenceModeSwitchGuard(ctx context.Context, tx bun.Tx, key string, force bool) error {
 	if key != configModel.KeyPresenceMode {
 		return nil
@@ -56,13 +36,7 @@ func enforcePresenceModeSwitchGuard(ctx context.Context, tx bun.Tx, key string, 
 	if force {
 		return nil
 	}
-	// Bind the Berlin calendar date as UTC midnight (matches how
-	// performCheckIn writes active.attendance.date). Using CURRENT_DATE on
-	// the postgres side would be wrong: the PG session is UTC, so between
-	// 22:00–24:00 UTC (i.e. ~00:00–02:00 Berlin) CURRENT_DATE returns
-	// "yesterday" while open rows for the new Berlin day already exist
-	// under "today" — and the guard would silently let the switch through
-	// in exactly the window it's supposed to block.
+
 	today := timezone.TodayUTC()
 	var exists bool
 	err := tx.NewRaw(`
@@ -100,29 +74,75 @@ func guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
-	onValueSet      func(ctx context.Context, tenantID int64, key string, value any) error
+	schoolRepo      platformModels.SchoolRepository
+	// onValueSet shares its signature with config.ValueSetCallback — see
+	// that type for the in-tx vs post-commit contract. Duplicated here
+	// (rather than imported) so api/operator stays free of api/config
+	// dependency, mirroring the rest of the operator package's isolation.
+	onValueSet func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)
 }
 
-// NewSettingsResource creates a new operator settings resource.
-func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB) *SettingsResource {
+// NewSettingsResource creates a new operator settings resource. schoolRepo is
+// used to enrich set/reset responses with `school_slug` so the frontend
+// proxy can bust the slug-keyed `tenant-${slug}` Next.js cache after the
+// operator flips a tenant-resolve-affecting setting (e.g.
+// operations.student_photos_enabled). Without that bust, [tenant]/layout.tsx
+// keeps serving the stale resolve payload for up to 5 minutes.
+func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, schoolRepo platformModels.SchoolRepository) *SettingsResource {
 	return &SettingsResource{
 		settingsService: svc,
 		db:              db,
+		schoolRepo:      schoolRepo,
 	}
 }
 
-// OnValueSet registers a callback that runs after a setting value is validated
-// and saved. The callback executes inside the same tenant transaction as the
-// setting write, so returning an error aborts the request and rolls back the
-// update. Mirrors the tenant SettingsResource.OnValueSet contract so side
-// effects (e.g. auto-creating the Schulhof/WC rooms when the corresponding
-// checkout toggle flips on) apply uniformly regardless of who flipped it.
-func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+// OnValueSet registers a callback that runs after a setting value change is
+// validated and persisted. The callback runs inside the tenant transaction;
+// the optional postCommit closure it returns runs only after a successful
+// commit. Mirrors the tenant SettingsResource.OnValueSet contract so side
+// effects apply uniformly regardless of who flipped the value.
+//
+// The hook always fires on PUT. DELETE replays it only for keys that need
+// reset-specific side effects, currently operations.student_photos_enabled,
+// so unrelated settings keep their development behavior.
+func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)) {
 	rs.onValueSet = fn
 }
 
 type setSchoolSettingRequest struct {
 	Value any `json:"value"`
+}
+
+func requiresPhotoMutationResponse(key string) bool {
+	return key == configModel.KeyStudentPhotosEnabled
+}
+
+// schoolSettingMutationResponse carries the school slug back to the frontend
+// so the operator proxy can bust the `tenant-${slug}` Next.js cache. The slug
+// is omitted when the lookup fails (the mutation already committed by then —
+// failing the response would lie about the underlying state).
+type schoolSettingMutationResponse struct {
+	SchoolSlug string `json:"school_slug,omitempty"`
+}
+
+// resolveSchoolSlug fetches the school's slug for inclusion in the
+// mutation response. Failures are logged but never propagated — the slug
+// is only used for cache invalidation, and a missed bust is recoverable
+// (cache TTL is 5 min) whereas a 500 here would mislead the operator about
+// whether the setting actually persisted.
+func (rs *SettingsResource) resolveSchoolSlug(ctx context.Context, schoolID int64) string {
+	if rs.schoolRepo == nil {
+		return ""
+	}
+	school, err := rs.schoolRepo.FindByID(ctx, schoolID)
+	if err != nil || school == nil {
+		slog.Warn("operator settings: school slug lookup failed",
+			slog.Int64("school_id", schoolID),
+			slog.Any("error", err),
+		)
+		return ""
+	}
+	return school.Slug
 }
 
 // GetSchoolSettingsSchema returns the full settings schema with resolved values for a school.
@@ -166,14 +186,8 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
-	// ?force=true lets operators bypass the presence-mode switch guard when
-	// doing maintenance recovery (e.g. stuck attendance rows blocking the
-	// switch). Everything else ignores the flag.
 	force := r.URL.Query().Get("force") == "true"
 
-	// Audit-log force-bypass writes on guarded keys so we have a trail when
-	// an operator overrides the safety check. This is intentionally a Warn
-	// (not Info) so it surfaces in standard log review.
 	if force && key == configModel.KeyPresenceMode {
 		slog.Warn("operator_setting_force_bypass",
 			slog.Int64("operator_id", changedBy),
@@ -190,14 +204,22 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 			return err
 		}
 		if rs.onValueSet != nil {
-			return rs.onValueSet(ctx, schoolID, key, req.Value)
+			cb, err := rs.onValueSet(ctx, schoolID, key, req.Value)
+			if err != nil {
+				return err
+			}
+			// Use the after-commit hook even though operator routes don't
+			// currently sit behind TenantTxMiddleware: this WithTenantTx is
+			// the outermost call here, so the hook will fire after THIS
+			// commit. Routing-topology assumptions are fragile — if a
+			// future change wraps operator routes in a middleware tx, the
+			// hook automatically promotes to running after the outer
+			// commit instead of leaking destructive side effects out.
+			tenant.RegisterAfterCommit(ctx, cb)
 		}
 		return nil
 	})
 	if err != nil {
-		// Dedicated 409 path for the mode-switch block so the frontend can
-		// surface the "daily end required" copy without heuristics. errors.Is
-		// keeps the branch resilient to wrapping, unlike string equality.
 		if errors.Is(err, ErrPresenceModeSwitchBlocked) {
 			render.Render(w, r, ErrConflict(errPresenceModeSwitchBlockedMsg)) //nolint:errcheck
 			return
@@ -206,7 +228,13 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, nil, "Value updated successfully")
+	if !requiresPhotoMutationResponse(key) {
+		common.Respond(w, r, http.StatusOK, nil, "Value updated successfully")
+		return
+	}
+
+	resp := schoolSettingMutationResponse{SchoolSlug: rs.resolveSchoolSlug(r.Context(), schoolID)}
+	common.Respond(w, r, http.StatusOK, resp, "Value updated successfully")
 }
 
 // ResetSchoolSettingValue resets a setting value for a specific school to its default.
@@ -224,14 +252,39 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 	changedBy := int64(claims.ID)
 
 	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.ResetValue(ctx, key, &changedBy, nil)
+		if err := rs.settingsService.ResetValue(ctx, key, &changedBy, nil); err != nil {
+			return err
+		}
+		// Photo disable/reset needs the same downstream cleanup regardless of
+		// whether the operator chose PUT false or DELETE reset. Other settings
+		// keep their development-era reset semantics.
+		if rs.onValueSet != nil && requiresPhotoMutationResponse(key) {
+			def := configModel.GetDefinition(key)
+			if def != nil {
+				cb, err := rs.onValueSet(ctx, schoolID, key, def.Default)
+				if err != nil {
+					return err
+				}
+				// Same after-commit reasoning as SetSchoolSettingValue.
+				tenant.RegisterAfterCommit(ctx, cb)
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		renderOperatorSettingsError(w, r, err)
 		return
 	}
 
-	common.RespondNoContent(w, r)
+	if !requiresPhotoMutationResponse(key) {
+		common.RespondNoContent(w, r)
+		return
+	}
+
+	// Photo reset returns a body so the proxy can read the slug and bust the
+	// tenant-resolve cache immediately.
+	resp := schoolSettingMutationResponse{SchoolSlug: rs.resolveSchoolSlug(r.Context(), schoolID)}
+	common.Respond(w, r, http.StatusOK, resp, "Value reset successfully")
 }
 
 // RevealSchoolSettingValue reveals the unmasked value of a password/PIN setting for a school.

@@ -50,17 +50,39 @@ func guardTenantAccess(w http.ResponseWriter, r *http.Request, key string) bool 
 	return false
 }
 
+// ValueSetCallback runs in the same tenant transaction as the setting
+// write. Returning an error aborts the request and rolls back the update.
+//
+// The optional postCommit closure runs ONLY if the transaction commits
+// successfully. Use it for non-transactional side effects that must not
+// happen if the DB write rolls back (file-system unlinks, external API
+// calls, anything we can't undo on rollback). Return nil when no post-
+// commit work is needed.
+//
+// Why split the phases: a callback that unlinks files inside the tx will
+// still leave files deleted if the surrounding tx fails to commit (lock
+// timeout, pool drop, etc.) — the DB rolls back to the pre-purge state
+// while the bytes on disk are gone forever. Splitting the phases lets the
+// in-tx work collect work items into the post-commit closure and only run
+// the destructive part when the DB write actually persisted.
+type ValueSetCallback func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)
+
 // SettingsResource defines the settings API resource.
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
-	onValueSet      func(ctx context.Context, tenantID int64, key string, value any) error
+	onValueSet      ValueSetCallback
 }
 
-// OnValueSet registers a callback that runs after a setting value is validated and saved.
-// The callback executes inside the same tenant transaction as the setting write, so
-// returning an error aborts the request and rolls back the update.
-func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+// OnValueSet registers a callback that runs after a setting value change is
+// validated and persisted. See ValueSetCallback for the in-tx vs post-commit
+// contract.
+//
+// The hook always fires on PUT (`SetValue`). DELETE (`ResetValue`) replays
+// the hook only for keys that need reset-specific side effects. Right now
+// that is limited to operations.student_photos_enabled so unrelated
+// settings keep their pre-feature reset behavior.
+func (rs *SettingsResource) OnValueSet(fn ValueSetCallback) {
 	rs.onValueSet = fn
 }
 
@@ -110,6 +132,10 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 
 type setValueRequest struct {
 	Value any `json:"value"`
+}
+
+func shouldReplayResetHook(key string) bool {
+	return key == configModel.KeyStudentPhotosEnabled
 }
 
 // --- Handlers ---
@@ -171,11 +197,26 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if rs.onValueSet != nil {
-			return rs.onValueSet(ctx, tenantID, key, req.Value)
+			cb, err := rs.onValueSet(ctx, tenantID, key, req.Value)
+			if err != nil {
+				return err
+			}
+			// Schedule the side-effect closure (e.g. student-photo purge,
+			// cache invalidation) to run after the OUTERMOST tenant tx
+			// commits — not after this WithTenantTx returns. SettingsRouter
+			// wraps these handlers in TenantTxMiddleware, so the
+			// inner WithTenantTx merely reuses the middleware's already-open
+			// transaction; the real COMMIT happens once the handler returns.
+			// Running destructive cleanup before that point would unlink
+			// files / invalidate caches even if the outer commit later fails.
+			tenant.RegisterAfterCommit(ctx, cb)
 		}
 		return nil
 	})
 	if err != nil {
+		// Tx rolled back — the after-commit hook is dropped automatically
+		// by RegisterAfterCommit: it only runs when the outermost commit
+		// succeeds.
 		renderSettingsError(w, r, err)
 		return
 	}
@@ -191,9 +232,29 @@ func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
+	tenantID := tenant.FromContext(r.Context())
 
-	err := tenant.WithTenantTx(r.Context(), rs.db, tenant.FromContext(r.Context()), func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.ResetValue(ctx, key, &changedBy, claims.Permissions)
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.settingsService.ResetValue(ctx, key, &changedBy, claims.Permissions); err != nil {
+			return err
+		}
+		// Fire the same value-changed hook PUT runs through, with the
+		// registry default as the post-reset effective value. Otherwise a
+		// "Zurücksetzen" click on student_photos_enabled would clear the
+		// override but leave already-stored photos on disk.
+		if rs.onValueSet != nil && shouldReplayResetHook(key) {
+			def := configModel.GetDefinition(key)
+			if def != nil {
+				cb, err := rs.onValueSet(ctx, tenantID, key, def.Default)
+				if err != nil {
+					return err
+				}
+				// Defer the side-effect closure to after the OUTERMOST
+				// commit (TenantTxMiddleware), same reasoning as setValue.
+				tenant.RegisterAfterCommit(ctx, cb)
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		renderSettingsError(w, r, err)

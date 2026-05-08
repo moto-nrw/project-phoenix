@@ -47,6 +47,8 @@ import {
   fetchGroups,
   fetchStudentPrivacyConsent,
   updateStudentPrivacyConsent,
+  uploadStudentPhoto,
+  deleteStudentPhoto,
   type StudentFilters,
 } from "./student-api";
 
@@ -529,6 +531,154 @@ describe("student-api", () => {
         expect.any(Error),
         "fetch student",
         "STUDENT",
+      );
+    });
+  });
+
+  // ─── uploadStudentPhoto ────────────────────────────────────────────────
+  // Uses raw fetch (multipart/form-data) rather than authFetch which only
+  // speaks JSON. Mock global.fetch and ensure the bearer token + form
+  // fields end up shaped correctly.
+  describe("uploadStudentPhoto", () => {
+    const originalFetch = global.fetch;
+    const fetchMock = vi.fn();
+
+    beforeEach(() => {
+      global.fetch = fetchMock as unknown as typeof fetch;
+      fetchMock.mockReset();
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it("posts multipart form data with bearer token and returns photoUrl", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: { photo_url: "/uploads/student-photos/42_abc.jpg" },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+      const file = new Blob(["binary"], { type: "image/jpeg" });
+      const result = await uploadStudentPhoto("42", file);
+
+      expect(result).toEqual({
+        photoUrl: "/uploads/student-photos/42_abc.jpg",
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [calledUrl, calledOptions] = fetchMock.mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      expect(calledUrl).toBe("/api/students/42/photo");
+      expect(calledOptions.method).toBe("POST");
+      const headers = calledOptions.headers as Record<string, string>;
+      // Default mockSessionData() returns user.token = "test-token".
+      expect(headers.Authorization).toMatch(/^Bearer /);
+      // Body must be FormData with the "photo" field set.
+      const body = calledOptions.body as FormData;
+      expect(body).toBeInstanceOf(FormData);
+      expect(body.get("photo")).toBeInstanceOf(Blob);
+      // No consent_acknowledged when option not passed.
+      expect(body.get("consent_acknowledged")).toBeNull();
+    });
+
+    it("appends consent_acknowledged=true when caller opts in", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { photo_url: "/u/x.jpg" } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const file = new Blob(["binary"], { type: "image/jpeg" });
+      await uploadStudentPhoto("42", file, { consentAcknowledged: true });
+
+      const [, calledOptions] = fetchMock.mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      const body = calledOptions.body as FormData;
+      expect(body.get("consent_acknowledged")).toBe("true");
+    });
+
+    it("supports unwrapped { photo_url } response shape", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ photo_url: "/uploads/raw.png" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const file = new Blob(["binary"], { type: "image/png" });
+      const result = await uploadStudentPhoto("99", file);
+      expect(result).toEqual({ photoUrl: "/uploads/raw.png" });
+    });
+
+    it("throws Authentifizierung erforderlich when no session token", async () => {
+      // session-cache memoizes results across tests; reset before
+      // changing the underlying mock so the fresh null result wins.
+      const { clearSessionCache } = await import("./session-cache");
+      clearSessionCache();
+      mockedGetSession.mockResolvedValueOnce(null);
+      const file = new Blob(["binary"], { type: "image/jpeg" });
+
+      await expect(uploadStudentPhoto("42", file)).rejects.toThrow(
+        "Authentifizierung erforderlich",
+      );
+      // Must not even attempt to call fetch when auth is missing.
+      expect(fetchMock).not.toHaveBeenCalled();
+      // Restore default mock for subsequent tests.
+      clearSessionCache();
+    });
+
+    it("throws backend error text on non-OK response", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response("photos feature disabled", {
+          status: 403,
+        }),
+      );
+
+      const file = new Blob(["binary"], { type: "image/jpeg" });
+      await expect(uploadStudentPhoto("42", file)).rejects.toThrow(
+        "photos feature disabled",
+      );
+    });
+
+    it("falls back to generic message when error body is empty", async () => {
+      fetchMock.mockResolvedValueOnce(new Response("", { status: 500 }));
+
+      const file = new Blob(["binary"], { type: "image/jpeg" });
+      await expect(uploadStudentPhoto("42", file)).rejects.toThrow(
+        /Upload fehlgeschlagen \(HTTP 500\)/,
+      );
+    });
+  });
+
+  // ─── deleteStudentPhoto ────────────────────────────────────────────────
+  describe("deleteStudentPhoto", () => {
+    it("calls authFetch with DELETE method and bearer token", async () => {
+      mockedAuthFetch.mockResolvedValueOnce(undefined);
+
+      await deleteStudentPhoto("42");
+
+      expect(mockedAuthFetch).toHaveBeenCalledWith(
+        "/api/students/42/photo",
+        expect.objectContaining({
+          method: "DELETE",
+          token: expect.any(String),
+        }),
+      );
+    });
+
+    it("propagates authFetch errors so the caller can render them", async () => {
+      mockedAuthFetch.mockRejectedValueOnce(new Error("API error (403): nope"));
+
+      await expect(deleteStudentPhoto("42")).rejects.toThrow(
+        "API error (403): nope",
       );
     });
   });

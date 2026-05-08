@@ -753,5 +753,60 @@ describe("useGlobalSSE", () => {
       // Verify no caches were invalidated for unknown event type
       expect(vi.mocked(mutate)).not.toHaveBeenCalled();
     });
+
+    // tenant_settings_changed crosses origins (operator subdomain ↔ tenant
+    // subdomain) — BroadcastChannel can't deliver across origins, only SSE
+    // can. The hook dispatches a window event so TenantProvider (which owns
+    // serialised resolveTenant refetches) can respond without this hook
+    // importing tenant internals.
+    it("dispatches phoenix:tenant-settings-stale on tenant_settings_changed event", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      const dispatched: CustomEvent[] = [];
+      const handler = (e: Event) => {
+        dispatched.push(e as CustomEvent);
+      };
+      window.addEventListener("phoenix:tenant-settings-stale", handler);
+
+      onMessage?.({
+        type: "tenant_settings_changed" as never,
+        active_group_id: "",
+        data: { source: "tenant_photos_disabled" },
+        timestamp: new Date().toISOString(),
+      });
+
+      window.removeEventListener("phoenix:tenant-settings-stale", handler);
+
+      expect(dispatched).toHaveLength(1);
+      expect(dispatched[0]?.detail).toEqual({
+        source: "tenant_photos_disabled",
+      });
+    });
+
+    it("falls back to null source when tenant_settings_changed omits it", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      const dispatched: CustomEvent[] = [];
+      const handler = (e: Event) => {
+        dispatched.push(e as CustomEvent);
+      };
+      window.addEventListener("phoenix:tenant-settings-stale", handler);
+
+      onMessage?.({
+        type: "tenant_settings_changed" as never,
+        active_group_id: "",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      window.removeEventListener("phoenix:tenant-settings-stale", handler);
+
+      expect(dispatched).toHaveLength(1);
+      expect(dispatched[0]?.detail).toEqual({ source: null });
+    });
   });
 });

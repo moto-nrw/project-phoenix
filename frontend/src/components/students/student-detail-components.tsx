@@ -8,6 +8,8 @@ import { useMinuteClock } from "~/lib/pickup-helpers";
 import { getStudentTimeStatus } from "~/lib/student-time-status";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { Avatar } from "~/components/ui/avatar";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 
 // =============================================================================
 // ICONS - Reusable SVG icons
@@ -322,37 +324,60 @@ export function StudentDetailHeader({
     not_arrival_reason: todayArrivalNote ?? null,
   };
 
+  const fullName =
+    `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+    student.name ||
+    "Kind";
+
+  // Photo feature is per-tenant. When disabled the entire avatar slot is
+  // suppressed (including the initials fallback) so opt-out schools see
+  // the same header layout they had before the feature shipped.
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
+
   return (
     <div className="mb-6">
       <div className="flex items-end justify-between gap-4">
-        <div className="ml-6 flex-1">
-          <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-            {student.first_name} {student.second_name}
-          </h1>
-          {student.group_name && (
-            <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-              <GroupIcon className="h-4 w-4 text-gray-400" />
-              <span className="truncate">{student.group_name}</span>
-            </div>
-          )}
-          <TodayTimeStatusInlineRow
-            kind="arrival"
-            label="Heutige Ankunft"
-            plannedTime={todayArrivalPlannedTime}
-            actualTime={todayArrivalActualTime}
-            isException={isArrivalException}
-            note={isArrivalAbsent ? undefined : todayArrivalNote}
-            isAbsent={isArrivalAbsent}
-            absentReason={todayArrivalNote}
-          />
-          <TodayTimeStatusInlineRow
-            kind="pickup"
-            label="Heutige Abholung"
-            plannedTime={todayPickupPlannedTime}
-            actualTime={todayPickupActualTime}
-            isException={isPickupException}
-            note={todayPickupNote}
-          />
+        <div className="ml-6 flex flex-1 items-center gap-4">
+          {photosEnabled ? (
+            // Header avatar — image when consent + photo are present, brand
+            // gradient initials otherwise. xl size mirrors the detail page's
+            // h1 visual weight; on mobile the flex container collapses
+            // avatar+name onto one row already because of items-center.
+            <Avatar
+              imageUrl={student.photo_url ?? null}
+              name={fullName}
+              size="xl"
+            />
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+              {student.first_name} {student.second_name}
+            </h1>
+            {student.group_name && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                <GroupIcon className="h-4 w-4 text-gray-400" />
+                <span className="truncate">{student.group_name}</span>
+              </div>
+            )}
+            <TodayTimeStatusInlineRow
+              kind="arrival"
+              label="Heutige Ankunft"
+              plannedTime={todayArrivalPlannedTime}
+              actualTime={todayArrivalActualTime}
+              isException={isArrivalException}
+              note={isArrivalAbsent ? undefined : todayArrivalNote}
+              isAbsent={isArrivalAbsent}
+              absentReason={todayArrivalNote}
+            />
+            <TodayTimeStatusInlineRow
+              kind="pickup"
+              label="Heutige Abholung"
+              plannedTime={todayPickupPlannedTime}
+              actualTime={todayPickupActualTime}
+              isException={isPickupException}
+              note={todayPickupNote}
+            />
+          </div>
         </div>
         <div className="mr-4 flex-shrink-0 pb-3">
           <LocationBadge

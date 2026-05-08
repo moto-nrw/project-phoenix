@@ -8,7 +8,8 @@ type SSEEventType =
   | "activity_end"
   | "activity_update"
   | "dashboard_counts_changed"
-  | "arrival_schedule_changed";
+  | "arrival_schedule_changed"
+  | "tenant_settings_changed";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";

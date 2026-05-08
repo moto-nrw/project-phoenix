@@ -51,6 +51,13 @@ func (r *recordingBroadcaster) BroadcastToGroup(_ int64, _ string, event realtim
 	return nil
 }
 
+func (r *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.allCalls = append(r.allCalls, event)
+	return nil
+}
+
 func (r *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

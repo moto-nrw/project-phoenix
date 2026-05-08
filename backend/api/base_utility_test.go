@@ -5,12 +5,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -356,4 +359,197 @@ func adminClaimsForCallback() jwt.AppClaims {
 		permissions.ConfigManage,
 	)
 	return claims
+}
+
+// TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate locks in the
+// invariant that disabling operations.student_photos_enabled emits a single
+// student_updated event after the post-commit purge runs. Other open tabs
+// rely on this broadcast to invalidate cached photo_url values that point
+// at files the purge just deleted — without it, lists / detail slide-overs
+// / room views keep rendering the stale URLs and 404 on every avatar until
+// a manual reload.
+//
+// We register a fake SSE client on the real Hub (the type is concrete and
+// can't be mocked through an interface) and read events off its channel.
+// Empty subscribed-groups slice still receives BroadcastToAll events, which
+// is the path the post-commit closure uses.
+func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
+	db, serviceFactory := testutil.SetupAPITest(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	a := &API{
+		Services: serviceFactory,
+		Router:   chi.NewRouter(),
+		db:       db,
+		repos:    repoFactory,
+	}
+	initializeAPIResources(a, repoFactory, db, slog.Default())
+
+	// Subscribe a fake SSE client to the real Hub so we can observe
+	// BroadcastToAll without mocking. UserID/TenantID are arbitrary —
+	// BroadcastToAll fan-outs ignore both.
+	client := &realtime.Client{
+		Channel:          make(chan realtime.Event, 4),
+		UserID:           1,
+		SubscribedGroups: map[string]bool{},
+	}
+	a.Services.RealtimeHub.Register(client, 1, nil)
+	defer a.Services.RealtimeHub.Unregister(client)
+
+	router := testutil.NewTenantRouter(db)
+	router.Put("/values/{key}", a.Settings.SetValue())
+
+	// First, enable so PUT-false is a real disable transition (default is
+	// already false; set true→false to exercise the purge branch). The
+	// enable path now ALSO broadcasts student_updated (tenant_photos_enabled)
+	// so tabs that fetched students while photos were off invalidate their
+	// photo-stripped responses; verify that here before draining the
+	// channel for the disable assertion below.
+	enableReq := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled",
+		map[string]any{"value": true},
+		testutil.WithClaims(adminClaimsForCallback()),
+	)
+	enableRR := testutil.ExecuteRequest(router, enableReq)
+	require.Equal(t, http.StatusOK, enableRR.Code, "enable PUT must succeed")
+
+	enableDeadline := time.After(500 * time.Millisecond)
+	enableSawStudentUpdated := false
+	for !enableSawStudentUpdated {
+		select {
+		case ev := <-client.Channel:
+			if ev.Type != realtime.EventStudentUpdated {
+				continue
+			}
+			require.NotNil(t, ev.Data.Source,
+				"student_updated on enable must carry a source label")
+			assert.Equal(t, "tenant_photos_enabled", *ev.Data.Source,
+				"the enable-side broadcast must label its source so log review distinguishes it from the disable-side purge broadcast")
+			enableSawStudentUpdated = true
+		case <-enableDeadline:
+			t.Fatal("expected student_updated event after photo enable, none received within 500ms")
+		}
+	}
+	drainEvents(client.Channel)
+
+	disableReq := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled",
+		map[string]any{"value": false},
+		testutil.WithClaims(adminClaimsForCallback()),
+	)
+	disableRR := testutil.ExecuteRequest(router, disableReq)
+	require.Equal(t, http.StatusOK, disableRR.Code, "disable PUT must succeed")
+
+	// The post-commit closure broadcasts synchronously after the tx
+	// commits, but the channel send is non-blocking (buffered) — give it a
+	// short window to surface.
+	deadline := time.After(500 * time.Millisecond)
+	for {
+		select {
+		case ev := <-client.Channel:
+			if ev.Type == realtime.EventStudentUpdated {
+				assert.NotNil(t, ev.Data.Source, "student_updated must carry a source label")
+				if ev.Data.Source != nil {
+					assert.Equal(t, "tenant_photos_disabled", *ev.Data.Source,
+						"the post-purge broadcast must label its source so log review can spot it")
+				}
+				return
+			}
+		case <-deadline:
+			t.Fatal("expected student_updated event after photo purge, none received within 500ms")
+		}
+	}
+}
+
+// drainEvents non-blockingly empties any pending events on the channel.
+// Used between PUTs in the photo-disable broadcast test so we don't read
+// pre-existing events from the enable PUT and confuse them with the
+// purge-driven broadcast we're actually testing.
+func drainEvents(ch chan realtime.Event) {
+	for {
+		select {
+		case <-ch:
+		default:
+			return
+		}
+	}
+}
+
+// TestOnValueSetCallback_TenantSettingsChangedBroadcasts pins the cross-
+// origin sync contract for settings whose value travels through
+// /auth/tenant/resolve. Operator-side writes happen on a different origin
+// from the tenant tabs that need to react (operator.<domain> vs
+// <slug>.<domain>); the in-browser BroadcastChannel does not cross that
+// boundary, so we rely on this SSE event reaching every authenticated tab.
+//
+// Asserts the photo toggle emits a tenant_settings_changed event whose
+// Source labels which key changed, on both enable and disable PUT paths.
+func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
+	db, serviceFactory := testutil.SetupAPITest(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	a := &API{
+		Services: serviceFactory,
+		Router:   chi.NewRouter(),
+		db:       db,
+		repos:    repoFactory,
+	}
+	initializeAPIResources(a, repoFactory, db, slog.Default())
+
+	client := &realtime.Client{
+		Channel:          make(chan realtime.Event, 8),
+		UserID:           1,
+		SubscribedGroups: map[string]bool{},
+	}
+	a.Services.RealtimeHub.Register(client, 1, nil)
+	defer a.Services.RealtimeHub.Unregister(client)
+
+	router := testutil.NewTenantRouter(db)
+	router.Put("/values/{key}", a.Settings.SetValue())
+
+	// awaitTenantSettings drains events on the buffered channel until it
+	// finds a tenant_settings_changed for the expected key, or fails the
+	// test after a short window. The 500ms cap matches the existing photo-
+	// purge test; the post-commit closure runs synchronously after tx commit
+	// so the event is on the channel before this returns under any
+	// reasonable scheduler.
+	awaitTenantSettings := func(t *testing.T, expectedKey string) {
+		t.Helper()
+		deadline := time.After(500 * time.Millisecond)
+		for {
+			select {
+			case ev := <-client.Channel:
+				if ev.Type != realtime.EventTenantSettingsChanged {
+					continue
+				}
+				require.NotNil(t, ev.Data.Source,
+					"tenant_settings_changed must carry a Source label so log review can identify the key")
+				assert.Equal(t, expectedKey, *ev.Data.Source,
+					"Source must be the setting key the writer changed")
+				return
+			case <-deadline:
+				t.Fatalf("expected tenant_settings_changed event for %q within 500ms", expectedKey)
+			}
+		}
+	}
+
+	// 1. Enable photo feature → tenant_settings_changed with the photo key.
+	enableReq := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled",
+		map[string]any{"value": true},
+		testutil.WithClaims(adminClaimsForCallback()),
+	)
+	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(router, enableReq).Code)
+	awaitTenantSettings(t, configModel.KeyStudentPhotosEnabled)
+	drainEvents(client.Channel)
+
+	// 2. Disable photo feature → tenant_settings_changed (alongside the
+	//    student_updated post-purge broadcast asserted in the sibling test).
+	disableReq := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled",
+		map[string]any{"value": false},
+		testutil.WithClaims(adminClaimsForCallback()),
+	)
+	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(router, disableReq).Code)
+	awaitTenantSettings(t, configModel.KeyStudentPhotosEnabled)
+	drainEvents(client.Channel)
+
 }

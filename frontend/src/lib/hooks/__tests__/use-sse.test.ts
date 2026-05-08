@@ -221,6 +221,30 @@ describe("useSSE Hook", () => {
         { timeout: 500 },
       );
     });
+
+    it("should handle tenant_settings_changed as a named SSE event", async () => {
+      const onMessage = vi.fn();
+      renderHook(() => useSSE("/api/sse/events", { onMessage }));
+
+      await waitForEventSource();
+      mockEventSource?.triggerOpen();
+
+      const testEvent: SSEEvent = {
+        type: "tenant_settings_changed",
+        active_group_id: "",
+        data: { source: "operations.student_photos_enabled" },
+        timestamp: new Date().toISOString(),
+      };
+
+      mockEventSource?.triggerMessage(testEvent, "tenant_settings_changed");
+
+      await waitFor(
+        () => {
+          expect(onMessage).toHaveBeenCalledWith(testEvent);
+        },
+        { timeout: 500 },
+      );
+    });
   });
 
   describe("Reconnection Logic", () => {

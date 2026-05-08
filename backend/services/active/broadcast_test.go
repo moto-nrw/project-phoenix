@@ -26,6 +26,8 @@ type mockBroadcaster struct {
 
 func (m *mockBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error { return nil }
 
+func (m *mockBroadcaster) BroadcastToTenant(_ int64, _ realtime.Event) error { return nil }
+
 func (m *mockBroadcaster) BroadcastToAll(event realtime.Event) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

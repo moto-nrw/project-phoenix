@@ -58,6 +58,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_checkin_access",
+		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
+		"operations.student_photos_enabled",
 	}
 
 	for _, key := range expectedKeys {
@@ -533,6 +535,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"tracking.indicator_1", ""},
 		{"tracking.indicator_2", ""},
 		{"tracking.indicator_3", ""},
+		{"operations.student_photos_enabled", false},
 	}
 
 	for _, tc := range tests {
@@ -540,6 +543,21 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expectedDefault, def.Default, "setting %q default", tc.key)
 	}
+}
+
+// TestStudentPhotosSetting guards the photo-feature toggle: defaults to OFF so
+// no school surfaces photos until an admin opts in, sits in the operations tab
+// alongside other Datenverwaltung-affecting toggles, and uses config:update
+// (operational, not GDPR-scoped — consent itself is captured per student).
+func TestStudentPhotosSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyStudentPhotosEnabled)
+	require.NotNil(t, def, "operations.student_photos_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "must default to false — feature is off until admin opts in")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "kinder", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
 }
 
 func TestTrackingSettings_Types(t *testing.T) {

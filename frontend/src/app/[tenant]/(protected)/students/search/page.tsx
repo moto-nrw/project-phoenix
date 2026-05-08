@@ -818,6 +818,7 @@ function SearchPageContent() {
                       studentId={student.id}
                       firstName={student.first_name}
                       lastName={student.second_name}
+                      photoUrl={student.photo_url ?? null}
                       onClick={() =>
                         router.push(
                           `/students/${student.id}?from=${buildFromParam}`,

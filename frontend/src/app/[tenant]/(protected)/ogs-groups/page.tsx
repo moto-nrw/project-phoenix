@@ -59,6 +59,7 @@ import {
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { activeService } from "~/lib/active-api";
@@ -108,6 +109,9 @@ interface BackendStudentFromBFF {
   arrival_notes?: string;
   actual_arrival_time?: string;
   actual_pickup_time?: string;
+  // Authenticated photo URL (already rewritten by the backend response
+  // mapper from the raw /uploads path to /api/students/{id}/photo/...).
+  photo_url?: string;
 }
 
 // BFF response type for dashboard data
@@ -173,6 +177,9 @@ function mapStudentForOgsPage(
       arrival_notes: student.arrival_notes,
       actual_arrival_time: student.actual_arrival_time,
       actual_pickup_time: student.actual_pickup_time,
+      // Photo URL is forwarded as-is. Backend has already rewritten it
+      // to the authenticated /api/students/{id}/photo/{filename} proxy.
+      photo_url: student.photo_url,
     };
   }
 
@@ -200,6 +207,19 @@ function OGSGroupPageContent() {
   // it did before this feature landed.
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
+
+  // Photo feature flag — only the OGS-groups view has compact StudentCards
+  // (no Klasse / Gruppe rows in extraContent because the user is already
+  // inside a specific group). When the photo feature is on AND tracking
+  // indicators are configured, the right column (locationBadge +
+  // indicators) becomes taller than the left column (name + lastname +
+  // arrival + pickup), so the absolute Avatar at bottom-3 right-3 in
+  // StudentCard would visually overlap the indicator stack. We patch this
+  // ONLY here — Kindersuche and Aktuelle Aufsicht render Klasse + Gruppe
+  // rows that already provide enough natural left-column height. The patch
+  // is a hidden in-flow spacer added to extraContent below; StudentCard
+  // itself stays untouched.
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
 
   // Page-level school check-in/out mode. Toggle lives in the header; when
   // isActive, clicking a card toggles that student's attendance instead of
@@ -1230,22 +1250,26 @@ function OGSGroupPageContent() {
 
               const checkinState = deriveCheckinState(student.current_location);
               const studentIdStr = student.id.toString();
+              const isGroupCardCheckinMode =
+                isBinaryMode && schoolCheckin.isActive;
               return (
                 <StudentCard
                   key={student.id}
                   studentId={student.id}
                   firstName={student.first_name}
                   lastName={student.second_name}
+                  photoUrl={student.photo_url ?? null}
                   gradient={cardGradient}
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
                   }
-                  checkinMode={isBinaryMode && schoolCheckin.isActive}
+                  checkinMode={isGroupCardCheckinMode}
                   checkinState={checkinState}
                   isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
                   onCheckinClick={() =>
                     void schoolCheckin.toggle(studentIdStr, checkinState)
                   }
+                  useInlineHintAvatarRow={photosEnabled}
                   locationBadge={
                     <StudentPresenceBadge
                       student={{
@@ -1288,6 +1312,19 @@ function OGSGroupPageContent() {
                         }
                         now={now}
                       />
+                      {/* Check-in-only avatar-clearance spacer — in navigation
+                          mode this surface now opts into an in-flow bottom row
+                          (hint + avatar), so the card grows naturally. The
+                          spacer remains necessary only for check-in mode,
+                          where the hint disappears and the avatar still sits
+                          as an absolute overlay. aria-hidden keeps screen
+                          readers from announcing the empty box. */}
+                      {isGroupCardCheckinMode &&
+                      photosEnabled &&
+                      (swrStudentsData?.trackingIndicators?.labels.length ??
+                        0) > 0 ? (
+                        <div aria-hidden className="h-9" />
+                      ) : null}
                     </>
                   }
                   trackingIndicators={

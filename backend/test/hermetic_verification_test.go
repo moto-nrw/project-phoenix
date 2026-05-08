@@ -176,6 +176,9 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/schedule/attendance_sync_service_unit_test.go", // Uses fake repos for unit testing graceful-degradation branches
 		"services/schedule/timetable_cleanup_service_test.go",    // Uses failingAuditRepo mock for audit-write-failure rollback coverage (WP-B14)
 		"services/schedule/substitute_conflict_test.go",          // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
+		"realtime/hub_broadcast_to_tenant_test.go",               // Pure in-memory hub unit tests; int64 literals are fake tenant IDs, not DB rows
+		"api/students/response_helpers_test.go",                  // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
+		"api/students/photo_helpers_test.go",                     // Pure unit tests for stampPhotoConsent / ensurePhotoFeatureEnabled / removeStudentPhotoFile with stub SettingsService; int64 literals are fake JWT IDs
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {

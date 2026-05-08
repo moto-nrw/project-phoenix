@@ -152,6 +152,7 @@ export function useSSE(
           "activity_update",
           "dashboard_counts_changed",
           "arrival_schedule_changed",
+          "tenant_settings_changed",
         ];
 
         for (const eventType of eventTypes) {

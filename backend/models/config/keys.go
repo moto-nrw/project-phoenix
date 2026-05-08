@@ -78,6 +78,7 @@ const (
 	KeyExcusedClearMode               = "operations.excused_clear_mode"
 	KeyPresenceMode                   = "operations.presence_mode"
 	KeyWebCheckinAccess               = "attendance.web_checkin_access"
+	KeyStudentPhotosEnabled           = "operations.student_photos_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.

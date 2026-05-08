@@ -14,6 +14,20 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
+// Settings page now calls router.refresh() after save/reset for tenant-
+// resolve-affecting keys; jsdom tests don't mount the App-Router context
+// so we provide a stub that satisfies the invariant check.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: vi.fn(),
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+}));
+
 vi.mock("~/lib/settings-api", () => ({
   fetchSettingsSchema: () => mockFetchSchema(),
   setSettingValue: (_k: string, _v: unknown) => mockSetSettingValue(),

@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -831,3 +832,176 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 // NOTE: FindWithPerson, FindByGuardianEmail, and FindByGuardianPhone exist in the
 // implementation but are not exposed in the StudentRepository interface, so they
 // cannot be tested through the interface.
+
+// TestStudentRepository_PurgeAllPhotos pins the contract that the repo
+// returns the OLD photo_path values (the URLs the post-commit unlink needs)
+// and clears the photo_path column on the same rows in a single statement.
+//
+// The single-statement guarantee is what closes the race documented on
+// PurgeAllPhotos: the previous SELECT-then-UPDATE shape captured a snapshot
+// then cleared rows that were not in the snapshot, leaving any concurrently
+// uploaded file orphaned on disk. We can't reproduce true concurrency in a
+// hermetic unit test (would need a second connection coordinating with FOR
+// UPDATE locks), but we can lock down the basic contract — return-before-
+// clear and round-trip equivalence.
+func TestStudentRepository_PurgeAllPhotos(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Student
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns old urls and clears photo_path in one statement", func(t *testing.T) {
+		s1 := testpkg.CreateTestStudent(t, db, "Purge", "One", "1a")
+		s2 := testpkg.CreateTestStudent(t, db, "Purge", "Two", "1a")
+		s3 := testpkg.CreateTestStudent(t, db, "Purge", "Three", "1a")
+		defer cleanupStudentRecords(t, db, s1.ID, s2.ID, s3.ID)
+
+		// Seed photos on s1 and s2; leave s3 NULL so we also assert the
+		// purge does not touch rows that were already null.
+		url1 := "/uploads/student-photos/p1.jpg"
+		url2 := "/uploads/student-photos/p2.jpg"
+		setPhotoPath(t, db, s1.ID, &url1)
+		setPhotoPath(t, db, s2.ID, &url2)
+
+		urls, err := repo.PurgeAllPhotos(ctx)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{url1, url2}, urls,
+			"purge must return the OLD photo_path values for unlinking — "+
+				"a Postgres UPDATE … RETURNING returns post-update values "+
+				"by default (always NULL here), so this asserts the CTE "+
+				"join that surfaces the pre-image is in place")
+
+		// Both rows now NULL; s3 still NULL (untouched).
+		assert.Nil(t, getPhotoPath(t, db, s1.ID))
+		assert.Nil(t, getPhotoPath(t, db, s2.ID))
+		assert.Nil(t, getPhotoPath(t, db, s3.ID))
+	})
+
+	t.Run("returns nil when no photos are stored", func(t *testing.T) {
+		s := testpkg.CreateTestStudent(t, db, "Empty", "Purge", "1a")
+		defer cleanupStudentRecords(t, db, s.ID)
+
+		urls, err := repo.PurgeAllPhotos(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, urls, "no rows with photo_path → empty url list, no error")
+	})
+}
+
+// TestStudentRepository_LockPhotoFeature verifies that the per-tenant
+// advisory lock is actually visible to other transactions. Without this
+// observable serialization the in-tx feature-flag recheck on the upload
+// path would still race with a concurrent disable: the upload could
+// commit a fresh photo_path AFTER the disable's purge CTE captured
+// rows, leaving the file orphaned because the disable's post-commit
+// unlinks never saw it.
+//
+// We lock from a real *bun.Tx, then use pg_try_advisory_xact_lock from
+// a SECOND short-lived tx (separate connection) and assert it cannot
+// acquire the same key. After the first tx commits, a fresh attempt
+// must succeed — locks bound to the tenant id, not the connection.
+func TestStudentRepository_LockPhotoFeature(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Student
+	ctx := testpkg.TenantContext(1)
+
+	// First tx: take the lock, but DON'T commit yet — we want to observe
+	// it from a second tx while the first is still open.
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err, "begin tx 1")
+	holdCtx := modelBase.ContextWithTx(ctx, &tx)
+	require.NoError(t, repo.LockPhotoFeature(holdCtx),
+		"first tx must acquire the per-tenant advisory lock")
+
+	// Second tx on a separate connection: try_advisory_xact_lock must
+	// FAIL (return false) because the first tx holds the same key. We
+	// use a try-variant so the test doesn't deadlock if the lock isn't
+	// being acquired correctly — a buggy LockPhotoFeature that no-oped
+	// would let the try succeed and the assertion fail.
+	probeTx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err, "begin tx 2")
+	const lockClass int32 = 0x70686F74
+	var got bool
+	err = probeTx.NewRaw(`SELECT pg_try_advisory_xact_lock(?, ?)`, lockClass, int32(1)).Scan(ctx, &got)
+	require.NoError(t, err)
+	assert.False(t, got, "second tx must NOT be able to acquire the same per-tenant lock while tx 1 holds it")
+	require.NoError(t, probeTx.Rollback(), "rollback probe tx")
+
+	// Release the first tx's lock by rolling back.
+	require.NoError(t, tx.Rollback(), "rollback tx 1")
+
+	// After release, a fresh probe must acquire the lock cleanly.
+	probeTx2, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err, "begin tx 3")
+	defer func() { _ = probeTx2.Rollback() }()
+	err = probeTx2.NewRaw(`SELECT pg_try_advisory_xact_lock(?, ?)`, lockClass, int32(1)).Scan(ctx, &got)
+	require.NoError(t, err)
+	assert.True(t, got, "after the holding tx releases, the lock must be acquirable again")
+}
+
+// TestStudentRepository_FindByIDForUpdate locks down the basic contract:
+// the method returns the row fields and uses SELECT … FOR UPDATE so the
+// caller can re-validate state (consent, photo_path, …) under the same
+// row lock the next UPDATE will use. The lock-acquisition behavior is
+// validated by integration usage (concurrent tx ordering is hard to
+// observe deterministically in a unit test); here we just verify the
+// happy-path read and the not-found error.
+func TestStudentRepository_FindByIDForUpdate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Student
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns the locked row", func(t *testing.T) {
+		s := testpkg.CreateTestStudent(t, db, "Locked", "Read", "1a")
+		defer cleanupStudentRecords(t, db, s.ID)
+		url := "/uploads/student-photos/locked.jpg"
+		setPhotoPath(t, db, s.ID, &url)
+
+		fresh, err := repo.FindByIDForUpdate(ctx, s.ID)
+		require.NoError(t, err)
+		require.NotNil(t, fresh)
+		assert.Equal(t, s.ID, fresh.ID)
+		require.NotNil(t, fresh.PhotoPath)
+		assert.Equal(t, url, *fresh.PhotoPath,
+			"FOR UPDATE must return the latest committed state of the row, not a stale snapshot")
+	})
+
+	t.Run("returns error for missing row", func(t *testing.T) {
+		_, err := repo.FindByIDForUpdate(ctx, int64(999_999_999))
+		require.Error(t, err)
+	})
+}
+
+// setPhotoPath / getPhotoPath are tiny test fixtures to read/write the
+// photo_path column without going through repo methods that don't exist on
+// the public interface. They use the test tenant context so RLS doesn't
+// strip the writes.
+func setPhotoPath(t *testing.T, db *bun.DB, studentID int64, path *string) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	_, err := db.NewUpdate().
+		TableExpr("users.students").
+		Set("photo_path = ?", path).
+		Where("id = ?", studentID).
+		Exec(ctx)
+	require.NoError(t, err)
+}
+
+func getPhotoPath(t *testing.T, db *bun.DB, studentID int64) *string {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	var row struct {
+		PhotoPath *string `bun:"photo_path"`
+	}
+	err := db.NewSelect().
+		TableExpr("users.students").
+		Column("photo_path").
+		Where("id = ?", studentID).
+		Scan(ctx, &row)
+	require.NoError(t, err)
+	return row.PhotoPath
+}

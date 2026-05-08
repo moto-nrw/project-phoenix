@@ -30,6 +30,7 @@ import {
 } from "~/lib/date-helpers";
 import { formatFloor, getRoomCategoryColor } from "~/lib/room-helpers";
 import { createLogger } from "~/lib/logger";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { StudentsInRoomSection } from "./students-in-room-section";
 
 const logger = createLogger({ component: "RoomDetailContent" });
@@ -619,17 +620,30 @@ function SkeletonIconRow() {
   );
 }
 
-function SkeletonStudentRow() {
+function SkeletonStudentRow({ withAvatar }: { withAvatar: boolean }) {
   // Mirrors CompactStudentCard: full-width pill with name + meta line.
+  // When the per-tenant photo feature is on, also reserve the avatar
+  // slot (sm = 32px) so the populated row's content origin lines up
+  // with the skeleton — avoids a horizontal jump when data arrives.
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-      <SkeletonLine className="h-4 w-40" />
-      <SkeletonLine className="mt-2 h-3 w-24" />
+    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+      {withAvatar ? (
+        <div className="h-8 w-8 flex-shrink-0 animate-pulse rounded-full bg-gray-200" />
+      ) : null}
+      <div className="min-w-0 flex-1">
+        <SkeletonLine className="h-4 w-40" />
+        <SkeletonLine className="mt-2 h-3 w-24" />
+      </div>
     </div>
   );
 }
 
 function RoomDetailSkeleton() {
+  // Read the per-tenant photo flag once at the top of the skeleton so the
+  // child-rows below match the populated CompactStudentCard shape exactly
+  // (avatar slot reserved when the tenant has photos on; original tighter
+  // shape otherwise).
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
   return (
     <output
       aria-label="Raumdetails werden geladen"
@@ -659,9 +673,9 @@ function RoomDetailSkeleton() {
             <SkeletonLine className="h-7 w-32 rounded-lg" />
           </div>
           <div className="mt-4 flex flex-col gap-2">
-            <SkeletonStudentRow />
-            <SkeletonStudentRow />
-            <SkeletonStudentRow />
+            <SkeletonStudentRow withAvatar={photosEnabled} />
+            <SkeletonStudentRow withAvatar={photosEnabled} />
+            <SkeletonStudentRow withAvatar={photosEnabled} />
           </div>
         </SkeletonCardShell>
 
