@@ -3,6 +3,7 @@ package contract
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 )
@@ -177,8 +178,14 @@ func (s *State) Validate() error {
 	if s == nil {
 		return fmt.Errorf("state is nil")
 	}
+	if s.Version != StateVersion {
+		return fmt.Errorf("state.version must be %s", StateVersion)
+	}
 	if s.Runtime.BackendURL == "" {
 		return fmt.Errorf("state.runtime.backend_url is required")
+	}
+	if err := validateHTTPURL("state.runtime.backend_url", s.Runtime.BackendURL); err != nil {
+		return err
 	}
 	if s.Runtime.TenantDomain == "" {
 		return fmt.Errorf("state.runtime.tenant_domain is required")
@@ -204,29 +211,189 @@ func (s *State) Validate() error {
 	if s.World.Tenants.Primary.Slug == "" {
 		return fmt.Errorf("state.world.tenants.primary.slug is required")
 	}
-	if s.World.Actors.Admin.Email == "" {
-		return fmt.Errorf("state.world.actors.admin.email is required")
-	}
-	if s.World.Actors.Staff.Email == "" {
-		return fmt.Errorf("state.world.actors.staff.email is required")
-	}
-	if s.World.Devices.DefaultCheckin.Key == "" {
-		return fmt.Errorf("state.world.devices.default_checkin.key is required")
-	}
-	if s.World.Devices.DefaultCheckin.APIKey == "" {
-		return fmt.Errorf("state.world.devices.default_checkin.api_key is required")
-	}
-	if s.World.Devices.DefaultCheckin.PIN == "" {
-		return fmt.Errorf("state.world.devices.default_checkin.pin is required")
-	}
-	if s.Fixtures.Checkin.RFIDTag == "" {
-		return fmt.Errorf("state.fixtures.checkin.rfid_tag is required")
+	if err := validateTenant("state.world.tenants.primary", s.World.Tenants.Primary); err != nil {
+		return err
 	}
 	if s.Setup.Auth.RequiresSecondaryTenant && s.World.Tenants.Secondary == nil {
 		return fmt.Errorf("state.setup.auth.requires_secondary_tenant requires world.tenants.secondary")
 	}
+	if s.World.Tenants.Secondary != nil {
+		if err := validateTenant("state.world.tenants.secondary", *s.World.Tenants.Secondary); err != nil {
+			return err
+		}
+	}
+	if err := validateActor("state.world.actors.admin", s.World.Actors.Admin); err != nil {
+		return err
+	}
+	if err := validateActor("state.world.actors.staff", s.World.Actors.Staff); err != nil {
+		return err
+	}
+	if s.World.Actors.Operator != nil {
+		if s.World.Actors.Operator.Email == "" {
+			return fmt.Errorf("state.world.actors.operator.email is required")
+		}
+		if s.World.Actors.Operator.Password == "" {
+			return fmt.Errorf("state.world.actors.operator.password is required")
+		}
+	}
+	if err := validateDevice("state.world.devices.default_checkin", s.World.Devices.DefaultCheckin); err != nil {
+		return err
+	}
+	if err := validateStudentRef("state.fixtures.students.search_pair.primary", s.Fixtures.Students.SearchPair.Primary); err != nil {
+		return err
+	}
+	if err := validateStudentRef("state.fixtures.students.search_pair.secondary", s.Fixtures.Students.SearchPair.Secondary); err != nil {
+		return err
+	}
+	if err := validateStudentRef("state.fixtures.students.sick_present", s.Fixtures.Students.SickPresent); err != nil {
+		return err
+	}
+	if err := validateGroupRef("state.fixtures.groups.visible_pair.primary", s.Fixtures.Groups.VisiblePair.Primary); err != nil {
+		return err
+	}
+	if err := validateGroupRef("state.fixtures.groups.visible_pair.secondary", s.Fixtures.Groups.VisiblePair.Secondary); err != nil {
+		return err
+	}
+	if err := validateCheckinFixture("state.fixtures.checkin", s.Fixtures.Checkin); err != nil {
+		return err
+	}
 	if s.Setup.Auth.RequiresVerifiedSwitching && !s.Assertions.Switching.Verified {
 		return fmt.Errorf("state.setup.auth.requires_verified_switching requires assertions.switching.verified")
+	}
+	if s.Assertions.Switching.Verified {
+		if s.Assertions.Switching.LinkEmail == "" {
+			return fmt.Errorf("state.assertions.switching.link_email is required when switching is verified")
+		}
+		if s.Assertions.Switching.Actor == nil {
+			return fmt.Errorf("state.assertions.switching.actor is required when switching is verified")
+		}
+		if s.Assertions.Switching.Actor != nil {
+			if err := validateActor("state.assertions.switching.actor", *s.Assertions.Switching.Actor); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateHTTPURL(field, raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("%s must be a valid URL: %w", field, err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%s must use http or https", field)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("%s must include a host", field)
+	}
+	return nil
+}
+
+func validateTenant(field string, tenant Tenant) error {
+	if tenant.OrganizationID <= 0 {
+		return fmt.Errorf("%s.organization_id must be > 0", field)
+	}
+	if tenant.SchoolID <= 0 {
+		return fmt.Errorf("%s.school_id must be > 0", field)
+	}
+	if tenant.Slug == "" {
+		return fmt.Errorf("%s.slug is required", field)
+	}
+	if tenant.Name == "" {
+		return fmt.Errorf("%s.name is required", field)
+	}
+	return nil
+}
+
+func validateActor(field string, actor Actor) error {
+	if actor.Email == "" {
+		return fmt.Errorf("%s.email is required", field)
+	}
+	if actor.Password == "" {
+		return fmt.Errorf("%s.password is required", field)
+	}
+	if actor.DisplayName == "" {
+		return fmt.Errorf("%s.display_name is required", field)
+	}
+	if actor.Role == "" {
+		return fmt.Errorf("%s.role is required", field)
+	}
+	if actor.StaffID <= 0 {
+		return fmt.Errorf("%s.staff_id must be > 0", field)
+	}
+	return nil
+}
+
+func validateDevice(field string, device Device) error {
+	if device.Key == "" {
+		return fmt.Errorf("%s.key is required", field)
+	}
+	if device.APIKey == "" {
+		return fmt.Errorf("%s.api_key is required", field)
+	}
+	if device.PIN == "" {
+		return fmt.Errorf("%s.pin is required", field)
+	}
+	return nil
+}
+
+func validateStudentRef(field string, student StudentRef) error {
+	if student.ID <= 0 {
+		return fmt.Errorf("%s.id must be > 0", field)
+	}
+	if student.FirstName == "" {
+		return fmt.Errorf("%s.first_name is required", field)
+	}
+	if student.LastName == "" {
+		return fmt.Errorf("%s.last_name is required", field)
+	}
+	if student.GroupKey == "" {
+		return fmt.Errorf("%s.group_key is required", field)
+	}
+	if student.Class == "" {
+		return fmt.Errorf("%s.class is required", field)
+	}
+	return nil
+}
+
+func validateGroupRef(field string, group GroupRef) error {
+	if group.ID <= 0 {
+		return fmt.Errorf("%s.id must be > 0", field)
+	}
+	if group.Key == "" {
+		return fmt.Errorf("%s.key is required", field)
+	}
+	if group.DisplayName == "" {
+		return fmt.Errorf("%s.display_name is required", field)
+	}
+	return nil
+}
+
+func validateCheckinFixture(field string, fixture CheckinFixture) error {
+	if err := validateStudentRef(field+".student", fixture.Student); err != nil {
+		return err
+	}
+	if fixture.Room.ID <= 0 {
+		return fmt.Errorf("%s.room.id must be > 0", field)
+	}
+	if fixture.Room.Name == "" {
+		return fmt.Errorf("%s.room.name is required", field)
+	}
+	if fixture.Activity.ID <= 0 {
+		return fmt.Errorf("%s.activity.id must be > 0", field)
+	}
+	if fixture.Activity.Name == "" {
+		return fmt.Errorf("%s.activity.name is required", field)
+	}
+	if fixture.DeviceKey == "" {
+		return fmt.Errorf("%s.device_key is required", field)
+	}
+	if fixture.RFIDTag == "" {
+		return fmt.Errorf("%s.rfid_tag is required", field)
+	}
+	if err := validateActor(field+".supervisor", fixture.Supervisor); err != nil {
+		return err
 	}
 	return nil
 }

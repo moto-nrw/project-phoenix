@@ -10,7 +10,7 @@ pnpm e2e
 Dieser Befehl übernimmt alles:
 
 1. isolierte E2E-Infrastruktur starten (dedizierte `postgres`- + `backend`-Services)
-2. die kanonische Multi-Tenant-Welt in Go vorbereiten
+2. die kanonische Multi-Tenant-Welt (`e2e-multi-tenant`) in Go vorbereiten
 3. genau ein Artefakt schreiben: `backend/.e2e-state.json`
 4. das dedizierte Frontend auf `localtest.me` starten
 5. Playwright ausführen

@@ -20,7 +20,7 @@
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
     "knip": "knip",
-    "e2e": "cd ../backend && go run . e2e run --scenario e2e-multi-tenant"
+    "e2e": "cd ../backend && go run . e2e run"
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",

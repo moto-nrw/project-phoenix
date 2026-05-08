@@ -226,12 +226,251 @@ let cachedState: RawState | undefined;
 
 function loadState(): RawState {
   try {
-    return JSON.parse(readFileSync(E2E_STATE_PATH, "utf-8")) as RawState;
+    const state = JSON.parse(readFileSync(E2E_STATE_PATH, "utf-8")) as RawState;
+    validateRawState(state);
+    return state;
   } catch (err) {
     throw new Error(
       `Could not read ${E2E_STATE_PATH}. Run the canonical flow with \`cd frontend && pnpm e2e\` first.\n` +
         `Underlying error: ${err instanceof Error ? err.message : String(err)}`,
       { cause: err },
+    );
+  }
+}
+
+function assertNonEmpty(value: unknown, path: string): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`${path} must be a non-empty string`);
+  }
+}
+
+function assertPositiveInteger(
+  value: unknown,
+  path: string,
+): asserts value is number {
+  if (!Number.isInteger(value) || typeof value !== "number" || value <= 0) {
+    throw new Error(`${path} must be a positive integer`);
+  }
+}
+
+function assertBoolean(value: unknown, path: string): asserts value is boolean {
+  if (typeof value !== "boolean") {
+    throw new Error(`${path} must be a boolean`);
+  }
+}
+
+function assertHTTPURL(value: string, path: string): void {
+  const parsed = new URL(value);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${path} must use http or https`);
+  }
+  if (!parsed.host) {
+    throw new Error(`${path} must include a host`);
+  }
+}
+
+function validateTenant(path: string, tenant: RawTenant): void {
+  assertPositiveInteger(tenant.organization_id, `${path}.organization_id`);
+  assertPositiveInteger(tenant.school_id, `${path}.school_id`);
+  assertNonEmpty(tenant.slug, `${path}.slug`);
+  assertNonEmpty(tenant.name, `${path}.name`);
+}
+
+function validateActor(path: string, actor: RawActor): void {
+  assertNonEmpty(actor.email, `${path}.email`);
+  assertNonEmpty(actor.password, `${path}.password`);
+  assertNonEmpty(actor.display_name, `${path}.display_name`);
+  assertNonEmpty(actor.role, `${path}.role`);
+  assertPositiveInteger(actor.staff_id, `${path}.staff_id`);
+}
+
+function validateStudent(path: string, student: RawStudentRef): void {
+  assertPositiveInteger(student.id, `${path}.id`);
+  assertNonEmpty(student.first_name, `${path}.first_name`);
+  assertNonEmpty(student.last_name, `${path}.last_name`);
+  assertNonEmpty(student.group_key, `${path}.group_key`);
+  assertNonEmpty(student.class, `${path}.class`);
+}
+
+function validateGroup(path: string, group: RawGroupRef): void {
+  assertPositiveInteger(group.id, `${path}.id`);
+  assertNonEmpty(group.key, `${path}.key`);
+  assertNonEmpty(group.display_name, `${path}.display_name`);
+}
+
+function validateRawState(state: RawState): void {
+  assertNonEmpty(state.version, "state.version");
+  if (state.version !== "1") {
+    throw new Error(`state.version must be 1, got ${state.version}`);
+  }
+
+  assertNonEmpty(state.runtime.backend_url, "state.runtime.backend_url");
+  assertHTTPURL(state.runtime.backend_url, "state.runtime.backend_url");
+  assertNonEmpty(state.runtime.tenant_domain, "state.runtime.tenant_domain");
+  assertPositiveInteger(
+    state.runtime.frontend_port,
+    "state.runtime.frontend_port",
+  );
+  assertNonEmpty(
+    state.runtime.operator_hostname,
+    "state.runtime.operator_hostname",
+  );
+  assertNonEmpty(
+    state.runtime.nextauth_secret,
+    "state.runtime.nextauth_secret",
+  );
+  assertBoolean(state.runtime.auth_trust_host, "state.runtime.auth_trust_host");
+
+  assertNonEmpty(state.world.scenario.name, "state.world.scenario.name");
+  assertNonEmpty(state.world.scenario.mode, "state.world.scenario.mode");
+  if (state.world.scenario.name !== EXPECTED_E2E_SCENARIO) {
+    throw new Error(
+      `state.world.scenario.name must be ${EXPECTED_E2E_SCENARIO}`,
+    );
+  }
+  if (state.world.scenario.mode !== EXPECTED_E2E_SCENARIO_MODE) {
+    throw new Error(
+      `state.world.scenario.mode must be ${EXPECTED_E2E_SCENARIO_MODE}`,
+    );
+  }
+
+  validateTenant("state.world.tenants.primary", state.world.tenants.primary);
+  if (state.setup.auth.requires_secondary_tenant) {
+    if (!state.world.tenants.secondary) {
+      throw new Error(
+        "state.setup.auth.requires_secondary_tenant requires state.world.tenants.secondary",
+      );
+    }
+    validateTenant(
+      "state.world.tenants.secondary",
+      state.world.tenants.secondary,
+    );
+  }
+
+  validateActor("state.world.actors.admin", state.world.actors.admin);
+  validateActor("state.world.actors.staff", state.world.actors.staff);
+  if (state.world.actors.operator) {
+    assertNonEmpty(
+      state.world.actors.operator.email,
+      "state.world.actors.operator.email",
+    );
+    assertNonEmpty(
+      state.world.actors.operator.password,
+      "state.world.actors.operator.password",
+    );
+  }
+
+  assertNonEmpty(
+    state.world.devices.default_checkin.key,
+    "state.world.devices.default_checkin.key",
+  );
+  assertNonEmpty(
+    state.world.devices.default_checkin.api_key,
+    "state.world.devices.default_checkin.api_key",
+  );
+  assertNonEmpty(
+    state.world.devices.default_checkin.pin,
+    "state.world.devices.default_checkin.pin",
+  );
+
+  if (
+    !Array.isArray(state.setup.auth.roles) ||
+    state.setup.auth.roles.length === 0
+  ) {
+    throw new Error("state.setup.auth.roles must be a non-empty array");
+  }
+  assertBoolean(
+    state.setup.auth.requires_secondary_tenant,
+    "state.setup.auth.requires_secondary_tenant",
+  );
+  assertBoolean(
+    state.setup.auth.requires_verified_switching,
+    "state.setup.auth.requires_verified_switching",
+  );
+
+  validateStudent(
+    "state.fixtures.students.search_pair.primary",
+    state.fixtures.students.search_pair.primary,
+  );
+  validateStudent(
+    "state.fixtures.students.search_pair.secondary",
+    state.fixtures.students.search_pair.secondary,
+  );
+  validateStudent(
+    "state.fixtures.students.sick_present",
+    state.fixtures.students.sick_present,
+  );
+  validateGroup(
+    "state.fixtures.groups.visible_pair.primary",
+    state.fixtures.groups.visible_pair.primary,
+  );
+  validateGroup(
+    "state.fixtures.groups.visible_pair.secondary",
+    state.fixtures.groups.visible_pair.secondary,
+  );
+
+  validateStudent(
+    "state.fixtures.checkin.student",
+    state.fixtures.checkin.student,
+  );
+  assertPositiveInteger(
+    state.fixtures.checkin.room.id,
+    "state.fixtures.checkin.room.id",
+  );
+  assertNonEmpty(
+    state.fixtures.checkin.room.name,
+    "state.fixtures.checkin.room.name",
+  );
+  assertPositiveInteger(
+    state.fixtures.checkin.activity.id,
+    "state.fixtures.checkin.activity.id",
+  );
+  assertNonEmpty(
+    state.fixtures.checkin.activity.name,
+    "state.fixtures.checkin.activity.name",
+  );
+  assertNonEmpty(
+    state.fixtures.checkin.device_key,
+    "state.fixtures.checkin.device_key",
+  );
+  assertNonEmpty(
+    state.fixtures.checkin.rfid_tag,
+    "state.fixtures.checkin.rfid_tag",
+  );
+  validateActor(
+    "state.fixtures.checkin.supervisor",
+    state.fixtures.checkin.supervisor,
+  );
+
+  assertBoolean(
+    state.assertions.switching.required,
+    "state.assertions.switching.required",
+  );
+  assertBoolean(
+    state.assertions.switching.verified,
+    "state.assertions.switching.verified",
+  );
+  if (
+    state.setup.auth.requires_verified_switching &&
+    !state.assertions.switching.verified
+  ) {
+    throw new Error(
+      "state.setup.auth.requires_verified_switching requires state.assertions.switching.verified",
+    );
+  }
+  if (state.assertions.switching.verified) {
+    assertNonEmpty(
+      state.assertions.switching.link_email,
+      "state.assertions.switching.link_email",
+    );
+    if (!state.assertions.switching.actor) {
+      throw new Error(
+        "state.assertions.switching.actor is required when switching is verified",
+      );
+    }
+    validateActor(
+      "state.assertions.switching.actor",
+      state.assertions.switching.actor,
     );
   }
 }
