@@ -7,6 +7,13 @@ const FRONTEND_DIR = resolve(HERE, "..");
 const REPO_ROOT = resolve(FRONTEND_DIR, "..");
 
 export const E2E_STATE_PATH = resolve(REPO_ROOT, "backend", ".e2e-state.json");
+export const EXPECTED_E2E_SCENARIO = "e2e-multi-tenant";
+export const EXPECTED_E2E_SCENARIO_MODE = "multi-tenant";
+
+type Scenario = {
+  name: string;
+  mode: string;
+};
 
 type RawTenant = {
   slug: string;
@@ -222,7 +229,7 @@ function loadState(): RawState {
     return JSON.parse(readFileSync(E2E_STATE_PATH, "utf-8")) as RawState;
   } catch (err) {
     throw new Error(
-      `Could not read ${E2E_STATE_PATH}. Run \`go run . e2e run\` for the full flow or \`go run . e2e up\` for a long-lived local harness from backend/ first.\n` +
+      `Could not read ${E2E_STATE_PATH}. Run \`cd frontend && pnpm e2e\` for the full flow or \`cd frontend && pnpm e2e:up\` for a long-lived local harness first.\n` +
         `Underlying error: ${err instanceof Error ? err.message : String(err)}`,
       { cause: err },
     );
@@ -340,6 +347,10 @@ export function getAppUrls(): AppUrls {
   };
 }
 
+export function getScenario(): Scenario {
+  return { ...getRawState().world.scenario };
+}
+
 export function getBackendBaseURL(): string {
   return getRawState().runtime.backend_url;
 }
@@ -352,7 +363,7 @@ export function requireSecondaryTenant(): Tenant {
   const tenant = getRawState().world.tenants.secondary;
   if (!tenant) {
     throw new Error(
-      "e2e state secondary tenant is missing. Re-run `go run . e2e up` or `go run . e2e run` from backend/.",
+      "e2e state secondary tenant is missing. Re-run `cd frontend && pnpm e2e:up` or `cd frontend && pnpm e2e`.",
     );
   }
   return mapTenant(tenant);
@@ -411,6 +422,7 @@ export type {
   AuthSetup,
   CheckinFixture,
   Device,
+  Scenario,
   GroupVisibilityProbe,
   GroupPair,
   RoomRef,

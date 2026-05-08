@@ -275,6 +275,41 @@ func TestApplyScenarioDefaults_E2E_PreservesExplicitStatePath(t *testing.T) {
 	assert.Equal(t, "custom-state.json", opts.StatePath)
 }
 
+func TestE2EWorkflow_OnlyContainsScenarioPreparationSteps(t *testing.T) {
+	seeder := NewSeeder("http://localhost:8080", false, SeedOptions{
+		Scenario: SeedScenarioE2E,
+	})
+
+	workflow := e2eWorkflow(seeder)
+
+	require.Equal(t, "e2e-prepare", workflow.Name)
+	assert.Equal(t, []string{
+		"Server health check",
+		"Login",
+		"Tenant bootstrap",
+		"Stammdaten seeding",
+		"Second tenant provisioning",
+		"Provisioning E2E check-in fixture",
+		"Writing E2E state",
+	}, workflowStepNames(workflow))
+
+	assert.False(t, workflowHasStep(workflow, "Marking students sick"))
+	assert.False(t, workflowHasStep(workflow, "Seeding privacy consents"))
+	assert.False(t, workflowHasStep(workflow, "Seeding announcements"))
+	assert.False(t, workflowHasStep(workflow, "Seeding suggestions"))
+	assert.False(t, workflowHasStep(workflow, "Writing seed state"))
+	assert.False(t, workflowHasStep(workflow, "Generating simulator config"))
+	assert.False(t, workflowHasStep(workflow, "Printing summary"))
+}
+
+func workflowStepNames(workflow Workflow) []string {
+	names := make([]string, 0, len(workflow.Steps))
+	for _, step := range workflow.Steps {
+		names = append(names, step.Name())
+	}
+	return names
+}
+
 func TestIdentityForScenario_E2E(t *testing.T) {
 	definition := scenarios.MustLookup(SeedScenarioE2E)
 	identity, err := IdentityForScenario(SeedScenarioE2E)

@@ -3,8 +3,8 @@
 Die E2E-Suite hat genau einen offiziellen Laufweg:
 
 ```bash
-cd backend
-go run . e2e run --scenario e2e-multi-tenant
+cd frontend
+pnpm e2e
 ```
 
 Dieser Befehl übernimmt alles:
@@ -16,15 +16,16 @@ Dieser Befehl übernimmt alles:
 5. Playwright ausführen
 6. Logs/Artefakte erfassen und wieder aufräumen
 
-CI ruft denselben Befehl auf.
+CI ruft denselben Befehl auf. `pnpm e2e` ist nur der stabile Einstiegspunkt;
+die Orchestrierung bleibt im Go-Harness.
 
 ## Manuell testen
 
 Für manuelles Testen auf der separaten E2E-Welt:
 
 ```bash
-cd backend
-go run . e2e up --scenario e2e-multi-tenant
+cd frontend
+pnpm e2e:up
 ```
 
 Der Befehl startet dieselbe isolierte Infrastruktur und hält sie offen, bis du

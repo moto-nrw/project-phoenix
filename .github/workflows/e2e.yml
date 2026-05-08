@@ -2,9 +2,10 @@ name: E2E (Playwright)
 
 # Reusable workflow that runs the canonical Go-owned E2E harness. CI prepares
 # dependencies, exports ephemeral secrets into the process environment, then
-# invokes exactly the same `go run . e2e run` command that developers use
-# locally. The Go orchestrator owns infra startup, world preparation, frontend
-# boot, Playwright execution, teardown, and backend-log capture.
+# invokes exactly the same `pnpm e2e` command that developers use locally.
+# That package script delegates to the Go orchestrator, which owns infra
+# startup, world preparation, frontend boot, Playwright execution, teardown,
+# and backend-log capture.
 
 on:
   workflow_call:
@@ -90,8 +91,8 @@ jobs:
       - name: Run canonical E2E flow
         env:
           CI: "true"
-        working-directory: backend
-        run: go run . e2e run --scenario e2e-multi-tenant
+        working-directory: frontend
+        run: pnpm e2e
 
       - name: Upload Playwright report
         if: failure()

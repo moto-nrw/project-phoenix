@@ -4,12 +4,15 @@ import { fileURLToPath } from "node:url";
 import {
   getAdminActor,
   getAuthSetup,
+  getScenario,
   getPrimaryTenant,
   getStaffActor,
   isTenantSwitchVerified,
   requireSecondaryTenant,
   tenantOrigin,
   type Actor,
+  EXPECTED_E2E_SCENARIO,
+  EXPECTED_E2E_SCENARIO_MODE,
 } from "./state";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -100,7 +103,14 @@ export function getAuthSetupContract(): AuthSetupContract {
 }
 
 export function verifyHarnessState(): void {
+  verifyScenarioContract();
   verifyAuthSetup();
+}
+
+function verifyScenarioContract(): void {
+  const scenario = getScenario();
+  expect(scenario.name).toBe(EXPECTED_E2E_SCENARIO);
+  expect(scenario.mode).toBe(EXPECTED_E2E_SCENARIO_MODE);
 }
 
 function verifyAuthSetup(): void {

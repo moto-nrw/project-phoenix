@@ -221,10 +221,6 @@ func e2eWorkflow(seeder *Seeder) Workflow {
 		operatorLoginStep{},
 		bootstrapTenantStep{seeder: seeder},
 		seedMasterDataStep{seeder: seeder},
-		markStudentsSickStep{},
-		seedPrivacyConsentsStep{},
-		seedAnnouncementsStep{},
-		seedSuggestionsStep{},
 	}
 
 	if seeder.options.SecondTenant != nil {
@@ -233,7 +229,6 @@ func e2eWorkflow(seeder *Seeder) Workflow {
 
 	steps = append(steps, provisionE2ECheckinStep{seeder: seeder})
 	steps = append(steps, writeE2EStateStep{seeder: seeder})
-	steps = append(steps, printSummaryStep{seeder: seeder})
 
 	return Workflow{
 		Name:  "e2e-prepare",
