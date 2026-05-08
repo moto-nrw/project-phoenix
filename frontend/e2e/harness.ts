@@ -3,11 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import {
-  E2E_DEFAULT_BACKEND_URL,
-  E2E_DEFAULT_FRONTEND_PORT,
-  E2E_DEFAULT_TENANT_DOMAIN,
-} from "./contract.generated";
+import { getE2ERuntime, type E2ERuntimeConfig } from "./contract";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = resolve(HERE, "..");
@@ -15,7 +11,6 @@ const REPO_ROOT = resolve(FRONTEND_DIR, "..");
 const COMPOSE_FILE = resolve(REPO_ROOT, "docker-compose.example.yml");
 const ROOT_ENV_FILE = resolve(REPO_ROOT, ".env");
 const MANIFEST_PATH = resolve(REPO_ROOT, "backend", ".e2e-manifest.json");
-const FRONTEND_URL = `http://localhost:${E2E_DEFAULT_FRONTEND_PORT}`;
 
 function requireFile(path: string, hint: string): void {
   if (existsSync(path)) {
@@ -96,7 +91,11 @@ function syncManifestPermissions(): void {
   ]);
 }
 
-export function prepareHarness(): void {
+function frontendURL(runtime: E2ERuntimeConfig): string {
+  return `http://localhost:${runtime.frontend_port}`;
+}
+
+export function prepareHarness(): E2ERuntimeConfig {
   requireFile(
     ROOT_ENV_FILE,
     "Create it from .env.example before running the canonical E2E harness.",
@@ -135,23 +134,24 @@ export function prepareHarness(): void {
   ]);
 
   syncManifestPermissions();
+  return getE2ERuntime();
 }
 
-function startFrontendServer(): ChildProcess {
+function startFrontendServer(runtime: E2ERuntimeConfig): ChildProcess {
   console.log("Starting isolated E2E frontend...");
   return spawn(
     "pnpm",
-    ["run", "dev", "--port", String(E2E_DEFAULT_FRONTEND_PORT)],
+    ["run", "dev", "--port", String(runtime.frontend_port)],
     {
       cwd: FRONTEND_DIR,
       env: {
         ...process.env,
-        PORT: String(E2E_DEFAULT_FRONTEND_PORT),
-        NEXT_PUBLIC_API_URL: E2E_DEFAULT_BACKEND_URL,
-        API_URL: E2E_DEFAULT_BACKEND_URL,
-        TENANT_DOMAIN: E2E_DEFAULT_TENANT_DOMAIN,
-        NEXT_PUBLIC_TENANT_DOMAIN: E2E_DEFAULT_TENANT_DOMAIN,
-        NEXT_PUBLIC_OPERATOR_HOSTNAME: `operator.${E2E_DEFAULT_TENANT_DOMAIN}:${E2E_DEFAULT_FRONTEND_PORT}`,
+        PORT: String(runtime.frontend_port),
+        NEXT_PUBLIC_API_URL: runtime.backend_url,
+        API_URL: runtime.backend_url,
+        TENANT_DOMAIN: runtime.tenant_domain,
+        NEXT_PUBLIC_TENANT_DOMAIN: runtime.tenant_domain,
+        NEXT_PUBLIC_OPERATOR_HOSTNAME: runtime.operator_hostname,
       },
       stdio: "inherit",
       detached: process.platform !== "win32",
@@ -159,7 +159,10 @@ function startFrontendServer(): ChildProcess {
   );
 }
 
-async function waitForFrontendReady(server: ChildProcess): Promise<void> {
+async function waitForFrontendReady(
+  runtime: E2ERuntimeConfig,
+  server: ChildProcess,
+): Promise<void> {
   const deadline = Date.now() + 120_000;
 
   while (Date.now() < deadline) {
@@ -170,7 +173,7 @@ async function waitForFrontendReady(server: ChildProcess): Promise<void> {
     }
 
     try {
-      const response = await fetch(FRONTEND_URL, {
+      const response = await fetch(frontendURL(runtime), {
         signal: AbortSignal.timeout(5_000),
       });
       if (response.ok || response.status < 500) {
@@ -184,7 +187,7 @@ async function waitForFrontendReady(server: ChildProcess): Promise<void> {
   }
 
   throw new Error(
-    `frontend dev server did not become ready at ${FRONTEND_URL}`,
+    `frontend dev server did not become ready at ${frontendURL(runtime)}`,
   );
 }
 
@@ -230,11 +233,11 @@ async function stopFrontendServer(server: ChildProcess): Promise<void> {
 }
 
 export async function startHarness(): Promise<() => Promise<void>> {
-  prepareHarness();
-  const server = startFrontendServer();
+  const runtime = prepareHarness();
+  const server = startFrontendServer(runtime);
 
   try {
-    await waitForFrontendReady(server);
+    await waitForFrontendReady(runtime, server);
   } catch (error) {
     await stopFrontendServer(server);
     teardownHarness();

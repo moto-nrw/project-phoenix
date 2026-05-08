@@ -20,9 +20,6 @@ export const E2E_SCENARIO_MODE_SINGLE_TENANT = %q as const;
 export const E2E_SCENARIO_MODE_MULTI_TENANT = %q as const;
 export const E2E_SETUP_ROLE_ADMIN = %q as const;
 export const E2E_SETUP_ROLE_STAFF = %q as const;
-export const E2E_DEFAULT_BACKEND_URL = %q as const;
-export const E2E_DEFAULT_TENANT_DOMAIN = %q as const;
-export const E2E_DEFAULT_FRONTEND_PORT = %d as const;
 
 export const e2eRuntimeConfigSchema = z.object({
   backend_url: z.string().min(1),
@@ -163,6 +160,7 @@ export const e2eManifestSchema = z.object({
   fixtures: z.object({
     students: z.object({
       search_pair: e2eStudentPairSchema,
+      present_ready: e2eStudentRefSchema,
     }),
     groups: z.object({
       visible_pair: e2eGroupPairSchema,
@@ -178,8 +176,5 @@ export type E2EManifest = z.infer<typeof e2eManifestSchema>;
 		scenarios.ModeMultiTenant,
 		scenarios.SetupRoleAdmin,
 		scenarios.SetupRoleStaff,
-		DefaultBackendURL,
-		DefaultTenantDomain,
-		DefaultFrontendPort,
 	)
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -203,6 +204,10 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	// Get current visit
 	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), studentID)
 	if err != nil {
+		if errors.Is(err, activeSvc.ErrVisitNotFound) {
+			common.Respond(w, r, http.StatusOK, nil, "Student has no current visit")
+			return
+		}
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}

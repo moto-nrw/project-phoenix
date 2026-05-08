@@ -34,10 +34,11 @@ func (o *PrepareOptions) normalize() {
 // manifest contract consumed by Playwright.
 func Prepare(ctx context.Context, options PrepareOptions) error {
 	options.normalize()
-	identity, err := seedapi.IdentityForScenario(options.Scenario)
-	if err != nil {
-		return err
+	definition, ok := scenarios.Lookup(options.Scenario)
+	if !ok {
+		return fmt.Errorf("unknown e2e scenario %q", options.Scenario)
 	}
+	identity := definition.Identity
 	configureOperatorEnv(identity)
 
 	migrations.Reset()
@@ -45,7 +46,7 @@ func Prepare(ctx context.Context, options PrepareOptions) error {
 	seeder := seedapi.NewSeeder(options.URL, options.Verbose, seedapi.SeedOptions{
 		Scenario: options.Scenario,
 	})
-	if _, err = seeder.Seed(ctx, identity.OperatorEmail, identity.OperatorPassword, identity.StaffPIN); err != nil {
+	if _, err := seeder.Seed(ctx, identity.OperatorEmail, identity.OperatorPassword, identity.StaffPIN); err != nil {
 		return fmt.Errorf("seed e2e scenario %q: %w", options.Scenario, err)
 	}
 
@@ -53,7 +54,7 @@ func Prepare(ctx context.Context, options PrepareOptions) error {
 	return nil
 }
 
-func configureOperatorEnv(identity seedapi.E2EIdentity) {
+func configureOperatorEnv(identity scenarios.Identity) {
 	_ = os.Setenv("OPERATOR_EMAIL", identity.OperatorEmail)
 	_ = os.Setenv("OPERATOR_PASSWORD", identity.OperatorPassword)
 	_ = os.Setenv("OPERATOR_DISPLAY_NAME", identity.OperatorDisplayName)

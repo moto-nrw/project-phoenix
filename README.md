@@ -104,7 +104,9 @@ To match production cookie behavior in dev (switch tenants without re-login), op
 2. Run `sudo ./scripts/setup-e2e-hosts.sh` once to add `*.localtest.me` entries to `/etc/hosts` (needed for offline use; online, `localtest.me` resolves to `127.0.0.1` via public DNS).
 3. Access tenants at `{slug}.localtest.me:3000` instead of `{slug}.localhost:3000`.
 
-The Playwright E2E suite always uses `localtest.me` (overridden inside `frontend/playwright.config.ts`) because the tenant-switch spec needs cross-subdomain cookie sharing — independent of your dev `.env`.
+The Playwright E2E suite always uses `localtest.me` from its Go-owned E2E
+manifest because the tenant-switch spec needs cross-subdomain cookie sharing
+independent of your dev `.env`.
 
 ---
 

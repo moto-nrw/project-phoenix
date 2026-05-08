@@ -20,10 +20,11 @@ pnpm run e2e
 `pnpm run e2e` is the one supported command for both local use and CI.
 Playwright's `globalSetup` owns the canonical harness lifecycle: it brings
 up the E2E Docker stack from `../docker-compose.example.yml`, runs
-`go run main.go e2e prepare`, starts the dedicated Next.js dev server with
-the E2E-only backend/tenant wiring, and returns the teardown that stops both
-frontend and backend afterwards. The run never mutates checked-in source
-files. The only required local prerequisite is a valid root `.env`.
+`go run main.go e2e prepare`, reads the freshly-written Go manifest for
+runtime wiring, starts the dedicated Next.js dev server from that manifest,
+and returns the teardown that stops both frontend and backend afterwards.
+The run never mutates checked-in source files. The only required local
+prerequisite is a valid root `.env`.
 
 The HTML report opens automatically on failure; otherwise: `pnpm exec playwright show-report`.
 
@@ -44,14 +45,14 @@ e2e/
 
 The flow is:
 
-1. **Playwright global setup** starts the isolated Docker stack, runs `go run main.go e2e prepare`, then starts the dedicated E2E frontend only after the backend world is ready.
+1. **Playwright global setup** starts the isolated Docker stack, runs `go run main.go e2e prepare`, reads the resulting manifest runtime, then starts the dedicated E2E frontend only after the backend world is ready.
 2. **Go-owned E2E prepare command** resets the isolated DB, seeds the deterministic multi-tenant world, and writes one manifest: `backend/.e2e-manifest.json`.
 3. **Manifest contract** includes scenario data, harness runtime (`backend_url`, `tenant_domain`, `frontend_port`, operator host), and an explicit Go-owned `setup.auth` contract that tells Playwright what the auth setup requires.
 4. **Setup project** reads that manifest, verifies the declared `setup.auth` preconditions, signs in as each role, and saves the resulting browser `storageState` under `e2e/.auth/`.
 5. **Contract layer** is split on purpose: `contract.generated.ts` is a checked-in artifact generated from the Go manifest contract, and `contract.ts` only parses that schema and builds tenant URLs.
 6. **Auth layer** (`auth.ts` + `auth.setup.ts`) owns browser login, readiness checks, and `storageState`.
 7. **API bridge** (`api.ts`) derives backend Bearer tokens from the setup-written browser session via `/api/auth/token`, so UI auth and API auth cannot drift apart.
-8. **Fixtures** stay focused: `fixtures.ts` re-exposes typed scenario data, ready-to-use session-backed auth contexts, and the small reusable helpers that keep raw check-in/setup plumbing out of specs.
+8. **Fixtures** stay focused: `fixtures.ts` re-exposes typed scenario data, ready-to-use session-backed auth contexts, and thin reusable helpers. Stateful E2E situations such as "student already present" are provisioned by Go and shipped through the manifest instead of being assembled ad hoc in Playwright.
 9. **Cross-role tests** (e.g. "admin creates X, staff sees X") use the `adminPage` / `staffPage` fixtures from `fixtures.ts`, which spawn fresh contexts backed by the same storageState files.
 
 ## Fixtures
@@ -85,10 +86,11 @@ test("admin creates a group, staff sees it", async ({
 | ------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `tenantSwitchScenario`    | Multi-tenant switch data: primary/secondary tenants plus canonical actor display name.                         |
 | `studentSearchScenario`   | Seeded search/filter pair with stable expected names.                                                          |
+| `presentReadyStudent`     | Go-provisioned student fixture that is already checked in when the suite starts.                               |
 | `groupVisibilityScenario` | Seeded visibility pair with stable expected group names.                                                       |
 | `checkinScenario`         | Seeded RFID/check-in data: student, room, activity, RFID tag, device, supervisor.                              |
 | `checkinDevice`           | Canonical seeded device credentials for raw IoT auth-path HTTP tests.                                          |
-| `checkinHarness`          | High-level check-in/presence helper: canonical scan payload, current-visit lookup, isolated RFID prep/cleanup. |
+| `checkinHarness`          | Thin check-in helper: canonical scan call plus current-visit lookup against the stable backend contract.       |
 | `app`                     | Tenant URL builder (`app.primary(...)`, `app.secondary(...)`, `app.tenant(...)`).                              |
 | `authenticatedPage`       | Project default `page`, already logged in as that project's role.                                              |
 | `backendApi`              | Raw backend API context with only `baseURL` set, for unauthenticated/negative cases.                           |
@@ -98,7 +100,7 @@ test("admin creates a group, staff sees it", async ({
 | `adminPage`               | Fresh context as the admin actor, regardless of project.                                                       |
 | `staffPage`               | Fresh context as the staff actor, regardless of project.                                                       |
 
-For HTTP-only specs (no browser — e.g. `iot-api.spec.ts`, `checkin.spec.ts`, the API halves of CRUD tests) use `apiTest` / `apiExpect` from `../fixtures`. Same Playwright `test` and `expect`, just re-exported under different names so every spec file goes through `fixtures.ts` and picks up the shared API fixtures. For check-in flows, prefer `checkinHarness` over raw `/rfid`, `/current-visit`, or `/api/iot/checkin` setup code inside the spec body.
+For HTTP-only specs (no browser — e.g. `iot-api.spec.ts`, `checkin.spec.ts`, the API halves of CRUD tests) use `apiTest` / `apiExpect` from `../fixtures`. Same Playwright `test` and `expect`, just re-exported under different names so every spec file goes through `fixtures.ts` and picks up the shared API fixtures. For check-in flows, prefer `checkinHarness` over raw `/current-visit` or `/api/iot/checkin` calls inside the spec body; if a spec needs a student already in a browser-visible present state, use the Go-provisioned `presentReadyStudent` fixture instead of manufacturing that state in Playwright.
 
 ```typescript
 import { apiTest as test, apiExpect as expect } from "../fixtures";
@@ -121,8 +123,8 @@ only reads it and builds URLs. `auth.setup.ts` owns browser login and session
 materialization.
 `api.ts` turns that browser session into backend API auth when fixtures need
 HTTP contexts. `fixtures.ts` exposes seeded data, ready-to-use auth contexts,
-and the small shared helpers that keep repeated check-in plumbing out of spec
-bodies. The Go seeder remains the only machine-readable scenario contract.
+and thin shared helpers, while Go owns the machine-readable scenarios and any
+prepared runtime states such as the `presentReadyStudent` fixture.
 Do not hardcode emails, passwords, tenant slugs, room names, activity names,
 API keys, RFID tags, or "first seeded student" assumptions in specs.
 Day-to-day spec code should stay inside the fixtures from `fixtures.ts`.

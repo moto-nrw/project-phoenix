@@ -77,8 +77,8 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		// No visit should return error or empty
-		assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"data":null`)
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
@@ -101,8 +101,8 @@ func TestGetStudentCurrentVisit_Extended(t *testing.T) {
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		// The handler may return 500 (internal error) or 200 with null when no visit
-		assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"data":null`)
 	})
 }
 

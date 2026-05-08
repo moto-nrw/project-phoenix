@@ -2,24 +2,31 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 )
 
-const e2eScenarioCheckinRFIDTag = "E2EFE110001"
-
 type e2eCheckinProvision struct {
 	studentID         int64
+	studentRFIDTag    string
+	presentStudentID  int64
+	presentRFIDTag    string
 	roomID            int64
 	activityID        int64
 	supervisorStaffID int64
 	deviceAPIKey      string
-	rfidTag           string
 }
 
 func (s *Seeder) provisionE2ECheckinFixture(ctx context.Context, rt *Runtime) error {
-	provision, err := s.resolveE2ECheckinProvision(rt)
+	definition, ok := scenarios.Lookup(s.options.Scenario)
+	if !ok {
+		return fmt.Errorf("unknown e2e scenario %q", s.options.Scenario)
+	}
+
+	provision, err := s.resolveE2ECheckinProvision(rt, definition)
 	if err != nil {
 		return err
 	}
@@ -44,18 +51,62 @@ func (s *Seeder) provisionE2ECheckinFixture(ctx context.Context, rt *Runtime) er
 
 	assignPath := fmt.Sprintf("/api/students/%d/rfid", provision.studentID)
 	if _, err := deviceClient.PostWithHeaders(assignPath, map[string]any{
-		"rfid_tag": provision.rfidTag,
+		"rfid_tag": provision.studentRFIDTag,
 	}, map[string]string{
 		"X-Staff-PIN": rt.StaffPIN,
 	}); err != nil {
 		return fmt.Errorf("assign e2e RFID tag: %w", err)
 	}
 
-	rt.FixedSeeder.studentRFID[provision.studentID] = provision.rfidTag
+	presentAssignPath := fmt.Sprintf("/api/students/%d/rfid", provision.presentStudentID)
+	if _, err := deviceClient.PostWithHeaders(presentAssignPath, map[string]any{
+		"rfid_tag": provision.presentRFIDTag,
+	}, map[string]string{
+		"X-Staff-PIN": rt.StaffPIN,
+	}); err != nil {
+		return fmt.Errorf("assign present-ready E2E RFID tag: %w", err)
+	}
+
+	checkinRaw, err := deviceClient.PostWithHeaders("/api/iot/checkin", map[string]any{
+		"student_rfid": provision.presentRFIDTag,
+		"action":       "checkin",
+		"room_id":      provision.roomID,
+	}, map[string]string{
+		"X-Staff-PIN": rt.StaffPIN,
+	})
+	if err != nil {
+		return fmt.Errorf("prepare present-ready e2e student: %w", err)
+	}
+
+	var checkinResp struct {
+		Data struct {
+			StudentID int64  `json:"student_id"`
+			Action    string `json:"action"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(checkinRaw, &checkinResp); err != nil {
+		return fmt.Errorf("parse present-ready e2e checkin response: %w", err)
+	}
+	if checkinResp.Data.StudentID != provision.presentStudentID {
+		return fmt.Errorf(
+			"prepare present-ready e2e student: expected student %d, got %d",
+			provision.presentStudentID,
+			checkinResp.Data.StudentID,
+		)
+	}
+	if checkinResp.Data.Action != "checked_in" {
+		return fmt.Errorf(
+			"prepare present-ready e2e student: expected checked_in action, got %q",
+			checkinResp.Data.Action,
+		)
+	}
+
+	rt.FixedSeeder.studentRFID[provision.studentID] = provision.studentRFIDTag
+	rt.FixedSeeder.studentRFID[provision.presentStudentID] = provision.presentRFIDTag
 	return nil
 }
 
-func (s *Seeder) resolveE2ECheckinProvision(rt *Runtime) (e2eCheckinProvision, error) {
+func (s *Seeder) resolveE2ECheckinProvision(rt *Runtime, definition scenarios.Definition) (e2eCheckinProvision, error) {
 	if rt == nil || rt.FixedSeeder == nil {
 		return e2eCheckinProvision{}, fmt.Errorf("e2e checkin fixture requires fixed seeder state")
 	}
@@ -66,32 +117,42 @@ func (s *Seeder) resolveE2ECheckinProvision(rt *Runtime) (e2eCheckinProvision, e
 		return e2eCheckinProvision{}, fmt.Errorf("e2e checkin fixture requires staff PIN")
 	}
 
-	studentID, err := lookupSeededStudentID(rt.FixedSeeder, e2eScenarioCheckinStudent)
+	studentID, err := lookupSeededStudentID(rt.FixedSeeder, definition.Fixtures.Checkin.Student)
+	if err != nil {
+		return e2eCheckinProvision{}, err
+	}
+	presentStudentID, err := lookupSeededStudentID(
+		rt.FixedSeeder,
+		definition.Fixtures.Students.PresentReady.Student,
+	)
 	if err != nil {
 		return e2eCheckinProvision{}, err
 	}
 
-	roomID, ok := rt.FixedSeeder.roomIDs[e2eScenarioCheckinRoomName]
+	roomName := definition.Fixtures.Checkin.RoomName
+	roomID, ok := rt.FixedSeeder.roomIDs[roomName]
 	if !ok || roomID <= 0 {
 		return e2eCheckinProvision{}, fmt.Errorf(
 			`e2e checkin fixture missing room %q`,
-			e2eScenarioCheckinRoomName,
+			roomName,
 		)
 	}
 
-	activityID, ok := rt.FixedSeeder.activityIDs[e2eScenarioCheckinActivityName]
+	activityName := definition.Fixtures.Checkin.ActivityName
+	activityID, ok := rt.FixedSeeder.activityIDs[activityName]
 	if !ok || activityID <= 0 {
 		return e2eCheckinProvision{}, fmt.Errorf(
 			`e2e checkin fixture missing activity %q`,
-			e2eScenarioCheckinActivityName,
+			activityName,
 		)
 	}
 
-	deviceAPIKey, ok := rt.FixedSeeder.deviceKeys[e2eScenarioCheckinDeviceKey]
+	deviceKey := definition.Fixtures.Checkin.DeviceKey
+	deviceAPIKey, ok := rt.FixedSeeder.deviceKeys[deviceKey]
 	if !ok || deviceAPIKey == "" {
 		return e2eCheckinProvision{}, fmt.Errorf(
 			"e2e checkin fixture missing API key for %q",
-			e2eScenarioCheckinDeviceKey,
+			deviceKey,
 		)
 	}
 
@@ -106,15 +167,17 @@ func (s *Seeder) resolveE2ECheckinProvision(rt *Runtime) (e2eCheckinProvision, e
 
 	return e2eCheckinProvision{
 		studentID:         studentID,
+		studentRFIDTag:    definition.Fixtures.Checkin.RFIDTag,
+		presentStudentID:  presentStudentID,
+		presentRFIDTag:    definition.Fixtures.Students.PresentReady.RFIDTag,
 		roomID:            roomID,
 		activityID:        activityID,
 		supervisorStaffID: supervisorStaffID,
 		deviceAPIKey:      deviceAPIKey,
-		rfidTag:           e2eScenarioCheckinRFIDTag,
 	}, nil
 }
 
-func lookupSeededStudentID(fs *FixedSeeder, ref namedStudentRef) (int64, error) {
+func lookupSeededStudentID(fs *FixedSeeder, ref scenarios.StudentNameRef) (int64, error) {
 	if fs == nil {
 		return 0, fmt.Errorf("e2e checkin fixture missing fixed seeder")
 	}

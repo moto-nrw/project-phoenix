@@ -11,7 +11,7 @@ import (
 
 const (
 	ManifestPath        = ".e2e-manifest.json"
-	ManifestVersion     = "5"
+	ManifestVersion     = "6"
 	DefaultBackendURL   = "http://localhost:8081"
 	DefaultTenantDomain = "localtest.me"
 	DefaultFrontendPort = 3030
@@ -102,7 +102,8 @@ type Fixtures struct {
 }
 
 type StudentFixtures struct {
-	SearchPair StudentPair `json:"search_pair"`
+	SearchPair   StudentPair `json:"search_pair"`
+	PresentReady StudentRef  `json:"present_ready"`
 }
 
 type StudentPair struct {

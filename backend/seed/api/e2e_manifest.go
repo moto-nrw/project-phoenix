@@ -33,20 +33,20 @@ func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	staffActor, err := resolveE2EStaffActor(rt.FixedSeeder)
+	staffActor, err := resolveE2EStaffActor(rt.FixedSeeder, scenarioDefinition)
 	if err != nil {
 		return nil, err
 	}
-	fixtures, err := buildE2EFixtures(rt.FixedSeeder, adminActor)
+	fixtures, err := buildE2EFixtures(rt.FixedSeeder, adminActor, scenarioDefinition)
 	if err != nil {
 		return nil, err
 	}
 
-	deviceAPIKey, ok := rt.FixedSeeder.deviceKeys[e2eScenarioCheckinDeviceKey]
+	deviceAPIKey, ok := rt.FixedSeeder.deviceKeys[scenarioDefinition.Fixtures.Checkin.DeviceKey]
 	if !ok || deviceAPIKey == "" {
 		return nil, fmt.Errorf(
 			"cannot build e2e manifest: device %q missing API key",
-			e2eScenarioCheckinDeviceKey,
+			scenarioDefinition.Fixtures.Checkin.DeviceKey,
 		)
 	}
 
@@ -82,7 +82,7 @@ func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
 		},
 		Devices: contract.Devices{
 			DefaultCheckin: contract.Device{
-				Key:    e2eScenarioCheckinDeviceKey,
+				Key:    scenarioDefinition.Fixtures.Checkin.DeviceKey,
 				APIKey: deviceAPIKey,
 				PIN:    rt.StaffPIN,
 			},
@@ -116,51 +116,58 @@ func resolveE2EAdminActor(fs *FixedSeeder, secondTenant *SeedStateSecondTenant) 
 	return actorFromStaffCredential(fs, adminCred, "admin")
 }
 
-func resolveE2EStaffActor(fs *FixedSeeder) (contract.Actor, error) {
-	staffCred, ok := staffCredentialByEmail(fs, e2eScenarioStaffEmail)
+func resolveE2EStaffActor(fs *FixedSeeder, definition scenarios.Definition) (contract.Actor, error) {
+	staffEmail := definition.Fixtures.StaffEmail
+	staffCred, ok := staffCredentialByEmail(fs, staffEmail)
 	if !ok {
 		return contract.Actor{}, fmt.Errorf(
 			"cannot build e2e manifest: scenario staff account %q is not present in fixed seeder output",
-			e2eScenarioStaffEmail,
+			staffEmail,
 		)
 	}
 	return actorFromStaffCredential(fs, staffCred, "user")
 }
 
-func buildE2EFixtures(fs *FixedSeeder, adminActor contract.Actor) (contract.Fixtures, error) {
-	searchPrimary, err := studentRefByName(fs, e2eScenarioSearchStudentPrimary)
+func buildE2EFixtures(fs *FixedSeeder, adminActor contract.Actor, definition scenarios.Definition) (contract.Fixtures, error) {
+	searchPrimary, err := studentRefByName(fs, definition.Fixtures.Students.SearchPairPrimary)
 	if err != nil {
 		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
 	}
-	searchSecondary, err := studentRefByName(fs, e2eScenarioSearchStudentSecondary)
+	searchSecondary, err := studentRefByName(fs, definition.Fixtures.Students.SearchPairSecondary)
 	if err != nil {
 		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
 	}
-	groupPrimary, err := groupRefByKey(fs, e2eScenarioVisibleGroupKeyA)
+	presentReady, err := studentRefByName(fs, definition.Fixtures.Students.PresentReady.Student)
 	if err != nil {
 		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
 	}
-	groupSecondary, err := groupRefByKey(fs, e2eScenarioVisibleGroupKeyB)
+	groupPrimary, err := groupRefByKey(fs, definition.Fixtures.Groups.VisiblePrimaryKey)
 	if err != nil {
 		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
 	}
-	checkinStudent, err := studentRefByName(fs, e2eScenarioCheckinStudent)
+	groupSecondary, err := groupRefByKey(fs, definition.Fixtures.Groups.VisibleSecondaryKey)
+	if err != nil {
+		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
+	}
+	checkinStudent, err := studentRefByName(fs, definition.Fixtures.Checkin.Student)
 	if err != nil {
 		return contract.Fixtures{}, fmt.Errorf("cannot build e2e manifest: %w", err)
 	}
 
-	checkinRoomID, ok := fs.roomIDs[e2eScenarioCheckinRoomName]
+	checkinRoomName := definition.Fixtures.Checkin.RoomName
+	checkinRoomID, ok := fs.roomIDs[checkinRoomName]
 	if !ok || checkinRoomID <= 0 {
 		return contract.Fixtures{}, fmt.Errorf(
 			`cannot build e2e manifest: room %q missing from fixed seeder output`,
-			e2eScenarioCheckinRoomName,
+			checkinRoomName,
 		)
 	}
-	checkinActivityID, ok := fs.activityIDs[e2eScenarioCheckinActivityName]
+	checkinActivityName := definition.Fixtures.Checkin.ActivityName
+	checkinActivityID, ok := fs.activityIDs[checkinActivityName]
 	if !ok || checkinActivityID <= 0 {
 		return contract.Fixtures{}, fmt.Errorf(
 			`cannot build e2e manifest: activity %q missing from fixed seeder output`,
-			e2eScenarioCheckinActivityName,
+			checkinActivityName,
 		)
 	}
 	checkinRFID, ok := fs.studentRFID[checkinStudent.ID]
@@ -174,6 +181,7 @@ func buildE2EFixtures(fs *FixedSeeder, adminActor contract.Actor) (contract.Fixt
 				Primary:   searchPrimary,
 				Secondary: searchSecondary,
 			},
+			PresentReady: presentReady,
 		},
 		Groups: contract.GroupFixtures{
 			VisiblePair: contract.GroupPair{
@@ -183,9 +191,9 @@ func buildE2EFixtures(fs *FixedSeeder, adminActor contract.Actor) (contract.Fixt
 		},
 		Checkin: contract.CheckinFixture{
 			Student:    checkinStudent,
-			Room:       contract.RoomRef{ID: checkinRoomID, Name: e2eScenarioCheckinRoomName},
-			Activity:   contract.ActivityRef{ID: checkinActivityID, Name: e2eScenarioCheckinActivityName},
-			DeviceKey:  e2eScenarioCheckinDeviceKey,
+			Room:       contract.RoomRef{ID: checkinRoomID, Name: checkinRoomName},
+			Activity:   contract.ActivityRef{ID: checkinActivityID, Name: checkinActivityName},
+			DeviceKey:  definition.Fixtures.Checkin.DeviceKey,
 			RFIDTag:    checkinRFID,
 			Supervisor: adminActor,
 		},
@@ -239,7 +247,7 @@ func actorFromStaffCredential(fs *FixedSeeder, cred StaffCredentials, role strin
 	}, nil
 }
 
-func studentRefByName(fs *FixedSeeder, ref namedStudentRef) (contract.StudentRef, error) {
+func studentRefByName(fs *FixedSeeder, ref scenarios.StudentNameRef) (contract.StudentRef, error) {
 	if fs == nil {
 		return contract.StudentRef{}, fmt.Errorf("fixed seeder is nil")
 	}
@@ -260,7 +268,7 @@ func studentRefByName(fs *FixedSeeder, ref namedStudentRef) (contract.StudentRef
 	}, nil
 }
 
-func demoStudentByName(ref namedStudentRef) (DemoStudent, error) {
+func demoStudentByName(ref scenarios.StudentNameRef) (DemoStudent, error) {
 	for _, student := range DemoStudents {
 		if student.FirstName == ref.FirstName && student.LastName == ref.LastName {
 			return student, nil

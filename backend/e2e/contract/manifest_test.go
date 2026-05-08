@@ -96,6 +96,13 @@ func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
 						Class:     "Klasse 1a",
 					},
 				},
+				PresentReady: StudentRef{
+					ID:        102,
+					FirstName: "Leon",
+					LastName:  "Koch",
+					GroupKey:  "sternengruppe",
+					Class:     "Klasse 1a",
+				},
 			},
 			Groups: GroupFixtures{
 				VisiblePair: GroupPair{
@@ -147,6 +154,7 @@ func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
 	assert.Equal(t, "1234", loaded.Devices.DefaultCheckin.PIN)
 	assert.Equal(t, "E2EFE110001", loaded.Fixtures.Checkin.RFIDTag)
 	assert.Equal(t, "Felix", loaded.Fixtures.Checkin.Student.FirstName)
+	assert.Equal(t, "Leon", loaded.Fixtures.Students.PresentReady.FirstName)
 	assert.Equal(t, "Hausaufgaben", loaded.Fixtures.Checkin.Activity.Name)
 	assert.Equal(t, "Bärengruppe", loaded.Fixtures.Groups.VisiblePair.Primary.DisplayName)
 }

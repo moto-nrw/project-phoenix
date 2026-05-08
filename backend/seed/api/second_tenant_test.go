@@ -263,8 +263,8 @@ func secondTenantMock(t *testing.T, opts secondTenantMockOpts) *httptest.Server 
 func secondTenantTestRuntime(t *testing.T, srv *httptest.Server, opts *SecondTenantOptions) (*Runtime, *Seeder) {
 	t.Helper()
 	// StaffPassword is required by the post-link verification step to
-	// log in as opts.LinkEmail. Real callers always set it via
-	// scripts/e2e.sh; tests must mirror that.
+	// log in as opts.LinkEmail. The canonical E2E scenario always injects
+	// it through the Go-owned scenario defaults; tests must mirror that.
 	seeder := NewSeeder(srv.URL, false, SeedOptions{
 		SecondTenant:  opts,
 		StaffPassword: "Test1234%",

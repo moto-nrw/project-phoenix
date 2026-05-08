@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	contract "github.com/moto-nrw/project-phoenix/e2e/contract"
+	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -218,6 +219,7 @@ func TestNewSeeder(t *testing.T) {
 }
 
 func TestNewSeeder_WithOptions(t *testing.T) {
+	definition := scenarios.MustLookup(SeedScenarioE2E)
 	opts := SeedOptions{
 		Scenario:      SeedScenarioE2E,
 		TenantSlug:    "my-school",
@@ -230,34 +232,35 @@ func TestNewSeeder_WithOptions(t *testing.T) {
 	assert.Equal(t, "MyPass1!", s.options.StaffPassword)
 	assert.Equal(t, "admin@test.com", s.options.AdminEmail)
 	require.NotNil(t, s.options.SecondTenant)
-	assert.Equal(t, e2eScenarioSecondTenantSlug, s.options.SecondTenant.Slug)
-	assert.Equal(t, e2eScenarioSecondTenantName, s.options.SecondTenant.Name)
-	assert.Equal(t, e2eScenarioSecondAdminEmail, s.options.SecondTenant.AdminEmail)
+	assert.Equal(t, definition.Seed.SecondTenant.Slug, s.options.SecondTenant.Slug)
+	assert.Equal(t, definition.Seed.SecondTenant.Name, s.options.SecondTenant.Name)
+	assert.Equal(t, definition.Seed.SecondTenant.AdminEmail, s.options.SecondTenant.AdminEmail)
 	assert.Equal(t, "MyPass1!", s.options.SecondTenant.AdminPassword)
-	assert.Equal(t, e2eScenarioLinkEmail, s.options.SecondTenant.LinkEmail)
+	assert.Equal(t, definition.Seed.SecondTenant.LinkEmail, s.options.SecondTenant.LinkEmail)
 	assert.NoError(t, s.optionsErr)
 }
 
 func TestApplyScenarioDefaults_E2E(t *testing.T) {
+	definition := scenarios.MustLookup(SeedScenarioE2E)
 	opts := SeedOptions{Scenario: SeedScenarioE2E}
 
 	err := ApplyScenarioDefaults(&opts)
 	require.NoError(t, err)
 
-	assert.Equal(t, e2eScenarioTenantSlug, opts.TenantSlug)
+	assert.Equal(t, definition.Seed.TenantSlug, opts.TenantSlug)
 	assert.Equal(t, contract.ManifestPath, opts.StatePath)
-	assert.Equal(t, e2eScenarioStaffPassword, opts.StaffPassword)
-	assert.Equal(t, e2eScenarioBootstrapAdminEmail, opts.AdminEmail)
+	assert.Equal(t, definition.Seed.StaffPassword, opts.StaffPassword)
+	assert.Equal(t, definition.Seed.BootstrapAdminEmail, opts.AdminEmail)
 	assert.Equal(t, contract.DefaultBackendURL, opts.E2ERuntime.BackendURL)
 	assert.Equal(t, contract.DefaultTenantDomain, opts.E2ERuntime.TenantDomain)
 	assert.Equal(t, contract.DefaultFrontendPort, opts.E2ERuntime.FrontendPort)
 	assert.Equal(t, "operator.localtest.me:3030", opts.E2ERuntime.OperatorHostname)
 	require.NotNil(t, opts.SecondTenant)
-	assert.Equal(t, e2eScenarioSecondTenantSlug, opts.SecondTenant.Slug)
-	assert.Equal(t, e2eScenarioSecondTenantName, opts.SecondTenant.Name)
-	assert.Equal(t, e2eScenarioSecondAdminEmail, opts.SecondTenant.AdminEmail)
-	assert.Equal(t, e2eScenarioStaffPassword, opts.SecondTenant.AdminPassword)
-	assert.Equal(t, e2eScenarioLinkEmail, opts.SecondTenant.LinkEmail)
+	assert.Equal(t, definition.Seed.SecondTenant.Slug, opts.SecondTenant.Slug)
+	assert.Equal(t, definition.Seed.SecondTenant.Name, opts.SecondTenant.Name)
+	assert.Equal(t, definition.Seed.SecondTenant.AdminEmail, opts.SecondTenant.AdminEmail)
+	assert.Equal(t, definition.Seed.StaffPassword, opts.SecondTenant.AdminPassword)
+	assert.Equal(t, definition.Seed.SecondTenant.LinkEmail, opts.SecondTenant.LinkEmail)
 }
 
 func TestApplyScenarioDefaults_E2E_PreservesExplicitStatePath(t *testing.T) {
@@ -273,13 +276,14 @@ func TestApplyScenarioDefaults_E2E_PreservesExplicitStatePath(t *testing.T) {
 }
 
 func TestIdentityForScenario_E2E(t *testing.T) {
+	definition := scenarios.MustLookup(SeedScenarioE2E)
 	identity, err := IdentityForScenario(SeedScenarioE2E)
 	require.NoError(t, err)
 
-	assert.Equal(t, e2eScenarioOperatorEmail, identity.OperatorEmail)
-	assert.Equal(t, e2eScenarioOperatorPassword, identity.OperatorPassword)
-	assert.Equal(t, e2eScenarioOperatorDisplayName, identity.OperatorDisplayName)
-	assert.Equal(t, e2eScenarioStaffPIN, identity.StaffPIN)
+	assert.Equal(t, definition.Identity.OperatorEmail, identity.OperatorEmail)
+	assert.Equal(t, definition.Identity.OperatorPassword, identity.OperatorPassword)
+	assert.Equal(t, definition.Identity.OperatorDisplayName, identity.OperatorDisplayName)
+	assert.Equal(t, definition.Identity.StaffPIN, identity.StaffPIN)
 }
 
 func TestIdentityForScenario_UnknownFails(t *testing.T) {
@@ -290,6 +294,7 @@ func TestIdentityForScenario_UnknownFails(t *testing.T) {
 }
 
 func TestBuildE2EManifest(t *testing.T) {
+	definition := scenarios.MustLookup(SeedScenarioE2E)
 	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E, E2ERuntime: contract.DefaultRuntime()}}
 	rt := &Runtime{
 		OperatorEmail:    "operator@e2e.local",
@@ -318,12 +323,13 @@ func TestBuildE2EManifest(t *testing.T) {
 	rt.FixedSeeder.staffIDs["Julia Klein"] = 21
 	rt.FixedSeeder.studentIDs["Felix Schneider"] = 100
 	rt.FixedSeeder.studentIDs["Emma Meyer"] = 101
+	rt.FixedSeeder.studentIDs["Leon Koch"] = 102
 	rt.FixedSeeder.roomIDs["OGS-Raum 1"] = 10
 	rt.FixedSeeder.activityIDs["Hausaufgaben"] = 20
 	rt.FixedSeeder.groupIDs["sternengruppe"] = 30
 	rt.FixedSeeder.groupIDs["bärengruppe"] = 40
 	rt.FixedSeeder.deviceKeys[DemoDevices[0].DeviceID] = "device-key-123"
-	rt.FixedSeeder.studentRFID[100] = e2eScenarioCheckinRFIDTag
+	rt.FixedSeeder.studentRFID[100] = definition.Fixtures.Checkin.RFIDTag
 
 	e2e, err := s.buildE2EManifest(rt)
 	require.NoError(t, err)
@@ -352,18 +358,20 @@ func TestBuildE2EManifest(t *testing.T) {
 	assert.Equal(t, "device-key-123", e2e.Devices.DefaultCheckin.APIKey)
 	assert.Equal(t, "1234", e2e.Devices.DefaultCheckin.PIN)
 	assert.Equal(t, "demo-device-001", e2e.Fixtures.Checkin.DeviceKey)
-	assert.Equal(t, e2eScenarioCheckinRFIDTag, e2e.Fixtures.Checkin.RFIDTag)
+	assert.Equal(t, definition.Fixtures.Checkin.RFIDTag, e2e.Fixtures.Checkin.RFIDTag)
 	assert.Equal(t, "Hausaufgaben", e2e.Fixtures.Checkin.Activity.Name)
 	assert.Equal(t, "OGS-Raum 1", e2e.Fixtures.Checkin.Room.Name)
 	assert.Equal(t, int64(11), e2e.Fixtures.Checkin.Supervisor.StaffID)
 	assert.Equal(t, "Felix", e2e.Fixtures.Students.SearchPair.Primary.FirstName)
 	assert.Equal(t, "Emma", e2e.Fixtures.Students.SearchPair.Secondary.FirstName)
+	assert.Equal(t, "Leon", e2e.Fixtures.Students.PresentReady.FirstName)
 	assert.Equal(t, "sternengruppe", e2e.Fixtures.Groups.VisiblePair.Primary.Key)
 	assert.Equal(t, "Sternengruppe", e2e.Fixtures.Groups.VisiblePair.Primary.DisplayName)
 	assert.Equal(t, "bärengruppe", e2e.Fixtures.Groups.VisiblePair.Secondary.Key)
 }
 
 func TestBuildE2EManifest_SwitchingActorMustBeAdmin(t *testing.T) {
+	definition := scenarios.MustLookup(SeedScenarioE2E)
 	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E}}
 	rt := &Runtime{
 		OperatorEmail:    "operator@e2e.local",
@@ -392,12 +400,13 @@ func TestBuildE2EManifest_SwitchingActorMustBeAdmin(t *testing.T) {
 	rt.FixedSeeder.staffIDs["Julia Klein"] = 21
 	rt.FixedSeeder.studentIDs["Felix Schneider"] = 1
 	rt.FixedSeeder.studentIDs["Emma Meyer"] = 2
+	rt.FixedSeeder.studentIDs["Leon Koch"] = 3
 	rt.FixedSeeder.roomIDs["OGS-Raum 1"] = 10
 	rt.FixedSeeder.activityIDs["Hausaufgaben"] = 20
 	rt.FixedSeeder.groupIDs["sternengruppe"] = 30
 	rt.FixedSeeder.groupIDs["bärengruppe"] = 40
 	rt.FixedSeeder.deviceKeys[DemoDevices[0].DeviceID] = "device-key-123"
-	rt.FixedSeeder.studentRFID[1] = e2eScenarioCheckinRFIDTag
+	rt.FixedSeeder.studentRFID[1] = definition.Fixtures.Checkin.RFIDTag
 
 	e2e, err := s.buildE2EManifest(rt)
 	require.Error(t, err)
@@ -446,8 +455,11 @@ func TestWriteE2EManifestStep_MissingManifest_HardFails(t *testing.T) {
 }
 
 func TestProvisionE2ECheckinFixture(t *testing.T) {
+	definition := scenarios.MustLookup(SeedScenarioE2E)
 	var sawSessionStart bool
-	var sawRFIDAssign bool
+	var sawCheckinRFIDAssign bool
+	var sawPresentRFIDAssign bool
+	var sawPresentReadyCheckin bool
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -458,10 +470,20 @@ func TestProvisionE2ECheckinFixture(t *testing.T) {
 			assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"active_group_id":77}}`)
 		case "/api/students/100/rfid":
-			sawRFIDAssign = true
+			sawCheckinRFIDAssign = true
 			assert.Equal(t, "Bearer device-key-123", r.Header.Get("Authorization"))
 			assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"student_id":100}}`)
+		case "/api/students/102/rfid":
+			sawPresentRFIDAssign = true
+			assert.Equal(t, "Bearer device-key-123", r.Header.Get("Authorization"))
+			assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"student_id":102}}`)
+		case "/api/iot/checkin":
+			sawPresentReadyCheckin = true
+			assert.Equal(t, "Bearer device-key-123", r.Header.Get("Authorization"))
+			assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"student_id":102,"action":"checked_in","visit_id":88}}`)
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -470,9 +492,10 @@ func TestProvisionE2ECheckinFixture(t *testing.T) {
 
 	fs := NewFixedSeeder(nil, false, "")
 	fs.studentIDs["Felix Schneider"] = 100
+	fs.studentIDs["Leon Koch"] = 102
 	fs.roomIDs["OGS-Raum 1"] = 10
 	fs.activityIDs["Hausaufgaben"] = 20
-	fs.deviceKeys[e2eScenarioCheckinDeviceKey] = "device-key-123"
+	fs.deviceKeys[definition.Fixtures.Checkin.DeviceKey] = "device-key-123"
 	fs.staffCredentials = []StaffCredentials{
 		{
 			Email:    "demo1@mail.de",
@@ -492,12 +515,15 @@ func TestProvisionE2ECheckinFixture(t *testing.T) {
 		},
 	}
 
-	s := &Seeder{}
+	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E}}
 	err := s.provisionE2ECheckinFixture(context.Background(), rt)
 	require.NoError(t, err)
 	assert.True(t, sawSessionStart)
-	assert.True(t, sawRFIDAssign)
-	assert.Equal(t, e2eScenarioCheckinRFIDTag, fs.studentRFID[100])
+	assert.True(t, sawCheckinRFIDAssign)
+	assert.True(t, sawPresentRFIDAssign)
+	assert.True(t, sawPresentReadyCheckin)
+	assert.Equal(t, definition.Fixtures.Checkin.RFIDTag, fs.studentRFID[100])
+	assert.Equal(t, definition.Fixtures.Students.PresentReady.RFIDTag, fs.studentRFID[102])
 }
 
 func TestSeedResult_ZeroValues(t *testing.T) {

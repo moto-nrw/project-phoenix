@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   test as base,
   type APIRequestContext,
@@ -9,6 +8,7 @@ import {
   type E2ECheckinFixture,
   type E2EGroupPair,
   type E2EStudentPair,
+  type E2EStudentRef,
   type E2ETwitterTenant,
   getAppUrls,
   getE2EManifest,
@@ -43,6 +43,7 @@ type Fixtures = {
     secondaryTenant: E2ETwitterTenant;
     actorDisplayName: string;
   };
+  presentReadyStudent: E2EStudentRef;
   studentSearchScenario: E2EStudentPair;
   groupVisibilityScenario: E2EGroupPair;
   checkinScenario: E2ECheckinFixture;
@@ -103,19 +104,9 @@ type CheckinScanResult = {
   visit_id?: number | null;
 };
 
-type PreparedStudentPresence = {
-  requestBody: CheckinRequestBody;
-  cleanup(): Promise<void>;
-};
-
 type CheckinHarness = {
-  requestBody: CheckinRequestBody;
   scan(): Promise<CheckinScanResult>;
   currentVisit(studentId?: number): Promise<CurrentVisit>;
-  presentStudent(
-    studentId: number,
-    roomId?: number,
-  ): Promise<PreparedStudentPresence>;
 };
 
 async function pageForRole(
@@ -132,10 +123,6 @@ async function pageForRole(
   }
 }
 
-function uniqueRFIDTag(): string {
-  return randomUUID().replaceAll("-", "").slice(0, 16).toUpperCase();
-}
-
 async function getCurrentVisit(
   adminApi: APIRequestContext,
   studentId: number,
@@ -148,23 +135,15 @@ async function getCurrentVisit(
   );
   if (visitRes.status() === 200) {
     const body = (await visitRes.json()) as {
-      data: {
+      data?: {
         id: number;
       } | null;
     };
-    return body.data;
-  }
-
-  const rawBody = await visitRes.text();
-  if (
-    visitRes.status() === 500 &&
-    rawBody.includes("GetStudentCurrentVisit: visit not found")
-  ) {
-    return null;
+    return body.data ?? null;
   }
 
   throw new Error(
-    `current-visit lookup failed for student ${studentId} (${visitRes.status()}): ${rawBody}`,
+    `current-visit lookup failed for student ${studentId} (${visitRes.status()}): ${await visitRes.text()}`,
   );
 }
 
@@ -185,62 +164,6 @@ async function scanCheckin(
     data: CheckinScanResult;
   };
   return body.data;
-}
-
-async function assignRFID(
-  deviceApi: APIRequestContext,
-  studentId: number,
-  rfidTag: string,
-): Promise<void> {
-  const res = await deviceApi.post(`/api/students/${studentId}/rfid`, {
-    data: { rfid_tag: rfidTag },
-  });
-  if (!res.ok()) {
-    throw new Error(
-      `assign RFID failed for student ${studentId} (${res.status()}): ${await res.text()}`,
-    );
-  }
-}
-
-async function unassignRFID(
-  deviceApi: APIRequestContext,
-  studentId: number,
-): Promise<void> {
-  const res = await deviceApi.delete(`/api/students/${studentId}/rfid`, {
-    failOnStatusCode: false,
-  });
-  if ([200, 204, 404].includes(res.status())) {
-    return;
-  }
-
-  throw new Error(
-    `unassign RFID failed for student ${studentId} (${res.status()}): ${await res.text()}`,
-  );
-}
-
-async function ensureStudentCheckedIn(
-  deviceApi: APIRequestContext,
-  requestBody: CheckinRequestBody,
-): Promise<boolean> {
-  const firstScan = await scanCheckin(deviceApi, requestBody);
-  if (firstScan.action === "checked_in") {
-    return true;
-  }
-
-  if (!/^(checked_out|checked_out_daily)$/.test(firstScan.action)) {
-    throw new Error(
-      `unexpected device action while preparing checked-in student: ${firstScan.action}`,
-    );
-  }
-
-  const secondScan = await scanCheckin(deviceApi, requestBody);
-  if (secondScan.action !== "checked_in") {
-    throw new Error(
-      `expected second preparation scan to end in checked_in, got ${secondScan.action}`,
-    );
-  }
-
-  return false;
 }
 
 const baseWithFixtures = base.extend<Fixtures>({
@@ -269,6 +192,10 @@ const baseWithFixtures = base.extend<Fixtures>({
     }); // NOSONAR — Playwright fixture callback, not React Hook
   },
   // oxlint-disable-next-line no-empty-pattern
+  presentReadyStudent: async ({}, use) => {
+    await use(getE2EManifest().fixtures.students.present_ready); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  // oxlint-disable-next-line no-empty-pattern
   studentSearchScenario: async ({}, use) => {
     await use(getE2EManifest().fixtures.students.search_pair); // NOSONAR — Playwright fixture callback, not React Hook
   },
@@ -292,42 +219,9 @@ const baseWithFixtures = base.extend<Fixtures>({
     };
 
     await use({
-      requestBody,
       scan: async () => scanCheckin(deviceApi, requestBody),
       currentVisit: async (studentId = checkinScenario.student.id) =>
         getCurrentVisit(adminApi, studentId),
-      presentStudent: async (
-        studentId: number,
-        roomId = checkinScenario.room.id,
-      ) => {
-        await unassignRFID(deviceApi, studentId);
-
-        const isolatedRequestBody: CheckinRequestBody = {
-          student_rfid: uniqueRFIDTag(),
-          action: "checkin",
-          room_id: roomId,
-        };
-        await assignRFID(
-          deviceApi,
-          studentId,
-          isolatedRequestBody.student_rfid,
-        );
-
-        const mustCheckoutInCleanup = await ensureStudentCheckedIn(
-          deviceApi,
-          isolatedRequestBody,
-        );
-
-        return {
-          requestBody: isolatedRequestBody,
-          cleanup: async () => {
-            if (mustCheckoutInCleanup) {
-              await scanCheckin(deviceApi, isolatedRequestBody);
-            }
-            await unassignRFID(deviceApi, studentId);
-          },
-        };
-      },
     }); // NOSONAR — Playwright fixture callback, not React Hook
   },
   // oxlint-disable-next-line no-empty-pattern

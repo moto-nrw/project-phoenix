@@ -6,12 +6,10 @@ test.describe("Sick badge size consistency", () => {
     authenticatedPage: page,
     app,
     adminApi,
-    checkinHarness,
-    studentSearchScenario,
+    presentReadyStudent,
   }) => {
-    const student = studentSearchScenario.secondary;
+    const student = presentReadyStudent;
     const fullName = `${student.first_name} ${student.last_name}`;
-    const presence = await checkinHarness.presentStudent(student.id);
 
     try {
       const markSickRes = await adminApi.put(`/api/students/${student.id}`, {
@@ -53,7 +51,6 @@ test.describe("Sick badge size consistency", () => {
         data: { sick: false },
       });
       expect(clearSickRes.status(), await clearSickRes.text()).toBe(200);
-      await presence.cleanup();
     }
   });
 });

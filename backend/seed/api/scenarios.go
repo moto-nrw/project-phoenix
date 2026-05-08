@@ -7,105 +7,63 @@ import (
 	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 )
 
-const (
-	SeedScenarioE2E = scenarios.NameE2EMultiTenant
+const SeedScenarioE2E = scenarios.NameE2EMultiTenant
 
-	e2eScenarioOperatorEmail       = "operator@e2e.local"
-	e2eScenarioOperatorPassword    = "E2EOp1234!"
-	e2eScenarioOperatorDisplayName = "E2E Operator"
-	e2eScenarioStaffPIN            = "1234"
-	e2eScenarioTenantSlug          = "demo-school"
-	e2eScenarioBootstrapAdminEmail = "admin@e2e.local"
-	e2eScenarioStaffPassword       = "E2EPass1234!"
-	e2eScenarioSecondTenantSlug    = "second-school"
-	e2eScenarioSecondTenantName    = "Demo School 2"
-	e2eScenarioSecondAdminEmail    = "admin-b@e2e.local"
-	e2eScenarioLinkEmail           = "demo1@mail.de"
-	e2eScenarioStaffEmail          = "demo11@mail.de"
-	e2eScenarioCheckinRoomName     = "OGS-Raum 1"
-	e2eScenarioCheckinActivityName = "Hausaufgaben"
-	e2eScenarioCheckinDeviceKey    = "demo-device-001"
-	e2eScenarioSearchGroupKey      = "sternengruppe"
-	e2eScenarioVisibleGroupKeyA    = "sternengruppe"
-	e2eScenarioVisibleGroupKeyB    = "bärengruppe"
-)
-
-type namedStudentRef struct {
-	FirstName string
-	LastName  string
-}
-
-var (
-	e2eScenarioSearchStudentPrimary   = namedStudentRef{FirstName: "Felix", LastName: "Schneider"}
-	e2eScenarioSearchStudentSecondary = namedStudentRef{FirstName: "Emma", LastName: "Meyer"}
-	e2eScenarioCheckinStudent         = namedStudentRef{FirstName: "Felix", LastName: "Schneider"}
-)
-
-type E2EIdentity struct {
-	OperatorEmail       string
-	OperatorPassword    string
-	OperatorDisplayName string
-	StaffPIN            string
-}
+type E2EIdentity = scenarios.Identity
 
 func IdentityForScenario(name string) (E2EIdentity, error) {
-	switch name {
-	case SeedScenarioE2E:
-		return E2EIdentity{
-			OperatorEmail:       e2eScenarioOperatorEmail,
-			OperatorPassword:    e2eScenarioOperatorPassword,
-			OperatorDisplayName: e2eScenarioOperatorDisplayName,
-			StaffPIN:            e2eScenarioStaffPIN,
-		}, nil
-	default:
+	definition, ok := scenarios.Lookup(name)
+	if !ok {
 		return E2EIdentity{}, fmt.Errorf("unknown seed scenario %q", name)
 	}
+	return definition.Identity, nil
 }
 
-// ApplyScenarioDefaults centralizes scenario-specific seed semantics so
-// wrapper scripts only need to say "seed the e2e multi-tenant world" rather than
-// re-expressing its tenant/actor topology with a bag of flags.
+// ApplyScenarioDefaults centralizes scenario-specific seed semantics so the
+// seeder reads one Go-owned scenario registry instead of reconstructing the
+// same world through a bag of ad hoc CLI flags and duplicated constants.
 func ApplyScenarioDefaults(options *SeedOptions) error {
 	if options == nil || options.Scenario == "" {
 		return nil
 	}
 
-	switch options.Scenario {
-	case SeedScenarioE2E:
-		if options.TenantSlug == "" {
-			options.TenantSlug = e2eScenarioTenantSlug
-		}
-		if options.StatePath == "" {
-			options.StatePath = contract.ManifestPath
-		}
-		options.E2ERuntime.Normalize()
-		if options.StaffPassword == "" {
-			options.StaffPassword = e2eScenarioStaffPassword
-		}
-		if options.AdminEmail == "" {
-			options.AdminEmail = e2eScenarioBootstrapAdminEmail
-		}
-
-		if options.SecondTenant == nil {
-			options.SecondTenant = &SecondTenantOptions{}
-		}
-		if options.SecondTenant.Slug == "" {
-			options.SecondTenant.Slug = e2eScenarioSecondTenantSlug
-		}
-		if options.SecondTenant.Name == "" {
-			options.SecondTenant.Name = e2eScenarioSecondTenantName
-		}
-		if options.SecondTenant.AdminEmail == "" {
-			options.SecondTenant.AdminEmail = e2eScenarioSecondAdminEmail
-		}
-		if options.SecondTenant.AdminPassword == "" {
-			options.SecondTenant.AdminPassword = options.StaffPassword
-		}
-		if options.SecondTenant.LinkEmail == "" {
-			options.SecondTenant.LinkEmail = e2eScenarioLinkEmail
-		}
-		return nil
-	default:
+	definition, ok := scenarios.Lookup(options.Scenario)
+	if !ok {
 		return fmt.Errorf("unknown seed scenario %q", options.Scenario)
 	}
+
+	if options.TenantSlug == "" {
+		options.TenantSlug = definition.Seed.TenantSlug
+	}
+	if options.StatePath == "" {
+		options.StatePath = contract.ManifestPath
+	}
+	options.E2ERuntime.Normalize()
+	if options.StaffPassword == "" {
+		options.StaffPassword = definition.Seed.StaffPassword
+	}
+	if options.AdminEmail == "" {
+		options.AdminEmail = definition.Seed.BootstrapAdminEmail
+	}
+
+	if options.SecondTenant == nil {
+		options.SecondTenant = &SecondTenantOptions{}
+	}
+	if options.SecondTenant.Slug == "" {
+		options.SecondTenant.Slug = definition.Seed.SecondTenant.Slug
+	}
+	if options.SecondTenant.Name == "" {
+		options.SecondTenant.Name = definition.Seed.SecondTenant.Name
+	}
+	if options.SecondTenant.AdminEmail == "" {
+		options.SecondTenant.AdminEmail = definition.Seed.SecondTenant.AdminEmail
+	}
+	if options.SecondTenant.AdminPassword == "" {
+		options.SecondTenant.AdminPassword = options.StaffPassword
+	}
+	if options.SecondTenant.LinkEmail == "" {
+		options.SecondTenant.LinkEmail = definition.Seed.SecondTenant.LinkEmail
+	}
+
+	return nil
 }
