@@ -96,7 +96,7 @@ uiTest.describe("Student list UI", () => {
   uiTest(
     "admin sees seeded students on /database/students and can filter by search",
     async ({ authenticatedPage: page, app, studentSearchProbe }) => {
-      // Explicit manifest-backed fixture from the Go-owned e2e scenario. The backend
+      // Explicit state-backed fixture from the Go-owned e2e scenario. The backend
       // chooses which pair is safe for the search-filter contract; the spec
       // just consumes it instead of re-deriving "first two distinct students".
       const firstFullName = studentSearchProbe.expectedVisibleName;

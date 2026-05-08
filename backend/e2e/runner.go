@@ -30,12 +30,6 @@ const (
 )
 
 type RunOptions struct {
-	Scenario       string
-	Verbose        bool
-	PlaywrightArgs []string
-}
-
-type UpOptions struct {
 	Scenario string
 	Verbose  bool
 }
@@ -82,69 +76,14 @@ func Run(ctx context.Context, options RunOptions) error {
 		return fmt.Errorf("frontend did not become ready: %w", err)
 	}
 
-	if err := session.runPlaywright(ctx, options.PlaywrightArgs); err != nil {
+	if err := session.runPlaywright(ctx); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func Up(ctx context.Context, options UpOptions) error {
-	options.normalize()
-	paths, err := resolveHarnessPaths()
-	if err != nil {
-		return err
-	}
-
-	session, err := newHarnessSession(paths, options.Scenario, options.Verbose)
-	if err != nil {
-		return err
-	}
-	defer session.cleanup()
-
-	if err := session.startInfra(ctx); err != nil {
-		return err
-	}
-	if err := session.prepareWorld(ctx); err != nil {
-		return err
-	}
-
-	state, err := session.loadState()
-	if err != nil {
-		return err
-	}
-
-	frontend, err := session.startFrontend(state)
-	if err != nil {
-		return err
-	}
-	defer frontend.stop()
-
-	if err := waitForHTTP(statePrimaryOrigin(state), frontendReadyTimeout); err != nil {
-		return fmt.Errorf("frontend did not become ready: %w", err)
-	}
-
-	fmt.Println()
-	fmt.Println("Isolated E2E app is ready for manual testing:")
-	fmt.Printf("  Primary tenant:   %s\n", statePrimaryOrigin(state))
-	if state.World.Tenants.Secondary != nil {
-		fmt.Printf("  Secondary tenant: %s\n", stateTenantOrigin(state, *state.World.Tenants.Secondary))
-	}
-	fmt.Printf("  Operator:         http://%s\n", state.Runtime.OperatorHostname)
-	fmt.Println()
-	fmt.Println("Press Ctrl-C to shut the isolated stack down.")
-
-	<-ctx.Done()
 	return nil
 }
 
 func (o *RunOptions) normalize() {
-	if o.Scenario == "" {
-		o.Scenario = defaultScenarioName()
-	}
-}
-
-func (o *UpOptions) normalize() {
 	if o.Scenario == "" {
 		o.Scenario = defaultScenarioName()
 	}
@@ -261,9 +200,8 @@ func (s *harnessSession) startFrontend(state *contract.State) (*managedProcess, 
 	}, nil
 }
 
-func (s *harnessSession) runPlaywright(ctx context.Context, args []string) error {
-	pwArgs := append([]string{"exec", "playwright", "test"}, args...)
-	return runCommand(ctx, s.paths.frontendDir, os.Stdout, os.Stderr, "pnpm", pwArgs...)
+func (s *harnessSession) runPlaywright(ctx context.Context) error {
+	return runCommand(ctx, s.paths.frontendDir, os.Stdout, os.Stderr, "pnpm", "exec", "playwright", "test")
 }
 
 func (s *harnessSession) captureInfraLogs() error {

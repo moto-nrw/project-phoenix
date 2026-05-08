@@ -13,15 +13,16 @@ import (
 )
 
 var e2eCmd = &cobra.Command{
-	Use:   "e2e",
-	Short: "E2E harness commands",
-	Long:  `Commands for running, preparing, and validating the canonical Playwright E2E world.`,
+	Use:    "e2e",
+	Short:  "E2E harness implementation commands",
+	Long:   `Internal implementation commands for the canonical Playwright E2E world. The supported local and CI entrypoint is "cd frontend && pnpm e2e".`,
+	Hidden: true,
 }
 
 var e2ePrepareCmd = &cobra.Command{
 	Use:    "prepare",
 	Short:  "internal building block: reset the isolated database and seed the canonical Playwright world",
-	Long:   `Internal building block for the canonical E2E harness. Resets the isolated E2E database, re-runs migrations, seeds the canonical multi-tenant Playwright world, and writes backend/.e2e-state.json. Use "e2e run" for the full local/CI golden path or "e2e up" for a long-lived local harness.`,
+	Long:   `Internal building block for the canonical E2E harness. Resets the isolated E2E database, re-runs migrations, seeds the canonical multi-tenant Playwright world, and writes backend/.e2e-state.json. Use "cd frontend && pnpm e2e" for the supported local and CI path.`,
 	Hidden: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -43,6 +44,7 @@ var e2eRunCmd = &cobra.Command{
 	Use:   "run",
 	Short: "run the canonical E2E flow end-to-end",
 	Long:  `Starts the isolated E2E infrastructure, prepares the canonical world, boots the dedicated frontend, runs Playwright, and tears everything down again.`,
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
@@ -51,27 +53,6 @@ var e2eRunCmd = &cobra.Command{
 		verbose, _ := cmd.Flags().GetBool("verbose")
 
 		if err := appe2e.Run(ctx, appe2e.RunOptions{
-			Scenario:       scenario,
-			Verbose:        verbose,
-			PlaywrightArgs: args,
-		}); err != nil {
-			log.Fatal(err)
-		}
-	},
-}
-
-var e2eUpCmd = &cobra.Command{
-	Use:   "up",
-	Short: "start the isolated E2E app stack for manual testing",
-	Long:  `Starts the isolated E2E infrastructure, prepares the canonical world, boots the dedicated frontend on localtest.me, and keeps the stack running until interrupted.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-		defer stop()
-
-		scenario, _ := cmd.Flags().GetString("scenario")
-		verbose, _ := cmd.Flags().GetBool("verbose")
-
-		if err := appe2e.Up(ctx, appe2e.UpOptions{
 			Scenario: scenario,
 			Verbose:  verbose,
 		}); err != nil {
@@ -112,7 +93,6 @@ func init() {
 	RootCmd.AddCommand(e2eCmd)
 	e2eCmd.AddCommand(e2ePrepareCmd)
 	e2eCmd.AddCommand(e2eRunCmd)
-	e2eCmd.AddCommand(e2eUpCmd)
 	e2eCmd.AddCommand(e2eHostsCmd)
 	e2eHostsCmd.AddCommand(e2eHostsSyncCmd)
 
@@ -120,8 +100,6 @@ func init() {
 	e2ePrepareCmd.Flags().Bool("verbose", false, "Enable verbose logging")
 	e2eRunCmd.Flags().String("scenario", scenarios.DefaultPrepareScenario().Name, "Named E2E scenario")
 	e2eRunCmd.Flags().Bool("verbose", false, "Enable verbose logging")
-	e2eUpCmd.Flags().String("scenario", scenarios.DefaultPrepareScenario().Name, "Named E2E scenario")
-	e2eUpCmd.Flags().Bool("verbose", false, "Enable verbose logging")
 
 	e2eHostsCmd.Flags().String("scenario", scenarios.DefaultPrepareScenario().Name, "Named E2E scenario")
 	e2eHostsSyncCmd.Flags().String("scenario", scenarios.DefaultPrepareScenario().Name, "Named E2E scenario")

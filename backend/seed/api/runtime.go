@@ -16,7 +16,7 @@ type Runtime struct {
 	Result           *SeedResult
 	State            *SeedState
 	// SecondTenant is populated by secondTenantStep when scheduled and
-	// then folded into the dedicated E2E manifest contract.
+	// then folded into the dedicated E2E state contract.
 	SecondTenant *SeedStateSecondTenant
 	Values       map[string]any
 }

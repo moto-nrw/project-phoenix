@@ -13,9 +13,9 @@ setup.describe.configure({ mode: "serial" });
 
 function resetAuthArtifacts(): void {
   const sessions = getAuthSetupContract();
-  mkdirSync(dirname(sessions.admin.storageStatePath), { recursive: true });
-  rmSync(sessions.admin.storageStatePath, { force: true });
-  rmSync(sessions.staff.storageStatePath, { force: true });
+  const authDir = dirname(sessions.admin.storageStatePath);
+  rmSync(authDir, { force: true, recursive: true });
+  mkdirSync(authDir, { recursive: true });
 }
 
 function authSessions() {

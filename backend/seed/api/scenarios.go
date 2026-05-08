@@ -104,6 +104,9 @@ func rejectScenarioOverrides(options SeedOptions) error {
 			overridden = append(overridden, "second-tenant link email")
 		}
 	}
+	if options.StatePath != "" && options.StatePath != contract.StatePath {
+		overridden = append(overridden, "state path")
+	}
 
 	if len(overridden) == 0 {
 		return nil

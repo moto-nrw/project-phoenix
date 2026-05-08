@@ -45,7 +45,7 @@ type SecondTenantOptions struct {
 
 // SeedStateSecondTenant is the internal handoff object the provisioning
 // step passes to the E2E state builder. It is NOT serialized directly;
-// buildE2EState folds it into the dedicated Playwright contract so the
+// buildE2EState folds it into the dedicated Playwright state contract so the
 // harness reads a single machine-readable artifact.
 type SeedStateSecondTenant struct {
 	OrganizationID int64  `json:"organization_id"`
@@ -153,7 +153,7 @@ func (s secondTenantStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	// 8. Stash everything an E2E spec might need for the tenant-switch
-	// flow on the runtime so the E2E manifest writer can serialise it. The link
+	// flow on the runtime so the E2E state writer can serialise it. The link
 	// email is the canonical "this account now has 2+ tenants" signal.
 	rt.SecondTenant = &SeedStateSecondTenant{
 		OrganizationID: rt.Bootstrap.OrganizationID,

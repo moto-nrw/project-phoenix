@@ -89,7 +89,7 @@ uiTest.describe("Group list UI", () => {
     async ({ authenticatedPage: page, app, groupVisibilityProbe }) => {
       await page.goto(app.primary(routes.groupsList));
 
-      // Explicit manifest-backed fixture from the Go-owned e2e scenario. The seeder
+      // Explicit state-backed fixture from the Go-owned e2e scenario. The seeder
       // chooses the canonical pair the list must render; specs no longer
       // infer it from lookup-map ordering on the frontend side.
       const [firstGroupName, secondGroupName] =

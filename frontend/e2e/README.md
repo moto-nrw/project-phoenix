@@ -19,19 +19,6 @@ Dieser Befehl übernimmt alles:
 CI ruft denselben Befehl auf. `pnpm e2e` ist nur der stabile Einstiegspunkt;
 die Orchestrierung bleibt im Go-Harness.
 
-## Manuell testen
-
-Für manuelles Testen auf der separaten E2E-Welt:
-
-```bash
-cd frontend
-pnpm e2e:up
-```
-
-Der Befehl startet dieselbe isolierte Infrastruktur und hält sie offen, bis du
-`Ctrl-C` drückst. Das Frontend läuft auf `*.localtest.me:3030`, also parallel
-zur normalen Dev-Umgebung auf `:3000`.
-
 Wenn dein Rechner `*.localtest.me` nicht auflösen kann:
 
 ```bash
@@ -43,8 +30,9 @@ sudo go run . e2e hosts sync --scenario e2e-multi-tenant
 
 Das Harness ist absichtlich auf wenige Verantwortlichkeiten reduziert:
 
-- **Go (`e2e run` / `e2e up`)** besitzt Orchestrierung, Runtime und die
-  komplette Testwelt.
+- **Go-Harness** besitzt Orchestrierung, Runtime und die komplette Testwelt.
+  Es ist die interne Implementierung hinter `pnpm e2e`, kein zweiter
+  offizieller Einstieg.
 - **Go-Seeder-Szenario** besitzt alle fachlichen Seed-Daten und vorbereiteten
   Zustände.
 - **`backend/.e2e-state.json`** ist das einzige maschinenlesbare E2E-Artefakt.

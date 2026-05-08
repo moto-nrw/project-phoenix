@@ -13,6 +13,7 @@ func TestE2ECmd_IsRegisteredOnRoot(t *testing.T) {
 	for _, cmd := range RootCmd.Commands() {
 		if cmd.Use == "e2e" {
 			found = true
+			assert.True(t, cmd.Hidden, "backend e2e command is an implementation detail behind frontend pnpm e2e")
 			break
 		}
 	}
@@ -23,7 +24,7 @@ func TestE2EPrepareCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "prepare", e2ePrepareCmd.Use)
 	assert.Contains(t, e2ePrepareCmd.Short, "internal building block")
 	assert.Contains(t, e2ePrepareCmd.Long, ".e2e-state.json")
-	assert.Contains(t, e2ePrepareCmd.Long, `"e2e run"`)
+	assert.Contains(t, e2ePrepareCmd.Long, "pnpm e2e")
 	assert.True(t, e2ePrepareCmd.Hidden)
 	assert.NotNil(t, e2ePrepareCmd.Run)
 }
@@ -60,10 +61,13 @@ func TestE2ERunCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "run", e2eRunCmd.Use)
 	assert.Contains(t, e2eRunCmd.Short, "end-to-end")
 	assert.NotNil(t, e2eRunCmd.Run)
+	require.NotNil(t, e2eRunCmd.Args)
+	assert.NoError(t, e2eRunCmd.Args(e2eRunCmd, nil))
+	assert.Error(t, e2eRunCmd.Args(e2eRunCmd, []string{"--project=chromium-admin"}))
 }
 
-func TestE2EUpCmd_Metadata(t *testing.T) {
-	assert.Equal(t, "up", e2eUpCmd.Use)
-	assert.Contains(t, e2eUpCmd.Short, "manual testing")
-	assert.NotNil(t, e2eUpCmd.Run)
+func TestE2EUpCmd_IsNotRegistered(t *testing.T) {
+	for _, cmd := range e2eCmd.Commands() {
+		assert.NotEqual(t, "up", cmd.Use)
+	}
 }

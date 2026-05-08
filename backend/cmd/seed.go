@@ -33,17 +33,13 @@ OUTPUT FILES:
 
 CANONICAL E2E HARNESS:
 The deterministic multi-tenant Playwright world does NOT live behind this
-command. Use:
+command. Use the single supported local/CI entrypoint instead:
 
-  go run main.go e2e run --scenario e2e-multi-tenant
+  cd frontend && pnpm e2e
 
-for the full golden-path run, or:
-
-  go run main.go e2e up --scenario e2e-multi-tenant
-
-for a long-lived local harness. The E2E scenario path owns its tenant
-topology, credentials, fixtures, and machine-readable contract. This seed
-command remains the developer-facing "full demo world" bootstrap.
+The E2E scenario path owns its tenant topology, credentials, fixtures, and
+machine-readable contract. This seed command remains the developer-facing
+"full demo world" bootstrap.
 
 Usage:
   go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234

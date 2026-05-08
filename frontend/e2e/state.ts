@@ -229,7 +229,7 @@ function loadState(): RawState {
     return JSON.parse(readFileSync(E2E_STATE_PATH, "utf-8")) as RawState;
   } catch (err) {
     throw new Error(
-      `Could not read ${E2E_STATE_PATH}. Run \`cd frontend && pnpm e2e\` for the full flow or \`cd frontend && pnpm e2e:up\` for a long-lived local harness first.\n` +
+      `Could not read ${E2E_STATE_PATH}. Run the canonical flow with \`cd frontend && pnpm e2e\` first.\n` +
         `Underlying error: ${err instanceof Error ? err.message : String(err)}`,
       { cause: err },
     );
@@ -363,7 +363,7 @@ export function requireSecondaryTenant(): Tenant {
   const tenant = getRawState().world.tenants.secondary;
   if (!tenant) {
     throw new Error(
-      "e2e state secondary tenant is missing. Re-run `cd frontend && pnpm e2e:up` or `cd frontend && pnpm e2e`.",
+      "e2e state secondary tenant is missing. Re-run the canonical flow with `cd frontend && pnpm e2e`.",
     );
   }
   return mapTenant(tenant);

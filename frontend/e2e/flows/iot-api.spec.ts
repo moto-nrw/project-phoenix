@@ -155,7 +155,7 @@ test.describe("PIN-protected endpoints", () => {
     expect(body.error ?? "").toContain("invalid staff PIN");
   });
 
-  // Sanity check: the PIN we derived from the Go e2e manifest actually works. We
+  // Sanity check: the PIN we derived from the Go e2e state actually works. We
   // don't assert on a successful checkin (no real RFID tag provisioned),
   // but we expect any error other than 401 — meaning auth passed.
   test("POST /api/iot/checkin with valid PIN passes auth (status != 401)", async ({

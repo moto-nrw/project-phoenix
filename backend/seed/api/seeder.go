@@ -33,11 +33,10 @@ type SeedOptions struct {
 	TenantSlug    string // Fixed tenant slug instead of demo-school-{timestamp}
 	StaffPassword string // Shared password for all 20 staff accounts
 	AdminEmail    string // Fixed email for the bootstrap school admin
-	// StatePath overrides where the seed state JSON is written. Empty
-	// lets the scenario layer choose a scenario-specific path; if no
-	// scenario claims it, the seeder falls back to DefaultSeedStatePath
-	// (".seed-state.json" relative to CWD). E2E uses this hook to write
-	// to contract.StatePath so it never collides with the dev seed file.
+	// StatePath overrides where the dev seed state JSON is written. Empty
+	// falls back to DefaultSeedStatePath (".seed-state.json" relative to
+	// CWD). Named scenarios reject ad hoc path overrides and own their
+	// canonical artifact path.
 	StatePath string
 	// SecondTenant, when non-nil, schedules an extra workflow step that
 	// provisions a sibling school under the same organization and links
@@ -94,7 +93,7 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 }
 
 // PrepareE2E executes the canonical scenario-backed E2E workflow and writes
-// the dedicated manifest artifact consumed by Playwright.
+// the dedicated state contract consumed by Playwright.
 func (s *Seeder) PrepareE2E(ctx context.Context, email, password, staffPIN string) (*SeedResult, error) {
 	return s.runWorkflow(ctx, email, password, staffPIN, e2eWorkflow(s))
 }
@@ -475,7 +474,7 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 		statePath = DefaultSeedStatePath
 	}
 	if s.isE2EScenario() {
-		fmt.Printf("  %s   (dedicated Playwright E2E manifest)\n", statePath)
+		fmt.Printf("  %s   (dedicated Playwright E2E state contract)\n", statePath)
 	} else {
 		fmt.Printf("  %s   (seed state with credentials & IDs)\n", statePath)
 		fmt.Println("  simulator.yaml  (simulator configuration)")

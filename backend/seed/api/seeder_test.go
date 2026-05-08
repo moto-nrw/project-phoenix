@@ -263,16 +263,16 @@ func TestApplyScenarioDefaults_E2E_RejectsDeterministicOverrides(t *testing.T) {
 	assert.Contains(t, err.Error(), "owns its deterministic world")
 }
 
-func TestApplyScenarioDefaults_E2E_PreservesExplicitStatePath(t *testing.T) {
+func TestApplyScenarioDefaults_E2E_RejectsStatePathOverride(t *testing.T) {
 	opts := SeedOptions{
 		Scenario:  SeedScenarioE2E,
 		StatePath: "custom-state.json",
 	}
 
 	err := ApplyScenarioDefaults(&opts)
-	require.NoError(t, err)
-
-	assert.Equal(t, "custom-state.json", opts.StatePath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "state path")
+	assert.Contains(t, err.Error(), "owns its deterministic world")
 }
 
 func TestE2EWorkflow_OnlyContainsScenarioPreparationSteps(t *testing.T) {
@@ -477,10 +477,17 @@ func TestBuildE2EState_MissingAdminFails(t *testing.T) {
 }
 
 func TestWriteE2EStateStep_MissingState_HardFails(t *testing.T) {
-	statePath := filepath.Join(t.TempDir(), ".e2e-state.json")
+	tempDir := t.TempDir()
+	currentDir, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tempDir))
+	defer func() {
+		require.NoError(t, os.Chdir(currentDir))
+	}()
+
+	statePath := filepath.Join(tempDir, ".e2e-state.json")
 	seeder := NewSeeder("http://localhost:8080", false, SeedOptions{
-		Scenario:  SeedScenarioE2E,
-		StatePath: statePath,
+		Scenario: SeedScenarioE2E,
 	})
 	rt := newRuntime(seeder, "operator@e2e.local", "OperatorPass1!", "1234")
 	rt.FixedSeeder = NewFixedSeeder(nil, false, "")
@@ -491,7 +498,7 @@ func TestWriteE2EStateStep_MissingState_HardFails(t *testing.T) {
 		TenantSlug:     "demo-school",
 	}
 
-	err := writeE2EStateStep{seeder: seeder}.Run(context.Background(), rt)
+	err = writeE2EStateStep{seeder: seeder}.Run(context.Background(), rt)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot build e2e state")
 	_, statErr := os.Stat(statePath)
