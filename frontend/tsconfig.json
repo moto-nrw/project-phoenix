@@ -50,6 +50,9 @@
   ],
   "exclude": [
     "node_modules",
-    "coverage"
+    "coverage",
+    "playwright-report",
+    "test-results",
+    "e2e/.auth"
   ]
 }

@@ -264,7 +264,7 @@ func secondTenantTestRuntime(t *testing.T, srv *httptest.Server, opts *SecondTen
 	t.Helper()
 	// StaffPassword is required by the post-link verification step to
 	// log in as opts.LinkEmail. Real callers always set it via
-	// scripts/seed-e2e.sh; tests must mirror that.
+	// scripts/e2e.sh; tests must mirror that.
 	seeder := NewSeeder(srv.URL, false, SeedOptions{
 		SecondTenant:  opts,
 		StaffPassword: "Test1234%",
@@ -555,6 +555,15 @@ func TestFullDemoWorkflow_SchedulesSecondTenantStepWhenOptSet(t *testing.T) {
 	withoutWorkflow := fullDemoWorkflow(withoutOpts)
 	assert.False(t, workflowHasStep(withoutWorkflow, "Second tenant provisioning"),
 		"default workflow must not include the second-tenant step")
+}
+
+func TestFullDemoWorkflow_E2EScenarioAppliesSecondTenantDefaults(t *testing.T) {
+	seeder := NewSeeder("http://localhost:8080", false, SeedOptions{Scenario: SeedScenarioE2E})
+
+	require.NotNil(t, seeder.options.SecondTenant)
+	withWorkflow := fullDemoWorkflow(seeder)
+	assert.True(t, workflowHasStep(withWorkflow, "Second tenant provisioning"),
+		"e2e scenario must schedule the provisioning step via seedapi defaults, not only via the CLI")
 }
 
 func workflowHasStep(w Workflow, name string) bool {

@@ -8,10 +8,9 @@
  * means grep-and-replace across the spec files — and any miss silently
  * breaks tests at runtime instead of compile-time.
  *
- * Convention: paths are returned as plain strings ready to pass to
- * `page.goto(...)`. They are tenant-relative — Playwright's `baseURL`
- * (`http://demo-school.localtest.me:3030`) handles the host. Functions
- * that take parameters (e.g. an entity id) compose them into the path.
+ * Convention: paths are returned as tenant-relative strings. Specs compose
+ * them with the `app` fixture (e.g. `page.goto(app.primary(routes.root))`)
+ * so tenant/subdomain semantics live in Playwright fixtures, not config.
  *
  * Add new helpers here whenever a spec needs a new page; do not let
  * `page.goto("/some/new/path")` creep back into spec files.
@@ -34,3 +33,6 @@ export const studentDetail = (studentId: number | string): string =>
 
 /** Admin: list of groups under Datenbank → Gruppen. */
 export const groupsList = "/database/groups";
+
+/** Staff: OGS groups overview. */
+export const ogsGroups = "/ogs-groups";

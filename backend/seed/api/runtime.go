@@ -15,9 +15,8 @@ type Runtime struct {
 	FixedSeeder      *FixedSeeder
 	Result           *SeedResult
 	State            *SeedState
-	// SecondTenant is populated by secondTenantStep when scheduled,
-	// then serialised by buildStateStep into seed-state.json under
-	// the `second_tenant` key for E2E specs to read.
+	// SecondTenant is populated by secondTenantStep when scheduled and
+	// then folded into the dedicated E2E manifest contract.
 	SecondTenant *SeedStateSecondTenant
 	Values       map[string]any
 }

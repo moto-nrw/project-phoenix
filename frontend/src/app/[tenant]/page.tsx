@@ -350,6 +350,7 @@ function LoginForm() {
               onRedirect={(path) => {
                 logger.info("redirecting based on user permissions", { path });
                 router.push(path);
+                router.refresh();
               }}
             />
           )}

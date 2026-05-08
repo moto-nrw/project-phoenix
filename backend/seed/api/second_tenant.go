@@ -43,10 +43,10 @@ type SecondTenantOptions struct {
 	LinkEmail string
 }
 
-// SeedStateSecondTenant captures everything an E2E spec needs to drive
-// the tenant-switch flow without hardcoding strings. Written to
-// .seed-state-e2e.json under the `second_tenant` key when
-// SeedOptions.SecondTenant is non-nil.
+// SeedStateSecondTenant is the internal handoff object the provisioning
+// step passes to the E2E manifest builder. It is NOT serialized directly;
+// buildE2EManifest folds it into the dedicated Playwright contract so the
+// harness reads a single machine-readable artifact.
 type SeedStateSecondTenant struct {
 	OrganizationID int64  `json:"organization_id"`
 	SchoolID       int64  `json:"school_id"`
@@ -153,7 +153,7 @@ func (s secondTenantStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	// 8. Stash everything an E2E spec might need for the tenant-switch
-	// flow on the runtime so buildStateStep can serialise it. The link
+	// flow on the runtime so the E2E manifest writer can serialise it. The link
 	// email is the canonical "this account now has 2+ tenants" signal.
 	rt.SecondTenant = &SeedStateSecondTenant{
 		OrganizationID: rt.Bootstrap.OrganizationID,
@@ -348,7 +348,7 @@ func (s secondTenantStep) verifyLinkEmailHasBothTenants(ctx context.Context, rt 
 	if staffPassword == "" {
 		// Without a known password we can't read back as the link account.
 		// Fail loudly rather than silently skip — every E2E run sets
-		// StaffPassword via scripts/seed-e2e.sh, so an empty value here
+		// StaffPassword via the canonical Go-owned E2E scenario, so an empty value here
 		// means an upstream contract has drifted.
 		return fmt.Errorf("verification: cannot log in as %s — SeedOptions.StaffPassword is empty", opts.LinkEmail)
 	}

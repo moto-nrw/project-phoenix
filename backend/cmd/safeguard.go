@@ -45,8 +45,9 @@ func isLocalHostname(hostname string) bool {
 	return false
 }
 
-// Keep in sync with frontend/e2e/helpers/safeguard.ts:ALLOWED_HOSTNAMES
-// and scripts/lib/assert-local-url.sh.
+// Keep in sync with the canonical Playwright harness:
+// frontend/e2e/contract.ts reads the isolated backend origin from the
+// Go-owned manifest, and scripts/e2e.sh always targets localhost/server-e2e.
 var localDockerHostnames = map[string]bool{
 	"server":                  true,
 	"server-e2e":              true,

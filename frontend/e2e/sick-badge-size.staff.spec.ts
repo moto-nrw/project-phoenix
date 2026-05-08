@@ -1,70 +1,59 @@
 import { test, expect } from "./fixtures";
+import * as routes from "./helpers/routes";
 
 test.describe("Sick badge size consistency", () => {
   test("Krank badge should be same size as location badge when student is sick and present", async ({
     authenticatedPage: page,
+    app,
+    adminApi,
+    checkinHarness,
+    studentSearchScenario,
   }) => {
-    await page.goto("/ogs-groups");
+    const student = studentSearchScenario.secondary;
+    const fullName = `${student.first_name} ${student.last_name}`;
+    const presence = await checkinHarness.presentStudent(student.id);
 
-    // Wait for student cards to appear (don't use networkidle — SSE keeps it busy)
-    await page
-      .waitForSelector("[data-location-status]", { timeout: 10000 })
-      .catch(() => {
-        // If no location badges found, just continue
+    try {
+      const markSickRes = await adminApi.put(`/api/students/${student.id}`, {
+        data: { sick: true, excused: false },
       });
+      expect(markSickRes.status(), await markSickRes.text()).toBe(200);
 
-    await page.screenshot({
-      path: "e2e/screenshots/ogs-groups-page.png",
-      fullPage: true,
-    });
+      await page.goto(app.primary(routes.ogsGroups));
+      await page.waitForSelector("[data-location-status]", { timeout: 15000 });
 
-    const sickBadge = page.locator('[data-sick-indicator="true"]').first();
-    const sickCount = await sickBadge.count();
+      const studentCard = page.getByRole("button", {
+        name: new RegExp(fullName),
+      });
+      await expect(studentCard).toBeVisible({ timeout: 15000 });
 
-    const locationBadge = page.locator("[data-location-status]").first();
-    const locationCount = await locationBadge.count();
-
-    if (sickCount === 0 || locationCount === 0) {
-      test.skip(
-        true,
-        "No sick student currently present in OGS — skipping size comparison",
-      );
-      return;
-    }
-
-    const sickIndicators = page.locator('[data-sick-indicator="true"]');
-    const allSickBadges = await sickIndicators.all();
-
-    for (const sickBadgeEl of allSickBadges) {
-      const parentContainer = sickBadgeEl
-        .locator("xpath=ancestor::div[contains(@class, 'flex-col')]")
-        .first();
-      const siblingLocationBadge = parentContainer
+      const locationBadge = studentCard
         .locator("[data-location-status]")
         .first();
+      const sickBadge = studentCard
+        .locator('[data-sick-indicator="true"]')
+        .first();
 
-      if ((await siblingLocationBadge.count()) > 0) {
-        const locationBox = await siblingLocationBadge.boundingBox();
-        const sickBox = await sickBadgeEl.boundingBox();
+      await expect(locationBadge).toBeVisible({ timeout: 10000 });
+      await expect(sickBadge).toBeVisible({ timeout: 10000 });
 
-        expect(locationBox).not.toBeNull();
-        expect(sickBox).not.toBeNull();
+      const locationBox = await locationBadge.boundingBox();
+      const sickBox = await sickBadge.boundingBox();
 
-        if (locationBox && sickBox) {
-          expect(Math.abs(locationBox.height - sickBox.height)).toBeLessThan(3);
+      expect(locationBox).not.toBeNull();
+      expect(sickBox).not.toBeNull();
 
-          await parentContainer.screenshot({
-            path: "e2e/screenshots/sick-badge-comparison.png",
-          });
-
-          return;
-        }
+      if (!locationBox || !sickBox) {
+        throw new Error("badge bounding boxes were unexpectedly null");
       }
-    }
 
-    test.skip(
-      true,
-      "Found sick badges and location badges but none in the same card — skipping size comparison",
-    );
+      expect(Math.abs(locationBox.height - sickBox.height)).toBeLessThan(3);
+    } finally {
+      const clearSickRes = await adminApi.put(`/api/students/${student.id}`, {
+        data: { sick: false },
+      });
+      expect(clearSickRes.status(), await clearSickRes.text()).toBe(200);
+      await presence.cleanup();
+    }
   });
 });

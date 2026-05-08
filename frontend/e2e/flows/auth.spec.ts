@@ -1,5 +1,5 @@
 import { test, expect } from "../fixtures";
-import { ADMIN } from "../helpers/seed-data";
+import { assertSessionReady, waitForLoginFormReady } from "../auth";
 
 test.describe("Login", () => {
   // These tests must start unauthenticated, so override the project's
@@ -9,18 +9,25 @@ test.describe("Login", () => {
 
   test("admin signs in with valid credentials and lands on the dashboard", async ({
     page,
+    authSessions,
   }) => {
+    const adminSession = authSessions.admin;
+
     // The positive login flow is exercised by `auth.setup.ts` for every
     // suite run, but only as a setup step — a regression there fails with
     // the cryptic "setup project failed" rather than a clearly named test.
     // This spec asserts the same path as a first-class test so a broken
     // login surfaces with the right name in the report.
-    await page.goto("/");
-    await page.waitForSelector('input[name="email"]');
+    await page.goto(adminSession.appRoot);
+    await waitForLoginFormReady(page);
 
-    await page.fill('input[name="email"]', ADMIN.email);
-    await page.fill('input[name="password"]', ADMIN.password);
-    await page.click('button:has-text("Anmelden")');
+    await page
+      .getByRole("textbox", { name: "E-Mail-Adresse" })
+      .fill(adminSession.email);
+    await page
+      .getByRole("textbox", { name: "Passwort" })
+      .fill(adminSession.password);
+    await page.getByRole("button", { name: "Anmelden" }).click();
 
     // After successful login NextAuth redirects away from /login. Wait for
     // the authenticated shell — the admin display-name button — as the
@@ -31,32 +38,30 @@ test.describe("Login", () => {
     // can still be present on the interstitial page. The display-name
     // button only renders inside the protected layout, so its visibility
     // is the real gate.
-    await expect(
-      page.getByRole("button").filter({ hasText: ADMIN.displayName }).first(),
-    ).toBeVisible({ timeout: 20000 });
+    await assertSessionReady(page, adminSession);
     await expect(page).not.toHaveURL(/\/login(\/|$)/);
   });
 
   test("rejects wrong password and stays on the login form", async ({
     page,
+    authSessions,
   }) => {
-    await page.goto("/");
-    await page.waitForSelector('input[name="email"]');
+    const adminSession = authSessions.admin;
+    await page.goto(adminSession.appRoot);
+    await waitForLoginFormReady(page);
 
-    await page.fill('input[name="email"]', ADMIN.email);
-    await page.fill(
-      'input[name="password"]',
-      "definitely-not-the-real-password",
-    );
-    await page.click('button:has-text("Anmelden")');
+    await page
+      .getByRole("textbox", { name: "E-Mail-Adresse" })
+      .fill(adminSession.email);
+    await page
+      .getByRole("textbox", { name: "Passwort" })
+      .fill("definitely-not-the-real-password");
+    await page.getByRole("button", { name: "Anmelden" }).click();
 
     // Wait for the login request to settle. Under parallel load this can
-    // take a moment, and the inline error is only rendered after the
-    // submit handler returns. Without this guard the error assertion
-    // races the in-flight request.
-    await expect(page.getByText("Anmeldung läuft...")).toHaveCount(0, {
-      timeout: 20000,
-    });
+    // take a moment, so assert directly on the inline error instead of the
+    // transient loading copy. The loading text can remain mounted briefly in
+    // the DOM even after the form has already returned to its idle state.
 
     // Inline error rendered for invalid credentials (src/app/[tenant]/page.tsx:165).
     // The catch-block "Anmeldefehler. Bitte versuchen Sie es erneut." is for
@@ -73,8 +78,11 @@ test.describe("Login", () => {
 test.describe("Logout", () => {
   test("user can sign out via the profile dropdown", async ({
     authenticatedPage: page,
+    authSessions,
   }) => {
-    await page.goto("/");
+    const adminSession = authSessions.admin;
+    await page.goto(adminSession.appRoot);
+    await assertSessionReady(page, adminSession);
 
     // Find the profile trigger button. Selectors:
     //   - It is a <button> in the header that contains the user's display
@@ -82,10 +90,15 @@ test.describe("Logout", () => {
     //   - Two characters of the name (e.g. "AM") also live in the avatar,
     //     but the desktop trigger renders the full name in a sibling div.
     const profileTrigger = page
-      .getByRole("button")
-      .filter({ hasText: ADMIN.displayName });
-    await profileTrigger.first().waitFor({ state: "visible", timeout: 15000 });
-    await profileTrigger.first().click();
+      .getByRole("banner")
+      .getByRole("button", {
+        name: new RegExp(
+          adminSession.displayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        ),
+      })
+      .first();
+    await profileTrigger.waitFor({ state: "visible", timeout: 15000 });
+    await profileTrigger.click();
 
     // The dropdown's "Abmelden" entry lives inside the page banner and
     // opens the confirmation modal. The dropdown stays mounted briefly
@@ -109,10 +122,11 @@ test.describe("Logout", () => {
     // banner profile trigger to be gone — checking just the input would
     // race a transitional render where both the banner (still showing the
     // name) and the login form are momentarily mounted.
-    await page.waitForSelector('input[name="email"]', { timeout: 15000 });
-    await expect(page.locator('input[name="email"]')).toBeVisible();
+    await waitForLoginFormReady(page);
     await expect(
-      page.getByRole("banner").getByRole("button", { name: ADMIN.displayName }),
+      page
+        .getByRole("banner")
+        .getByRole("button", { name: adminSession.displayName }),
     ).toHaveCount(0, { timeout: 10000 });
   });
 });

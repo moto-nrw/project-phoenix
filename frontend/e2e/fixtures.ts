@@ -1,4 +1,29 @@
-import { test as base, type Browser, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import {
+  test as base,
+  type APIRequestContext,
+  type Browser,
+  type Page,
+} from "@playwright/test";
+import {
+  type E2ECheckinFixture,
+  type E2EGroupPair,
+  type E2EStudentPair,
+  type E2ETwitterTenant,
+  getAppUrls,
+  getE2EManifest,
+  requireSecondaryTenant,
+} from "./contract";
+import {
+  type AuthSetupContract,
+  getAuthSetupContract,
+  STORAGE_STATE_PATH,
+} from "./auth";
+import {
+  createBackendApiContext,
+  createDeviceApiContext,
+  createTenantApiContext,
+} from "./api";
 import {
   makeGroupFactory,
   makeStudentFactory,
@@ -7,9 +32,30 @@ import {
   type GroupFactory,
   type StudentFactory,
 } from "./helpers/factories";
-import { STORAGE_STATE_PATH } from "./helpers/seed-data";
 
 type Fixtures = {
+  app: ReturnType<typeof getAppUrls>;
+  authSessions: AuthSetupContract;
+  primaryTenant: E2ETwitterTenant;
+  secondaryTenant: E2ETwitterTenant;
+  tenantSwitchScenario: {
+    primaryTenant: E2ETwitterTenant;
+    secondaryTenant: E2ETwitterTenant;
+    actorDisplayName: string;
+  };
+  studentSearchScenario: E2EStudentPair;
+  groupVisibilityScenario: E2EGroupPair;
+  checkinScenario: E2ECheckinFixture;
+  checkinDevice: {
+    key: string;
+    api_key: string;
+    pin: string;
+  };
+  checkinHarness: CheckinHarness;
+  backendApi: APIRequestContext;
+  adminApi: APIRequestContext;
+  staffApi: APIRequestContext;
+  deviceApi: APIRequestContext;
   /**
    * The page provided by the active project — already authenticated as
    * whichever role the project is configured for. Use this in single-role
@@ -17,13 +63,13 @@ type Fixtures = {
    */
   authenticatedPage: Page;
   /**
-   * A page authenticated as the admin role (demo1@mail.de), regardless of
+   * A page authenticated as the setup-prepared admin actor, regardless of
    * which project the test runs in. Spawns a fresh browser context backed
-   * by the admin storageState so it does not leak into other fixtures.
+   * by the setup-written storageState so it does not leak into other fixtures.
    */
   adminPage: Page;
   /**
-   * A page authenticated as the staff/user role (demo11@mail.de), in its
+   * A page authenticated as the setup-prepared staff/user actor, in its
    * own browser context.
    */
   staffPage: Page;
@@ -32,25 +78,46 @@ type Fixtures = {
    * returns a freshly-created student; teardown deletes everything the
    * factory created, even if assertions failed mid-test. Per-test scope
    * (not per-worker) keeps tests isolated.
-   *
-   * Use instead of inline `withAdminContext + try/finally + Date.now()`.
    */
   studentFactory: StudentFactory;
   /**
    * Test-scoped factory for groups. Same lifecycle as `studentFactory`.
-   * Teardown order: studentFactory runs first (Playwright tears down
-   * fixtures in reverse instantiation order), so a student moved into a
-   * factory-owned group is detached before the group DELETE — avoids the
-   * backend's 409-when-not-empty rejection.
    */
   groupFactory: GroupFactory;
 };
 
-// SonarCloud's React rules misidentify Playwright's fixture `use(...)`
-// callback as React's `use` Hook (typescript:S6440 / S6442). The two are
-// unrelated: in Playwright, `use` is the standard fixture-yield function
-// that signals "fixture setup done, run the test, then tear down". The
-// per-line NOSONAR comments below opt those specific call sites out.
+type CurrentVisit = {
+  id: number;
+} | null;
+
+type CheckinRequestBody = {
+  student_rfid: string;
+  action: "checkin";
+  room_id: number;
+};
+
+type CheckinScanResult = {
+  student_id: number;
+  student_name?: string;
+  action: string;
+  visit_id?: number | null;
+};
+
+type PreparedStudentPresence = {
+  requestBody: CheckinRequestBody;
+  cleanup(): Promise<void>;
+};
+
+type CheckinHarness = {
+  requestBody: CheckinRequestBody;
+  scan(): Promise<CheckinScanResult>;
+  currentVisit(studentId?: number): Promise<CurrentVisit>;
+  presentStudent(
+    studentId: number,
+    roomId?: number,
+  ): Promise<PreparedStudentPresence>;
+};
+
 async function pageForRole(
   browser: Browser,
   storageState: string,
@@ -65,7 +132,240 @@ async function pageForRole(
   }
 }
 
-const baseWithFactories = base.extend<Fixtures>({
+function uniqueRFIDTag(): string {
+  return randomUUID().replaceAll("-", "").slice(0, 16).toUpperCase();
+}
+
+async function getCurrentVisit(
+  adminApi: APIRequestContext,
+  studentId: number,
+): Promise<CurrentVisit> {
+  const visitRes = await adminApi.get(
+    `/api/students/${studentId}/current-visit`,
+    {
+      failOnStatusCode: false,
+    },
+  );
+  if (visitRes.status() === 200) {
+    const body = (await visitRes.json()) as {
+      data: {
+        id: number;
+      } | null;
+    };
+    return body.data;
+  }
+
+  const rawBody = await visitRes.text();
+  if (
+    visitRes.status() === 500 &&
+    rawBody.includes("GetStudentCurrentVisit: visit not found")
+  ) {
+    return null;
+  }
+
+  throw new Error(
+    `current-visit lookup failed for student ${studentId} (${visitRes.status()}): ${rawBody}`,
+  );
+}
+
+async function scanCheckin(
+  deviceApi: APIRequestContext,
+  requestBody: CheckinRequestBody,
+): Promise<CheckinScanResult> {
+  const res = await deviceApi.post("/api/iot/checkin", {
+    data: requestBody,
+  });
+  if (!res.ok()) {
+    throw new Error(
+      `device checkin failed (${res.status()}): ${await res.text()}`,
+    );
+  }
+
+  const body = (await res.json()) as {
+    data: CheckinScanResult;
+  };
+  return body.data;
+}
+
+async function assignRFID(
+  deviceApi: APIRequestContext,
+  studentId: number,
+  rfidTag: string,
+): Promise<void> {
+  const res = await deviceApi.post(`/api/students/${studentId}/rfid`, {
+    data: { rfid_tag: rfidTag },
+  });
+  if (!res.ok()) {
+    throw new Error(
+      `assign RFID failed for student ${studentId} (${res.status()}): ${await res.text()}`,
+    );
+  }
+}
+
+async function unassignRFID(
+  deviceApi: APIRequestContext,
+  studentId: number,
+): Promise<void> {
+  const res = await deviceApi.delete(`/api/students/${studentId}/rfid`, {
+    failOnStatusCode: false,
+  });
+  if ([200, 204, 404].includes(res.status())) {
+    return;
+  }
+
+  throw new Error(
+    `unassign RFID failed for student ${studentId} (${res.status()}): ${await res.text()}`,
+  );
+}
+
+async function ensureStudentCheckedIn(
+  deviceApi: APIRequestContext,
+  requestBody: CheckinRequestBody,
+): Promise<boolean> {
+  const firstScan = await scanCheckin(deviceApi, requestBody);
+  if (firstScan.action === "checked_in") {
+    return true;
+  }
+
+  if (!/^(checked_out|checked_out_daily)$/.test(firstScan.action)) {
+    throw new Error(
+      `unexpected device action while preparing checked-in student: ${firstScan.action}`,
+    );
+  }
+
+  const secondScan = await scanCheckin(deviceApi, requestBody);
+  if (secondScan.action !== "checked_in") {
+    throw new Error(
+      `expected second preparation scan to end in checked_in, got ${secondScan.action}`,
+    );
+  }
+
+  return false;
+}
+
+const baseWithFixtures = base.extend<Fixtures>({
+  // oxlint-disable-next-line no-empty-pattern
+  app: async ({}, use) => {
+    await use(getAppUrls()); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  authSessions: async ({}, use) => {
+    await use(getAuthSetupContract()); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  primaryTenant: async ({}, use) => {
+    await use(getE2EManifest().tenants.primary); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  secondaryTenant: async ({}, use) => {
+    await use(requireSecondaryTenant()); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  tenantSwitchScenario: async ({ primaryTenant, secondaryTenant }, use) => {
+    const manifest = getE2EManifest();
+    await use({
+      primaryTenant,
+      secondaryTenant,
+      actorDisplayName: manifest.actors.admin.display_name,
+    }); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  studentSearchScenario: async ({}, use) => {
+    await use(getE2EManifest().fixtures.students.search_pair); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  groupVisibilityScenario: async ({}, use) => {
+    await use(getE2EManifest().fixtures.groups.visible_pair); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  checkinScenario: async ({}, use) => {
+    await use(getE2EManifest().fixtures.checkin); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  checkinDevice: async ({}, use) => {
+    await use(getE2EManifest().devices.default_checkin); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  checkinHarness: async ({ adminApi, deviceApi, checkinScenario }, use) => {
+    const requestBody: CheckinRequestBody = {
+      student_rfid: checkinScenario.rfid_tag,
+      action: "checkin",
+      room_id: checkinScenario.room.id,
+    };
+
+    await use({
+      requestBody,
+      scan: async () => scanCheckin(deviceApi, requestBody),
+      currentVisit: async (studentId = checkinScenario.student.id) =>
+        getCurrentVisit(adminApi, studentId),
+      presentStudent: async (
+        studentId: number,
+        roomId = checkinScenario.room.id,
+      ) => {
+        await unassignRFID(deviceApi, studentId);
+
+        const isolatedRequestBody: CheckinRequestBody = {
+          student_rfid: uniqueRFIDTag(),
+          action: "checkin",
+          room_id: roomId,
+        };
+        await assignRFID(
+          deviceApi,
+          studentId,
+          isolatedRequestBody.student_rfid,
+        );
+
+        const mustCheckoutInCleanup = await ensureStudentCheckedIn(
+          deviceApi,
+          isolatedRequestBody,
+        );
+
+        return {
+          requestBody: isolatedRequestBody,
+          cleanup: async () => {
+            if (mustCheckoutInCleanup) {
+              await scanCheckin(deviceApi, isolatedRequestBody);
+            }
+            await unassignRFID(deviceApi, studentId);
+          },
+        };
+      },
+    }); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  backendApi: async ({}, use) => {
+    const ctx = await createBackendApiContext();
+    try {
+      await use(ctx); // NOSONAR — Playwright fixture callback, not React Hook
+    } finally {
+      await ctx.dispose();
+    }
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  adminApi: async ({ authSessions }, use) => {
+    const ctx = await createTenantApiContext(authSessions.admin);
+    try {
+      await use(ctx); // NOSONAR — Playwright fixture callback, not React Hook
+    } finally {
+      await ctx.dispose();
+    }
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  staffApi: async ({ authSessions }, use) => {
+    const ctx = await createTenantApiContext(authSessions.staff);
+    try {
+      await use(ctx); // NOSONAR — Playwright fixture callback, not React Hook
+    } finally {
+      await ctx.dispose();
+    }
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  deviceApi: async ({ checkinDevice }, use) => {
+    const ctx = await createDeviceApiContext(checkinDevice);
+    try {
+      await use(ctx); // NOSONAR — Playwright fixture callback, not React Hook
+    } finally {
+      await ctx.dispose();
+    }
+  },
   authenticatedPage: async ({ page }, use) => {
     await use(page); // NOSONAR — Playwright fixture callback, not React Hook
   },
@@ -75,34 +375,20 @@ const baseWithFactories = base.extend<Fixtures>({
   staffPage: async ({ browser }, use) => {
     await pageForRole(browser, STORAGE_STATE_PATH.staff, use);
   },
-  // Playwright requires the first arg to be an object destructuring
-  // pattern; a non-destructured `_` throws at runtime. These factories
-  // have no fixture deps, so the destructure is empty — disable the
-  // empty-pattern lint inline.
-  // oxlint-disable-next-line no-empty-pattern
-  studentFactory: async ({}, use) => {
-    const factory = makeStudentFactory();
+  studentFactory: async ({ adminApi }, use) => {
+    const factory = makeStudentFactory(adminApi);
     await use(factory); // NOSONAR — Playwright fixture callback, not React Hook
-    await teardownStudents(factory._created());
+    await teardownStudents(adminApi, factory._created());
   },
-  // oxlint-disable-next-line no-empty-pattern
-  groupFactory: async ({}, use) => {
-    const factory = makeGroupFactory();
+  groupFactory: async ({ adminApi }, use) => {
+    const factory = makeGroupFactory(adminApi);
     await use(factory); // NOSONAR — Playwright fixture callback, not React Hook
-    await teardownGroups(factory._created());
+    await teardownGroups(adminApi, factory._created());
   },
 });
 
-export const test = baseWithFactories;
+export const test = baseWithFixtures;
 export { expect } from "@playwright/test";
 
-/**
- * HTTP-only specs that do not need an authenticated `Page` use these
- * re-exports. They share the factory fixtures with `test` — the same
- * `studentFactory` / `groupFactory` are available for setup/teardown
- * even when the spec drives the backend directly via `request`. Going
- * through this module (instead of importing from `@playwright/test`)
- * keeps the README rule "no `@playwright/test` imports in specs" intact.
- */
-export const apiTest = baseWithFactories;
+export const apiTest = baseWithFixtures;
 export { expect as apiExpect } from "@playwright/test";

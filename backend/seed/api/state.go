@@ -9,7 +9,7 @@ import (
 )
 
 const DefaultSeedStatePath = ".seed-state.json"
-const CurrentSeedStateVersion = "2"
+const CurrentSeedStateVersion = "4"
 
 type SeedState struct {
 	Version     string                `json:"version"`
@@ -28,12 +28,6 @@ type SeedState struct {
 	Entities    SeedStateEntities     `json:"entities"`
 	Lookups     SeedStateLookups      `json:"lookups"`
 	Scenarios   SeedStateScenarios    `json:"scenarios"`
-	// SecondTenant is populated only when the seed was invoked with
-	// --with-second-tenant (E2E tenant-switch coverage). Absent on
-	// regular dev seeds. Specs MUST read tenant-switch state from here
-	// rather than hardcoded constants so renaming the slug requires
-	// touching exactly one file (the script that calls the seeder).
-	SecondTenant *SeedStateSecondTenant `json:"second_tenant,omitempty"`
 }
 
 type SeedStateCredentials struct {

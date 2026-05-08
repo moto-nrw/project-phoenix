@@ -1,16 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { withAdminContext } from "./admin-api";
-import { BACKEND_URL } from "./iot";
+import type { APIRequestContext } from "@playwright/test";
 
 /**
  * Resource factories for E2E specs. Replaces the per-spec
- * `withAdminContext + try/finally + ad-hoc Date.now() suffix` pattern
+ * ad-hoc login contexts, try/finally cleanup, and timestamp-based suffixes
  * with auto-cleanup fixtures that:
  *
  *  1. ALWAYS clean up after the test, even on assertion failure,
  *     because Playwright fixture teardown runs unconditionally.
  *  2. Generate parallel-safe unique suffixes via `randomUUID()`.
- *     `Date.now()` collides at four workers when two specs hit the
+ *     Timestamp suffixes collide at four workers when two specs hit the
  *     same millisecond — uuid is collision-safe by construction.
  *  3. Keep the spec body focused on the assertion, not the bookkeeping.
  *
@@ -61,7 +60,9 @@ export interface StudentFactory {
   _created(): readonly number[];
 }
 
-export function makeStudentFactory(): StudentFactory {
+export function makeStudentFactory(
+  adminApi: APIRequestContext,
+): StudentFactory {
   const created: number[] = [];
 
   return {
@@ -73,19 +74,16 @@ export function makeStudentFactory(): StudentFactory {
         school_class: overrides.school_class ?? "1a",
       };
 
-      const student = await withAdminContext(async (ctx, headers) => {
-        const res = await ctx.post(`${BACKEND_URL}/api/students`, {
-          headers,
-          data,
-        });
-        if (!res.ok()) {
-          throw new Error(
-            `studentFactory.create failed (${res.status()}): ${await res.text()}`,
-          );
-        }
-        const body = (await res.json()) as { data: CreatedStudent };
-        return body.data;
+      const res = await adminApi.post("/api/students", {
+        data,
       });
+      if (!res.ok()) {
+        throw new Error(
+          `studentFactory.create failed (${res.status()}): ${await res.text()}`,
+        );
+      }
+      const body = (await res.json()) as { data: CreatedStudent };
+      const student = body.data;
 
       created.push(student.id);
       return student;
@@ -97,19 +95,26 @@ export function makeStudentFactory(): StudentFactory {
   };
 }
 
-export async function teardownStudents(ids: readonly number[]): Promise<void> {
+export async function teardownStudents(
+  adminApi: APIRequestContext,
+  ids: readonly number[],
+): Promise<void> {
   if (ids.length === 0) return;
-  // One admin context for all deletes — saves N round-trips of token
-  // acquisition. `failOnStatusCode: false` because a test may have
-  // already deleted the row (e.g. the UI-delete spec's whole point).
-  await withAdminContext(async (ctx, headers) => {
-    for (const id of ids) {
-      await ctx.delete(`${BACKEND_URL}/api/students/${id}`, {
-        headers,
-        failOnStatusCode: false,
-      });
+  const failures: string[] = [];
+  for (const id of ids) {
+    const res = await adminApi.delete(`/api/students/${id}`, {
+      failOnStatusCode: false,
+    });
+    if (res.status() === 200 || res.status() === 204 || res.status() === 404) {
+      continue;
     }
-  });
+    failures.push(
+      `student ${id} cleanup failed (${res.status()}): ${await res.text()}`,
+    );
+  }
+  if (failures.length > 0) {
+    throw new Error(failures.join("\n"));
+  }
 }
 
 // === Groups ==================================================================
@@ -133,7 +138,7 @@ export interface GroupFactory {
   _created(): readonly number[];
 }
 
-export function makeGroupFactory(): GroupFactory {
+export function makeGroupFactory(adminApi: APIRequestContext): GroupFactory {
   const created: number[] = [];
 
   return {
@@ -143,19 +148,16 @@ export function makeGroupFactory(): GroupFactory {
         name: overrides.name ?? `E2E Group ${suffix}`,
       };
 
-      const group = await withAdminContext(async (ctx, headers) => {
-        const res = await ctx.post(`${BACKEND_URL}/api/groups`, {
-          headers,
-          data,
-        });
-        if (!res.ok()) {
-          throw new Error(
-            `groupFactory.create failed (${res.status()}): ${await res.text()}`,
-          );
-        }
-        const body = (await res.json()) as { data: CreatedGroup };
-        return body.data;
+      const res = await adminApi.post("/api/groups", {
+        data,
       });
+      if (!res.ok()) {
+        throw new Error(
+          `groupFactory.create failed (${res.status()}): ${await res.text()}`,
+        );
+      }
+      const body = (await res.json()) as { data: CreatedGroup };
+      const group = body.data;
 
       created.push(group.id);
       return group;
@@ -167,20 +169,31 @@ export function makeGroupFactory(): GroupFactory {
   };
 }
 
-export async function teardownGroups(ids: readonly number[]): Promise<void> {
+export async function teardownGroups(
+  adminApi: APIRequestContext,
+  ids: readonly number[],
+): Promise<void> {
   if (ids.length === 0) return;
-  // Group DELETE returns 409 while students are still attached. Tests
-  // that move students into a factory-owned group are responsible for
-  // either deleting the student first (via studentFactory teardown,
-  // which runs BEFORE this one if both fixtures are in scope) or
-  // detaching it. The 409 is tolerated here so a single-spec failure
-  // doesn't block teardown of OTHER groups in the same fixture.
-  await withAdminContext(async (ctx, headers) => {
-    for (const id of ids) {
-      await ctx.delete(`${BACKEND_URL}/api/groups/${id}`, {
-        headers,
-        failOnStatusCode: false,
-      });
+  const failures: string[] = [];
+  for (const id of ids) {
+    const res = await adminApi.delete(`/api/groups/${id}`, {
+      failOnStatusCode: false,
+    });
+    if (res.status() === 200 || res.status() === 204 || res.status() === 404) {
+      continue;
     }
-  });
+    // Group cleanup can legitimately race still-pending student cleanup when
+    // a spec failed before it detached or deleted the student it moved into
+    // the group. Keep the original product failure visible instead of turning
+    // teardown into the primary red with a known "group not empty" 409.
+    if (res.status() === 409) {
+      continue;
+    }
+    failures.push(
+      `group ${id} cleanup failed (${res.status()}): ${await res.text()}`,
+    );
+  }
+  if (failures.length > 0) {
+    throw new Error(failures.join("\n"));
+  }
 }

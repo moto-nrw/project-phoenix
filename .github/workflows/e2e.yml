@@ -6,17 +6,16 @@ name: E2E (Playwright)
 # for ad-hoc runs.
 #
 # What this does, end-to-end:
-#   1. Materialise docker-compose.yml + .env from the checked-in templates.
-#   2. Add *.localtest.me /etc/hosts entries (defense-in-depth — public DNS
-#      already resolves them, but corporate runners sometimes block public
-#      wildcard DNS).
-#   3. ./scripts/seed-e2e.sh brings up postgres-test + server-e2e, runs
-#      `migrate reset`, seeds the deterministic data, and provisions the
-#      second tenant for the tenant-switch spec.
-#   4. Playwright spawns its own `pnpm run dev` against server-e2e:8081
-#      (overridden via webServer.env in playwright.config.ts) and runs the
-#      suite headless.
-#   5. On failure, the HTML report and the seeder's .seed-state.json are
+#   1. Materialise .env from the checked-in templates.
+#   2. `pnpm run e2e` runs the same golden-path harness as local dev:
+#      bring up postgres-test + server-e2e, run `go run main.go e2e prepare`,
+#      and execute Playwright against backend/.e2e-manifest.json directly
+#      from docker-compose.example.yml.
+#   3. Playwright spawns its own `pnpm run dev` on the dedicated E2E
+#      frontend port from backend/.e2e-manifest.json and wires that dev
+#      server to the isolated backend runtime from the same manifest.
+#   4. The suite runs headless against that manifest-backed harness.
+#   5. On failure, the HTML report, E2E manifest, and backend logs are
 #      uploaded as artifacts.
 
 on:
@@ -87,9 +86,6 @@ jobs:
         working-directory: frontend
         run: pnpm exec playwright install-deps chromium
 
-      - name: Materialise docker-compose.yml
-        run: cp docker-compose.example.yml docker-compose.yml
-
       - name: Generate ephemeral CI secrets
         # Generate fresh, random per-run secrets and propagate via
         # $GITHUB_ENV so subsequent steps see them as env vars. This avoids
@@ -142,22 +138,11 @@ jobs:
             echo "NEXTAUTH_SECRET=${CI_NEXTAUTH_SECRET}"
           } >> .env.local
 
-      - name: Add localtest.me /etc/hosts entries
-        # Public DNS already resolves *.localtest.me to 127.0.0.1, but some
-        # CI network policies block public wildcards. Adding explicit entries
-        # makes the suite robust either way. The script is idempotent.
-        run: sudo ./scripts/setup-e2e-hosts.sh
-
-      - name: Seed E2E backend (postgres-test + server-e2e + multi-tenant)
-        run: ./scripts/seed-e2e.sh
-
-      - name: Run Playwright tests
+      - name: Run canonical E2E flow
         working-directory: frontend
         env:
           CI: "true"
-          # Required by playwright.config.ts and helpers/iot.ts (no fallback)
-          E2E_BACKEND_URL: "http://localhost:8081"
-        run: pnpm exec playwright test
+        run: pnpm run e2e
 
       - name: Upload Playwright report
         if: failure()
@@ -167,16 +152,16 @@ jobs:
           path: frontend/playwright-report/
           retention-days: 7
 
-      - name: Upload seeder state on failure
-        # Useful for debugging "demo-device-001 missing in seed state" errors.
-        # The E2E seed writes to .seed-state-e2e.json (separate from the dev
-        # seed's .seed-state.json) — see scripts/seed-e2e.sh and
-        # frontend/e2e/helpers/seed-state.ts for the matching path.
+      - name: Upload E2E manifest on failure
+        # Useful for debugging "demo-device-001 missing in E2E manifest" errors.
+        # The E2E runner writes a dedicated .e2e-manifest.json contract
+        # (separate from the dev seed's .seed-state.json) — see
+        # scripts/e2e.sh and frontend/e2e/contract.ts for the matching path.
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: seed-state
-          path: backend/.seed-state-e2e.json
+          name: e2e-manifest
+          path: backend/.e2e-manifest.json
           retention-days: 7
           if-no-files-found: ignore
 
@@ -192,9 +177,9 @@ jobs:
         if: failure()
         run: |
           mkdir -p backend-logs
-          docker compose --profile e2e logs --no-color --tail=2000 server-e2e \
+          docker compose -f docker-compose.example.yml --profile e2e logs --no-color --tail=2000 server-e2e \
             > backend-logs/server-e2e.log 2>&1 || true
-          docker compose --profile e2e logs --no-color --tail=2000 postgres-test \
+          docker compose -f docker-compose.example.yml --profile e2e logs --no-color --tail=2000 postgres-test \
             > backend-logs/postgres-test.log 2>&1 || true
 
       - name: Upload backend logs on failure
@@ -208,4 +193,4 @@ jobs:
 
       - name: Tear down docker stack
         if: always()
-        run: docker compose --profile e2e down --volumes --remove-orphans
+        run: docker compose -f docker-compose.example.yml --profile e2e down --volumes --remove-orphans

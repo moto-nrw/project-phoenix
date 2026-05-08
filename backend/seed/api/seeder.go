@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	contract "github.com/moto-nrw/project-phoenix/e2e/contract"
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 )
 
@@ -27,13 +28,16 @@ const (
 // When a field is empty, the seeder falls back to its default behavior
 // (random suffixes, generated passwords).
 type SeedOptions struct {
+	Scenario      string // Named scenario, e.g. "e2e", that centralizes deterministic defaults.
+	E2ERuntime    contract.Runtime
 	TenantSlug    string // Fixed tenant slug instead of demo-school-{timestamp}
 	StaffPassword string // Shared password for all 20 staff accounts
 	AdminEmail    string // Fixed email for the bootstrap school admin
 	// StatePath overrides where the seed state JSON is written. Empty
-	// means DefaultSeedStatePath (".seed-state.json" relative to CWD).
-	// E2E uses this to write to .seed-state-e2e.json so it never
-	// collides with the dev seeder's state file.
+	// lets the scenario layer choose a scenario-specific path; if no
+	// scenario claims it, the seeder falls back to DefaultSeedStatePath
+	// (".seed-state.json" relative to CWD). E2E uses this hook to write
+	// to contract.ManifestPath so it never collides with the dev seed file.
 	StatePath string
 	// SecondTenant, when non-nil, schedules an extra workflow step that
 	// provisions a sibling school under the same organization and links
@@ -45,10 +49,11 @@ type SeedOptions struct {
 
 // Seeder orchestrates the complete API-based seeding process
 type Seeder struct {
-	adapter *phoenixapi.Adapter
-	client  *Client
-	verbose bool
-	options SeedOptions
+	adapter    *phoenixapi.Adapter
+	client     *Client
+	verbose    bool
+	options    SeedOptions
+	optionsErr error
 }
 
 // SeedResult contains counts of created entities
@@ -73,16 +78,22 @@ type bootstrapSeedState struct {
 // NewSeeder creates a new API seeder
 func NewSeeder(baseURL string, verbose bool, options SeedOptions) *Seeder {
 	adapter := phoenixapi.New(baseURL, verbose)
+	optionsErr := ApplyScenarioDefaults(&options)
 	return &Seeder{
-		adapter: adapter,
-		client:  NewClientWithAdapter(adapter, verbose),
-		verbose: verbose,
-		options: options,
+		adapter:    adapter,
+		client:     NewClientWithAdapter(adapter, verbose),
+		verbose:    verbose,
+		options:    options,
+		optionsErr: optionsErr,
 	}
 }
 
 // Seed executes the complete seeding workflow
 func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*SeedResult, error) {
+	if s.optionsErr != nil {
+		return nil, fmt.Errorf("invalid seed options: %w", s.optionsErr)
+	}
+
 	runtime := newRuntime(s, email, password, staffPIN)
 	workflow := fullDemoWorkflow(s)
 	if err := workflow.Run(ctx, runtime); err != nil {
@@ -450,7 +461,15 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	fmt.Println()
 
 	fmt.Println("OUTPUT FILES:")
-	fmt.Printf("  %s   (seed state with credentials & IDs)\n", DefaultSeedStatePath)
-	fmt.Println("  simulator.yaml  (simulator configuration)")
+	statePath := s.options.StatePath
+	if statePath == "" {
+		statePath = DefaultSeedStatePath
+	}
+	if s.options.Scenario == SeedScenarioE2E {
+		fmt.Printf("  %s   (dedicated Playwright E2E manifest)\n", statePath)
+	} else {
+		fmt.Printf("  %s   (seed state with credentials & IDs)\n", statePath)
+		fmt.Println("  simulator.yaml  (simulator configuration)")
+	}
 	fmt.Println()
 }

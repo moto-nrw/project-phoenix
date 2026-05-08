@@ -1,10 +1,4 @@
 import { apiTest as test, apiExpect as expect } from "../fixtures";
-import {
-  BACKEND_URL,
-  IOT_HEADERS,
-  getDeviceApiKey,
-  getDevicePIN,
-} from "../helpers/iot";
 
 /**
  * Cross-repo contract tests for the /api/iot/* surface. PyrePortal (the
@@ -32,9 +26,9 @@ import {
 
 test.describe("IoT API auth contract", () => {
   test("missing Authorization header returns 401 with the exact PyrePortal substring", async ({
-    request,
+    backendApi,
   }) => {
-    const res = await request.get(`${BACKEND_URL}/api/iot/config`);
+    const res = await backendApi.get("/api/iot/config");
     expect(res.status()).toBe(401);
 
     const body = (await res.json()) as { status?: string; error?: string };
@@ -46,10 +40,10 @@ test.describe("IoT API auth contract", () => {
   });
 
   test("invalid API key returns 401 with the exact PyrePortal substring", async ({
-    request,
+    backendApi,
   }) => {
-    const res = await request.get(`${BACKEND_URL}/api/iot/config`, {
-      headers: IOT_HEADERS.apiKey("dev_not_a_real_key"),
+    const res = await backendApi.get("/api/iot/config", {
+      headers: { Authorization: "Bearer dev_not_a_real_key" },
     });
     expect(res.status()).toBe(401);
 
@@ -60,11 +54,11 @@ test.describe("IoT API auth contract", () => {
   });
 
   test("malformed Authorization header (no Bearer prefix) returns 401 with the exact PyrePortal substring", async ({
-    request,
+    backendApi,
+    checkinDevice,
   }) => {
-    const apiKey = getDeviceApiKey();
-    const res = await request.get(`${BACKEND_URL}/api/iot/config`, {
-      headers: { Authorization: apiKey },
+    const res = await backendApi.get("/api/iot/config", {
+      headers: { Authorization: checkinDevice.api_key },
     });
     expect(res.status()).toBe(401);
 
@@ -79,12 +73,9 @@ test.describe("IoT API auth contract", () => {
 
 test.describe("GET /api/iot/config", () => {
   test("returns the full config contract for a valid device", async ({
-    request,
+    deviceApi,
   }) => {
-    const apiKey = getDeviceApiKey();
-    const res = await request.get(`${BACKEND_URL}/api/iot/config`, {
-      headers: IOT_HEADERS.apiKey(apiKey),
-    });
+    const res = await deviceApi.get("/api/iot/config");
 
     expect(res.status()).toBe(200);
 
@@ -131,12 +122,9 @@ test.describe("GET /api/iot/config", () => {
   });
 
   test("presence_mode defaults to 'detailed' for a freshly seeded tenant", async ({
-    request,
+    deviceApi,
   }) => {
-    const apiKey = getDeviceApiKey();
-    const res = await request.get(`${BACKEND_URL}/api/iot/config`, {
-      headers: IOT_HEADERS.apiKey(apiKey),
-    });
+    const res = await deviceApi.get("/api/iot/config");
 
     expect(res.status()).toBe(200);
     const body = (await res.json()) as { data: { presence_mode: string } };
@@ -148,10 +136,14 @@ test.describe("GET /api/iot/config", () => {
 });
 
 test.describe("PIN-protected endpoints", () => {
-  test("POST /api/iot/checkin without PIN returns 401", async ({ request }) => {
-    const apiKey = getDeviceApiKey();
-    const res = await request.post(`${BACKEND_URL}/api/iot/checkin`, {
-      headers: IOT_HEADERS.apiKey(apiKey),
+  test("POST /api/iot/checkin without PIN returns 401", async ({
+    backendApi,
+    checkinDevice,
+  }) => {
+    const res = await backendApi.post("/api/iot/checkin", {
+      headers: {
+        Authorization: `Bearer ${checkinDevice.api_key}`,
+      },
       data: { student_rfid: "TEST-RFID-001" },
     });
     expect(res.status()).toBe(401);
@@ -163,11 +155,14 @@ test.describe("PIN-protected endpoints", () => {
   });
 
   test("POST /api/iot/checkin with wrong PIN returns 401", async ({
-    request,
+    backendApi,
+    checkinDevice,
   }) => {
-    const apiKey = getDeviceApiKey();
-    const res = await request.post(`${BACKEND_URL}/api/iot/checkin`, {
-      headers: IOT_HEADERS.apiKeyAndPin(apiKey, "0000"),
+    const res = await backendApi.post("/api/iot/checkin", {
+      headers: {
+        Authorization: `Bearer ${checkinDevice.api_key}`,
+        "X-Staff-PIN": "0000",
+      },
       data: { student_rfid: "TEST-RFID-001" },
     });
     expect(res.status()).toBe(401);
@@ -178,16 +173,13 @@ test.describe("PIN-protected endpoints", () => {
     expect(body.error ?? "").toContain("invalid staff PIN");
   });
 
-  // Sanity check: the PIN we derived from seed state actually works. We
+  // Sanity check: the PIN we derived from the Go e2e manifest actually works. We
   // don't assert on a successful checkin (no real RFID tag provisioned),
   // but we expect any error other than 401 — meaning auth passed.
   test("POST /api/iot/checkin with valid PIN passes auth (status != 401)", async ({
-    request,
+    deviceApi,
   }) => {
-    const apiKey = getDeviceApiKey();
-    const pin = getDevicePIN();
-    const res = await request.post(`${BACKEND_URL}/api/iot/checkin`, {
-      headers: IOT_HEADERS.apiKeyAndPin(apiKey, pin),
+    const res = await deviceApi.post("/api/iot/checkin", {
       data: { student_rfid: "TEST-DOES-NOT-EXIST" },
     });
     expect(res.status()).not.toBe(401);

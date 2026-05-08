@@ -4,11 +4,8 @@ import {
   apiTest,
   apiExpect,
 } from "../fixtures";
-import { withAdminContext } from "../helpers/admin-api";
 import { uniqueSuffix } from "../helpers/factories";
-import { BACKEND_URL } from "../helpers/iot";
 import * as routes from "../helpers/routes";
-import { getFirstTwoGroupDisplayNames } from "../helpers/seed-state";
 
 /**
  * Group CRUD coverage. We test the API contract end-to-end (create group →
@@ -19,109 +16,69 @@ import { getFirstTwoGroupDisplayNames } from "../helpers/seed-state";
  *
  * Cleanup is mandatory: the backend rejects DELETE on a group that still
  * has students (HTTP 409), so we delete the helper student first before
- * removing the group. Wrapped in `try/finally` so leftover state can't
- * accumulate even when assertions fail.
+ * removing the group. The fixtures still track both ids, so teardown
+ * cleans up leftovers even when assertions fail before the explicit delete.
  */
 
 apiTest.describe("Group CRUD via HTTP API", () => {
   apiTest(
     "create group, assign student, list members, then delete in correct order",
-    async () => {
-      const suffix = `${Date.now()}`;
-
-      await withAdminContext(async (ctx, headers) => {
-        // === Create a fresh student we can move around — never touch
-        // seeded students because they may be referenced by other tests.
-        const studentRes = await ctx.post(`${BACKEND_URL}/api/students`, {
-          headers,
-          data: {
-            first_name: `GroupProbe${suffix}`,
-            last_name: "Student",
-            school_class: "1a",
-          },
-        });
-        apiExpect(studentRes.status()).toBeLessThan(300);
-        const studentBody = (await studentRes.json()) as {
-          data: { id: number };
-        };
-        const studentId = studentBody.data.id;
-
-        // === Create the group itself
-        const groupRes = await ctx.post(`${BACKEND_URL}/api/groups`, {
-          headers,
-          data: { name: `E2E Probe Group ${suffix}` },
-        });
-        apiExpect(
-          groupRes.status(),
-          `create group body: ${await groupRes.text()}`,
-        ).toBeLessThan(300);
-        const groupBody = (await groupRes.json()) as {
-          data: { id: number; name: string };
-        };
-        const groupId = groupBody.data.id;
-        apiExpect(groupId).toBeGreaterThan(0);
-
-        try {
-          // === The new group should show up in the listing.
-          const listRes = await ctx.get(`${BACKEND_URL}/api/groups`, {
-            headers,
-          });
-          apiExpect(listRes.status()).toBe(200);
-          const listBody = (await listRes.json()) as {
-            data: Array<{ id: number; name: string }>;
-          };
-          apiExpect(listBody.data.find((g) => g.id === groupId)).toBeDefined();
-
-          // === Assign the student to the group via the student PUT path —
-          // there's no dedicated "/groups/{id}/students" write endpoint;
-          // membership is owned by the student record.
-          const assignRes = await ctx.put(
-            `${BACKEND_URL}/api/students/${studentId}`,
-            {
-              headers,
-              data: {
-                first_name: `GroupProbe${suffix}`,
-                last_name: "Student",
-                school_class: "1a",
-                group_id: groupId,
-              },
-            },
-          );
-          apiExpect(assignRes.status()).toBe(200);
-          const assignBody = (await assignRes.json()) as {
-            data: { group_id: number | null };
-          };
-          apiExpect(assignBody.data.group_id).toBe(groupId);
-
-          // === The group's student roster now includes our test student.
-          const membersRes = await ctx.get(
-            `${BACKEND_URL}/api/groups/${groupId}/students`,
-            { headers },
-          );
-          apiExpect(membersRes.status()).toBe(200);
-          const membersBody = (await membersRes.json()) as {
-            data: Array<{ id: number }>;
-          };
-          apiExpect(
-            membersBody.data.find((s) => s.id === studentId),
-          ).toBeDefined();
-        } finally {
-          // Order matters: the group's DELETE returns 409 while the
-          // student is still attached, so remove the student first.
-          await ctx.delete(`${BACKEND_URL}/api/students/${studentId}`, {
-            headers,
-            failOnStatusCode: false,
-          });
-          const groupDel = await ctx.delete(
-            `${BACKEND_URL}/api/groups/${groupId}`,
-            { headers },
-          );
-          apiExpect(
-            groupDel.status(),
-            `group delete body: ${await groupDel.text()}`,
-          ).toBe(200);
-        }
+    async ({ adminApi, studentFactory, groupFactory }) => {
+      const student = await studentFactory.create({
+        first_name: `GroupProbe${uniqueSuffix()}`,
+        last_name: "Student",
+        school_class: "1a",
       });
+      const group = await groupFactory.create({
+        name: `E2E Probe Group ${uniqueSuffix()}`,
+      });
+
+      // === The new group should show up in the listing.
+      const listRes = await adminApi.get("/api/groups");
+      apiExpect(listRes.status()).toBe(200);
+      const listBody = (await listRes.json()) as {
+        data: Array<{ id: number; name: string }>;
+      };
+      apiExpect(listBody.data.find((g) => g.id === group.id)).toBeDefined();
+
+      // === Assign the student to the group via the student PUT path —
+      // there's no dedicated "/groups/{id}/students" write endpoint;
+      // membership is owned by the student record.
+      const assignRes = await adminApi.put(`/api/students/${student.id}`, {
+        data: {
+          first_name: student.first_name,
+          last_name: student.last_name,
+          school_class: student.school_class,
+          group_id: group.id,
+        },
+      });
+      apiExpect(assignRes.status()).toBe(200);
+      const assignBody = (await assignRes.json()) as {
+        data: { group_id: number | null };
+      };
+      apiExpect(assignBody.data.group_id).toBe(group.id);
+
+      // === The group's student roster now includes our test student.
+      const membersRes = await adminApi.get(`/api/groups/${group.id}/students`);
+      apiExpect(membersRes.status()).toBe(200);
+      const membersBody = (await membersRes.json()) as {
+        data: Array<{ id: number }>;
+      };
+      apiExpect(
+        membersBody.data.find((member) => member.id === student.id),
+      ).toBeDefined();
+
+      // Order matters: the group's DELETE returns 409 while the student is
+      // still attached, so delete the student first. The factories still
+      // track both ids, so teardown cleans up leftovers if any assertion
+      // above failed before we reached this point.
+      const studentDel = await adminApi.delete(`/api/students/${student.id}`);
+      apiExpect(studentDel.status()).toBe(200);
+      const groupDel = await adminApi.delete(`/api/groups/${group.id}`);
+      apiExpect(
+        groupDel.status(),
+        `group delete body: ${await groupDel.text()}`,
+      ).toBe(200);
     },
   );
 });
@@ -129,32 +86,36 @@ apiTest.describe("Group CRUD via HTTP API", () => {
 uiTest.describe("Group list UI", () => {
   uiTest(
     "admin sees seeded groups on /database/groups",
-    async ({ authenticatedPage: page }) => {
-      await page.goto(routes.groupsList);
+    async ({ authenticatedPage: page, app, groupVisibilityScenario }) => {
+      await page.goto(app.primary(routes.groupsList));
 
-      // Two seeded group display names pulled from the seeder's lookup
-      // table — no hardcoded "Sternengruppe"/"Bärengruppe" so the test
-      // survives a seeder reorder. If both render, the list is wired up,
-      // not just one stub.
-      const [firstGroup, secondGroup] = getFirstTwoGroupDisplayNames();
-      await uiExpect(page.getByText(firstGroup).first()).toBeVisible({
-        timeout: 15000,
+      // Explicit manifest-backed fixture from the Go-owned e2e scenario. The seeder
+      // chooses the canonical pair the list must render; specs no longer
+      // infer it from lookup-map ordering on the frontend side.
+      const firstGroupName = groupVisibilityScenario.primary.display_name;
+      const secondGroupName = groupVisibilityScenario.secondary.display_name;
+      await uiExpect(
+        page.getByRole("button", { name: new RegExp(firstGroupName) }).first(),
+      ).toBeVisible({
+        timeout: 20000,
       });
-      await uiExpect(page.getByText(secondGroup).first()).toBeVisible({
-        timeout: 5000,
+      await uiExpect(
+        page.getByRole("button", { name: new RegExp(secondGroupName) }).first(),
+      ).toBeVisible({
+        timeout: 10000,
       });
     },
   );
 
   uiTest(
     "admin creates a group via the GroupCreateModal and the row appears in the list",
-    async ({ authenticatedPage: page, groupFactory }) => {
+    async ({ authenticatedPage: page, app, adminApi, groupFactory }) => {
       // Issue #1142 lists "Erstellen" as a Gruppen task. The HTTP path
       // is covered by the API spec above; this UI test exercises the
       // open-modal → fill-form → submit → row-visible chain.
       const name = `UICreateGruppe ${uniqueSuffix()}`;
 
-      await page.goto(routes.groupsList);
+      await page.goto(app.primary(routes.groupsList));
 
       // The plus-button has aria-label "Gruppe erstellen"
       // (DatabaseCreateAction). Stable accessible name despite the
@@ -195,19 +156,17 @@ uiTest.describe("Group list UI", () => {
       // (no ?search=), so we walk the small result set ourselves —
       // groups don't have a search-by-name handler at the time of
       // writing, and adding one for tests would be tail-wagging-dog.
-      const id = await withAdminContext(async (ctx, headers) => {
-        const res = await ctx.get(`${BACKEND_URL}/api/groups`, { headers });
-        uiExpect(res.status()).toBe(200);
-        const body = (await res.json()) as {
-          data: Array<{ id: number; name: string }>;
-        };
-        const match = body.data.find((g) => g.name === name);
-        uiExpect(
-          match,
-          `group "${name}" not found via /api/groups`,
-        ).toBeDefined();
-        return match!.id;
-      });
+      const res = await adminApi.get("/api/groups");
+      uiExpect(res.status()).toBe(200);
+      const body = (await res.json()) as {
+        data: Array<{ id: number; name: string }>;
+      };
+      const match = body.data.find((g) => g.name === name);
+      uiExpect(
+        match,
+        `group "${name}" not found via /api/groups`,
+      ).toBeDefined();
+      const id = match!.id;
 
       // Hand the id to the factory so its teardown deletes it.
       groupFactory.track(id);

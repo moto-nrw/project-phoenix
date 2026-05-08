@@ -152,8 +152,8 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - "8025:8025"   # Web UI
-      - "1025:1025"   # SMTP
+      - "8025:8025" # Web UI
+      - "1025:1025" # SMTP
     environment:
       MP_MAX_MESSAGES: 500
 
@@ -180,7 +180,7 @@ services:
       retries: 5
 
   # Isolated backend bound to postgres-test, used by Playwright E2E tests so
-  # `seed-e2e.sh` no longer wipes the developer's dev DB on every run. Mirrors
+  # `scripts/e2e.sh` no longer wipes the developer's dev DB on every run. Mirrors
   # the dev `server` service env-for-env so behaviour matches; only DB_DSN
   # (points at postgres-test, sslmode=disable) and APP_ENV (=test) differ.
   # Reachable from the host on :8081.
@@ -254,13 +254,9 @@ services:
       SESSION_CLEANUP_ENABLED: "false"
       SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES}
       SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES}
-      # Hardcoded — not ${OGS_DEVICE_PIN} — because seed-e2e.sh writes a
-      # fixed staff PIN ("1234") into .seed-state-e2e.json that Playwright
-      # reads via getDevicePIN(). Inheriting from the shared root .env
-      # would let a developer who customised OGS_DEVICE_PIN locally serve
-      # tests with a server-side PIN that doesn't match the seeded one,
-      # producing 401s on every /api/iot/* request. Keep this in sync
-      # with OPERATOR_PIN in scripts/seed-e2e.sh.
+      # Canonical E2E runtime: keep the device PIN owned by the dedicated
+      # server-e2e service instead of requiring the wrapper script to override
+      # a developer-local root .env value at runtime.
       OGS_DEVICE_PIN: "1234"
       OPERATOR_EMAIL: ${OPERATOR_EMAIL}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
@@ -275,11 +271,11 @@ services:
     # until the container is RUNNING — not until `go run` has finished
     # compiling and the HTTP server is actually listening. On a cold
     # local run or fresh CI runner, that startup window is 30–60s and
-    # the next steps in seed-e2e.sh (`migrate reset`, `seed`, multi-
-    # tenant operator login) would race the server, surfacing as
+    # the next steps in scripts/e2e.sh (`go run main.go e2e prepare`)
+    # would race the server, surfacing as
     # confusing "connection refused" failures even though Compose
     # reported success. /health returns 200 OK once Chi is wired up,
-    # so polling it gives us a deterministic ready-signal.
+    # so polling it gives us a deterministic ready-signal for scripts/e2e.sh.
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 5s

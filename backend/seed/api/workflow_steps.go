@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+
+	contract "github.com/moto-nrw/project-phoenix/e2e/contract"
 )
 
 type healthCheckStep struct{}
@@ -84,13 +86,13 @@ func (markStudentsSickStep) Run(ctx context.Context, rt *Runtime) error {
 	return rt.FixedSeeder.MarkStudentsSick(ctx, rt.Result.Fixed)
 }
 
-type buildStateStep struct {
+type buildSeedStateStep struct {
 	seeder *Seeder
 }
 
-func (buildStateStep) Name() string { return "Writing seed state" }
+func (buildSeedStateStep) Name() string { return "Writing seed state" }
 
-func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
+func (s buildSeedStateStep) Run(_ context.Context, rt *Runtime) error {
 	if rt.FixedSeeder == nil {
 		return fmt.Errorf("fixed seeder not available")
 	}
@@ -106,7 +108,6 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 		// Second school lives under the same organization, so the org
 		// count stays 1 and only the school count bumps.
 		state.Topology.Schools = 2
-		state.SecondTenant = rt.SecondTenant
 	}
 	state.Topology.Mode = "full-demo"
 	state.Scenarios.DefaultPlayer = "pyreportal"
@@ -122,6 +123,29 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	fmt.Printf("Seed state written to %s\n", statePath)
+	return nil
+}
+
+type writeE2EManifestStep struct {
+	seeder *Seeder
+}
+
+func (writeE2EManifestStep) Name() string { return "Writing E2E manifest" }
+
+func (s writeE2EManifestStep) Run(_ context.Context, rt *Runtime) error {
+	manifest, err := s.seeder.buildE2EManifest(rt)
+	if err != nil {
+		return err
+	}
+
+	statePath := s.seeder.options.StatePath
+	if statePath == "" {
+		statePath = contract.ManifestPath
+	}
+	if err := contract.WriteManifest(manifest, statePath); err != nil {
+		return err
+	}
+	fmt.Printf("E2E manifest written to %s\n", statePath)
 	return nil
 }
 
@@ -175,17 +199,20 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	// place — it depends on the named LinkEmail account having been
 	// created by the master-data step, on the operator being logged in
 	// (so we can create the school + invite), and on roles existing in
-	// the new tenant. Inserting it here keeps buildStateStep below as
-	// the single point where SeedState is materialised.
+	// the new tenant. Inserting it here keeps the scenario-specific output
+	// step below as the single place where the canonical artifact is written.
 	if seeder.options.SecondTenant != nil {
 		steps = append(steps, secondTenantStep{seeder: seeder})
 	}
 
-	steps = append(steps,
-		buildStateStep{seeder: seeder},
-		writeSimulatorConfigStep{},
-		printSummaryStep{seeder: seeder},
-	)
+	if seeder.options.Scenario == SeedScenarioE2E {
+		steps = append(steps, provisionE2ECheckinStep{seeder: seeder})
+		steps = append(steps, writeE2EManifestStep{seeder: seeder})
+	} else {
+		steps = append(steps, buildSeedStateStep{seeder: seeder})
+		steps = append(steps, writeSimulatorConfigStep{})
+	}
+	steps = append(steps, printSummaryStep{seeder: seeder})
 
 	return Workflow{
 		Name:  "full-demo",

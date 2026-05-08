@@ -1,24 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
-import { BASE_URL, STORAGE_STATE_PATH } from "./e2e/helpers/seed-data";
+import { getE2ERuntime } from "./e2e/contract";
+import { STORAGE_STATE_PATH } from "./e2e/auth";
 
-// Single source of truth for "where is the E2E backend?". Read from the
-// same env var that helpers/iot.ts uses (E2E_BACKEND_URL) so HTTP-only
-// specs and the spawned Next.js dev server agree on the target.
-//
-// Required, no fallback: the project's "No fallbacks" rule (CLAUDE.md)
-// applies here too. A silent localhost:8081 default would mean
-// `pnpm exec playwright test` from a fresh shell silently runs against
-// whatever happens to be on :8081 — possibly the dev backend, possibly
-// nothing — instead of failing loud. `scripts/seed-e2e.sh` exports the
-// variable for local runs; CI sets it explicitly in `.github/workflows/e2e.yml`.
-const E2E_BACKEND_URL = process.env.E2E_BACKEND_URL;
-if (!E2E_BACKEND_URL) {
-  throw new Error(
-    "E2E_BACKEND_URL is not set. Run via scripts/seed-e2e.sh (which exports " +
-      "it for you) or export E2E_BACKEND_URL=http://localhost:8081 manually " +
-      "before invoking playwright test.",
-  );
-}
+const runtime = getE2ERuntime();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -27,14 +11,16 @@ export default defineConfig({
   // No retries — anywhere. Retries on CI hide flakes behind green checkmarks
   // and erode trust in the suite over time. If a test is flaky, fix the
   // root cause (timing assumption, shared state, race) instead of papering
-  // over it. The existing test data isolation (`Date.now()` suffixes,
+  // over it. The existing test data isolation (`randomUUID()` suffixes,
   // dedicated postgres-test DB, idempotent setup) is designed to support
   // this stance.
   retries: 0,
-  // Cap parallelism so multiple workers don't saturate the single backend
-  // container; 4 keeps suite runtime low without making auth/UI tests flaky
-  // under load. CI uses 1 worker for full determinism.
-  workers: process.env.CI ? 1 : 4,
+  // Cap parallelism so multiple workers do not saturate the single backend
+  // container and the one spawned Next.js dev server. With the full suite,
+  // 4 local workers regularly pushed protected-page navigations and modal
+  // submits into timeouts under cold-compile load; 2 is slower but stable.
+  // CI still runs at 1 worker for full determinism.
+  workers: process.env.CI ? 1 : 2,
   // Per-test timeout. The default 30s is tight for UI specs that drive a
   // cold dev server: a first-hit page.goto under 4-way parallel load can
   // burn 15–25s on Next.js lazy compilation alone before the spec even
@@ -45,7 +31,6 @@ export default defineConfig({
   timeout: 60_000,
   reporter: "html",
   use: {
-    baseURL: BASE_URL,
     // `retries: 0` is intentional (see comment above), so `on-first-retry`
     // would write traces never. `retain-on-failure` keeps a full trace
     // (step timeline, network log, DOM snapshots per step) on every failed
@@ -91,8 +76,8 @@ export default defineConfig({
     // both URLs side by side in the browser to compare behavior.
     // :3030 (not :3001) because :3001 is commonly taken by other dev tools
     // (Bun, secondary Next instances). :3030 is far less crowded.
-    command: "pnpm run dev --port 3030",
-    url: "http://localhost:3030",
+    command: `pnpm run dev --port ${runtime.frontend_port}`,
+    url: `http://localhost:${runtime.frontend_port}`,
     // Always spawn a fresh dev server — never reuse whatever happens to be
     // listening on :3030. Playwright's URL probe only checks "does anything
     // answer", not "is it our spawned dev server with the right env". A
@@ -112,17 +97,18 @@ export default defineConfig({
     // frontend wired to that backend, so a developer running
     // `docker compose up` in parallel doesn't poison test runs.
     env: {
-      // Bind Next.js to :3030 (also passed via --port; both honored).
-      PORT: "3030",
-      NEXT_PUBLIC_API_URL: E2E_BACKEND_URL,
-      API_URL: E2E_BACKEND_URL,
+      // Bind Next.js to the dedicated E2E frontend port (also passed via
+      // --port; both honored).
+      PORT: String(runtime.frontend_port),
+      NEXT_PUBLIC_API_URL: runtime.backend_url,
+      API_URL: runtime.backend_url,
       // Override TENANT_DOMAIN for the spawned dev server so the suite gets
       // production-shaped cookie behavior (.localtest.me cookie scope) needed
       // for the tenant-switch flow. The canonical dev default is `localhost`,
       // which uses host-scoped cookies and forces re-login on tenant switch —
       // fine for everyday dev, wrong for E2E.
-      TENANT_DOMAIN: "localtest.me",
-      NEXT_PUBLIC_TENANT_DOMAIN: "localtest.me",
+      TENANT_DOMAIN: runtime.tenant_domain,
+      NEXT_PUBLIC_TENANT_DOMAIN: runtime.tenant_domain,
       // Pin the operator subdomain to the localtest.me + :3030 origin so
       // proxy.ts:isOperatorHost() and lib/operator-url.ts:isOperatorSubdomain()
       // recognize the operator URL in this run mode. Without this override,
@@ -130,7 +116,7 @@ export default defineConfig({
       // :3000) and a request to operator.localtest.me:3030 would be routed to
       // the tenant selector instead of the operator app — silently wrong, hard
       // to debug if a future spec exercises the operator surface.
-      NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localtest.me:3030",
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: runtime.operator_hostname,
     },
   },
 });

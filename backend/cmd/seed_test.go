@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"testing"
 
+	contract "github.com/moto-nrw/project-phoenix/e2e/contract"
+	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,6 +40,7 @@ func TestSeedCmd_Flags(t *testing.T) {
 	assert.NotNil(t, f.Lookup("pin"))
 	assert.NotNil(t, f.Lookup("url"))
 	assert.NotNil(t, f.Lookup("verbose"))
+	assert.NotNil(t, f.Lookup("scenario"))
 	assert.NotNil(t, f.Lookup("tenant-slug"))
 	assert.NotNil(t, f.Lookup("staff-password"))
 	assert.NotNil(t, f.Lookup("admin-email"))
@@ -65,12 +69,14 @@ func TestSeedCmd_UsageOutput(t *testing.T) {
 	assert.Contains(t, output, "--password")
 	assert.Contains(t, output, "--pin")
 	assert.Contains(t, output, "--url")
+	assert.Contains(t, output, "--scenario")
 }
 
 func TestSeedCmd_LongDescription(t *testing.T) {
 	assert.Contains(t, seedCmd.Long, "HTTP API")
 	assert.Contains(t, seedCmd.Long, "REQUIRES")
 	assert.Contains(t, seedCmd.Long, ".seed-state.json")
+	assert.Contains(t, seedCmd.Long, contract.ManifestPath)
 }
 
 func TestSeedCmd_FlagTypes(t *testing.T) {
@@ -92,6 +98,10 @@ func TestSeedCmd_FlagTypes(t *testing.T) {
 	require.NotNil(t, verboseFlag)
 	assert.Equal(t, "false", verboseFlag.DefValue)
 
+	scenarioFlag := f.Lookup("scenario")
+	require.NotNil(t, scenarioFlag)
+	assert.Equal(t, "", scenarioFlag.DefValue)
+
 	tenantSlugFlag := f.Lookup("tenant-slug")
 	require.NotNil(t, tenantSlugFlag)
 	assert.Equal(t, "", tenantSlugFlag.DefValue)
@@ -107,4 +117,83 @@ func TestSeedCmd_FlagTypes(t *testing.T) {
 	statePathFlag := f.Lookup("state-path")
 	require.NotNil(t, statePathFlag)
 	assert.Equal(t, ".seed-state.json", statePathFlag.DefValue)
+}
+
+func TestSeedOptionsFromFlags_OmittedStatePathLeavesScenarioToChooseDefault(t *testing.T) {
+	cmd := newSeedOptionsTestCommand(t)
+
+	err := cmd.Flags().Set("scenario", seedapi.SeedScenarioE2E)
+	require.NoError(t, err)
+
+	opts := seedOptionsFromFlags(cmd)
+
+	assert.Equal(t, seedapi.SeedScenarioE2E, opts.Scenario)
+	assert.Empty(t, opts.StatePath)
+}
+
+func TestSeedOptionsFromFlags_ExplicitStatePathWins(t *testing.T) {
+	cmd := newSeedOptionsTestCommand(t)
+
+	err := cmd.Flags().Set("scenario", seedapi.SeedScenarioE2E)
+	require.NoError(t, err)
+	err = cmd.Flags().Set("state-path", "custom-state.json")
+	require.NoError(t, err)
+
+	opts := seedOptionsFromFlags(cmd)
+
+	assert.Equal(t, "custom-state.json", opts.StatePath)
+}
+
+func TestValidateSeedFlagCombination_E2ERejectsDeterministicOverrides(t *testing.T) {
+	cmd := newSeedOptionsTestCommand(t)
+
+	err := cmd.Flags().Set("scenario", seedapi.SeedScenarioE2E)
+	require.NoError(t, err)
+	err = cmd.Flags().Set("tenant-slug", "custom-slug")
+	require.NoError(t, err)
+
+	err = validateSeedFlagCombination(cmd)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--tenant-slug")
+	assert.Contains(t, err.Error(), seedapi.SeedScenarioE2E)
+}
+
+func TestValidateSeedFlagCombination_E2EAllowsStatePathOverride(t *testing.T) {
+	cmd := newSeedOptionsTestCommand(t)
+
+	err := cmd.Flags().Set("scenario", seedapi.SeedScenarioE2E)
+	require.NoError(t, err)
+	err = cmd.Flags().Set("state-path", "custom-state.json")
+	require.NoError(t, err)
+
+	err = validateSeedFlagCombination(cmd)
+
+	require.NoError(t, err)
+}
+
+func TestValidateSeedFlagCombination_NonScenarioAllowsDeterministicOverrides(t *testing.T) {
+	cmd := newSeedOptionsTestCommand(t)
+
+	err := cmd.Flags().Set("tenant-slug", "custom-slug")
+	require.NoError(t, err)
+	err = cmd.Flags().Set("staff-password", "CustomPass123!")
+	require.NoError(t, err)
+
+	err = validateSeedFlagCombination(cmd)
+
+	require.NoError(t, err)
+}
+
+func newSeedOptionsTestCommand(t *testing.T) *cobra.Command {
+	t.Helper()
+
+	cmd := &cobra.Command{Use: "seed"}
+	cmd.Flags().String("scenario", "", "")
+	cmd.Flags().String("tenant-slug", "", "")
+	cmd.Flags().String("staff-password", "", "")
+	cmd.Flags().String("admin-email", "", "")
+	cmd.Flags().String("state-path", seedapi.DefaultSeedStatePath, "")
+
+	return cmd
 }

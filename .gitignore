@@ -461,7 +461,7 @@ docker-compose.sonar.yml
 
 backend/simulator/iot/simulator.yaml
 backend/.seed-state.json
-backend/.seed-state-e2e.json
+backend/.e2e-manifest.json
 .cache_ggshield
 gitleaks-report.json
 
