@@ -49,6 +49,15 @@ const (
 	publicPhotoBaseDir  = "public/uploads/student-photos"
 )
 
+// User-facing and internal error strings reused across handlers. Extracted
+// to constants so the same wording appears at every emission point and so
+// SonarCloud's S1192 (duplicated string literal) rule does not flag the
+// triple-occurrence sites.
+const (
+	msgPhotosFeatureDisabled = "Kinderfotos sind in dieser Schule nicht aktiviert" //nolint:staticcheck // ST1005: user-facing German message
+	msgNoTenantContext       = "no tenant context"
+)
+
 // stampPhotoConsent writes the photo_consent_given_at + photo_consent_given_by
 // columns on the student row, deriving the acting account from the JWT
 // claims in ctx. Used by both the update flow (false→true transition in
@@ -81,7 +90,7 @@ func (rs *Resource) ensurePhotoFeatureEnabled(ctx context.Context) error {
 		return fmt.Errorf("photo feature lookup failed: %w", err)
 	}
 	if !enabled {
-		return errors.New("Kinderfotos sind in dieser Schule nicht aktiviert") //nolint:staticcheck // ST1005: user-facing German message
+		return errors.New(msgPhotosFeatureDisabled)
 	}
 	return nil
 }
@@ -139,7 +148,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := tenant.FromContext(r.Context())
 	if tenantID <= 0 {
-		renderError(w, r, ErrorInvalidRequest(errors.New("no tenant context")))
+		renderError(w, r, ErrorInvalidRequest(errors.New(msgNoTenantContext)))
 		return
 	}
 
@@ -330,7 +339,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, errFeatureDisabled):
 			render.Status(r, http.StatusForbidden)
-			renderError(w, r, ErrorForbidden(errors.New("Kinderfotos sind in dieser Schule nicht aktiviert"))) //nolint:staticcheck // ST1005: user-facing German message
+			renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled)))
 		case errors.Is(err, errStudentNotFound):
 			renderError(w, r, ErrorNotFound(err))
 		case errors.Is(err, errStudentForbidden):
@@ -339,7 +348,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 			renderError(w, r, ErrorInvalidRequest(err))
 		case errors.Is(err, errFeatureDisabledMidUpload):
 			render.Status(r, http.StatusForbidden)
-			renderError(w, r, ErrorForbidden(errors.New("Kinderfotos sind in dieser Schule nicht aktiviert"))) //nolint:staticcheck // ST1005: user-facing German message
+			renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled)))
 		case errors.Is(err, errConsentWithdrawnMidUpload):
 			// 409 Conflict: request was valid when sent but the
 			// underlying consent state changed before our tx could
@@ -402,7 +411,7 @@ func (rs *Resource) deleteStudentPhoto(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := tenant.FromContext(r.Context())
 	if tenantID <= 0 {
-		renderError(w, r, ErrorInvalidRequest(errors.New("no tenant context")))
+		renderError(w, r, ErrorInvalidRequest(errors.New(msgNoTenantContext)))
 		return
 	}
 
@@ -549,7 +558,7 @@ func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := tenant.FromContext(r.Context())
 	if tenantID <= 0 {
-		renderError(w, r, ErrorInvalidRequest(errors.New("no tenant context")))
+		renderError(w, r, ErrorInvalidRequest(errors.New(msgNoTenantContext)))
 		return
 	}
 

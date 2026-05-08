@@ -185,10 +185,10 @@ export function StudentPhotoSection({
   ]);
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+    <div className="rounded-xl border border-gray-100 bg-[#5080D8]/5 p-3 md:p-4">
       <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
         <svg
-          className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+          className="h-3.5 w-3.5 text-[#5080D8] md:h-4 md:w-4"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -304,7 +304,7 @@ export function StudentPhotoSection({
       ) : null}
 
       {error ? (
-        <p className="mt-2 text-xs text-red-700" role="alert">
+        <p className="mt-2 text-xs text-[#B82A29]" role="alert">
           {error}
         </p>
       ) : null}
