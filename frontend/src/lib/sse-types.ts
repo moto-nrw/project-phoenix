@@ -27,8 +27,10 @@ interface SSEEventData {
   room_name?: string;
   supervisor_ids?: string[];
 
-  // Source tracking
-  source?: "rfid" | "manual" | "automated";
+  // Source tracking. Student/activity events typically use "rfid",
+  // "manual", or "automated"; tenant-wide invalidation events also reuse
+  // this field for setting keys / feature labels.
+  source?: string;
 }
 
 export interface SSEEvent {

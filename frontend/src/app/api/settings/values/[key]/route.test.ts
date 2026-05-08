@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockApiPut = vi.fn();
 const mockApiDelete = vi.fn();
@@ -174,13 +174,26 @@ describe("settings values tenant cache busting", () => {
     expect(mockRevalidateTag).not.toHaveBeenCalled();
   });
 
-  it("does NOT revalidate when TENANT_DOMAIN env is unset", async () => {
+  it("fails fast when TENANT_DOMAIN env is unset for tenant-affecting keys", async () => {
+    delete process.env.TENANT_DOMAIN;
+    await expect(
+      (PUT as Function)(
+        reqWithHost("demo.moto-app.de"),
+        { value: true },
+        "test-token",
+        { key: "operations.student_photos_enabled" },
+      ),
+    ).rejects.toThrow(/TENANT_DOMAIN is not set/);
+    expect(mockRevalidateTag).not.toHaveBeenCalled();
+  });
+
+  it("does NOT require TENANT_DOMAIN for non-tenant-resolve-affecting keys", async () => {
     delete process.env.TENANT_DOMAIN;
     await (PUT as Function)(
       reqWithHost("demo.moto-app.de"),
-      { value: true },
+      { value: "16:30" },
       "test-token",
-      { key: "operations.student_photos_enabled" },
+      { key: "operations.session_end_time" },
     );
     expect(mockRevalidateTag).not.toHaveBeenCalled();
   });

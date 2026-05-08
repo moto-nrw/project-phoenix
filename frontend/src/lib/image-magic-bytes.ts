@@ -11,7 +11,7 @@
 // this — `browser-image-compression` decodes via canvas and would refuse
 // non-image bytes itself.
 
-export interface ImageMagicSignature {
+interface ImageMagicSignature {
   /**
    * Lower-case hex string of the expected first bytes. The validator
    * compares this against the first 4 bytes of the file (8 hex chars);

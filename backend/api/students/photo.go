@@ -81,7 +81,7 @@ func (rs *Resource) ensurePhotoFeatureEnabled(ctx context.Context) error {
 		return fmt.Errorf("photo feature lookup failed: %w", err)
 	}
 	if !enabled {
-		return errors.New("Kinderfotos sind in dieser Schule nicht aktiviert")
+		return errors.New("Kinderfotos sind in dieser Schule nicht aktiviert") //nolint:staticcheck // ST1005: user-facing German message
 	}
 	return nil
 }
@@ -97,8 +97,11 @@ func removeStudentPhotoFile(storedURL string, logger *slog.Logger) {
 	path, err := common.ResolveStoredPath("public", storedURL, common.StudentPhotoStoredURLPrefix)
 	if err != nil {
 		if logger != nil {
-			logger.Warn("could not resolve student photo path for cleanup",
-				"stored_url", storedURL, "error", err.Error())
+			logger.Warn(
+				"could not resolve student photo path for cleanup",
+				"stored_url", storedURL,
+				"error", err.Error(),
+			)
 		}
 		return
 	}
@@ -181,7 +184,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	errFeatureDisabled := errors.New("photos feature not available")
 	errStudentNotFound := errors.New("student not found")
 	errStudentForbidden := errors.New("you can only update students in groups you supervise")
-	errConsentRequired := errors.New("Einwilligung der Eltern muss vor dem Upload bestätigt werden")
+	errConsentRequired := errors.New("Einwilligung der Eltern muss vor dem Upload bestätigt werden") //nolint:staticcheck // ST1005: user-facing German message
 	errFeatureDisabledMidUpload := errors.New("photos feature disabled mid-upload")
 	errConsentWithdrawnMidUpload := errors.New("photo consent withdrawn mid-upload")
 	// errStudentReassignedMidUpload covers the concurrency hole where a
@@ -327,7 +330,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, errFeatureDisabled):
 			render.Status(r, http.StatusForbidden)
-			renderError(w, r, ErrorForbidden(errors.New("Kinderfotos sind in dieser Schule nicht aktiviert")))
+			renderError(w, r, ErrorForbidden(errors.New("Kinderfotos sind in dieser Schule nicht aktiviert"))) //nolint:staticcheck // ST1005: user-facing German message
 		case errors.Is(err, errStudentNotFound):
 			renderError(w, r, ErrorNotFound(err))
 		case errors.Is(err, errStudentForbidden):
@@ -336,14 +339,14 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 			renderError(w, r, ErrorInvalidRequest(err))
 		case errors.Is(err, errFeatureDisabledMidUpload):
 			render.Status(r, http.StatusForbidden)
-			renderError(w, r, ErrorForbidden(errors.New("Kinderfotos sind in dieser Schule nicht aktiviert")))
+			renderError(w, r, ErrorForbidden(errors.New("Kinderfotos sind in dieser Schule nicht aktiviert"))) //nolint:staticcheck // ST1005: user-facing German message
 		case errors.Is(err, errConsentWithdrawnMidUpload):
 			// 409 Conflict: request was valid when sent but the
 			// underlying consent state changed before our tx could
 			// commit. Frontend re-fetches the student and re-prompts
 			// for consent before retrying.
 			render.Status(r, http.StatusConflict)
-			renderError(w, r, ErrorInvalidRequest(errors.New("Einwilligung der Eltern wurde widerrufen — bitte erneut bestätigen")))
+			renderError(w, r, ErrorInvalidRequest(errors.New("Einwilligung der Eltern wurde widerrufen — bitte erneut bestätigen"))) //nolint:staticcheck // ST1005: user-facing German message
 		case errors.Is(err, errStudentReassignedMidUpload):
 			// 403 Forbidden: a concurrent reassignment dropped the
 			// caller out of the student's scope while we held the

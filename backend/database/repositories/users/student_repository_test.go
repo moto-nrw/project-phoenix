@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -575,7 +574,7 @@ func TestStudentRepository_ListWithOptions(t *testing.T) {
 		student3 := testpkg.CreateTestStudent(t, db, "Page3", "Test", "1c")
 		defer cleanupStudentRecords(t, db, student1.ID, student2.ID, student3.ID)
 
-		options := base.NewQueryOptions()
+		options := modelBase.NewQueryOptions()
 		options.WithPagination(1, 2) // Page 1, limit 2
 
 		students, err := repo.ListWithOptions(ctx, options)
@@ -588,8 +587,8 @@ func TestStudentRepository_ListWithOptions(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "FilterOpt", "Test", uniqueClass)
 		defer cleanupStudentRecords(t, db, student.ID)
 
-		options := base.NewQueryOptions()
-		filter := base.NewFilter()
+		options := modelBase.NewQueryOptions()
+		filter := modelBase.NewFilter()
 		filter.ILike("school_class", "%"+uniqueClass+"%")
 		options.Filter = filter
 
@@ -611,8 +610,8 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, db, "Count2", "Test", "CountClass")
 		defer cleanupStudentRecords(t, db, student1.ID, student2.ID)
 
-		options := base.NewQueryOptions()
-		filter := base.NewFilter()
+		options := modelBase.NewQueryOptions()
+		filter := modelBase.NewFilter()
 		filter.ILike("school_class", "%CountClass%")
 		options.Filter = filter
 

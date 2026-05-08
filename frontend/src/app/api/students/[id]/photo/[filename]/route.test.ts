@@ -72,7 +72,10 @@ function imageResponse(
   body: Uint8Array | null,
   headers: Record<string, string> = {},
 ): Response {
-  return new Response(body, { status, headers });
+  return new Response(body ? new Blob([Uint8Array.from(body)]) : null, {
+    status,
+    headers,
+  });
 }
 
 describe("GET /api/students/[id]/photo/[filename] — happy path", () => {

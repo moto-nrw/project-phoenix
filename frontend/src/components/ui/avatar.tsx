@@ -13,7 +13,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { getInitials } from "~/lib/format-utils";
 
-export type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
+type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 interface AvatarProps {
   /** Public image URL (e.g. "/uploads/student-photos/..."). Falsy → initials. */

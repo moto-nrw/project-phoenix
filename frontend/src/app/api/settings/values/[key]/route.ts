@@ -12,7 +12,9 @@ const VALID_KEY_PATTERN = /^[a-z0-9_.]{1,255}$/;
 // the original Host/X-Forwarded-Host header set by the browser.
 function extractTenantSlugFromRequest(request: NextRequest): string | null {
   const tenantDomain = process.env.TENANT_DOMAIN;
-  if (!tenantDomain) return null;
+  if (!tenantDomain) {
+    throw new Error("TENANT_DOMAIN is not set");
+  }
   const host =
     request.headers.get("x-forwarded-host") ??
     request.headers.get("host") ??
