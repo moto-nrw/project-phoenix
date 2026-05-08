@@ -7,7 +7,6 @@ import {
   loginViaUI,
   verifyHarnessState,
 } from "./auth";
-import { getE2EState } from "./state";
 
 setup.describe.configure({ mode: "serial" });
 
@@ -24,7 +23,6 @@ function authSessions() {
 
 setup("e2e state contract is valid", async () => {
   resetAuthArtifacts();
-  getE2EState();
   verifyHarnessState();
 });
 

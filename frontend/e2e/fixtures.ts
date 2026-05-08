@@ -1,6 +1,8 @@
 import {
+  expect,
   test as base,
   type APIRequestContext,
+  type APIResponse,
   type Browser,
   type Page,
 } from "@playwright/test";
@@ -22,96 +24,66 @@ import {
   type GroupFactory,
   type StudentFactory,
 } from "./helpers/factories";
-import { getE2EState } from "./state";
+import {
+  getAppUrls,
+  getCheckinDevice,
+  getCheckinScenario,
+  getGroupVisibilityScenario,
+  getPresentReadyStudent,
+  getPrimaryTenant,
+  getStudentSearchScenario,
+  requireSecondaryTenant,
+  type AppUrls,
+  type E2ECheckinFixture,
+  type E2EDevice,
+  type E2EGroupPair,
+  type E2EStudentPair,
+  type E2EStudentRef,
+  type E2ETwitterTenant,
+} from "./state";
 
-export type E2ETwitterTenant = {
-  slug: string;
-  name: string;
-  school_id: number;
-  organization_id: number;
+type StudentSearchProbe = {
+  searchTerm: string;
+  expectedVisibleName: string;
+  expectedFilteredOutName: string;
 };
 
-export type E2EStudentRef = {
+type GroupVisibilityProbe = {
+  expectedVisibleNames: [string, string];
+};
+
+type PresentReadyStudentCard = {
+  fullName: string;
+  markSick(): Promise<void>;
+  clearSick(): Promise<void>;
+};
+
+type CheckinScan = {
+  studentId: number;
+  studentName?: string;
+  action: string;
+  visitId?: number | null;
+};
+
+type CurrentVisit = {
   id: number;
-  first_name: string;
-  last_name: string;
-  group_key: string;
-  class: string;
+} | null;
+
+type CheckinFlow = {
+  scan(): Promise<CheckinScan>;
+  readCurrentVisit(): Promise<CurrentVisit>;
+  expectSeededStudent(scan: CheckinScan): void;
+  expectPersistedVisitMatches(scan: CheckinScan, visit: CurrentVisit): void;
 };
 
-export type E2EStudentPair = {
-  primary: E2EStudentRef;
-  secondary: E2EStudentRef;
-};
-
-export type E2EGroupPair = {
-  primary: {
-    id: number;
-    key: string;
-    display_name: string;
-  };
-  secondary: {
-    id: number;
-    key: string;
-    display_name: string;
-  };
-};
-
-type AppUrls = {
-  primary(path?: string): string;
-  secondary(path?: string): string;
-  tenant(tenant: E2ETwitterTenant, path?: string): string;
-  origin(tenant: E2ETwitterTenant): string;
-};
-
-type FixtureState = {
-  runtime: {
-    backend_url: string;
-    tenant_domain: string;
-    frontend_port: number;
-  };
-  world: {
-    tenants: {
-      primary: E2ETwitterTenant;
-      secondary?: E2ETwitterTenant;
-    };
-    devices: {
-      default_checkin: {
-        key: string;
-        api_key: string;
-        pin: string;
-      };
-    };
-  };
-  fixtures: {
-    students: {
-      present_ready: E2EStudentRef;
-      search_pair: E2EStudentPair;
-    };
-    groups: {
-      visible_pair: E2EGroupPair;
-    };
-    checkin: {
-      student: E2EStudentRef;
-      room: {
-        id: number;
-        name: string;
-      };
-      activity: {
-        id: number;
-        name: string;
-      };
-      device_key: string;
-      rfid_tag: string;
-      supervisor: {
-        email: string;
-        password: string;
-        display_name: string;
-        role: string;
-        staff_id: number;
-      };
-    };
-  };
+type IotContract = {
+  getConfigWithoutAuth(): Promise<APIResponse>;
+  getConfigWithInvalidApiKey(): Promise<APIResponse>;
+  getConfigWithMalformedAuthorizationHeader(): Promise<APIResponse>;
+  getConfigWithValidDevice(): Promise<APIResponse>;
+  postCheckinWithoutPin(): Promise<APIResponse>;
+  postCheckinWithWrongPin(): Promise<APIResponse>;
+  postCheckinWithValidPinAndUnknownRFID(): Promise<APIResponse>;
 };
 
 type Fixtures = {
@@ -119,15 +91,11 @@ type Fixtures = {
   authSessions: AuthSetupContract;
   primaryTenant: E2ETwitterTenant;
   secondaryTenant: E2ETwitterTenant;
-  presentReadyStudent: E2EStudentRef;
-  studentSearchScenario: E2EStudentPair;
-  groupVisibilityScenario: E2EGroupPair;
-  checkinScenario: FixtureState["fixtures"]["checkin"];
-  checkinDevice: {
-    key: string;
-    api_key: string;
-    pin: string;
-  };
+  presentReadyStudentCard: PresentReadyStudentCard;
+  studentSearchProbe: StudentSearchProbe;
+  groupVisibilityProbe: GroupVisibilityProbe;
+  checkinFlow: CheckinFlow;
+  iotContract: IotContract;
   backendApi: APIRequestContext;
   adminApi: APIRequestContext;
   staffApi: APIRequestContext;
@@ -162,50 +130,6 @@ type Fixtures = {
   groupFactory: GroupFactory;
 };
 
-function readFixtureState(): FixtureState {
-  return getE2EState() as FixtureState;
-}
-
-function normalizePath(path = "/"): string {
-  return path.startsWith("/") ? path : `/${path}`;
-}
-
-function tenantOrigin(state: FixtureState, tenant: E2ETwitterTenant): string {
-  return `http://${tenant.slug}.${state.runtime.tenant_domain}:${state.runtime.frontend_port}`;
-}
-
-function tenantAppURL(
-  state: FixtureState,
-  tenant: E2ETwitterTenant,
-  path = "/",
-): string {
-  return `${tenantOrigin(state, tenant)}${normalizePath(path)}`;
-}
-
-function getAppUrls(): AppUrls {
-  const state = readFixtureState();
-  return {
-    primary: (path = "/") =>
-      tenantAppURL(state, state.world.tenants.primary, path),
-    secondary: (path = "/") =>
-      tenantAppURL(state, requireSecondaryTenant(state), path),
-    tenant: (tenant, path = "/") => tenantAppURL(state, tenant, path),
-    origin: (tenant) => tenantOrigin(state, tenant),
-  };
-}
-
-function requireSecondaryTenant(
-  state: FixtureState = readFixtureState(),
-): E2ETwitterTenant {
-  const tenant = state.world.tenants.secondary;
-  if (!tenant) {
-    throw new Error(
-      "e2e state secondary tenant is missing. Re-run `go run . e2e prepare` from backend/.",
-    );
-  }
-  return tenant;
-}
-
 async function pageForRole(
   browser: Browser,
   storageState: string,
@@ -220,6 +144,191 @@ async function pageForRole(
   }
 }
 
+function fullName(
+  student: Pick<E2EStudentRef, "first_name" | "last_name">,
+): string {
+  return `${student.first_name} ${student.last_name}`;
+}
+
+async function requireOK(
+  response: APIResponse,
+  context: string,
+): Promise<void> {
+  if (response.ok()) {
+    return;
+  }
+  throw new Error(
+    `${context} (${response.status()}): ${await response.text()}`,
+  );
+}
+
+function buildStudentSearchProbe(scenario: E2EStudentPair): StudentSearchProbe {
+  return {
+    searchTerm: scenario.primary.first_name,
+    expectedVisibleName: fullName(scenario.primary),
+    expectedFilteredOutName: fullName(scenario.secondary),
+  };
+}
+
+function buildGroupVisibilityProbe(
+  scenario: E2EGroupPair,
+): GroupVisibilityProbe {
+  return {
+    expectedVisibleNames: [
+      scenario.primary.display_name,
+      scenario.secondary.display_name,
+    ],
+  };
+}
+
+function buildPresentReadyStudentCard(
+  student: E2EStudentRef,
+  adminApi: APIRequestContext,
+): PresentReadyStudentCard {
+  return {
+    fullName: fullName(student),
+    async markSick(): Promise<void> {
+      const response = await adminApi.put(`/api/students/${student.id}`, {
+        data: { sick: true, excused: false },
+      });
+      await requireOK(response, "mark present-ready student sick");
+    },
+    async clearSick(): Promise<void> {
+      const response = await adminApi.put(`/api/students/${student.id}`, {
+        data: { sick: false },
+      });
+      await requireOK(response, "clear present-ready student sick flag");
+    },
+  };
+}
+
+async function readCurrentVisit(
+  adminApi: APIRequestContext,
+  studentId: number,
+): Promise<CurrentVisit> {
+  const visitRes = await adminApi.get(
+    `/api/students/${studentId}/current-visit`,
+    {
+      failOnStatusCode: false,
+    },
+  );
+  if (visitRes.status() === 200) {
+    const body = (await visitRes.json()) as {
+      data?: {
+        id: number;
+      } | null;
+    };
+    return body.data ?? null;
+  }
+
+  throw new Error(
+    `current-visit lookup failed for student ${studentId} (${visitRes.status()}): ${await visitRes.text()}`,
+  );
+}
+
+function buildCheckinFlow(
+  scenario: E2ECheckinFixture,
+  deviceApi: APIRequestContext,
+  adminApi: APIRequestContext,
+): CheckinFlow {
+  return {
+    async scan(): Promise<CheckinScan> {
+      const response = await deviceApi.post("/api/iot/checkin", {
+        data: {
+          student_rfid: scenario.rfid_tag,
+          action: "checkin",
+          room_id: scenario.room.id,
+        },
+      });
+      await requireOK(response, "device checkin");
+
+      const body = (await response.json()) as {
+        data: {
+          student_id: number;
+          student_name?: string;
+          action: string;
+          visit_id?: number | null;
+        };
+      };
+      return {
+        studentId: body.data.student_id,
+        studentName: body.data.student_name,
+        action: body.data.action,
+        visitId: body.data.visit_id,
+      };
+    },
+    async readCurrentVisit(): Promise<CurrentVisit> {
+      return readCurrentVisit(adminApi, scenario.student.id);
+    },
+    expectSeededStudent(scan: CheckinScan): void {
+      expect(scan.studentId).toBe(scenario.student.id);
+      expect(scan.studentName).toContain(scenario.student.first_name);
+    },
+    expectPersistedVisitMatches(scan: CheckinScan, visit: CurrentVisit): void {
+      if (scan.action === "checked_in") {
+        expect(
+          visit,
+          "after a checked_in action the student must have a current open visit",
+        ).not.toBeNull();
+        expect(visit?.id).toBe(scan.visitId);
+        return;
+      }
+
+      expect(
+        visit,
+        "after a checked_out action the student must have no current open visit",
+      ).toBeNull();
+    },
+  };
+}
+
+function buildIotContract(
+  backendApi: APIRequestContext,
+  deviceApi: APIRequestContext,
+  device: E2EDevice,
+): IotContract {
+  return {
+    getConfigWithoutAuth(): Promise<APIResponse> {
+      return backendApi.get("/api/iot/config");
+    },
+    getConfigWithInvalidApiKey(): Promise<APIResponse> {
+      return backendApi.get("/api/iot/config", {
+        headers: { Authorization: "Bearer dev_not_a_real_key" },
+      });
+    },
+    getConfigWithMalformedAuthorizationHeader(): Promise<APIResponse> {
+      return backendApi.get("/api/iot/config", {
+        headers: { Authorization: device.api_key },
+      });
+    },
+    getConfigWithValidDevice(): Promise<APIResponse> {
+      return deviceApi.get("/api/iot/config");
+    },
+    postCheckinWithoutPin(): Promise<APIResponse> {
+      return backendApi.post("/api/iot/checkin", {
+        headers: {
+          Authorization: `Bearer ${device.api_key}`,
+        },
+        data: { student_rfid: "TEST-RFID-001" },
+      });
+    },
+    postCheckinWithWrongPin(): Promise<APIResponse> {
+      return backendApi.post("/api/iot/checkin", {
+        headers: {
+          Authorization: `Bearer ${device.api_key}`,
+          "X-Staff-PIN": "0000",
+        },
+        data: { student_rfid: "TEST-RFID-001" },
+      });
+    },
+    postCheckinWithValidPinAndUnknownRFID(): Promise<APIResponse> {
+      return deviceApi.post("/api/iot/checkin", {
+        data: { student_rfid: "TEST-DOES-NOT-EXIST" },
+      });
+    },
+  };
+}
+
 const baseWithFixtures = base.extend<Fixtures>({
   // oxlint-disable-next-line no-empty-pattern
   app: async ({}, use) => {
@@ -231,32 +340,13 @@ const baseWithFixtures = base.extend<Fixtures>({
   },
   // oxlint-disable-next-line no-empty-pattern
   primaryTenant: async ({}, use) => {
-    await use(readFixtureState().world.tenants.primary); // NOSONAR — Playwright fixture callback, not React Hook
+    await use(getPrimaryTenant()); // NOSONAR — Playwright fixture callback, not React Hook
   },
   // oxlint-disable-next-line no-empty-pattern
   secondaryTenant: async ({}, use) => {
     await use(requireSecondaryTenant()); // NOSONAR — Playwright fixture callback, not React Hook
   },
   // oxlint-disable-next-line no-empty-pattern
-  presentReadyStudent: async ({}, use) => {
-    await use(readFixtureState().fixtures.students.present_ready); // NOSONAR — Playwright fixture callback, not React Hook
-  },
-  // oxlint-disable-next-line no-empty-pattern
-  studentSearchScenario: async ({}, use) => {
-    await use(readFixtureState().fixtures.students.search_pair); // NOSONAR — Playwright fixture callback, not React Hook
-  },
-  // oxlint-disable-next-line no-empty-pattern
-  groupVisibilityScenario: async ({}, use) => {
-    await use(readFixtureState().fixtures.groups.visible_pair); // NOSONAR — Playwright fixture callback, not React Hook
-  },
-  // oxlint-disable-next-line no-empty-pattern
-  checkinScenario: async ({}, use) => {
-    await use(readFixtureState().fixtures.checkin); // NOSONAR — Playwright fixture callback, not React Hook
-  },
-  // oxlint-disable-next-line no-empty-pattern
-  checkinDevice: async ({}, use) => {
-    await use(readFixtureState().world.devices.default_checkin); // NOSONAR — Playwright fixture callback, not React Hook
-  },
   // oxlint-disable-next-line no-empty-pattern
   backendApi: async ({}, use) => {
     const ctx = await createBackendApiContext();
@@ -285,8 +375,9 @@ const baseWithFixtures = base.extend<Fixtures>({
     }
   },
   // oxlint-disable-next-line no-empty-pattern
-  deviceApi: async ({ checkinDevice }, use) => {
-    const ctx = await createDeviceApiContext(checkinDevice);
+  // oxlint-disable-next-line no-empty-pattern
+  deviceApi: async ({}, use) => {
+    const ctx = await createDeviceApiContext(getCheckinDevice());
     try {
       await use(ctx); // NOSONAR — Playwright fixture callback, not React Hook
     } finally {
@@ -301,6 +392,33 @@ const baseWithFixtures = base.extend<Fixtures>({
   },
   staffPage: async ({ browser }, use) => {
     await pageForRole(browser, STORAGE_STATE_PATH.staff, use);
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  studentSearchProbe: async ({}, use) => {
+    await use(buildStudentSearchProbe(getStudentSearchScenario())); // NOSONAR
+  },
+  // oxlint-disable-next-line no-empty-pattern
+  groupVisibilityProbe: async ({}, use) => {
+    await use(buildGroupVisibilityProbe(getGroupVisibilityScenario())); // NOSONAR
+  },
+  presentReadyStudentCard: async ({ adminApi }, use) => {
+    const card = buildPresentReadyStudentCard(
+      getPresentReadyStudent(),
+      adminApi,
+    );
+    await use(card); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  checkinFlow: async ({ adminApi, deviceApi }, use) => {
+    const flow = buildCheckinFlow(getCheckinScenario(), deviceApi, adminApi);
+    await use(flow); // NOSONAR — Playwright fixture callback, not React Hook
+  },
+  iotContract: async ({ backendApi, deviceApi }, use) => {
+    const contract = buildIotContract(
+      backendApi,
+      deviceApi,
+      getCheckinDevice(),
+    );
+    await use(contract); // NOSONAR — Playwright fixture callback, not React Hook
   },
   studentFactory: async ({ adminApi }, use) => {
     const factory = makeStudentFactory(adminApi);

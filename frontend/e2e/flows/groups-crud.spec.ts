@@ -86,14 +86,14 @@ apiTest.describe("Group CRUD via HTTP API", () => {
 uiTest.describe("Group list UI", () => {
   uiTest(
     "admin sees seeded groups on /database/groups",
-    async ({ authenticatedPage: page, app, groupVisibilityScenario }) => {
+    async ({ authenticatedPage: page, app, groupVisibilityProbe }) => {
       await page.goto(app.primary(routes.groupsList));
 
       // Explicit manifest-backed fixture from the Go-owned e2e scenario. The seeder
       // chooses the canonical pair the list must render; specs no longer
       // infer it from lookup-map ordering on the frontend side.
-      const firstGroupName = groupVisibilityScenario.primary.display_name;
-      const secondGroupName = groupVisibilityScenario.secondary.display_name;
+      const [firstGroupName, secondGroupName] =
+        groupVisibilityProbe.expectedVisibleNames;
       await uiExpect(
         page.getByRole("button", { name: new RegExp(firstGroupName) }).first(),
       ).toBeVisible({

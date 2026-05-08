@@ -26,9 +26,9 @@ import { apiTest as test, apiExpect as expect } from "../fixtures";
 
 test.describe("IoT API auth contract", () => {
   test("missing Authorization header returns 401 with the exact PyrePortal substring", async ({
-    backendApi,
+    iotContract,
   }) => {
-    const res = await backendApi.get("/api/iot/config");
+    const res = await iotContract.getConfigWithoutAuth();
     expect(res.status()).toBe(401);
 
     const body = (await res.json()) as { status?: string; error?: string };
@@ -40,11 +40,9 @@ test.describe("IoT API auth contract", () => {
   });
 
   test("invalid API key returns 401 with the exact PyrePortal substring", async ({
-    backendApi,
+    iotContract,
   }) => {
-    const res = await backendApi.get("/api/iot/config", {
-      headers: { Authorization: "Bearer dev_not_a_real_key" },
-    });
+    const res = await iotContract.getConfigWithInvalidApiKey();
     expect(res.status()).toBe(401);
 
     const body = (await res.json()) as { status?: string; error?: string };
@@ -54,12 +52,9 @@ test.describe("IoT API auth contract", () => {
   });
 
   test("malformed Authorization header (no Bearer prefix) returns 401 with the exact PyrePortal substring", async ({
-    backendApi,
-    checkinDevice,
+    iotContract,
   }) => {
-    const res = await backendApi.get("/api/iot/config", {
-      headers: { Authorization: checkinDevice.api_key },
-    });
+    const res = await iotContract.getConfigWithMalformedAuthorizationHeader();
     expect(res.status()).toBe(401);
 
     const body = (await res.json()) as { status?: string; error?: string };
@@ -73,9 +68,9 @@ test.describe("IoT API auth contract", () => {
 
 test.describe("GET /api/iot/config", () => {
   test("returns the full config contract for a valid device", async ({
-    deviceApi,
+    iotContract,
   }) => {
-    const res = await deviceApi.get("/api/iot/config");
+    const res = await iotContract.getConfigWithValidDevice();
 
     expect(res.status()).toBe(200);
 
@@ -122,9 +117,9 @@ test.describe("GET /api/iot/config", () => {
   });
 
   test("presence_mode defaults to 'detailed' for a freshly seeded tenant", async ({
-    deviceApi,
+    iotContract,
   }) => {
-    const res = await deviceApi.get("/api/iot/config");
+    const res = await iotContract.getConfigWithValidDevice();
 
     expect(res.status()).toBe(200);
     const body = (await res.json()) as { data: { presence_mode: string } };
@@ -137,15 +132,9 @@ test.describe("GET /api/iot/config", () => {
 
 test.describe("PIN-protected endpoints", () => {
   test("POST /api/iot/checkin without PIN returns 401", async ({
-    backendApi,
-    checkinDevice,
+    iotContract,
   }) => {
-    const res = await backendApi.post("/api/iot/checkin", {
-      headers: {
-        Authorization: `Bearer ${checkinDevice.api_key}`,
-      },
-      data: { student_rfid: "TEST-RFID-001" },
-    });
+    const res = await iotContract.postCheckinWithoutPin();
     expect(res.status()).toBe(401);
 
     const body = (await res.json()) as { status?: string; error?: string };
@@ -155,16 +144,9 @@ test.describe("PIN-protected endpoints", () => {
   });
 
   test("POST /api/iot/checkin with wrong PIN returns 401", async ({
-    backendApi,
-    checkinDevice,
+    iotContract,
   }) => {
-    const res = await backendApi.post("/api/iot/checkin", {
-      headers: {
-        Authorization: `Bearer ${checkinDevice.api_key}`,
-        "X-Staff-PIN": "0000",
-      },
-      data: { student_rfid: "TEST-RFID-001" },
-    });
+    const res = await iotContract.postCheckinWithWrongPin();
     expect(res.status()).toBe(401);
 
     const body = (await res.json()) as { status?: string; error?: string };
@@ -177,11 +159,9 @@ test.describe("PIN-protected endpoints", () => {
   // don't assert on a successful checkin (no real RFID tag provisioned),
   // but we expect any error other than 401 — meaning auth passed.
   test("POST /api/iot/checkin with valid PIN passes auth (status != 401)", async ({
-    deviceApi,
+    iotContract,
   }) => {
-    const res = await deviceApi.post("/api/iot/checkin", {
-      data: { student_rfid: "TEST-DOES-NOT-EXIST" },
-    });
+    const res = await iotContract.postCheckinWithValidPinAndUnknownRFID();
     expect(res.status()).not.toBe(401);
   });
 });

@@ -1,74 +1,4 @@
-import type { APIRequestContext } from "@playwright/test";
 import { apiTest as test, apiExpect as expect } from "../fixtures";
-
-type CurrentVisit = {
-  id: number;
-} | null;
-
-type CheckinScenario = {
-  student: {
-    id: number;
-    first_name: string;
-  };
-  room: {
-    id: number;
-  };
-  rfid_tag: string;
-};
-
-type CheckinScanResult = {
-  student_id: number;
-  student_name?: string;
-  action: string;
-  visit_id?: number | null;
-};
-
-async function getCurrentVisit(
-  studentId: number,
-  adminApi: APIRequestContext,
-): Promise<CurrentVisit> {
-  const visitRes = await adminApi.get(
-    `/api/students/${studentId}/current-visit`,
-    {
-      failOnStatusCode: false,
-    },
-  );
-  if (visitRes.status() === 200) {
-    const body = (await visitRes.json()) as {
-      data?: {
-        id: number;
-      } | null;
-    };
-    return body.data ?? null;
-  }
-
-  throw new Error(
-    `current-visit lookup failed for student ${studentId} (${visitRes.status()}): ${await visitRes.text()}`,
-  );
-}
-
-async function scanCheckin(
-  deviceApi: APIRequestContext,
-  checkinScenario: CheckinScenario,
-): Promise<CheckinScanResult> {
-  const res = await deviceApi.post("/api/iot/checkin", {
-    data: {
-      student_rfid: checkinScenario.rfid_tag,
-      action: "checkin",
-      room_id: checkinScenario.room.id,
-    },
-  });
-  if (!res.ok()) {
-    throw new Error(
-      `device checkin failed (${res.status()}): ${await res.text()}`,
-    );
-  }
-
-  const body = (await res.json()) as {
-    data: CheckinScanResult;
-  };
-  return body.data;
-}
 
 /**
  * Full RFID check-in / check-out flow. Exercises the same code path the
@@ -86,61 +16,32 @@ async function scanCheckin(
 
 test.describe("RFID check-in / check-out toggle", () => {
   test("two scans toggle the student between checked-in and checked-out", async ({
-    adminApi,
-    checkinScenario,
-    deviceApi,
+    checkinFlow,
   }) => {
-    const firstScan = await scanCheckin(deviceApi, checkinScenario);
-    expect(firstScan.student_id).toBe(checkinScenario.student.id);
-    // Student name comes from the manifest-backed fixture, not a hardcoded "Felix"
-    // — keeps the test honest if the seeder ever reorders students.
-    expect(firstScan.student_name).toContain(
-      checkinScenario.student.first_name,
-    );
+    const firstScan = await checkinFlow.scan();
+    checkinFlow.expectSeededStudent(firstScan);
     // Possible actions per checkin response semantics: "checked_in" on
     // first scan, "checked_out" / "checked_out_daily" on second.
     expect(firstScan.action).toMatch(
       /^(checked_in|checked_out|checked_out_daily)$/,
     );
-    expect(firstScan.visit_id).toBeTruthy();
+    expect(firstScan.visitId).toBeTruthy();
 
     // Verify state is persisted in active.visits — the API can return
     // visit_id without writing the row if the service layer breaks (e.g.
     // a forgotten Commit). Issue #1142 calls this out explicitly.
-    const visitAfterFirst = await getCurrentVisit(
-      checkinScenario.student.id,
-      adminApi,
-    );
-    if (firstScan.action === "checked_in") {
-      expect(
-        visitAfterFirst,
-        "after a checked_in action the student must have a current open visit",
-      ).not.toBeNull();
-      expect(visitAfterFirst?.id).toBe(firstScan.visit_id);
-    } else {
-      expect(
-        visitAfterFirst,
-        "after a checked_out action the student must have no current open visit",
-      ).toBeNull();
-    }
+    const visitAfterFirst = await checkinFlow.readCurrentVisit();
+    checkinFlow.expectPersistedVisitMatches(firstScan, visitAfterFirst);
 
-    const secondScan = await scanCheckin(deviceApi, checkinScenario);
-    expect(secondScan.student_id).toBe(checkinScenario.student.id);
+    const secondScan = await checkinFlow.scan();
+    checkinFlow.expectSeededStudent(secondScan);
     expect(secondScan.action).toMatch(
       /^(checked_in|checked_out|checked_out_daily)$/,
     );
     expect(secondScan.action).not.toBe(firstScan.action);
 
     // After the toggle, the active.visits state must flip too.
-    const visitAfterSecond = await getCurrentVisit(
-      checkinScenario.student.id,
-      adminApi,
-    );
-    if (secondScan.action === "checked_in") {
-      expect(visitAfterSecond).not.toBeNull();
-      expect(visitAfterSecond?.id).toBe(secondScan.visit_id);
-    } else {
-      expect(visitAfterSecond).toBeNull();
-    }
+    const visitAfterSecond = await checkinFlow.readCurrentVisit();
+    checkinFlow.expectPersistedVisitMatches(secondScan, visitAfterSecond);
   });
 });

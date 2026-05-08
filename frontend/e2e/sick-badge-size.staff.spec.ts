@@ -5,23 +5,16 @@ test.describe("Sick badge size consistency", () => {
   test("Krank badge should be same size as location badge when student is sick and present", async ({
     authenticatedPage: page,
     app,
-    adminApi,
-    presentReadyStudent,
+    presentReadyStudentCard,
   }) => {
-    const student = presentReadyStudent;
-    const fullName = `${student.first_name} ${student.last_name}`;
-
     try {
-      const markSickRes = await adminApi.put(`/api/students/${student.id}`, {
-        data: { sick: true, excused: false },
-      });
-      expect(markSickRes.status(), await markSickRes.text()).toBe(200);
+      await presentReadyStudentCard.markSick();
 
       await page.goto(app.primary(routes.ogsGroups));
       await page.waitForSelector("[data-location-status]", { timeout: 15000 });
 
       const studentCard = page.getByRole("button", {
-        name: new RegExp(fullName),
+        name: new RegExp(presentReadyStudentCard.fullName),
       });
       await expect(studentCard).toBeVisible({ timeout: 15000 });
 
@@ -47,10 +40,7 @@ test.describe("Sick badge size consistency", () => {
 
       expect(Math.abs(locationBox.height - sickBox.height)).toBeLessThan(3);
     } finally {
-      const clearSickRes = await adminApi.put(`/api/students/${student.id}`, {
-        data: { sick: false },
-      });
-      expect(clearSickRes.status(), await clearSickRes.text()).toBe(200);
+      await presentReadyStudentCard.clearSick();
     }
   });
 });

@@ -95,12 +95,12 @@ uiTest.describe("Student list UI", () => {
 
   uiTest(
     "admin sees seeded students on /database/students and can filter by search",
-    async ({ authenticatedPage: page, app, studentSearchScenario }) => {
+    async ({ authenticatedPage: page, app, studentSearchProbe }) => {
       // Explicit manifest-backed fixture from the Go-owned e2e scenario. The backend
       // chooses which pair is safe for the search-filter contract; the spec
       // just consumes it instead of re-deriving "first two distinct students".
-      const firstFullName = `${studentSearchScenario.primary.first_name} ${studentSearchScenario.primary.last_name}`;
-      const secondFullName = `${studentSearchScenario.secondary.first_name} ${studentSearchScenario.secondary.last_name}`;
+      const firstFullName = studentSearchProbe.expectedVisibleName;
+      const secondFullName = studentSearchProbe.expectedFilteredOutName;
 
       // The Kinder admin view lives under /database/students; bare /students
       // is reserved for the staff search/check-in flow.
@@ -128,7 +128,7 @@ uiTest.describe("Student list UI", () => {
       const searchBox = page
         .getByPlaceholder("Schüler suchen...")
         .filter({ visible: true });
-      await searchBox.fill(studentSearchScenario.primary.first_name);
+      await searchBox.fill(studentSearchProbe.searchTerm);
 
       // After filtering, the first student is still there but the second
       // (whose first name differs) must be gone.

@@ -47,9 +47,12 @@ Das Harness ist absichtlich auf wenige Verantwortlichkeiten reduziert:
 - **Go-Seeder-Szenario** besitzt alle fachlichen Seed-Daten und vorbereiteten
   Zustände.
 - **`backend/.e2e-state.json`** ist das einzige maschinenlesbare E2E-Artefakt.
+- **`state.ts`** ist der einzige rohe TS-Konsument dieses Vertrags; alle
+  anderen Playwright-Dateien hängen nur noch semantisch daran.
 - **Playwright Setup-Projekt** besitzt Browser-Login, `storageState` und
   Verifikation der Kernannahmen.
-- **Specs** arbeiten über Fixtures und Auth-State, nicht über rohe Seed-Details.
+- **Specs** arbeiten über semantische Fixtures und Auth-State, nicht über rohe
+  Seed-Details wie IDs, RFID-Tags oder Geräte-Header.
 
 ## Dateiaufteilung
 
@@ -58,7 +61,7 @@ e2e/
 ├── auth.setup.ts   sichtbares Playwright-Setup für Login/storageState
 ├── auth.ts         Browser-Login und Session-Prüfungen
 ├── api.ts          API-Kontexte aus dem Setup-authentifizierten Browser-State
-├── state.ts        dummer Leser für backend/.e2e-state.json
+├── state.ts        einziger Vertragsleser + semantische Zugriffsfunktionen
 ├── fixtures.ts     semantische Fixtures für Specs
 ├── flows/          eigentliche Tests
 └── helpers/        kleine Spec-Helfer, keine Welt-/Orchestrierungslogik

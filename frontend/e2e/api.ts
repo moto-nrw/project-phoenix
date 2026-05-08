@@ -3,17 +3,7 @@ import {
   type APIRequestContext,
 } from "@playwright/test";
 import { type TenantSession } from "./auth";
-import { getE2EState } from "./state";
-
-type RuntimeState = {
-  runtime: {
-    backend_url: string;
-  };
-};
-
-function backendBaseURL(): string {
-  return (getE2EState() as RuntimeState).runtime.backend_url;
-}
+import { getBackendBaseURL, type E2EDevice } from "./state";
 
 async function resolveAccessTokenFromSession(
   session: TenantSession,
@@ -53,7 +43,7 @@ async function resolveAccessTokenFromSession(
 
 export async function createBackendApiContext(): Promise<APIRequestContext> {
   return apiRequest.newContext({
-    baseURL: backendBaseURL(),
+    baseURL: getBackendBaseURL(),
   });
 }
 
@@ -62,7 +52,7 @@ export async function createTenantApiContext(
 ): Promise<APIRequestContext> {
   const token = await resolveAccessTokenFromSession(session);
   return apiRequest.newContext({
-    baseURL: backendBaseURL(),
+    baseURL: getBackendBaseURL(),
     extraHTTPHeaders: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -70,12 +60,11 @@ export async function createTenantApiContext(
   });
 }
 
-export async function createDeviceApiContext(device: {
-  api_key: string;
-  pin: string;
-}): Promise<APIRequestContext> {
+export async function createDeviceApiContext(
+  device: Pick<E2EDevice, "api_key" | "pin">,
+): Promise<APIRequestContext> {
   return apiRequest.newContext({
-    baseURL: backendBaseURL(),
+    baseURL: getBackendBaseURL(),
     extraHTTPHeaders: {
       Authorization: `Bearer ${device.api_key}`,
       "X-Staff-PIN": device.pin,

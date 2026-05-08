@@ -1,60 +1,23 @@
 import { expect, type Page } from "@playwright/test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getE2EState } from "./state";
+import {
+  getAdminActor,
+  getAuthSetup,
+  getPrimaryTenant,
+  getScenarioMode,
+  getStaffActor,
+  isTenantSwitchVerified,
+  requireSecondaryTenant,
+  tenantOrigin,
+  type E2EActor,
+} from "./state";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = resolve(HERE, "..");
 
-const SCENARIO_MODE_MULTI_TENANT = "multi-tenant";
 const SETUP_ROLE_ADMIN = "admin";
 const SETUP_ROLE_STAFF = "staff";
-
-type E2ETwitterTenant = {
-  slug: string;
-};
-
-type TenantActor = {
-  email: string;
-  password: string;
-  display_name: string;
-  role: string;
-  staff_id: number;
-};
-
-type E2EAuthSetup = {
-  roles: string[];
-  requires_secondary_tenant: boolean;
-  requires_verified_switching: boolean;
-};
-
-type AuthState = {
-  runtime: {
-    tenant_domain: string;
-    frontend_port: number;
-  };
-  world: {
-    scenario: {
-      mode: string;
-    };
-    tenants: {
-      primary: E2ETwitterTenant;
-      secondary?: E2ETwitterTenant;
-    };
-    actors: {
-      admin: TenantActor;
-      staff: TenantActor;
-    };
-  };
-  setup: {
-    auth: E2EAuthSetup;
-  };
-  assertions: {
-    switching: {
-      verified: boolean;
-    };
-  };
-};
 
 export type Role = "admin" | "staff";
 
@@ -65,7 +28,7 @@ export const STORAGE_STATE_PATH: Record<Role, string> = {
 
 export interface TenantSession {
   role: Role;
-  actor: TenantActor;
+  actor: E2EActor;
   email: string;
   password: string;
   displayName: string;
@@ -84,10 +47,6 @@ export interface AuthSetupContract {
 
 let cachedAuthSetup: AuthSetupContract | undefined;
 
-function readAuthState(): AuthState {
-  return getE2EState() as AuthState;
-}
-
 function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -99,39 +58,36 @@ function profileTriggerLocator(page: Page, displayName: string) {
     .first();
 }
 
-function tenantOrigin(state: AuthState, tenant: E2ETwitterTenant): string {
-  return `http://${tenant.slug}.${state.runtime.tenant_domain}:${state.runtime.frontend_port}`;
-}
-
 function buildAuthSetupContract(): AuthSetupContract {
-  const state = readAuthState();
-  const primaryAppRoot = tenantOrigin(state, state.world.tenants.primary);
+  const adminActor = getAdminActor();
+  const staffActor = getStaffActor();
+  const primaryAppRoot = tenantOrigin(getPrimaryTenant());
 
   return {
     admin: {
       role: "admin",
-      actor: state.world.actors.admin,
-      email: state.world.actors.admin.email,
-      password: state.world.actors.admin.password,
-      displayName: state.world.actors.admin.display_name,
+      actor: adminActor,
+      email: adminActor.email,
+      password: adminActor.password,
+      displayName: adminActor.display_name,
       storageStatePath: STORAGE_STATE_PATH.admin,
       appRoot: primaryAppRoot,
       readyIndicator: {
         kind: "display-name",
-        value: state.world.actors.admin.display_name,
+        value: adminActor.display_name,
       },
     },
     staff: {
       role: "staff",
-      actor: state.world.actors.staff,
-      email: state.world.actors.staff.email,
-      password: state.world.actors.staff.password,
-      displayName: state.world.actors.staff.display_name,
+      actor: staffActor,
+      email: staffActor.email,
+      password: staffActor.password,
+      displayName: staffActor.display_name,
       storageStatePath: STORAGE_STATE_PATH.staff,
       appRoot: primaryAppRoot,
       readyIndicator: {
         kind: "display-name",
-        value: state.world.actors.staff.display_name,
+        value: staffActor.display_name,
       },
     },
   };
@@ -145,20 +101,20 @@ export function getAuthSetupContract(): AuthSetupContract {
 }
 
 export function verifyHarnessState(): void {
-  const state = readAuthState();
-  verifyAuthSetup(state.setup.auth, state);
-  expect(state.world.scenario.mode).toBe(SCENARIO_MODE_MULTI_TENANT);
+  verifyAuthSetup();
+  expect(getScenarioMode()).toBe("multi-tenant");
 }
 
-function verifyAuthSetup(setup: E2EAuthSetup, state = readAuthState()): void {
+function verifyAuthSetup(): void {
+  const setup = getAuthSetup();
   expect(setup.roles).toEqual([SETUP_ROLE_ADMIN, SETUP_ROLE_STAFF]);
 
   if (setup.requires_secondary_tenant) {
-    expect(state.world.tenants.secondary).toBeTruthy();
+    expect(requireSecondaryTenant()).toBeTruthy();
   }
 
   if (setup.requires_verified_switching) {
-    expect(state.assertions.switching.verified).toBe(true);
+    expect(isTenantSwitchVerified()).toBe(true);
   }
 }
 
