@@ -10,7 +10,7 @@ name: E2E (Playwright)
 #   2. `./scripts/e2e.sh` brings up postgres-test + server-e2e, runs
 #      `go run main.go e2e prepare`, then hands off to Playwright.
 #   3. Playwright's webServer starts only the dedicated Next.js dev server
-#      from the emitted Go manifest.
+#      from the emitted Go contract.
 #   4. The suite runs headless against that manifest-backed frontend.
 #   5. On failure, the HTML report, E2E manifest, and backend logs are
 #      uploaded as artifacts.

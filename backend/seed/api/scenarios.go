@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"strings"
 
 	contract "github.com/moto-nrw/project-phoenix/e2e/contract"
 	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
@@ -27,6 +28,10 @@ func ApplyScenarioDefaults(options *SeedOptions) error {
 		return nil
 	}
 
+	if err := rejectScenarioOverrides(*options); err != nil {
+		return err
+	}
+
 	definition, ok := scenarios.Lookup(options.Scenario)
 	if !ok {
 		return fmt.Errorf("unknown seed scenario %q", options.Scenario)
@@ -38,7 +43,6 @@ func ApplyScenarioDefaults(options *SeedOptions) error {
 	if options.StatePath == "" {
 		options.StatePath = contract.ManifestPath
 	}
-	options.E2ERuntime.Normalize()
 	if options.StaffPassword == "" {
 		options.StaffPassword = definition.Seed.StaffPassword
 	}
@@ -66,4 +70,48 @@ func ApplyScenarioDefaults(options *SeedOptions) error {
 	}
 
 	return nil
+}
+
+func rejectScenarioOverrides(options SeedOptions) error {
+	if options.Scenario == "" {
+		return nil
+	}
+
+	var overridden []string
+	if options.TenantSlug != "" {
+		overridden = append(overridden, "tenant slug")
+	}
+	if options.StaffPassword != "" {
+		overridden = append(overridden, "staff password")
+	}
+	if options.AdminEmail != "" {
+		overridden = append(overridden, "admin email")
+	}
+	if options.SecondTenant != nil {
+		if options.SecondTenant.Slug != "" {
+			overridden = append(overridden, "second-tenant slug")
+		}
+		if options.SecondTenant.Name != "" {
+			overridden = append(overridden, "second-tenant name")
+		}
+		if options.SecondTenant.AdminEmail != "" {
+			overridden = append(overridden, "second-tenant admin email")
+		}
+		if options.SecondTenant.AdminPassword != "" {
+			overridden = append(overridden, "second-tenant admin password")
+		}
+		if options.SecondTenant.LinkEmail != "" {
+			overridden = append(overridden, "second-tenant link email")
+		}
+	}
+
+	if len(overridden) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"seed scenario %q owns its deterministic world; do not override %s",
+		options.Scenario,
+		strings.Join(overridden, ", "),
+	)
 }

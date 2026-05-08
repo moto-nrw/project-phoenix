@@ -23,6 +23,13 @@ services:
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY}
       AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY}
+      # E2E prepare emits a complete harness contract, including the exact
+      # frontend auth settings the Playwright-spawned Next.js server must
+      # boot with. Mirror these two frontend env vars into server-e2e so the
+      # Go prepare step can read them once and write one self-contained
+      # contract instead of relying on frontend-side fallbacks.
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD}
@@ -217,6 +224,8 @@ services:
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY}
       AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD}

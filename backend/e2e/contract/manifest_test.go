@@ -21,6 +21,8 @@ func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
 			TenantDomain:     "localtest.me",
 			FrontendPort:     3030,
 			OperatorHostname: "operator.localtest.me:3030",
+			NextAuthSecret:   "nextauth-secret",
+			AuthTrustHost:    true,
 		},
 		Scenario: ScenarioMetadata{Name: scenarios.NameE2EMultiTenant, Mode: scenarios.ModeMultiTenant},
 		Setup: Setup{
@@ -138,6 +140,8 @@ func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
 	assert.Equal(t, "localtest.me", loaded.Runtime.TenantDomain)
 	assert.Equal(t, 3030, loaded.Runtime.FrontendPort)
 	assert.Equal(t, "operator.localtest.me:3030", loaded.Runtime.OperatorHostname)
+	assert.Equal(t, "nextauth-secret", loaded.Runtime.NextAuthSecret)
+	assert.True(t, loaded.Runtime.AuthTrustHost)
 	assert.Equal(t, scenarios.NameE2EMultiTenant, loaded.Scenario.Name)
 	assert.Equal(t, []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff}, loaded.Setup.Auth.Roles)
 	assert.True(t, loaded.Setup.Auth.RequiresSecondaryTenant)
@@ -163,7 +167,35 @@ func TestWriteManifest_CreatesFileWithRestrictedPermissions(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "e2e-manifest.json")
 
-	err := WriteManifest(&Manifest{}, path)
+	err := WriteManifest(&Manifest{
+		Runtime: Runtime{
+			BackendURL:       "http://localhost:8081",
+			TenantDomain:     "localtest.me",
+			FrontendPort:     3030,
+			OperatorHostname: "operator.localtest.me:3030",
+			NextAuthSecret:   "nextauth-secret",
+			AuthTrustHost:    true,
+		},
+		Scenario: ScenarioMetadata{Name: scenarios.NameE2EMultiTenant, Mode: scenarios.ModeMultiTenant},
+		Setup: Setup{
+			Auth: AuthSetup{
+				Roles: []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff},
+			},
+		},
+		Tenants: Tenants{
+			Primary: Tenant{Slug: "demo-school"},
+		},
+		Actors: Actors{
+			Admin: Actor{Email: "admin@e2e.local"},
+			Staff: Actor{Email: "staff@e2e.local"},
+		},
+		Devices: Devices{
+			DefaultCheckin: Device{Key: "device-001", APIKey: "api-key", PIN: "1234"},
+		},
+		Fixtures: Fixtures{
+			Checkin: CheckinFixture{RFIDTag: "E2E-RFID-001"},
+		},
+	}, path)
 	require.NoError(t, err)
 
 	info, err := os.Stat(path)
@@ -171,16 +203,22 @@ func TestWriteManifest_CreatesFileWithRestrictedPermissions(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
-func TestManifestNormalize_FillsRuntimeDefaults(t *testing.T) {
+func TestManifestNormalize_SetsVersionOnly(t *testing.T) {
 	manifest := &Manifest{}
 
 	manifest.Normalize()
 
 	assert.Equal(t, ManifestVersion, manifest.Version)
-	assert.Equal(t, DefaultBackendURL, manifest.Runtime.BackendURL)
-	assert.Equal(t, DefaultTenantDomain, manifest.Runtime.TenantDomain)
-	assert.Equal(t, DefaultFrontendPort, manifest.Runtime.FrontendPort)
-	assert.Equal(t, "operator.localtest.me:3030", manifest.Runtime.OperatorHostname)
-	assert.Equal(t, scenarios.ModeSingleTenant, manifest.Scenario.Mode)
-	assert.Equal(t, []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff}, manifest.Setup.Auth.Roles)
+	assert.Empty(t, manifest.Runtime.BackendURL)
+	assert.Empty(t, manifest.Scenario.Mode)
+	assert.Empty(t, manifest.Setup.Auth.Roles)
+}
+
+func TestWriteManifest_RejectsIncompleteRuntime(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "e2e-manifest.json")
+
+	err := WriteManifest(&Manifest{}, path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "manifest.runtime.backend_url is required")
 }

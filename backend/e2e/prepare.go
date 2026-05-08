@@ -17,16 +17,12 @@ const (
 
 type PrepareOptions struct {
 	Scenario string
-	URL      string
 	Verbose  bool
 }
 
 func (o *PrepareOptions) normalize() {
 	if o.Scenario == "" {
 		o.Scenario = scenarios.DefaultPrepareScenario().Name
-	}
-	if o.URL == "" {
-		o.URL = DefaultSeedURL
 	}
 }
 
@@ -41,10 +37,16 @@ func Prepare(ctx context.Context, options PrepareOptions) error {
 	identity := definition.Identity
 	configureOperatorEnv(identity)
 
+	runtime, err := canonicalRuntime()
+	if err != nil {
+		return fmt.Errorf("canonical e2e runtime: %w", err)
+	}
+
 	migrations.Reset()
 
-	seeder := seedapi.NewSeeder(options.URL, options.Verbose, seedapi.SeedOptions{
-		Scenario: options.Scenario,
+	seeder := seedapi.NewSeeder(DefaultSeedURL, options.Verbose, seedapi.SeedOptions{
+		Scenario:   options.Scenario,
+		E2ERuntime: runtime,
 	})
 	if _, err := seeder.PrepareE2E(ctx, identity.OperatorEmail, identity.OperatorPassword, identity.StaffPIN); err != nil {
 		return fmt.Errorf("seed e2e scenario %q: %w", options.Scenario, err)

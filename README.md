@@ -105,7 +105,7 @@ To match production cookie behavior in dev (switch tenants without re-login), op
 3. Access tenants at `{slug}.localtest.me:3000` instead of `{slug}.localhost:3000`.
 
 The Playwright E2E suite always uses `localtest.me` from its Go-owned E2E
-manifest because the tenant-switch spec needs cross-subdomain cookie sharing
+contract because the tenant-switch spec needs cross-subdomain cookie sharing
 independent of your dev `.env`.
 
 ---

@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { STORAGE_STATE_PATH } from "./e2e/auth";
-import { getE2ERuntime } from "./e2e/contract";
+import { getE2ERuntime, getFrontendWebServerCommand } from "./e2e/contract";
 
 const runtime = getE2ERuntime();
 
@@ -31,7 +31,7 @@ export default defineConfig({
   timeout: 60_000,
   reporter: "html",
   webServer: {
-    command: "node ./e2e/frontend-server.mjs",
+    command: getFrontendWebServerCommand(),
     port: runtime.frontend_port,
     timeout: 180_000,
     reuseExistingServer: false,

@@ -219,7 +219,6 @@ func TestNewSeeder(t *testing.T) {
 }
 
 func TestNewSeeder_WithOptions(t *testing.T) {
-	definition := scenarios.MustLookup(SeedScenarioE2E)
 	opts := SeedOptions{
 		Scenario:      SeedScenarioE2E,
 		TenantSlug:    "my-school",
@@ -228,16 +227,8 @@ func TestNewSeeder_WithOptions(t *testing.T) {
 	}
 	s := NewSeeder("http://localhost:8080", false, opts)
 	assert.Equal(t, SeedScenarioE2E, s.options.Scenario)
-	assert.Equal(t, "my-school", s.options.TenantSlug)
-	assert.Equal(t, "MyPass1!", s.options.StaffPassword)
-	assert.Equal(t, "admin@test.com", s.options.AdminEmail)
-	require.NotNil(t, s.options.SecondTenant)
-	assert.Equal(t, definition.Seed.SecondTenant.Slug, s.options.SecondTenant.Slug)
-	assert.Equal(t, definition.Seed.SecondTenant.Name, s.options.SecondTenant.Name)
-	assert.Equal(t, definition.Seed.SecondTenant.AdminEmail, s.options.SecondTenant.AdminEmail)
-	assert.Equal(t, "MyPass1!", s.options.SecondTenant.AdminPassword)
-	assert.Equal(t, definition.Seed.SecondTenant.LinkEmail, s.options.SecondTenant.LinkEmail)
-	assert.NoError(t, s.optionsErr)
+	require.Error(t, s.optionsErr)
+	assert.Contains(t, s.optionsErr.Error(), "owns its deterministic world")
 }
 
 func TestApplyScenarioDefaults_E2E(t *testing.T) {
@@ -251,16 +242,25 @@ func TestApplyScenarioDefaults_E2E(t *testing.T) {
 	assert.Equal(t, contract.ManifestPath, opts.StatePath)
 	assert.Equal(t, definition.Seed.StaffPassword, opts.StaffPassword)
 	assert.Equal(t, definition.Seed.BootstrapAdminEmail, opts.AdminEmail)
-	assert.Equal(t, contract.DefaultBackendURL, opts.E2ERuntime.BackendURL)
-	assert.Equal(t, contract.DefaultTenantDomain, opts.E2ERuntime.TenantDomain)
-	assert.Equal(t, contract.DefaultFrontendPort, opts.E2ERuntime.FrontendPort)
-	assert.Equal(t, "operator.localtest.me:3030", opts.E2ERuntime.OperatorHostname)
 	require.NotNil(t, opts.SecondTenant)
 	assert.Equal(t, definition.Seed.SecondTenant.Slug, opts.SecondTenant.Slug)
 	assert.Equal(t, definition.Seed.SecondTenant.Name, opts.SecondTenant.Name)
 	assert.Equal(t, definition.Seed.SecondTenant.AdminEmail, opts.SecondTenant.AdminEmail)
 	assert.Equal(t, definition.Seed.StaffPassword, opts.SecondTenant.AdminPassword)
 	assert.Equal(t, definition.Seed.SecondTenant.LinkEmail, opts.SecondTenant.LinkEmail)
+}
+
+func TestApplyScenarioDefaults_E2E_RejectsDeterministicOverrides(t *testing.T) {
+	opts := SeedOptions{
+		Scenario:      SeedScenarioE2E,
+		TenantSlug:    "my-school",
+		StaffPassword: "MyPass1!",
+		AdminEmail:    "admin@test.com",
+	}
+
+	err := ApplyScenarioDefaults(&opts)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "owns its deterministic world")
 }
 
 func TestApplyScenarioDefaults_E2E_PreservesExplicitStatePath(t *testing.T) {
@@ -295,7 +295,14 @@ func TestIdentityForScenario_UnknownFails(t *testing.T) {
 
 func TestBuildE2EManifest(t *testing.T) {
 	definition := scenarios.MustLookup(SeedScenarioE2E)
-	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E, E2ERuntime: contract.DefaultRuntime()}}
+	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E, E2ERuntime: contract.Runtime{
+		BackendURL:       "http://localhost:8081",
+		TenantDomain:     "localtest.me",
+		FrontendPort:     3030,
+		OperatorHostname: "operator.localtest.me:3030",
+		NextAuthSecret:   "nextauth-secret",
+		AuthTrustHost:    true,
+	}}}
 	rt := &Runtime{
 		OperatorEmail:    "operator@e2e.local",
 		OperatorPassword: "OperatorPass1!",
@@ -339,6 +346,8 @@ func TestBuildE2EManifest(t *testing.T) {
 	assert.Equal(t, "localtest.me", e2e.Runtime.TenantDomain)
 	assert.Equal(t, 3030, e2e.Runtime.FrontendPort)
 	assert.Equal(t, "operator.localtest.me:3030", e2e.Runtime.OperatorHostname)
+	assert.Equal(t, "nextauth-secret", e2e.Runtime.NextAuthSecret)
+	assert.True(t, e2e.Runtime.AuthTrustHost)
 	assert.Equal(t, SeedScenarioE2E, e2e.Scenario.Name)
 	assert.Equal(t, "multi-tenant", e2e.Scenario.Mode)
 	assert.Equal(t, []string{"admin", "staff"}, e2e.Setup.Auth.Roles)

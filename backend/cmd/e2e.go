@@ -23,16 +23,10 @@ var e2ePrepareCmd = &cobra.Command{
 		ctx := context.Background()
 
 		scenario, _ := cmd.Flags().GetString("scenario")
-		url, _ := cmd.Flags().GetString("url")
 		verbose, _ := cmd.Flags().GetBool("verbose")
-
-		if err := assertNonProductionURL(url); err != nil {
-			log.Fatal(err)
-		}
 
 		if err := appe2e.Prepare(ctx, appe2e.PrepareOptions{
 			Scenario: scenario,
-			URL:      url,
 			Verbose:  verbose,
 		}); err != nil {
 			log.Fatal(err)
@@ -45,6 +39,5 @@ func init() {
 	e2eCmd.AddCommand(e2ePrepareCmd)
 
 	e2ePrepareCmd.Flags().String("scenario", scenarios.DefaultPrepareScenario().Name, "Named E2E scenario")
-	e2ePrepareCmd.Flags().String("url", appe2e.DefaultSeedURL, "Backend API URL")
 	e2ePrepareCmd.Flags().Bool("verbose", false, "Enable verbose logging")
 }

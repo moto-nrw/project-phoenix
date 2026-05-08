@@ -5,16 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 )
 
 const (
-	ManifestPath        = ".e2e-manifest.json"
-	ManifestVersion     = "6"
-	DefaultBackendURL   = "http://localhost:8081"
-	DefaultTenantDomain = "localtest.me"
-	DefaultFrontendPort = 3030
+	ManifestPath    = ".e2e-manifest.json"
+	ManifestVersion = "7"
 )
 
 // Manifest is the machine-readable contract between the Go-owned E2E world
@@ -36,6 +31,8 @@ type Runtime struct {
 	TenantDomain     string `json:"tenant_domain"`
 	FrontendPort     int    `json:"frontend_port"`
 	OperatorHostname string `json:"operator_hostname"`
+	NextAuthSecret   string `json:"nextauth_secret"`
+	AuthTrustHost    bool   `json:"auth_trust_host"`
 }
 
 type ScenarioMetadata struct {
@@ -165,55 +162,65 @@ func (m *Manifest) Normalize() {
 	if m.Version == "" {
 		m.Version = ManifestVersion
 	}
-	m.Runtime.Normalize()
-	m.Setup.Normalize()
+}
+
+func (m *Manifest) Validate() error {
+	if m == nil {
+		return fmt.Errorf("manifest is nil")
+	}
+	if m.Runtime.BackendURL == "" {
+		return fmt.Errorf("manifest.runtime.backend_url is required")
+	}
+	if m.Runtime.TenantDomain == "" {
+		return fmt.Errorf("manifest.runtime.tenant_domain is required")
+	}
+	if m.Runtime.FrontendPort <= 0 {
+		return fmt.Errorf("manifest.runtime.frontend_port must be > 0")
+	}
+	if m.Runtime.OperatorHostname == "" {
+		return fmt.Errorf("manifest.runtime.operator_hostname is required")
+	}
+	if m.Runtime.NextAuthSecret == "" {
+		return fmt.Errorf("manifest.runtime.nextauth_secret is required")
+	}
+	if m.Scenario.Name == "" {
+		return fmt.Errorf("manifest.scenario.name is required")
+	}
 	if m.Scenario.Mode == "" {
-		m.Scenario.Mode = scenarios.ModeSingleTenant
+		return fmt.Errorf("manifest.scenario.mode is required")
 	}
-}
-
-func (s *Setup) Normalize() {
-	if s == nil {
-		return
+	if len(m.Setup.Auth.Roles) == 0 {
+		return fmt.Errorf("manifest.setup.auth.roles must not be empty")
 	}
-	s.Auth.Normalize()
-}
-
-func (a *AuthSetup) Normalize() {
-	if a == nil {
-		return
+	if m.Tenants.Primary.Slug == "" {
+		return fmt.Errorf("manifest.tenants.primary.slug is required")
 	}
-	if len(a.Roles) == 0 {
-		a.Roles = []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff}
+	if m.Actors.Admin.Email == "" {
+		return fmt.Errorf("manifest.actors.admin.email is required")
 	}
-}
-
-func (r *Runtime) Normalize() {
-	if r == nil {
-		return
+	if m.Actors.Staff.Email == "" {
+		return fmt.Errorf("manifest.actors.staff.email is required")
 	}
-	if r.BackendURL == "" {
-		r.BackendURL = DefaultBackendURL
+	if m.Devices.DefaultCheckin.Key == "" {
+		return fmt.Errorf("manifest.devices.default_checkin.key is required")
 	}
-	if r.TenantDomain == "" {
-		r.TenantDomain = DefaultTenantDomain
+	if m.Devices.DefaultCheckin.APIKey == "" {
+		return fmt.Errorf("manifest.devices.default_checkin.api_key is required")
 	}
-	if r.FrontendPort == 0 {
-		r.FrontendPort = DefaultFrontendPort
+	if m.Devices.DefaultCheckin.PIN == "" {
+		return fmt.Errorf("manifest.devices.default_checkin.pin is required")
 	}
-	if r.OperatorHostname == "" {
-		r.OperatorHostname = fmt.Sprintf("operator.%s:%d", r.TenantDomain, r.FrontendPort)
+	if m.Fixtures.Checkin.RFIDTag == "" {
+		return fmt.Errorf("manifest.fixtures.checkin.rfid_tag is required")
 	}
-}
-
-func DefaultRuntime() Runtime {
-	r := Runtime{}
-	r.Normalize()
-	return r
+	return nil
 }
 
 func WriteManifest(manifest *Manifest, path string) error {
 	manifest.Normalize()
+	if err := manifest.Validate(); err != nil {
+		return fmt.Errorf("validate e2e manifest: %w", err)
+	}
 	data, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal e2e manifest: %w", err)
@@ -237,5 +244,8 @@ func LoadManifest(path string) (*Manifest, error) {
 		return nil, fmt.Errorf("unsupported e2e manifest version: %s", manifest.Version)
 	}
 	manifest.Normalize()
+	if err := manifest.Validate(); err != nil {
+		return nil, fmt.Errorf("validate e2e manifest: %w", err)
+	}
 	return &manifest, nil
 }

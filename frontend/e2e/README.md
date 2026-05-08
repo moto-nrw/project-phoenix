@@ -36,7 +36,6 @@ e2e/
 ├── auth.ts                 Browser-auth helpers and storageState contract
 ├── auth.setup.ts           Setup project: verifies contract, logs in once per role, writes storageState
 ├── api.ts                  Session-backed API auth bridge (`storageState` -> `/api/auth/token` -> backend Bearer)
-├── frontend-server.mjs     Starts the E2E frontend from manifest runtime only
 ├── fixtures.ts             Playwright fixtures over scenario data and auth contexts
 ├── flows/                  Feature tests, organised by domain
 ├── .auth/                  (gitignored) Saved session cookies per role
@@ -47,7 +46,7 @@ The flow is:
 
 1. **`./scripts/e2e.sh`** owns orchestration: isolated Docker stack up, Go prepare run, Playwright invocation, teardown.
 2. **Go-owned E2E prepare command** resets the isolated DB, seeds the deterministic multi-tenant world, and writes one manifest: `backend/.e2e-manifest.json`.
-3. **Playwright webServer** reads only manifest runtime and starts the dedicated E2E frontend.
+3. **Playwright webServer** reads only manifest runtime and starts the dedicated E2E frontend directly from that contract.
 4. **Setup project** reads that manifest, verifies the declared `setup.auth` preconditions, signs in as each role, and saves the resulting browser `storageState` under `e2e/.auth/`.
 5. **Auth layer** (`auth.ts` + `auth.setup.ts`) owns browser login, readiness checks, and `storageState`.
 6. **API bridge** (`api.ts`) derives backend Bearer tokens from the setup-written browser session via `/api/auth/token`, so UI auth and API auth cannot drift apart.
@@ -116,8 +115,8 @@ The Playwright harness reads all seeded actors, tenant topology, device
 credentials, scenario-specific fixtures, and harness runtime from the Go
 seeder's dedicated manifest. `auth.setup.ts` verifies that canonical
 contract, creates browser `storageState`, and nothing else machine-readable is
-introduced on the frontend side. `contract.ts` only reads the emitted manifest
-and builds URLs. `auth.setup.ts` owns browser login and session materialization.
+introduced on the frontend side. `contract.ts` only reads the emitted manifest,
+builds URLs, and derives the frontend dev-server command. `auth.setup.ts` owns browser login and session materialization.
 `api.ts` turns that browser session into backend API auth when fixtures need
 HTTP contexts. `fixtures.ts` exposes seeded data and ready-to-use auth contexts,
 while Go owns the machine-readable scenarios and any

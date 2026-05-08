@@ -29,14 +29,11 @@ func TestE2EPrepareCmd_Metadata(t *testing.T) {
 func TestE2EPrepareCmd_FlagDefaults(t *testing.T) {
 	f := e2ePrepareCmd.Flags()
 
-	urlFlag := f.Lookup("url")
-	require.NotNil(t, urlFlag)
-	assert.Equal(t, "http://localhost:8080", urlFlag.DefValue)
-
 	scenarioFlag := f.Lookup("scenario")
 	require.NotNil(t, scenarioFlag)
 	assert.Equal(t, scenarios.DefaultPrepareScenario().Name, scenarioFlag.DefValue)
 
+	assert.Nil(t, f.Lookup("url"))
 	assert.Nil(t, f.Lookup("operator-email"))
 	assert.Nil(t, f.Lookup("operator-password"))
 	assert.Nil(t, f.Lookup("operator-display-name"))

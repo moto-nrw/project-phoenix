@@ -31,17 +31,19 @@ OUTPUT FILES:
 - .seed-state.json — all created IDs, credentials, and API keys
 - simulator.yaml   — ready-to-use simulator configuration
 
-OPTIONAL FLAGS (deterministic mode):
-By default, the seeder generates random suffixes and passwords for each run.
-Use optional flags to get deterministic, memorable credentials:
+CANONICAL E2E HARNESS:
+The deterministic multi-tenant Playwright world does NOT live behind this
+command. Use:
 
-  --tenant-slug demo-school    Fixed tenant slug (requires 'migrate reset' before re-seeding)
-  --staff-password 'Test1234%' Shared password for all 20 staff accounts
-  --admin-email admin@test.com Fixed email for the bootstrap school admin
+  go run main.go e2e prepare --scenario e2e-multi-tenant
+
+That scenario path owns its tenant topology, credentials, fixtures, and
+machine-readable contract. This seed command remains the developer-facing
+"full demo world" bootstrap.
 
 Usage:
   go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234
-  go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234 --tenant-slug demo-school --staff-password 'Test1234%' --admin-email school-admin@example.com`,
+  go run main.go seed --email op@example.com --password 'Test1234%' --pin 1234`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
 
@@ -96,4 +98,7 @@ func init() {
 	seedCmd.Flags().String("staff-password", "", "Shared password for all 20 staff accounts (deterministic mode)")
 	seedCmd.Flags().String("admin-email", "", "Fixed email for the bootstrap school admin (deterministic mode)")
 	seedCmd.Flags().String("state-path", seedapi.DefaultSeedStatePath, "Path to write the seed state JSON")
+	_ = seedCmd.Flags().MarkHidden("tenant-slug")
+	_ = seedCmd.Flags().MarkHidden("staff-password")
+	_ = seedCmd.Flags().MarkHidden("admin-email")
 }

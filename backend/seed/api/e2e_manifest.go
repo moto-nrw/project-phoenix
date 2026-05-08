@@ -105,6 +105,9 @@ func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
 	}
 
 	manifest.Normalize()
+	if err := manifest.Validate(); err != nil {
+		return nil, fmt.Errorf("cannot build e2e manifest: %w", err)
+	}
 	return manifest, nil
 }
 

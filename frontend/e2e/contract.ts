@@ -23,6 +23,8 @@ export interface E2ERuntimeConfig {
   tenant_domain: string;
   frontend_port: number;
   operator_hostname: string;
+  nextauth_secret: string;
+  auth_trust_host: boolean;
 }
 
 export interface E2ETwitterTenant {
@@ -351,6 +353,14 @@ function parseManifest(value: unknown): E2EManifest {
         runtime.operator_hostname,
         "e2e manifest.runtime.operator_hostname",
       ),
+      nextauth_secret: expectString(
+        runtime.nextauth_secret,
+        "e2e manifest.runtime.nextauth_secret",
+      ),
+      auth_trust_host: expectBoolean(
+        runtime.auth_trust_host,
+        "e2e manifest.runtime.auth_trust_host",
+      ),
     },
     scenario: {
       name: expectString(scenario.name, "e2e manifest.scenario.name"),
@@ -494,6 +504,10 @@ function loadManifest(): E2EManifest {
   }
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
 function createAppUrls(manifest: E2EManifest): AppUrls {
   const runtime = manifest.runtime;
   return {
@@ -522,6 +536,31 @@ export function getAppUrls(): AppUrls {
     cachedAppUrls = createAppUrls(getE2EManifest());
   }
   return cachedAppUrls;
+}
+
+export function getFrontendWebServerCommand(
+  manifest: E2EManifest = getE2EManifest(),
+): string {
+  const runtime = manifest.runtime;
+  const primaryOrigin = tenantOrigin(runtime, manifest.tenants.primary);
+  const env = {
+    SKIP_ENV_VALIDATION: "true",
+    PORT: String(runtime.frontend_port),
+    API_URL: runtime.backend_url,
+    NEXT_PUBLIC_API_URL: runtime.backend_url,
+    TENANT_DOMAIN: runtime.tenant_domain,
+    NEXT_PUBLIC_TENANT_DOMAIN: runtime.tenant_domain,
+    NEXT_PUBLIC_OPERATOR_HOSTNAME: runtime.operator_hostname,
+    NEXTAUTH_URL: primaryOrigin,
+    NEXTAUTH_SECRET: runtime.nextauth_secret,
+    AUTH_TRUST_HOST: String(runtime.auth_trust_host),
+  };
+
+  const assignments = Object.entries(env)
+    .map(([key, value]) => `${key}=${shellQuote(value)}`)
+    .join(" ");
+
+  return `${assignments} pnpm run dev --port ${runtime.frontend_port}`;
 }
 
 export function requireSecondaryTenant(
