@@ -112,6 +112,7 @@ type secondTenantMockOpts struct {
 	inviteStatus       int
 	acceptStatus       int
 	rolesStatus        int
+	rolesData          []map[string]any
 	linkStatus         int
 	// schoolListSlug controls what slug the /operator/schools listing
 	// endpoint returns when a 409 falls through to lookup.
@@ -232,11 +233,15 @@ func secondTenantMock(t *testing.T, opts secondTenantMockOpts) *httptest.Server 
 				_, _ = fmt.Fprint(w, `{"error":"server error"}`)
 				return
 			}
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"data": []map[string]any{
+			rolesData := opts.rolesData
+			if rolesData == nil {
+				rolesData = []map[string]any{
 					{"id": 1, "name": "admin"},
 					{"id": 2, "name": "user"},
-				},
+				}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": rolesData,
 			})
 
 		case "/auth/link-to-tenant":
@@ -399,6 +404,21 @@ func TestSecondTenantStep_Roles500_HardFails(t *testing.T) {
 	err := secondTenantStep{seeder: seeder}.Run(context.Background(), rt)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fetch roles")
+}
+
+func TestSecondTenantStep_MissingAdminRole_HardFails(t *testing.T) {
+	srv := secondTenantMock(t, secondTenantMockOpts{
+		rolesData: []map[string]any{
+			{"id": 2, "name": "user"},
+			{"id": 3, "name": "teacher"},
+		},
+	})
+	defer srv.Close()
+
+	rt, seeder := secondTenantTestRuntime(t, srv, standardSecondTenantOpts())
+	err := secondTenantStep{seeder: seeder}.Run(context.Background(), rt)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no admin role found in school B")
 }
 
 func TestSecondTenantStep_MissingBootstrap(t *testing.T) {

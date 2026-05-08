@@ -26,6 +26,12 @@ Next.js dev server from the emitted Go manifest.
 The run never mutates checked-in source files. The only required local
 prerequisite is a valid root `.env`.
 
+If your resolver cannot answer `*.localtest.me`, run
+`sudo ./scripts/setup-e2e-hosts.sh` once. That script now derives the required
+hostnames from the same Go-owned E2E scenario registry, so if the canonical
+tenant slugs ever change you can just rerun it and the managed block in
+`/etc/hosts` will be refreshed.
+
 The HTML report opens automatically on failure; otherwise: `pnpm exec playwright show-report`.
 
 ## Architecture
@@ -260,7 +266,7 @@ The bare domain shows a tenant selector, not a login form (see `src/app/page.tsx
 | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Setup test times out on `input[name="email"]`             | Wrong tenant host — the harness should open `http://demo-school.localtest.me:3030/` via `app.primary(routes.root)`.                                         |
 | `EADDRINUSE :3030` when starting Playwright               | Something else (a previous abandoned `pnpm run dev`?) is on :3030. Kill it: `lsof -nP -iTCP:3030 -sTCP:LISTEN`, then `kill <pid>`.                          |
-| `DNS_PROBE_FINISHED_NXDOMAIN` for `*.localtest.me`        | No internet — `localtest.me` resolves over public DNS. Add `127.0.0.1 demo-school.localtest.me second-school.localtest.me` to `/etc/hosts` for offline use. |
+| `DNS_PROBE_FINISHED_NXDOMAIN` for `*.localtest.me`        | No internet or a resolver that blocks wildcard DNS. Run `sudo ./scripts/setup-e2e-hosts.sh` to materialise the current scenario's hostnames into `/etc/hosts`. |
 | Setup test fails on "Anmelden" with "Ungültige Eingabe"   | Seeder hasn't been run, or the emitted manifest / credentials no longer match the active DB state. Re-run `./scripts/e2e.sh`.                               |
 | `Executable doesn't exist` on first run                   | Run `pnpm exec playwright install chromium`.                                                                                                                |
 | Tests pass locally but fail in CI                         | The canonical `./scripts/e2e.sh` flow may have diverged from CI assumptions — check the uploaded seed manifest and backend logs.                            |

@@ -314,9 +314,6 @@ func (s secondTenantStep) resolveAdminRoleID(rt *Runtime) (int64, error) {
 			return role.ID, nil
 		}
 	}
-	if len(payload.Data) > 0 {
-		return payload.Data[0].ID, nil
-	}
 	return 0, fmt.Errorf("no admin role found in school B (response: %s)", string(resp))
 }
 

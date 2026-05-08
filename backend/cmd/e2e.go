@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	appe2e "github.com/moto-nrw/project-phoenix/e2e"
@@ -34,10 +35,29 @@ var e2ePrepareCmd = &cobra.Command{
 	},
 }
 
+var e2eHostsCmd = &cobra.Command{
+	Use:   "hosts",
+	Short: "print the canonical local hostnames for an E2E scenario",
+	Long:  `Prints the local hostnames required by the canonical Playwright E2E world, one hostname per line.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		scenario, _ := cmd.Flags().GetString("scenario")
+		hosts, err := appe2e.HostsForScenario(scenario)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, host := range hosts {
+			fmt.Println(host)
+		}
+	},
+}
+
 func init() {
 	RootCmd.AddCommand(e2eCmd)
 	e2eCmd.AddCommand(e2ePrepareCmd)
+	e2eCmd.AddCommand(e2eHostsCmd)
 
 	e2ePrepareCmd.Flags().String("scenario", scenarios.DefaultPrepareScenario().Name, "Named E2E scenario")
 	e2ePrepareCmd.Flags().Bool("verbose", false, "Enable verbose logging")
+
+	e2eHostsCmd.Flags().String("scenario", scenarios.DefaultPrepareScenario().Name, "Named E2E scenario")
 }

@@ -39,3 +39,17 @@ func TestE2EPrepareCmd_FlagDefaults(t *testing.T) {
 	assert.Nil(t, f.Lookup("operator-display-name"))
 	assert.Nil(t, f.Lookup("staff-pin"))
 }
+
+func TestE2EHostsCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "hosts", e2eHostsCmd.Use)
+	assert.Contains(t, e2eHostsCmd.Short, "hostnames")
+	assert.NotNil(t, e2eHostsCmd.Run)
+}
+
+func TestE2EHostsCmd_FlagDefaults(t *testing.T) {
+	f := e2eHostsCmd.Flags()
+
+	scenarioFlag := f.Lookup("scenario")
+	require.NotNil(t, scenarioFlag)
+	assert.Equal(t, scenarios.DefaultPrepareScenario().Name, scenarioFlag.DefValue)
+}
