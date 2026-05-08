@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +22,14 @@ func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
 			FrontendPort:     3030,
 			OperatorHostname: "operator.localtest.me:3030",
 		},
-		Scenario: ScenarioMetadata{Name: ScenarioName, Mode: "multi-tenant"},
+		Scenario: ScenarioMetadata{Name: scenarios.NameE2EMultiTenant, Mode: scenarios.ModeMultiTenant},
+		Setup: Setup{
+			Auth: AuthSetup{
+				Roles:                     []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff},
+				RequiresSecondaryTenant:   true,
+				RequiresVerifiedSwitching: true,
+			},
+		},
 		Tenants: Tenants{
 			Primary: Tenant{
 				OrganizationID: 1,
@@ -123,7 +131,10 @@ func TestWriteAndLoadManifest_Roundtrip(t *testing.T) {
 	assert.Equal(t, "localtest.me", loaded.Runtime.TenantDomain)
 	assert.Equal(t, 3030, loaded.Runtime.FrontendPort)
 	assert.Equal(t, "operator.localtest.me:3030", loaded.Runtime.OperatorHostname)
-	assert.Equal(t, ScenarioName, loaded.Scenario.Name)
+	assert.Equal(t, scenarios.NameE2EMultiTenant, loaded.Scenario.Name)
+	assert.Equal(t, []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff}, loaded.Setup.Auth.Roles)
+	assert.True(t, loaded.Setup.Auth.RequiresSecondaryTenant)
+	assert.True(t, loaded.Setup.Auth.RequiresVerifiedSwitching)
 	assert.Equal(t, "demo-school", loaded.Tenants.Primary.Slug)
 	require.NotNil(t, loaded.Tenants.Secondary)
 	assert.Equal(t, "second-school", loaded.Tenants.Secondary.Slug)
@@ -162,5 +173,6 @@ func TestManifestNormalize_FillsRuntimeDefaults(t *testing.T) {
 	assert.Equal(t, DefaultTenantDomain, manifest.Runtime.TenantDomain)
 	assert.Equal(t, DefaultFrontendPort, manifest.Runtime.FrontendPort)
 	assert.Equal(t, "operator.localtest.me:3030", manifest.Runtime.OperatorHostname)
-	assert.Equal(t, "single-tenant", manifest.Scenario.Mode)
+	assert.Equal(t, scenarios.ModeSingleTenant, manifest.Scenario.Mode)
+	assert.Equal(t, []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff}, manifest.Setup.Auth.Roles)
 }

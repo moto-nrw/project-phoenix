@@ -1,5 +1,9 @@
-import { test, expect } from "../fixtures";
-import { assertSessionReady, waitForLoginFormReady } from "../auth";
+import {
+  test,
+  expect,
+  assertSessionReady,
+  waitForLoginFormReady,
+} from "../fixtures";
 
 test.describe("Login", () => {
   // These tests must start unauthenticated, so override the project's

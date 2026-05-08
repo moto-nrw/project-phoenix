@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	contract "github.com/moto-nrw/project-phoenix/e2e/contract"
+	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 )
 
 func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
@@ -19,6 +20,13 @@ func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
 	}
 	if rt.StaffPIN == "" {
 		return nil, fmt.Errorf("cannot build e2e manifest: staff PIN missing")
+	}
+	scenarioDefinition, ok := scenarios.Lookup(s.options.Scenario)
+	if !ok {
+		return nil, fmt.Errorf(
+			"cannot build e2e manifest: unknown scenario %q",
+			s.options.Scenario,
+		)
 	}
 
 	adminActor, err := resolveE2EAdminActor(rt.FixedSeeder, rt.SecondTenant)
@@ -46,8 +54,15 @@ func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
 		Version: contract.ManifestVersion,
 		Runtime: s.options.E2ERuntime,
 		Scenario: contract.ScenarioMetadata{
-			Name: s.options.Scenario,
-			Mode: "single-tenant",
+			Name: scenarioDefinition.Name,
+			Mode: scenarioDefinition.Mode,
+		},
+		Setup: contract.Setup{
+			Auth: contract.AuthSetup{
+				Roles:                     append([]string(nil), scenarioDefinition.Auth.Roles...),
+				RequiresSecondaryTenant:   scenarioDefinition.Auth.RequiresSecondaryTenant,
+				RequiresVerifiedSwitching: scenarioDefinition.Auth.RequiresVerifiedSwitching,
+			},
 		},
 		Tenants: contract.Tenants{
 			Primary: contract.Tenant{
@@ -76,7 +91,6 @@ func (s *Seeder) buildE2EManifest(rt *Runtime) (*contract.Manifest, error) {
 	}
 
 	if rt.SecondTenant != nil {
-		manifest.Scenario.Mode = "multi-tenant"
 		manifest.Tenants.Secondary = &contract.Tenant{
 			OrganizationID: rt.SecondTenant.OrganizationID,
 			SchoolID:       rt.SecondTenant.SchoolID,

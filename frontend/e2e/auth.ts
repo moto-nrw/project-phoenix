@@ -2,8 +2,12 @@ import { expect, type Page } from "@playwright/test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  E2E_SCENARIO_MODE_MULTI_TENANT,
+  E2E_SETUP_ROLE_ADMIN,
+  E2E_SETUP_ROLE_STAFF,
   getAppUrls,
   getE2EManifest,
+  type E2EAuthSetup,
   type SeedAdminActor,
   type SeedStaffActor,
 } from "./contract";
@@ -95,10 +99,23 @@ export function getAuthSetupContract(): AuthSetupContract {
 
 export function verifyHarnessManifest(): void {
   const manifest = getE2EManifest();
-  expect(manifest.scenario.name).toBe("e2e-multi-tenant");
-  expect(manifest.scenario.mode).toBe("multi-tenant");
-  expect(manifest.tenants.secondary).toBeTruthy();
-  expect(manifest.switching?.verified).toBe(true);
+  verifyAuthSetup(manifest.setup.auth, manifest);
+  expect(manifest.scenario.mode).toBe(E2E_SCENARIO_MODE_MULTI_TENANT);
+}
+
+function verifyAuthSetup(
+  setup: E2EAuthSetup,
+  manifest = getE2EManifest(),
+): void {
+  expect(setup.roles).toEqual([E2E_SETUP_ROLE_ADMIN, E2E_SETUP_ROLE_STAFF]);
+
+  if (setup.requires_secondary_tenant) {
+    expect(manifest.tenants.secondary).toBeTruthy();
+  }
+
+  if (setup.requires_verified_switching) {
+    expect(manifest.switching?.verified).toBe(true);
+  }
 }
 
 export async function assertSessionReady(

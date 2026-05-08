@@ -389,6 +389,7 @@ const baseWithFixtures = base.extend<Fixtures>({
 
 export const test = baseWithFixtures;
 export { expect } from "@playwright/test";
+export { assertSessionReady, waitForLoginFormReady } from "./auth";
 
 export const apiTest = baseWithFixtures;
 export { expect as apiExpect } from "@playwright/test";

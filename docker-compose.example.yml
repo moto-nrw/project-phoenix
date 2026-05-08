@@ -180,7 +180,7 @@ services:
       retries: 5
 
   # Isolated backend bound to postgres-test, used by Playwright E2E tests so
-  # `scripts/e2e.sh` no longer wipes the developer's dev DB on every run. Mirrors
+  # Playwright-owned harness setup no longer wipes the developer's dev DB on every run. Mirrors
   # the dev `server` service env-for-env so behaviour matches; only DB_DSN
   # (points at postgres-test, sslmode=disable) and APP_ENV (=test) differ.
   # Reachable from the host on :8081.
@@ -271,11 +271,11 @@ services:
     # until the container is RUNNING — not until `go run` has finished
     # compiling and the HTTP server is actually listening. On a cold
     # local run or fresh CI runner, that startup window is 30–60s and
-    # the next steps in scripts/e2e.sh (`go run main.go e2e prepare`)
+    # the next steps in the Playwright harness (`go run main.go e2e prepare`)
     # would race the server, surfacing as
     # confusing "connection refused" failures even though Compose
     # reported success. /health returns 200 OK once Chi is wired up,
-    # so polling it gives us a deterministic ready-signal for scripts/e2e.sh.
+    # so polling it gives us a deterministic ready-signal for the harness.
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 5s

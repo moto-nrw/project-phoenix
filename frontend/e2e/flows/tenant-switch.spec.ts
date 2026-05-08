@@ -1,6 +1,5 @@
-import { test, expect } from "../fixtures";
+import { test, expect, assertSessionReady } from "../fixtures";
 import * as routes from "../helpers/routes";
-import { assertSessionReady } from "../auth";
 
 test.describe("Tenant switch", () => {
   test("admin with access to two tenants switches without re-login", async ({

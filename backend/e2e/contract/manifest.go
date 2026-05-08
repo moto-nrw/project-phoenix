@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 )
 
 const (
 	ManifestPath        = ".e2e-manifest.json"
-	ManifestVersion     = "4"
-	ScenarioName        = "e2e-multi-tenant"
+	ManifestVersion     = "5"
 	DefaultBackendURL   = "http://localhost:8081"
 	DefaultTenantDomain = "localtest.me"
 	DefaultFrontendPort = 3030
@@ -22,6 +23,7 @@ type Manifest struct {
 	Version   string           `json:"version"`
 	Runtime   Runtime          `json:"runtime"`
 	Scenario  ScenarioMetadata `json:"scenario"`
+	Setup     Setup            `json:"setup"`
 	Tenants   Tenants          `json:"tenants"`
 	Actors    Actors           `json:"actors"`
 	Switching *Switching       `json:"switching,omitempty"`
@@ -39,6 +41,16 @@ type Runtime struct {
 type ScenarioMetadata struct {
 	Name string `json:"name"`
 	Mode string `json:"mode"`
+}
+
+type Setup struct {
+	Auth AuthSetup `json:"auth"`
+}
+
+type AuthSetup struct {
+	Roles                     []string `json:"roles"`
+	RequiresSecondaryTenant   bool     `json:"requires_secondary_tenant"`
+	RequiresVerifiedSwitching bool     `json:"requires_verified_switching"`
 }
 
 type Tenants struct {
@@ -153,8 +165,25 @@ func (m *Manifest) Normalize() {
 		m.Version = ManifestVersion
 	}
 	m.Runtime.Normalize()
+	m.Setup.Normalize()
 	if m.Scenario.Mode == "" {
-		m.Scenario.Mode = "single-tenant"
+		m.Scenario.Mode = scenarios.ModeSingleTenant
+	}
+}
+
+func (s *Setup) Normalize() {
+	if s == nil {
+		return
+	}
+	s.Auth.Normalize()
+}
+
+func (a *AuthSetup) Normalize() {
+	if a == nil {
+		return
+	}
+	if len(a.Roles) == 0 {
+		a.Roles = []string{scenarios.SetupRoleAdmin, scenarios.SetupRoleStaff}
 	}
 }
 

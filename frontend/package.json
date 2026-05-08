@@ -20,8 +20,8 @@
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
     "knip": "knip",
-    "e2e": "../scripts/e2e.sh",
-    "e2e:ui": "../scripts/e2e.sh --ui"
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",

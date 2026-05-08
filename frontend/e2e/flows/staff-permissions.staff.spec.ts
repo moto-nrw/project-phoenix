@@ -1,5 +1,4 @@
-import { test, expect } from "../fixtures";
-import { assertSessionReady } from "../auth";
+import { test, expect, assertSessionReady } from "../fixtures";
 import * as routes from "../helpers/routes";
 
 /**

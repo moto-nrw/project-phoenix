@@ -272,6 +272,23 @@ func TestApplyScenarioDefaults_E2E_PreservesExplicitStatePath(t *testing.T) {
 	assert.Equal(t, "custom-state.json", opts.StatePath)
 }
 
+func TestIdentityForScenario_E2E(t *testing.T) {
+	identity, err := IdentityForScenario(SeedScenarioE2E)
+	require.NoError(t, err)
+
+	assert.Equal(t, e2eScenarioOperatorEmail, identity.OperatorEmail)
+	assert.Equal(t, e2eScenarioOperatorPassword, identity.OperatorPassword)
+	assert.Equal(t, e2eScenarioOperatorDisplayName, identity.OperatorDisplayName)
+	assert.Equal(t, e2eScenarioStaffPIN, identity.StaffPIN)
+}
+
+func TestIdentityForScenario_UnknownFails(t *testing.T) {
+	identity, err := IdentityForScenario("does-not-exist")
+	require.Error(t, err)
+	assert.Equal(t, E2EIdentity{}, identity)
+	assert.Contains(t, err.Error(), `unknown seed scenario "does-not-exist"`)
+}
+
 func TestBuildE2EManifest(t *testing.T) {
 	s := &Seeder{options: SeedOptions{Scenario: SeedScenarioE2E, E2ERuntime: contract.DefaultRuntime()}}
 	rt := &Runtime{
@@ -318,6 +335,9 @@ func TestBuildE2EManifest(t *testing.T) {
 	assert.Equal(t, "operator.localtest.me:3030", e2e.Runtime.OperatorHostname)
 	assert.Equal(t, SeedScenarioE2E, e2e.Scenario.Name)
 	assert.Equal(t, "multi-tenant", e2e.Scenario.Mode)
+	assert.Equal(t, []string{"admin", "staff"}, e2e.Setup.Auth.Roles)
+	assert.True(t, e2e.Setup.Auth.RequiresSecondaryTenant)
+	assert.True(t, e2e.Setup.Auth.RequiresVerifiedSwitching)
 	assert.Equal(t, "demo-school", e2e.Tenants.Primary.Slug)
 	require.NotNil(t, e2e.Tenants.Secondary)
 	assert.Equal(t, "second-school", e2e.Tenants.Secondary.Slug)

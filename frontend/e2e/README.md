@@ -17,12 +17,13 @@ pnpm exec playwright install chromium      # first time only
 pnpm run e2e
 ```
 
-`pnpm run e2e` is the one supported command for both local use and CI. It
-delegates to the internal `../scripts/e2e.sh` orchestrator, which brings up
-the isolated backend stack directly from `../docker-compose.example.yml`,
-runs `go run main.go e2e prepare`, and then executes Playwright against the
-emitted manifest contract. The only required local prerequisite is a valid
-root `.env`.
+`pnpm run e2e` is the one supported command for both local use and CI.
+Playwright's `globalSetup` owns the canonical harness lifecycle: it brings
+up the E2E Docker stack from `../docker-compose.example.yml`, runs
+`go run main.go e2e prepare`, starts the dedicated Next.js dev server with
+the E2E-only backend/tenant wiring, and returns the teardown that stops both
+frontend and backend afterwards. The run never mutates checked-in source
+files. The only required local prerequisite is a valid root `.env`.
 
 The HTML report opens automatically on failure; otherwise: `pnpm exec playwright show-report`.
 
@@ -30,7 +31,8 @@ The HTML report opens automatically on failure; otherwise: `pnpm exec playwright
 
 ```
 e2e/
-├── contract.ts             Typed reader for the single Go-owned manifest + tenant URL builder
+├── contract.generated.ts   Generated Go-owned Zod schema + inferred manifest types
+├── contract.ts             Thin reader over the generated contract + tenant URL builder
 ├── auth.ts                 Browser-auth helpers and storageState contract
 ├── auth.setup.ts           Setup project: verifies contract, logs in once per role, writes storageState
 ├── api.ts                  Session-backed API auth bridge (`storageState` -> `/api/auth/token` -> backend Bearer)
@@ -42,14 +44,15 @@ e2e/
 
 The flow is:
 
-1. **Go-owned E2E prepare command** (`go run main.go e2e prepare`) resets the isolated DB, seeds the deterministic multi-tenant world, and writes one manifest: `backend/.e2e-manifest.json`.
-2. **Manifest contract** includes both scenario data and harness runtime (`backend_url`, `tenant_domain`, `frontend_port`, operator host), so Playwright does not keep a second copy of those values in config constants.
-3. **Setup project** reads that manifest, verifies the harness preconditions, signs in as each role, and saves the resulting browser `storageState` under `e2e/.auth/`.
-4. **Contract layer** (`contract.ts`) is read-only: manifest validation, tenant URL building, nothing else.
-5. **Auth layer** (`auth.ts` + `auth.setup.ts`) owns browser login, readiness checks, and `storageState`.
-6. **API bridge** (`api.ts`) derives backend Bearer tokens from the setup-written browser session via `/api/auth/token`, so UI auth and API auth cannot drift apart.
-7. **Fixtures** stay focused: `fixtures.ts` re-exposes typed scenario data, ready-to-use session-backed auth contexts, and the small reusable helpers that keep raw check-in/setup plumbing out of specs.
-8. **Cross-role tests** (e.g. "admin creates X, staff sees X") use the `adminPage` / `staffPage` fixtures from `fixtures.ts`, which spawn fresh contexts backed by the same storageState files.
+1. **Playwright global setup** starts the isolated Docker stack, runs `go run main.go e2e prepare`, then starts the dedicated E2E frontend only after the backend world is ready.
+2. **Go-owned E2E prepare command** resets the isolated DB, seeds the deterministic multi-tenant world, and writes one manifest: `backend/.e2e-manifest.json`.
+3. **Manifest contract** includes scenario data, harness runtime (`backend_url`, `tenant_domain`, `frontend_port`, operator host), and an explicit Go-owned `setup.auth` contract that tells Playwright what the auth setup requires.
+4. **Setup project** reads that manifest, verifies the declared `setup.auth` preconditions, signs in as each role, and saves the resulting browser `storageState` under `e2e/.auth/`.
+5. **Contract layer** is split on purpose: `contract.generated.ts` is a checked-in artifact generated from the Go manifest contract, and `contract.ts` only parses that schema and builds tenant URLs.
+6. **Auth layer** (`auth.ts` + `auth.setup.ts`) owns browser login, readiness checks, and `storageState`.
+7. **API bridge** (`api.ts`) derives backend Bearer tokens from the setup-written browser session via `/api/auth/token`, so UI auth and API auth cannot drift apart.
+8. **Fixtures** stay focused: `fixtures.ts` re-exposes typed scenario data, ready-to-use session-backed auth contexts, and the small reusable helpers that keep raw check-in/setup plumbing out of specs.
+9. **Cross-role tests** (e.g. "admin creates X, staff sees X") use the `adminPage` / `staffPage` fixtures from `fixtures.ts`, which spawn fresh contexts backed by the same storageState files.
 
 ## Fixtures
 
@@ -78,22 +81,22 @@ test("admin creates a group, staff sees it", async ({
 });
 ```
 
-| Fixture                   | Behaviour                                                                                                   |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `tenantSwitchScenario`    | Multi-tenant switch data: primary/secondary tenants plus canonical actor display name.                      |
-| `studentSearchScenario`   | Seeded search/filter pair with stable expected names.                                                       |
-| `groupVisibilityScenario` | Seeded visibility pair with stable expected group names.                                                    |
-| `checkinScenario`         | Seeded RFID/check-in data: student, room, activity, RFID tag, device, supervisor.                           |
-| `checkinDevice`           | Canonical seeded device credentials for raw IoT auth-path HTTP tests.                                       |
+| Fixture                   | Behaviour                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `tenantSwitchScenario`    | Multi-tenant switch data: primary/secondary tenants plus canonical actor display name.                         |
+| `studentSearchScenario`   | Seeded search/filter pair with stable expected names.                                                          |
+| `groupVisibilityScenario` | Seeded visibility pair with stable expected group names.                                                       |
+| `checkinScenario`         | Seeded RFID/check-in data: student, room, activity, RFID tag, device, supervisor.                              |
+| `checkinDevice`           | Canonical seeded device credentials for raw IoT auth-path HTTP tests.                                          |
 | `checkinHarness`          | High-level check-in/presence helper: canonical scan payload, current-visit lookup, isolated RFID prep/cleanup. |
-| `app`                     | Tenant URL builder (`app.primary(...)`, `app.secondary(...)`, `app.tenant(...)`).                           |
-| `authenticatedPage`       | Project default `page`, already logged in as that project's role.                                           |
-| `backendApi`              | Raw backend API context with only `baseURL` set, for unauthenticated/negative cases.                        |
-| `adminApi`                | Tenant-scoped admin API context; auth comes from the setup-written `storageState`, not a second login flow. |
-| `staffApi`                | Tenant-scoped staff API context; auth comes from the setup-written `storageState`, not a second login flow. |
-| `deviceApi`               | Device API context with Bearer key + `X-Staff-PIN` already set.                                             |
-| `adminPage`               | Fresh context as the admin actor, regardless of project.                                                    |
-| `staffPage`               | Fresh context as the staff actor, regardless of project.                                                    |
+| `app`                     | Tenant URL builder (`app.primary(...)`, `app.secondary(...)`, `app.tenant(...)`).                              |
+| `authenticatedPage`       | Project default `page`, already logged in as that project's role.                                              |
+| `backendApi`              | Raw backend API context with only `baseURL` set, for unauthenticated/negative cases.                           |
+| `adminApi`                | Tenant-scoped admin API context; auth comes from the setup-written `storageState`, not a second login flow.    |
+| `staffApi`                | Tenant-scoped staff API context; auth comes from the setup-written `storageState`, not a second login flow.    |
+| `deviceApi`               | Device API context with Bearer key + `X-Staff-PIN` already set.                                                |
+| `adminPage`               | Fresh context as the admin actor, regardless of project.                                                       |
+| `staffPage`               | Fresh context as the staff actor, regardless of project.                                                       |
 
 For HTTP-only specs (no browser — e.g. `iot-api.spec.ts`, `checkin.spec.ts`, the API halves of CRUD tests) use `apiTest` / `apiExpect` from `../fixtures`. Same Playwright `test` and `expect`, just re-exported under different names so every spec file goes through `fixtures.ts` and picks up the shared API fixtures. For check-in flows, prefer `checkinHarness` over raw `/rfid`, `/current-visit`, or `/api/iot/checkin` setup code inside the spec body.
 
@@ -112,8 +115,10 @@ The Playwright harness reads all seeded actors, tenant topology, device
 credentials, scenario-specific fixtures, and harness runtime from the Go
 seeder's dedicated manifest. `auth.setup.ts` verifies that canonical
 contract, creates browser `storageState`, and nothing else machine-readable is
-introduced on the frontend side. `contract.ts` owns the typed manifest and URL
-building. `auth.setup.ts` owns browser login and session materialization.
+introduced on the frontend side. `contract.generated.ts` owns the typed
+manifest schema because it is generated from the Go contract; `contract.ts`
+only reads it and builds URLs. `auth.setup.ts` owns browser login and session
+materialization.
 `api.ts` turns that browser session into backend API auth when fixtures need
 HTTP contexts. `fixtures.ts` exposes seeded data, ready-to-use auth contexts,
 and the small shared helpers that keep repeated check-in plumbing out of spec
@@ -264,15 +269,14 @@ The bare domain shows a tenant selector, not a login form (see `src/app/page.tsx
 | Cookies appear but tests still see the login form         | Stale `storageState` after seeder change — `rm -rf e2e/.auth` and re-run.                                                                                   |
 | `tenant-switch.spec.ts` fails on "TenantSwitcher visible" | The Go-owned E2E world did not materialize both tenants cleanly — re-run `pnpm run e2e` or inspect `backend/.e2e-manifest.json`.                            |
 
-## Debug-only escape hatch
+## Raw Playwright flags
 
-If you are working on the Playwright layer itself and need to skip the full
-orchestrator, the bare runner still works as a deliberate escape hatch:
+`pnpm run e2e` is the canonical full-flow command. When you need direct
+Playwright flags for debugging, call Playwright directly instead of adding
+wrapper logic back into the harness:
 
 ```bash
 cd frontend
+pnpm exec playwright test --project=setup
 pnpm exec playwright test --list
 ```
-
-That path is intentionally not the day-to-day entrypoint. It assumes the
-isolated backend stack is already up and the canonical manifest already exists.

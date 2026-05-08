@@ -1,10 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
-import { getE2ERuntime } from "./e2e/contract";
 import { STORAGE_STATE_PATH } from "./e2e/auth";
 
-const runtime = getE2ERuntime();
-
 export default defineConfig({
+  globalSetup: "./e2e/global-setup.ts",
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -68,55 +66,4 @@ export default defineConfig({
       dependencies: ["setup"],
     },
   ],
-  webServer: {
-    // E2E runs on :3030 so it can coexist with the developer's dev frontend
-    // on :3000. The two stacks are fully independent: dev points at the dev
-    // backend (:8080) and dev DB; E2E points at server-e2e (:8081) and
-    // postgres-test. Devs can keep their dev frontend running and even open
-    // both URLs side by side in the browser to compare behavior.
-    // :3030 (not :3001) because :3001 is commonly taken by other dev tools
-    // (Bun, secondary Next instances). :3030 is far less crowded.
-    command: `pnpm run dev --port ${runtime.frontend_port}`,
-    url: `http://localhost:${runtime.frontend_port}`,
-    // Always spawn a fresh dev server — never reuse whatever happens to be
-    // listening on :3030. Playwright's URL probe only checks "does anything
-    // answer", not "is it our spawned dev server with the right env". A
-    // stale Next.js process from an aborted earlier run (still pointing at
-    // the dev backend on :8080 instead of server-e2e on :8081) would be
-    // silently reused and tests would fail with errors that look like real
-    // product bugs but are actually "wrong server". Forcing a spawn costs
-    // ~6s per local run but eliminates that whole class of false failures.
-    reuseExistingServer: false,
-    // Default Playwright webServer timeout is 60s; a cold Next.js build on
-    // a loaded machine can take ~90s. 120s gives headroom without masking
-    // a genuine hang.
-    timeout: 120_000,
-    // Force the spawned dev server to talk to the isolated E2E backend
-    // (server-e2e on :8081) instead of the dev `server` (:8080). This is
-    // the second half of the E2E isolation: backend on its own DB AND
-    // frontend wired to that backend, so a developer running
-    // `docker compose up` in parallel doesn't poison test runs.
-    env: {
-      // Bind Next.js to the dedicated E2E frontend port (also passed via
-      // --port; both honored).
-      PORT: String(runtime.frontend_port),
-      NEXT_PUBLIC_API_URL: runtime.backend_url,
-      API_URL: runtime.backend_url,
-      // Override TENANT_DOMAIN for the spawned dev server so the suite gets
-      // production-shaped cookie behavior (.localtest.me cookie scope) needed
-      // for the tenant-switch flow. The canonical dev default is `localhost`,
-      // which uses host-scoped cookies and forces re-login on tenant switch —
-      // fine for everyday dev, wrong for E2E.
-      TENANT_DOMAIN: runtime.tenant_domain,
-      NEXT_PUBLIC_TENANT_DOMAIN: runtime.tenant_domain,
-      // Pin the operator subdomain to the localtest.me + :3030 origin so
-      // proxy.ts:isOperatorHost() and lib/operator-url.ts:isOperatorSubdomain()
-      // recognize the operator URL in this run mode. Without this override,
-      // those guards still compare against the dev default (operator.localhost
-      // :3000) and a request to operator.localtest.me:3030 would be routed to
-      // the tenant selector instead of the operator app — silently wrong, hard
-      // to debug if a future spec exercises the operator surface.
-      NEXT_PUBLIC_OPERATOR_HOSTNAME: runtime.operator_hostname,
-    },
-  },
 });

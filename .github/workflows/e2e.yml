@@ -7,13 +7,12 @@ name: E2E (Playwright)
 #
 # What this does, end-to-end:
 #   1. Materialise .env from the checked-in templates.
-#   2. `pnpm run e2e` runs the same golden-path harness as local dev:
+#   2. `pnpm run e2e` starts Playwright directly.
+#   3. Playwright globalSetup owns the canonical harness lifecycle:
 #      bring up postgres-test + server-e2e, run `go run main.go e2e prepare`,
-#      and execute Playwright against backend/.e2e-manifest.json directly
-#      from docker-compose.example.yml.
-#   3. Playwright spawns its own `pnpm run dev` on the dedicated E2E
-#      frontend port from backend/.e2e-manifest.json and wires that dev
-#      server to the isolated backend runtime from the same manifest.
+#      then start the dedicated Next.js dev server on the E2E port with
+#      E2E-only backend/tenant env wiring. The returned teardown stops both
+#      frontend and backend again after the run.
 #   4. The suite runs headless against that manifest-backed harness.
 #   5. On failure, the HTML report, E2E manifest, and backend logs are
 #      uploaded as artifacts.
@@ -122,7 +121,7 @@ jobs:
       - name: Materialise frontend .env.local
         # Playwright spawns `pnpm run dev`, which loads frontend/.env.local.
         # SKIP_ENV_VALIDATION lets the dev server boot without a real
-        # POSTHOG/Sentry key. webServer.env in playwright.config.ts overrides
+        # POSTHOG/Sentry key. frontend/e2e/harness.ts overrides
         # NEXT_PUBLIC_API_URL/TENANT_DOMAIN at spawn time, so the values
         # below only need to be syntactically valid. NEXTAUTH_SECRET MUST
         # match the value written into the root .env above so the backend
@@ -154,9 +153,9 @@ jobs:
 
       - name: Upload E2E manifest on failure
         # Useful for debugging "demo-device-001 missing in E2E manifest" errors.
-        # The E2E runner writes a dedicated .e2e-manifest.json contract
+        # The Playwright harness writes a dedicated .e2e-manifest.json contract
         # (separate from the dev seed's .seed-state.json) — see
-        # scripts/e2e.sh and frontend/e2e/contract.ts for the matching path.
+        # frontend/e2e/global-setup.ts and frontend/e2e/contract.generated.ts for the matching path.
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

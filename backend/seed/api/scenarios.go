@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	contract "github.com/moto-nrw/project-phoenix/e2e/contract"
+	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 )
 
 const (
-	SeedScenarioE2E = "e2e-multi-tenant"
+	SeedScenarioE2E = scenarios.NameE2EMultiTenant
 
 	e2eScenarioOperatorEmail       = "operator@e2e.local"
 	e2eScenarioOperatorPassword    = "E2EOp1234!"
@@ -47,12 +48,17 @@ type E2EIdentity struct {
 	StaffPIN            string
 }
 
-func CanonicalE2EIdentity() E2EIdentity {
-	return E2EIdentity{
-		OperatorEmail:       e2eScenarioOperatorEmail,
-		OperatorPassword:    e2eScenarioOperatorPassword,
-		OperatorDisplayName: e2eScenarioOperatorDisplayName,
-		StaffPIN:            e2eScenarioStaffPIN,
+func IdentityForScenario(name string) (E2EIdentity, error) {
+	switch name {
+	case SeedScenarioE2E:
+		return E2EIdentity{
+			OperatorEmail:       e2eScenarioOperatorEmail,
+			OperatorPassword:    e2eScenarioOperatorPassword,
+			OperatorDisplayName: e2eScenarioOperatorDisplayName,
+			StaffPIN:            e2eScenarioStaffPIN,
+		}, nil
+	default:
+		return E2EIdentity{}, fmt.Errorf("unknown seed scenario %q", name)
 	}
 }
 

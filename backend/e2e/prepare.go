@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/migrations"
 	contract "github.com/moto-nrw/project-phoenix/e2e/contract"
+	"github.com/moto-nrw/project-phoenix/e2e/scenarios"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
@@ -15,11 +16,15 @@ const (
 )
 
 type PrepareOptions struct {
-	URL     string
-	Verbose bool
+	Scenario string
+	URL      string
+	Verbose  bool
 }
 
 func (o *PrepareOptions) normalize() {
+	if o.Scenario == "" {
+		o.Scenario = scenarios.DefaultPrepareScenario().Name
+	}
 	if o.URL == "" {
 		o.URL = DefaultSeedURL
 	}
@@ -29,16 +34,19 @@ func (o *PrepareOptions) normalize() {
 // manifest contract consumed by Playwright.
 func Prepare(ctx context.Context, options PrepareOptions) error {
 	options.normalize()
-	identity := seedapi.CanonicalE2EIdentity()
+	identity, err := seedapi.IdentityForScenario(options.Scenario)
+	if err != nil {
+		return err
+	}
 	configureOperatorEnv(identity)
 
 	migrations.Reset()
 
 	seeder := seedapi.NewSeeder(options.URL, options.Verbose, seedapi.SeedOptions{
-		Scenario: seedapi.SeedScenarioE2E,
+		Scenario: options.Scenario,
 	})
-	if _, err := seeder.Seed(ctx, identity.OperatorEmail, identity.OperatorPassword, identity.StaffPIN); err != nil {
-		return fmt.Errorf("seed canonical e2e scenario: %w", err)
+	if _, err = seeder.Seed(ctx, identity.OperatorEmail, identity.OperatorPassword, identity.StaffPIN); err != nil {
+		return fmt.Errorf("seed e2e scenario %q: %w", options.Scenario, err)
 	}
 
 	fmt.Printf("Canonical E2E world is ready. Manifest written to %s\n", contract.ManifestPath)
