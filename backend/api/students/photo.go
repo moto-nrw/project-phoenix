@@ -90,7 +90,7 @@ func (rs *Resource) ensurePhotoFeatureEnabled(ctx context.Context) error {
 		return fmt.Errorf("photo feature lookup failed: %w", err)
 	}
 	if !enabled {
-		return errors.New(msgPhotosFeatureDisabled)
+		return errors.New(msgPhotosFeatureDisabled) //nolint:staticcheck // ST1005: user-facing German message
 	}
 	return nil
 }
@@ -339,7 +339,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, errFeatureDisabled):
 			render.Status(r, http.StatusForbidden)
-			renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled)))
+			renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
 		case errors.Is(err, errStudentNotFound):
 			renderError(w, r, ErrorNotFound(err))
 		case errors.Is(err, errStudentForbidden):
@@ -348,7 +348,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 			renderError(w, r, ErrorInvalidRequest(err))
 		case errors.Is(err, errFeatureDisabledMidUpload):
 			render.Status(r, http.StatusForbidden)
-			renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled)))
+			renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
 		case errors.Is(err, errConsentWithdrawnMidUpload):
 			// 409 Conflict: request was valid when sent but the
 			// underlying consent state changed before our tx could
