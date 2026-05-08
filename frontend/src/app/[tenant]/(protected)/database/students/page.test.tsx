@@ -280,6 +280,19 @@ const mockStudents = [
     group_name: "Gruppe B",
     name_lg: null,
   },
+  // Sparse fixture: all string fields except name_lg are nullish so the
+  // optional-chaining branches in the search filter (`student.first_name?.…`,
+  // `student.second_name?.…`, `student.school_class?.…`, `student.group_name?.…`)
+  // exercise their falsy paths when a search runs.
+  {
+    id: "3",
+    first_name: null,
+    second_name: null,
+    school_class: null,
+    group_id: null,
+    group_name: null,
+    name_lg: "Erika Beispiel",
+  },
 ];
 
 describe("StudentsPage", () => {
@@ -455,6 +468,22 @@ describe("StudentsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
       // Anna has null name_lg, so should be filtered out
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
+  it("matches a student whose name and class fields are nullish", async () => {
+    render(<StudentsPage />);
+
+    // Student id "3" has first_name/second_name/school_class/group_name all null;
+    // searching by guardian name still matches and exercises every `?.` falsy
+    // branch in the search filter.
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Erika" } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Erika Beispiel/)).toBeInTheDocument();
+      expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
       expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
     });
   });
