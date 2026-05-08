@@ -21,8 +21,10 @@ func TestE2ECmd_IsRegisteredOnRoot(t *testing.T) {
 
 func TestE2EPrepareCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "prepare", e2ePrepareCmd.Use)
-	assert.Contains(t, e2ePrepareCmd.Short, "canonical Playwright world")
+	assert.Contains(t, e2ePrepareCmd.Short, "internal building block")
 	assert.Contains(t, e2ePrepareCmd.Long, ".e2e-state.json")
+	assert.Contains(t, e2ePrepareCmd.Long, `"e2e run"`)
+	assert.True(t, e2ePrepareCmd.Hidden)
 	assert.NotNil(t, e2ePrepareCmd.Run)
 }
 

@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { test as setup } from "@playwright/test";
+import { assertApiSessionReady } from "./api";
 import {
   assertSessionReady,
   getAuthSetupContract,
@@ -32,6 +33,7 @@ setup("authenticate as admin", async ({ page }) => {
   await loginViaUI(page, admin.actor, admin.appRoot);
   await assertSessionReady(page, admin);
   await page.context().storageState({ path: admin.storageStatePath });
+  await assertApiSessionReady(admin);
 });
 
 setup("authenticate as staff", async ({ page }) => {
@@ -40,4 +42,5 @@ setup("authenticate as staff", async ({ page }) => {
   await loginViaUI(page, staff.actor, staff.appRoot);
   await assertSessionReady(page, staff);
   await page.context().storageState({ path: staff.storageStatePath });
+  await assertApiSessionReady(staff);
 });

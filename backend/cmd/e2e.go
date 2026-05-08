@@ -19,9 +19,10 @@ var e2eCmd = &cobra.Command{
 }
 
 var e2ePrepareCmd = &cobra.Command{
-	Use:   "prepare",
-	Short: "reset the isolated database and seed the canonical Playwright world",
-	Long:  `Resets the isolated E2E database, re-runs migrations, seeds the canonical multi-tenant Playwright world, and writes backend/.e2e-state.json.`,
+	Use:    "prepare",
+	Short:  "internal building block: reset the isolated database and seed the canonical Playwright world",
+	Long:   `Internal building block for the canonical E2E harness. Resets the isolated E2E database, re-runs migrations, seeds the canonical multi-tenant Playwright world, and writes backend/.e2e-state.json. Use "e2e run" for the full local/CI golden path or "e2e up" for a long-lived local harness.`,
+	Hidden: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()

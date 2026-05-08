@@ -47,10 +47,14 @@ Das Harness ist absichtlich auf wenige Verantwortlichkeiten reduziert:
 - **Go-Seeder-Szenario** besitzt alle fachlichen Seed-Daten und vorbereiteten
   Zustände.
 - **`backend/.e2e-state.json`** ist das einzige maschinenlesbare E2E-Artefakt.
-- **`state.ts`** ist der einzige rohe TS-Konsument dieses Vertrags; alle
-  anderen Playwright-Dateien hängen nur noch semantisch daran.
+- **`state.ts`** ist der einzige rohe TS-Konsument dieses Vertrags und leitet
+  daraus nur semantische Fixture-Daten ab.
+- **`api.ts`** ist der einzige HTTP-semantische Adapter auf der TS-Seite:
+  Token aus `storageState` ableiten, API-Kontexte bauen, HTTP-Flows kapseln.
 - **Playwright Setup-Projekt** besitzt Browser-Login, `storageState` und
-  Verifikation der Kernannahmen.
+  Verifikation der Kernannahmen inklusive API-Auth-Pipeline.
+- **`fixtures.ts`** verdrahtet nur noch Playwright-Fixtures auf diese
+  semantischen Bausteine; dort lebt keine rohe Vertragslogik mehr.
 - **Specs** arbeiten über semantische Fixtures und Auth-State, nicht über rohe
   Seed-Details wie IDs, RFID-Tags oder Geräte-Header.
 
@@ -60,9 +64,9 @@ Das Harness ist absichtlich auf wenige Verantwortlichkeiten reduziert:
 e2e/
 ├── auth.setup.ts   sichtbares Playwright-Setup für Login/storageState
 ├── auth.ts         Browser-Login und Session-Prüfungen
-├── api.ts          API-Kontexte aus dem Setup-authentifizierten Browser-State
-├── state.ts        einziger Vertragsleser + semantische Zugriffsfunktionen
-├── fixtures.ts     semantische Fixtures für Specs
+├── api.ts          API-Kontexte + HTTP-Flows aus dem Setup-authentifizierten State
+├── state.ts        einziger Vertragsleser + semantische Fixture-Ableitungen
+├── fixtures.ts     dünne Playwright-Verdrahtung
 ├── flows/          eigentliche Tests
 └── helpers/        kleine Spec-Helfer, keine Welt-/Orchestrierungslogik
 ```

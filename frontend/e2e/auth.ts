@@ -5,12 +5,11 @@ import {
   getAdminActor,
   getAuthSetup,
   getPrimaryTenant,
-  getScenarioMode,
   getStaffActor,
   isTenantSwitchVerified,
   requireSecondaryTenant,
   tenantOrigin,
-  type E2EActor,
+  type Actor,
 } from "./state";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -28,7 +27,7 @@ export const STORAGE_STATE_PATH: Record<Role, string> = {
 
 export interface TenantSession {
   role: Role;
-  actor: E2EActor;
+  actor: Actor;
   email: string;
   password: string;
   displayName: string;
@@ -69,12 +68,12 @@ function buildAuthSetupContract(): AuthSetupContract {
       actor: adminActor,
       email: adminActor.email,
       password: adminActor.password,
-      displayName: adminActor.display_name,
+      displayName: adminActor.displayName,
       storageStatePath: STORAGE_STATE_PATH.admin,
       appRoot: primaryAppRoot,
       readyIndicator: {
         kind: "display-name",
-        value: adminActor.display_name,
+        value: adminActor.displayName,
       },
     },
     staff: {
@@ -82,12 +81,12 @@ function buildAuthSetupContract(): AuthSetupContract {
       actor: staffActor,
       email: staffActor.email,
       password: staffActor.password,
-      displayName: staffActor.display_name,
+      displayName: staffActor.displayName,
       storageStatePath: STORAGE_STATE_PATH.staff,
       appRoot: primaryAppRoot,
       readyIndicator: {
         kind: "display-name",
-        value: staffActor.display_name,
+        value: staffActor.displayName,
       },
     },
   };
@@ -102,18 +101,17 @@ export function getAuthSetupContract(): AuthSetupContract {
 
 export function verifyHarnessState(): void {
   verifyAuthSetup();
-  expect(getScenarioMode()).toBe("multi-tenant");
 }
 
 function verifyAuthSetup(): void {
   const setup = getAuthSetup();
   expect(setup.roles).toEqual([SETUP_ROLE_ADMIN, SETUP_ROLE_STAFF]);
 
-  if (setup.requires_secondary_tenant) {
+  if (setup.requiresSecondaryTenant) {
     expect(requireSecondaryTenant()).toBeTruthy();
   }
 
-  if (setup.requires_verified_switching) {
+  if (setup.requiresVerifiedSwitching) {
     expect(isTenantSwitchVerified()).toBe(true);
   }
 }
