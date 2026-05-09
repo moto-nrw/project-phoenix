@@ -84,7 +84,14 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 			return errors.New("tenant not found")
 		}
 
-		return tenant.WithTenantTx(adminCtx, rs.db, school.ID, func(txCtx context.Context, tx bun.Tx) error {
+		// Stamp the resolved school onto the context BEFORE the nested
+		// WithTenantTx so its mismatch guard sees the same id (instead
+		// of the parent JWT's tenant_id=0, which would error out with
+		// "mismatched tenant_id"). Mirrors the submitParentEnrollment
+		// path below.
+		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
+
+		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, tx bun.Tx) error {
 			var profile usersModels.GuardianProfile
 			schoolErr := tx.NewSelect().
 				Model(&profile).
