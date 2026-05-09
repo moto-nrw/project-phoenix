@@ -653,7 +653,7 @@ export default function OperatorAnnouncementsPage() {
                 </svg>
               </button>
               {severityDropdownOpen && (
-                <div className="absolute top-full left-0 z-[10001] mt-1 w-full rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                <div className="absolute top-full left-0 z-[10001] mt-1 w-full overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
                   {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
                     <button
                       key={value}
@@ -1117,7 +1117,7 @@ function AnnouncementCard({
         </button>
 
         {menuOpen && (
-          <div className="absolute top-full right-0 z-50 mt-1 w-40 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+          <div className="absolute top-full right-0 z-50 mt-1 w-40 overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
             <button
               type="button"
               onClick={() => {
