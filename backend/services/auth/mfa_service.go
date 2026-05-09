@@ -168,13 +168,11 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account) (boo
 	}
 	mode := configModel.MFAModeOff
 	if s.settings != nil {
-		if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyMFAMode); err != nil {
-			s.logger.Warn("mfa_mode override check failed; treating as off",
+		if val, err := s.settings.ResolveString(ctx, configModel.KeyMFAMode); err != nil {
+			s.logger.Warn("mfa_mode resolve failed; treating as off",
 				slog.String("error", err.Error()))
-		} else if has {
-			if val, err := s.settings.ResolveString(ctx, configModel.KeyMFAMode); err == nil && val != "" {
-				mode = val
-			}
+		} else if val != "" {
+			mode = val
 		}
 	}
 	switch mode {
@@ -351,10 +349,38 @@ func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string,
 	if err != nil {
 		return ErrMFAChallengeTokenInvalid
 	}
+
+	// Per-tenant cooldown gate. Distinct from the sliding-window cap inside
+	// StartChallenge: the window cap (3 codes / 15 min) is an abuse defense;
+	// this cooldown is a UX / cost knob exposed to school admins via the
+	// `security.mfa_email_resend_cooldown_seconds` setting.
+	if cooldown := s.resolveResendCooldown(ctx); cooldown > 0 {
+		if last, err := s.repos.MFAEmailChallenge.FindActiveByAccountID(ctx, claims.AccountID); err == nil && last != nil {
+			if time.Since(last.CreatedAt) < cooldown {
+				return ErrMFARateLimited
+			}
+		}
+	}
+
 	if _, err := s.StartChallenge(ctx, claims.AccountID, claims.TenantID, claims.Scope, ip); err != nil {
 		return err
 	}
 	return nil
+}
+
+// resolveResendCooldown returns the per-tenant cooldown duration between
+// successive email-code resends. Falls back to zero (no cooldown) on errors
+// — the sliding-window rate limit inside StartChallenge still applies as
+// the abuse defense.
+func (s *mfaService) resolveResendCooldown(ctx context.Context) time.Duration {
+	if s.settings == nil {
+		return 0
+	}
+	seconds, err := s.settings.ResolveInt(ctx, configModel.KeyMFAEmailResendCooldownSeconds)
+	if err != nil || seconds <= 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 // handleFailedAttempt increments the lockout counter and emits an mfa_locked
@@ -626,18 +652,14 @@ func (s *mfaService) parseChallengeToken(tokenString string) (*authjwt.MFAChalle
 }
 
 func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context) int {
-	days := MFATrustedDeviceCookieDefaultDays
 	if s.settings == nil {
-		return days
+		return MFATrustedDeviceCookieDefaultDays
 	}
-	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyMFATrustedDeviceDays)
-	if err != nil || !has {
-		return days
+	val, err := s.settings.ResolveInt(ctx, configModel.KeyMFATrustedDeviceDays)
+	if err != nil || val <= 0 {
+		return MFATrustedDeviceCookieDefaultDays
 	}
-	if val, err := s.settings.ResolveInt(ctx, configModel.KeyMFATrustedDeviceDays); err == nil && val > 0 {
-		days = val
-	}
-	return days
+	return val
 }
 
 // dispatchChallengeEmail fires the branded MFA code email asynchronously
@@ -694,18 +716,20 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 }
 
 // resolveTrustedDeviceHint returns (enabled, days) for the email template.
-// On any error or missing settings service, falls back to (false, 0) so the
-// "Tipp: vertrauenswürdiges Gerät" paragraph is hidden — better to skip the
-// hint than to advertise a feature that's actually disabled for this tenant.
+// Resolves directly against the settings service so tenants on the registry
+// default (enabled=true) see the hint even before they set an explicit
+// override. On any error or missing settings service, falls back to (false,
+// 0) so a misconfigured deployment skips the hint instead of advertising a
+// feature that may not actually work.
 func (s *mfaService) resolveTrustedDeviceHint(ctx context.Context) (bool, int) {
 	if s.settings == nil {
 		return false, 0
 	}
-	enabled := false
-	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyMFATrustedDeviceEnabled); err == nil && has {
-		if val, err := s.settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled); err == nil {
-			enabled = val
-		}
+	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled)
+	if err != nil {
+		s.logger.Warn("trusted_device_enabled resolve failed; hiding hint",
+			slog.String("error", err.Error()))
+		return false, 0
 	}
 	if !enabled {
 		return false, 0
