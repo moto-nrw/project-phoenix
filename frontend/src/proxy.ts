@@ -156,6 +156,7 @@ const PARENTS_PUBLIC_PATHS = [
   "/email-confirm",
   "/children",
   "/enroll",
+  "/accept-guardian-invite",
 ];
 
 function isParentsHost(hostname: string): boolean {

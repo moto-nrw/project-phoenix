@@ -31,6 +31,8 @@ const PARENT_PUBLIC_PAGES = [
   "/login",
   "/parents/email-confirm",
   "/email-confirm",
+  "/parents/accept-guardian-invite",
+  "/accept-guardian-invite",
 ];
 
 export function ParentAuthGuard({

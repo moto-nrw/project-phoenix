@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
-import { signOut } from "next-auth/react";
 import { Input } from "~/components/ui";
 import {
   acceptGuardianInvitation,
@@ -97,31 +96,24 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
 
     try {
       setIsSubmitting(true);
-      const result = await acceptGuardianInvitation(token, {
+      await acceptGuardianInvitation(token, {
         password,
         confirmPassword,
       });
 
-      // Build redirect URL before signOut (need window.location)
+      // Redirect to the parents-portal login. The accept-invite page
+      // is unauth, so there's no NextAuth session to clear here — the
+      // earlier signOut() round-trip occasionally left the cookie in
+      // an in-between state where the next signIn looked stale and
+      // the dashboard stuck on its loading skeleton until the user
+      // logged in a second time. Just navigate.
       let redirectUrl: string | null = null;
-      if (result.tenantSlug && globalThis.window !== undefined) {
-        const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
-        if (tenantDomain) {
-          const { protocol, port: locationPort } = globalThis.window.location;
-          const port = locationPort ? `:${locationPort}` : "";
-          redirectUrl = `${protocol}//${result.tenantSlug}.${tenantDomain}${port}/`;
+      if (globalThis.window !== undefined) {
+        const parentsHostname = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
+        if (parentsHostname) {
+          const { protocol } = globalThis.window.location;
+          redirectUrl = `${protocol}//${parentsHostname}/login`;
         }
-      }
-
-      try {
-        await signOut({ redirect: false });
-      } catch (signOutError) {
-        logger.warn("guardian_sign_out_after_invite_failed", {
-          error:
-            signOutError instanceof Error
-              ? signOutError.message
-              : String(signOutError),
-        });
       }
 
       setIsAccepted(true);
