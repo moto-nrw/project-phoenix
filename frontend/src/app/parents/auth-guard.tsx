@@ -33,6 +33,11 @@ const PARENT_PUBLIC_PAGES = [
   "/email-confirm",
   "/parents/accept-guardian-invite",
   "/accept-guardian-invite",
+  // Status page is gated by the random token — same trust model as
+  // the tenant version. Email links should land here directly even
+  // when the parent isn't logged in.
+  "/parents/enroll/status",
+  "/enroll/status",
 ];
 
 export function ParentAuthGuard({
