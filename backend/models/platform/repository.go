@@ -129,3 +129,51 @@ type OperatorAuditLogRepository interface {
 	FindByResourceType(ctx context.Context, resourceType string, limit int) ([]*OperatorAuditLog, error)
 	FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*OperatorAuditLog, error)
 }
+
+// OperatorMFACredentialRepository persists per-operator MFA enrollment.
+// Mirror of auth.MFACredentialRepository for the platform.operator_*
+// schema.
+type OperatorMFACredentialRepository interface {
+	Create(ctx context.Context, credential *OperatorMFACredential) error
+	FindByID(ctx context.Context, id interface{}) (*OperatorMFACredential, error)
+	FindByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFACredential, error)
+	Update(ctx context.Context, credential *OperatorMFACredential) error
+	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
+	Delete(ctx context.Context, id interface{}) error
+	DeleteByOperatorID(ctx context.Context, operatorID int64) error
+	List(ctx context.Context, filters map[string]interface{}) ([]*OperatorMFACredential, error)
+}
+
+// OperatorMFAEmailChallengeRepository persists time-limited 6-digit codes
+// for moto-Operators. Mirror of auth.MFAEmailChallengeRepository.
+type OperatorMFAEmailChallengeRepository interface {
+	Create(ctx context.Context, challenge *OperatorMFAEmailChallenge) error
+	FindByID(ctx context.Context, id interface{}) (*OperatorMFAEmailChallenge, error)
+	FindActiveByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFAEmailChallenge, error)
+	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
+	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
+	DeleteExpired(ctx context.Context) (int, error)
+}
+
+// OperatorMFARecoveryCodeRepository persists Argon2id-hashed single-use
+// recovery codes for moto-Operators. Mirror of
+// auth.MFARecoveryCodeRepository.
+type OperatorMFARecoveryCodeRepository interface {
+	BulkCreate(ctx context.Context, codes []*OperatorMFARecoveryCode) error
+	FindUnusedByOperatorID(ctx context.Context, operatorID int64) ([]*OperatorMFARecoveryCode, error)
+	MarkUsed(ctx context.Context, id int64, usedAt time.Time) error
+	DeleteByOperatorID(ctx context.Context, operatorID int64) error
+	CountUnused(ctx context.Context, operatorID int64) (int, error)
+}
+
+// OperatorMFATrustedDeviceRepository persists HMAC-signed trusted-device
+// records for moto-Operators. Mirror of auth.MFATrustedDeviceRepository.
+type OperatorMFATrustedDeviceRepository interface {
+	Create(ctx context.Context, device *OperatorMFATrustedDevice) error
+	FindActiveByOperatorIDAndTokenHash(ctx context.Context, operatorID int64, tokenHash string) (*OperatorMFATrustedDevice, error)
+	ListActiveByOperatorID(ctx context.Context, operatorID int64) ([]*OperatorMFATrustedDevice, error)
+	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
+	Revoke(ctx context.Context, id int64, revokedAt time.Time) error
+	RevokeAllByOperatorID(ctx context.Context, operatorID int64, revokedAt time.Time) error
+	DeleteExpired(ctx context.Context) (int, error)
+}

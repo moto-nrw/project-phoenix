@@ -145,6 +145,12 @@ type Factory struct {
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
+
+	// Operator MFA (issue #1308 phase 7b)
+	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
+	OperatorMFAEmailChallenge platformModels.OperatorMFAEmailChallengeRepository
+	OperatorMFARecoveryCode   platformModels.OperatorMFARecoveryCodeRepository
+	OperatorMFATrustedDevice  platformModels.OperatorMFATrustedDeviceRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -261,5 +267,10 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
+
+		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
+		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
+		OperatorMFARecoveryCode:   platformRepo.NewOperatorMFARecoveryCodeRepository(db),
+		OperatorMFATrustedDevice:  platformRepo.NewOperatorMFATrustedDeviceRepository(db),
 	}
 }
