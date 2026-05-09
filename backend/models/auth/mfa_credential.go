@@ -48,3 +48,12 @@ func (c *MFACredential) Validate() error {
 	}
 	return nil
 }
+
+// GetID returns the entity's primary key. Required by base.Entity.
+func (c *MFACredential) GetID() interface{} { return c.ID }
+
+// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
+func (c *MFACredential) GetCreatedAt() time.Time { return c.CreatedAt }
+
+// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
+func (c *MFACredential) GetUpdatedAt() time.Time { return c.UpdatedAt }

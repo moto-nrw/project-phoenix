@@ -48,6 +48,10 @@ type Factory struct {
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	InvitationToken        authModels.InvitationTokenRepository
 	GuardianInvitation     authModels.GuardianInvitationRepository
+	MFACredential          authModels.MFACredentialRepository
+	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
+	MFARecoveryCode        authModels.MFARecoveryCodeRepository
+	MFATrustedDevice       authModels.MFATrustedDeviceRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -160,6 +164,10 @@ func NewFactory(db *bun.DB) *Factory {
 		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
 		InvitationToken:        auth.NewInvitationTokenRepository(db),
 		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
+		MFACredential:          auth.NewMFACredentialRepository(db),
+		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
+		MFARecoveryCode:        auth.NewMFARecoveryCodeRepository(db),
+		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
 
 		// Users repositories
 		Person:              users.NewPersonRepository(db),

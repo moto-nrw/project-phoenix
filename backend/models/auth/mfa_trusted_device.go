@@ -45,3 +45,12 @@ func (d *MFATrustedDevice) IsRevoked() bool { return d.RevokedAt != nil }
 
 // IsActive is the convenience predicate for the trusted-device check on login.
 func (d *MFATrustedDevice) IsActive() bool { return !d.IsExpired() && !d.IsRevoked() }
+
+// GetID returns the entity's primary key. Required by base.Entity.
+func (d *MFATrustedDevice) GetID() interface{} { return d.ID }
+
+// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
+func (d *MFATrustedDevice) GetCreatedAt() time.Time { return d.CreatedAt }
+
+// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
+func (d *MFATrustedDevice) GetUpdatedAt() time.Time { return d.UpdatedAt }

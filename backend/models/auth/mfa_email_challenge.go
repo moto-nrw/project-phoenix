@@ -40,3 +40,12 @@ func (c *MFAEmailChallenge) IsExpired() bool { return time.Now().After(c.Expires
 
 // IsConsumed returns true once the code has been redeemed.
 func (c *MFAEmailChallenge) IsConsumed() bool { return c.ConsumedAt != nil }
+
+// GetID returns the entity's primary key. Required by base.Entity.
+func (c *MFAEmailChallenge) GetID() interface{} { return c.ID }
+
+// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
+func (c *MFAEmailChallenge) GetCreatedAt() time.Time { return c.CreatedAt }
+
+// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
+func (c *MFAEmailChallenge) GetUpdatedAt() time.Time { return c.UpdatedAt }

@@ -189,6 +189,50 @@ type InvitationTokenRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }
 
+// MFACredentialRepository persists per-account MFA enrollment records.
+type MFACredentialRepository interface {
+	Create(ctx context.Context, credential *MFACredential) error
+	FindByID(ctx context.Context, id interface{}) (*MFACredential, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*MFACredential, error)
+	Update(ctx context.Context, credential *MFACredential) error
+	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
+	Delete(ctx context.Context, id interface{}) error
+	DeleteByAccountID(ctx context.Context, accountID int64) error
+	List(ctx context.Context, filters map[string]interface{}) ([]*MFACredential, error)
+}
+
+// MFAEmailChallengeRepository persists time-limited 6-digit email codes.
+type MFAEmailChallengeRepository interface {
+	Create(ctx context.Context, challenge *MFAEmailChallenge) error
+	FindByID(ctx context.Context, id interface{}) (*MFAEmailChallenge, error)
+	// FindActiveByAccountID returns the most recent unconsumed, unexpired challenge for an account.
+	FindActiveByAccountID(ctx context.Context, accountID int64) (*MFAEmailChallenge, error)
+	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
+	// CountRecentByAccountID counts challenges issued at or after `since` (used for rate-limit checks).
+	CountRecentByAccountID(ctx context.Context, accountID int64, since time.Time) (int, error)
+	DeleteExpired(ctx context.Context) (int, error)
+}
+
+// MFARecoveryCodeRepository persists Argon2id-hashed single-use recovery codes.
+type MFARecoveryCodeRepository interface {
+	BulkCreate(ctx context.Context, codes []*MFARecoveryCode) error
+	FindUnusedByAccountID(ctx context.Context, accountID int64) ([]*MFARecoveryCode, error)
+	MarkUsed(ctx context.Context, id int64, usedAt time.Time) error
+	DeleteByAccountID(ctx context.Context, accountID int64) error
+	CountUnused(ctx context.Context, accountID int64) (int, error)
+}
+
+// MFATrustedDeviceRepository persists HMAC-signed trusted-device records.
+type MFATrustedDeviceRepository interface {
+	Create(ctx context.Context, device *MFATrustedDevice) error
+	FindActiveByAccountIDAndTokenHash(ctx context.Context, accountID int64, tokenHash string) (*MFATrustedDevice, error)
+	ListActiveByAccountID(ctx context.Context, accountID int64) ([]*MFATrustedDevice, error)
+	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
+	Revoke(ctx context.Context, id int64, revokedAt time.Time) error
+	RevokeAllByAccountID(ctx context.Context, accountID int64, revokedAt time.Time) error
+	DeleteExpired(ctx context.Context) (int, error)
+}
+
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.
 type TenantAccountInfo struct {
 	AccountID           int64  `bun:"account_id" json:"account_id"`

@@ -1,0 +1,147 @@
+package auth
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
+)
+
+const (
+	mfaTrustedDeviceTable      = "auth.mfa_trusted_devices"
+	mfaTrustedDeviceTableAlias = `auth.mfa_trusted_devices AS "mfa_trusted_device"`
+)
+
+// MFATrustedDeviceRepository implements auth.MFATrustedDeviceRepository.
+type MFATrustedDeviceRepository struct {
+	*base.Repository[*auth.MFATrustedDevice]
+	db *bun.DB
+}
+
+// NewMFATrustedDeviceRepository creates a new repository for trusted-device records.
+func NewMFATrustedDeviceRepository(db *bun.DB) auth.MFATrustedDeviceRepository {
+	return &MFATrustedDeviceRepository{
+		Repository: base.NewRepository[*auth.MFATrustedDevice](db, mfaTrustedDeviceTable, "MFATrustedDevice"),
+		db:         db,
+	}
+}
+
+// Create persists a new trusted-device record after light validation.
+func (r *MFATrustedDeviceRepository) Create(ctx context.Context, device *auth.MFATrustedDevice) error {
+	if device == nil {
+		return fmt.Errorf("mfa trusted device cannot be nil")
+	}
+	if device.AccountID == 0 {
+		return fmt.Errorf("account_id is required")
+	}
+	if device.TokenHash == "" {
+		return fmt.Errorf("token_hash is required")
+	}
+	if device.ExpiresAt.IsZero() {
+		return fmt.Errorf("expires_at is required")
+	}
+	return r.Repository.Create(ctx, device)
+}
+
+// FindActiveByAccountIDAndTokenHash returns the device record matching the cookie's
+// hashed token if and only if it is still active (not expired, not revoked).
+func (r *MFATrustedDeviceRepository) FindActiveByAccountIDAndTokenHash(ctx context.Context, accountID int64, tokenHash string) (*auth.MFATrustedDevice, error) {
+	device := new(auth.MFATrustedDevice)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(device).
+		ModelTableExpr(mfaTrustedDeviceTableAlias).
+		Where("account_id = ?", accountID).
+		Where("token_hash = ?", tokenHash).
+		Where("revoked_at IS NULL").
+		Where("expires_at > ?", time.Now()).
+		Limit(1).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find active mfa trusted device", Err: err}
+	}
+	return device, nil
+}
+
+// ListActiveByAccountID returns every non-revoked, non-expired device for an account.
+// Used by the security-settings UI.
+func (r *MFATrustedDeviceRepository) ListActiveByAccountID(ctx context.Context, accountID int64) ([]*auth.MFATrustedDevice, error) {
+	var devices []*auth.MFATrustedDevice
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&devices).
+		ModelTableExpr(mfaTrustedDeviceTableAlias).
+		Where("account_id = ?", accountID).
+		Where("revoked_at IS NULL").
+		Where("expires_at > ?", time.Now()).
+		Order("last_used_at DESC NULLS LAST", "created_at DESC").
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list active mfa trusted devices", Err: err}
+	}
+	return devices, nil
+}
+
+// UpdateLastUsedAt stamps a device row when a login was waved through with its cookie.
+func (r *MFATrustedDeviceRepository) UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.MFATrustedDevice)(nil)).
+		ModelTableExpr(mfaTrustedDeviceTable).
+		Set("last_used_at = ?", when).
+		Where(whereID, id).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update mfa trusted device last_used_at", Err: err}
+	}
+	return nil
+}
+
+// Revoke marks a single device as revoked (user clicked "remove" in settings).
+func (r *MFATrustedDeviceRepository) Revoke(ctx context.Context, id int64, revokedAt time.Time) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.MFATrustedDevice)(nil)).
+		ModelTableExpr(mfaTrustedDeviceTable).
+		Set("revoked_at = ?", revokedAt).
+		Where(whereID, id).
+		Where("revoked_at IS NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "revoke mfa trusted device", Err: err}
+	}
+	return base.AssertRowsAffected(res, 1, "revoke mfa trusted device")
+}
+
+// RevokeAllByAccountID revokes every active device for an account.
+// Triggered when the user disables MFA or an admin override fires.
+func (r *MFATrustedDeviceRepository) RevokeAllByAccountID(ctx context.Context, accountID int64, revokedAt time.Time) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.MFATrustedDevice)(nil)).
+		ModelTableExpr(mfaTrustedDeviceTable).
+		Set("revoked_at = ?", revokedAt).
+		Where("account_id = ?", accountID).
+		Where("revoked_at IS NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "revoke all mfa trusted devices for account", Err: err}
+	}
+	return nil
+}
+
+// DeleteExpired prunes devices past their TTL.
+func (r *MFATrustedDeviceRepository) DeleteExpired(ctx context.Context) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*auth.MFATrustedDevice)(nil)).
+		ModelTableExpr(mfaTrustedDeviceTable).
+		Where("expires_at < ?", time.Now()).
+		Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete expired mfa trusted devices", Err: err}
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "rows affected for delete expired mfa trusted devices", Err: err}
+	}
+	return int(affected), nil
+}

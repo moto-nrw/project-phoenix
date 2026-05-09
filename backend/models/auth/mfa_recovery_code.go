@@ -34,3 +34,12 @@ func (c *MFARecoveryCode) TableName() string { return "auth.mfa_recovery_codes" 
 
 // IsUsed returns true once a code has been redeemed.
 func (c *MFARecoveryCode) IsUsed() bool { return c.UsedAt != nil }
+
+// GetID returns the entity's primary key. Required by base.Entity.
+func (c *MFARecoveryCode) GetID() interface{} { return c.ID }
+
+// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
+func (c *MFARecoveryCode) GetCreatedAt() time.Time { return c.CreatedAt }
+
+// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
+func (c *MFARecoveryCode) GetUpdatedAt() time.Time { return c.UpdatedAt }
