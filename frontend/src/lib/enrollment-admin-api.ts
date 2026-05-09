@@ -127,16 +127,20 @@ export async function decideAdminChild(
   status: DecisionStatus,
   reason?: string,
 ): Promise<AdminRequestChild> {
-  const response = await fetch(
-    `${BASE}/${encodeURIComponent(requestId)}/children/${encodeURIComponent(
-      childId,
-    )}/decide`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, reason: reason ?? "" }),
-    },
-  );
+  // Flattened path: the proxy reads request_id/child_id from the body.
+  // The deep dynamic /requests/[id]/children/[childId]/decide path
+  // hits a Turbopack dev bug where the route disappears after cache
+  // compaction; this collapsed shape keeps Next dev stable.
+  const response = await fetch(`/api/enrollment/admin/decide`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      request_id: requestId,
+      child_id: childId,
+      status,
+      reason: reason ?? "",
+    }),
+  });
   if (!response.ok) {
     throw await readError(
       response,
