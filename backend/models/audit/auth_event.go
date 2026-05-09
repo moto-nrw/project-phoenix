@@ -32,6 +32,16 @@ const (
 	EventTypeTenantSwitch                = "tenant_switch"
 	EventTypeCaregiverCapabilityEnabled  = "caregiver_capability_enabled"
 	EventTypeCaregiverCapabilityDisabled = "caregiver_capability_disabled"
+
+	// MFA event types (Phase 1 of issue #1308)
+	EventTypeMFAEmailSent          = "mfa_email_sent"
+	EventTypeMFAVerified           = "mfa_verified"
+	EventTypeMFAFailed             = "mfa_failed"
+	EventTypeMFALocked             = "mfa_locked"
+	EventTypeMFARecoveryUsed       = "mfa_recovery_used"
+	EventTypeMFADisabled           = "mfa_disabled"
+	EventTypeMFATrustedDeviceAdded = "mfa_trusted_device_added"
+	EventTypeMFAAdminOverride      = "mfa_admin_override"
 )
 
 // TableName returns the database table name
