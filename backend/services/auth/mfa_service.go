@@ -751,10 +751,8 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID int64, event
 	if errorMessage != "" {
 		event.ErrorMessage = errorMessage
 	}
-	if metadata != nil {
-		for k, v := range metadata {
-			event.Metadata[k] = v
-		}
+	for k, v := range metadata {
+		event.Metadata[k] = v
 	}
 
 	go func() {

@@ -21,7 +21,7 @@ import (
 // platform_test package keeps a single operator-fixture shape.
 func TestOperatorMFARepositoriesSmoke(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 
