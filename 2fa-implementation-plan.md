@@ -12,11 +12,11 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 |---|---|
 | Branch | `feat/1308-2fa-email` (von `origin/development`) |
 | PR | _tbd_ |
-| Aktueller Stand | **Phase 7b-4 abgeschlossen** — Operator-MFA-HTTP-Handler (9 Endpunkte) plus 7 Internal-Tests grün. Damit ist die Operator-Mirror-Sequenz (7b-1..7b-4) komplett. |
+| Aktueller Stand | **Phase 8 abgeschlossen** — Settings-Audit: 2 Bugs gefunden + gefixt (TrustedDevice-Hint-Fallback, ungenutzter Resend-Cooldown), 8 neue defaults-Tests. Backend-Seite (Phasen 0–8) komplett. |
 | Letztes Update | 2026-05-09 |
 | Blocker | keine |
 
-**Nächster Schritt:** Phase 8 — Settings-Registry-Validierung (Großteil bereits in Phase 3 erledigt, jetzt nur noch Doku-Sync + Konsumenten-Audit) ODER direkt Phase 9 (Frontend-Login mit MFA-Step) je nach Priorität.
+**Nächster Schritt:** Phase 9 — Frontend Login mit MFA-Step. `/[tenant]/login` Page erweitert die Login-Response-Erkennung um `status="mfa_required"`, baut `MFAChallengeForm`-Komponente (6-stellige Code-Eingabe mit Auto-Tab/Auto-Submit, Resend-Button mit Cooldown aus Setting, Trusted-Device-Checkbox sichtbar wenn `mfa_trusted_device_enabled`, Recovery-Code-Switch, deutsche Fehlermeldungen). Operator-Login parallel unter `/operator/login`.
 
 ### Recherche-Findings (Phase 0)
 
@@ -229,20 +229,20 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 
 ---
 
-## Phase 8 — Settings-Registry erweitern
+## Phase 8 — Settings-Registry-Audit ✅
 
 **Regel:** Settings-System (siehe `.claude/rules/settings-system.md`), nicht ENV.
 
-- [ ] `models/config/keys.go` — neue Konstanten:
-  - `KeyMFAMode = "security.mfa_mode"`
-  - `KeyMFATrustedDeviceEnabled = "security.mfa_trusted_device_enabled"`
-  - `KeyMFATrustedDeviceDays = "security.mfa_trusted_device_days"`
-  - `KeyMFAEmailResendCooldownSeconds = "security.mfa_email_resend_cooldown_seconds"`
-- [ ] `services/config/defaults/security.go` — `Register()`-Calls (Defaults wie in Design-Doku §6, **`mfa_trusted_device_enabled` Default `true`**)
-- [ ] Validierung: `mfa_mode` als select mit drei Optionen, Number-Ranges
-- [ ] `defaults_test.go` erweitern (alle 9 bestehenden Tests)
-- [ ] Konsumierende Code-Stellen nutzen `HasTenantOverride` → `Resolve*` (Pattern aus settings-Rule)
-- [ ] Frontend: keine Code-Änderung nötig — Settings-Page generiert sich aus Schema
+*Bereits in Phase 3 gemacht:*
+- [x] `models/config/keys.go` — Konstanten (`KeyMFAMode`, `KeyMFATrustedDeviceEnabled`, `KeyMFATrustedDeviceDays`, `KeyMFAEmailResendCooldownSeconds`)
+- [x] `services/config/defaults/security.go` — alle 4 `Register()`-Calls mit Defaults (`mfa_trusted_device_enabled = true`), Select-Optionen, Number-Ranges, DependsOn-Graph
+- [x] Frontend: keine Code-Änderung — Settings-Page generiert sich aus Schema
+
+*Audit-Findings & Fixes in dieser Phase:*
+- [x] **Bug gefunden + gefixt**: `resolveTrustedDeviceHint` rief `HasTenantOverride` und fiel bei fehlendem Override auf `false` zurück — falsche Logik, weil Registry-Default `true` ist. Tenants auf Default-Config sahen den Trusted-Device-Hint nicht in MFA-E-Mails. Konsumenten-Funktionen (`IsRequired`, `resolveTrustedDeviceDays`, `resolveTrustedDeviceHint`) auf direktes `Resolve*` vereinfacht — `HasTenantOverride` ist nur nötig bei Env-Var-Fallback (siehe settings-system.md), für reine Settings-Konsumenten genügt `Resolve*` (gibt Registry-Default zurück, wenn kein Override existiert)
+- [x] **Bug gefunden + gefixt**: `KeyMFAEmailResendCooldownSeconds` war registriert aber nie konsumiert. Per-Tenant-Cooldown (Default 60s) jetzt in `ResendChallenge` verdrahtet via `resolveResendCooldown`-Helper — bleibt distinkt vom Sliding-Window in `StartChallenge` (3/15min als Abuse-Defense, der Cooldown ist UX/Cost-Knob)
+- [x] `defaults_test.go` um 4 MFA-Settings erweitert: in `TestAllSettingsRegistered` Expected-Keys-Liste, neue `TestMFASettings_TypesAndDefaults` (Typen, Defaults, Validation-Ranges), neue `TestMFASettings_DependsOnGraph` (Conditional-Visibility-Rules)
+- [x] Min-Count in `TestAllSettingsRegistered` auf 42 erhöht (38 + 4 MFA)
 
 ---
 
