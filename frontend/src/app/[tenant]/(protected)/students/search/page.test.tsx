@@ -301,6 +301,34 @@ vi.mock("~/lib/usercontext-api", () => ({
   },
 }));
 
+function mockUseSWRAuthWithStudents(
+  swrModule: typeof import("~/lib/swr"),
+  response: ReturnType<typeof swrModule.useSWRAuth>,
+) {
+  vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
+    if (key === "search-rooms-list") {
+      return {
+        data: [
+          { id: "101", name: "Raum 101", isOccupied: true },
+          { id: "102", name: "Raum 102", isOccupied: false },
+        ],
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+    }
+
+    if (typeof key === "string" && key.startsWith("tracking-indicators-")) {
+      return {
+        data: undefined,
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+    }
+
+    return response;
+  });
+}
+
 describe("StudentSearchPage", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -320,11 +348,12 @@ describe("StudentSearchPage", () => {
     // Reset SWR mock data for each test
     const swrModule = await import("~/lib/swr");
     vi.mocked(swrModule.useImmutableSWR).mockImplementation((key) => {
-      if (key === "search-rooms-list") {
+      if (key === "search-groups-list") {
         return {
           data: [
-            { id: "101", name: "Raum 101", isOccupied: true },
-            { id: "102", name: "Raum 102", isOccupied: false },
+            { id: "1", name: "Gruppe A" },
+            { id: "2", name: "Gruppe B" },
+            { id: "3", name: "Gruppe C" },
           ],
           isLoading: false,
           error: null,
@@ -332,16 +361,12 @@ describe("StudentSearchPage", () => {
       }
 
       return {
-        data: [
-          { id: "1", name: "Gruppe A" },
-          { id: "2", name: "Gruppe B" },
-          { id: "3", name: "Gruppe C" },
-        ],
+        data: [],
         isLoading: false,
         error: null,
       } as ReturnType<typeof swrModule.useImmutableSWR>;
     });
-    vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+    mockUseSWRAuthWithStudents(swrModule, {
       data: { students: mockStudents },
       isLoading: false,
       error: null,
@@ -490,7 +515,7 @@ describe("StudentSearchPage", () => {
 
     it("filters to show only sick students when 'krank' is selected", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: {
           students: [
             { ...mockStudents[0]!, sick: true },
@@ -579,7 +604,7 @@ describe("StudentSearchPage", () => {
 
     it("shows loading state while fetching students", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: true,
         // IMPORTANT: Use undefined, not null. The page checks `error !== undefined`
@@ -599,7 +624,7 @@ describe("StudentSearchPage", () => {
   describe("Error Handling", () => {
     it("renders 403 permission denied error message", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("403 Forbidden"),
@@ -616,7 +641,7 @@ describe("StudentSearchPage", () => {
 
     it("renders 401 session expired error message", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("401 Unauthorized"),
@@ -632,7 +657,7 @@ describe("StudentSearchPage", () => {
 
     it("renders generic error for other API errors", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("Network Error"),
@@ -653,7 +678,7 @@ describe("StudentSearchPage", () => {
     it("shows empty state when no students match filters", async () => {
       // Mock SWR to return empty students
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: [] },
         isLoading: false,
         error: null,
@@ -752,7 +777,7 @@ describe("StudentSearchPage", () => {
         },
       );
 
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: mockStudents },
         isLoading: false,
         error: null,
@@ -805,7 +830,7 @@ describe("StudentSearchPage", () => {
         },
       );
 
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: mockStudents },
         isLoading: false,
         error: null,
@@ -851,6 +876,14 @@ describe("StudentSearchPage", () => {
       } as ReturnType<typeof swrModule.useImmutableSWR>);
 
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "search-rooms-list") {
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
         // Capture the students fetcher when the key contains "search-students"
         // Note: key is null until groupsLoaded state becomes true after useEffect runs
         if (
@@ -890,7 +923,7 @@ describe("StudentSearchPage", () => {
     // Fix P3 regression test: Error heading now uses errorType instead of substring matching
     it("renders 'Keine Berechtigung' heading for 403 errors (P3 fix)", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("403 Forbidden"),
@@ -913,7 +946,7 @@ describe("StudentSearchPage", () => {
 
     it("renders 'Fehler' heading for 401 session errors", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("401 Unauthorized"),
@@ -933,7 +966,7 @@ describe("StudentSearchPage", () => {
 
     it("renders generic error heading for non-403/401 errors", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("500 Internal Server Error"),
@@ -990,7 +1023,7 @@ describe("StudentSearchPage", () => {
 
       // SWR won't fetch when unauthenticated
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: undefined,
@@ -1012,7 +1045,7 @@ describe("StudentSearchPage", () => {
 
       // SWR won't fetch during auth loading
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: undefined,
@@ -1067,7 +1100,7 @@ describe("StudentSearchPage", () => {
 
       // Groups haven't loaded yet, so studentsCacheKey is null
       // SWR returns undefined data (not yet fetched)
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined, // No data yet - first fetch hasn't completed
         isLoading: true, // SWR is loading students
         error: undefined,
@@ -1102,7 +1135,7 @@ describe("StudentSearchPage", () => {
       } as ReturnType<typeof swrModule.useImmutableSWR>);
 
       // Students fetch completed with empty results (hasFetchedOnce = true)
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: [] }, // Empty results from completed fetch
         isLoading: false,
         error: undefined,
@@ -1235,7 +1268,7 @@ describe("StudentSearchPage", () => {
       ];
 
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: studentsWithRedacted },
         isLoading: false,
         error: null,
@@ -1325,7 +1358,7 @@ describe("StudentSearchPage", () => {
       ];
 
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: studentsNoPickup },
         isLoading: false,
         error: null,
@@ -1392,7 +1425,7 @@ describe("StudentSearchPage", () => {
       ];
 
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: studentsWithArrivalGaps },
         isLoading: false,
         error: null,
@@ -1452,7 +1485,7 @@ describe("StudentSearchPage", () => {
         { ...mockStudents[0]!, id: "9", first_name: "SickChild", sick: true },
       ];
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: studentsByStatus },
         isLoading: false,
         error: null,
@@ -1507,7 +1540,7 @@ describe("StudentSearchPage", () => {
         },
       ];
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: groupedFixture },
         isLoading: false,
         error: null,
@@ -1587,6 +1620,14 @@ describe("StudentSearchPage", () => {
         error: null,
       } as ReturnType<typeof swrModule.useSWRAuth>;
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key: unknown) => {
+        if (key === "search-rooms-list") {
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
         if (typeof key === "string" && key.startsWith("tracking-indicators-")) {
           return trackingResult;
         }
@@ -1847,24 +1888,22 @@ describe("StudentSearchPage", () => {
 
     it("requests a large first page for the room filter options", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useImmutableSWR).mockImplementation(
-        (key, fetcher) => {
-          if (key === "search-rooms-list") {
-            void (fetcher as () => Promise<unknown>)();
-            return {
-              data: [],
-              isLoading: false,
-              error: null,
-            } as ReturnType<typeof swrModule.useImmutableSWR>;
-          }
-
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "search-rooms-list") {
+          void (fetcher as () => Promise<unknown>)();
           return {
             data: [],
             isLoading: false,
             error: null,
-          } as ReturnType<typeof swrModule.useImmutableSWR>;
-        },
-      );
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
+        return {
+          data: { students: mockStudents },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>;
+      });
 
       render(<StudentSearchPage />);
 
@@ -1930,7 +1969,7 @@ describe("StudentSearchPage", () => {
 
     it("does not group status-only locations as rooms", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: {
           students: [
             {

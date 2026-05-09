@@ -323,7 +323,9 @@ function SearchPageContent() {
     },
   );
 
-  const { data: rooms = [] } = useImmutableSWR<Room[]>(
+  // Room names/options are mutable from the rooms admin page, so this must
+  // revalidate stale cache entries when the search page remounts.
+  const { data: rooms = [] } = useSWRAuth<Room[]>(
     SEARCH_ROOMS_LIST_CACHE_KEY,
     async () => {
       try {
