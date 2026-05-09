@@ -403,6 +403,56 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("unwraps paginated room responses before mapping", async () => {
+      const wrappedRooms = {
+        data: [
+          { id: 101, name: "Raum 101", capacity: 20 },
+          { id: 102, name: "Raum 102", capacity: 18 },
+        ],
+        pagination: {
+          current_page: 1,
+          page_size: 1000,
+          total_pages: 1,
+          total_records: 2,
+        },
+      };
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: wrappedRooms,
+        response: new Response(),
+      });
+
+      const { roomService } = await import("./api");
+      const { mapRoomsResponse } = await import("./room-helpers");
+
+      const restore = setupBrowserEnv();
+      try {
+        await roomService.getRooms({ page: 1, pageSize: 1000 });
+        expect(mapRoomsResponse).toHaveBeenCalledWith(wrappedRooms.data);
+      } finally {
+        restore();
+      }
+    });
+
+    it("treats wrapped room responses with non-array data as invalid", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: { data: { id: 101, name: "Not a list" } },
+        response: new Response(),
+      });
+
+      const { roomService } = await import("./api");
+      const { mapRoomsResponse } = await import("./room-helpers");
+
+      const restore = setupBrowserEnv();
+      try {
+        await roomService.getRooms();
+        expect(mapRoomsResponse).toHaveBeenCalledWith([]);
+      } finally {
+        restore();
+      }
+    });
   });
 
   describe("roomService.getRoom", () => {

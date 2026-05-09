@@ -487,6 +487,38 @@ describe("StudentSearchPage", () => {
         expect(screen.queryByText("Tom")).not.toBeInTheDocument();
       });
     });
+
+    it("filters to show only sick students when 'krank' is selected", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: {
+          students: [
+            { ...mockStudents[0]!, sick: true },
+            { ...mockStudents[1]!, sick: false },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-attendance"), {
+        target: { value: "krank" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId("active-filter-attendance"),
+        ).toHaveTextContent("Krank");
+      });
+    });
   });
 
   describe("Year Filtering", () => {
@@ -1307,6 +1339,201 @@ describe("StudentSearchPage", () => {
 
       // Should show "Abholzeit: —" fallback for students with full access but no pickup time
       expect(screen.getByText("Abholzeit: —")).toBeInTheDocument();
+    });
+  });
+
+  describe("Arrival Time Filtering", () => {
+    it("filters students by specific arrival time", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
+        target: { value: "08:15" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Tom")).toBeInTheDocument();
+        expect(screen.queryByText("Max")).not.toBeInTheDocument();
+        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+      });
+    });
+
+    it("filters students with no arrival time while excluding redacted and exception-only rows", async () => {
+      const studentsWithArrivalGaps = [
+        {
+          id: "30",
+          first_name: "NoArrival",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Raum 101",
+          has_full_access: true,
+        },
+        {
+          id: "31",
+          first_name: "Exception",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Raum 101",
+          arrival_is_exception: true,
+          has_full_access: true,
+        },
+        {
+          id: "32",
+          first_name: "RedactedArrival",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Raum 101",
+          has_full_access: false,
+        },
+      ];
+
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: studentsWithArrivalGaps },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("NoArrival")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
+        target: { value: "none" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("NoArrival")).toBeInTheDocument();
+        expect(screen.queryByText("Exception")).not.toBeInTheDocument();
+        expect(screen.queryByText("RedactedArrival")).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId("active-filter-arrivalTime"),
+        ).toHaveTextContent("Keine Ankunftszeit");
+      });
+    });
+  });
+
+  describe("Sorting and Grouping", () => {
+    it("sorts students by pickup time before students without pickup times", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-sort"), {
+        target: { value: "pickup" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-filter-sort")).toHaveTextContent(
+          "Nächste Abholung",
+        );
+      });
+
+      const renderedNames = screen
+        .getAllByText(/^(Max|Tom|Lisa|Anna)$/)
+        .map((node) => node.textContent);
+      expect(renderedNames).toEqual(["Max", "Tom", "Lisa", "Anna"]);
+    });
+
+    it("groups students by status in operational order", async () => {
+      const studentsByStatus = [
+        { ...mockStudents[1]!, first_name: "HomeChild" },
+        { ...mockStudents[3]!, first_name: "YardChild" },
+        { ...mockStudents[2]!, first_name: "TransitChild" },
+        { ...mockStudents[0]!, first_name: "PresentChild" },
+        { ...mockStudents[0]!, id: "9", first_name: "SickChild", sick: true },
+      ];
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: studentsByStatus },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("PresentChild")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "status" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-filter-groupMode")).toHaveTextContent(
+          "Ansicht: Nach Status",
+        );
+      });
+
+      expect(
+        screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+      ).toEqual(["Anwesend", "Unterwegs", "Schulhof", "Krank", "Abwesend"]);
+    });
+
+    it("groups redacted and missing room/time values under explicit fallback labels", async () => {
+      const groupedFixture = [
+        {
+          id: "40",
+          first_name: "Hidden",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Raum 101",
+          has_full_access: false,
+        },
+        {
+          id: "41",
+          first_name: "Home",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Zuhause",
+          has_full_access: true,
+        },
+        {
+          id: "42",
+          first_name: "Room",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Gruppe A - Atelier",
+          has_full_access: true,
+        },
+      ];
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+        data: { students: groupedFixture },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Hidden")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "room" },
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: "Atelier" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("heading", { name: "Kein Raum" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("heading", { name: "Nicht einsehbar" }),
+        ).toBeInTheDocument();
+      });
     });
   });
 
