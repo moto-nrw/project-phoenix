@@ -184,11 +184,14 @@ func registerEnrollmentSafety() {
 	}
 
 	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentRequireCaptcha,
-		Label:           "Captcha verpflichtend",
-		Description:     "Schützt das öffentliche Formular vor automatisierten Einreichungen über einen Bot-Schutz (z. B. Cloudflare Turnstile).",
-		Type:            config.FieldBoolean,
-		Default:         true,
+		Key:         config.KeyEnrollmentRequireCaptcha,
+		Label:       "Captcha verpflichtend",
+		Description: "Schützt das öffentliche Formular vor automatisierten Einreichungen über einen Bot-Schutz (z. B. Cloudflare Turnstile). Erfordert konfigurierte Site- und Secret-Keys.",
+		Type:        config.FieldBoolean,
+		// Default off: a fresh tenant has no Turnstile keys configured,
+		// and turning the gate on without keys breaks every public
+		// submission. Admins flip this on once both keys are filled in.
+		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "enrollment",
