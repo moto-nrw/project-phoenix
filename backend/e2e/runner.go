@@ -180,7 +180,7 @@ func (s *harnessSession) startFrontend(state *contract.State) (*managedProcess, 
 		return nil, fmt.Errorf("create frontend log: %w", err)
 	}
 
-	cmd := exec.Command("pnpm", "run", "dev", "--port", fmt.Sprint(state.Runtime.FrontendPort))
+	cmd := exec.Command(frontendBin(s.paths.frontendDir, "next"), "dev", "--port", fmt.Sprint(state.Runtime.FrontendPort))
 	cmd.Dir = s.paths.frontendDir
 	cmd.Env = env
 	cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
@@ -205,9 +205,7 @@ func (s *harnessSession) runPlaywright(ctx context.Context) error {
 		append(os.Environ(), "PHOENIX_E2E_HARNESS=1"),
 		os.Stdout,
 		os.Stderr,
-		"pnpm",
-		"exec",
-		"playwright",
+		frontendBin(s.paths.frontendDir, "playwright"),
 		"test",
 	)
 }
@@ -380,6 +378,10 @@ func statePrimaryOrigin(state *contract.State) string {
 
 func stateTenantOrigin(state *contract.State, tenant contract.Tenant) string {
 	return fmt.Sprintf("http://%s.%s:%d", tenant.Slug, state.Runtime.TenantDomain, state.Runtime.FrontendPort)
+}
+
+func frontendBin(frontendDir, name string) string {
+	return filepath.Join(frontendDir, "node_modules", ".bin", name)
 }
 
 func waitForHTTP(rawURL string, timeout time.Duration) error {

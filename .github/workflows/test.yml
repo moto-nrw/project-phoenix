@@ -78,6 +78,20 @@ jobs:
             -coverprofile=coverage.out \
             -covermode=atomic
 
+      - name: Add targeted API coverage for SonarCloud
+        working-directory: backend
+        env:
+          TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: |
+          # gotestsum's per-package execution leaves coverage.out with the last
+          # package's profile. Add the PR-touched students handler coverage so
+          # SonarCloud sees the same tested branch that the backend job ran.
+          go test ./api/students \
+            -run 'TestGetStudentCurrentVisit' \
+            -coverprofile=api-students.coverage.out \
+            -covermode=atomic
+          tail -n +2 api-students.coverage.out >> coverage.out
+
       - name: Drop flaky retries from junit.xml
         working-directory: backend
         if: always()

@@ -51,11 +51,14 @@ vi.mock("~/lib/auth-api", () => ({
 
 // Mock SmartRedirect
 vi.mock("~/components/auth/smart-redirect", () => ({
-  SmartRedirect: ({
-    onRedirect: _onRedirect,
-  }: {
-    onRedirect: (path: string) => void;
-  }) => <div data-testid="smart-redirect" />,
+  SmartRedirect: ({ onRedirect }: { onRedirect: (path: string) => void }) => (
+    <button
+      data-testid="smart-redirect"
+      onClick={() => onRedirect("/dashboard")}
+    >
+      Smart Redirect
+    </button>
+  ),
 }));
 
 // Mock PasswordResetModal
@@ -340,6 +343,13 @@ describe("HomePage (Login)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("smart-redirect")).toBeInTheDocument();
     });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("smart-redirect"));
+    });
+
+    expect(mockTenantPush).toHaveBeenCalledWith("/dashboard");
+    expect(mockTenantRefresh).toHaveBeenCalled();
   });
 
   it("disables submit button while loading", async () => {
