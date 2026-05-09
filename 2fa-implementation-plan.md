@@ -12,11 +12,11 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 |---|---|
 | Branch | `feat/1308-2fa-email` (von `origin/development`) |
 | PR | _tbd_ |
-| Aktueller Stand | **Phase 7b-3 abgeschlossen** — Operator-Login MFA-aware (`LoginWithMFAGate` + `OperatorLoginResult`-Discriminator), Cookie-Forwarding, alle 10 `TestLogin_*` grün auf neuer Shape. |
+| Aktueller Stand | **Phase 7b-4 abgeschlossen** — Operator-MFA-HTTP-Handler (9 Endpunkte) plus 7 Internal-Tests grün. Damit ist die Operator-Mirror-Sequenz (7b-1..7b-4) komplett. |
 | Letztes Update | 2026-05-09 |
 | Blocker | keine |
 
-**Nächster Schritt:** Phase 7b-4 — Operator-MFA-HTTP-Handler unter `api/operator/auth/` (verify, recovery/verify, resend, enroll/start, enroll/confirm, recovery-codes, DELETE /mfa, GET/DELETE trusted-devices) parallel zu den Tenant-Handlern aus Phase 5.
+**Nächster Schritt:** Phase 8 — Settings-Registry-Validierung (Großteil bereits in Phase 3 erledigt, jetzt nur noch Doku-Sync + Konsumenten-Audit) ODER direkt Phase 9 (Frontend-Login mit MFA-Step) je nach Priorität.
 
 ### Recherche-Findings (Phase 0)
 
@@ -218,9 +218,12 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 - [x] `api/operator/auth.go` updated: `LoginResponse` mit `Status`-Field als Mirror der Tenant-Shape, `mfa_trust_device`-Cookie wird aus Request gelesen + an Service weitergereicht
 - [x] Bestehende `TestLogin_*`-Tests an neue diskriminierte Shape angepasst (User-Freigabe nach Test-Regel — bewusste API-Änderung parallel zu Phase 7a)
 
-*7b-4 (offen) — HTTP-Handler:*
-- [ ] Operator-MFA-HTTP-Handler unter `api/operator/auth/` (verify, recovery/verify, resend, enroll/start, enroll/confirm, recovery-codes, DELETE /mfa, GET/DELETE trusted-devices)
-- [ ] Internal-Tests (Bind-Validation, 503-Pfad, Error-Mapping)
+*7b-4 (in Commit) — HTTP-Handler:*
+- [x] `api/operator/mfa.go` — `MFAResource` mit 9 Handlern: `Verify`, `RecoveryVerify`, `Resend` (public, mid-login), `EnrollStart`, `EnrollConfirm`, `RegenerateRecoveryCodes`, `Disable`, `ListTrustedDevices`, `RevokeTrustedDevice` (protected). Public-Pfade unter `/auth/mfa/*` ohne Auth, protected unter `/auth/mfa/*` mit Operator-Token-Verifier
+- [x] `services/platform.OperatorAuthService.IssueTokensForAuthenticatedOperator` — Mirror der Tenant-Methode für Token-Pair-Issuance nach MFA-Verifizierung
+- [x] `MFAResource` im Operator-`Resource`/`ResourceConfig` verdrahtet, `MFAService: api.Services.OperatorMFA` in `api/base.go` hinzugefügt
+- [x] `api/operator/mfa_internal_test.go` — 7 internal tests (Bind-Validation, 503-Pfad für alle 9 Handler, Error-Mapping)
+- [x] `mockOperatorAuthService` Stub für `IssueTokensForAuthenticatedOperator` ergänzt (Interface-Compliance, kein Behavior-Change)
 
 **WICHTIG:** Test-Regel beachten — `.claude/rules/no-test-modifications.md`. Bestehende Tests bleiben unangetastet; wir bauen Schwester-Methoden statt zu überschreiben.
 
