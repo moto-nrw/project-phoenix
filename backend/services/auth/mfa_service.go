@@ -601,27 +601,44 @@ func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context) int {
 	return days
 }
 
-// dispatchChallengeEmail fires the email asynchronously via the existing
-// dispatcher infrastructure. Phase 4 swaps in the proper HTML template; for
-// now we ship a plain Subject + Body so the flow is end-to-end testable.
+// dispatchChallengeEmail fires the branded MFA code email asynchronously
+// via the existing dispatcher. The HTML template
+// (templates/email/mfa-email-code.html) handles formatting; html2text
+// generates the plain-text alternative automatically.
+//
+// We deliberately do NOT include any links or buttons in this template —
+// the user must paste the code into the moto login UI on their own.
+// That kills the most common phishing pattern (a malicious mail with
+// "click here to confirm").
 func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.Account, plainCode string, ip net.IP) {
 	if s.dispatcher == nil {
 		s.logger.Warn("email dispatcher unavailable; mfa code not sent",
 			slog.Int64("account_id", account.ID))
 		return
 	}
-	body := fmt.Sprintf(
-		"Ihr Anmeldecode lautet: %s\n\nDer Code ist %d Minuten gültig. Wenn Sie diese Anmeldung nicht angefordert haben, ignorieren Sie diese E-Mail.",
-		plainCode, int(MFAChallengeTTL.Minutes()),
-	)
+
+	frontendURL := strings.TrimRight(s.frontendURL, "/")
+	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+
+	requestIP := ""
+	if ip != nil && !ip.IsUnspecified() {
+		requestIP = ip.String()
+	}
+
+	trustedDeviceEnabled, trustedDeviceDays := s.resolveTrustedDeviceHint(ctx)
+
 	message := email.Message{
-		From:    s.defaultFrom,
-		To:      email.NewEmail("", account.Email),
-		Subject: "Ihr Anmeldecode",
+		From:     s.defaultFrom,
+		To:       email.NewEmail("", account.Email),
+		Subject:  "Ihr moto-Anmeldecode",
+		Template: "mfa-email-code.html",
 		Content: map[string]any{
-			"Code":          plainCode,
-			"ExpiryMinutes": int(MFAChallengeTTL.Minutes()),
-			"Body":          body,
+			"LogoURL":              logoURL,
+			"Code":                 plainCode,
+			"ExpiryMinutes":        int(MFAChallengeTTL.Minutes()),
+			"RequestIP":            requestIP,
+			"TrustedDeviceEnabled": trustedDeviceEnabled,
+			"TrustedDeviceDays":    trustedDeviceDays,
 		},
 	}
 	meta := email.DeliveryMetadata{
@@ -635,6 +652,26 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 		BackoffPolicy: passwordResetEmailBackoff,
 		MaxAttempts:   3,
 	})
+}
+
+// resolveTrustedDeviceHint returns (enabled, days) for the email template.
+// On any error or missing settings service, falls back to (false, 0) so the
+// "Tipp: vertrauenswürdiges Gerät" paragraph is hidden — better to skip the
+// hint than to advertise a feature that's actually disabled for this tenant.
+func (s *mfaService) resolveTrustedDeviceHint(ctx context.Context) (bool, int) {
+	if s.settings == nil {
+		return false, 0
+	}
+	enabled := false
+	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyMFATrustedDeviceEnabled); err == nil && has {
+		if val, err := s.settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled); err == nil {
+			enabled = val
+		}
+	}
+	if !enabled {
+		return false, 0
+	}
+	return true, s.resolveTrustedDeviceDays(ctx)
 }
 
 // recordAuthEvent writes to audit.auth_events asynchronously, in a tenant-scoped
