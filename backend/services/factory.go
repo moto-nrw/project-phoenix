@@ -84,6 +84,7 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	OperatorSuggestions  platform.OperatorSuggestionsService
+	OperatorMFA          platform.OperatorMFAService
 
 	// SettingsSideEffects is the per-key handler registry the API binds to
 	// SettingsResource.OnValueSet. Domain packages register handlers here
@@ -616,6 +617,27 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
 	}
 
+	// Operator MFA service (issue #1308 phase 7b-2). Constructed alongside
+	// the operator auth service so the login-flow integration in 7b-3 can
+	// inject it via SetMFAService.
+	operatorMFATokenAuth, err := authjwt.NewTokenAuth()
+	if err != nil {
+		return nil, fmt.Errorf("init operator mfa token auth: %w", err)
+	}
+	operatorMFAService, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
+		Repos:       repos,
+		TokenAuth:   operatorMFATokenAuth,
+		Dispatcher:  dispatcher,
+		DefaultFrom: defaultFrom,
+		FrontendURL: frontendURL,
+		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		DB:          db,
+		Logger:      platformLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init operator mfa service: %w", err)
+	}
+
 	announcementService := platform.NewAnnouncementService(platform.AnnouncementServiceConfig{
 		AnnouncementRepo:     repos.Announcement,
 		AnnouncementViewRepo: repos.AnnouncementView,
@@ -704,6 +726,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		OperatorSuggestions:  operatorSuggestionsService,
+		OperatorMFA:          operatorMFAService,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()

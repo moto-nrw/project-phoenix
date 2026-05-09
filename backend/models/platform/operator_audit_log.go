@@ -33,6 +33,17 @@ const (
 	ActionInvitationAccepted   = "invitation_accepted"
 	ActionInvitationRevoked    = "invitation_revoked"
 	ActionInvitationResent     = "invitation_resent"
+
+	// MFA action constants (issue #1308 phase 7b). Mirror the auth-side
+	// EventTypeMFA* values but live in the operator audit log.
+	ActionMFAEmailSent          = "mfa_email_sent"
+	ActionMFAVerified           = "mfa_verified"
+	ActionMFAFailed             = "mfa_failed"
+	ActionMFALocked             = "mfa_locked"
+	ActionMFARecoveryUsed       = "mfa_recovery_used"
+	ActionMFAEnrolled           = "mfa_enrolled"
+	ActionMFADisabled           = "mfa_disabled"
+	ActionMFATrustedDeviceAdded = "mfa_trusted_device_added"
 )
 
 // Common resource type constants
@@ -47,6 +58,7 @@ const (
 	ResourceDevice       = "device"
 	ResourceAccount      = "account"
 	ResourcePerson       = "person"
+	ResourceOperatorMFA  = "operator_mfa"
 )
 
 // OperatorAuditLog tracks operator actions for auditing
