@@ -66,6 +66,13 @@ type MFAService interface {
 	VerifyChallenge(ctx context.Context, challengeToken, code string) (*VerifiedChallenge, error)
 	ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) error
 
+	// VerifyCodeForAccount is the JWT-less sibling of VerifyChallenge used by
+	// enrollment confirmation, where the user is already authenticated and a
+	// challenge JWT would just be ceremony. Returns ErrMFACodeInvalid on a
+	// mismatch and otherwise mirrors VerifyChallenge's audit + lockout
+	// bookkeeping.
+	VerifyCodeForAccount(ctx context.Context, accountID int64, code string) error
+
 	// Enrollment / lifecycle.
 	Enroll(ctx context.Context, accountID int64) error
 	Disable(ctx context.Context, accountID int64) error
@@ -305,6 +312,38 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 		Scope:     claims.Scope,
 		TenantID:  claims.TenantID,
 	}, nil
+}
+
+// VerifyCodeForAccount runs the same verify pipeline as VerifyChallenge but
+// without the JWT round-trip — the caller has already authenticated the user
+// out-of-band (typically a regular access token from /auth/mfa/enroll/confirm).
+func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, code string) error {
+	account, err := s.repos.Account.FindByID(ctx, accountID)
+	if err != nil {
+		return ErrMFACodeInvalid
+	}
+	if account.IsMFALocked() {
+		return ErrMFALocked
+	}
+	active, err := s.repos.MFAEmailChallenge.FindActiveByAccountID(ctx, accountID)
+	if err != nil || active == nil {
+		s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
+		return ErrMFACodeInvalid
+	}
+	ok, vErr := VerifyShortCode(code, active.CodeHash)
+	if vErr != nil || !ok {
+		s.handleFailedAttempt(ctx, account)
+		s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAFailed, false, nil, "code mismatch", nil)
+		return ErrMFACodeInvalid
+	}
+	now := time.Now()
+	if err := s.repos.MFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
+		s.logger.Warn("failed to mark challenge consumed", slog.String("error", err.Error()))
+	}
+	account.ResetMFAAttempts()
+	_ = s.repos.Account.Update(ctx, account)
+	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAVerified, true, nil, "", nil)
+	return nil
 }
 
 func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) error {

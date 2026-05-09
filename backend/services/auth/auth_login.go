@@ -56,6 +56,43 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
 }
 
+// IssueTokensForAuthenticatedAccount mints an access + refresh token pair for
+// an account whose identity was proven via a non-password channel (typically
+// MFA email-code or recovery-code verification). It skips password validation
+// but otherwise reuses the same metadata-load → token-persist → claims-build
+// → token-gen pipeline as a regular login, so the resulting session is
+// indistinguishable from one obtained via /auth/login.
+//
+// tenantID is the tenant the user is authenticating into (carried in the MFA
+// challenge JWT). Pass 0 to let loadAccountMetadataForTenant pick the user's
+// only active tenant.
+func (s *Service) IssueTokensForAuthenticatedAccount(
+	ctx context.Context,
+	accountID, tenantID int64,
+	ipAddress, userAgent string,
+) (string, string, error) {
+	account, err := s.repos.Account.FindByID(ctx, accountID)
+	if err != nil {
+		return "", "", &AuthError{Op: "issue tokens", Err: ErrAccountNotFound}
+	}
+	if !account.Active {
+		return "", "", &AuthError{Op: "issue tokens", Err: ErrAccountInactive}
+	}
+
+	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
+	if err != nil {
+		return "", "", err
+	}
+
+	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	if err != nil {
+		return "", "", err
+	}
+
+	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, account.Email)
+	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
+}
+
 // validateLoginCredentials validates email, password, and account status
 func (s *Service) validateLoginCredentials(ctx context.Context, email, password, ipAddress, userAgent string) (*auth.Account, error) {
 	email = strings.TrimSpace(strings.ToLower(email))

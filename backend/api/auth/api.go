@@ -57,6 +57,11 @@ type Resource struct {
 	// response with tenant-scoped presence_mode so the frontend can decide
 	// between PresenceBadge and LocationBadge without a second fetch.
 	SettingsService configSvc.SettingsService
+	// MFAService is optional during the rollout window — handlers gate on
+	// nil and return 503 so deployments without the service wired in don't
+	// crash. Once Phase 7 lands the login-flow integration this will become
+	// effectively mandatory.
+	MFAService      authService.MFAService
 	db              *bun.DB
 	authRateLimiter func(http.Handler) http.Handler
 }
@@ -64,6 +69,13 @@ type Resource struct {
 // SetAuthRateLimiter sets the rate limiter middleware for auth endpoints (login, register, password-reset).
 func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.authRateLimiter = mw
+}
+
+// SetMFAService wires the optional MFA service. Setter pattern matches
+// SetSettingsService — keeps the NewResource constructor signature
+// backward-compatible while phases roll in.
+func (rs *Resource) SetMFAService(svc authService.MFAService) {
+	rs.MFAService = svc
 }
 
 // NewResource creates a new auth resource
@@ -92,6 +104,14 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/login", rs.login)
 		r.Post("/password-reset", rs.initiatePasswordReset)
 		r.Post("/password-reset/confirm", rs.resetPassword)
+
+		// MFA challenge → token-pair exchange (issue #1308). These endpoints
+		// take the short-lived challenge JWT in the request body, NOT in the
+		// Authorization header — the user is mid-login and has no access
+		// token yet.
+		r.Post("/mfa/verify", rs.mfaVerify)
+		r.Post("/mfa/recovery/verify", rs.mfaRecoveryVerify)
+		r.Post("/mfa/resend", rs.mfaResend)
 	})
 
 	// Public routes (no rate limiting — these are read-only lookups)
@@ -123,6 +143,16 @@ func (rs *Resource) Router() chi.Router {
 
 		// Password change - users can change their own password without special permissions
 		r.Post("/password", rs.changePassword)
+
+		// MFA management for the currently authenticated user (issue #1308).
+		r.Route("/mfa", func(r chi.Router) {
+			r.Post("/enroll/start", rs.mfaEnrollStart)
+			r.Post("/enroll/confirm", rs.mfaEnrollConfirm)
+			r.Post("/recovery-codes", rs.mfaRegenerateRecoveryCodes)
+			r.Delete("/", rs.mfaDisable)
+			r.Get("/trusted-devices", rs.mfaListTrustedDevices)
+			r.Delete("/trusted-devices/{id}", rs.mfaRevokeTrustedDevice)
+		})
 
 		// Admin routes - require admin role or specific permissions
 		// TenantTxMiddleware wraps each request in a DB transaction as phoenix_tenant
