@@ -226,6 +226,14 @@ func (rs *Resource) Router() chi.Router {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
 						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeAllTokens)
 					})
+
+					// MFA admin override ("Godmode") — issue #1308 Phase 6.
+					// users:manage at the route layer; the service does its own
+					// defense-in-depth permission re-check.
+					r.Route("/mfa", func(r chi.Router) {
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.mfaAdminDisable)
+						r.With(authorize.RequiresPermission(permUsersManage)).Post("/recovery-codes", rs.mfaAdminRegenerateRecoveryCodes)
+					})
 				})
 			})
 
