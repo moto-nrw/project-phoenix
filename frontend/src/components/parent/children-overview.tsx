@@ -12,8 +12,14 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ChildrenOverview" });
 
+// "Bestätigt" instead of the older "Anmeldung läuft" — admin already
+// approved the enrollment by the time this label renders; the
+// scheduler just hasn't flipped the row to active yet because
+// enrolled_from is in the future. The exact start date appears on the
+// secondary line ("Betreuung DD.MM.YYYY – DD.MM.YYYY") so keep the
+// badge short.
 const STATUS_LABEL: Record<ChildStatus, string> = {
-  pending: "Anmeldung läuft",
+  pending: "Bestätigt",
   active: "Aktiv",
   inactive: "Beendet",
   alumnus: "Ehemalig",

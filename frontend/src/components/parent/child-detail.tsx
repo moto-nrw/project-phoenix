@@ -8,7 +8,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "ChildDetail" });
 
 const STATUS_LABEL: Record<ChildStatus, string> = {
-  pending: "Anmeldung läuft",
+  pending: "Bestätigt",
   active: "Aktiv",
   inactive: "Beendet",
   alumnus: "Ehemalig",
