@@ -53,6 +53,13 @@ func (m *mockOperatorAuthService) LoginWithMFAGate(ctx context.Context, email, p
 }
 func (m *mockOperatorAuthService) SetMFAService(_ platformSvc.OperatorMFAService) {}
 
+// IssueTokensForAuthenticatedOperator no-op stub. The legacy auth_test cases
+// exercise the password-only Login flow; the new MFA verify flow has its own
+// tests in mfa_internal_test.go that wire a dedicated stub.
+func (m *mockOperatorAuthService) IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (string, string, error) {
+	return "", "", nil
+}
+
 func (m *mockOperatorAuthService) RefreshToken(ctx context.Context, operatorID int64) (string, string, error) {
 	if m.refreshTokenFn != nil {
 		return m.refreshTokenFn(ctx, operatorID)

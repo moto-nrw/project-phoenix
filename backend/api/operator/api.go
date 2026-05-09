@@ -18,6 +18,7 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	authResource            *AuthResource
+	mfaResource             *MFAResource
 	provisioningResource    *ProvisioningResource
 	settingsResource        *SettingsResource
 	suggestionsResource     *SuggestionsResource
@@ -33,6 +34,7 @@ type Resource struct {
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AuthService                platformSvc.OperatorAuthService
+	MFAService                 platformSvc.OperatorMFAService
 	InvitationService          platformSvc.OperatorInvitationService
 	ProvisioningService        platformSvc.OperatorProvisioningService
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
@@ -95,6 +97,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 	resource := &Resource{
 		authResource:          NewAuthResource(cfg.AuthService),
+		mfaResource:           NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
 		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
@@ -124,6 +127,15 @@ func (rs *Resource) Router() chi.Router {
 				r.Use(rs.authRateLimiter)
 			}
 			r.Post("/login", rs.authResource.Login)
+
+			// MFA challenge → token-pair exchange (issue #1308). Mirror of
+			// the tenant-side endpoints — they take the short-lived
+			// challenge JWT in the request body, NOT in the Authorization
+			// header, because the operator is mid-login and has no access
+			// token yet.
+			r.Post("/mfa/verify", rs.mfaResource.Verify)
+			r.Post("/mfa/recovery/verify", rs.mfaResource.RecoveryVerify)
+			r.Post("/mfa/resend", rs.mfaResource.Resend)
 		})
 		r.Group(func(r chi.Router) {
 			limiter := rs.emailConfirmRateLimiter
@@ -236,6 +248,18 @@ func (rs *Resource) Router() chi.Router {
 			r.Put("/", rs.profileResource.UpdateProfile)
 			r.Post("/password", rs.profileResource.ChangePassword)
 			r.Post("/email-change", rs.profileResource.InitiateEmailChange)
+		})
+
+		// MFA self-management for the currently-authenticated operator
+		// (issue #1308). Public verify/recovery/resend live under /auth
+		// because the operator has no access token mid-login.
+		r.Route("/auth/mfa", func(r chi.Router) {
+			r.Post("/enroll/start", rs.mfaResource.EnrollStart)
+			r.Post("/enroll/confirm", rs.mfaResource.EnrollConfirm)
+			r.Post("/recovery-codes", rs.mfaResource.RegenerateRecoveryCodes)
+			r.Delete("/", rs.mfaResource.Disable)
+			r.Get("/trusted-devices", rs.mfaResource.ListTrustedDevices)
+			r.Delete("/trusted-devices/{id}", rs.mfaResource.RevokeTrustedDevice)
 		})
 
 		// Operator invitations

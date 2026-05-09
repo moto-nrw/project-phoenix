@@ -38,6 +38,14 @@ type OperatorAuthService interface {
 	// SetMFAService wires the optional MFA gate post-construction.
 	SetMFAService(svc OperatorMFAService)
 
+	// IssueTokensForAuthenticatedOperator mints an access + refresh token pair
+	// for an operator whose identity was proven via a non-password channel —
+	// typically an MFA email-code or recovery-code verification. Skips
+	// password validation but otherwise reuses the same token-pair pipeline
+	// as a regular login, so the resulting session is indistinguishable.
+	// Mirrors authService.IssueTokensForAuthenticatedAccount.
+	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+
 	// RefreshToken validates the operator is still active and issues a new token pair
 	RefreshToken(ctx context.Context, operatorID int64) (accessToken, refreshToken string, err error)
 
@@ -293,6 +301,30 @@ func (s *operatorAuthService) issueOperatorTokenPair(ctx context.Context, operat
 		)
 	}
 	return access, refresh, nil
+}
+
+// IssueTokensForAuthenticatedOperator mints an access + refresh token pair
+// for an operator whose identity was proven via MFA email-code / recovery
+// code. Loads + active-checks the operator, then delegates to
+// issueOperatorTokenPair so audit + last-login behaviour matches a regular
+// password login. Mirrors authService.IssueTokensForAuthenticatedAccount.
+func (s *operatorAuthService) IssueTokensForAuthenticatedOperator(
+	ctx context.Context,
+	operatorID int64,
+	ipAddress, userAgent string,
+) (string, string, error) {
+	_ = userAgent // operator audit log doesn't carry UA today; kept for parity
+	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to find operator: %w", err)
+	}
+	if operator == nil {
+		return "", "", &OperatorNotFoundError{OperatorID: operatorID}
+	}
+	if !operator.Active {
+		return "", "", &OperatorInactiveError{OperatorID: operatorID}
+	}
+	return s.issueOperatorTokenPair(ctx, operator, parseClientIPForOperator(ipAddress))
 }
 
 // maskOperatorEmailForUX mirrors auth.maskEmailForUX so the operator UX
