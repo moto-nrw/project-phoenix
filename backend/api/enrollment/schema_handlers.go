@@ -102,17 +102,21 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 			if phaseErr != nil {
 				return errors.New("phase not found")
 			}
-			if phase.FormSchemaID != nil {
-				s, innerErr := rs.FormSchemaService.GetByID(txCtx, *phase.FormSchemaID)
-				if innerErr == nil && s != nil {
-					schema = s
-					return nil
-				}
-				// fall through to active schema if pinned id has gone away
+			if phase.FormSchemaID == nil {
+				// Basis phase — admin explicitly chose "nur die
+				// Standardfelder". Return ErrNoActiveSchema so the
+				// frontend renders core fields only; do NOT fall back
+				// to whatever the tenant's currently-active schema is,
+				// otherwise creating a custom form leaks its fields
+				// into every Basis phase.
+				return enrollmentService.ErrNoActiveSchema
 			}
-			s, innerErr := rs.FormSchemaService.GetActive(txCtx)
+			s, innerErr := rs.FormSchemaService.GetByID(txCtx, *phase.FormSchemaID)
+			if innerErr != nil {
+				return innerErr
+			}
 			schema = s
-			return innerErr
+			return nil
 		})
 	})
 	if resolveErr != nil {

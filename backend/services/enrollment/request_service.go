@@ -662,27 +662,25 @@ func (s *requestService) loadPhaseForSubmission(ctx context.Context, phaseID int
 }
 
 // resolveSubmissionSchema returns the phase's pinned form schema, or
-// the tenant's currently-active schema when the phase has none. Returns
-// nil with no error when neither resolves — the caller writes the
-// request with a NULL schema_id (allowed since migration 1.15.58).
-// "Basis" phase + fresh tenant must still be able to submit.
+// nil when the phase is "Basis" (form_schema_id IS NULL). Returning
+// nil writes the request with a NULL schema_id, which is allowed
+// since migration 1.15.58. We deliberately do NOT fall back to the
+// tenant's currently-active schema for Basis phases — the admin UI
+// promises "nur die Standardfelder", so silently inheriting the
+// latest custom schema would leak its fields into every Basis phase.
 func (s *requestService) resolveSubmissionSchema(ctx context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.FormSchema, error) {
-	if phase.FormSchemaID != nil {
-		schema, err := s.formSchemaRepo.FindByID(ctx, *phase.FormSchemaID)
-		if err == nil && schema != nil {
-			return schema, nil
-		}
-		// fall through to active schema if the pinned id has gone away
-		s.logger.Warn("phase form_schema_id resolution failed; falling back to active schema",
-			slog.Int64("phase_id", phase.ID),
-			slog.Int64("form_schema_id", *phase.FormSchemaID))
+	if phase.FormSchemaID == nil {
+		return nil, nil
 	}
-	schema, err := s.formSchemaRepo.FindActive(ctx)
+	schema, err := s.formSchemaRepo.FindByID(ctx, *phase.FormSchemaID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, ErrNoActiveSchema) {
-			// No phase override + no tenant schema = parent gets a
-			// Basis-only form. Submit with NULL schema_id (allowed
-			// since migration 1.15.58).
+		if errors.Is(err, sql.ErrNoRows) {
+			// Pinned schema was deleted out from under the phase.
+			// Treat as Basis rather than 500 — submission still
+			// succeeds with NULL schema_id and the admin can repin.
+			s.logger.Warn("phase form_schema_id pointed at missing schema; submitting as Basis",
+				slog.Int64("phase_id", phase.ID),
+				slog.Int64("form_schema_id", *phase.FormSchemaID))
 			return nil, nil
 		}
 		return nil, err
