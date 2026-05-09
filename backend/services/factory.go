@@ -637,6 +637,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("init operator mfa service: %w", err)
 	}
+	// Wire the MFA gate into the operator auth service so /operator/auth/login
+	// returns challenge tokens when MFA is required (= always, hardcoded for
+	// platform scope). Done post-construction to break the
+	// OperatorAuthService ↔ OperatorMFAService cycle.
+	operatorAuthService.SetMFAService(operatorMFAService)
 
 	announcementService := platform.NewAnnouncementService(platform.AnnouncementServiceConfig{
 		AnnouncementRepo:     repos.Announcement,

@@ -35,11 +35,27 @@ func (req *LoginRequest) Bind(r *http.Request) error {
 	return nil
 }
 
-// LoginResponse represents the login response
+// trustedDeviceCookieName mirrors the tenant-side constant. Same cookie name
+// is fine — the operator subdomain has its own cookie scope, so there's no
+// collision with tenant browsers.
+const trustedDeviceCookieName = "mfa_trust_device"
+
+// LoginResponse represents the login response. With issue #1308 MFA the
+// shape is discriminated by `status`:
+//   - status == "authenticated" → access_token + refresh_token + operator
+//   - status == "mfa_required"  → challenge_token + masked_email
+//
+// mfa_enrollment_required is set on authenticated responses when the
+// operator must enrol on next page (forced by hardcoded operator MFA
+// policy).
 type LoginResponse struct {
-	AccessToken  string            `json:"access_token"`
-	RefreshToken string            `json:"refresh_token"`
-	Operator     *OperatorResponse `json:"operator"`
+	Status                string            `json:"status"`
+	AccessToken           string            `json:"access_token,omitempty"`
+	RefreshToken          string            `json:"refresh_token,omitempty"`
+	Operator              *OperatorResponse `json:"operator,omitempty"`
+	ChallengeToken        string            `json:"challenge_token,omitempty"`
+	MaskedEmail           string            `json:"masked_email,omitempty"`
+	MFAEnrollmentRequired bool              `json:"mfa_enrollment_required,omitempty"`
 }
 
 // OperatorResponse represents an operator in the response
@@ -49,7 +65,10 @@ type OperatorResponse struct {
 	DisplayName string `json:"display_name"`
 }
 
-// Login handles operator login
+// Login handles operator login. Now MFA-aware: it reads the
+// mfa_trust_device cookie off the request and forwards it to
+// LoginWithMFAGate, then maps the discriminated OperatorLoginResult to
+// the shared LoginResponse JSON shape.
 func (rs *AuthResource) Login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -62,26 +81,49 @@ func (rs *AuthResource) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get client IP
 	clientIP := getClientIP(r)
+	ipString := ""
+	if clientIP != nil {
+		ipString = clientIP.String()
+	}
+	userAgent := r.Header.Get("User-Agent")
 
-	accessToken, refreshToken, operator, err := rs.authService.Login(r.Context(), req.Email, req.Password, clientIP)
+	var trustedDeviceCookie string
+	if c, err := r.Cookie(trustedDeviceCookieName); err == nil {
+		trustedDeviceCookie = c.Value
+	}
+
+	result, err := rs.authService.LoginWithMFAGate(
+		r.Context(), req.Email, req.Password, ipString, userAgent, trustedDeviceCookie,
+	)
 	if err != nil {
 		common.RenderError(w, r, AuthErrorRenderer(err))
 		return
 	}
 
-	response := &LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		Operator: &OperatorResponse{
-			ID:          operator.ID,
-			Email:       operator.Email,
-			DisplayName: operator.DisplayName,
-		},
+	if result.Status == platformSvc.OperatorLoginStatusMFARequired {
+		common.Respond(w, r, http.StatusOK, &LoginResponse{
+			Status:         string(platformSvc.OperatorLoginStatusMFARequired),
+			ChallengeToken: result.ChallengeToken,
+			MaskedEmail:    result.MaskedEmail,
+		}, "MFA verification required")
+		return
 	}
 
-	common.Respond(w, r, http.StatusOK, response, "Login successful")
+	resp := &LoginResponse{
+		Status:                string(platformSvc.OperatorLoginStatusAuthenticated),
+		AccessToken:           result.AccessToken,
+		RefreshToken:          result.RefreshToken,
+		MFAEnrollmentRequired: result.MFAEnrollmentRequired,
+	}
+	if result.Operator != nil {
+		resp.Operator = &OperatorResponse{
+			ID:          result.Operator.ID,
+			Email:       result.Operator.Email,
+			DisplayName: result.Operator.DisplayName,
+		}
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Login successful")
 }
 
 // RefreshTokenResponse represents the refresh token response

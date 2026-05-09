@@ -28,6 +28,16 @@ type OperatorAuthService interface {
 	// Login authenticates an operator and returns JWT tokens
 	Login(ctx context.Context, email, password string, clientIP net.IP) (accessToken, refreshToken string, operator *platform.Operator, err error)
 
+	// LoginWithMFAGate is the MFA-aware sibling of Login. After a valid
+	// credential check it consults the optional MFAService and returns
+	// either a full token pair or a short-lived challenge token the caller
+	// must redeem at /operator/auth/mfa/verify. trustedDeviceCookie may be
+	// empty; when set and verifiable, MFA is skipped.
+	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*OperatorLoginResult, error)
+
+	// SetMFAService wires the optional MFA gate post-construction.
+	SetMFAService(svc OperatorMFAService)
+
 	// RefreshToken validates the operator is still active and issues a new token pair
 	RefreshToken(ctx context.Context, operatorID int64) (accessToken, refreshToken string, err error)
 
@@ -69,6 +79,17 @@ type operatorAuthService struct {
 	operatorFrontendURL  string
 	emailChangeExpiry    time.Duration
 	invitationExpiry     time.Duration
+	// mfaService is optional. When non-nil the LoginWithMFAGate path uses it
+	// to gate token issuance behind a second factor. Wired post-construction
+	// via SetMFAService to break the OperatorAuthService ↔ OperatorMFAService
+	// cycle in the services factory.
+	mfaService OperatorMFAService
+}
+
+// SetMFAService wires the optional MFA gate. Idempotent — calling with nil
+// clears the gate. Mirrors the auth-side AuthService.SetMFAService.
+func (s *operatorAuthService) SetMFAService(svc OperatorMFAService) {
+	s.mfaService = svc
 }
 
 // OperatorAuthServiceConfig holds configuration for the operator auth service
@@ -118,6 +139,185 @@ func (s *operatorAuthService) getLogger() *slog.Logger {
 		return s.logger
 	}
 	return slog.Default()
+}
+
+// OperatorLoginStatus discriminates between the two shapes the operator
+// /login response can take. Mirror of authService.LoginStatus.
+type OperatorLoginStatus string
+
+const (
+	OperatorLoginStatusAuthenticated OperatorLoginStatus = "authenticated"
+	OperatorLoginStatusMFARequired   OperatorLoginStatus = "mfa_required"
+)
+
+// OperatorLoginResult is the discriminated response shape for
+// LoginWithMFAGate. Mirror of authService.LoginResult.
+type OperatorLoginResult struct {
+	Status                OperatorLoginStatus
+	AccessToken           string
+	RefreshToken          string
+	Operator              *platform.Operator
+	ChallengeToken        string
+	MaskedEmail           string
+	MFAEnrollmentRequired bool
+}
+
+// LoginWithMFAGate is the MFA-aware sibling of Login. The original
+// password-only Login stays untouched so existing callers and tests don't
+// shift. Operators face hardcoded mandatory MFA — there is no IsRequired
+// branch, only "is the operator already enrolled and not on a trusted
+// device?".
+func (s *operatorAuthService) LoginWithMFAGate(
+	ctx context.Context,
+	email, password, ipAddress, userAgent, trustedDeviceCookie string,
+) (*OperatorLoginResult, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	clientIP := parseClientIPForOperator(ipAddress)
+
+	// Step 1: credential check (same as Login).
+	operator, err := s.operatorRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if operator == nil {
+		return nil, &InvalidCredentialsError{}
+	}
+	if !operator.Active {
+		return nil, &OperatorInactiveError{OperatorID: operator.ID}
+	}
+	match, err := userpass.VerifyPassword(password, operator.PasswordHash)
+	if err != nil || !match {
+		return nil, &InvalidCredentialsError{}
+	}
+
+	// Step 2: MFA branch. If the gate isn't wired in (early phases /
+	// disabled deployments) fall straight through to a token pair —
+	// matches the behaviour of the original Login.
+	if s.mfaService == nil {
+		access, refresh, issueErr := s.issueOperatorTokenPair(ctx, operator, clientIP)
+		if issueErr != nil {
+			return nil, issueErr
+		}
+		return &OperatorLoginResult{
+			Status:       OperatorLoginStatusAuthenticated,
+			AccessToken:  access,
+			RefreshToken: refresh,
+			Operator:     operator,
+		}, nil
+	}
+
+	enrolled, _ := s.mfaService.HasEnrollment(ctx, operator.ID)
+
+	// Step 3: trusted-device cookie short-circuit. Only meaningful when
+	// the operator is already enrolled — fresh enrollments need to go
+	// through the challenge flow.
+	trustedDeviceVerified := false
+	if enrolled && trustedDeviceCookie != "" {
+		ok, _ := s.mfaService.VerifyTrustedDevice(ctx, operator.ID, trustedDeviceCookie)
+		trustedDeviceVerified = ok
+	}
+
+	// Step 4: decide which response to return.
+	//   enrolled, !trusted → challenge
+	//   enrolled,  trusted → tokens (MFA skipped)
+	//  !enrolled           → tokens + MFAEnrollmentRequired flag
+	//                        (frontend forces enrollment screen)
+	if enrolled && !trustedDeviceVerified {
+		challenge, chErr := s.mfaService.StartChallenge(ctx, operator.ID, clientIP)
+		if chErr != nil {
+			return nil, fmt.Errorf("start operator mfa challenge: %w", chErr)
+		}
+		return &OperatorLoginResult{
+			Status:         OperatorLoginStatusMFARequired,
+			ChallengeToken: challenge,
+			MaskedEmail:    maskOperatorEmailForUX(operator.Email),
+		}, nil
+	}
+
+	access, refresh, issueErr := s.issueOperatorTokenPair(ctx, operator, clientIP)
+	if issueErr != nil {
+		return nil, issueErr
+	}
+	_ = userAgent // operator audit log doesn't carry UA today; reserved for future
+	return &OperatorLoginResult{
+		Status:                OperatorLoginStatusAuthenticated,
+		AccessToken:           access,
+		RefreshToken:          refresh,
+		Operator:              operator,
+		MFAEnrollmentRequired: !enrolled,
+	}, nil
+}
+
+// issueOperatorTokenPair mints the access + refresh JWT for an
+// already-validated operator and writes the login audit row. Extracted from
+// the original Login flow so LoginWithMFAGate can reuse it without changing
+// the legacy code path.
+func (s *operatorAuthService) issueOperatorTokenPair(ctx context.Context, operator *platform.Operator, clientIP net.IP) (string, string, error) {
+	accessClaims := jwt.AppClaims{
+		ID:          int(operator.ID),
+		Sub:         fmt.Sprintf("operator:%d", operator.ID),
+		Username:    operator.Email,
+		FirstName:   operator.DisplayName,
+		LastName:    "",
+		Roles:       []string{"operator"},
+		Permissions: []string{},
+		IsAdmin:     false,
+		Scope:       "platform",
+	}
+	refreshClaims := jwt.RefreshClaims{
+		ID:    int(operator.ID),
+		Token: fmt.Sprintf("operator-refresh-%d", operator.ID),
+	}
+	access, refresh, err := s.tokenAuth.GenTokenPair(accessClaims, refreshClaims)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate tokens: %w", err)
+	}
+	if err := s.operatorRepo.UpdateLastLogin(ctx, operator.ID); err != nil {
+		s.getLogger().Error("failed to update last login",
+			"operator_id", operator.ID,
+			"error", err,
+		)
+	}
+	entry := &platform.OperatorAuditLog{
+		OperatorID:   operator.ID,
+		Action:       platform.ActionLogin,
+		ResourceType: platform.ResourceOperator,
+		ResourceID:   &operator.ID,
+		RequestIP:    clientIP,
+	}
+	if err := s.auditLogRepo.Create(ctx, entry); err != nil {
+		s.getLogger().Error("failed to create audit log",
+			"operator_id", operator.ID,
+			"action", platform.ActionLogin,
+			"error", err,
+		)
+	}
+	return access, refresh, nil
+}
+
+// maskOperatorEmailForUX mirrors auth.maskEmailForUX so the operator UX
+// matches the tenant one — show users which mailbox just received a code
+// without leaking the full address.
+func maskOperatorEmailForUX(email string) string {
+	at := strings.IndexByte(email, '@')
+	if at <= 0 {
+		return email
+	}
+	local := email[:at]
+	domain := email[at:]
+	if len(local) <= 1 {
+		return local + "***" + domain
+	}
+	return string(local[0]) + "***" + domain
+}
+
+// parseClientIPForOperator wraps net.ParseIP with the empty-string guard
+// so audit rows don't get malformed inet values.
+func parseClientIPForOperator(ipAddress string) net.IP {
+	if ipAddress == "" {
+		return nil
+	}
+	return net.ParseIP(ipAddress)
 }
 
 // Login authenticates an operator and returns JWT tokens

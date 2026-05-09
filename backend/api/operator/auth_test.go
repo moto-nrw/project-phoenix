@@ -30,6 +30,7 @@ type mockOperatorAuthService struct {
 	initiateEmailChangeFn            func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error
 	confirmEmailChangeFn             func(ctx context.Context, token string, clientIP net.IP) (string, error)
 	cleanupExpiredEmailChangeTokenFn func(ctx context.Context) (int, error)
+	loginWithMFAGateFn               func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error)
 }
 
 func (m *mockOperatorAuthService) Login(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
@@ -38,6 +39,19 @@ func (m *mockOperatorAuthService) Login(ctx context.Context, email, password str
 	}
 	return "", "", nil, nil
 }
+
+// LoginWithMFAGate / SetMFAService — no-op stubs added so
+// *mockOperatorAuthService still satisfies OperatorAuthService after the
+// MFA additions in issue #1308 phase 7b-3. The legacy auth_test cases
+// don't exercise these paths; they're called by the new login handler
+// which has its own MFA-aware test in mfa_login_test.go.
+func (m *mockOperatorAuthService) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+	if m.loginWithMFAGateFn != nil {
+		return m.loginWithMFAGateFn(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie)
+	}
+	return nil, nil
+}
+func (m *mockOperatorAuthService) SetMFAService(_ platformSvc.OperatorMFAService) {}
 
 func (m *mockOperatorAuthService) RefreshToken(ctx context.Context, operatorID int64) (string, string, error) {
 	if m.refreshTokenFn != nil {
@@ -94,7 +108,7 @@ func (m *mockOperatorAuthService) CleanupExpiredEmailChangeTokens(ctx context.Co
 
 func TestLogin_Success(t *testing.T) {
 	mockService := &mockOperatorAuthService{
-		loginFn: func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
 			assert.Equal(t, "test@example.com", email)
 			assert.Equal(t, "password123", password)
 			op := &platform.Operator{
@@ -102,7 +116,12 @@ func TestLogin_Success(t *testing.T) {
 				DisplayName: "Test Operator",
 			}
 			op.ID = 1
-			return "access-token", "refresh-token", op, nil
+			return &platformSvc.OperatorLoginResult{
+				Status:       platformSvc.OperatorLoginStatusAuthenticated,
+				AccessToken:  "access-token",
+				RefreshToken: "refresh-token",
+				Operator:     op,
+			}, nil
 		},
 	}
 
@@ -127,6 +146,7 @@ func TestLogin_Success(t *testing.T) {
 
 	assert.Equal(t, "success", response["status"])
 	data := response["data"].(map[string]interface{})
+	assert.Equal(t, "authenticated", data["status"])
 	assert.Equal(t, "access-token", data["access_token"])
 	assert.Equal(t, "refresh-token", data["refresh_token"])
 
@@ -176,8 +196,8 @@ func TestLogin_EmptyPassword(t *testing.T) {
 
 func TestLogin_InvalidCredentials(t *testing.T) {
 	mockService := &mockOperatorAuthService{
-		loginFn: func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
-			return "", "", nil, &platformSvc.InvalidCredentialsError{}
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+			return nil, &platformSvc.InvalidCredentialsError{}
 		},
 	}
 
@@ -200,8 +220,8 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 
 func TestLogin_OperatorInactive(t *testing.T) {
 	mockService := &mockOperatorAuthService{
-		loginFn: func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
-			return "", "", nil, &platformSvc.OperatorInactiveError{}
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+			return nil, &platformSvc.OperatorInactiveError{}
 		},
 	}
 
@@ -224,8 +244,8 @@ func TestLogin_OperatorInactive(t *testing.T) {
 
 func TestLogin_OperatorNotFound(t *testing.T) {
 	mockService := &mockOperatorAuthService{
-		loginFn: func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
-			return "", "", nil, &platformSvc.OperatorNotFoundError{}
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+			return nil, &platformSvc.OperatorNotFoundError{}
 		},
 	}
 
@@ -248,8 +268,8 @@ func TestLogin_OperatorNotFound(t *testing.T) {
 
 func TestLogin_ServiceError(t *testing.T) {
 	mockService := &mockOperatorAuthService{
-		loginFn: func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
-			return "", "", nil, errors.New("database connection error")
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+			return nil, errors.New("database connection error")
 		},
 	}
 
@@ -284,13 +304,18 @@ func TestLogin_InvalidJSON(t *testing.T) {
 }
 
 func TestLogin_ClientIPExtraction_XForwardedFor(t *testing.T) {
-	var capturedIP net.IP
+	var capturedIP string
 	mockService := &mockOperatorAuthService{
-		loginFn: func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
-			capturedIP = clientIP
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+			capturedIP = ipAddress
 			op := &platform.Operator{Email: email, DisplayName: "Test"}
 			op.ID = 1
-			return "access", "refresh", op, nil
+			return &platformSvc.OperatorLoginResult{
+				Status:       platformSvc.OperatorLoginStatusAuthenticated,
+				AccessToken:  "access",
+				RefreshToken: "refresh",
+				Operator:     op,
+			}, nil
 		},
 	}
 
@@ -306,17 +331,22 @@ func TestLogin_ClientIPExtraction_XForwardedFor(t *testing.T) {
 	resource.Login(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "192.168.1.100", capturedIP.String())
+	assert.Equal(t, "192.168.1.100", capturedIP)
 }
 
 func TestLogin_ClientIPExtraction_XRealIP(t *testing.T) {
-	var capturedIP net.IP
+	var capturedIP string
 	mockService := &mockOperatorAuthService{
-		loginFn: func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
-			capturedIP = clientIP
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+			capturedIP = ipAddress
 			op := &platform.Operator{Email: email, DisplayName: "Test"}
 			op.ID = 1
-			return "access", "refresh", op, nil
+			return &platformSvc.OperatorLoginResult{
+				Status:       platformSvc.OperatorLoginStatusAuthenticated,
+				AccessToken:  "access",
+				RefreshToken: "refresh",
+				Operator:     op,
+			}, nil
 		},
 	}
 
@@ -332,7 +362,7 @@ func TestLogin_ClientIPExtraction_XRealIP(t *testing.T) {
 	resource.Login(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "10.0.0.50", capturedIP.String())
+	assert.Equal(t, "10.0.0.50", capturedIP)
 }
 
 func TestLoginRequest_Bind(t *testing.T) {
