@@ -78,7 +78,8 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), `"data":null`)
+		assert.Contains(t, rr.Body.String(), "Student has no current visit")
+		assert.NotContains(t, rr.Body.String(), `"data"`)
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
@@ -102,7 +103,8 @@ func TestGetStudentCurrentVisit_Extended(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), `"data":null`)
+		assert.Contains(t, rr.Body.String(), "Student has no current visit")
+		assert.NotContains(t, rr.Body.String(), `"data"`)
 	})
 }
 

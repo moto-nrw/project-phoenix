@@ -155,7 +155,7 @@ func TestWriteAndLoadState_Roundtrip(t *testing.T) {
 	assert.Equal(t, "E2EFE110001", loaded.Fixtures.Checkin.RFIDTag)
 }
 
-func TestWriteState_CreatesFileWithRestrictedPermissions(t *testing.T) {
+func TestWriteState_CreatesHostReadableFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "e2e-state.json")
 
@@ -164,7 +164,7 @@ func TestWriteState_CreatesFileWithRestrictedPermissions(t *testing.T) {
 
 	info, err := os.Stat(path)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
 }
 
 func TestStateNormalize_SetsVersionOnly(t *testing.T) {

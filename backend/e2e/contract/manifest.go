@@ -407,7 +407,7 @@ func WriteState(state *State, path string) error {
 	if err != nil {
 		return fmt.Errorf("marshal e2e state: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write e2e state: %w", err)
 	}
 	return nil

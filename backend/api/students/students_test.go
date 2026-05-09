@@ -1057,15 +1057,13 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 func TestRenderErrorCases(t *testing.T) {
 	tc := setupTestContext(t)
 
-	t.Run("internal_server_error", func(t *testing.T) {
+	t.Run("invalid_request", func(t *testing.T) {
 		router := setupRouter(tc.resource.GetStudentCurrentVisitHandler(), "id")
-		// Request for student that doesn't exist to trigger error path
-		req := testutil.NewRequest("GET", "/999999", nil)
+		req := testutil.NewRequest("GET", "/invalid", nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		// Should return some error status
-		assert.NotEqual(t, http.StatusOK, rr.Code)
+		testutil.AssertBadRequest(t, rr)
 	})
 }
 
