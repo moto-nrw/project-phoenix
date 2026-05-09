@@ -19,7 +19,7 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
-    "knip": "knip",
+    "knip": "PHOENIX_E2E_HARNESS=1 knip",
     "e2e": "cd ../backend && go run . e2e run"
   },
   "dependencies": {
@@ -118,6 +118,9 @@
     ],
     "project": [
       "src/**/*.{ts,tsx,js}"
+    ],
+    "ignoreBinaries": [
+      "go"
     ],
     "ignoreDependencies": [
       "sharp",

@@ -231,7 +231,9 @@ func (s *harnessSession) writeComposeLogs(service, path string) error {
 	if err != nil {
 		return fmt.Errorf("create log file %s: %w", path, err)
 	}
-	defer logFile.Close()
+	defer func() {
+		_ = logFile.Close()
+	}()
 
 	cmd := exec.Command("docker", s.composeArgs("logs", "--no-color", "--tail=2000", service)...)
 	cmd.Dir = s.paths.repoRoot
