@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -15,6 +17,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 func updateRouter(parentCtx context.Context, res *Resource) chi.Router {
@@ -137,9 +140,23 @@ func TestUpdateInstance_ServiceErrors(t *testing.T) {
 	badReference := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusBadRequest, badReference.Code)
 
+	s.mock.updateErr = timetablePgErrorWithConstraint("23505", "idx_activity_instances_template_unique")
+	duplicate := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
+	assert.Equal(t, http.StatusConflict, duplicate.Code)
+	assert.Contains(t, duplicate.Body.String(), "duplicate_instance")
+
 	s.mock.updateErr = fmt.Errorf("database down")
 	internal := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusInternalServerError, internal.Code)
+}
+
+func timetablePgErrorWithConstraint(code, constraintName string) error {
+	pgErr := pgdriver.Error{}
+	v := reflect.ValueOf(&pgErr).Elem()
+	mField := v.FieldByName("m")
+	ptr := unsafe.Pointer(mField.UnsafeAddr()) //nolint:gosec
+	*(*map[byte]string)(ptr) = map[byte]string{'C': code, 'n': constraintName}
+	return pgErr
 }
 
 func TestUpdateInstance_UnwiredAndEnrichmentFailure(t *testing.T) {

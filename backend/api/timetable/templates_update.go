@@ -126,6 +126,11 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
+	rosterValidFrom, err := rs.templateRosterValidFrom(ctx, req.CalendarPeriodID)
+	if err != nil {
+		renderTemplatePeriodLookupError(w, r, err)
+		return
+	}
 	exists, err := rs.templateExists(ctx, id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
@@ -179,11 +184,11 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := rs.replaceTemplateStudents(ctx, id, req.StudentIDs, req.CalendarPeriodID); err != nil {
+	if err := rs.replaceTemplateStudents(ctx, id, req.StudentIDs, req.CalendarPeriodID, rosterValidFrom); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("assign template students failed", err))
 		return
 	}
-	if err := rs.replaceTemplateStaff(ctx, id, req.StaffIDs, req.PrimaryStaffID, req.CalendarPeriodID); err != nil {
+	if err := rs.replaceTemplateStaff(ctx, id, req.StaffIDs, req.PrimaryStaffID, req.CalendarPeriodID, rosterValidFrom); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("assign template staff failed", err))
 		return
 	}

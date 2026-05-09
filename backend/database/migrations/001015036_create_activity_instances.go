@@ -22,7 +22,6 @@ func init() {
 			ActivitiesGroupsVersion,      // 1.3.2 — instance.activity_group_id, activity_exceptions.activity_group_id
 			UsersStudentsVersion,         // 1.3.5 — instance_students.student_id
 			ActiveGroupsVersion,          // 1.4.1 — instance.active_group_id (bridge to live layer)
-			compositePKIndexesVersion,    // 1.14.4 — UNIQUE(tenant_id, id) targets for composite FKs
 			enableRLSVersion,             // 1.15.1 — RLS infrastructure
 			createCalendarPeriodsVersion, // 1.15.33 — instance.calendar_period_id
 		},
@@ -61,34 +60,23 @@ func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id),
 			date DATE NOT NULL,
-			activity_group_id BIGINT,
+			activity_group_id BIGINT REFERENCES activities.groups(id) ON DELETE SET NULL,
 			calendar_period_id BIGINT REFERENCES schedule.calendar_periods(id) ON DELETE SET NULL,
 			title VARCHAR(255) NOT NULL,
 			description TEXT,
 			start_time TIME NOT NULL,
 			end_time TIME NOT NULL,
-			room_id BIGINT NOT NULL,
+			room_id BIGINT NOT NULL REFERENCES facilities.rooms(id) ON DELETE RESTRICT,
 			status TEXT NOT NULL DEFAULT 'planned',
-			active_group_id BIGINT,
+			active_group_id BIGINT REFERENCES active.groups(id) ON DELETE SET NULL,
 			is_spontaneous BOOLEAN NOT NULL DEFAULT false,
 			notes TEXT,
-			created_by BIGINT,
-			started_by BIGINT,
+			created_by BIGINT REFERENCES users.staff(id) ON DELETE SET NULL,
+			started_by BIGINT REFERENCES users.staff(id) ON DELETE SET NULL,
 			started_at TIMESTAMPTZ,
 			completed_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT unique_activity_instance_tenant_id UNIQUE (tenant_id, id),
-			CONSTRAINT fk_activity_instances_activity_group_tenant FOREIGN KEY (tenant_id, activity_group_id)
-				REFERENCES activities.groups(tenant_id, id) ON DELETE SET NULL (activity_group_id),
-			CONSTRAINT fk_activity_instances_room_tenant FOREIGN KEY (tenant_id, room_id)
-				REFERENCES facilities.rooms(tenant_id, id) ON DELETE RESTRICT,
-			CONSTRAINT fk_activity_instances_active_group_tenant FOREIGN KEY (tenant_id, active_group_id)
-				REFERENCES active.groups(tenant_id, id) ON DELETE SET NULL (active_group_id),
-			CONSTRAINT fk_activity_instances_created_by_tenant FOREIGN KEY (tenant_id, created_by)
-				REFERENCES users.staff(tenant_id, id) ON DELETE SET NULL (created_by),
-			CONSTRAINT fk_activity_instances_started_by_tenant FOREIGN KEY (tenant_id, started_by)
-				REFERENCES users.staff(tenant_id, id) ON DELETE SET NULL (started_by),
 			CONSTRAINT check_activity_instance_times CHECK (end_time > start_time),
 			CONSTRAINT check_activity_instance_status CHECK (status IN ('planned', 'active', 'completed', 'cancelled'))
 		);
@@ -184,20 +172,14 @@ func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS schedule.instance_staff (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id),
-			instance_id BIGINT NOT NULL,
-			staff_id BIGINT NOT NULL,
-			room_id BIGINT,
+			instance_id BIGINT NOT NULL REFERENCES schedule.activity_instances(id) ON DELETE CASCADE,
+			staff_id BIGINT NOT NULL REFERENCES users.staff(id) ON DELETE RESTRICT,
+			room_id BIGINT REFERENCES facilities.rooms(id) ON DELETE SET NULL,
 			is_primary BOOLEAN NOT NULL DEFAULT false,
 			is_substitute BOOLEAN NOT NULL DEFAULT false,
 			is_absent BOOLEAN NOT NULL DEFAULT false,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_instance_staff_instance_tenant FOREIGN KEY (tenant_id, instance_id)
-				REFERENCES schedule.activity_instances(tenant_id, id) ON DELETE CASCADE,
-			CONSTRAINT fk_instance_staff_staff_tenant FOREIGN KEY (tenant_id, staff_id)
-				REFERENCES users.staff(tenant_id, id) ON DELETE RESTRICT,
-			CONSTRAINT fk_instance_staff_room_tenant FOREIGN KEY (tenant_id, room_id)
-				REFERENCES facilities.rooms(tenant_id, id) ON DELETE SET NULL (room_id),
 			CONSTRAINT unique_instance_staff UNIQUE (instance_id, staff_id)
 		);
 	`).Exec(ctx)
@@ -250,21 +232,15 @@ func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS schedule.instance_students (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id),
-			instance_id BIGINT NOT NULL,
-			student_id BIGINT NOT NULL,
-			room_id BIGINT,
+			instance_id BIGINT NOT NULL REFERENCES schedule.activity_instances(id) ON DELETE CASCADE,
+			student_id BIGINT NOT NULL REFERENCES users.students(id) ON DELETE RESTRICT,
+			room_id BIGINT REFERENCES facilities.rooms(id) ON DELETE SET NULL,
 			status TEXT NOT NULL DEFAULT 'expected',
 			substatus TEXT,
 			note TEXT,
 			checked_in_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_instance_students_instance_tenant FOREIGN KEY (tenant_id, instance_id)
-				REFERENCES schedule.activity_instances(tenant_id, id) ON DELETE CASCADE,
-			CONSTRAINT fk_instance_students_student_tenant FOREIGN KEY (tenant_id, student_id)
-				REFERENCES users.students(tenant_id, id) ON DELETE RESTRICT,
-			CONSTRAINT fk_instance_students_room_tenant FOREIGN KEY (tenant_id, room_id)
-				REFERENCES facilities.rooms(tenant_id, id) ON DELETE SET NULL (room_id),
 			CONSTRAINT unique_instance_student UNIQUE (instance_id, student_id),
 			CONSTRAINT check_instance_student_status CHECK (status IN ('expected', 'present', 'absent')),
 			CONSTRAINT check_instance_student_substatus CHECK (
@@ -329,22 +305,16 @@ func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS schedule.activity_exceptions (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id),
-			activity_group_id BIGINT NOT NULL,
+			activity_group_id BIGINT NOT NULL REFERENCES activities.groups(id) ON DELETE CASCADE,
 			exception_date DATE NOT NULL,
 			exception_type TEXT NOT NULL,
 			start_time TIME,
 			end_time TIME,
-			room_id BIGINT,
+			room_id BIGINT REFERENCES facilities.rooms(id) ON DELETE SET NULL,
 			reason VARCHAR(500),
-			created_by BIGINT,
+			created_by BIGINT REFERENCES users.staff(id) ON DELETE SET NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_activity_exceptions_activity_group_tenant FOREIGN KEY (tenant_id, activity_group_id)
-				REFERENCES activities.groups(tenant_id, id) ON DELETE CASCADE,
-			CONSTRAINT fk_activity_exceptions_room_tenant FOREIGN KEY (tenant_id, room_id)
-				REFERENCES facilities.rooms(tenant_id, id) ON DELETE SET NULL (room_id),
-			CONSTRAINT fk_activity_exceptions_created_by_tenant FOREIGN KEY (tenant_id, created_by)
-				REFERENCES users.staff(tenant_id, id) ON DELETE SET NULL (created_by),
 			CONSTRAINT unique_activity_exception UNIQUE (tenant_id, activity_group_id, exception_date),
 			CONSTRAINT check_activity_exception_type CHECK (exception_type IN ('cancelled', 'modified')),
 			CONSTRAINT check_activity_exception_times CHECK (

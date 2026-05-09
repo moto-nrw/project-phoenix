@@ -164,6 +164,11 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 			errors.New("no tenant in context")))
 		return
 	}
+	rosterValidFrom, err := rs.templateRosterValidFrom(ctx, req.CalendarPeriodID)
+	if err != nil {
+		renderTemplatePeriodLookupError(w, r, err)
+		return
+	}
 
 	// 1. Find or create timeframe matching the requested clock window.
 	//    Reusing existing timeframes keeps the schedule.timeframes table
@@ -224,12 +229,12 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		scheduleIDs = append(scheduleIDs, sched.ID)
 	}
 
-	if err := rs.replaceTemplateStudents(ctx, group.ID, req.StudentIDs, req.CalendarPeriodID); err != nil {
+	if err := rs.replaceTemplateStudents(ctx, group.ID, req.StudentIDs, req.CalendarPeriodID, rosterValidFrom); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"assign template students failed", err))
 		return
 	}
-	if err := rs.replaceTemplateStaff(ctx, group.ID, req.StaffIDs, req.PrimaryStaffID, req.CalendarPeriodID); err != nil {
+	if err := rs.replaceTemplateStaff(ctx, group.ID, req.StaffIDs, req.PrimaryStaffID, req.CalendarPeriodID, rosterValidFrom); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"assign template staff failed", err))
 		return

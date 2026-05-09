@@ -1,7 +1,6 @@
 package facilities_test
 
 import (
-	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,19 +16,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-var facilityTenantCounter int64 = 990100
+var facilityTenantCounter int64 = time.Now().UnixNano()
 
 func createFacilityTestTenant(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 
 	tenantID := atomic.AddInt64(&facilityTenantCounter, 1)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	})
 
 	return tenantID
 }

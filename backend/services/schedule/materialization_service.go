@@ -462,10 +462,20 @@ func (s *materializationService) copyEnrollments(
 	periodID int64,
 	result *MaterializationResult,
 ) error {
+	seen := make(map[int64]struct{}, len(enrollments))
 	for _, e := range enrollments {
 		if !isEnrollmentValidOn(e, date, periodID) {
 			continue
 		}
+		if _, dup := seen[e.StudentID]; dup {
+			s.getLogger().Warn("student listed twice on template — skipping duplicate",
+				slog.Int64("instance_id", instanceID),
+				slog.Int64("student_id", e.StudentID),
+				slog.String("date", date.Format("2006-01-02")),
+			)
+			continue
+		}
+		seen[e.StudentID] = struct{}{}
 		row := &schedule.InstanceStudent{
 			InstanceID: instanceID,
 			StudentID:  e.StudentID,

@@ -81,6 +81,7 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 		StudentEnrollmentRepo:  activitiesRepo.NewStudentEnrollmentRepository(db),
 		ActivitySupervisorRepo: activitiesRepo.NewSupervisorPlannedRepository(db),
 		TimeframeRepo:          scheduleRepo.NewTimeframeRepository(db),
+		CalendarPeriodService:  scheduleSvc.NewCalendarPeriodService(scheduleRepo.NewCalendarPeriodRepository(db), db, nil),
 		RoomRepo:               facilitiesRepo.NewRoomRepository(db),
 		MaterializationService: mat,
 		DB:                     db,
@@ -426,17 +427,166 @@ func TestListTemplatesFiltersByPeriod(t *testing.T) {
 	bodyB["calendar_period_id"] = periodB.ID
 	require.Equal(t, http.StatusCreated, doTemplateJSON(t, router, http.MethodPost, "/templates", bodyB).Code)
 
+	bodyGlobal := createTemplateBody(s, "Tpl-Period-Global")
+	require.Equal(t, http.StatusCreated, doTemplateJSON(t, router, http.MethodPost, "/templates", bodyGlobal).Code)
+
 	w := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates?period_id=%d", periodA.ID), nil)
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	list := decodeTemplateData[listTemplatesResponse](t, w)
 	require.NotEmpty(t, list.Templates)
+	var sawPeriodA, sawGlobal bool
 	for _, tpl := range list.Templates {
-		require.NotEmpty(t, tpl.Schedules)
-		for _, sched := range tpl.Schedules {
-			require.NotNil(t, sched.CalendarPeriodID)
-			assert.Equal(t, periodA.ID, *sched.CalendarPeriodID)
+		switch tpl.Name {
+		case "Tpl-Period-A":
+			sawPeriodA = true
+			for _, sched := range tpl.Schedules {
+				require.NotNil(t, sched.CalendarPeriodID)
+				assert.Equal(t, periodA.ID, *sched.CalendarPeriodID)
+			}
+		case "Tpl-Period-B":
+			assert.Fail(t, "period B template must not appear when filtering for period A")
+		case "Tpl-Period-Global":
+			sawGlobal = true
+			for _, sched := range tpl.Schedules {
+				assert.Nil(t, sched.CalendarPeriodID)
+			}
 		}
 	}
+	assert.True(t, sawPeriodA, "period-scoped template missing from period-filtered list")
+	assert.True(t, sawGlobal, "unscoped template missing from period-filtered list")
+}
+
+func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	suffix := time.Now().UnixNano()
+	studentC := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("StudentC-%d", suffix), "3a")
+	studentD := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("StudentD-%d", suffix), "3a")
+	staffC := testpkg.CreateTestStaff(t, s.db, "Tpl", fmt.Sprintf("StaffC-%d", suffix))
+	staffD := testpkg.CreateTestStaff(t, s.db, "Tpl", fmt.Sprintf("StaffD-%d", suffix))
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "users.students", studentC.ID, studentD.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.staff", staffC.ID, staffD.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.persons", studentC.PersonID, studentD.PersonID, staffC.PersonID, staffD.PersonID)
+	})
+
+	periodA := createTemplateTestPeriod(t, s.db, "TplPeoplePeriodA")
+	periodB := createTemplateTestPeriod(t, s.db, "TplPeoplePeriodB")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodA.ID, periodB.ID)
+	})
+
+	body := createTemplateBody(s, "Tpl-People-Period-A")
+	body["calendar_period_id"] = periodA.ID
+	body["student_ids"] = []int64{s.studentA}
+	body["staff_ids"] = []int64{s.staffA}
+	body["primary_staff_id"] = s.staffA
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+
+	periodBEnrollment := &activitiesModel.StudentEnrollment{
+		StudentID:        s.studentB,
+		ActivityGroupID:  created.TemplateID,
+		ValidFrom:        periodB.StartDate,
+		CalendarPeriodID: &periodB.ID,
+	}
+	periodBEnrollment.SetTenantID(1)
+	require.NoError(t, s.res.studentEnrollmentRepo.Create(s.ctx, periodBEnrollment))
+
+	globalEnrollment := &activitiesModel.StudentEnrollment{
+		StudentID:       studentC.ID,
+		ActivityGroupID: created.TemplateID,
+		ValidFrom:       time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+	globalEnrollment.SetTenantID(1)
+	require.NoError(t, s.res.studentEnrollmentRepo.Create(s.ctx, globalEnrollment))
+
+	periodBSupervisor := &activitiesModel.SupervisorPlanned{
+		StaffID:          s.staffB,
+		GroupID:          created.TemplateID,
+		ValidFrom:        periodB.StartDate,
+		CalendarPeriodID: &periodB.ID,
+	}
+	periodBSupervisor.SetTenantID(1)
+	require.NoError(t, s.res.activitySupervisorRepo.Create(s.ctx, periodBSupervisor))
+
+	globalSupervisor := &activitiesModel.SupervisorPlanned{
+		StaffID:   staffC.ID,
+		GroupID:   created.TemplateID,
+		ValidFrom: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+	globalSupervisor.SetTenantID(1)
+	require.NoError(t, s.res.activitySupervisorRepo.Create(s.ctx, globalSupervisor))
+
+	updateBody := createTemplateBody(s, "Tpl-People-Period-A")
+	updateBody["calendar_period_id"] = periodA.ID
+	updateBody["student_ids"] = []int64{studentD.ID}
+	updateBody["staff_ids"] = []int64{staffD.ID}
+	updateBody["primary_staff_id"] = staffD.ID
+	updateW := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusOK, updateW.Code, "body=%s", updateW.Body.String())
+
+	var periodBOtherStudents, globalStudents, periodBOtherStaff, globalStaff int
+	require.NoError(t, s.db.NewSelect().
+		TableExpr("activities.student_enrollments").
+		ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", 1).
+		Where("activity_group_id = ?", created.TemplateID).
+		Where("calendar_period_id = ?", periodB.ID).
+		Where("valid_until IS NULL").
+		Scan(s.ctx, &periodBOtherStudents))
+	require.NoError(t, s.db.NewSelect().
+		TableExpr("activities.student_enrollments").
+		ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", 1).
+		Where("activity_group_id = ?", created.TemplateID).
+		Where("calendar_period_id IS NULL").
+		Where("valid_until IS NULL").
+		Scan(s.ctx, &globalStudents))
+	require.NoError(t, s.db.NewSelect().
+		TableExpr("activities.supervisors").
+		ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", 1).
+		Where("group_id = ?", created.TemplateID).
+		Where("calendar_period_id = ?", periodB.ID).
+		Where("valid_until IS NULL").
+		Scan(s.ctx, &periodBOtherStaff))
+	require.NoError(t, s.db.NewSelect().
+		TableExpr("activities.supervisors").
+		ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", 1).
+		Where("group_id = ?", created.TemplateID).
+		Where("calendar_period_id IS NULL").
+		Where("valid_until IS NULL").
+		Scan(s.ctx, &globalStaff))
+	assert.Equal(t, 1, periodBOtherStudents)
+	assert.Equal(t, 1, globalStudents)
+	assert.Equal(t, 1, periodBOtherStaff)
+	assert.Equal(t, 1, globalStaff)
+
+	var oldStudentUntil, newStudentFrom time.Time
+	require.NoError(t, s.db.NewSelect().
+		TableExpr("activities.student_enrollments").
+		Column("valid_until").
+		Where("tenant_id = ?", 1).
+		Where("activity_group_id = ?", created.TemplateID).
+		Where("student_id = ?", s.studentA).
+		Where("calendar_period_id = ?", periodA.ID).
+		Scan(s.ctx, &oldStudentUntil))
+	require.NoError(t, s.db.NewSelect().
+		TableExpr("activities.student_enrollments").
+		Column("valid_from").
+		Where("tenant_id = ?", 1).
+		Where("activity_group_id = ?", created.TemplateID).
+		Where("student_id = ?", studentD.ID).
+		Where("calendar_period_id = ?", periodA.ID).
+		Where("valid_until IS NULL").
+		Scan(s.ctx, &newStudentFrom))
+	assert.Equal(t, periodA.StartDate.Format(dateLayout), oldStudentUntil.Format(dateLayout))
+	assert.Equal(t, periodA.StartDate.Format(dateLayout), newStudentFrom.Format(dateLayout))
 }
 
 func createTemplateTestPeriod(t *testing.T, db *bun.DB, name string) *scheduleModel.CalendarPeriod {
@@ -463,6 +613,7 @@ func TestTemplatePeopleHelpersDeduplicateAndNoopWithoutTenant(t *testing.T) {
 	defer s.cleanupFn()
 
 	require.Equal(t, []int64{50, 60}, uniquePositiveIDs([]int64{50, 0, 60, 50, -1}))
-	assert.NoError(t, s.res.replaceTemplateStudents(context.Background(), 12345, []int64{s.studentA}, nil))
-	assert.NoError(t, s.res.replaceTemplateStaff(context.Background(), 12345, []int64{s.staffA}, &s.staffA, nil))
+	validFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	assert.NoError(t, s.res.replaceTemplateStudents(context.Background(), 12345, []int64{s.studentA}, nil, validFrom))
+	assert.NoError(t, s.res.replaceTemplateStaff(context.Background(), 12345, []int64{s.staffA}, &s.staffA, nil, validFrom))
 }

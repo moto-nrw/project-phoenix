@@ -60,27 +60,34 @@ func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]tem
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
 		LEFT JOIN facilities.rooms AS r
 			ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
-		LEFT JOIN (
-			SELECT
-				activity_group_id,
-				COUNT(*) AS count,
-				ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
-			FROM activities.student_enrollments
-			WHERE tenant_id = ?
-			  AND valid_until IS NULL
-			GROUP BY activity_group_id
-		) AS enrollments ON enrollments.activity_group_id = g.id
-		LEFT JOIN (
+			LEFT JOIN (
+				SELECT
+					activity_group_id,
+					COUNT(*) AS count,
+					ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
+				FROM (
+					SELECT DISTINCT activity_group_id, student_id
+					FROM activities.student_enrollments
+					WHERE tenant_id = ?
+					  AND valid_until IS NULL
+				) AS active_enrollments
+				GROUP BY activity_group_id
+			) AS enrollments ON enrollments.activity_group_id = g.id
+			LEFT JOIN (
 			SELECT
 				group_id,
-				COUNT(*) AS count,
-				ARRAY_AGG(staff_id ORDER BY is_primary DESC, staff_id) AS staff_ids,
-				MAX(staff_id) FILTER (WHERE is_primary) AS primary_staff_id
-			FROM activities.supervisors
-			WHERE tenant_id = ?
-			  AND valid_until IS NULL
-			GROUP BY group_id
-		) AS supervisors ON supervisors.group_id = g.id
+					COUNT(*) AS count,
+					ARRAY_AGG(staff_id ORDER BY is_primary DESC, staff_id) AS staff_ids,
+					MAX(staff_id) FILTER (WHERE is_primary) AS primary_staff_id
+				FROM (
+					SELECT group_id, staff_id, BOOL_OR(is_primary) AS is_primary
+					FROM activities.supervisors
+					WHERE tenant_id = ?
+					  AND valid_until IS NULL
+					GROUP BY group_id, staff_id
+				) AS active_supervisors
+				GROUP BY group_id
+			) AS supervisors ON supervisors.group_id = g.id
 		WHERE g.tenant_id = ?
 		  AND g.is_template = true
 		  AND g.archived_at IS NULL`
@@ -226,6 +233,10 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows := make([]templateRow, 0)
+	peoplePeriodFilter := ""
+	if periodID != nil {
+		peoplePeriodFilter = ` AND (calendar_period_id = ? OR calendar_period_id IS NULL)`
+	}
 	query := `
 		SELECT
 			g.id AS template_id,
@@ -257,34 +268,51 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
 		LEFT JOIN facilities.rooms AS r
 			ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
-		LEFT JOIN (
-			SELECT
-				activity_group_id,
-				COUNT(*) AS count,
-				ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
-			FROM activities.student_enrollments
-			WHERE tenant_id = ?
-			  AND valid_until IS NULL
-			GROUP BY activity_group_id
-		) AS enrollments ON enrollments.activity_group_id = g.id
+			LEFT JOIN (
+				SELECT
+					activity_group_id,
+					COUNT(*) AS count,
+					ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
+				FROM (
+					SELECT DISTINCT activity_group_id, student_id
+					FROM activities.student_enrollments
+					WHERE tenant_id = ?
+					  AND valid_until IS NULL
+					  ` + peoplePeriodFilter + `
+				) AS active_enrollments
+				GROUP BY activity_group_id
+			) AS enrollments ON enrollments.activity_group_id = g.id
 		LEFT JOIN (
 			SELECT
 				group_id,
-				COUNT(*) AS count,
-				ARRAY_AGG(staff_id ORDER BY is_primary DESC, staff_id) AS staff_ids,
-				MAX(staff_id) FILTER (WHERE is_primary) AS primary_staff_id
-			FROM activities.supervisors
-			WHERE tenant_id = ?
-			  AND valid_until IS NULL
-			GROUP BY group_id
-		) AS supervisors ON supervisors.group_id = g.id
+					COUNT(*) AS count,
+					ARRAY_AGG(staff_id ORDER BY is_primary DESC, staff_id) AS staff_ids,
+					MAX(staff_id) FILTER (WHERE is_primary) AS primary_staff_id
+				FROM (
+					SELECT group_id, staff_id, BOOL_OR(is_primary) AS is_primary
+					FROM activities.supervisors
+					WHERE tenant_id = ?
+					  AND valid_until IS NULL
+					  ` + peoplePeriodFilter + `
+					GROUP BY group_id, staff_id
+				) AS active_supervisors
+				GROUP BY group_id
+			) AS supervisors ON supervisors.group_id = g.id
 		WHERE g.tenant_id = ?
 		  AND g.is_template = true
 		  AND g.archived_at IS NULL`
 
-	args := []any{tenantID, tenantID, tenantID}
+	args := []any{tenantID}
 	if periodID != nil {
-		query += ` AND s.calendar_period_id = ?`
+		args = append(args, *periodID)
+	}
+	args = append(args, tenantID)
+	if periodID != nil {
+		args = append(args, *periodID)
+	}
+	args = append(args, tenantID)
+	if periodID != nil {
+		query += ` AND (s.calendar_period_id = ? OR s.calendar_period_id IS NULL)`
 		args = append(args, *periodID)
 	}
 	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`

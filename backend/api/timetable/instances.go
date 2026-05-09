@@ -162,6 +162,11 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "invalid_transition"))
+	case isUniqueViolationOnConstraint(err, "idx_activity_instances_template_unique"):
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("instance already exists for this template/date/start_time"),
+			"duplicate_instance",
+		))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("instance lifecycle failed", err))
 	}
