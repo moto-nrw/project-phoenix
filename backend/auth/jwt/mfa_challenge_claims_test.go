@@ -15,7 +15,7 @@ func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
 	in := MFAChallengeClaims{
 		AccountID: 4242,
 		Scope:     MFAChallengeScopeTenant,
-		TenantID:  7,
+		TenantID:  4242,
 	}
 
 	tokenString, err := ta.CreateMFAChallengeJWT(in, 5*time.Minute)
@@ -37,7 +37,7 @@ func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
 	require.NoError(t, out.ParseClaims(raw))
 	assert.Equal(t, int64(4242), out.AccountID)
 	assert.Equal(t, MFAChallengeScopeTenant, out.Scope)
-	assert.Equal(t, int64(7), out.TenantID)
+	assert.Equal(t, int64(4242), out.TenantID)
 	assert.True(t, out.MFAPending)
 	assert.Greater(t, out.ExpiresAt, time.Now().Unix())
 }

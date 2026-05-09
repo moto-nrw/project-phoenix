@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
@@ -40,6 +41,7 @@ import (
 // Factory provides access to all services
 type Factory struct {
 	Auth                     auth.AuthService
+	MFA                      auth.MFAService
 	Active                   active.Service
 	ActiveCleanup            active.CleanupService
 	WorkSession              active.WorkSessionService
@@ -445,6 +447,25 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, err
 	}
 
+	mfaTokenAuth, err := authjwt.NewTokenAuth()
+	if err != nil {
+		return nil, fmt.Errorf("init mfa token auth: %w", err)
+	}
+	mfaService, err := auth.NewMFAService(auth.MFAServiceConfig{
+		Repos:       repos,
+		TokenAuth:   mfaTokenAuth,
+		Settings:    settingsService,
+		Dispatcher:  dispatcher,
+		DefaultFrom: defaultFrom,
+		FrontendURL: frontendURL,
+		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		DB:          db,
+		Logger:      authLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init mfa service: %w", err)
+	}
+
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
@@ -632,6 +653,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	factory := &Factory{
 		Auth:                     authService,
+		MFA:                      mfaService,
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
 		WorkSession:              workSessionService,
