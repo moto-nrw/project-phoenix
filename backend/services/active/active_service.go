@@ -925,6 +925,18 @@ func (s *service) CountActiveVisitsByActiveGroupID(ctx context.Context, activeGr
 	return count, nil
 }
 
+// ListStudentsPresentInRoom returns the IDs of students currently checked-in
+// to any active group in the given room. The student list handler feeds
+// these IDs through the standard ListWithOptions pipeline, which applies
+// GDPR redaction and pagination.
+func (s *service) ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error) {
+	ids, err := s.visitRepo.ListActiveStudentIDsByRoomID(ctx, roomID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ListStudentsPresentInRoom", Err: fmt.Errorf("list active student IDs: %w", err)}
+	}
+	return ids, nil
+}
+
 // Group Supervisor operations
 func (s *service) GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)

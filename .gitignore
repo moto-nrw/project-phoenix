@@ -486,3 +486,4 @@ node_modules/
 .husky/
 .gitattributes
 .beads/
+/qodana.yaml

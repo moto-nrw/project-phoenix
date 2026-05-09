@@ -308,16 +308,11 @@ export function StudentDetailHeader({
   isArrivalAbsent,
   todayArrivalNote,
 }: Readonly<StudentHeaderProps>) {
+  // Spread the student so any field LocationBadge consumes (current_room_color,
+  // future room-derived attributes, etc.) propagates without maintaining a
+  // parallel whitelist here. Only the not_arrival_* fields are computed locally.
   const badgeStudent = {
-    current_location: student.current_location,
-    location_since: student.location_since,
-    group_id: student.group_id,
-    group_name: student.group_name,
-    sick: student.sick,
-    sick_since: student.sick_since,
-    excused: student.excused,
-    excused_since: student.excused_since,
-    has_full_access: student.has_full_access,
+    ...student,
     not_arrival_today: isArrivalAbsent ?? false,
     not_arrival_reason: todayArrivalNote ?? null,
   };

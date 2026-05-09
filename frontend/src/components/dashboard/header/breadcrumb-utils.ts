@@ -107,6 +107,12 @@ export function getSubPageLabel(pathname: string): string {
 export function getBreadcrumbLabel(referrer: string): string {
   if (referrer.startsWith("/ogs-groups")) return "Meine Gruppe";
   if (referrer.startsWith("/active-supervisions")) return "Aktuelle Aufsicht";
+  // Drill-in from a room detail (legacy /rooms/{id} subpage OR the new
+  // /rooms?room={id} modal flow — see #1374). The breadcrumb has to
+  // point back to the entry path in both cases so the header label and
+  // the active sidebar entry agree with how the user actually got here.
+  if (referrer.startsWith("/rooms/") || referrer.startsWith("/rooms?"))
+    return "Räume";
   return "Kindersuche";
 }
 
