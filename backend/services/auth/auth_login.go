@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"time"
 
@@ -54,6 +55,146 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 
 	// Generate token pair and log success
 	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
+}
+
+// LoginStatus discriminates the two shapes a /auth/login response can take.
+type LoginStatus string
+
+const (
+	// LoginStatusAuthenticated means credential check + (if applicable) MFA
+	// passed and the response carries a usable token pair.
+	LoginStatusAuthenticated LoginStatus = "authenticated"
+	// LoginStatusMFARequired means credentials were valid but the account
+	// must present a second factor before tokens are issued. The response
+	// carries a short-lived challenge token and (optional) UX hints.
+	LoginStatusMFARequired LoginStatus = "mfa_required"
+)
+
+// LoginResult is the discriminated response shape for LoginWithMFAGate.
+// Exactly one of (AccessToken+RefreshToken) or ChallengeToken is populated.
+// MFAEnrollmentRequired flags accounts that have a token pair *and* a
+// pending forced enrollment — the frontend uses it to redirect to the
+// enrollment screen before showing the dashboard.
+type LoginResult struct {
+	Status                LoginStatus
+	AccessToken           string
+	RefreshToken          string
+	ChallengeToken        string
+	MaskedEmail           string
+	MFAEnrollmentRequired bool
+}
+
+// LoginWithMFAGate is the MFA-aware sibling of LoginWithAudit. The pure-
+// password LoginWithAudit stays untouched so existing callers and tests
+// don't shift; the new method is what the HTTP login handler now uses.
+func (s *Service) LoginWithMFAGate(
+	ctx context.Context,
+	email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string,
+) (*LoginResult, error) {
+	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
+	if err != nil {
+		return nil, err
+	}
+
+	metadata, err := s.loadAccountMetadata(ctx, account, tenantSlug)
+	if err != nil {
+		return nil, err
+	}
+
+	// Hydrate roles on the account so MFAService.IsRequired can use
+	// account.HasRole("admin") without re-querying. We're projecting just
+	// names; the full Role objects aren't needed for this check.
+	account.Roles = make([]*auth.Role, len(metadata.roleNames))
+	for i, name := range metadata.roleNames {
+		account.Roles[i] = &auth.Role{Name: name}
+	}
+
+	// Branch 1: no MFA service wired or MFA not required for this account.
+	mfaRequired := false
+	if s.mfaService != nil {
+		mfaRequired, err = s.mfaService.IsRequired(ctx, account)
+		if err != nil {
+			s.getLogger().Warn("mfa IsRequired check failed; treating as not required",
+				slog.Int64("account_id", account.ID),
+				slog.String("error", err.Error()),
+			)
+			mfaRequired = false
+		}
+	}
+
+	// Branch 2: account has no MFA enrollment yet. Two cases:
+	// - MFA not required: status quo (enrolment optional)
+	// - MFA required: issue tokens but flag MFAEnrollmentRequired so the
+	//   frontend forces the user through the enrollment screen.
+	enrolled := false
+	if s.mfaService != nil {
+		enrolled, _ = s.mfaService.HasEnrollment(ctx, account.ID)
+	}
+
+	// Branch 3: trusted-device cookie short-circuits MFA when verifiable.
+	trustedDeviceVerified := false
+	if mfaRequired && enrolled && trustedDeviceCookie != "" && s.mfaService != nil {
+		ok, _ := s.mfaService.VerifyTrustedDevice(ctx, account.ID, trustedDeviceCookie)
+		trustedDeviceVerified = ok
+	}
+
+	// Decision: issue challenge ⇔ MFA required AND user is enrolled AND
+	// no valid trusted-device cookie. Anything else falls through to the
+	// existing token-pair pipeline.
+	if mfaRequired && enrolled && !trustedDeviceVerified {
+		challenge, chErr := s.mfaService.StartChallenge(ctx, account.ID, metadata.tenantID, jwt.MFAChallengeScopeTenant, parseClientIPString(ipAddress))
+		if chErr != nil {
+			return nil, &AuthError{Op: "start mfa challenge", Err: chErr}
+		}
+		return &LoginResult{
+			Status:         LoginStatusMFARequired,
+			ChallengeToken: challenge,
+			MaskedEmail:    maskEmailForUX(account.Email),
+		}, nil
+	}
+
+	// Token-pair issuance (regular login or MFA-skipped via trusted device).
+	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	if err != nil {
+		return nil, err
+	}
+	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, email)
+	accessToken, refreshToken, err := s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LoginResult{
+		Status:                LoginStatusAuthenticated,
+		AccessToken:           accessToken,
+		RefreshToken:          refreshToken,
+		MFAEnrollmentRequired: mfaRequired && !enrolled,
+	}, nil
+}
+
+// maskEmailForUX renders an email address as `j***@example.com` so the
+// frontend can show the user *which* mailbox just received a code without
+// leaking the full address (e.g. in shared-screen scenarios).
+func maskEmailForUX(email string) string {
+	at := strings.IndexByte(email, '@')
+	if at <= 0 {
+		return email
+	}
+	local := email[:at]
+	domain := email[at:]
+	if len(local) <= 1 {
+		return local + "***" + domain
+	}
+	return string(local[0]) + "***" + domain
+}
+
+// parseClientIPString wraps net.ParseIP with the empty-string guard so the
+// MFA service can pass it through to the audit row without nil-dereferencing.
+func parseClientIPString(ipAddress string) net.IP {
+	if ipAddress == "" {
+		return nil
+	}
+	return net.ParseIP(ipAddress)
 }
 
 // IssueTokensForAuthenticatedAccount mints an access + refresh token pair for

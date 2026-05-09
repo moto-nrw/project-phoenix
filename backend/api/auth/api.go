@@ -520,7 +520,31 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// login handles user login
+// LoginResponse is the discriminated response shape /auth/login returns now
+// that MFA can short-circuit the token pair. The `status` field tells the
+// client which fields to read:
+//
+//   - status == "authenticated"   → access_token + refresh_token populated;
+//     the frontend stores them as before.
+//   - status == "mfa_required"    → challenge_token + masked_email populated;
+//     the frontend renders the code-entry UI
+//     and POSTs to /auth/mfa/verify.
+//
+// mfa_enrollment_required is only set on the authenticated branch and tells
+// the frontend to redirect to the enrollment screen before the dashboard.
+type LoginResponse struct {
+	Status                string `json:"status"`
+	AccessToken           string `json:"access_token,omitempty"`
+	RefreshToken          string `json:"refresh_token,omitempty"`
+	ChallengeToken        string `json:"challenge_token,omitempty"`
+	MaskedEmail           string `json:"masked_email,omitempty"`
+	MFAEnrollmentRequired bool   `json:"mfa_enrollment_required,omitempty"`
+}
+
+// login handles user login. The handler is a thin orchestrator: it pulls
+// the trusted-device cookie off the request, calls LoginWithMFAGate, and
+// translates the discriminated LoginResult into a JSON shape the frontend
+// can branch on.
 func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -528,39 +552,65 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get IP address and user agent for audit logging
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
-	accessToken, refreshToken, err := rs.AuthService.LoginWithAudit(r.Context(), req.Email, req.Password, ipAddress, userAgent, req.TenantSlug)
+	// Pull the trusted-device cookie if the browser sent one. The MFA gate
+	// uses it to skip the second factor for users on a previously-marked
+	// device. Empty / missing cookie is fine — the service is nil-tolerant.
+	var trustedDeviceCookie string
+	if c, err := r.Cookie(trustedDeviceCookieName); err == nil {
+		trustedDeviceCookie = c.Value
+	}
+
+	result, err := rs.AuthService.LoginWithMFAGate(
+		r.Context(), req.Email, req.Password, ipAddress, userAgent, req.TenantSlug, trustedDeviceCookie,
+	)
 	if err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)) // Mask the specific error
-			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
-			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
-			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
-			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
-			}
-			return
-		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		rs.handleLoginError(w, r, err)
 		return
 	}
 
-	// Special case for login endpoint - frontend expects direct token response
-	render.JSON(w, r, TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+	if result.Status == authService.LoginStatusMFARequired {
+		render.JSON(w, r, LoginResponse{
+			Status:         string(authService.LoginStatusMFARequired),
+			ChallengeToken: result.ChallengeToken,
+			MaskedEmail:    result.MaskedEmail,
+		})
+		return
+	}
+
+	render.JSON(w, r, LoginResponse{
+		Status:                string(authService.LoginStatusAuthenticated),
+		AccessToken:           result.AccessToken,
+		RefreshToken:          result.RefreshToken,
+		MFAEnrollmentRequired: result.MFAEnrollmentRequired,
 	})
+}
+
+// handleLoginError centralises the error-to-HTTP mapping for /auth/login so
+// both the legacy and the MFA-aware paths agree on what comes back.
+func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err error) {
+	var authErr *authService.AuthError
+	if errors.As(err, &authErr) {
+		switch {
+		case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+		case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+			// Mask the specific error so attackers can't enumerate accounts.
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+		case errors.Is(authErr.Err, authService.ErrAccountInactive):
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+		case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+			common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+		default:
+			common.RenderError(w, r, ErrorInternalServer(err))
+		}
+		return
+	}
+	common.RenderError(w, r, ErrorInternalServer(err))
 }
 
 // RegisterRequest represents the register request payload

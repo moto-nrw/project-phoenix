@@ -465,6 +465,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("init mfa service: %w", err)
 	}
+	// Wire the MFA gate into the auth service so /auth/login knows to issue
+	// challenge tokens instead of token pairs when MFA is required. Done
+	// post-construction so we don't introduce a constructor cycle.
+	authService.SetMFAService(mfaService)
 
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
 		InvitationRepo:    repos.InvitationToken,
