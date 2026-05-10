@@ -128,6 +128,63 @@ describe("useGlobalSSE", () => {
       );
     });
 
+    it("is disabled when authenticated session has no access token", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        status: "authenticated",
+        data: {
+          user: { tenantId: 1, roles: ["user"] },
+        } as never,
+        update: vi.fn(),
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          enabled: false,
+        }),
+      );
+    });
+
+    it("is disabled for authenticated users without staff or admin roles", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        status: "authenticated",
+        data: {
+          user: { token: "test-token", tenantId: 1, roles: ["guardian"] },
+        } as never,
+        update: vi.fn(),
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          enabled: false,
+        }),
+      );
+    });
+
+    it("is disabled when authenticated session has no role list", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        status: "authenticated",
+        data: {
+          user: { token: "test-token", tenantId: 1 },
+        } as never,
+        update: vi.fn(),
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          enabled: false,
+        }),
+      );
+    });
+
     it("passes tenantId as reconnectKey to useSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",

@@ -122,6 +122,64 @@ describe("timetable operation mappers", () => {
     });
   });
 
+  it("maps nullable roster instance fields", () => {
+    const raw: BackendTimetableRoster = {
+      instance: {
+        id: 123,
+        title: "Spätbetreuung",
+        status: "planned",
+        active_group_id: null,
+        room_id: 224,
+        room_name: "Raum B",
+      },
+      rows: [
+        {
+          student_id: 422,
+          student_name: "Nora Null",
+          school_class: "2c",
+          group_name: "OGS Grün",
+          planned: true,
+          is_unplanned: false,
+          currently_present: false,
+          visit_id: null,
+          status: "absent",
+          substatus: null,
+          note: null,
+          checked_in_at: null,
+          visit_entry_time: null,
+        },
+      ],
+    };
+
+    expect(mapRoster(raw)).toEqual({
+      instance: {
+        id: "123",
+        title: "Spätbetreuung",
+        status: "planned",
+        activeGroupId: null,
+        roomId: "224",
+        roomName: "Raum B",
+      },
+      rows: [
+        {
+          studentId: "422",
+          studentName: "Nora Null",
+          schoolClass: "2c",
+          groupName: "OGS Grün",
+          planned: true,
+          isUnplanned: false,
+          currentlyPresent: false,
+          visitId: null,
+          status: "absent",
+          substatus: null,
+          note: null,
+          checkedInAt: null,
+          visitEntryTime: null,
+        },
+      ],
+    });
+  });
+
   it("maps start operation ids to strings", () => {
     const raw: BackendStartOperationResult = {
       instance_id: 122,

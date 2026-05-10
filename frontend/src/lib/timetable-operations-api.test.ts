@@ -51,6 +51,26 @@ describe("timetableOperationsApi", () => {
     expect(result[0]?.assignedStaffIds).toEqual(["330"]);
   });
 
+  it("fetches planned instances without a date query", async () => {
+    const mockFetch = vi.mocked(globalThis.fetch);
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: { instances: [] },
+      }),
+    );
+
+    const result = await timetableOperationsApi.plannedNow();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/timetable/operations/planned-now",
+      {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      },
+    );
+    expect(result).toEqual([]);
+  });
+
   it("posts start and maps the response", async () => {
     const mockFetch = vi.mocked(globalThis.fetch);
     mockFetch.mockResolvedValueOnce(
@@ -185,6 +205,7 @@ describe("timetableOperationsApi", () => {
       .mockResolvedValueOnce(
         jsonResponse({ error: "Nicht erlaubt" }, false, 403),
       )
+      .mockResolvedValueOnce(jsonResponse({}, false, 418))
       .mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -193,6 +214,9 @@ describe("timetableOperationsApi", () => {
 
     await expect(timetableOperationsApi.complete("136")).rejects.toThrow(
       "Nicht erlaubt",
+    );
+    await expect(timetableOperationsApi.complete("136")).rejects.toThrow(
+      "Anfrage fehlgeschlagen (HTTP 418)",
     );
     await expect(timetableOperationsApi.complete("136")).rejects.toThrow(
       "Anfrage fehlgeschlagen (HTTP 500)",
