@@ -644,6 +644,95 @@ func TestWSCheckIn_InvalidStatus(t *testing.T) {
 	assert.Contains(t, err.Error(), "status must be")
 }
 
+// TestWSReopenThenUpdateSession_EmitsFieldStatusEdit exercises the realistic
+// frontend sequence end-to-end: a checked-out 'present' session is reopened
+// at the existing status (no conflict), then the requested status flip is
+// routed through UpdateSession with a notes reason. The combined behaviour
+// the audit trail relies on is:
+//
+//  1. The reopen does not create an audit edit (it preserves Status).
+//  2. The follow-up UpdateSession produces a FieldStatus edit whose old/new
+//     values match the chosen flip and whose Reason carries the user's text.
+//
+// This complements the unit tests that cover each step in isolation
+// (TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus and
+// TestWSUpdateSession_StatusChange) by locking in the cross-call behaviour.
+func TestWSReopenThenUpdateSession_EmitsFieldStatusEdit(t *testing.T) {
+	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
+	ctx := context.Background()
+	staffID := int64(100)
+	sessionID := int64(7)
+	checkOut := time.Now().Add(-1 * time.Hour)
+
+	current := &activeModels.WorkSession{
+		Model:          base.Model{ID: sessionID},
+		StaffID:        staffID,
+		CheckInTime:    time.Now().Add(-4 * time.Hour),
+		CheckOutTime:   &checkOut,
+		AutoCheckedOut: true,
+		Status:         activeModels.WorkSessionStatusPresent,
+		Source:         activeModels.WorkSessionSourceApp,
+		Date:           time.Now().Truncate(24 * time.Hour),
+		CreatedBy:      staffID,
+	}
+
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
+		return current, nil
+	}
+	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
+		return current, nil
+	}
+	sessionRepo.updateFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		current = entity
+		return nil
+	}
+
+	var auditCalls int
+	var capturedEdits []*auditModels.WorkSessionEdit
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+		auditCalls++
+		capturedEdits = append(capturedEdits, edits...)
+		return nil
+	}
+
+	// Step 1: reopen at existing status — no audit edit.
+	reopened, err := svc.CheckIn(ctx, staffID,
+		activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
+	require.NoError(t, err)
+	require.NotNil(t, reopened)
+	require.Nil(t, reopened.CheckOutTime, "reopen must clear CheckOutTime")
+	assert.Equal(t, 0, auditCalls, "reopen alone must not emit audit edits")
+
+	// Step 2: route the actual status flip through UpdateSession with reason.
+	newStatus := activeModels.WorkSessionStatusHomeOffice
+	reason := "Mittags ins Homeoffice gewechselt"
+	updated, err := svc.UpdateSession(ctx, staffID, sessionID, SessionUpdateRequest{
+		Status: &newStatus,
+		Notes:  &reason,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+
+	require.GreaterOrEqual(t, auditCalls, 1, "UpdateSession must emit an audit batch")
+	var statusEdit *auditModels.WorkSessionEdit
+	for _, e := range capturedEdits {
+		if e.FieldName == auditModels.FieldStatus {
+			statusEdit = e
+			break
+		}
+	}
+	require.NotNil(t, statusEdit, "audit batch must contain a FieldStatus edit")
+	require.NotNil(t, statusEdit.OldValue)
+	require.NotNil(t, statusEdit.NewValue)
+	assert.Equal(t, activeModels.WorkSessionStatusPresent, *statusEdit.OldValue,
+		"FieldStatus old value reflects the pre-update status")
+	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, *statusEdit.NewValue,
+		"FieldStatus new value reflects the requested flip")
+	require.NotNil(t, statusEdit.Notes,
+		"FieldStatus edit must carry the user-supplied reason in Notes")
+	assert.Equal(t, reason, *statusEdit.Notes)
+}
+
 func TestWSCheckIn_RepoError(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 

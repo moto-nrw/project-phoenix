@@ -347,21 +347,23 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 
 	row := svc.sessionToRow(sr)
 
-	require.Len(t, row, 8)
-	assert.Equal(t, "15.01.2024", row[0])    // Datum
-	assert.Equal(t, "Montag", row[1])        // Wochentag
-	assert.Equal(t, "08:30", row[2])         // Start
-	assert.Equal(t, "17:15", row[3])         // Ende
-	assert.Equal(t, "45", row[4])            // Pause
-	assert.Equal(t, "8h 00min", row[5])      // Netto
-	assert.Equal(t, "Vor Ort (App)", row[6]) // Quelle (Issue #1368)
-	assert.Equal(t, "Regular day", row[7])   // Bemerkungen
+	require.Len(t, row, 9)
+	assert.Equal(t, "15.01.2024", row[0])  // Datum
+	assert.Equal(t, "Montag", row[1])      // Wochentag
+	assert.Equal(t, "08:30", row[2])       // Start
+	assert.Equal(t, "17:15", row[3])       // Ende
+	assert.Equal(t, "45", row[4])          // Pause
+	assert.Equal(t, "8h 00min", row[5])    // Netto
+	assert.Equal(t, "Vor Ort", row[6])     // Status (Issue #1368)
+	assert.Equal(t, "App", row[7])         // Quelle (Issue #1368)
+	assert.Equal(t, "Regular day", row[8]) // Bemerkungen
 }
 
 func TestWSSessionToRow_NFC(t *testing.T) {
 	// Issue #1368: an NFC-stamped session must be distinguishable from an
-	// App-stamped one in the export. Both have status=present, so the label
-	// has to read source.
+	// App-stamped one in the export. Status and Quelle are now in separate
+	// columns (Status row[6], Quelle row[7]) so the channel survives even
+	// when system events overlay the Quelle cell.
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
@@ -379,7 +381,8 @@ func TestWSSessionToRow_NFC(t *testing.T) {
 	}
 
 	row := svc.sessionToRow(sr)
-	assert.Equal(t, "Vor Ort (NFC)", row[6])
+	assert.Equal(t, "Vor Ort", row[6])
+	assert.Equal(t, "NFC", row[7])
 }
 
 func TestWSSessionToRow_NoCheckOut(t *testing.T) {
@@ -424,12 +427,15 @@ func TestWSSessionToRow_HomeOffice(t *testing.T) {
 
 	row := svc.sessionToRow(sr)
 
-	assert.Equal(t, "Homeoffice (App)", row[6]) // Quelle (Issue #1368)
+	assert.Equal(t, "Homeoffice", row[6]) // Status (Issue #1368)
+	assert.Equal(t, "App", row[7])        // Quelle (Issue #1368)
 }
 
 func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
-	// Issue #1368: Auto-Checkout wins over the chosen status because it tells
-	// the OGS-Leitung the session was closed by the scheduler, not the staff.
+	// Issue #1368: Auto-Checkout overlays the Quelle cell so the
+	// OGS-Leitung sees the session was closed by the scheduler. Status
+	// remains the underlying work mode — Vor Ort is preserved here even
+	// though Quelle is "Auto-Checkout".
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
@@ -450,12 +456,14 @@ func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
 	}
 
 	row := svc.sessionToRow(sr)
-	assert.Equal(t, "Auto-Checkout", row[6])
+	assert.Equal(t, "Vor Ort", row[6], "Status survives Auto-Checkout overlay")
+	assert.Equal(t, "Auto-Checkout", row[7])
 }
 
 func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
-	// Issue #1368: a manual correction is the strongest signal — it overrides
-	// both Auto-Checkout and the underlying status. EditCount > 0 wins.
+	// Issue #1368: a manual correction overlays Quelle, but Status still
+	// shows the underlying work mode (Homeoffice) — so the OGS-Leitung can
+	// see both the corrected-state signal AND what the staff actually did.
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
@@ -474,7 +482,8 @@ func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
 	}
 
 	row := svc.sessionToRow(sr)
-	assert.Equal(t, "Manuell korrigiert", row[6])
+	assert.Equal(t, "Homeoffice", row[6], "Status survives Manuell-korrigiert overlay")
+	assert.Equal(t, "Manuell korrigiert", row[7])
 }
 
 func TestWSSessionToRow_NetMinutesFormatting(t *testing.T) {
@@ -571,14 +580,16 @@ func TestWSExportCSV_Headers(t *testing.T) {
 	require.Len(t, records, 1) // Only header
 
 	header := records[0]
+	require.Len(t, header, 9) // Issue #1368: split "Ort" into Status + Quelle
 	assert.Equal(t, "Datum", header[0])
 	assert.Equal(t, "Wochentag", header[1])
 	assert.Equal(t, "Start", header[2])
 	assert.Equal(t, "Ende", header[3])
 	assert.Equal(t, "Pause (Min)", header[4])
 	assert.Equal(t, "Netto (Std)", header[5])
-	assert.Equal(t, "Quelle", header[6]) // Issue #1368: was "Ort"
-	assert.Equal(t, "Bemerkungen", header[7])
+	assert.Equal(t, "Status", header[6]) // Issue #1368: was part of "Ort"
+	assert.Equal(t, "Quelle", header[7]) // Issue #1368: split out
+	assert.Equal(t, "Bemerkungen", header[8])
 }
 
 func TestWSExportCSV_UTF8BOM(t *testing.T) {

@@ -74,6 +74,14 @@ func init() {
 //     window and fall through to 'app'. Sanity-check `SELECT now()` vs
 //     the app server clock before running this in prod.
 //
+//   - Supervisor rows have shorter lifetimes than work_sessions:
+//     active.group_supervisors rows are deleted when the activity ends
+//     (no soft-delete column). Any historical NFC stamp whose paired
+//     supervisor row is already gone at migration time falls through to
+//     'app'. Acceptable for a one-shot best-effort backfill — labels are
+//     advisory for pre-existing rows, and forward writes set source
+//     explicitly.
+//
 // Any rows the heuristic does not match — and all future inserts that do
 // not specify source — fall back to 'app', matching the DB DEFAULT below.
 // The DEFAULT is correct going forward because new code paths must pass

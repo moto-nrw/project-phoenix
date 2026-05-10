@@ -3574,20 +3574,29 @@ function TimeTrackingContent() {
         toast.success("Erfolgreich eingestempelt");
       } catch (err) {
         const apiErr = err as ApiError;
-        if (
-          apiErr.code === REOPEN_STATUS_CONFLICT_CODE &&
-          todayCheckedOutSession
-        ) {
-          // Audit-trail gate: silent status change on reopen is forbidden.
-          // Surface the prompt; the user supplies a reason and we route
-          // the change through UpdateSession (which emits a FieldStatus
-          // edit). See work_session_service.go ReopenStatusConflictError.
-          setReopenStatusChangeReason("");
-          setPendingReopenStatusChange({
-            sessionId: todayCheckedOutSession.id,
-            existingStatus: todayCheckedOutSession.status as SessionStatus,
-            requestedStatus: status,
+        if (apiErr.code === REOPEN_STATUS_CONFLICT_CODE) {
+          if (todayCheckedOutSession) {
+            // Audit-trail gate: silent status change on reopen is forbidden.
+            // Surface the prompt; the user supplies a reason and we route
+            // the change through UpdateSession (which emits a FieldStatus
+            // edit). See work_session_service.go ReopenStatusConflictError.
+            setReopenStatusChangeReason("");
+            setPendingReopenStatusChange({
+              sessionId: todayCheckedOutSession.id,
+              existingStatus: todayCheckedOutSession.status as SessionStatus,
+              requestedStatus: status,
+            });
+            return;
+          }
+          // SWR hasn't loaded today's history yet — we can't open the
+          // reason modal without the session id. Tell the user explicitly
+          // rather than swallowing the conflict behind a generic error.
+          logger.warn("reopen_conflict_missing_history", {
+            requested_status: status,
           });
+          toast.error(
+            "Heute liegt bereits eine Sitzung vor. Bitte kurz warten und erneut versuchen.",
+          );
           return;
         }
         logger.error("check_in_failed", {

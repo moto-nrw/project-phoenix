@@ -895,7 +895,7 @@ func (s *workSessionService) exportCSV(rows []exportRow) ([]byte, error) {
 	w.Comma = ';'
 
 	// Header
-	if err := w.Write([]string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Quelle", "Bemerkungen"}); err != nil {
+	if err := w.Write([]string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Status", "Quelle", "Bemerkungen"}); err != nil {
 		return nil, fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
@@ -928,7 +928,7 @@ func (s *workSessionService) exportXLSX(rows []exportRow) ([]byte, error) {
 		_ = f.DeleteSheet("Sheet1")
 	}
 
-	headers := []string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Quelle", "Bemerkungen"}
+	headers := []string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Status", "Quelle", "Bemerkungen"}
 
 	// Header style
 	headerStyle, _ := f.NewStyle(&excelize.Style{
@@ -985,11 +985,21 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	m := netMins % 60
 	netto := fmt.Sprintf("%dh %02dmin", h, m)
 
-	// Quelle (source) collapses channel and status into one column.
-	// Priority: any manual edit wins over auto-checkout, which wins over the
-	// session's recorded source+status — because corrections are the most
-	// useful signal for the OGS-Leitung when reading the export.
-	quelle := quelleLabel(sess.Source, sess.Status)
+	// Status carries the underlying work mode and is never overwritten by
+	// system events — the OGS-Leitung must always be able to see whether
+	// the row was Vor Ort or Homeoffice, even if the session was later
+	// auto-closed or manually corrected.
+	status := "Vor Ort"
+	if sess.Status == activeModels.WorkSessionStatusHomeOffice {
+		status = "Homeoffice"
+	}
+
+	// Quelle records the originating channel, with system-event overlays:
+	// a manual correction is the most informative signal and wins; an
+	// auto-checkout still tells the reader the session was closed by the
+	// scheduler rather than the staff member; otherwise the persisted
+	// source (App / NFC) is shown verbatim.
+	quelle := quelleLabel(sess.Source)
 	if sess.AutoCheckedOut {
 		quelle = "Auto-Checkout"
 	}
@@ -997,21 +1007,18 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 		quelle = "Manuell korrigiert"
 	}
 
-	return []string{datum, wochentag, start, ende, pauseMin, netto, quelle, sess.Notes}
+	return []string{datum, wochentag, start, ende, pauseMin, netto, status, quelle, sess.Notes}
 }
 
-// quelleLabel renders the export "Quelle" cell from the persisted source +
-// status. NFC is the only non-default channel; anything else (including the
-// zero value on legacy rows) renders as App, matching the DB column default.
-func quelleLabel(source, status string) string {
-	channel := "App"
+// quelleLabel renders the export "Quelle" cell from the persisted source.
+// NFC is the only non-default channel; anything else (including the zero
+// value on legacy rows the migration heuristic missed) renders as App,
+// matching the DB column default.
+func quelleLabel(source string) string {
 	if source == activeModels.WorkSessionSourceNFC {
-		channel = "NFC"
+		return "NFC"
 	}
-	if status == activeModels.WorkSessionStatusHomeOffice {
-		return fmt.Sprintf("Homeoffice (%s)", channel)
-	}
-	return fmt.Sprintf("Vor Ort (%s)", channel)
+	return "App"
 }
 
 // AutoEndExpiredBreaks ends all breaks whose planned_end_time has passed
