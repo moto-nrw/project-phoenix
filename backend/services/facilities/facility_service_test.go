@@ -1,6 +1,7 @@
 package facilities_test
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,24 +16,35 @@ import (
 	"github.com/uptrace/bun"
 )
 
+var facilityTenantCounter int64 = time.Now().UnixNano()
+
+func createFacilityTestTenant(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+
+	tenantID := atomic.AddInt64(&facilityTenantCounter, 1)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	return tenantID
+}
+
 // createRoomWithExactName creates a room with the exact given name (no timestamp suffix).
 // Use this for system room tests where the name must match constants exactly.
 // Cleans up any pre-existing room with the same name first to avoid unique constraint violations.
-func createRoomWithExactName(t *testing.T, db *bun.DB, name string) *facilities.Room {
+func createRoomWithExactName(t *testing.T, db *bun.DB, tenantID int64, name string) *facilities.Room {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.TenantContext(tenantID)
 
 	// Clean up any pre-existing room with this exact name (from crashed tests or seed data)
 	_, _ = db.NewDelete().
 		TableExpr("facilities.rooms").
-		Where("name = ? AND tenant_id = 1", name).
+		Where("name = ? AND tenant_id = ?", name, tenantID).
 		Exec(ctx)
 
 	room := &facilities.Room{
 		Name:     name,
 		Building: "Test Building",
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(tenantID)
 	err := db.NewInsert().
 		Model(room).
 		ModelTableExpr(`facilities.rooms`).
@@ -42,9 +54,9 @@ func createRoomWithExactName(t *testing.T, db *bun.DB, name string) *facilities.
 }
 
 // cleanupRoom removes a room by ID.
-func cleanupRoom(t *testing.T, db *bun.DB, roomID int64) {
+func cleanupRoom(t *testing.T, db *bun.DB, tenantID int64, roomID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.TenantContext(tenantID)
 	_, _ = db.NewDelete().
 		TableExpr("facilities.rooms").
 		Where("id = ?", roomID).
@@ -380,8 +392,10 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 
 	t.Run("blocks renaming system room Schulhof", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.SchulhofRoomName
-		room := createRoomWithExactName(t, db, "Schulhof")
-		defer cleanupRoom(t, db, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Name = "Spielplatz"
 
@@ -395,8 +409,10 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 
 	t.Run("allows updating other properties of system room", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.WCRoomName
-		room := createRoomWithExactName(t, db, "WC")
-		defer cleanupRoom(t, db, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		room := createRoomWithExactName(t, db, tenantID, "WC")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newCapacity := 25
 		room.Capacity = &newCapacity
@@ -494,8 +510,10 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 
 	t.Run("blocks deletion of system room Schulhof", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.SchulhofRoomName
-		room := createRoomWithExactName(t, db, "Schulhof")
-		defer cleanupRoom(t, db, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)
@@ -507,8 +525,10 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 
 	t.Run("blocks deletion of system room WC", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.WCRoomName
-		room := createRoomWithExactName(t, db, "WC")
-		defer cleanupRoom(t, db, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		room := createRoomWithExactName(t, db, tenantID, "WC")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)

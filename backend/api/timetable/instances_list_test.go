@@ -1,0 +1,415 @@
+// Hermetic integration tests for the WP-F2 prerequisite GET /instances
+// endpoint. Mirrors gaps_test.go: handler is mounted without the JWT and
+// TenantTx middleware; tenant context is injected via a thin wrapper.
+package timetable
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
+	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+type listSetup struct {
+	res       *Resource
+	db        *bun.DB
+	ctx       context.Context
+	roomID    int64
+	cleanupFn func()
+}
+
+func buildListSetup(t *testing.T) *listSetup {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("List-Room-%d", suffix))
+
+	cleanup := func() {
+		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
+	}
+
+	res := NewResource(Dependencies{
+		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
+		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
+		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
+		ActiveGroupRepo:      activeRepo.NewGroupRepository(db),
+		SupervisorRepo:       activeRepo.NewGroupSupervisorRepository(db),
+		VisitRepo:            activeRepo.NewVisitRepository(db),
+		RoomRepo:             facilitiesRepo.NewRoomRepository(db),
+		ActivityGroupRepo:    activitiesRepo.NewGroupRepository(db),
+		DB:                   db,
+	})
+
+	return &listSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
+}
+
+func listRouter(parentCtx context.Context, res *Resource) chi.Router {
+	tenantID := tenant.FromContext(parentCtx)
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			next.ServeHTTP(w, req.WithContext(ctx))
+		})
+	})
+	r.Get("/instances", res.listInstances)
+	return r
+}
+
+func doList(t *testing.T, router chi.Router, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func decodeList(t *testing.T, w *httptest.ResponseRecorder) weeklyInstancesResponse {
+	t.Helper()
+	var env struct {
+		Status string          `json:"status"`
+		Data   json.RawMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &env), "body=%s", w.Body.String())
+	require.Equal(t, "success", env.Status, "body=%s", w.Body.String())
+	var out weeklyInstancesResponse
+	require.NoError(t, json.Unmarshal(env.Data, &out))
+	return out
+}
+
+func listFutureDate(offsetDays int) (string, time.Time) {
+	d := time.Now().AddDate(0, 0, offsetDays)
+	return d.Format("2006-01-02"), time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func TestListInstances_Empty(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+	router := listRouter(s.ctx, s.res)
+
+	from, _ := listFutureDate(1)
+	to, _ := listFutureDate(7)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	assert.Equal(t, from, got.From)
+	assert.Equal(t, to, got.To)
+	assert.Empty(t, got.Instances)
+}
+
+func TestListInstances_HappyPath(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "12:00", EndHHMM: "12:50", Title: "Mensa-List-Test",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	item := got.Instances[0]
+	assert.Equal(t, inst.ID, item.ID)
+	assert.Equal(t, "Mensa-List-Test", item.Title)
+	assert.Equal(t, "12:00", item.StartTime)
+	assert.Equal(t, "12:50", item.EndTime)
+	assert.Equal(t, schedule.InstanceStatusPlanned, item.Status)
+	assert.False(t, item.IsLive, "no active group bridged → not live")
+	assert.False(t, item.IsSpontaneous)
+	// Spontaneous instances without an activity_group fall back to "activity"
+	// type so the frontend has a deterministic colour key.
+	assert.NotEmpty(t, item.ActivityType)
+	assert.Equal(t, s.roomID, item.RoomID)
+	assert.NotEmpty(t, item.RoomName, "room name should resolve via RoomRepo")
+	assert.Empty(t, item.Staff)
+	assert.Empty(t, item.Students)
+	assert.Empty(t, item.ConflictWarnings)
+	assert.Equal(t, 0, item.StaffCount)
+	assert.Equal(t, 0, item.ExpectedStudentsCount)
+	assert.Equal(t, 0, item.PresentStudentsCount)
+}
+
+func TestListInstances_CompletedBridgeIsNotLive(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+	template := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("List-Live-Template-%d", time.Now().UnixNano()))
+	activeGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, s.db, tenant.FromContext(s.ctx), template.ID, s.roomID)
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &template.ID,
+		ActiveGroupID:   &activeGroup.ID,
+		Status:          schedule.InstanceStatusCompleted,
+		StartHHMM:       "12:00",
+		EndHHMM:         "13:00",
+		Title:           "Completed historical bridge",
+	})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", activeGroup.ID)
+		testpkg.CleanupActivityFixtures(t, s.db, template.ID)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	assert.Equal(t, schedule.InstanceStatusCompleted, got.Instances[0].Status)
+	assert.False(t, got.Instances[0].IsLive)
+}
+
+func TestListInstances_StaffAndStudentCounts(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "13:00", EndHHMM: "14:00", Title: "Lernzeit-List-Test",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	suffix := time.Now().UnixNano()
+	staff1 := testpkg.CreateTestStaff(t, s.db, "Mueller", fmt.Sprintf("ListA-%d", suffix))
+	staff2 := testpkg.CreateTestStaff(t, s.db, "Klein", fmt.Sprintf("ListB-%d", suffix))
+	student1 := testpkg.CreateTestStudent(t, s.db, "Anna", fmt.Sprintf("Pupil-%d-A", suffix), "1a")
+	student2 := testpkg.CreateTestStudent(t, s.db, "Ben", fmt.Sprintf("Pupil-%d-B", suffix), "1a")
+
+	row1 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	is1 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected)
+	is2 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
+
+	t.Cleanup(func() {
+		testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID)
+		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is1.ID, is2.ID)
+		testpkg.CleanupActivityFixtures(t, s.db, student1.ID, staff1.ID, 0, 0, 0)
+		testpkg.CleanupActivityFixtures(t, s.db, student2.ID, staff2.ID, 0, 0, 0)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	item := got.Instances[0]
+	assert.Equal(t, 2, item.StaffCount, "both staff rows are counted")
+	assert.Equal(t, 1, item.AbsentStaffCount, "is_absent staff are flagged in the count")
+	assert.Equal(t, 1, item.ExpectedStudentsCount, "AttendanceStatusExpected counted as expected")
+	assert.Equal(t, 1, item.PresentStudentsCount, "AttendanceStatusPresent counted as present")
+	require.Len(t, item.Staff, 2)
+	// Order is non-deterministic; assert presence by id.
+	staffByID := map[int64]instanceStaffSummary{}
+	for _, s := range item.Staff {
+		staffByID[s.StaffID] = s
+	}
+	require.Contains(t, staffByID, staff1.ID)
+	require.Contains(t, staffByID, staff2.ID)
+	assert.True(t, staffByID[staff1.ID].IsPrimary)
+	assert.False(t, staffByID[staff1.ID].IsAbsent)
+	assert.True(t, staffByID[staff2.ID].IsAbsent)
+	assert.ElementsMatch(t, []int64{student1.ID, student2.ID}, item.StudentIDs)
+	require.Len(t, item.Students, 2)
+	studentByID := map[int64]instanceStudentSummary{}
+	for _, row := range item.Students {
+		studentByID[row.StudentID] = row
+	}
+	require.Contains(t, studentByID, student1.ID)
+	require.Contains(t, studentByID, student2.ID)
+	assert.Equal(t, schedule.AttendanceStatusExpected, studentByID[student1.ID].Status)
+	assert.Equal(t, schedule.AttendanceStatusPresent, studentByID[student2.ID].Status)
+}
+
+func TestListInstances_IncludesPlannedConflictWarnings(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(0)
+	to, _ := listFutureDate(7)
+
+	suffix := time.Now().UnixNano()
+	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("Conflict-Category-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, s.db, "Conflict", fmt.Sprintf("Creator-%d", suffix))
+	group := &activitiesModels.Group{
+		Name:            fmt.Sprintf("Conflict-Group-%d", suffix),
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      category.ID,
+		CreatedBy:       &staff.ID,
+	}
+	group.SetTenantID(1)
+	_, err := s.db.NewInsert().
+		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	activeGroup := testpkg.CreateTestActiveGroup(t, s.db, group.ID, s.roomID)
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "15:00", EndHHMM: "16:00", Title: "Room-Conflict-List-Test",
+	})
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", activeGroup.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.categories", category.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.staff", staff.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.persons", staff.PersonID)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	warnings := got.Instances[0].ConflictWarnings
+	require.Len(t, warnings, 1)
+	assert.Equal(t, "room", warnings[0].Kind)
+	assert.Equal(t, s.roomID, warnings[0].ResourceID)
+	assert.True(t, warnings[0].CanOverride)
+}
+
+func TestListInstances_DateValidation(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+	router := listRouter(s.ctx, s.res)
+
+	cases := []struct {
+		name string
+		path string
+	}{
+		{"missing from", "/instances?to=2026-09-26"},
+		{"missing to", "/instances?from=2026-09-22"},
+		{"invalid from format", "/instances?from=22-09-2026&to=2026-09-26"},
+		{"invalid to format", "/instances?from=2026-09-22&to=09-26-2026"},
+		{"to before from", "/instances?from=2026-09-26&to=2026-09-22"},
+		{"range exceeds 56 days", "/instances?from=2026-01-01&to=2026-04-01"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := doList(t, router, tc.path)
+			assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+		})
+	}
+}
+
+func TestListInstances_IsLive(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(0)
+	to, _ := listFutureDate(7)
+
+	suffix := time.Now().UnixNano()
+	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("Live-Category-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, s.db, "Live", fmt.Sprintf("Creator-%d", suffix))
+	group := &activitiesModels.Group{
+		Name:            fmt.Sprintf("Live-Group-%d", suffix),
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      category.ID,
+		CreatedBy:       &staff.ID,
+	}
+	group.SetTenantID(1)
+	_, err := s.db.NewInsert().
+		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	activeGroup := testpkg.CreateTestActiveGroup(t, s.db, group.ID, s.roomID)
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM:     "10:00",
+		EndHHMM:       "11:00",
+		Title:         "Live-Test",
+		Status:        schedule.InstanceStatusActive,
+		ActiveGroupID: &activeGroup.ID,
+	})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", activeGroup.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.categories", category.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.staff", staff.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.persons", staff.PersonID)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	assert.True(t, got.Instances[0].IsLive, "instance with active_group_id should be live")
+	assert.Equal(t, schedule.InstanceStatusActive, got.Instances[0].Status)
+}
+
+func TestListInstances_SortedByDateAndStartTime(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	day2 := fromDate.AddDate(0, 0, 1)
+
+	// Insert in non-chronological order to exercise the repo's ORDER BY.
+	inst3 := testpkg.CreateTestActivityInstance(t, s.db, day2, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "12:00", EndHHMM: "13:00", Title: "Day2-12",
+	})
+	inst1 := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "12:00", EndHHMM: "13:00", Title: "Day1-12",
+	})
+	inst2 := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Day1-14",
+	})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID, inst3.ID)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 3)
+	assert.Equal(t, "Day1-12", got.Instances[0].Title)
+	assert.Equal(t, "Day1-14", got.Instances[1].Title)
+	assert.Equal(t, "Day2-12", got.Instances[2].Title)
+}

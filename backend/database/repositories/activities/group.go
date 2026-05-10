@@ -96,7 +96,8 @@ func (r *GroupRepository) FindAllTemplates(ctx context.Context) ([]*activities.G
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
-		Where(`"group".is_template = ?`, true)
+		Where(`"group".is_template = ?`, true).
+		Where(`"group".archived_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
 		query = query.Where(where, val)

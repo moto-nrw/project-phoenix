@@ -15,6 +15,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/settings-api", () => ({
+  SETTINGS_SCHEMA_SWR_KEY: "settings-schema",
   fetchSettingsSchema: () => mockFetchSchema(),
   setSettingValue: (_k: string, _v: unknown) => mockSetSettingValue(),
   resetSettingValue: (_k: string) => mockResetSettingValue(),

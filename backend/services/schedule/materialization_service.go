@@ -70,6 +70,12 @@ const (
 // one bucket per (template, schedule, target_date) tuple. InstancesCreated is
 // the only bucket that produced a database row; every "Skipped*" bucket is a
 // reason why a candidate was passed over and is safe to surface in the UI.
+//
+// Warnings collects soft, non-error conditions the caller should surface in
+// the UI — e.g. "tenant has no active period" or "tenant has no templates".
+// They are produced when a precondition is unmet and the run effectively
+// no-ops; without them the admin sees `created:0, skipped_*:0` and has no way
+// to tell why.
 type MaterializationResult struct {
 	From                        time.Time
 	To                          time.Time
@@ -82,8 +88,24 @@ type MaterializationResult struct {
 	CandidatesRaced             int // UNIQUE violation absorbed (concurrent run won the insert)
 	InstanceStudentsCreated     int
 	InstanceStaffCreated        int
+	Warnings                    []MaterializationWarning
 	DurationMS                  int64
 }
+
+// MaterializationWarning is a typed, UI-ready hint about a precondition.
+// Code is a stable machine-readable discriminant; Message is German for
+// direct display in the admin toast.
+type MaterializationWarning struct {
+	Code    string
+	Message string
+}
+
+// Warning codes — keep in sync with the frontend MaterializeWarning union
+// in lib/timetable-types.ts.
+const (
+	MaterializationWarningCodeNoActivePeriod = "no_active_period"
+	MaterializationWarningCodeNoTemplates    = "no_templates"
+)
 
 // MaterializationService drives conversion of templates into activity_instances.
 type MaterializationService interface {
@@ -212,7 +234,13 @@ func (s *materializationService) MaterializeForTenant(
 	}
 	if len(periods) == 0 {
 		// Graceful no-op: no active period means A/B resolution has no anchor
-		// and unbounded templates have nothing to scope against.
+		// and unbounded templates have nothing to scope against. Surface a
+		// typed warning so the UI can prompt the admin instead of showing
+		// a misleading "0 angelegt" success toast.
+		result.Warnings = append(result.Warnings, MaterializationWarning{
+			Code:    MaterializationWarningCodeNoActivePeriod,
+			Message: "Keine aktive Kalenderperiode hinterlegt — der Plan kann nicht materialisiert werden.",
+		})
 		s.finishLog(tenantID, source, result, start)
 		return result, nil
 	}
@@ -222,6 +250,13 @@ func (s *materializationService) MaterializeForTenant(
 		return nil, &ScheduleError{Op: "materialize for tenant: load templates", Err: err}
 	}
 	if len(templates) == 0 {
+		// Periods exist but no recurring activities yet. Distinct warning so
+		// the UI can guide the admin to "+ Wiederkehrende Aktivität" rather
+		// than the period editor.
+		result.Warnings = append(result.Warnings, MaterializationWarning{
+			Code:    MaterializationWarningCodeNoTemplates,
+			Message: "Keine wiederkehrenden Aktivitäten hinterlegt — lege eine Vorlage an.",
+		})
 		s.finishLog(tenantID, source, result, start)
 		return result, nil
 	}
@@ -340,14 +375,9 @@ func (s *materializationService) materializeTemplate(
 				continue
 			}
 
-			// schedule.timeframes stores start/end as TIMESTAMPTZ, so
-			// tf.StartTime carries a timezone (typically the server's local
-			// zone). schedule.activity_instances.start_time is plain TIME,
-			// which is wall-clock only. Passing the tz-aware value directly
-			// causes bun to serialize via UTC — "08:00 CEST" would land as
-			// "06:00" in the TIME column. Extract the wall-clock components
-			// in the timeframe's OWN location and rebuild as UTC so both
-			// sides of the round-trip agree.
+			// Both schedule.timeframes and schedule.activity_instances store
+			// clock values as SQL TIME. Normalise through WallClock anyway so
+			// driver-specific date anchors never affect comparisons or writes.
 			base := materialParams{
 				StartTime: extractTimeOfDay(tf.StartTime),
 				EndTime:   extractTimeOfDay(*tf.EndTime),
@@ -432,10 +462,20 @@ func (s *materializationService) copyEnrollments(
 	periodID int64,
 	result *MaterializationResult,
 ) error {
+	seen := make(map[int64]struct{}, len(enrollments))
 	for _, e := range enrollments {
 		if !isEnrollmentValidOn(e, date, periodID) {
 			continue
 		}
+		if _, dup := seen[e.StudentID]; dup {
+			s.getLogger().Warn("student listed twice on template — skipping duplicate",
+				slog.Int64("instance_id", instanceID),
+				slog.Int64("student_id", e.StudentID),
+				slog.String("date", date.Format("2006-01-02")),
+			)
+			continue
+		}
+		seen[e.StudentID] = struct{}{}
 		row := &schedule.InstanceStudent{
 			InstanceID: instanceID,
 			StudentID:  e.StudentID,
@@ -457,10 +497,25 @@ func (s *materializationService) copySupervisors(
 	periodID int64,
 	result *MaterializationResult,
 ) error {
+	// `unique_instance_staff (instance_id, staff_id)` rejects the same staff
+	// on the same instance twice. Same staff on *different* instances at the
+	// same time is a separate concept — surfaced by the conflict_warnings
+	// system, not blocked here. Dedupe the input so a duplicate supervisor
+	// row in `supervisors_planned` does not crash the whole materialization.
+	seen := make(map[int64]struct{}, len(supervisors))
 	for _, sup := range supervisors {
 		if !isSupervisorValidOn(sup, date, periodID) {
 			continue
 		}
+		if _, dup := seen[sup.StaffID]; dup {
+			s.getLogger().Warn("supervisor listed twice on template — skipping duplicate",
+				slog.Int64("instance_id", instanceID),
+				slog.Int64("staff_id", sup.StaffID),
+				slog.String("date", date.Format("2006-01-02")),
+			)
+			continue
+		}
+		seen[sup.StaffID] = struct{}{}
 		row := &schedule.InstanceStaff{
 			InstanceID:   instanceID,
 			StaffID:      sup.StaffID,

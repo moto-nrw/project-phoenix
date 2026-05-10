@@ -35,6 +35,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -51,6 +52,11 @@ var (
 	// this to 409. The error message carries the current status so clients
 	// can show a useful diagnostic without re-fetching.
 	ErrInvalidInstanceTransition = errors.New("invalid instance transition")
+
+	// ErrInvalidInstanceReference is returned when a caller supplies a
+	// tenant-scoped foreign id that does not resolve in the current tenant.
+	// Handlers map this to 400.
+	ErrInvalidInstanceReference = errors.New("invalid instance reference")
 )
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -65,7 +71,44 @@ type InstanceService interface {
 	Start(ctx context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error)
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
+	DeleteCancelled(ctx context.Context, instanceID int64) error
 	ReplanWeek(ctx context.Context, from, to time.Time) (*ReplanWeekResult, error)
+	Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error)
+	UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error)
+}
+
+// CreateInstanceInput bundles the fields needed to insert a fresh instance
+// (spontaneous or scheduled) outside the materialization flow.
+//
+// IsSpontaneous is computed from ActivityGroupID: when nil the instance is
+// purely free-form; when set it is bound to a template (e.g. an
+// admin-scheduled extra Yoga slot using the existing Yoga template's
+// metadata, but on a date that materialization would not have emitted).
+type CreateInstanceInput struct {
+	Date             time.Time // YYYY-MM-DD anchored at UTC midnight
+	StartTime        time.Time // 2000-01-01 HH:MM in UTC
+	EndTime          time.Time // 2000-01-01 HH:MM in UTC
+	Title            string
+	Description      *string
+	Notes            *string
+	RoomID           int64
+	ActivityGroupID  *int64
+	StaffIDs         []int64
+	StudentIDs       []int64
+	CreatedByStaffID *int64
+}
+
+type UpdateInstanceInput struct {
+	Date            time.Time
+	StartTime       time.Time
+	EndTime         time.Time
+	Title           string
+	Description     *string
+	Notes           *string
+	RoomID          int64
+	ActivityGroupID *int64
+	StaffIDs        []int64
+	StudentIDs      []int64
 }
 
 // StartInstanceResult bundles what the start endpoint returns. ActiveGroupID
@@ -86,8 +129,7 @@ type ReplanWeekResult struct {
 }
 
 // InstanceServiceDependencies aggregates wiring. All repo fields are required;
-// the optional-ish ones are Broadcaster (nil → no SSE), RoomRepo and
-// ActivityGroupRepo (nil → SSE lacks human-readable names, not a failure).
+// Broadcaster is optional (nil → no SSE).
 type InstanceServiceDependencies struct {
 	InstanceRepo      scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
@@ -97,6 +139,8 @@ type InstanceServiceDependencies struct {
 	VisitRepo         activeModel.VisitRepository
 	RoomRepo          facilitiesModel.RoomRepository
 	ActivityGroupRepo activitiesModel.GroupRepository
+	StaffRepo         usersModel.StaffRepository
+	StudentRepo       usersModel.StudentRepository
 	ActiveService     ActiveSessionEnder
 	Materialization   MaterializationService
 	Broadcaster       realtime.Broadcaster
@@ -108,13 +152,19 @@ type instanceService struct {
 	deps InstanceServiceDependencies
 }
 
+type tenantBroadcaster interface {
+	BroadcastToTenant(tenantID int64, event realtime.Event) error
+}
+
 // NewInstanceService constructs an InstanceService. Panics if a required
 // dependency is nil — the service has no sensible degraded mode for lifecycle
 // transitions, so the factory must wire it completely at startup.
 func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
-		deps.ActiveService == nil || deps.Materialization == nil || deps.DB == nil {
+		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
+		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
+		deps.DB == nil {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
 	return &instanceService{deps: deps}
@@ -306,6 +356,264 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*schedu
 	return instance, nil
 }
 
+// DeleteCancelled permanently removes a cancelled instance. Planned, active,
+// and completed instances stay protected: deleting those would hide scheduled
+// work, live sessions, or attendance history without the explicit cancellation
+// audit step.
+func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64) error {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return err
+	}
+	if instance.Status != scheduleModel.InstanceStatusCancelled {
+		return fmt.Errorf("%w: cannot delete instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+	if err := s.deps.InstanceRepo.Delete(ctx, instance.ID); err != nil {
+		return &ScheduleError{Op: "delete cancelled instance", Err: err}
+	}
+	s.getLogger().Info("cancelled instance deleted",
+		slog.Int64("tenant_id", tenant.FromContext(ctx)),
+		slog.Int64("instance_id", instance.ID),
+		slog.String("date", instance.Date.Format("2006-01-02")),
+	)
+	return nil
+}
+
+// Create inserts a new activity instance and optionally pre-assigns staff.
+// Spontaneity is derived from the absence of an ActivityGroupID — a value
+// of nil means there is no template binding, so is_spontaneous is set to
+// true. Conflict detection is intentionally not run here; the read-side
+// of the planner surfaces conflicts on the response, and surfacing them
+// in the create path would block admins from creating overlapping rows
+// they may explicitly want (e.g. parallel offers in different rooms).
+func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return nil, &ScheduleError{Op: "create instance", Err: errors.New("no tenant in context")}
+	}
+	if err := s.validateInstanceReferences(ctx, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, req.CreatedByStaffID); err != nil {
+		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
+	}
+
+	inst := &scheduleModel.ActivityInstance{
+		Date:            req.Date,
+		StartTime:       req.StartTime,
+		EndTime:         req.EndTime,
+		Title:           req.Title,
+		Description:     req.Description,
+		Notes:           req.Notes,
+		RoomID:          req.RoomID,
+		ActivityGroupID: req.ActivityGroupID,
+		Status:          scheduleModel.InstanceStatusPlanned,
+		IsSpontaneous:   req.ActivityGroupID == nil,
+		CreatedBy:       req.CreatedByStaffID,
+	}
+	inst.SetTenantID(tenantID)
+
+	if err := s.deps.InstanceRepo.Create(ctx, inst); err != nil {
+		return nil, &ScheduleError{Op: "create instance: insert", Err: err}
+	}
+
+	for _, staffID := range uniquePositiveInt64(req.StaffIDs) {
+		if staffID <= 0 {
+			continue
+		}
+		row := &scheduleModel.InstanceStaff{
+			InstanceID: inst.ID,
+			StaffID:    staffID,
+			// RoomID nil → uses instance.RoomID at runtime
+			IsPrimary: false,
+		}
+		row.SetTenantID(tenantID)
+		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
+			return nil, &ScheduleError{Op: "create instance: assign staff", Err: err}
+		}
+	}
+	for _, studentID := range uniquePositiveInt64(req.StudentIDs) {
+		if studentID <= 0 {
+			continue
+		}
+		row := &scheduleModel.InstanceStudent{
+			InstanceID: inst.ID,
+			StudentID:  studentID,
+			Status:     scheduleModel.AttendanceStatusExpected,
+		}
+		row.SetTenantID(tenantID)
+		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
+			return nil, &ScheduleError{Op: "create instance: assign student", Err: err}
+		}
+	}
+
+	s.getLogger().Info("instance created",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("instance_id", inst.ID),
+		slog.String("date", inst.Date.Format("2006-01-02")),
+		slog.Bool("spontaneous", inst.IsSpontaneous),
+		slog.Int("staff_assigned", len(req.StaffIDs)),
+	)
+
+	return inst, nil
+}
+
+func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if instance.Status != scheduleModel.InstanceStatusPlanned {
+		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+	if err := s.validateInstanceReferences(ctx, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
+		return nil, &ScheduleError{Op: "update instance: validate references", Err: err}
+	}
+
+	instance.Date = req.Date
+	instance.StartTime = req.StartTime
+	instance.EndTime = req.EndTime
+	instance.Title = req.Title
+	instance.Description = req.Description
+	instance.Notes = req.Notes
+	instance.RoomID = req.RoomID
+	instance.ActivityGroupID = req.ActivityGroupID
+	instance.IsSpontaneous = req.ActivityGroupID == nil
+
+	if err := s.updateLifecycleColumns(
+		ctx,
+		instance,
+		"date",
+		"start_time",
+		"end_time",
+		"title",
+		"description",
+		"notes",
+		"room_id",
+		"activity_group_id",
+		"is_spontaneous",
+	); err != nil {
+		return nil, &ScheduleError{Op: "update instance", Err: err}
+	}
+	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instance.ID); err != nil {
+		return nil, &ScheduleError{Op: "update instance: clear staff", Err: err}
+	}
+	if err := s.deps.InstanceStudents.DeleteByInstanceID(ctx, instance.ID); err != nil {
+		return nil, &ScheduleError{Op: "update instance: clear students", Err: err}
+	}
+	tenantID := tenant.FromContext(ctx)
+	for _, staffID := range uniquePositiveInt64(req.StaffIDs) {
+		if staffID <= 0 {
+			continue
+		}
+		row := &scheduleModel.InstanceStaff{InstanceID: instance.ID, StaffID: staffID}
+		row.SetTenantID(tenantID)
+		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
+			return nil, &ScheduleError{Op: "update instance: assign staff", Err: err}
+		}
+	}
+	for _, studentID := range uniquePositiveInt64(req.StudentIDs) {
+		if studentID <= 0 {
+			continue
+		}
+		row := &scheduleModel.InstanceStudent{
+			InstanceID: instance.ID,
+			StudentID:  studentID,
+			Status:     scheduleModel.AttendanceStatusExpected,
+		}
+		row.SetTenantID(tenantID)
+		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
+			return nil, &ScheduleError{Op: "update instance: assign student", Err: err}
+		}
+	}
+	return instance, nil
+}
+
+func (s *instanceService) validateInstanceReferences(
+	ctx context.Context,
+	roomID int64,
+	activityGroupID *int64,
+	staffIDs []int64,
+	studentIDs []int64,
+	createdByStaffID *int64,
+) error {
+	if roomID <= 0 {
+		return fmt.Errorf("%w: invalid room_id", ErrInvalidInstanceReference)
+	}
+	if room, err := s.deps.RoomRepo.FindByID(ctx, roomID); err != nil || room == nil {
+		if err != nil && !isNotFoundDBError(err) {
+			return fmt.Errorf("validate room_id: %w", err)
+		}
+		return fmt.Errorf("%w: invalid room_id", ErrInvalidInstanceReference)
+	}
+
+	if activityGroupID != nil {
+		if *activityGroupID <= 0 {
+			return fmt.Errorf("%w: invalid activity_group_id", ErrInvalidInstanceReference)
+		}
+		group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
+		if err != nil || group == nil {
+			if err != nil && !isNotFoundDBError(err) {
+				return fmt.Errorf("validate activity_group_id: %w", err)
+			}
+			return fmt.Errorf("%w: invalid activity_group_id", ErrInvalidInstanceReference)
+		}
+	}
+
+	uniqueStaffIDs := uniquePositiveInt64(staffIDs)
+	if len(uniqueStaffIDs) > 0 {
+		found, err := s.deps.StaffRepo.FindByIDs(ctx, uniqueStaffIDs)
+		if err != nil {
+			return fmt.Errorf("validate staff_ids: %w", err)
+		}
+		if len(found) != len(uniqueStaffIDs) {
+			return fmt.Errorf("%w: invalid staff_ids", ErrInvalidInstanceReference)
+		}
+	}
+
+	if createdByStaffID != nil {
+		if *createdByStaffID <= 0 {
+			return fmt.Errorf("%w: invalid created_by_staff_id", ErrInvalidInstanceReference)
+		}
+		staff, err := s.deps.StaffRepo.FindByID(ctx, *createdByStaffID)
+		if err != nil || staff == nil {
+			if err != nil && !isNotFoundDBError(err) {
+				return fmt.Errorf("validate created_by_staff_id: %w", err)
+			}
+			return fmt.Errorf("%w: invalid created_by_staff_id", ErrInvalidInstanceReference)
+		}
+	}
+
+	uniqueStudentIDs := uniquePositiveInt64(studentIDs)
+	if len(uniqueStudentIDs) > 0 {
+		found, err := s.deps.StudentRepo.FindByIDs(ctx, uniqueStudentIDs)
+		if err != nil {
+			return fmt.Errorf("validate student_ids: %w", err)
+		}
+		if len(found) != len(uniqueStudentIDs) {
+			return fmt.Errorf("%w: invalid student_ids", ErrInvalidInstanceReference)
+		}
+	}
+
+	return nil
+}
+
+func uniquePositiveInt64(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
 // updateLifecycleColumns writes only the named columns on the given instance.
 // Rationale: the bun pgdriver decodes TIME columns (start_time, end_time) as
 // year 0000 on read, and Postgres rejects year 0000 on write — so a
@@ -472,11 +780,19 @@ func (s *instanceService) broadcastInstanceEvent(
 				slog.String("error", err.Error()),
 			)
 		}
+	}
+	tenantScopedBroadcaster, ok := s.deps.Broadcaster.(tenantBroadcaster)
+	if !ok {
+		s.getLogger().Warn("SSE tenant broadcast unsupported",
+			slog.String("event_type", string(eventType)),
+			slog.Int64("tenant_id", tenantID),
+		)
 		return
 	}
-	if err := s.deps.Broadcaster.BroadcastToAll(event); err != nil {
-		s.getLogger().Warn("SSE broadcast-all failed",
+	if err := tenantScopedBroadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		s.getLogger().Warn("SSE broadcast-to-tenant failed",
 			slog.String("event_type", string(eventType)),
+			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
 	}

@@ -66,6 +66,7 @@ function getMainRouteTitle(pathname: string): string {
     "/activities": "Aktivitäten",
     "/statistics": "Statistiken",
     "/substitutions": "Vertretungen",
+    "/timetables": "Stundenplan",
     "/database": "Datenverwaltung",
     "/settings": "Einstellungen",
     "/profile": "Profil",

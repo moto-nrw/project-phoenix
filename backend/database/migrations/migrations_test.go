@@ -89,3 +89,22 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 			migrationFileCount, registryCount, migrationFileCount-registryCount)
 	}
 }
+
+func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
+	content, err := os.ReadFile("001015050_timeframes_use_time_without_timezone.go")
+	if err != nil {
+		t.Fatalf("failed to read timeframe clock migration: %v", err)
+	}
+	src := string(content)
+	for _, required := range []string{
+		"ALTER TABLE schedule.timeframes",
+		"start_time TYPE TIME WITHOUT TIME ZONE",
+		"end_time TYPE TIME WITHOUT TIME ZONE",
+		"start_time AT TIME ZONE 'UTC'",
+		"end_time AT TIME ZONE 'UTC'",
+	} {
+		if !strings.Contains(src, required) {
+			t.Fatalf("timeframe clock migration must contain %q", required)
+		}
+	}
+}

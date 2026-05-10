@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -43,6 +44,7 @@ type Resource struct {
 	activityExceptionRepo  schedule.ActivityExceptionRepository
 	activityScheduleRepo   activities.ScheduleRepository
 	instanceStaffRepo      schedule.InstanceStaffRepository
+	activeGroupRepo        active.GroupRepository
 	supervisorRepo         active.GroupSupervisorRepository
 	arrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
 	arrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
@@ -51,6 +53,11 @@ type Resource struct {
 	visitRepo              active.VisitRepository
 	studentRepo            users.StudentRepository
 	staffRepo              users.StaffRepository
+	roomRepo               facilities.RoomRepository
+	activityGroupRepo      activities.GroupRepository
+	activitySupervisorRepo activities.SupervisorPlannedRepository
+	studentEnrollmentRepo  activities.StudentEnrollmentRepository
+	timeframeRepo          schedule.TimeframeRepository
 	userContextService     usercontextSvc.UserContextService
 	settingsService        configSvc.SettingsService
 	broadcaster            realtime.Broadcaster
@@ -72,6 +79,7 @@ type Dependencies struct {
 	ActivityExceptionRepo  schedule.ActivityExceptionRepository
 	ActivityScheduleRepo   activities.ScheduleRepository
 	InstanceStaffRepo      schedule.InstanceStaffRepository
+	ActiveGroupRepo        active.GroupRepository
 	SupervisorRepo         active.GroupSupervisorRepository
 	ArrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
 	ArrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
@@ -80,6 +88,11 @@ type Dependencies struct {
 	VisitRepo              active.VisitRepository
 	StudentRepo            users.StudentRepository
 	StaffRepo              users.StaffRepository
+	RoomRepo               facilities.RoomRepository
+	ActivityGroupRepo      activities.GroupRepository
+	ActivitySupervisorRepo activities.SupervisorPlannedRepository
+	StudentEnrollmentRepo  activities.StudentEnrollmentRepository
+	TimeframeRepo          schedule.TimeframeRepository
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	Broadcaster            realtime.Broadcaster
@@ -101,6 +114,7 @@ func NewResource(deps Dependencies) *Resource {
 		activityExceptionRepo:  deps.ActivityExceptionRepo,
 		activityScheduleRepo:   deps.ActivityScheduleRepo,
 		instanceStaffRepo:      deps.InstanceStaffRepo,
+		activeGroupRepo:        deps.ActiveGroupRepo,
 		supervisorRepo:         deps.SupervisorRepo,
 		arrivalScheduleRepo:    deps.ArrivalScheduleRepo,
 		arrivalExceptionRepo:   deps.ArrivalExceptionRepo,
@@ -109,6 +123,11 @@ func NewResource(deps Dependencies) *Resource {
 		visitRepo:              deps.VisitRepo,
 		studentRepo:            deps.StudentRepo,
 		staffRepo:              deps.StaffRepo,
+		roomRepo:               deps.RoomRepo,
+		activityGroupRepo:      deps.ActivityGroupRepo,
+		activitySupervisorRepo: deps.ActivitySupervisorRepo,
+		studentEnrollmentRepo:  deps.StudentEnrollmentRepo,
+		timeframeRepo:          deps.TimeframeRepo,
 		userContextService:     deps.UserContextService,
 		settingsService:        deps.SettingsService,
 		broadcaster:            deps.Broadcaster,
@@ -149,6 +168,21 @@ func (rs *Resource) Router() chi.Router {
 		// SchedulesManage. They share the tenant tx so start/complete/cancel
 		// are atomic end-to-end (no dangling bridge rows on rollback).
 		r.Route("/instances", func(r chi.Router) {
+			// WP-F2 backend prerequisite: list instances in a date window for
+			// the admin weekly planner. Read-only, gated on SchedulesRead so
+			// office staff with view-only permissions can browse the plan
+			// without being able to mutate it.
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/", rs.listInstances)
+			// Spontaneous (and template-bound out-of-cycle) create. Returns
+			// the same enriched shape as the list endpoint so the frontend
+			// can splice the fresh row into its SWR cache.
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/", rs.createInstance)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Put("/{id}", rs.updateInstance)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Delete("/{id}", rs.deleteInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/re-plan-week", rs.replanWeek)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
@@ -186,6 +220,22 @@ func (rs *Resource) Router() chi.Router {
 		// WP-B13: exception-conflict warnings (planning-only, read-only).
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/exception-conflicts", rs.getExceptionConflicts)
+
+		// Templates — admin shortcut to add a recurring activity (Mensa,
+		// Lernzeit, AGs) without leaving the planner. Bundles timeframe +
+		// activities.groups + activities.schedules into one HTTP call and
+		// optionally materializes the visible week so the new instances
+		// appear immediately on the grid.
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/templates", rs.listTemplates)
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/templates/{id}", rs.getTemplate)
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/templates", rs.createTemplate)
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Put("/templates/{id}", rs.updateTemplate)
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Delete("/templates/{id}", rs.archiveTemplate)
 	})
 
 	return r
