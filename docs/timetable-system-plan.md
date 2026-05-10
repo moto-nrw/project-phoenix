@@ -596,14 +596,15 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 **Implementation cut:** F3 and F4 should ship together in one PR. F3 alone only shows planned work; F4 turns that card into the operational action that starts the planned instance and prevents duplicate unlinked live groups.
 
-- [ ] **WP-F3** — Planned items in `/active-supervisions` ("Jetzt geplant")
+- [x] **WP-F3** — Planned items in `/active-supervisions` ("Jetzt geplant") → current PR
   - Show planned instances for today in an operational window: `now - 15min` through `now + 15min`, plus overdue planned instances.
   - Cards show title, time, room, assigned staff, expected child count, conflict/gap status and a clear **Jetzt starten** action.
   - Prefer instances assigned to the current staff member; admins may see all when supervision overview is enabled.
-- [ ] **WP-F4** — Start planned instance from `/active-supervisions`
+- [x] **WP-F4** — Start planned instance from `/active-supervisions` → current PR
   - **Jetzt starten** calls `POST /api/timetable/instances/{id}/start`.
   - The resulting live `active.group` appears in the current supervision UI without requiring navigation back to the admin timetable.
   - Prevent confusing duplicate starts: when a matching planned instance exists, the staff flow should start that instance instead of creating an unlinked live group.
+  - **Bundled operational polish:** active-supervision dashboard now bridges timetable instances into the live roster flow, supports completion from the live view, avoids loading-state flashes, and handles timetable SSE invalidation for started/completed/cancelled/overdue events.
 - [ ] **WP-F5** — Instance detail/check-in list in active supervision
   - After start, show expected children from `instance_students` alongside live visits.
   - Support quick status changes: expected, present, absent, substatus/note where needed.
