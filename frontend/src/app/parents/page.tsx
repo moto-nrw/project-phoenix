@@ -1,11 +1,19 @@
 import { ChildrenOverview } from "~/components/parent/children-overview";
+import { EnrollmentsOverview } from "~/components/parent/enrollments-overview";
 
 /**
- * Parent dashboard. Lists every child linked to the calling parent's
- * account across every school they have access to. Data source:
- * GET /api/parent/me/children → backend cross-tenant aggregation
- * (PR 9 commit 5).
+ * Parent dashboard. Stacks two sections:
+ *   1. EnrollmentsOverview — every enrollment.requests row owned by
+ *      the parent (in-progress, decided, or withdrawn). Hidden when
+ *      empty so accounts without submissions don't see a stub.
+ *   2. ChildrenOverview — every active/pending student linked to the
+ *      parent across schools (the post-approval lifecycle view).
  */
 export default function ParentDashboardPage() {
-  return <ChildrenOverview />;
+  return (
+    <div className="space-y-8">
+      <EnrollmentsOverview />
+      <ChildrenOverview />
+    </div>
+  );
 }

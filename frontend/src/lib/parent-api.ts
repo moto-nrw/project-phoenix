@@ -46,6 +46,39 @@ export interface EnrollablePhase {
   readonly already_linked: boolean;
 }
 
+// Per-child status values exposed on the enrollment-requests list.
+// Mirrors models/enrollment ChildStatus* constants.
+export type EnrollmentChildStatus =
+  | "submitted"
+  | "under_review"
+  | "approved"
+  | "waitlisted"
+  | "rejected"
+  | "withdrawn";
+
+export interface EnrollmentRequestChild {
+  readonly child_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly status: EnrollmentChildStatus;
+  readonly status_reason?: string;
+}
+
+export interface EnrollmentRequest {
+  readonly request_id: string;
+  readonly tenant_id: string;
+  readonly status_token: string;
+  readonly submitted_at: string; // ISO timestamp
+  readonly withdrawn_at?: string; // ISO timestamp
+  readonly phase_id: string;
+  readonly phase_name: string;
+  readonly service_start_date: string; // ISO date
+  readonly service_end_date: string; // ISO date
+  readonly school_name: string;
+  readonly school_slug: string;
+  readonly children: EnrollmentRequestChild[];
+}
+
 interface ApiEnvelope<T> {
   readonly status?: string;
   readonly data?: T;
@@ -98,6 +131,15 @@ export async function listMyChildren(): Promise<Child[]> {
  */
 export async function listEnrollableSchools(): Promise<EnrollablePhase[]> {
   return getJson<EnrollablePhase[]>("/api/parent/me/enrollable-schools");
+}
+
+/**
+ * Fetches every enrollment.requests row owned by the calling parent's
+ * account, joined to phase + school + child summaries. Newest first.
+ * Powers the "Anmeldungen in Bearbeitung" section on the dashboard.
+ */
+export async function listMyEnrollments(): Promise<EnrollmentRequest[]> {
+  return getJson<EnrollmentRequest[]>("/api/parent/me/enrollments");
 }
 
 /**
