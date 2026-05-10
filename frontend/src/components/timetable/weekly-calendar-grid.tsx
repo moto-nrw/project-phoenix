@@ -30,8 +30,10 @@ import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { InstanceBlock } from "./instance-block";
 
-const TIME_GUTTER_WIDTH_PX = 64;
-const DAY_HEADER_HEIGHT_PX = 56;
+// Grid template columns: narrow time gutter + 7 day columns (Mo-So).
+// Mobile uses a 40px gutter so the day cells get ~48px each on iPhone SE.
+const GRID_COLS_CLASS =
+  "grid-cols-[40px_repeat(7,minmax(0,1fr))] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]";
 
 interface WeeklyCalendarGridProps {
   weekDays: Date[]; // Mo-So (7 dates)
@@ -101,11 +103,7 @@ export function WeeklyCalendarGrid({
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
       {/* Sticky day header */}
       <div
-        className="grid border-b border-slate-200 bg-white"
-        style={{
-          gridTemplateColumns: `${TIME_GUTTER_WIDTH_PX}px repeat(${weekDays.length}, minmax(0, 1fr))`,
-          height: `${DAY_HEADER_HEIGHT_PX}px`,
-        }}
+        className={`grid h-[52px] border-b border-slate-200 bg-white sm:h-14 ${GRID_COLS_CLASS}`}
       >
         <div aria-hidden />
         {weekDays.map((day) => {
@@ -114,21 +112,21 @@ export function WeeklyCalendarGrid({
           return (
             <div
               key={iso}
-              className="flex items-center justify-center gap-2 border-l border-slate-200 px-2 py-2"
+              className="flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-slate-200 px-1 py-1 sm:flex-row sm:gap-2 sm:px-2 sm:py-2"
             >
-              <span className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
+              <span className="text-[10px] font-medium tracking-wide text-slate-500 uppercase sm:text-[11px]">
                 {getGermanWeekdayShort(day)}
               </span>
               {isToday ? (
                 <span
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[12px] font-semibold text-white tabular-nums"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-[12px]"
                   aria-label={formatDayHeader(day)}
                 >
                   {day.getDate()}
                 </span>
               ) : (
                 <span
-                  className="text-[14px] font-semibold text-slate-900 tabular-nums"
+                  className="text-[12px] font-semibold text-slate-900 tabular-nums sm:text-[14px]"
                   aria-label={formatDayHeader(day)}
                 >
                   {String(day.getDate()).padStart(2, "0")}
@@ -141,12 +139,7 @@ export function WeeklyCalendarGrid({
 
       {/* Scrollable body */}
       <div className="relative max-h-[720px] overflow-y-auto">
-        <div
-          className="grid"
-          style={{
-            gridTemplateColumns: `${TIME_GUTTER_WIDTH_PX}px repeat(${weekDays.length}, minmax(0, 1fr))`,
-          }}
-        >
+        <div className={`grid ${GRID_COLS_CLASS}`}>
           {/* Time gutter */}
           <div
             className="border-r border-slate-200 bg-slate-50"
@@ -155,7 +148,7 @@ export function WeeklyCalendarGrid({
             {hours.slice(0, -1).map((hour) => (
               <div
                 key={hour}
-                className="flex items-start justify-end px-2 pt-1 text-[11px] font-medium text-slate-400"
+                className="flex items-start justify-end px-1 pt-1 text-[10px] font-medium text-slate-400 sm:px-2 sm:text-[11px]"
                 style={{ height: `${hourHeightPx}px` }}
               >
                 {String(hour).padStart(2, "0")}:00
@@ -180,7 +173,7 @@ export function WeeklyCalendarGrid({
             return (
               <div
                 key={iso}
-                className={`relative border-l border-slate-200 ${isToday ? "bg-slate-50/60" : ""}`}
+                className={`relative min-w-0 border-l border-slate-200 ${isToday ? "bg-slate-50/60" : ""}`}
                 style={{ height: `${gridHeightPx}px` }}
               >
                 {/* Hour grid lines */}
@@ -245,9 +238,9 @@ export function WeeklyCalendarGrid({
                   </>
                 )}
 
-                {/* Empty-state hint */}
+                {/* Empty-state hint (hidden on mobile: column too narrow) */}
                 {dayInstances.length === 0 && (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="pointer-events-none absolute inset-0 hidden items-center justify-center sm:flex">
                     <span className="text-[11px] text-slate-400 italic">
                       Keine Aktivitäten
                     </span>
