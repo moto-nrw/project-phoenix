@@ -30,21 +30,30 @@ type Service interface {
 	// schools they're already linked to. Sorted with linked schools
 	// first.
 	ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error)
+
+	// ListEnrollmentsForAccount returns every enrollment.requests row
+	// where guardian_account_id matches the calling account, joined
+	// to phase + school + child summaries. Used by the dashboard to
+	// surface in-progress / decided submissions without the parent
+	// having to dig out the email-link status URL.
+	ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error)
 }
 
 // ServiceConfig is the dependency-injection bundle.
 type ServiceConfig struct {
-	ChildRepo           parentModels.ChildRepository
-	EnrollablePhaseRepo parentModels.EnrollablePhaseRepository
-	DB                  *bun.DB
-	Logger              *slog.Logger
+	ChildRepo             parentModels.ChildRepository
+	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
+	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
+	DB                    *bun.DB
+	Logger                *slog.Logger
 }
 
 type service struct {
-	childRepo           parentModels.ChildRepository
-	enrollablePhaseRepo parentModels.EnrollablePhaseRepository
-	db                  *bun.DB
-	logger              *slog.Logger
+	childRepo             parentModels.ChildRepository
+	enrollablePhaseRepo   parentModels.EnrollablePhaseRepository
+	enrollmentRequestRepo parentModels.EnrollmentRequestRepository
+	db                    *bun.DB
+	logger                *slog.Logger
 }
 
 // NewService wires a parent-portal service.
@@ -54,10 +63,11 @@ func NewService(cfg ServiceConfig) Service {
 		logger = slog.Default()
 	}
 	return &service{
-		childRepo:           cfg.ChildRepo,
-		enrollablePhaseRepo: cfg.EnrollablePhaseRepo,
-		db:                  cfg.DB,
-		logger:              logger,
+		childRepo:             cfg.ChildRepo,
+		enrollablePhaseRepo:   cfg.EnrollablePhaseRepo,
+		enrollmentRequestRepo: cfg.EnrollmentRequestRepo,
+		db:                    cfg.DB,
+		logger:                logger,
 	}
 }
 
@@ -119,4 +129,35 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 		slog.Int("count", len(phases)),
 	)
 	return phases, nil
+}
+
+// ListEnrollmentsForAccount returns the parent's enrollment.requests
+// rows joined to phase + school + child summaries. Same admin-tx wrap
+// as the other parent queries — this crosses tenant_id boundaries.
+func (s *service) ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error) {
+	if accountID <= 0 {
+		return nil, fmt.Errorf("parent: account_id must be positive")
+	}
+	if s.enrollmentRequestRepo == nil {
+		return nil, fmt.Errorf("parent: enrollment request repo not wired")
+	}
+
+	var requests []*parentModels.EnrollmentRequestSummary
+	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		list, listErr := s.enrollmentRequestRepo.ListByAccount(adminCtx, accountID)
+		if listErr != nil {
+			return listErr
+		}
+		requests = list
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("parent: list enrollments: %w", err)
+	}
+
+	s.logger.Debug("parent: listed enrollment requests",
+		slog.Int64("account_id", accountID),
+		slog.Int("count", len(requests)),
+	)
+	return requests, nil
 }

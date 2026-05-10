@@ -85,32 +85,47 @@ type GuardianInvitationServiceConfig struct {
 	Mailer              email.Mailer
 	Dispatcher          *email.Dispatcher
 	OutboxEnqueuer      OutboxEnqueuer
-	SettingsResolver    GuardianSettingsResolver
-	FrontendURL         string
-	DefaultFrom         email.Email
-	FallbackExpiry      time.Duration
-	DB                  *bun.DB
-	Logger              *slog.Logger
+	// EnrollmentBackfiller stamps guardian_account_id onto every
+	// pre-account enrollment.requests row matching the guardian's
+	// email, so requests submitted before invite acceptance show up in
+	// /parent/me/enrollments. nil-safe: the accept flow runs even when
+	// the dependency isn't wired (tests, narrow integrations).
+	EnrollmentBackfiller EnrollmentBackfiller
+	SettingsResolver     GuardianSettingsResolver
+	FrontendURL          string
+	DefaultFrom          email.Email
+	FallbackExpiry       time.Duration
+	DB                   *bun.DB
+	Logger               *slog.Logger
+}
+
+// EnrollmentBackfiller is the narrow contract the accept flow needs
+// from the parent enrollment repo. Defined here so this package
+// doesn't take a hard dependency on models/parent — any repo that
+// satisfies this method shape works.
+type EnrollmentBackfiller interface {
+	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
 }
 
 type guardianInvitationService struct {
-	invitationRepo      authModels.GuardianInvitationRepository
-	accountRepo         authModels.AccountRepository
-	accountTenantRepo   authModels.AccountTenantRepository
-	accountRoleRepo     authModels.AccountRoleRepository
-	roleRepo            authModels.RoleRepository
-	personRepo          userModels.PersonRepository
-	guardianProfileRepo userModels.GuardianProfileRepository
-	schoolRepo          platformModels.SchoolRepository
-	dispatcher          *email.Dispatcher
-	outboxEnqueuer      OutboxEnqueuer
-	settingsResolver    GuardianSettingsResolver
-	frontendURL         string
-	defaultFrom         email.Email
-	fallbackExpiry      time.Duration
-	db                  *bun.DB
-	txHandler           *modelBase.TxHandler
-	logger              *slog.Logger
+	invitationRepo       authModels.GuardianInvitationRepository
+	accountRepo          authModels.AccountRepository
+	accountTenantRepo    authModels.AccountTenantRepository
+	accountRoleRepo      authModels.AccountRoleRepository
+	roleRepo             authModels.RoleRepository
+	personRepo           userModels.PersonRepository
+	guardianProfileRepo  userModels.GuardianProfileRepository
+	schoolRepo           platformModels.SchoolRepository
+	dispatcher           *email.Dispatcher
+	outboxEnqueuer       OutboxEnqueuer
+	enrollmentBackfiller EnrollmentBackfiller
+	settingsResolver     GuardianSettingsResolver
+	frontendURL          string
+	defaultFrom          email.Email
+	fallbackExpiry       time.Duration
+	db                   *bun.DB
+	txHandler            *modelBase.TxHandler
+	logger               *slog.Logger
 }
 
 // NewGuardianInvitationService builds a guardian invitation service. The
@@ -130,23 +145,24 @@ func NewGuardianInvitationService(cfg GuardianInvitationServiceConfig) GuardianI
 		expiry = guardianTokenExpiryFallback
 	}
 	return &guardianInvitationService{
-		invitationRepo:      cfg.InvitationRepo,
-		accountRepo:         cfg.AccountRepo,
-		accountTenantRepo:   cfg.AccountTenantRepo,
-		accountRoleRepo:     cfg.AccountRoleRepo,
-		roleRepo:            cfg.RoleRepo,
-		personRepo:          cfg.PersonRepo,
-		guardianProfileRepo: cfg.GuardianProfileRepo,
-		schoolRepo:          cfg.SchoolRepo,
-		dispatcher:          dispatcher,
-		outboxEnqueuer:      cfg.OutboxEnqueuer,
-		settingsResolver:    cfg.SettingsResolver,
-		frontendURL:         strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
-		defaultFrom:         cfg.DefaultFrom,
-		fallbackExpiry:      expiry,
-		db:                  cfg.DB,
-		txHandler:           modelBase.NewTxHandler(cfg.DB),
-		logger:              logger,
+		invitationRepo:       cfg.InvitationRepo,
+		accountRepo:          cfg.AccountRepo,
+		accountTenantRepo:    cfg.AccountTenantRepo,
+		accountRoleRepo:      cfg.AccountRoleRepo,
+		roleRepo:             cfg.RoleRepo,
+		personRepo:           cfg.PersonRepo,
+		guardianProfileRepo:  cfg.GuardianProfileRepo,
+		schoolRepo:           cfg.SchoolRepo,
+		dispatcher:           dispatcher,
+		outboxEnqueuer:       cfg.OutboxEnqueuer,
+		enrollmentBackfiller: cfg.EnrollmentBackfiller,
+		settingsResolver:     cfg.SettingsResolver,
+		frontendURL:          strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
+		defaultFrom:          cfg.DefaultFrom,
+		fallbackExpiry:       expiry,
+		db:                   cfg.DB,
+		txHandler:            modelBase.NewTxHandler(cfg.DB),
+		logger:               logger,
 	}
 }
 
@@ -325,6 +341,34 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 		slog.Int64("account_id", account.ID),
 		slog.Int64("guardian_profile_id", profile.ID),
 	)
+
+	// Backfill guardian_account_id on every pre-account
+	// enrollment.requests row matching this email (case-insensitive,
+	// cross-tenant). Best-effort — the accept itself stays committed
+	// even if this fails. Runs in its own admin tx; the parent's
+	// /me/enrollments query reads via guardian_account_id, so without
+	// this step legacy submissions wouldn't surface in the dashboard.
+	if s.enrollmentBackfiller != nil {
+		backfillErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+			n, err := s.enrollmentBackfiller.BackfillGuardianAccountID(adminCtx, account.ID, emailAddress)
+			if err != nil {
+				return err
+			}
+			if n > 0 {
+				s.getLogger().Info("guardian invitation accept: claimed pre-account enrollments",
+					slog.Int64("account_id", account.ID),
+					slog.Int("rows_claimed", n),
+				)
+			}
+			return nil
+		})
+		if backfillErr != nil {
+			s.getLogger().Warn("guardian invitation accept: enrollment backfill failed",
+				slog.Int64("account_id", account.ID),
+				slog.String("error", backfillErr.Error()),
+			)
+		}
+	}
 
 	return account, nil
 }

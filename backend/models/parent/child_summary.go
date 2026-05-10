@@ -90,3 +90,56 @@ type EnrollablePhaseRepository interface {
 	// schools first), then school name, then phase service start.
 	ListEnrollable(ctx context.Context, accountID int64) ([]*EnrollablePhase, error)
 }
+
+// EnrollmentRequestSummary is the cross-tenant view of one
+// enrollment.requests row owned by a guardian account, plus the
+// minimal child + phase + school context the parent dashboard needs to
+// render a status row. Multiple children produce multiple rows in
+// Children — the request itself is one logical card.
+type EnrollmentRequestSummary struct {
+	RequestID   int64      `json:"request_id"`
+	TenantID    int64      `json:"tenant_id"`
+	StatusToken string     `json:"status_token"`
+	SubmittedAt time.Time  `json:"submitted_at"`
+	WithdrawnAt *time.Time `json:"withdrawn_at,omitempty"`
+
+	PhaseID          int64     `json:"phase_id"`
+	PhaseName        string    `json:"phase_name"`
+	ServiceStartDate time.Time `json:"service_start_date"`
+	ServiceEndDate   time.Time `json:"service_end_date"`
+
+	SchoolName string `json:"school_name"`
+	SchoolSlug string `json:"school_slug"`
+
+	Children []EnrollmentRequestChildSummary `json:"children"`
+}
+
+// EnrollmentRequestChildSummary is a slim view of one
+// enrollment.request_children row — just enough for the dashboard to
+// show per-child status badges next to the request.
+type EnrollmentRequestChildSummary struct {
+	ChildID      int64   `json:"child_id"`
+	FirstName    string  `json:"first_name"`
+	LastName     string  `json:"last_name"`
+	Status       string  `json:"status"`
+	StatusReason *string `json:"status_reason,omitempty"`
+}
+
+// EnrollmentRequestRepository lists every enrollment request a parent
+// account owns. Same admin-tx + JWT-validation contract as
+// ChildRepository / EnrollablePhaseRepository.
+type EnrollmentRequestRepository interface {
+	// ListByAccount returns every enrollment.requests row where
+	// guardian_account_id matches the given account, newest first,
+	// joined to phase + school + child rows. Cross-tenant — the
+	// implementation MUST run under WithAdminTx.
+	ListByAccount(ctx context.Context, accountID int64) ([]*EnrollmentRequestSummary, error)
+
+	// BackfillGuardianAccountID stamps the given accountID onto every
+	// enrollment.requests row with guardian_account_id IS NULL and a
+	// case-insensitive match on guardian_email. Returns how many rows
+	// were updated. Cross-tenant — implementation MUST run under
+	// WithAdminTx. Called after a guardian invitation accept so
+	// pre-account submissions surface in /me/enrollments.
+	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
+}

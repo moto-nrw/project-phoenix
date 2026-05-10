@@ -155,8 +155,9 @@ type Factory struct {
 	Phase                enrollmentModels.PhaseRepository
 
 	// Parent domain (cross-tenant guardian portal — PR 9+)
-	ParentChild           parentModels.ChildRepository
-	ParentEnrollablePhase parentModels.EnrollablePhaseRepository
+	ParentChild             parentModels.ChildRepository
+	ParentEnrollablePhase   parentModels.EnrollablePhaseRepository
+	ParentEnrollmentRequest parentModels.EnrollmentRequestRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -279,7 +280,8 @@ func NewFactory(db *bun.DB) *Factory {
 		Phase:                enrollment.NewPhaseRepository(db),
 
 		// Parent (cross-tenant guardian portal — PR 9+)
-		ParentChild:           parentRepo.NewChildRepository(db),
-		ParentEnrollablePhase: parentRepo.NewEnrollablePhaseRepository(db),
+		ParentChild:             parentRepo.NewChildRepository(db),
+		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(db),
+		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(db),
 	}
 }

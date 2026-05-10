@@ -88,6 +88,13 @@ func (rs *Resource) Router() chi.Router {
 		// "Neue Anmeldung" school picker in the parents app.
 		r.Get("/me/enrollable-schools", rs.listEnrollableSchools)
 
+		// Cross-tenant enrollment-request list — every
+		// enrollment.requests row owned by this parent (matched by
+		// guardian_account_id), joined to phase/school/children.
+		// Powers the "Anmeldungen in Bearbeitung" section on the
+		// dashboard.
+		r.Get("/me/enrollments", rs.listMyEnrollments)
+
 		// Per-school autofill payload for the embedded enrollment
 		// form. Tenant resolved from the {tenantSlug} path segment;
 		// account from the parent JWT. Returns guardian fields from

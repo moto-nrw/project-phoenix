@@ -481,23 +481,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo:      repos.GuardianInvitation,
-		AccountRepo:         repos.Account,
-		AccountTenantRepo:   repos.AccountTenant,
-		AccountRoleRepo:     repos.AccountRole,
-		RoleRepo:            repos.Role,
-		PersonRepo:          repos.Person,
-		GuardianProfileRepo: repos.GuardianProfile,
-		SchoolRepo:          repos.School,
-		Mailer:              mailer,
-		Dispatcher:          dispatcher,
-		OutboxEnqueuer:      platform.NewAuthOutboxAdapter(emailOutboxService),
-		SettingsResolver:    settingsService,
-		FrontendURL:         parentsURL, // accept link goes to the parents portal, not the staff frontend
-		DefaultFrom:         defaultFrom,
-		FallbackExpiry:      invitationTokenExpiry,
-		DB:                  db,
-		Logger:              authLogger.With("flow", "guardian_invitation"),
+		InvitationRepo:       repos.GuardianInvitation,
+		AccountRepo:          repos.Account,
+		AccountTenantRepo:    repos.AccountTenant,
+		AccountRoleRepo:      repos.AccountRole,
+		RoleRepo:             repos.Role,
+		PersonRepo:           repos.Person,
+		GuardianProfileRepo:  repos.GuardianProfile,
+		SchoolRepo:           repos.School,
+		Mailer:               mailer,
+		Dispatcher:           dispatcher,
+		OutboxEnqueuer:       platform.NewAuthOutboxAdapter(emailOutboxService),
+		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
+		SettingsResolver:     settingsService,
+		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
+		DefaultFrom:          defaultFrom,
+		FallbackExpiry:       invitationTokenExpiry,
+		DB:                   db,
+		Logger:               authLogger.With("flow", "guardian_invitation"),
 	})
 
 	// Register the guardian_invitation renderer at startup so the outbox
@@ -752,10 +753,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	parentService := parent.NewService(parent.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		EnrollablePhaseRepo: repos.ParentEnrollablePhase,
-		DB:                  db,
-		Logger:              logger.With("service", "parent"),
+		ChildRepo:             repos.ParentChild,
+		EnrollablePhaseRepo:   repos.ParentEnrollablePhase,
+		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
+		DB:                    db,
+		Logger:                logger.With("service", "parent"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
