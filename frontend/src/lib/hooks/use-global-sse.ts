@@ -305,6 +305,30 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        case "tenant_settings_changed": {
+          // Cross-origin tenant settings sync. The backend fires this when a
+          // setting whose value travels through /auth/tenant/resolve flips
+          // (currently operations.student_photos_enabled).
+          // BroadcastChannel only reaches same-origin tabs, so an operator
+          // toggle at operator.<domain> never reaches <slug>.<domain> tabs;
+          // SSE crosses that boundary because every authenticated tab holds
+          // an open connection regardless of its origin.
+          //
+          // Dispatch a window event instead of directly mutating SWR or
+          // tenant context here: TenantProvider owns the resolve refetch and
+          // already serialises concurrent triggers (BroadcastChannel +
+          // visibilitychange + this event). Keeping this hook decoupled
+          // avoids importing tenant internals into the global SSE handler.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("phoenix:tenant-settings-stale", {
+                detail: { source: event.data.source ?? null },
+              }),
+            );
+          }
+          break;
+        }
+
         case "instance_started":
         case "instance_completed":
         case "instance_cancelled":

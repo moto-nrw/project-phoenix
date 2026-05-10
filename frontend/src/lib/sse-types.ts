@@ -9,6 +9,7 @@ type SSEEventType =
   | "activity_update"
   | "dashboard_counts_changed"
   | "arrival_schedule_changed"
+  | "tenant_settings_changed"
   // Timetable instance lifecycle events emitted by the backend (WP-B9).
   // The weekly planner subscribes to these so admin and office staff see
   // live status changes (start/complete/cancel) without manual refresh.
@@ -33,15 +34,17 @@ interface SSEEventData {
   room_name?: string;
   supervisor_ids?: string[];
 
+  // Source tracking. Student/activity events typically use "rfid",
+  // "manual", or "automated"; tenant-wide invalidation events also reuse
+  // this field for setting keys / feature labels.
+  source?: string;
+
   // Timetable instance fields (for instance_* events). instance_id is the
   // schedule.activity_instances row id; date and start_time identify the
   // affected slot in the weekly planner.
   instance_id?: string;
   instance_date?: string; // YYYY-MM-DD
   instance_start_time?: string; // HH:MM:SS
-
-  // Source tracking
-  source?: "rfid" | "manual" | "automated";
 }
 
 export interface SSEEvent {

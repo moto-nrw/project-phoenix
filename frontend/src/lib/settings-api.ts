@@ -59,6 +59,59 @@ interface ApiResponse<T> {
   message?: string;
 }
 
+// --- Optimistic Update Helper ---
+
+/**
+ * Returns a new schema with `key` set to `value` and every entry's `visible`
+ * flag re-evaluated against its `depends_on` rule. Pure — does not mutate the
+ * input. Used as the optimistic-data argument to SWR's mutate so the UI
+ * reflects the change before the server confirms.
+ */
+export function applyOptimisticSchemaUpdate(
+  schema: SettingsSchema,
+  key: string,
+  value: unknown,
+): SettingsSchema {
+  const valueMap = new Map<string, unknown>();
+  for (const tab of schema.tabs) {
+    for (const cat of tab.categories) {
+      for (const item of cat.items) {
+        valueMap.set(item.key, item.key === key ? value : item.value);
+      }
+    }
+  }
+  return {
+    ...schema,
+    tabs: schema.tabs.map((tab) => ({
+      ...tab,
+      categories: tab.categories.map((cat) => ({
+        ...cat,
+        items: cat.items.map((item) => {
+          const optimisticValue = item.type === "password" ? "••••••" : value;
+          const updated =
+            item.key === key
+              ? { ...item, value: optimisticValue, is_default: false }
+              : item;
+          if (updated.depends_on) {
+            const parentVal = valueMap.get(updated.depends_on.key);
+            const cond = updated.depends_on.condition;
+            const expected = updated.depends_on.value;
+            let visible = true;
+            if (cond === "eq")
+              visible = JSON.stringify(parentVal) === JSON.stringify(expected);
+            if (cond === "neq")
+              visible = JSON.stringify(parentVal) !== JSON.stringify(expected);
+            if (cond === "not_empty")
+              visible = parentVal != null && parentVal !== "";
+            return { ...updated, visible };
+          }
+          return updated;
+        }),
+      })),
+    })),
+  };
+}
+
 // --- API Functions ---
 
 /**
