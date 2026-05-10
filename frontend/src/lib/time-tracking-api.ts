@@ -1,6 +1,7 @@
 // Time tracking API service for check-in/out and history management
 
 import { getSession } from "next-auth/react";
+import type { ApiError } from "./auth-api";
 import type {
   StaffAbsence,
   WorkSession,
@@ -31,7 +32,16 @@ interface ApiResponse<T> {
 interface ErrorResponse {
   error?: string;
   message?: string;
+  code?: string;
 }
+
+/**
+ * Stable error code surfaced by the backend when a CheckIn would silently
+ * change the status of an existing checked-out session. The page handles
+ * this by prompting for a reason and routing the change through
+ * UpdateSession (Issue #1368).
+ */
+export const REOPEN_STATUS_CONFLICT_CODE = "reopen_status_conflict";
 
 /**
  * Update session request body
@@ -102,8 +112,7 @@ class TimeTrackingService {
     });
 
     if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? errorMessage);
+      throw await this.toApiError(response, errorMessage);
     }
 
     return (await response.json()) as ApiResponse<T>;
@@ -121,9 +130,33 @@ class TimeTrackingService {
     });
 
     if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? errorMessage);
+      throw await this.toApiError(response, errorMessage);
     }
+  }
+
+  /**
+   * Build an ApiError from a non-OK response, preserving the backend's
+   * `code` field so callers (e.g., the time-tracking page) can branch on
+   * typed errors without parsing strings.
+   */
+  private async toApiError(
+    response: Response,
+    fallbackMessage: string,
+  ): Promise<ApiError> {
+    let body: ErrorResponse = {};
+    try {
+      body = (await response.json()) as ErrorResponse;
+    } catch {
+      // non-JSON body — fall through with empty body
+    }
+    const apiError = new Error(
+      body.error ?? body.message ?? fallbackMessage,
+    ) as ApiError;
+    apiError.status = response.status;
+    if (body.code) {
+      apiError.code = body.code;
+    }
+    return apiError;
   }
 
   async checkIn(status: "present" | "home_office"): Promise<WorkSession> {

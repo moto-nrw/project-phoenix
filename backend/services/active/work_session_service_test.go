@@ -554,14 +554,13 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 	assert.Nil(t, session.CheckOutTime)
 }
 
-// TestWSCheckIn_ReopenPreservesOriginalSource locks in the audit-trail
-// behaviour for Issue #1368: an NFC-originated session that the staff
-// member reopens via the App must remain source='nfc'. Overwriting would
-// silently drop the originating channel, which is an audit-relevant fact
-// with no corresponding FieldSource audit edit to capture the change.
-// Status, by contrast, IS overwritten because Vor Ort ↔ Homeoffice can
-// legitimately change mid-day.
-func TestWSCheckIn_ReopenPreservesOriginalSource(t *testing.T) {
+// TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus locks in the
+// audit-trail behaviour for Issue #1368: when the staff member reopens an
+// NFC-originated session via the App with the SAME status, both Source and
+// Status are preserved. Reopen never overwrites either field — Source has
+// no audit-edit channel, and Status changes must go through UpdateSession
+// (which gates on a notes reason).
+func TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	checkOut := time.Now().Add(-1 * time.Hour)
 
@@ -586,16 +585,54 @@ func TestWSCheckIn_ReopenPreservesOriginalSource(t *testing.T) {
 		return nil
 	}
 
-	// Reopen via App with a different status — the new status takes effect,
-	// the original NFC source must survive.
+	// Reopen via App with the SAME status — both Source and Status survive.
 	session, err := svc.CheckIn(context.Background(), 100,
-		activeModels.WorkSessionStatusHomeOffice, activeModels.WorkSessionSourceApp)
+		activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Equal(t, activeModels.WorkSessionSourceNFC, capturedSource,
 		"reopen must preserve the originating Source")
-	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, capturedStatus,
-		"reopen must apply the new Status")
+	assert.Equal(t, activeModels.WorkSessionStatusPresent, capturedStatus,
+		"reopen must preserve the originating Status")
+}
+
+// TestWSCheckIn_ReopenStatusMismatchReturnsTypedConflict guards the audit
+// trail: a reopen that would silently flip Vor Ort ↔ Homeoffice is rejected
+// before the DB write. The frontend uses the typed code to branch into the
+// "change status with reason" flow (UpdateSession with notes).
+func TestWSCheckIn_ReopenStatusMismatchReturnsTypedConflict(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	checkOut := time.Now().Add(-1 * time.Hour)
+
+	existing := &activeModels.WorkSession{
+		Model:          base.Model{ID: 42},
+		StaffID:        100,
+		CheckInTime:    time.Now().Add(-4 * time.Hour),
+		CheckOutTime:   &checkOut,
+		AutoCheckedOut: true,
+		Status:         activeModels.WorkSessionStatusPresent,
+		Source:         activeModels.WorkSessionSourceNFC,
+		Date:           time.Now().Truncate(24 * time.Hour),
+		CreatedBy:      100,
+	}
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
+		return existing, nil
+	}
+	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("repo.Update must not be called on a status-mismatch reopen")
+		return nil
+	}
+
+	session, err := svc.CheckIn(context.Background(), 100,
+		activeModels.WorkSessionStatusHomeOffice, activeModels.WorkSessionSourceApp)
+	require.Error(t, err)
+	assert.Nil(t, session)
+
+	var conflict *ReopenStatusConflictError
+	require.ErrorAs(t, err, &conflict, "must surface as the typed conflict")
+	assert.Equal(t, int64(42), conflict.SessionID)
+	assert.Equal(t, activeModels.WorkSessionStatusPresent, conflict.ExistingStatus)
+	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, conflict.RequestedStatus)
 }
 
 func TestWSCheckIn_InvalidStatus(t *testing.T) {

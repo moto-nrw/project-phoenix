@@ -54,16 +54,38 @@ type SessionResponse struct {
 	EditCount        int                              `json:"edit_count"`
 }
 
+// ReopenStatusConflictError is returned by CheckIn when the staff member
+// already has a checked-out session for today and the requested status
+// differs from the existing one. Reopening would silently change the status
+// without an audit edit; the caller (App UI) must instead reopen with the
+// existing status and then go through UpdateSession (which requires a
+// notes reason and emits a FieldStatus edit).
+//
+// The frontend disambiguates this from other 409s via the typed code
+// "reopen_status_conflict" produced by api/time-tracking/errors.go.
+type ReopenStatusConflictError struct {
+	SessionID       int64
+	ExistingStatus  string
+	RequestedStatus string
+}
+
+func (e *ReopenStatusConflictError) Error() string {
+	return "reopen status conflict"
+}
+
 // WorkSessionService defines operations for staff time tracking
 type WorkSessionService interface {
 	// CheckIn opens or reopens today's session for staffID. `source` records
 	// the channel that triggered the check-in (app/nfc) so the export can
 	// label "Vor Ort (App)" vs "Vor Ort (NFC)" without inferring it from
-	// status alone (Issue #1368). On reopen the originating Source is
-	// preserved — the channel that first recorded the session is the
-	// audit-relevant fact, and there is no FieldSource audit edit yet to
-	// capture a change. `status`, by contrast, IS overwritten because Vor
-	// Ort ↔ Homeoffice can legitimately change mid-day.
+	// status alone (Issue #1368).
+	//
+	// Reopen rules: the originating Source AND Status are both preserved.
+	// The channel is an audit-relevant fact with no audit edit to capture
+	// a change; status changes carry audit weight and must go through
+	// UpdateSession (which gates on a notes reason). If `status` differs
+	// from the existing session's status, CheckIn returns
+	// *ReopenStatusConflictError instead of silently overwriting.
 	CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error)
 	CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
@@ -133,10 +155,20 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 		if existingSession.IsActive() {
 			return nil, fmt.Errorf("already checked in")
 		}
+		// A status mismatch on reopen would silently rewrite an audit-relevant
+		// field with no FieldStatus edit emitted. Force the caller to reopen
+		// with the existing status, then change it via UpdateSession (which
+		// gates on a notes reason and produces the audit edit).
+		if existingSession.Status != status {
+			return nil, &ReopenStatusConflictError{
+				SessionID:       existingSession.ID,
+				ExistingStatus:  existingSession.Status,
+				RequestedStatus: status,
+			}
+		}
 		// Re-open the checked-out session (accidental checkout recovery).
-		// `source` is intentionally not forwarded — the original channel
-		// stays as the audit-relevant fact (see reopenSession).
-		return s.reopenSession(ctx, existingSession, staffID, status)
+		// Source and Status are both preserved (see reopenSession comment).
+		return s.reopenSession(ctx, existingSession, staffID)
 	}
 
 	// Create new session
@@ -165,13 +197,16 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 }
 
 // reopenSession clears checkout on an existing session so the staff member
-// can continue working. Source is intentionally preserved: the originating
-// channel is an audit-relevant fact, and overwriting it on reopen would
-// silently drop that signal (there is no FieldSource audit edit yet).
-func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64, status string) (*activeModels.WorkSession, error) {
+// can continue working. Both Source and Status are intentionally preserved:
+// the originating channel and the previously-chosen work mode are
+// audit-relevant facts, and overwriting either on reopen would silently
+// drop the signal with no audit edit. CheckIn rejects the call with
+// ReopenStatusConflictError before this point if the requested status
+// differs from the existing one — the caller is expected to follow up
+// with UpdateSession (which gates on a notes reason).
+func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64) (*activeModels.WorkSession, error) {
 	session.CheckOutTime = nil
 	session.AutoCheckedOut = false
-	session.Status = status
 	session.UpdatedBy = &staffID
 
 	if err := session.Validate(); err != nil {

@@ -25,7 +25,11 @@ import {
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
-import { timeTrackingService } from "~/lib/time-tracking-api";
+import {
+  REOPEN_STATUS_CONFLICT_CODE,
+  timeTrackingService,
+} from "~/lib/time-tracking-api";
+import type { ApiError } from "~/lib/auth-api";
 import {
   type AbsenceType,
   type StaffAbsence,
@@ -3424,6 +3428,24 @@ function TimeTrackingContent() {
   const [pendingManualEditCheckIn, setPendingManualEditCheckIn] =
     useState<SessionStatus | null>(null);
 
+  // Reopen-with-status-change confirmation. Set when the backend rejects a
+  // CheckIn with REOPEN_STATUS_CONFLICT_CODE because the requested status
+  // differs from today's existing (checked-out) session. The follow-up
+  // modal collects the audit reason and routes the change through
+  // UpdateSession instead of silently flipping status on reopen.
+  const [pendingReopenStatusChange, setPendingReopenStatusChange] = useState<{
+    sessionId: string;
+    existingStatus: SessionStatus;
+    requestedStatus: SessionStatus;
+  } | null>(null);
+  const [reopenStatusChangeReason, setReopenStatusChangeReason] = useState("");
+  const [reopenStatusChangeSubmitting, setReopenStatusChangeSubmitting] =
+    useState(false);
+  const handleClosePendingReopenStatusChange = useCallback(() => {
+    setPendingReopenStatusChange(null);
+    setReopenStatusChangeReason("");
+  }, []);
+
   // Calculate date range for data fetching
   // - Chart shows trailing 10 workdays ending at reference date
   // - WeekView shows calendar week containing reference date
@@ -3530,6 +3552,20 @@ function TimeTrackingContent() {
     [currentSession, historyData, todayISO],
   );
 
+  // Today's checked-out session (if any) — used to drive the
+  // reopen-with-status-change confirmation when the backend rejects a
+  // CheckIn with REOPEN_STATUS_CONFLICT_CODE.
+  const todayCheckedOutSession = useMemo(
+    () =>
+      (historyData ?? []).find(
+        (s) =>
+          s.date === todayISO &&
+          s.checkOutTime &&
+          (s.status === "present" || s.status === "home_office"),
+      ),
+    [historyData, todayISO],
+  );
+
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
       try {
@@ -3537,14 +3573,68 @@ function TimeTrackingContent() {
         await Promise.all([mutateCurrentSession(), mutateHistory()]);
         toast.success("Erfolgreich eingestempelt");
       } catch (err) {
+        const apiErr = err as ApiError;
+        if (
+          apiErr.code === REOPEN_STATUS_CONFLICT_CODE &&
+          todayCheckedOutSession
+        ) {
+          // Audit-trail gate: silent status change on reopen is forbidden.
+          // Surface the prompt; the user supplies a reason and we route
+          // the change through UpdateSession (which emits a FieldStatus
+          // edit). See work_session_service.go ReopenStatusConflictError.
+          setReopenStatusChangeReason("");
+          setPendingReopenStatusChange({
+            sessionId: todayCheckedOutSession.id,
+            existingStatus: todayCheckedOutSession.status as SessionStatus,
+            requestedStatus: status,
+          });
+          return;
+        }
         logger.error("check_in_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         toast.error(friendlyError(err, "Fehler beim Einstempeln"));
       }
     },
-    [mutateCurrentSession, mutateHistory, toast],
+    [mutateCurrentSession, mutateHistory, toast, todayCheckedOutSession],
   );
+
+  // Confirm path: reopen the session at its existing status, then route
+  // the status change through UpdateSession with the user's reason. Two
+  // round-trips, but each one carries a distinct audit meaning: reopen =
+  // resume work, update = change of work mode.
+  const confirmReopenStatusChange = useCallback(async () => {
+    const pending = pendingReopenStatusChange;
+    if (!pending) return;
+    const reason = reopenStatusChangeReason.trim();
+    if (!reason) return;
+
+    setReopenStatusChangeSubmitting(true);
+    try {
+      await timeTrackingService.checkIn(pending.existingStatus);
+      await timeTrackingService.updateSession(pending.sessionId, {
+        status: pending.requestedStatus,
+        notes: reason,
+      });
+      await Promise.all([mutateCurrentSession(), mutateHistory()]);
+      toast.success("Status geändert");
+      setPendingReopenStatusChange(null);
+      setReopenStatusChangeReason("");
+    } catch (err) {
+      logger.error("reopen_status_change_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error(friendlyError(err, "Fehler beim Statuswechsel"));
+    } finally {
+      setReopenStatusChangeSubmitting(false);
+    }
+  }, [
+    pendingReopenStatusChange,
+    reopenStatusChangeReason,
+    mutateCurrentSession,
+    mutateHistory,
+    toast,
+  ]);
 
   const handleCheckIn = useCallback(
     async (status: SessionStatus) => {
@@ -3930,6 +4020,72 @@ function TimeTrackingContent() {
               : ""}
             . Trotzdem einstempeln?
           </p>
+        </div>
+      </Modal>
+
+      {/* Reopen-with-status-change: collect a reason and route through
+          UpdateSession so the audit trail gets a FieldStatus edit. */}
+      <Modal
+        isOpen={pendingReopenStatusChange !== null}
+        onClose={handleClosePendingReopenStatusChange}
+        title="Status für heute ändern"
+        footer={
+          <div className="flex w-full gap-3">
+            <button
+              onClick={handleClosePendingReopenStatusChange}
+              disabled={reopenStatusChangeSubmitting}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={confirmReopenStatusChange}
+              disabled={
+                reopenStatusChangeSubmitting ||
+                reopenStatusChangeReason.trim() === ""
+              }
+              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pendingReopenStatusChange?.requestedStatus === "home_office"
+                ? "Auf Homeoffice ändern"
+                : "Auf Vor Ort ändern"}
+            </button>
+          </div>
+        }
+      >
+        <div className="py-2">
+          <p className="text-sm text-gray-600">
+            Du hast heute bereits eine{" "}
+            <span className="font-medium text-gray-900">
+              {pendingReopenStatusChange?.existingStatus === "home_office"
+                ? "Homeoffice"
+                : "Vor-Ort"}
+              -Sitzung
+            </span>
+            . Möchtest du sie als{" "}
+            <span className="font-medium text-gray-900">
+              {pendingReopenStatusChange?.requestedStatus === "home_office"
+                ? "Homeoffice"
+                : "Vor Ort"}
+            </span>{" "}
+            fortsetzen? Bitte gib einen kurzen Grund an — er erscheint im
+            Audit-Trail.
+          </p>
+          <label
+            htmlFor="reopen-status-change-reason"
+            className="mt-4 block text-xs font-medium text-gray-700"
+          >
+            Grund
+          </label>
+          <textarea
+            id="reopen-status-change-reason"
+            value={reopenStatusChangeReason}
+            onChange={(e) => setReopenStatusChangeReason(e.target.value)}
+            disabled={reopenStatusChangeSubmitting}
+            placeholder="z. B. Mittags ins Homeoffice gewechselt"
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
+          />
         </div>
       </Modal>
     </div>

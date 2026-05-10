@@ -1,14 +1,24 @@
 package timetracking
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // classifyServiceError maps known business errors to appropriate HTTP status codes
 func classifyServiceError(err error) render.Renderer {
+	// Typed reopen-status-conflict: surfaced as 409 with a stable code so the
+	// frontend can branch into the "change status with reason" flow instead
+	// of showing a generic conflict toast (Issue #1368).
+	var reopenConflict *activeSvc.ReopenStatusConflictError
+	if errors.As(err, &reopenConflict) {
+		return common.ErrorConflictWithCode(err, "reopen_status_conflict")
+	}
+
 	msg := err.Error()
 
 	switch {
