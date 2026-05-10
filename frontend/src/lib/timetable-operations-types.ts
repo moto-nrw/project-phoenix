@@ -13,7 +13,7 @@ export interface PlannedTimetableInstance {
   assignedStaffIds: string[];
 }
 
-export interface TimetableRosterInstance {
+interface TimetableRosterInstance {
   id: string;
   title: string;
   status: "planned" | "active" | "completed" | "cancelled";
