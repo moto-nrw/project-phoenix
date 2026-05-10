@@ -1069,6 +1069,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		result.Success = false
 	} else {
 		result.SessionsEnded = int(sessionsEnded)
+		result.EndedActiveGroupIDs = append(result.EndedActiveGroupIDs, activeIDs...)
 	}
 
 	// 4. Bulk end supervisors
