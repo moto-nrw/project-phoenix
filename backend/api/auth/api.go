@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -250,6 +251,13 @@ type TenantResolveResponse struct {
 	// badge component (PresenceBadge vs LocationBadge) without a second call.
 	// Defaults to "detailed" if SettingsService is unavailable.
 	PresenceMode string `json:"presence_mode"`
+	// StudentPhotosEnabled is the tenant's resolved
+	// operations.student_photos_enabled setting. Surfaced here (rather than
+	// via /api/settings/schema) because every authenticated user — including
+	// non-admin Betreuer who don't carry config:read — needs the flag to
+	// decide whether to render avatars on student cards. Defaults to false
+	// when the setting is missing or unresolvable.
+	StudentPhotosEnabled bool `json:"student_photos_enabled"`
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -292,15 +300,28 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	// the ForTenant variant which opens its own tenant transaction.
 	presenceMode := configSvc.ResolvePresenceModeForTenant(r.Context(), rs.SettingsService, school.ID, nil)
 
+	// Same out-of-tenant-middleware story for the photo feature flag: read
+	// the setting through ResolveStringForTenant (opens its own tenant tx)
+	// and parse the boolean string. Failures fall back to false so a
+	// settings outage never auto-enables the avatar UI for opt-out schools.
+	studentPhotosEnabled := false
+	if rs.SettingsService != nil {
+		val, err := rs.SettingsService.ResolveStringForTenant(r.Context(), school.ID, configModel.KeyStudentPhotosEnabled)
+		if err == nil {
+			studentPhotosEnabled = val == "true"
+		}
+	}
+
 	resp := &TenantResolveResponse{
-		TenantID:         school.ID,
-		Slug:             school.Slug,
-		Name:             school.Name,
-		Subdomain:        school.Subdomain,
-		OrganizationID:   school.OrganizationID,
-		OrganizationName: orgName,
-		Settings:         settings,
-		PresenceMode:     presenceMode,
+		TenantID:             school.ID,
+		Slug:                 school.Slug,
+		Name:                 school.Name,
+		Subdomain:            school.Subdomain,
+		OrganizationID:       school.OrganizationID,
+		OrganizationName:     orgName,
+		Settings:             settings,
+		PresenceMode:         presenceMode,
+		StudentPhotosEnabled: studentPhotosEnabled,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")

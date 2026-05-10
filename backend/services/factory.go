@@ -16,6 +16,7 @@ import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -83,10 +84,14 @@ type Factory struct {
 	OperatorSuggestions  platform.OperatorSuggestionsService
 
 	// SettingsSideEffects is the per-key handler registry the API binds to
-	// SettingsResource.OnValueSet. Domain packages register their own
-	// handlers; the API never owns the registry — its only job is to
-	// dispatch.
+	// SettingsResource.OnValueSet. Domain packages register handlers here
+	// (facilities at startup, students via EnableStudentPhotos). API never
+	// owns the registry — its only job is to dispatch.
 	SettingsSideEffects *sideeffects.Registry
+	// StudentPhotos is set by EnableStudentPhotos. nil until the API layer
+	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
+	// service-layer one).
+	StudentPhotos users.StudentPhotoService
 }
 
 // NewFactory creates a new services factory
@@ -678,4 +683,32 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
 	return factory, nil
+}
+
+// StudentPhotoBootstrap aggregates the dependencies api/base.go must
+// provide to wire the photo lifecycle. The unlinker is api-layer (file IO
+// shared with login-image/avatar upload helpers); the StudentRepo is
+// passed in to avoid storing the repo factory on the services Factory.
+type StudentPhotoBootstrap struct {
+	Unlinker    users.PhotoUnlinker
+	StudentRepo userModels.StudentRepository
+	DB          *bun.DB
+	Logger      *slog.Logger
+}
+
+// EnableStudentPhotos constructs the StudentPhotoService with the supplied
+// dependencies and registers its settings handler on
+// f.SettingsSideEffects. Idempotent: repeated calls overwrite the prior
+// service. Call once at API bootstrap.
+func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
+	f.StudentPhotos = users.NewStudentPhotoService(users.StudentPhotoServiceDependencies{
+		StudentRepo: deps.StudentRepo,
+		Settings:    f.Settings,
+		UserContext: f.UserContext,
+		Broadcaster: f.RealtimeHub,
+		Unlinker:    deps.Unlinker,
+		DB:          deps.DB,
+		Logger:      deps.Logger,
+	})
+	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }

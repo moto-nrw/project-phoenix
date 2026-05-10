@@ -2,15 +2,16 @@ package students
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
-// hasAdminPermissions checks if user has admin permissions
+// HTTP-side wrappers around auth/authorize/student_access.go.
+
 func hasAdminPermissions(permissions []string) bool {
 	for _, perm := range permissions {
 		if perm == "admin:*" || perm == "*:*" {
@@ -20,69 +21,19 @@ func hasAdminPermissions(permissions []string) bool {
 	return false
 }
 
-// getPermissionsFromRequest extracts permissions from request context
+// getPermissionsFromRequest extracts permissions from request context.
 func getPermissionsFromRequest(r *http.Request) []string {
 	return jwt.PermissionsFromCtx(r.Context())
 }
 
-// canModifyStudent centralizes the authorization logic for modifying student data (update/delete)
-func canModifyStudent(ctx context.Context, userPermissions []string, student *users.Student, userContextService userContextService.UserContextService, operation string) (bool, error) {
-	// Admin users have full access
-	if hasAdminPermissions(userPermissions) {
-		return true, nil
-	}
-
-	// Student must have a group for non-admin operations
-	if student.GroupID == nil {
-		return false, fmt.Errorf("only administrators can %s students without assigned groups", operation)
-	}
-
-	// Check if user is a staff member
-	staff, err := userContextService.GetCurrentStaff(ctx)
-	if err != nil || staff == nil {
-		return false, fmt.Errorf("insufficient permissions to %s this student's data", operation)
-	}
-
-	// Check if staff supervises the student's group
-	if isGroupSupervisor(ctx, *student.GroupID, userContextService) {
-		return true, nil
-	}
-
-	return false, fmt.Errorf("you can only %s students in groups you supervise", operation)
+func canUpdateStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs userContextService.UserContextService) (bool, error) {
+	return authorize.CanUpdateStudent(ctx, userPermissions, student, ucs)
 }
 
-// canUpdateStudent is a convenience wrapper for update operations
-func canUpdateStudent(ctx context.Context, userPermissions []string, student *users.Student, userContextService userContextService.UserContextService) (bool, error) {
-	return canModifyStudent(ctx, userPermissions, student, userContextService, "update")
+func canDeleteStudent(ctx context.Context, userPermissions []string, student *users.Student, ucs userContextService.UserContextService) (bool, error) {
+	return authorize.CanDeleteStudent(ctx, userPermissions, student, ucs)
 }
 
-// canDeleteStudent is a convenience wrapper for delete operations
-func canDeleteStudent(ctx context.Context, userPermissions []string, student *users.Student, userContextService userContextService.UserContextService) (bool, error) {
-	return canModifyStudent(ctx, userPermissions, student, userContextService, "delete")
-}
-
-// isGroupSupervisor checks if the current user supervises a specific group
-func isGroupSupervisor(ctx context.Context, groupID int64, userContextService userContextService.UserContextService) bool {
-	// Check education groups
-	educationGroups, err := userContextService.GetMyGroups(ctx)
-	if err == nil {
-		for _, g := range educationGroups {
-			if g.ID == groupID {
-				return true
-			}
-		}
-	}
-
-	// Also check active groups. Spontaneous sessions (no parent template,
-	// WP-B6) can never match the given template groupID and are skipped.
-	activeGroups, err := userContextService.GetMyActiveGroups(ctx)
-	if err == nil {
-		for _, ag := range activeGroups {
-			if templateID, ok := ag.TemplateID(); ok && templateID == groupID {
-				return true
-			}
-		}
-	}
-
-	return false
+func isGroupSupervisor(ctx context.Context, groupID int64, ucs userContextService.UserContextService) bool {
+	return authorize.IsGroupSupervisor(ctx, groupID, ucs)
 }

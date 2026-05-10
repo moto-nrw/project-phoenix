@@ -22,6 +22,9 @@ type StudentResponseOpts struct {
 	Group            *education.Group
 	HasFullAccess    bool
 	LocationOverride *string
+	// Resolve once per request and thread through — populatePhotoFields
+	// runs per-student in list paths.
+	PhotosEnabled bool
 }
 
 // StudentResponseServices groups service dependencies for student response creation
@@ -96,6 +99,65 @@ func populateSensitiveStudentFields(response *StudentResponse, student *users.St
 	}
 	if student.ExcusedSince != nil {
 		response.ExcusedSince = student.ExcusedSince
+	}
+}
+
+// populatePhotoFields fills the response with photo URL + consent metadata.
+// Visible to all authenticated staff so any list view can render the avatar.
+//
+// When photosEnabled is false (operations.student_photos_enabled off for
+// the tenant) we skip every photo-related field. Otherwise an admin who
+// turns the feature off would still see photo_url + consent metadata in
+// API responses for rows that already had a photo uploaded — the
+// frontend would hide the avatar, but the bytes would still be reachable
+// through the JSON URL. Caller resolves the flag once per request.
+//
+// The DB stores the raw `/uploads/student-photos/{filename}` path (the
+// serve route keys cleanup off this prefix); the frontend can't fetch
+// `/uploads/...` directly because Next.js doesn't serve that path. The
+// JSON-facing URL is rewritten to the authenticated proxy URL by
+// `common.BuildStudentPhotoServeURL` — same helper the active-group visit
+// response uses, so the two endpoints can never drift.
+// populatePhotoFields fills the response with photo URL + consent metadata.
+//
+// hasFullAccess MUST mirror the predicate serveStudentPhoto uses internally
+// (authorize.CanReadStudent — i.e. admin OR all_staff scope OR caller
+// supervises the student's group): the byte-serving route 403s callers that
+// fail it, so emitting photo_url for rows the same session is forbidden to
+// fetch would let list/search responses hand out URLs that immediately bounce
+// to a broken-image fetch. The boolean PhotoConsentGiven flag is fine to
+// surface tenant-wide — it's not GDPR-sensitive on its own — only the URL
+// itself is gated.
+//
+// When photosEnabled is false we still skip every photo field so an admin
+// who turns the feature off mid-session no longer sees photo_url + consent
+// metadata in API responses for rows that already had a photo uploaded.
+func populatePhotoFields(response *StudentResponse, student *users.Student, photosEnabled, hasFullAccess bool) {
+	if !photosEnabled {
+		// All photo fields stay at their zero values. With
+		// PhotoConsentGiven typed as *bool + omitempty, leaving it nil
+		// suppresses it from the JSON entirely — the frontend cannot
+		// confuse "feature off" with "consent withdrawn". Same goes for
+		// PhotoURL (string + omitempty drops the empty string).
+		return
+	}
+	// PhotoURL is only emitted when the caller can actually fetch it.
+	// hasFullAccess matches the access gate inside serveStudentPhoto so
+	// the URL we hand out is one the same session is allowed to render.
+	if hasFullAccess && student.PhotoPath != nil {
+		response.PhotoURL = common.BuildStudentPhotoServeURL(student.ID, *student.PhotoPath)
+	}
+	// Surface the explicit boolean state to the frontend so the consent
+	// checkbox can render correctly: true when consent has been recorded,
+	// false when photos are enabled but consent is not given (or was
+	// withdrawn). Nil is reserved for the feature-off branch above.
+	consentGiven := student.PhotoConsentGivenAt != nil
+	response.PhotoConsentGiven = &consentGiven
+	if student.PhotoConsentGivenAt != nil {
+		response.PhotoConsentGivenAt = student.PhotoConsentGivenAt
+	}
+	if student.PhotoConsentGivenBy != nil {
+		response.PhotoConsentGivenBy = student.PhotoConsentGivenBy
 	}
 }
 
@@ -239,12 +301,17 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
 	populateSensitiveStudentFields(&response, student)
 
+	// Photo + consent metadata. Suppressed entirely when the feature is
+	// off; PhotoURL additionally requires hasFullAccess so we never hand
+	// out a URL the same session would 403 against in serveStudentPhoto.
+	populatePhotoFields(&response, student, opts.PhotosEnabled, hasFullAccess)
+
 	return response
 }
 
 // newStudentResponseFromSnapshot creates a student response using pre-loaded snapshot data
 // This eliminates N+1 queries by using cached person, group, and location data
-func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, snapshot *common.StudentDataSnapshot) StudentResponse {
+func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, snapshot *common.StudentDataSnapshot, photosEnabled bool) StudentResponse {
 	response := StudentResponse{
 		ID:          student.ID,
 		PersonID:    student.PersonID,
@@ -274,6 +341,9 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
 	populateSnapshotSensitiveFields(&response, student)
+
+	// Photo + consent metadata — same rationale as in newStudentResponseWithOpts.
+	populatePhotoFields(&response, student, photosEnabled, hasFullAccess)
 
 	return response
 }

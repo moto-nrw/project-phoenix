@@ -15,6 +15,7 @@ interface TenantResolveResponse {
   organization_name: string;
   settings: TenantSettings;
   presence_mode?: string;
+  student_photos_enabled?: boolean;
 }
 
 /**
@@ -45,6 +46,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       organizationName: data.organization_name,
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),
+      studentPhotosEnabled: data.student_photos_enabled === true,
     };
   } catch {
     return null;

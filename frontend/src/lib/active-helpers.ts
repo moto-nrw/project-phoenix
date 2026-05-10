@@ -55,6 +55,9 @@ export interface BackendVisit {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  // Authenticated proxy URL — backend rewrites the raw /uploads path
+  // to /api/students/{id}/photo/{filename} before sending it down.
+  photo_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -141,6 +144,8 @@ export interface Visit {
   sickSince?: string;
   excused?: boolean;
   excusedSince?: string;
+  // Authenticated photo URL (forwarded as-is from the BFF/proxy).
+  photoUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -231,6 +236,7 @@ export function mapVisitResponse(backendVisit: BackendVisit): Visit {
     sickSince: backendVisit.sick_since,
     excused: backendVisit.excused,
     excusedSince: backendVisit.excused_since,
+    photoUrl: backendVisit.photo_url,
     createdAt: new Date(backendVisit.created_at),
     updatedAt: new Date(backendVisit.updated_at),
   };

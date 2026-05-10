@@ -181,6 +181,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/facilities/settings_sideeffects_test.go",       // Pure side-effect dispatch unit test against fake services; tenant IDs are not DB rows
 		"api/config/settings_broadcast_test.go",                  // Pure unit test for scheduleSettingsBroadcast; tenant IDs are pass-through arguments to a fake broadcaster
 		"api/operator/settings_broadcast_test.go",                // Pure unit test for the operator-side scheduleSettingsBroadcast; tenant IDs are pass-through arguments to a fake broadcaster
+		"api/students/response_helpers_test.go",                  // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {

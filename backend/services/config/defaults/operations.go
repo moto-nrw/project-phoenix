@@ -282,4 +282,22 @@ func init() {
 			},
 		},
 	})
+
+	// --- Kinderfotos (Datenverwaltung-Erweiterung) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyStudentPhotosEnabled,
+		Label:           "Kinderfotos aktivieren",
+		Description:     "Wenn aktiviert, können Mitarbeitende mit Bearbeitungsrecht in der Datenverwaltung Fotos zu Kindern hinterlegen (nur mit dokumentierter Einwilligung der Eltern). Fotos erscheinen anschließend in Suche, Räumen, Abholplan und Kinderdetail.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		// Category key is shown verbatim as the section header in the
+		// settings UI (schema_builder.Label = catName). German umlaut here
+		// matches the visible "Kinder" copy throughout the photo feature.
+		Category:  "kinder",
+		SortOrder: 50,
+	})
 }

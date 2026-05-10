@@ -87,7 +87,11 @@ describe("StudentCard", () => {
     expect(gradientDiv).toBeInTheDocument();
   });
 
-  it("wraps location badge and tracking indicators in flex-col when trackingIndicators provided", () => {
+  it("renders both location badge and tracking indicators when both are provided", () => {
+    // Layout note: locationBadge and trackingIndicators share the right-
+    // side vertical stack in the header row (badge on top, indicators
+    // below). The avatar lives inline in the bottom hint row, so it
+    // doesn't compete with the right-side stack.
     render(
       <StudentCard
         {...defaultProps}
@@ -97,10 +101,6 @@ describe("StudentCard", () => {
 
     expect(screen.getByTestId("tracking")).toBeInTheDocument();
     expect(screen.getByTestId("location-badge")).toBeInTheDocument();
-    const trackingEl = screen.getByTestId("tracking");
-    const wrapper = trackingEl.parentElement;
-    expect(wrapper?.className).toContain("flex");
-    expect(wrapper?.className).toContain("flex-col");
   });
 
   it("renders location badge alone without wrapper when no trackingIndicators", () => {

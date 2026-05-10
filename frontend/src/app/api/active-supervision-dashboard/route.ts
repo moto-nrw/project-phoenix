@@ -79,6 +79,9 @@ interface BackendVisitDisplay {
   excused?: boolean;
   excused_since?: string;
   is_active: boolean;
+  // Authenticated /api/students/{id}/photo/{filename} URL — backend
+  // rewrites the raw /uploads path before returning.
+  photo_url?: string;
 }
 
 // Backend response for Schulhof status
@@ -161,6 +164,7 @@ interface ActiveSupervisionDashboardResponse {
     sickSince?: string;
     excused?: boolean;
     excusedSince?: string;
+    photoUrl?: string;
   }>;
 
   // ID of first room (for state initialization)
@@ -446,6 +450,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
             sickSince: v.sick_since,
             excused: v.excused,
             excusedSince: v.excused_since,
+            photoUrl: v.photo_url,
           }));
       } catch {
         firstRoomVisits = [];

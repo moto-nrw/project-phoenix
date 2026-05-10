@@ -149,6 +149,14 @@ type setValueRequest struct {
 	Value any `json:"value"`
 }
 
+// shouldReplayResetHook gates which keys re-run their OnValueSet callback
+// on DELETE so reset can trigger reset-specific side effects. Limited to
+// keys whose registry default carries semantic meaning (e.g. student photo
+// purge on disable). Other settings keep their pre-feature reset behavior.
+func shouldReplayResetHook(key string) bool {
+	return key == configModel.KeyStudentPhotosEnabled
+}
+
 // --- Handlers ---
 
 func (rs *SettingsResource) getSchema(w http.ResponseWriter, r *http.Request) {
@@ -245,6 +253,21 @@ func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if err := rs.settingsService.ResetValue(ctx, key, &changedBy, claims.Permissions); err != nil {
 			return err
+		}
+		// Replay the OnValueSet hook for keys that need reset-specific side
+		// effects (e.g. clearing photo files when student_photos_enabled is
+		// reset to its default-off state). Otherwise a "Zurücksetzen" click
+		// on student_photos_enabled would clear the override but leave
+		// already-stored photos on disk.
+		if rs.onValueSet != nil && shouldReplayResetHook(key) {
+			def := configModel.GetDefinition(key)
+			if def != nil {
+				cb, err := rs.onValueSet(ctx, tenantID, key, def.Default)
+				if err != nil {
+					return err
+				}
+				tenant.RegisterAfterCommit(ctx, cb)
+			}
 		}
 		rs.scheduleSettingsBroadcast(ctx, tenantID, key)
 		return nil

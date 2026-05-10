@@ -56,6 +56,7 @@ interface VisitDisplayLike {
   sickSince?: string;
   excused?: boolean;
   excusedSince?: string;
+  photoUrl?: string;
 }
 
 interface SupervisedGroupLike {
@@ -140,6 +141,7 @@ function mapVisitToSupervisionStudent(
       visit.checkInTime instanceof Date
         ? visit.checkInTime
         : new Date(visit.checkInTime),
+    photo_url: visit.photoUrl,
   } as ActiveSupervisionStudent;
 }
 
