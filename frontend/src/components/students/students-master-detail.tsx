@@ -372,7 +372,7 @@ function ClassActionsMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute top-full right-0 z-50 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute top-full right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
         >
           <button
             type="button"
