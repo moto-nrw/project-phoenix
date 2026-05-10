@@ -11,6 +11,10 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+const navigationMockState = vi.hoisted(() => ({
+  roomParam: null as string | null,
+}));
+
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
@@ -37,7 +41,10 @@ const mockPush = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => ({
+    get: (key: string) =>
+      key === "room" ? navigationMockState.roomParam : null,
+  }),
   redirect: (url: string) => mockRedirect(url),
 }));
 
@@ -255,6 +262,7 @@ describe("MeinRaumPage (Active Supervisions)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    navigationMockState.roomParam = null;
     global.fetch = vi.fn();
     // Default mock: loading state
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -397,6 +405,203 @@ describe("MeinRaumPage (Active Supervisions)", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
+    });
+  });
+
+  it("does not flash student cards while timetable roster is still loading", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [
+        { id: "2", name: "OGS Gruppe A", room: { name: "Raum 101" } },
+      ],
+      firstRoomVisits: [
+        {
+          studentId: "100",
+          studentName: "Max Mustermann",
+          schoolClass: "1a",
+          groupName: "OGS Gruppe A",
+          activeGroupId: "1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: undefined,
+          isLoading: true,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+    });
+  });
+
+  it("renders timetable roster UI when an active roster is available", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [
+        {
+          studentId: "100",
+          studentName: "Max Mustermann",
+          schoolClass: "1a",
+          groupName: "OGS Gruppe A",
+          activeGroupId: "1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: {
+            instance: { id: "99", title: "Kreativ AG" },
+            rows: [],
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kreativ AG")).toBeInTheDocument();
+      expect(
+        screen.getByText("Laufende geplante Aktivität"),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not flash first-room students while a direct room URL is syncing", async () => {
+    navigationMockState.roomParam = "11";
+    const { activeService } = await import("~/lib/active-api");
+    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockReturnValue(
+      new Promise(() => undefined) as never,
+    );
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "1",
+          name: "Raum 101",
+          room_id: "10",
+          room: { id: "10", name: "Raum 101" },
+        },
+        {
+          id: "2",
+          name: "Raum 102",
+          room_id: "11",
+          room: { id: "11", name: "Raum 102" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [
+        {
+          studentId: "100",
+          studentName: "Max Mustermann",
+          schoolClass: "1a",
+          groupName: "OGS Gruppe A",
+          activeGroupId: "1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        activeService.getActiveGroupVisitsWithDisplay,
+      ).toHaveBeenCalledWith("2");
+      expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+      expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
     });
   });
 

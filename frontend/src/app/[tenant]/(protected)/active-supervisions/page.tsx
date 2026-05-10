@@ -579,8 +579,15 @@ function MeinRaumPageContent() {
     // Skip first-room preload when Schulhof tab is active — Schulhof uses
     // selectedRoomId=null intentionally, so !selectedRoomId would incorrectly
     // match and overwrite Schulhof students with first-room data.
+    const isUrlTargetingDifferentRoom =
+      !!roomParam &&
+      roomParam !== SCHULHOF_TAB_ID &&
+      activeRooms.some((room) => room.room_id === roomParam) &&
+      firstRoom?.room_id !== roomParam;
+
     if (
       !isSchulhofTabSelected &&
+      !isUrlTargetingDifferentRoom &&
       (!selectedRoomId || selectedRoomId === firstRoom?.id)
     ) {
       // When no room is explicitly selected yet, lock in the first room's ID
@@ -613,6 +620,7 @@ function MeinRaumPageContent() {
     updateRoomStudentCount,
     selectedRoomId,
     isSchulhofTabSelected,
+    roomParam,
   ]);
 
   // Sync selected room with URL param.
@@ -746,34 +754,39 @@ function MeinRaumPageContent() {
     : currentRoomId && !isSchulhofActive
       ? `timetable-roster-active-group-${currentRoomId}`
       : null;
-  const { data: timetableRoster, mutate: mutateRoster } =
-    useSWRAuth<TimetableRoster | null>(
-      timetableRosterKey,
-      async () => {
-        try {
-          if (selectedTimetableInstanceId) {
-            return await timetableOperationsApi.roster(
-              selectedTimetableInstanceId,
-            );
-          }
-          if (!currentRoomId) return null;
-          return await timetableOperationsApi.rosterByActiveGroup(
-            currentRoomId,
+  const {
+    data: timetableRoster,
+    isLoading: isTimetableRosterLoading,
+    mutate: mutateRoster,
+  } = useSWRAuth<TimetableRoster | null>(
+    timetableRosterKey,
+    async () => {
+      try {
+        if (selectedTimetableInstanceId) {
+          return await timetableOperationsApi.roster(
+            selectedTimetableInstanceId,
           );
-        } catch (err) {
-          if (
-            err instanceof Error &&
-            (err.message.includes("404") ||
-              err.message.toLowerCase().includes("not found"))
-          ) {
-            return null;
-          }
-          throw err;
         }
-      },
-      { keepPreviousData: true, revalidateOnFocus: false },
-    );
+        if (!currentRoomId) return null;
+        return await timetableOperationsApi.rosterByActiveGroup(currentRoomId);
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          (err.message.includes("404") ||
+            err.message.toLowerCase().includes("not found"))
+        ) {
+          return null;
+        }
+        throw err;
+      }
+    },
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
   const activeTimetableInstanceId = timetableRoster?.instance?.id ?? null;
+  const isWaitingForTimetableRoster =
+    timetableRosterKey !== null &&
+    timetableRoster === undefined &&
+    isTimetableRosterLoading;
 
   useEffect(() => {
     if (!activeTimetableInstanceId || addStudentSearch.trim().length < 2) {
@@ -1132,6 +1145,11 @@ function MeinRaumPageContent() {
     (student) =>
       matchesStudentFilters(student, searchTerm, groupFilter, selectedYear),
   );
+  const isWaitingForUrlRoomSelection =
+    !!roomParam &&
+    roomParam !== SCHULHOF_TAB_ID &&
+    allRooms.some((room) => room.room_id === roomParam) &&
+    currentRoom?.room_id !== roomParam;
 
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(() => {
@@ -1234,6 +1252,10 @@ function MeinRaumPageContent() {
 
   // Render helper for student grid content
   const renderStudentContent = () => {
+    if (isWaitingForUrlRoomSelection || isWaitingForTimetableRoster) {
+      return <ActiveSupervisionLoadingView />;
+    }
+
     if (timetableRoster) {
       const present = timetableRoster.rows.filter(
         (row) => row.currentlyPresent && row.planned,
