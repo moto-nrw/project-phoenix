@@ -17,12 +17,32 @@ const (
 	WorkSessionStatusHomeOffice = "home_office"
 )
 
+// WorkSessionSource records which channel produced the row. Used by the
+// export to label "Vor Ort (NFC)" vs "Vor Ort (App)" vs "Homeoffice (App)"
+// without inferring from status alone (Issue #1368).
+//
+// Validation lives in two layers on purpose:
+//   - WorkSessionService.CheckIn rejects unknown values at the service
+//     boundary, so bad input never reaches the DB.
+//   - The Postgres CHECK constraint chk_work_sessions_source is the safety
+//     net for any code path that would bypass the service.
+//
+// Validate() on this entity intentionally does not re-check Source — partial
+// update flows (e.g. break management, notes patches) load existing rows
+// that may have been written before this column existed. Re-validating here
+// would reject those rows on otherwise-unrelated mutations.
+const (
+	WorkSessionSourceApp = "app" // POST /api/time-tracking/check-in (App / Web)
+	WorkSessionSourceNFC = "nfc" // Auto-stamp from a kiosk-driven scan
+)
+
 type WorkSession struct {
 	base.Model `bun:"schema:active,table:work_sessions"`
 	base.TenantModel
 	StaffID        int64      `bun:"staff_id,notnull" json:"staff_id"`
 	Date           time.Time  `bun:"date,notnull,type:date" json:"date"`
 	Status         string     `bun:"status,notnull,default:'present'" json:"status"`
+	Source         string     `bun:"source,notnull,default:'app'" json:"source"`
 	CheckInTime    time.Time  `bun:"check_in_time,notnull" json:"check_in_time"`
 	CheckOutTime   *time.Time `bun:"check_out_time" json:"check_out_time,omitempty"`
 	BreakMinutes   int        `bun:"break_minutes,notnull,default:0" json:"break_minutes"`
@@ -64,6 +84,8 @@ func (ws *WorkSession) Validate() error {
 	if ws.Status != WorkSessionStatusPresent && ws.Status != WorkSessionStatusHomeOffice {
 		return errors.New("status must be 'present' or 'home_office'")
 	}
+	// Source is intentionally not validated here — see the const block above
+	// for why: partial-update flows load pre-Source rows.
 	if ws.CheckOutTime != nil && ws.CheckInTime.After(*ws.CheckOutTime) {
 		return errors.New("check-in time must be before check-out time")
 	}

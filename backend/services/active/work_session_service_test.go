@@ -482,11 +482,12 @@ func TestWSCheckIn_Success(t *testing.T) {
 		return nil
 	}
 
-	session, err := svc.CheckIn(ctx, staffID, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(ctx, staffID, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Equal(t, staffID, session.StaffID)
 	assert.Equal(t, activeModels.WorkSessionStatusPresent, session.Status)
+	assert.Equal(t, activeModels.WorkSessionSourceApp, session.Source)
 	assert.Nil(t, session.CheckOutTime)
 }
 
@@ -501,7 +502,7 @@ func TestWSCheckIn_RejectsEmptyStatus(t *testing.T) {
 		return nil
 	}
 
-	session, err := svc.CheckIn(ctx, 100, "")
+	session, err := svc.CheckIn(ctx, 100, "", activeModels.WorkSessionSourceApp)
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "status must be")
@@ -518,7 +519,7 @@ func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {
 		}, nil
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "already checked in")
@@ -547,7 +548,7 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 		return nil
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Nil(t, session.CheckOutTime)
@@ -556,7 +557,7 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 func TestWSCheckIn_InvalidStatus(t *testing.T) {
 	svc, _, _, _, _ := wsCreateTestService()
 
-	session, err := svc.CheckIn(context.Background(), 100, "invalid_status")
+	session, err := svc.CheckIn(context.Background(), 100, "invalid_status", activeModels.WorkSessionSourceApp)
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "status must be")
@@ -569,7 +570,7 @@ func TestWSCheckIn_RepoError(t *testing.T) {
 		return nil, errors.New("database error")
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to check existing session")
@@ -1107,7 +1108,7 @@ func TestWSEnsureCheckedIn_AlreadyActive(t *testing.T) {
 		}, nil
 	}
 
-	session, err := svc.EnsureCheckedIn(context.Background(), staffID)
+	session, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceNFC)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Equal(t, staffID, session.StaffID)
@@ -1130,7 +1131,7 @@ func TestWSEnsureCheckedIn_AlreadyCheckedOutToday(t *testing.T) {
 		}, nil
 	}
 
-	session, err := svc.EnsureCheckedIn(context.Background(), staffID)
+	session, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceNFC)
 	require.NoError(t, err)
 	assert.Nil(t, session) // Should return nil when already checked out today
 }
@@ -1154,14 +1155,44 @@ func TestWSEnsureCheckedIn_CreatesNew(t *testing.T) {
 		return nil, sql.ErrNoRows
 	}
 
+	var capturedSource string
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
 		entity.ID = 10
+		capturedSource = entity.Source
 		return nil
 	}
 
-	session, err := svc.EnsureCheckedIn(context.Background(), staffID)
+	session, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceNFC)
 	require.NoError(t, err)
 	require.NotNil(t, session)
+	assert.Equal(t, activeModels.WorkSessionSourceNFC, capturedSource,
+		"EnsureCheckedIn must forward the caller-supplied source to CheckIn")
+}
+
+// TestWSEnsureCheckedIn_ForwardsAppSource verifies that EnsureCheckedIn does
+// not hard-code 'nfc' — non-NFC callers (web triggers, future schedulers)
+// must be able to record their channel faithfully.
+func TestWSEnsureCheckedIn_ForwardsAppSource(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	staffID := int64(100)
+
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return nil, sql.ErrNoRows
+	}
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
+		return nil, sql.ErrNoRows
+	}
+
+	var capturedSource string
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		entity.ID = 11
+		capturedSource = entity.Source
+		return nil
+	}
+
+	_, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceApp)
+	require.NoError(t, err)
+	assert.Equal(t, activeModels.WorkSessionSourceApp, capturedSource)
 }
 
 // ============================================================================

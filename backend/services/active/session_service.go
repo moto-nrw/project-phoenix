@@ -79,9 +79,11 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		)
 	}
 
-	// NFC auto-check-in: ensure staff member has a work session for today
+	// NFC auto-check-in: ensure staff member has a work session for today.
+	// This path runs from the IoT supervisor flow (kiosk-driven activity
+	// start), so the channel is recorded as 'nfc' in the audit trail.
 	if s.workSessionService != nil {
-		if _, err := s.workSessionService.EnsureCheckedIn(ctx, staffID); err != nil {
+		if _, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC); err != nil {
 			s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
 				slog.Int64("staff_id", staffID),
 				slog.String("error", err.Error()),

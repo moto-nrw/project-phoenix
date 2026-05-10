@@ -339,6 +339,7 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 			CheckOutTime: &checkOut,
 			BreakMinutes: 45,
 			Status:       activeModels.WorkSessionStatusPresent,
+			Source:       activeModels.WorkSessionSourceApp,
 			Notes:        "Regular day",
 		},
 		NetMinutes: 480, // 8h 0min
@@ -355,6 +356,30 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 	assert.Equal(t, "8h 00min", row[5])      // Netto
 	assert.Equal(t, "Vor Ort (App)", row[6]) // Quelle (Issue #1368)
 	assert.Equal(t, "Regular day", row[7])   // Bemerkungen
+}
+
+func TestWSSessionToRow_NFC(t *testing.T) {
+	// Issue #1368: an NFC-stamped session must be distinguishable from an
+	// App-stamped one in the export. Both have status=present, so the label
+	// has to read source.
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	sr := &SessionResponse{
+		WorkSession: &activeModels.WorkSession{
+			Model:       base.Model{ID: 1},
+			Date:        date,
+			CheckInTime: checkIn,
+			Status:      activeModels.WorkSessionStatusPresent,
+			Source:      activeModels.WorkSessionSourceNFC,
+		},
+		NetMinutes: 0,
+	}
+
+	row := svc.sessionToRow(sr)
+	assert.Equal(t, "Vor Ort (NFC)", row[6])
 }
 
 func TestWSSessionToRow_NoCheckOut(t *testing.T) {
@@ -392,6 +417,7 @@ func TestWSSessionToRow_HomeOffice(t *testing.T) {
 			Date:        date,
 			CheckInTime: checkIn,
 			Status:      activeModels.WorkSessionStatusHomeOffice,
+			Source:      activeModels.WorkSessionSourceApp,
 		},
 		NetMinutes: 0,
 	}
@@ -1278,7 +1304,7 @@ func TestWSCheckIn_CreateError(t *testing.T) {
 		return errors.New("create error")
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to create work session")

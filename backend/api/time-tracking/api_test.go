@@ -133,7 +133,7 @@ func (m *mockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]users
 // --- Mock WorkSessionService ---
 
 type mockWorkSessionService struct {
-	checkInFn            func(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error)
+	checkInFn            func(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error)
 	checkOutFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	startBreakFn         func(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	endBreakFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
@@ -147,9 +147,9 @@ type mockWorkSessionService struct {
 	autoEndExpiredBreaks func(ctx context.Context) (int, error)
 }
 
-func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error) {
+func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
 	if m.checkInFn != nil {
-		return m.checkInFn(ctx, staffID, status)
+		return m.checkInFn(ctx, staffID, status, source)
 	}
 	return &activeModels.WorkSession{}, nil
 }
@@ -208,7 +208,7 @@ func (m *mockWorkSessionService) GetTodayPresenceMap(ctx context.Context) (map[i
 	return map[int64]string{}, nil
 }
 func (m *mockWorkSessionService) CleanupOpenSessions(_ context.Context) (int, error) { return 0, nil }
-func (m *mockWorkSessionService) EnsureCheckedIn(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+func (m *mockWorkSessionService) EnsureCheckedIn(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
 func (m *mockWorkSessionService) ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error) {
@@ -426,10 +426,11 @@ func TestCheckIn_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, staffID int64, status string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "present", status)
-			ws := &activeModels.WorkSession{Status: "present"}
+			assert.Equal(t, activeModels.WorkSessionSourceApp, source)
+			ws := &activeModels.WorkSession{Status: "present", Source: source}
 			ws.ID = 1
 			return ws, nil
 		},
@@ -485,7 +486,7 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
 			return nil, errors.New("already checked in")
 		},
 	}
