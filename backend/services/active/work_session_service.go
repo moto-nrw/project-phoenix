@@ -11,6 +11,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -94,14 +95,10 @@ func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo ac
 	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, logger: logger}
 }
 
-// CheckIn creates a new work session for the staff member
+// CheckIn creates a new work session for the staff member.
+// Status must be explicitly chosen — empty values are rejected so the caller
+// (HTTP handler or internal worker) cannot accidentally fall back to "present".
 func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error) {
-	// Default status to present if empty
-	if status == "" {
-		status = activeModels.WorkSessionStatusPresent
-	}
-
-	// Validate status
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
@@ -413,6 +410,15 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 
 	if session.StaffID != staffID {
 		return nil, fmt.Errorf("can only update own sessions")
+	}
+
+	// A status change (Vor Ort ↔ Homeoffice) carries audit weight and must be
+	// justified — otherwise the audit trail loses meaning. Requires the caller
+	// to send the reason in `notes` on the same request.
+	if updates.Status != nil && *updates.Status != session.Status {
+		if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
+			return nil, fmt.Errorf("notes required when changing status")
+		}
 	}
 
 	uc := &sessionUpdateContext{
@@ -830,7 +836,7 @@ func (s *workSessionService) exportCSV(rows []exportRow) ([]byte, error) {
 	w.Comma = ';'
 
 	// Header
-	if err := w.Write([]string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Ort", "Bemerkungen"}); err != nil {
+	if err := w.Write([]string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Quelle", "Bemerkungen"}); err != nil {
 		return nil, fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
@@ -863,7 +869,7 @@ func (s *workSessionService) exportXLSX(rows []exportRow) ([]byte, error) {
 		_ = f.DeleteSheet("Sheet1")
 	}
 
-	headers := []string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Ort", "Bemerkungen"}
+	headers := []string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Quelle", "Bemerkungen"}
 
 	// Header style
 	headerStyle, _ := f.NewStyle(&excelize.Style{
@@ -920,12 +926,22 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	m := netMins % 60
 	netto := fmt.Sprintf("%dh %02dmin", h, m)
 
-	ort := "In der OGS"
+	// Quelle (source) collapses location and origin into one column.
+	// Priority: any manual edit wins over auto-checkout, which wins over the
+	// session's chosen status — because corrections are the most useful signal
+	// for the OGS-Leitung when reading the export.
+	quelle := "Vor Ort (App)"
 	if sess.Status == activeModels.WorkSessionStatusHomeOffice {
-		ort = "Homeoffice"
+		quelle = "Homeoffice (App)"
+	}
+	if sess.AutoCheckedOut {
+		quelle = "Auto-Checkout"
+	}
+	if sr.EditCount > 0 {
+		quelle = "Manuell korrigiert"
 	}
 
-	return []string{datum, wochentag, start, ende, pauseMin, netto, ort, sess.Notes}
+	return []string{datum, wochentag, start, ende, pauseMin, netto, quelle, sess.Notes}
 }
 
 // AutoEndExpiredBreaks ends all breaks whose planned_end_time has passed

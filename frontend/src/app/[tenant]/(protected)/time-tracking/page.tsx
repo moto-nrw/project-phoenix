@@ -235,33 +235,46 @@ function getSessionStatusBadge(
     return { className: "bg-amber-100 text-amber-700", label: "Pause" };
   }
   if (status === "home_office") {
-    return { className: "bg-sky-100 text-sky-700", label: "Homeoffice" };
+    return {
+      className: "bg-[#5080D8]/10 text-[#5080D8]",
+      label: "Homeoffice",
+    };
   }
   return { className: "bg-[#83CD2D]/10 text-[#70b525]", label: "In der OGS" };
 }
 
-// Returns className for mode toggle button
+// Returns className for mode toggle button. `currentMode` is null before the
+// staff member has actively chosen Vor Ort / Homeoffice / Abwesend (Issue #1368
+// — no pre-selection). All buttons render inactive in that case.
 function getModeToggleClassName(
   buttonMode: WorkMode,
-  currentMode: WorkMode,
+  currentMode: WorkMode | null,
 ): string {
   const base =
     "rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4";
   const inactive = "bg-gray-100 text-gray-500 hover:bg-gray-200";
   if (buttonMode !== currentMode) return `${base} ${inactive}`;
+  // Brand colors from LOCATION_COLORS (lib/location-helper.ts):
+  //   present     → GROUP_ROOM #83CD2D (green)
+  //   home_office → OTHER_ROOM #5080D8 (blue)
+  //   absent      → HOME       #FF3130 (red)
   if (buttonMode === "present")
     return `${base} bg-[#83CD2D]/10 text-[#70b525] ring-1 ring-[#83CD2D]/40`;
   if (buttonMode === "home_office")
-    return `${base} bg-sky-100 text-sky-700 ring-1 ring-sky-300`;
-  return `${base} bg-red-100 text-red-700 ring-1 ring-red-300`;
+    return `${base} bg-[#5080D8]/10 text-[#5080D8] ring-1 ring-[#5080D8]/40`;
+  return `${base} bg-[#FF3130]/10 text-[#FF3130] ring-1 ring-[#FF3130]/40`;
 }
 
-// Returns className for check-in button based on mode
-function getCheckInButtonClassName(mode: WorkMode): string {
+// Returns className for check-in button. When `mode` is null the button is
+// rendered in a muted style and disabled — the staff member must pick a status
+// first (Issue #1368: keine Vorauswahl).
+function getCheckInButtonClassName(mode: WorkMode | null): string {
   const base =
-    "flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50";
+    "flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50";
+  if (mode === null)
+    return `${base} border-[#6B7280]/40 text-[#6B7280]/60 cursor-not-allowed`;
   if (mode === "home_office")
-    return `${base} border-sky-500 text-sky-500 hover:bg-sky-50`;
+    return `${base} border-[#5080D8] text-[#5080D8] hover:bg-[#5080D8]/5`;
   return `${base} border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5`;
 }
 
@@ -431,7 +444,10 @@ function ClockInCard({
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
 }) {
-  const [mode, setMode] = useState<WorkMode>("present");
+  // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
+  // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
+  // audit-relevant choice.
+  const [mode, setMode] = useState<WorkMode | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [tick, setTick] = useState(0); // forces re-render for live times
   const [breakMenuOpen, setBreakMenuOpen] = useState(false);
@@ -539,7 +555,10 @@ function ClockInCard({
       : null;
 
   const handleCheckIn = async () => {
-    if (mode === "absent") return;
+    // mode === null: user has not yet chosen — the button is disabled in the
+    // UI, but guard here too in case of stray double-clicks.
+    // mode === "absent": that path opens the absence modal, not check-in.
+    if (mode === null || mode === "absent") return;
     setActionLoading(true);
     try {
       await onCheckIn(mode);
@@ -644,7 +663,7 @@ function ClockInCard({
             ) : (
               <button
                 onClick={handleCheckIn}
-                disabled={actionLoading}
+                disabled={actionLoading || mode === null}
                 className={getCheckInButtonClassName(mode)}
                 aria-label="Einstempeln"
               >
@@ -663,7 +682,11 @@ function ClockInCard({
             )}
 
             <span className="text-xs text-gray-400 sm:text-sm">
-              {mode === "absent" ? "Abwesenheit melden" : "Einstempeln"}
+              {mode === null
+                ? "Bitte Status wählen"
+                : mode === "absent"
+                  ? "Abwesenheit melden"
+                  : "Einstempeln"}
             </span>
           </div>
         )}

@@ -490,22 +490,21 @@ func TestWSCheckIn_Success(t *testing.T) {
 	assert.Nil(t, session.CheckOutTime)
 }
 
-func TestWSCheckIn_DefaultStatus(t *testing.T) {
+func TestWSCheckIn_RejectsEmptyStatus(t *testing.T) {
+	// Issue #1368: staff must explicitly choose Vor Ort vs Homeoffice; the
+	// service no longer silently defaults an empty status to "present".
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	ctx := context.Background()
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
-	}
-	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
-		assert.Equal(t, activeModels.WorkSessionStatusPresent, entity.Status)
-		entity.ID = 10
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("createFunc should not be called when status is empty")
 		return nil
 	}
 
 	session, err := svc.CheckIn(ctx, 100, "")
-	require.NoError(t, err)
-	assert.Equal(t, activeModels.WorkSessionStatusPresent, session.Status)
+	require.Error(t, err)
+	assert.Nil(t, session)
+	assert.Contains(t, err.Error(), "status must be")
 }
 
 func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {

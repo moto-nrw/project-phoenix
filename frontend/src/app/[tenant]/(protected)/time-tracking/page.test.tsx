@@ -381,10 +381,24 @@ describe("TimeTrackingPage", () => {
       expect(screen.getByText("Abwesend")).toBeInTheDocument();
     });
 
-    it("shows Einstempeln label by default", () => {
+    it("shows 'Bitte Status wählen' label before any mode is selected", () => {
+      // Issue #1368: no pre-selection — staff must explicitly pick Vor Ort,
+      // Homeoffice, or Abwesend. Until then the action label nudges the user.
       setupDefaultMocks();
       render(<TimeTrackingPage />);
-      expect(screen.getByText("Einstempeln")).toBeInTheDocument();
+      expect(screen.getByText("Bitte Status wählen")).toBeInTheDocument();
+      expect(screen.queryByText("Einstempeln")).not.toBeInTheDocument();
+    });
+
+    it("disables the Einstempeln button until a mode is chosen", () => {
+      // Issue #1368: the action button stays disabled with no mode selected,
+      // so a stray click cannot trigger an unintended check-in.
+      setupDefaultMocks();
+      render(<TimeTrackingPage />);
+      const btn = screen.getByLabelText("Einstempeln");
+      expect(btn).toBeDisabled();
+      fireEvent.click(screen.getByText("In der OGS"));
+      expect(btn).not.toBeDisabled();
     });
 
     it("shows Abwesenheit melden label when absent mode selected", () => {
@@ -406,6 +420,11 @@ describe("TimeTrackingPage", () => {
         mockActiveSession,
       );
       render(<TimeTrackingPage />);
+
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
 
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
@@ -449,6 +468,11 @@ describe("TimeTrackingPage", () => {
       );
       render(<TimeTrackingPage />);
 
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -474,6 +498,11 @@ describe("TimeTrackingPage", () => {
         new Error("already checked in"),
       );
       render(<TimeTrackingPage />);
+
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
 
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
@@ -812,6 +841,11 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks({ absences: [mockAbsence] });
       render(<TimeTrackingPage />);
 
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -825,6 +859,11 @@ describe("TimeTrackingPage", () => {
     it("cancels check-in when Abbrechen clicked in confirmation", async () => {
       setupDefaultMocks({ absences: [mockAbsence] });
       render(<TimeTrackingPage />);
+
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
 
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
@@ -850,6 +889,11 @@ describe("TimeTrackingPage", () => {
       );
       render(<TimeTrackingPage />);
 
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -870,6 +914,11 @@ describe("TimeTrackingPage", () => {
     it("shows absence type in confirmation modal", async () => {
       setupDefaultMocks({ absences: [mockAbsence] });
       render(<TimeTrackingPage />);
+
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
 
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
@@ -998,6 +1047,11 @@ describe("TimeTrackingPage", () => {
       );
       render(<TimeTrackingPage />);
 
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -1108,6 +1162,11 @@ describe("TimeTrackingPage", () => {
       );
       render(<TimeTrackingPage />);
 
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -1129,6 +1188,11 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks();
       vi.mocked(timeTrackingService.checkIn).mockRejectedValue("string error");
       render(<TimeTrackingPage />);
+
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
 
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
@@ -3086,6 +3150,11 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks({ absences: [vacAbsence] });
       render(<TimeTrackingPage />);
 
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -3571,6 +3640,11 @@ describe("TimeTrackingPage", () => {
       });
       render(<TimeTrackingPage />);
 
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -3600,6 +3674,11 @@ describe("TimeTrackingPage", () => {
       );
       render(<TimeTrackingPage />);
 
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -3618,6 +3697,11 @@ describe("TimeTrackingPage", () => {
         history: [todayEditedHistory],
       });
       render(<TimeTrackingPage />);
+
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
 
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
@@ -3647,6 +3731,11 @@ describe("TimeTrackingPage", () => {
       );
       render(<TimeTrackingPage />);
 
+      // Issue #1368: pick a status before the check-in button is enabled. The
+      // page no longer pre-selects "present" — silently defaulting an audit-
+      // relevant choice would defeat the feature.
+      fireEvent.click(screen.getByText("In der OGS"));
+
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -3671,6 +3760,9 @@ describe("TimeTrackingPage", () => {
         absences: [mockAbsence],
       });
       render(<TimeTrackingPage />);
+
+      // Issue #1368: pick a status before the check-in button is enabled.
+      fireEvent.click(screen.getByText("In der OGS"));
 
       // Step 1: Click check-in → manual edit warning appears first
       await act(async () => {
