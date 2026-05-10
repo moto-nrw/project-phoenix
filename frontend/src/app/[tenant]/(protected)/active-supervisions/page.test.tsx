@@ -507,7 +507,73 @@ describe("MeinRaumPage (Active Supervisions)", () => {
         return {
           data: {
             instance: { id: "99", title: "Kreativ AG", activeGroupId: "1" },
-            rows: [],
+            rows: [
+              {
+                studentId: "100",
+                studentName: "Max Mustermann",
+                schoolClass: "1a",
+                groupName: "OGS Gruppe A",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: true,
+                visitId: "visit-100",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+              {
+                studentId: "101",
+                studentName: "Erika Erwartet",
+                schoolClass: "2b",
+                groupName: "OGS Gruppe B",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: null,
+                status: "expected",
+                substatus: null,
+                note: null,
+              },
+              {
+                studentId: "102",
+                studentName: "Lina Krank",
+                schoolClass: "3c",
+                groupName: "OGS Gruppe C",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: null,
+                status: "absent",
+                substatus: "sick",
+                note: "Abgemeldet",
+              },
+              {
+                studentId: "103",
+                studentName: "Noah Gegangen",
+                schoolClass: "4d",
+                groupName: "OGS Gruppe D",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: "visit-103",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+              {
+                studentId: "104",
+                studentName: "Mia Spontan",
+                schoolClass: "1b",
+                groupName: "OGS Gruppe A",
+                planned: false,
+                isUnplanned: true,
+                currentlyPresent: true,
+                visitId: "visit-104",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+            ],
           },
           isLoading: false,
           error: null,
@@ -532,6 +598,20 @@ describe("MeinRaumPage (Active Supervisions)", () => {
       expect(
         screen.getByText("Laufende geplante Aktivität"),
       ).toBeInTheDocument();
+      expect(screen.getByText("Anwesend (1)")).toBeInTheDocument();
+      expect(screen.getByText("Erwartet (1)")).toBeInTheDocument();
+      expect(
+        screen.getByText("Entschuldigt / Abwesend (1)"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Nicht mehr im Raum (1)")).toBeInTheDocument();
+      expect(screen.getByText("Ungeplant (1)")).toBeInTheDocument();
+      expect(screen.getByText("Krank · Abgemeldet")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Einchecken" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("button", { name: "Raum verlassen" }),
+      ).toHaveLength(2);
       expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
     });
   });

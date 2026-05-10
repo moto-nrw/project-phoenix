@@ -79,4 +79,43 @@ describe("active-supervisions view model", () => {
     });
     expect(result[0]?.checkInTime).toBeInstanceOf(Date);
   });
+
+  it("falls back cleanly when optional visit and room fields are missing", () => {
+    const checkInTime = new Date("2026-01-15T10:00:00.000Z");
+
+    const rooms = mapSupervisedGroupsToRooms([
+      {
+        id: "active-without-room",
+        name: "Freie Aufsicht",
+      },
+    ]);
+    const students = mapVisitsToSupervisionStudents(
+      [
+        {
+          studentId: "student-3",
+          activeGroupId: "active-without-room",
+          checkInTime,
+          isActive: true,
+        },
+      ],
+      {},
+    );
+
+    expect(rooms[0]).toMatchObject({
+      id: "active-without-room",
+      room_name: undefined,
+      room_color: undefined,
+    });
+    expect(students[0]).toMatchObject({
+      id: "student-3",
+      name: "",
+      first_name: "",
+      second_name: "",
+      school_class: "",
+      current_location: "Anwesend",
+      current_room_color: null,
+      group_id: undefined,
+    });
+    expect(students[0]?.checkInTime).toBe(checkInTime);
+  });
 });
