@@ -734,6 +734,71 @@ describe("useGlobalSSE", () => {
       expect(mutate).toHaveBeenCalled();
     });
 
+    it("dispatches phoenix:tenant-settings-stale window event on tenant_settings_changed", () => {
+      // Cross-origin tenant settings sync: receiving a tenant_settings_changed
+      // SSE event must surface as a window event so the settings-cache bridge
+      // can invalidate SWR. We don't mutate SWR directly here — the bridge
+      // owns that, this hook only translates SSE → window event.
+      renderHook(() => useGlobalSSE());
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      const dispatched: Event[] = [];
+      const listener = (event: Event) => {
+        dispatched.push(event);
+      };
+      window.addEventListener("phoenix:tenant-settings-stale", listener);
+      try {
+        onMessage?.({
+          type: "tenant_settings_changed",
+          active_group_id: "",
+          data: { source: "operations.student_photos_enabled" },
+          timestamp: new Date().toISOString(),
+        });
+
+        expect(dispatched).toHaveLength(1);
+        expect(dispatched[0]!.type).toBe("phoenix:tenant-settings-stale");
+        const detail = (dispatched[0] as CustomEvent).detail as {
+          source: string | null;
+        };
+        expect(detail.source).toBe("operations.student_photos_enabled");
+      } finally {
+        window.removeEventListener("phoenix:tenant-settings-stale", listener);
+      }
+
+      // Tenant invalidations must NOT trigger SWR mutate from this hook —
+      // that's the bridge's job. This guard prevents accidental fan-out to
+      // unrelated caches.
+      vi.advanceTimersByTime(500);
+      expect(vi.mocked(mutate)).not.toHaveBeenCalled();
+    });
+
+    it("falls back to null source on tenant_settings_changed without a source field", () => {
+      renderHook(() => useGlobalSSE());
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      const dispatched: Event[] = [];
+      const listener = (event: Event) => {
+        dispatched.push(event);
+      };
+      window.addEventListener("phoenix:tenant-settings-stale", listener);
+      try {
+        onMessage?.({
+          type: "tenant_settings_changed",
+          active_group_id: "",
+          data: {},
+          timestamp: new Date().toISOString(),
+        });
+
+        expect(dispatched).toHaveLength(1);
+        const detail = (dispatched[0] as CustomEvent).detail as {
+          source: string | null;
+        };
+        expect(detail.source).toBeNull();
+      } finally {
+        window.removeEventListener("phoenix:tenant-settings-stale", listener);
+      }
+    });
+
     it("silently ignores unknown event types without invalidating caches", () => {
       renderHook(() => useGlobalSSE());
 
