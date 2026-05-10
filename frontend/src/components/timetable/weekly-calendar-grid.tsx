@@ -4,8 +4,8 @@
  * WeeklyCalendarGrid — Apple-Calendar-style week view.
  *
  * Layout: a sticky day-header row above a vertically scrollable body.
- * Inside the body: a fixed time-gutter on the left and 5 day columns
- * (Mo-Fr). Each day column is a positioned container; events are placed
+ * Inside the body: a fixed time-gutter on the left and 7 day columns
+ * (Mo-So). Each day column is a positioned container; events are placed
  * absolutely via `getEventBlockPosition`. Overlapping events split a
  * column horizontally via `assignBlockLanes`.
  *
@@ -34,7 +34,7 @@ const TIME_GUTTER_WIDTH_PX = 64;
 const DAY_HEADER_HEIGHT_PX = 56;
 
 interface WeeklyCalendarGridProps {
-  weekDays: Date[]; // Mo-Fr (5 dates)
+  weekDays: Date[]; // Mo-So (7 dates)
   instances: EnrichedInstance[];
   selectedId: string | null;
   onInstanceClick: (instance: EnrichedInstance) => void;
