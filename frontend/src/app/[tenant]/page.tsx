@@ -9,6 +9,7 @@ import { Input, Alert } from "~/components/ui";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
+import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
@@ -32,6 +33,12 @@ interface MFAStep {
   challengeToken: string;
   maskedEmail: string;
 }
+
+interface MFAEnrollmentStep {
+  accessToken: string;
+  refreshToken: string;
+  email: string;
+}
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +49,8 @@ function LoginForm() {
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
+  const [enrollmentStep, setEnrollmentStep] =
+    useState<MFAEnrollmentStep | null>(null);
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
@@ -202,6 +211,15 @@ function LoginForm() {
         return;
       }
 
+      if (response.mfa_enrollment_required) {
+        setEnrollmentStep({
+          accessToken: response.access_token,
+          refreshToken: response.refresh_token,
+          email,
+        });
+        return;
+      }
+
       await seedSessionWithTokens({
         access_token: response.access_token,
         refresh_token: response.refresh_token,
@@ -322,9 +340,28 @@ function LoginForm() {
           </div>
         )}
 
+        {/* Enrollment Step — forced when backend requires MFA but user has no credential yet */}
+        {!isCheckingAuth && enrollmentStep && (
+          <div className="transition-opacity duration-300">
+            <MFAEnrollmentScreen
+              scope="tenant"
+              bearerToken={enrollmentStep.accessToken}
+              userEmail={enrollmentStep.email}
+              onComplete={async () => {
+                const tokens = {
+                  access_token: enrollmentStep.accessToken,
+                  refresh_token: enrollmentStep.refreshToken,
+                };
+                setEnrollmentStep(null);
+                await seedSessionWithTokens(tokens);
+              }}
+            />
+          </div>
+        )}
+
         {/* Login Form — fades in after auth check */}
         <div
-          className={`transition-opacity duration-300 ${isCheckingAuth || mfaStep ? "pointer-events-none hidden" : "opacity-100"}`}
+          className={`transition-opacity duration-300 ${isCheckingAuth || mfaStep || enrollmentStep ? "pointer-events-none hidden" : "opacity-100"}`}
         >
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {error && <Alert type="error" message={error} />}

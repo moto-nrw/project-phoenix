@@ -11,6 +11,7 @@ import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { operatorPath } from "~/lib/operator-url";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
+import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import {
   login as loginApi,
   germanMFAErrorMessage,
@@ -26,6 +27,12 @@ interface MFAStep {
   maskedEmail: string;
 }
 
+interface MFAEnrollmentStep {
+  accessToken: string;
+  refreshToken: string;
+  email: string;
+}
+
 export default function OperatorLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,6 +40,8 @@ export default function OperatorLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
+  const [enrollmentStep, setEnrollmentStep] =
+    useState<MFAEnrollmentStep | null>(null);
   const router = useRouter();
   const { data: session, status } = useSession();
   // Ref prevents re-triggering signOut (not in effect deps → no loop).
@@ -126,6 +135,15 @@ export default function OperatorLoginPage() {
         return;
       }
 
+      if (response.mfa_enrollment_required) {
+        setEnrollmentStep({
+          accessToken: response.access_token,
+          refreshToken: response.refresh_token,
+          email,
+        });
+        return;
+      }
+
       await seedSessionWithTokens({
         access_token: response.access_token,
         refresh_token: response.refresh_token,
@@ -205,11 +223,27 @@ export default function OperatorLoginPage() {
           />
         )}
 
+        {enrollmentStep && (
+          <MFAEnrollmentScreen
+            scope="operator"
+            bearerToken={enrollmentStep.accessToken}
+            userEmail={enrollmentStep.email}
+            onComplete={async () => {
+              const tokens = {
+                access_token: enrollmentStep.accessToken,
+                refresh_token: enrollmentStep.refreshToken,
+              };
+              setEnrollmentStep(null);
+              await seedSessionWithTokens(tokens);
+            }}
+          />
+        )}
+
         {/* Login Form */}
         <form
           onSubmit={handleSubmit}
           noValidate
-          className={`space-y-6 ${mfaStep ? "hidden" : ""}`}
+          className={`space-y-6 ${mfaStep || enrollmentStep ? "hidden" : ""}`}
         >
           {error && <Alert type="error" message={error} />}
 

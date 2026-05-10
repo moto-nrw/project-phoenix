@@ -12,11 +12,11 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 |---|---|
 | Branch | `feat/1308-2fa-email` (von `origin/development`) |
 | PR | _tbd_ |
-| Aktueller Stand | **Phase 9 abgeschlossen** — Frontend-Login auf 2-Step-Flow umgestellt (Tenant + Operator), `MFAChallengeForm` gebaut, 7 neue MFA-API-Proxys verdrahtet, alle 9156 Frontend-Tests grün. |
+| Aktueller Stand | **Phase 10 abgeschlossen** — Force-Enrollment-Flow auf Login-Page integriert (Tenant + Operator), `MFAEnrollmentScreen` (3-Step-Wizard) + `RecoveryCodesDisplay` gebaut, 8 neue authenticated MFA-Proxys (enroll/start, enroll/confirm, recovery-codes regen, disable je tenant + operator), Bearer-Token-Forwarding im `auth-proxy`-Helper, alle 9163 Frontend-Tests grün. |
 | Letztes Update | 2026-05-10 |
 | Blocker | keine |
 
-**Nächster Schritt:** Phase 10 — Frontend Enrollment-Flow. `MFAEnrollmentScreen` als Force-Screen vor Dashboard, wenn Pflicht aktiv und User noch nicht enrolled. 4-Schritt-Flow (E-Mail bestätigen → Code eingeben → Recovery-Codes anzeigen mit Download/Copy/Bestätigung → Weiterleitung). Routing-Guard fängt nicht-enrolled Pflicht-Nutzer.
+**Nächster Schritt:** Phase 11 — Frontend User-Settings unter `/[tenant]/settings/security` (+ Operator-Pendant). 2FA-Status-Card, Aktivieren/Deaktivieren-Button (deaktivieren nur wenn nicht Pflicht), Recovery-Codes-Regenerate-Modal, Trusted-Devices-Liste mit User-Agent + Last-Used + Revoke. Reuse von `MFAEnrollmentScreen` + `RecoveryCodesDisplay` aus Phase 10.
 
 ### Recherche-Findings (Phase 0)
 
@@ -280,18 +280,40 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 
 ---
 
-## Phase 10 — Frontend: Enrollment-Flow
+## Phase 10 — Frontend: Enrollment-Flow ✅
 
-- [ ] `MFAEnrollmentScreen` (Force vor Dashboard wenn Pflicht aktiv und User noch nicht enrolled)
-- [ ] Schritt 1: E-Mail bestätigen → `/auth/mfa/enroll/start`
-- [ ] Schritt 2: Code eingeben → `/auth/mfa/enroll/confirm`
-- [ ] Schritt 3: Recovery-Codes anzeigen (`RecoveryCodesDisplay`)
-  - [ ] Codes als Liste, monospace
-  - [ ] Download als `.txt`
-  - [ ] Copy-to-Clipboard
-  - [ ] Bestätigungs-Checkbox „Ich habe die Codes gespeichert" — Pflicht zum Weitergehen
-- [ ] Schritt 4: Weiterleitung Dashboard
-- [ ] Routing-Guard: Force-Redirect auf Enrollment-Screen wenn Pflicht aktiv
+- [x] `MFAEnrollmentScreen` (`components/auth/mfa-enrollment-screen.tsx`) — 3-Schritt-Wizard, rendered direkt auf der Login-Page wenn `mfa_enrollment_required: true`. Token aus Login-Response wird per Bearer-Header weiterverwendet, NextAuth-Session wird erst nach erfolgreichem Enrollment geseedet.
+- [x] Schritt 1 (Intro): erklärt Ablauf, „Code an meine E-Mail senden"-Button → `/auth/mfa/enroll/start`
+- [x] Schritt 2 (Code-Eingabe): 6-Box-Input mit Auto-Tab/Auto-Submit/Paste/Backspace (gleiche Mechanik wie `MFAChallengeForm`), „Erneut senden"-Link, Fehlermeldungen über `germanMFAErrorMessage` → `/auth/mfa/enroll/confirm`
+- [x] Schritt 3 (`RecoveryCodesDisplay`):
+  - [x] 10 Codes monospace, 2-Spalten-Grid auf ≥ sm
+  - [x] Download als `.txt` (Blob, `URL.createObjectURL`, Anchor-click)
+  - [x] Copy-to-Clipboard mit `navigator.clipboard.writeText` + 2s „Kopiert!"-Feedback
+  - [x] Pflicht-Bestätigungs-Checkbox „Ich habe die Codes gespeichert" — schaltet „Weiter zum Dashboard"-Button frei
+  - [x] Warnhinweis-Box: „Diese Codes werden nur jetzt einmalig angezeigt"
+- [x] Schritt 4: `onComplete` callback — Login-Page seedet NextAuth-Session via `signIn(internalRefresh)` und redirected zum Dashboard
+- [x] Login-Page-Integration (Tenant `app/[tenant]/page.tsx` + Operator `app/operator/login/page.tsx`): Backend-Antwort `mfa_enrollment_required: true` setzt `enrollmentStep`-State, Form wird durch Wizard ersetzt (gleiches Render-Pattern wie der MFA-Challenge-Step)
+- [x] **8 neue authenticated Proxy-Routen** (Bearer-Token-Forwarding):
+  - `/api/auth/mfa/enroll/start`, `/api/auth/mfa/enroll/confirm`, `/api/auth/mfa/recovery-codes`, `/api/auth/mfa/disable`
+  - Operator-Pendants unter `/api/operator/auth/mfa/*`
+- [x] `auth-proxy.ts` erweitert: `ForwardOptions { method, hasBody }` + Bearer-Token-Forwarding über `Authorization`-Header + 204-No-Content-Handling
+- [x] `mfa-api.ts` erweitert: `enrollStart`, `enrollConfirm`, `regenerateRecoveryCodes`, `disableMFA` — alle mit `bearerToken`-Param. Operator-Envelope-Unwrapping wie bei den existierenden Funktionen
+- [x] 7 Komponenten-Tests (4× `RecoveryCodesDisplay`: Render, Confirm-Button-Gating, Clipboard, Download — 3× `MFAEnrollmentScreen`: Intro→Code, Auto-Submit→Recovery, 429-Fehlerpfad)
+- [x] `pnpm run check` clean (oxlint + tsc), 9163 Frontend-Tests grün
+
+**Bewusst aus v1 verschoben:**
+- Kein „Cancel"/„Logout-aus-Enrollment"-Pfad — wenn MFA Pflicht ist und User nicht enrollen will, soll die einzige Option re-Login sein. (Phase 11 Self-Service kann das anders handhaben, weil dort kein Force-Pfad besteht.)
+- Kein Routing-Guard auf Dashboard-Routen — Force-Pfad wird ausschließlich beim Login durchgesetzt. Wenn ein User mit `mfa_enrollment_required: true`-State die Page-URL manuell aufruft, würde der bestehende Auth-Guard greifen, weil die Session noch nicht geseedet ist.
+
+**Neue Frontend-Files:**
+- `components/auth/mfa-enrollment-screen.tsx` + `.test.tsx`
+- `components/auth/recovery-codes-display.tsx` + `.test.tsx`
+- 8 Proxy-Routen unter `app/api/auth/mfa/{enroll,recovery-codes,disable}/` und `app/api/operator/auth/mfa/{enroll,recovery-codes,disable}/`
+
+**Aktualisierte Files:**
+- `lib/auth-proxy.ts` — `ForwardOptions`, Bearer-Header-Passthrough, 204-Handling
+- `lib/mfa-api.ts` — Enrollment-/Self-Service-Helper + `bearerToken`-Param in `postJson`
+- `app/[tenant]/page.tsx` + `app/operator/login/page.tsx` — `enrollmentStep`-State + `MFAEnrollmentScreen`-Rendering
 
 ---
 

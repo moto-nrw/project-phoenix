@@ -46,13 +46,34 @@ function mfaUrl(scope: LoginScope, suffix: string): string {
     : `/api/auth/mfa/${suffix}`;
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+interface PostJsonOptions {
+  readonly bearerToken?: string;
+  readonly allowEmptyBody?: boolean;
+  readonly method?: "POST" | "DELETE";
+}
+
+async function postJson<T>(
+  url: string,
+  body: unknown,
+  options: PostJsonOptions = {},
+): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (options.bearerToken) {
+    headers.Authorization = `Bearer ${options.bearerToken}`;
+  }
+
   const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: options.method ?? "POST",
+    headers,
     credentials: "include",
-    body: JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
   let data: unknown;
   const text = await response.text();
@@ -71,6 +92,9 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   }
 
   if (data === null) {
+    if (options.allowEmptyBody) {
+      return undefined as T;
+    }
     throw new MFAApiError(
       500,
       "Leere Antwort vom Server. Bitte versuchen Sie es erneut.",
@@ -189,6 +213,74 @@ export async function resendChallenge(
   const url = mfaUrl(scope, "resend");
   const payload = { challenge_token: params.challengeToken };
   await postJson<unknown>(url, payload);
+}
+
+// ----- Enrollment + self-service (authenticated, requires Bearer token) -----
+
+function enrollUrl(scope: LoginScope, suffix: string): string {
+  return isOperator(scope)
+    ? `/api/operator/auth/mfa/${suffix}`
+    : `/api/auth/mfa/${suffix}`;
+}
+
+export interface RecoveryCodesResponse {
+  recovery_codes: string[];
+}
+
+export async function enrollStart(
+  scope: LoginScope,
+  bearerToken: string,
+): Promise<void> {
+  const url = enrollUrl(scope, "enroll/start");
+  await postJson<unknown>(url, undefined, {
+    bearerToken,
+    allowEmptyBody: true,
+  });
+}
+
+export async function enrollConfirm(
+  scope: LoginScope,
+  bearerToken: string,
+  code: string,
+): Promise<RecoveryCodesResponse> {
+  const url = enrollUrl(scope, "enroll/confirm");
+  if (isOperator(scope)) {
+    const envelope = await postJson<OperatorEnvelope<RecoveryCodesResponse>>(
+      url,
+      { code },
+      { bearerToken },
+    );
+    return envelope.data;
+  }
+  return postJson<RecoveryCodesResponse>(url, { code }, { bearerToken });
+}
+
+export async function regenerateRecoveryCodes(
+  scope: LoginScope,
+  bearerToken: string,
+): Promise<RecoveryCodesResponse> {
+  const url = enrollUrl(scope, "recovery-codes");
+  if (isOperator(scope)) {
+    const envelope = await postJson<OperatorEnvelope<RecoveryCodesResponse>>(
+      url,
+      undefined,
+      { bearerToken },
+    );
+    return envelope.data;
+  }
+  return postJson<RecoveryCodesResponse>(url, undefined, { bearerToken });
+}
+
+export async function disableMFA(
+  scope: LoginScope,
+  bearerToken: string,
+): Promise<void> {
+  const url = enrollUrl(scope, "disable");
+  await postJson<unknown>(url, undefined, {
+    bearerToken,
+    method: "DELETE",
+    allowEmptyBody: true,
+  });
 }
 
 export function germanMFAErrorMessage(err: unknown): string {

@@ -5,25 +5,48 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AuthProxy" });
 
+export interface ForwardOptions {
+  readonly method?: "POST" | "DELETE";
+  readonly hasBody?: boolean;
+}
+
 export async function forwardJsonPost(
   request: NextRequest,
   backendPath: string,
+  options: ForwardOptions = {},
 ): Promise<NextResponse> {
+  const method = options.method ?? "POST";
+  const hasBody = options.hasBody ?? method === "POST";
+
   try {
-    const body: unknown = await request.json();
+    let bodyJson: string | undefined;
+    if (hasBody) {
+      const body: unknown = await request.json().catch(() => ({}));
+      bodyJson = JSON.stringify(body ?? {});
+    }
 
     const cookieHeader = request.headers.get("cookie");
+    const authHeader = request.headers.get("authorization");
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...getClientForwardHeaders(request),
     };
     if (cookieHeader) headers.Cookie = cookieHeader;
+    if (authHeader) headers.Authorization = authHeader;
 
     const response = await fetch(`${getServerApiUrl()}${backendPath}`, {
-      method: "POST",
+      method,
       headers,
-      body: JSON.stringify(body),
+      body: bodyJson,
     });
+
+    if (response.status === 204) {
+      const out = new NextResponse(null, { status: 204 });
+      for (const cookie of response.headers.getSetCookie()) {
+        out.headers.append("set-cookie", cookie);
+      }
+      return out;
+    }
 
     let data: unknown;
     const contentType = response.headers.get("content-type");

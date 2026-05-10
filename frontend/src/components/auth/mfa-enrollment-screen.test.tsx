@@ -1,0 +1,135 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
+import { MFAEnrollmentScreen } from "./mfa-enrollment-screen";
+
+vi.mock("~/components/ui", () => ({
+  Alert: ({ message }: { message: string }) => (
+    <div role="alert">{message}</div>
+  ),
+}));
+
+const originalFetch = global.fetch;
+
+function mockResponse(status: number, body: unknown): typeof global.fetch {
+  if (status === 204) {
+    return vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  }
+  return vi.fn().mockResolvedValue(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+const props = {
+  scope: "tenant" as const,
+  bearerToken: "bearer-xyz",
+  userEmail: "admin@example.com",
+};
+
+describe("MFAEnrollmentScreen", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("starts in intro step and triggers enroll/start when the button is clicked", async () => {
+    global.fetch = mockResponse(204, null);
+    render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Zwei-Faktor-Authentifizierung einrichten",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/mfa/enroll/start",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "include",
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("group", { name: "6-stelliger Bestätigungscode" }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("auto-submits enroll/confirm when 6 digits are entered and shows recovery codes", async () => {
+    const startMock = mockResponse(204, null);
+    const confirmMock = mockResponse(200, {
+      recovery_codes: ["aaaa-bbbb-cccc-dddd", "1111-2222-3333-4444"],
+    });
+    let callCount = 0;
+    global.fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        callCount++;
+        if (callCount === 1) return startMock(input, init);
+        return confirmMock(input, init);
+      },
+    ) as unknown as typeof global.fetch;
+
+    render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("group", { name: "6-stelliger Bestätigungscode" }),
+      ).toBeInTheDocument();
+    });
+
+    const inputs = screen.getAllByRole("textbox").slice(0, 6);
+    await act(async () => {
+      fireEvent.change(inputs[0]!, { target: { value: "987654" } });
+    });
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/mfa/enroll/confirm",
+        expect.objectContaining({
+          body: JSON.stringify({ code: "987654" }),
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument();
+    });
+  });
+
+  it("renders error when enroll/start fails", async () => {
+    global.fetch = mockResponse(429, { error: "rate limited" });
+    render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Zu viele Versuche. Bitte warten Sie einen Moment.",
+      );
+    });
+  });
+});
