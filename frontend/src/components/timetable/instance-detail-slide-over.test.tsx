@@ -123,11 +123,13 @@ describe("InstanceDetailSlideOver", () => {
   it("handles active, cancelled and fallback student states", async () => {
     const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
     const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
+    const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
     const { rerender } = render(
       <InstanceDetailSlideOver
         instance={instance({ status: "active", isLive: true })}
         onClose={vi.fn()}
         onLifecycleAction={onLifecycleAction}
+        onAttendancePatch={onAttendancePatch}
       />,
     );
 
@@ -138,6 +140,34 @@ describe("InstanceDetailSlideOver", () => {
     fireEvent.click(screen.getByRole("button", { name: /Absagen/ }));
     await waitFor(() =>
       expect(onLifecycleAction).toHaveBeenCalledWith("cancel"),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Als anwesend markieren" })[0]!,
+    );
+    await waitFor(() =>
+      expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
+        status: "present",
+        substatus: null,
+      }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Als fehlend markieren" })[0]!,
+    );
+    await waitFor(() =>
+      expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
+        status: "absent",
+        substatus: null,
+      }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Status zurücksetzen" })[0]!,
+    );
+    await waitFor(() =>
+      expect(onAttendancePatch).toHaveBeenCalledWith("42", "22", {
+        status: "expected",
+        substatus: null,
+        note: null,
+      }),
     );
 
     rerender(
