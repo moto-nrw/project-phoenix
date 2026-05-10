@@ -780,12 +780,24 @@ function MeinRaumPageContent() {
         throw err;
       }
     },
-    { keepPreviousData: true, revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
-  const activeTimetableInstanceId = timetableRoster?.instance?.id ?? null;
+  const timetableRosterMatchesSelection =
+    timetableRoster !== undefined &&
+    timetableRoster !== null &&
+    (selectedTimetableInstanceId
+      ? timetableRoster.instance.id === selectedTimetableInstanceId
+      : !!currentRoomId &&
+        timetableRoster.instance.activeGroupId === currentRoomId);
+  const currentTimetableRoster = timetableRosterMatchesSelection
+    ? timetableRoster
+    : null;
+  const activeTimetableInstanceId =
+    currentTimetableRoster?.instance?.id ?? null;
   const isWaitingForTimetableRoster =
     timetableRosterKey !== null &&
-    timetableRoster === undefined &&
+    (timetableRoster === undefined ||
+      (timetableRoster !== null && !timetableRosterMatchesSelection)) &&
     isTimetableRosterLoading;
 
   useEffect(() => {
@@ -892,9 +904,19 @@ function MeinRaumPageContent() {
       try {
         setIsStartingInstance(instance.id);
         const result = await timetableOperationsApi.start(instance.id);
+        const startedRoom = allRooms.find(
+          (room) => room.room_id === instance.roomId,
+        );
         setSelectedTimetableInstanceId(instance.id);
         setSelectedRoomId(result.activeGroupId);
         setIsSchulhofTabSelected(false);
+        router.push(`/active-supervisions?room=${instance.roomId}`);
+        localStorage.setItem("sidebar-last-room", instance.roomId);
+        if (startedRoom?.room_name) {
+          localStorage.setItem("sidebar-last-room-name", startedRoom.room_name);
+        } else {
+          localStorage.removeItem("sidebar-last-room-name");
+        }
         await mutateDashboard();
         setRefreshKey((prev) => prev + 1);
       } catch (err) {
@@ -907,7 +929,7 @@ function MeinRaumPageContent() {
         setIsStartingInstance(null);
       }
     },
-    [mutateDashboard],
+    [allRooms, mutateDashboard, router],
   );
 
   const handleRosterAction = useCallback(
@@ -1097,6 +1119,7 @@ function MeinRaumPageContent() {
     if (!selectedRoom) return;
 
     setIsLoading(true);
+    setSelectedTimetableInstanceId(null);
     setSelectedRoomId(roomId);
     setStudents([]); // Clear current students
 
@@ -1256,24 +1279,24 @@ function MeinRaumPageContent() {
       return <ActiveSupervisionLoadingView />;
     }
 
-    if (timetableRoster) {
-      const present = timetableRoster.rows.filter(
+    if (currentTimetableRoster) {
+      const present = currentTimetableRoster.rows.filter(
         (row) => row.currentlyPresent && row.planned,
       );
-      const expected = timetableRoster.rows.filter(
+      const expected = currentTimetableRoster.rows.filter(
         (row) =>
           row.planned && !row.currentlyPresent && row.status === "expected",
       );
-      const absent = timetableRoster.rows.filter(
+      const absent = currentTimetableRoster.rows.filter(
         (row) =>
           row.planned && !row.currentlyPresent && row.status === "absent",
       );
-      const departed = timetableRoster.rows.filter(
+      const departed = currentTimetableRoster.rows.filter(
         (row) =>
           !row.currentlyPresent &&
           (row.status === "present" || (row.isUnplanned && row.visitId)),
       );
-      const unplanned = timetableRoster.rows.filter(
+      const unplanned = currentTimetableRoster.rows.filter(
         (row) => row.isUnplanned && row.currentlyPresent,
       );
       const renderRosterRow = (row: TimetableRosterRow) => (
@@ -1375,7 +1398,7 @@ function MeinRaumPageContent() {
           <div className="flex flex-col gap-3 rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-base font-semibold text-gray-900">
-                {timetableRoster.instance.title}
+                {currentTimetableRoster.instance.title}
               </h2>
               <p className="text-sm text-gray-600">
                 Laufende geplante Aktivität
@@ -1677,6 +1700,7 @@ function MeinRaumPageContent() {
                         // Switch to Schulhof tab
                         setIsSchulhofTabSelected(true);
                         setSelectedRoomId(null);
+                        setSelectedTimetableInstanceId(null);
                         router.push("/active-supervisions?room=schulhof");
                         localStorage.setItem(
                           "sidebar-last-room",

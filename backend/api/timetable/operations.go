@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -115,6 +114,10 @@ func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Req
 }
 
 func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Request) {
+	if rs.operationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
+		return
+	}
 	instanceID, studentID, ok := parseOperationInstanceStudentIDs(w, r)
 	if !ok {
 		return
@@ -132,7 +135,20 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 		renderValidationErrors(w, r, []fieldError{{Field: "body", Reason: "at least one of status, substatus, note must be set"}})
 		return
 	}
-	if verrs := validateOperationAttendancePatch(patch); len(verrs) > 0 {
+	if rs.instanceStudentRepo == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance student repository not wired")))
+		return
+	}
+	current, err := rs.instanceStudentRepo.FindByInstanceAndStudent(r.Context(), instanceID, studentID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	if current == nil {
+		rs.renderOperationsError(w, r, scheduleSvc.ErrTimetableOperationNotFound)
+		return
+	}
+	if verrs := validateAttendancePatch(patch, current); len(verrs) > 0 {
 		renderValidationErrors(w, r, verrs)
 		return
 	}
@@ -182,20 +198,6 @@ func parseOperationID(w http.ResponseWriter, r *http.Request, key string) (int64
 		return 0, false
 	}
 	return id, true
-}
-
-func validateOperationAttendancePatch(patch scheduleModel.AttendanceFieldPatch) []fieldError {
-	var errs []fieldError
-	if patch.Status != nil && !scheduleModel.IsValidAttendanceStatus(*patch.Status) {
-		errs = append(errs, fieldError{Field: "status", Reason: "invalid attendance status"})
-	}
-	if patch.Substatus != nil && !scheduleModel.IsValidAttendanceSubstatus(*patch.Substatus) {
-		errs = append(errs, fieldError{Field: "substatus", Reason: "invalid attendance substatus"})
-	}
-	if patch.Note != nil && len(*patch.Note) > scheduleModel.InstanceStudentNoteMaxLength {
-		errs = append(errs, fieldError{Field: "note", Reason: "note cannot exceed 500 characters"})
-	}
-	return errs
 }
 
 type startOperationResponse struct {

@@ -15,6 +15,7 @@ import (
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -64,6 +65,7 @@ type TimetableOperationsDependencies struct {
 	EducationGroupRepo educationModel.GroupRepository
 	PersonService      OperationPersonService
 	Settings           OperationSettings
+	Broadcaster        realtime.Broadcaster
 	DB                 *bun.DB
 	Logger             *slog.Logger
 }
@@ -308,6 +310,7 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 	if err := s.deps.InstanceStudents.UpdateAttendanceFields(ctx, row.ID, patch); err != nil {
 		return nil, err
 	}
+	s.broadcastAttendanceChanged(ctx, instanceID, studentID)
 	roster, err := s.buildRoster(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -485,14 +488,55 @@ func (s *timetableOperationsService) resolveStaffID(ctx context.Context, account
 		return 0, false, ErrTimetableOperationForbidden
 	}
 	person, err := s.deps.PersonService.FindByAccountID(ctx, accountID)
-	if err != nil || person == nil {
+	if err != nil {
+		return 0, false, err
+	}
+	if person == nil {
 		return 0, false, nil
 	}
 	staff, err := s.deps.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
-	if err != nil || staff == nil {
+	if err != nil {
+		if isNoRows(err) {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	if staff == nil {
 		return 0, false, nil
 	}
 	return staff.ID, true, nil
+}
+
+func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Context, instanceID, studentID int64) {
+	if s.deps.Broadcaster == nil {
+		return
+	}
+	inst, err := s.loadInstance(ctx, instanceID)
+	if err != nil {
+		s.logger().WarnContext(ctx, "failed to load instance for timetable attendance broadcast",
+			slog.Int64("instance_id", instanceID),
+			slog.String("error", err.Error()))
+		return
+	}
+	if inst.ActiveGroupID == nil {
+		return
+	}
+	activeGroupID := fmt.Sprintf("%d", *inst.ActiveGroupID)
+	instanceIDStr := fmt.Sprintf("%d", instanceID)
+	studentIDStr := fmt.Sprintf("%d", studentID)
+	reason := "timetable_attendance_updated"
+	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, realtime.EventData{
+		InstanceID: &instanceIDStr,
+		StudentID:  &studentIDStr,
+		Reason:     &reason,
+	})
+	tenantID := tenant.FromContext(ctx)
+	if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		s.logger().WarnContext(ctx, "SSE timetable attendance broadcast failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("active_group_id", activeGroupID),
+			slog.String("error", err.Error()))
+	}
 }
 
 func (s *timetableOperationsService) adminOverviewEnabled(ctx context.Context, isAdmin bool) bool {

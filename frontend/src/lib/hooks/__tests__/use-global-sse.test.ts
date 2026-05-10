@@ -320,13 +320,20 @@ describe("useGlobalSSE", () => {
           (matcher as (key: string) => boolean)(
             "tenant:active-supervision-dashboard-0",
           ) &&
-          (matcher as (key: string) => boolean)("tenant:supervision-visits-456")
+          (matcher as (key: string) => boolean)(
+            "tenant:supervision-visits-456",
+          ) &&
+          (matcher as (key: string) => boolean)(
+            "tenant:timetable-roster-active-group-456",
+          )
         );
       });
       expect(activeSupervisionCall).toBeDefined();
 
       const matcher = activeSupervisionCall![0] as (key: string) => boolean;
       expect(matcher("tenant:supervision-visits-456")).toBe(true);
+      expect(matcher("tenant:timetable-roster-123")).toBe(true);
+      expect(matcher("tenant:timetable-roster-active-group-456")).toBe(true);
       expect(matcher("tenant:room-detail-12")).toBe(true);
       expect(matcher("tenant:tracking-supervisions-1")).toBe(true);
       expect(matcher("tenant:tracking-indicators-search")).toBe(true);

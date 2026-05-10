@@ -229,6 +229,7 @@ export function useGlobalSSE(): SSEHookState {
           typeof key === "string" &&
           (key.includes("active-supervision-dashboard-") ||
             key.includes("supervision-visits-") ||
+            key.includes("timetable-roster-") ||
             key.includes("room-detail-") ||
             key.includes("tracking-supervisions-") ||
             key.includes("tracking-indicators-") ||

@@ -402,6 +402,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EducationGroupRepo: repos.Group,
 		PersonService:      usersService,
 		Settings:           settingsService,
+		Broadcaster:        realtimeHub,
 		DB:                 db,
 		Logger:             logger.With("service", "timetable-operations"),
 	})
