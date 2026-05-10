@@ -57,7 +57,11 @@ type VerifiedChallenge struct {
 // MFAService is the public interface consumed by the login flow + handlers.
 type MFAService interface {
 	// Inquiry — used by the login flow to decide which path to take.
-	IsRequired(ctx context.Context, account *auth.Account) (bool, error)
+	// tenantID must be the resolved tenant for this login attempt; passing
+	// 0 falls back to the registry default. Login runs outside the tenant
+	// transaction middleware, so the caller is responsible for plumbing
+	// the tenant explicitly instead of relying on tenant.FromContext.
+	IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error)
 	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
 	GetCredential(ctx context.Context, accountID int64) (*auth.MFACredential, error)
 
@@ -162,13 +166,26 @@ func NewMFAService(cfg MFAServiceConfig) (MFAService, error) {
 // IsRequired evaluates the tenant's security.mfa_mode setting against the
 // account's roles. Operator (platform-scope) sessions are handled by the
 // platform service in a later phase — this implementation rejects them.
-func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account) (bool, error) {
+func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error) {
 	if account == nil {
 		return false, errors.New("account is required")
 	}
 	mode := configModel.MFAModeOff
 	if s.settings != nil {
-		if val, err := s.settings.ResolveString(ctx, configModel.KeyMFAMode); err != nil {
+		// Login runs outside the tenant-transaction middleware, so
+		// tenant.FromContext(ctx) is 0. Use ResolveStringForTenant when
+		// the caller passed the resolved tenant explicitly; fall back to
+		// ResolveString (registry default) otherwise.
+		var (
+			val string
+			err error
+		)
+		if tenantID > 0 {
+			val, err = s.settings.ResolveStringForTenant(ctx, tenantID, configModel.KeyMFAMode)
+		} else {
+			val, err = s.settings.ResolveString(ctx, configModel.KeyMFAMode)
+		}
+		if err != nil {
 			s.logger.Warn("mfa_mode resolve failed; treating as off",
 				slog.String("error", err.Error()))
 		} else if val != "" {

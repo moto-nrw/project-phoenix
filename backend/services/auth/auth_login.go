@@ -112,7 +112,7 @@ func (s *Service) LoginWithMFAGate(
 	// Branch 1: no MFA service wired or MFA not required for this account.
 	mfaRequired := false
 	if s.mfaService != nil {
-		mfaRequired, err = s.mfaService.IsRequired(ctx, account)
+		mfaRequired, err = s.mfaService.IsRequired(ctx, account, metadata.tenantID)
 		if err != nil {
 			s.getLogger().Warn("mfa IsRequired check failed; treating as not required",
 				slog.Int64("account_id", account.ID),
