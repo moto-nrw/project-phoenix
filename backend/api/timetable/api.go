@@ -38,6 +38,7 @@ type Resource struct {
 	calendarPeriodService  scheduleSvc.CalendarPeriodService
 	materializationService scheduleSvc.MaterializationService
 	instanceService        scheduleSvc.InstanceService
+	operationsService      scheduleSvc.TimetableOperationsService
 	personService          userSvc.PersonService
 	instanceStudentRepo    schedule.InstanceStudentRepository
 	activityInstanceRepo   schedule.ActivityInstanceRepository
@@ -73,6 +74,7 @@ type Dependencies struct {
 	CalendarPeriodService  scheduleSvc.CalendarPeriodService
 	MaterializationService scheduleSvc.MaterializationService
 	InstanceService        scheduleSvc.InstanceService
+	OperationsService      scheduleSvc.TimetableOperationsService
 	PersonService          userSvc.PersonService
 	InstanceStudentRepo    schedule.InstanceStudentRepository
 	ActivityInstanceRepo   schedule.ActivityInstanceRepository
@@ -108,6 +110,7 @@ func NewResource(deps Dependencies) *Resource {
 		calendarPeriodService:  deps.CalendarPeriodService,
 		materializationService: deps.MaterializationService,
 		instanceService:        deps.InstanceService,
+		operationsService:      deps.OperationsService,
 		personService:          deps.PersonService,
 		instanceStudentRepo:    deps.InstanceStudentRepo,
 		activityInstanceRepo:   deps.ActivityInstanceRepo,
@@ -220,6 +223,25 @@ func (rs *Resource) Router() chi.Router {
 		// WP-B13: exception-conflict warnings (planning-only, read-only).
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/exception-conflicts", rs.getExceptionConflicts)
+
+		r.Route("/operations", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/planned-now", rs.operationsPlannedNow)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/instances/{id}/roster", rs.operationsRoster)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/active-groups/{id}/roster", rs.operationsRosterByActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Post("/instances/{id}/start", rs.operationsStart)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Post("/instances/{id}/complete", rs.operationsComplete)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Post("/instances/{id}/students/{student_id}/check-in", rs.operationsCheckInStudent)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Post("/instances/{id}/students/{student_id}/check-out", rs.operationsCheckOutStudent)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Patch("/instances/{id}/students/{student_id}/attendance", rs.operationsPatchAttendance)
+		})
 
 		// Templates — admin shortcut to add a recurring activity (Mensa,
 		// Lernzeit, AGs) without leaving the planner. Bundles timeframe +

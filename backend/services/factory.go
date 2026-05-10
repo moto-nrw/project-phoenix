@@ -60,6 +60,7 @@ type Factory struct {
 	Materialization          schedule.MaterializationService
 	TimetableCleanup         schedule.TimetableCleanupService
 	Instance                 schedule.InstanceService
+	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
@@ -388,6 +389,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "instance-lifecycle"),
 	})
 
+	timetableOperationsService := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
+		InstanceRepo:       repos.ActivityInstance,
+		InstanceStaffRepo:  repos.InstanceStaff,
+		InstanceStudents:   repos.InstanceStudent,
+		InstanceService:    instanceService,
+		ActiveGroupRepo:    repos.ActiveGroup,
+		ActiveService:      activeService,
+		SupervisorRepo:     repos.GroupSupervisor,
+		VisitRepo:          repos.ActiveVisit,
+		StudentRepo:        repos.Student,
+		EducationGroupRepo: repos.Group,
+		PersonService:      usersService,
+		Settings:           settingsService,
+		DB:                 db,
+		Logger:             logger.With("service", "timetable-operations"),
+	})
+
 	// Initialize arrival schedule service
 	arrivalScheduleService := schedule.NewArrivalScheduleService(
 		repos.StudentArrivalSchedule,
@@ -622,6 +640,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Materialization:          materializationService,
 		TimetableCleanup:         timetableCleanupService,
 		Instance:                 instanceService,
+		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

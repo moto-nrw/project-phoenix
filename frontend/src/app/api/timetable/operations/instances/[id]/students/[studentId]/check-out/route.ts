@@ -1,0 +1,17 @@
+import type { NextRequest } from "next/server";
+import { apiPost } from "~/lib/api-helpers";
+import { createPostHandler, isStringParam } from "~/lib/route-wrapper";
+
+export const POST = createPostHandler(
+  async (_request: NextRequest, body: unknown, token: string, params) => {
+    if (!isStringParam(params.id) || !isStringParam(params.studentId)) {
+      throw new Error("Invalid id parameter");
+    }
+    const response = await apiPost<{ data: unknown }>(
+      `/api/timetable/operations/instances/${params.id}/students/${params.studentId}/check-out`,
+      token,
+      body ?? {},
+    );
+    return response.data;
+  },
+);

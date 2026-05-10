@@ -102,6 +102,21 @@ interface BackendSchulhofStatus {
   supervisors: BackendSchulhofSupervisor[];
 }
 
+interface BackendPlannedTimetableInstance {
+  id: number;
+  title: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  room_id: number;
+  status: "planned" | "active" | "completed" | "cancelled";
+  is_overdue: boolean;
+  minutes_until_start: number;
+  expected_students_count: number;
+  present_students_count: number;
+  assigned_staff_ids: number[];
+}
+
 // Combined dashboard response type
 interface ActiveSupervisionDashboardResponse {
   // User's supervised active groups (with room info pre-loaded)
@@ -169,6 +184,20 @@ interface ActiveSupervisionDashboardResponse {
       isCurrentUser: boolean;
     }>;
   } | null;
+  plannedNow: Array<{
+    id: string;
+    title: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    roomId: string;
+    status: "planned" | "active" | "completed" | "cancelled";
+    isOverdue: boolean;
+    minutesUntilStart: number;
+    expectedStudentsCount: number;
+    presentStudentsCount: number;
+    assignedStaffIds: string[];
+  }>;
 }
 
 /**
@@ -197,6 +226,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       staffResult,
       groupsResult,
       schulhofResult,
+      plannedNowResult,
     ] = await Promise.all([
       // User's supervised active groups. For admin-only users, try the admin
       // overview endpoint first. If it returns 403 (setting disabled) fall
@@ -247,6 +277,12 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         "/api/active/schulhof/status",
         token,
       ).catch(() => ({ data: null as BackendSchulhofStatus | null })),
+      apiGet<{ data: { instances: BackendPlannedTimetableInstance[] } }>(
+        "/api/timetable/operations/planned-now",
+        token,
+      ).catch(() => ({
+        data: { instances: [] as BackendPlannedTimetableInstance[] },
+      })),
     ]);
 
     // Extract data with null safety, sorted by room name for deterministic order
@@ -266,6 +302,20 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       ? groupsResult.data
       : [];
     const schulhofData = schulhofResult.data;
+    const plannedNow = (plannedNowResult.data.instances ?? []).map((i) => ({
+      id: i.id.toString(),
+      title: i.title,
+      date: i.date,
+      startTime: i.start_time,
+      endTime: i.end_time,
+      roomId: i.room_id.toString(),
+      status: i.status,
+      isOverdue: i.is_overdue,
+      minutesUntilStart: i.minutes_until_start,
+      expectedStudentsCount: i.expected_students_count,
+      presentStudentsCount: i.present_students_count,
+      assignedStaffIds: i.assigned_staff_ids.map(String),
+    }));
 
     // Transform Schulhof status to frontend format
     const schulhofStatus = schulhofData
@@ -306,6 +356,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         firstRoomVisits: [],
         firstRoomId: null,
         schulhofStatus,
+        plannedNow,
       };
     }
 
@@ -417,6 +468,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       firstRoomVisits,
       firstRoomId: firstGroupId,
       schulhofStatus,
+      plannedNow,
     };
   },
 );

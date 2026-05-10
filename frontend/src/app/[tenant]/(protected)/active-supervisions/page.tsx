@@ -38,6 +38,13 @@ import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
+import { fetchStudents } from "~/lib/student-api";
+import { timetableOperationsApi } from "~/lib/timetable-operations-api";
+import type {
+  PlannedTimetableInstance,
+  TimetableRoster,
+  TimetableRosterRow,
+} from "~/lib/timetable-operations-types";
 import { isAdmin, isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -136,6 +143,7 @@ interface BFFDashboardResponse {
   }>;
   firstRoomId: string | null;
   schulhofStatus: SchulhofStatusResponse | null;
+  plannedNow: PlannedTimetableInstance[];
 }
 
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
@@ -164,6 +172,23 @@ function matchesStudentFilters(
     if (studentYear !== yearFilter) return false;
   }
   return true;
+}
+
+const ATTENDANCE_SUBSTATUS_LABELS: Record<
+  NonNullable<TimetableRosterRow["substatus"]>,
+  string
+> = {
+  late: "Verspätet",
+  excused: "Entschuldigt",
+  sick: "Krank",
+  field_trip: "Ausflug",
+  other: "Sonstiges",
+};
+
+function rosterStudentMeta(row: TimetableRosterRow): string {
+  return [row.schoolClass, row.groupName, row.isUnplanned ? "ungeplant" : ""]
+    .filter((value, index, values) => value && values.indexOf(value) === index)
+    .join(" · ");
 }
 
 /** Loading state view */
@@ -324,6 +349,16 @@ function MeinRaumPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [plannedNow, setPlannedNow] = useState<PlannedTimetableInstance[]>([]);
+  const [selectedTimetableInstanceId, setSelectedTimetableInstanceId] =
+    useState<string | null>(null);
+  const [isStartingInstance, setIsStartingInstance] = useState<string | null>(
+    null,
+  );
+  const [isCompletingInstance, setIsCompletingInstance] = useState(false);
+  const [addStudentSearch, setAddStudentSearch] = useState("");
+  const [addStudentResults, setAddStudentResults] = useState<Student[]>([]);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
 
   // OGS group rooms for color detection
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
@@ -592,6 +627,7 @@ function MeinRaumPageContent() {
             ? (supervisedGroups[0]?.room_id ?? null)
             : null,
         schulhofStatus,
+        plannedNow: [],
       };
     }, []);
 
@@ -604,6 +640,7 @@ function MeinRaumPageContent() {
     data: dashboardData,
     isLoading: isDashboardLoading,
     error: dashboardError,
+    mutate: mutateDashboard,
   } = useSWRAuth<BFFDashboardResponse>(
     session?.user?.token ? `active-supervision-dashboard-${refreshKey}` : null,
     async () => {
@@ -648,6 +685,7 @@ function MeinRaumPageContent() {
     if (!dashboardData) return;
 
     const data = dashboardData;
+    setPlannedNow(data.plannedNow ?? []);
 
     // Set staff ID for UnclaimedRooms component
     if (data.currentStaff) {
@@ -972,6 +1010,66 @@ function MeinRaumPageContent() {
     }
   }, [swrVisitsData, currentRoomId, updateRoomStudentCount]);
 
+  const timetableRosterKey = selectedTimetableInstanceId
+    ? `timetable-roster-${selectedTimetableInstanceId}`
+    : currentRoomId && !isSchulhofActive
+      ? `timetable-roster-active-group-${currentRoomId}`
+      : null;
+  const { data: timetableRoster, mutate: mutateRoster } =
+    useSWRAuth<TimetableRoster | null>(
+      timetableRosterKey,
+      async () => {
+        try {
+          if (selectedTimetableInstanceId) {
+            return await timetableOperationsApi.roster(
+              selectedTimetableInstanceId,
+            );
+          }
+          if (!currentRoomId) return null;
+          return await timetableOperationsApi.rosterByActiveGroup(
+            currentRoomId,
+          );
+        } catch (err) {
+          if (
+            err instanceof Error &&
+            (err.message.includes("404") ||
+              err.message.toLowerCase().includes("not found"))
+          ) {
+            return null;
+          }
+          throw err;
+        }
+      },
+      { keepPreviousData: true, revalidateOnFocus: false },
+    );
+  const activeTimetableInstanceId = timetableRoster?.instance.id ?? null;
+
+  useEffect(() => {
+    if (!activeTimetableInstanceId || addStudentSearch.trim().length < 2) {
+      setAddStudentResults([]);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      fetchStudents({
+        search: addStudentSearch.trim(),
+        page: 1,
+        page_size: 5,
+      })
+        .then((result) => {
+          setAddStudentResults(result.students);
+        })
+        .catch((err) => {
+          logger.warn("failed to search students for timetable roster", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          setAddStudentResults([]);
+        });
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [activeTimetableInstanceId, addStudentSearch]);
+
   // Tracking indicators: fetch when student list changes (SSE-driven via SWR revalidation)
   const trackingStudentIds = useMemo(
     () => students.map((s) => s.id),
@@ -1044,6 +1142,121 @@ function MeinRaumPageContent() {
   const handleRoomClaimed = useCallback(() => {
     setRefreshKey((prev) => prev + 1);
   }, []);
+
+  const handleStartPlannedInstance = useCallback(
+    async (instance: PlannedTimetableInstance) => {
+      try {
+        setIsStartingInstance(instance.id);
+        const result = await timetableOperationsApi.start(instance.id);
+        setSelectedTimetableInstanceId(instance.id);
+        setSelectedRoomId(result.activeGroupId);
+        setIsSchulhofTabSelected(false);
+        await mutateDashboard();
+        setRefreshKey((prev) => prev + 1);
+      } catch (err) {
+        logger.error("failed to start planned timetable instance", {
+          instance_id: instance.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setError("Geplante Aktivität konnte nicht gestartet werden.");
+      } finally {
+        setIsStartingInstance(null);
+      }
+    },
+    [mutateDashboard],
+  );
+
+  const handleRosterAction = useCallback(
+    async (
+      action: "check-in" | "check-out" | "excused" | "absent" | "expected",
+      row: TimetableRosterRow,
+    ) => {
+      if (!activeTimetableInstanceId) return;
+      try {
+        if (action === "check-in") {
+          const roster = await timetableOperationsApi.checkIn(
+            activeTimetableInstanceId,
+            row.studentId,
+          );
+          await mutateRoster(roster, { revalidate: false });
+        } else if (action === "check-out") {
+          const roster = await timetableOperationsApi.checkOut(
+            activeTimetableInstanceId,
+            row.studentId,
+          );
+          await mutateRoster(roster, { revalidate: false });
+        } else if (action === "expected") {
+          await timetableOperationsApi.patchAttendance(
+            activeTimetableInstanceId,
+            row.studentId,
+            { status: "expected", substatus: null, note: null },
+          );
+          await mutateRoster();
+        } else {
+          await timetableOperationsApi.patchAttendance(
+            activeTimetableInstanceId,
+            row.studentId,
+            action === "excused"
+              ? { status: "absent", substatus: "excused" }
+              : { status: "absent" },
+          );
+          await mutateRoster();
+        }
+      } catch (err) {
+        logger.error("failed timetable roster action", {
+          action,
+          student_id: row.studentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setError("Aktion im Stundenplan konnte nicht ausgeführt werden.");
+      }
+    },
+    [activeTimetableInstanceId, mutateRoster],
+  );
+
+  const handleCompleteTimetableInstance = useCallback(async () => {
+    if (!activeTimetableInstanceId) return;
+    try {
+      setIsCompletingInstance(true);
+      await timetableOperationsApi.complete(activeTimetableInstanceId);
+      setSelectedTimetableInstanceId(null);
+      await mutateDashboard();
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      logger.error("failed to complete timetable instance", {
+        instance_id: activeTimetableInstanceId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError("Aktivität konnte nicht beendet werden.");
+    } finally {
+      setIsCompletingInstance(false);
+    }
+  }, [activeTimetableInstanceId, mutateDashboard]);
+
+  const handleAddUnplannedStudent = useCallback(
+    async (studentId: string) => {
+      if (!activeTimetableInstanceId) return;
+      try {
+        setIsAddingStudent(true);
+        const roster = await timetableOperationsApi.checkIn(
+          activeTimetableInstanceId,
+          studentId,
+        );
+        setAddStudentSearch("");
+        setAddStudentResults([]);
+        await mutateRoster(roster, { revalidate: false });
+      } catch (err) {
+        logger.error("failed to add unplanned timetable student", {
+          student_id: studentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setError("Schüler konnte nicht zur Aktivität hinzugefügt werden.");
+      } finally {
+        setIsAddingStudent(false);
+      }
+    },
+    [activeTimetableInstanceId, mutateRoster],
+  );
 
   // Handle releasing Schulhof supervision
   const handleReleaseSupervision = useCallback(async () => {
@@ -1268,7 +1481,11 @@ function MeinRaumPageContent() {
 
   // Show unclaimed rooms banner when user has no supervised groups and no Schulhof
   // If Schulhof exists, we'll show the main view with just the Schulhof tab
-  if (allRooms.length === 0 && !schulhofStatus?.exists) {
+  if (
+    allRooms.length === 0 &&
+    !schulhofStatus?.exists &&
+    plannedNow.length === 0
+  ) {
     return (
       <EmptyRoomsView
         onClaimed={handleRoomClaimed}
@@ -1286,6 +1503,203 @@ function MeinRaumPageContent() {
 
   // Render helper for student grid content
   const renderStudentContent = () => {
+    if (timetableRoster) {
+      const present = timetableRoster.rows.filter(
+        (row) => row.currentlyPresent && row.planned,
+      );
+      const expected = timetableRoster.rows.filter(
+        (row) =>
+          row.planned && !row.currentlyPresent && row.status === "expected",
+      );
+      const absent = timetableRoster.rows.filter(
+        (row) =>
+          row.planned && !row.currentlyPresent && row.status === "absent",
+      );
+      const departed = timetableRoster.rows.filter(
+        (row) =>
+          !row.currentlyPresent &&
+          (row.status === "present" || (row.isUnplanned && row.visitId)),
+      );
+      const unplanned = timetableRoster.rows.filter(
+        (row) => row.isUnplanned && row.currentlyPresent,
+      );
+      const renderRosterRow = (row: TimetableRosterRow) => (
+        <div
+          key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
+          className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <div className="font-medium text-gray-900">
+              {row.studentName || `Schüler ${row.studentId}`}
+            </div>
+            <div className="mt-1 text-sm text-gray-500">
+              {rosterStudentMeta(row)}
+            </div>
+            {row.substatus || row.note ? (
+              <div className="mt-1 text-sm text-[#D89A16]">
+                {[
+                  row.substatus
+                    ? ATTENDANCE_SUBSTATUS_LABELS[row.substatus]
+                    : null,
+                  row.note,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </div>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!row.currentlyPresent && row.status === "expected" ? (
+              <button
+                type="button"
+                onClick={() => void handleRosterAction("check-in", row)}
+                className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
+              >
+                Einchecken
+              </button>
+            ) : null}
+            {!row.currentlyPresent && row.status !== "expected" ? (
+              <button
+                type="button"
+                onClick={() => void handleRosterAction("check-in", row)}
+                className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
+              >
+                Wieder einchecken
+              </button>
+            ) : null}
+            {row.currentlyPresent ? (
+              <button
+                type="button"
+                onClick={() => void handleRosterAction("check-out", row)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+              >
+                Raum verlassen
+              </button>
+            ) : null}
+            {row.planned && row.status === "expected" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleRosterAction("excused", row)}
+                  className="rounded-md border border-[#D89A16] px-3 py-2 text-sm font-medium text-[#A66F00]"
+                >
+                  Entschuldigt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRosterAction("absent", row)}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+                >
+                  Abwesend
+                </button>
+              </>
+            ) : null}
+            {row.planned && !row.currentlyPresent && row.status === "absent" ? (
+              <button
+                type="button"
+                onClick={() => void handleRosterAction("expected", row)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+              >
+                Zurück auf erwartet
+              </button>
+            ) : null}
+          </div>
+        </div>
+      );
+
+      const section = (title: string, rows: TimetableRosterRow[]) =>
+        rows.length > 0 ? (
+          <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
+              {title} ({rows.length})
+            </div>
+            {rows.map(renderRosterRow)}
+          </section>
+        ) : null;
+
+      return (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">
+                {timetableRoster.instance.title}
+              </h2>
+              <p className="text-sm text-gray-600">
+                Laufende geplante Aktivität
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={isCompletingInstance}
+              onClick={() => void handleCompleteTimetableInstance()}
+              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Beenden
+            </button>
+          </div>
+          <form
+            className="rounded-lg border border-gray-200 bg-white p-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const onlyResult = addStudentResults[0];
+              if (onlyResult && addStudentResults.length === 1) {
+                void handleAddUnplannedStudent(onlyResult.id.toString());
+              }
+            }}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="search"
+                value={addStudentSearch}
+                onChange={(event) => setAddStudentSearch(event.target.value)}
+                placeholder="Weiteren Schüler suchen..."
+                className="min-h-10 flex-1 rounded-md border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isAddingStudent || addStudentResults.length !== 1}
+                className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Hinzufügen
+              </button>
+            </div>
+            {addStudentResults.length > 0 ? (
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {addStudentResults.map((student) => (
+                  <button
+                    key={student.id}
+                    type="button"
+                    disabled={isAddingStudent}
+                    onClick={() =>
+                      void handleAddUnplannedStudent(student.id.toString())
+                    }
+                    className="rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#83CD2D] disabled:opacity-50"
+                  >
+                    <span className="font-medium text-gray-900">
+                      {student.name ||
+                        [student.first_name, student.second_name]
+                          .filter(Boolean)
+                          .join(" ")}
+                    </span>
+                    <span className="ml-2 text-gray-500">
+                      {[student.school_class, student.group_name]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </form>
+          {section("Anwesend", present)}
+          {section("Erwartet", expected)}
+          {section("Entschuldigt / Abwesend", absent)}
+          {section("Nicht mehr im Raum", departed)}
+          {section("Ungeplant", unplanned)}
+        </div>
+      );
+    }
+
     if (students.length === 0) {
       return (
         <div className="py-8 text-center">
@@ -1434,6 +1848,55 @@ function MeinRaumPageContent() {
         }
         currentStaffId={currentStaffId}
       />
+
+      {plannedNow.length > 0 && (
+        <section className="mb-6 rounded-lg border border-[#83CD2D]/30 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">
+              Jetzt geplant
+            </h2>
+            <span className="text-sm text-gray-500">
+              {plannedNow.length} Aktivität
+              {plannedNow.length === 1 ? "" : "en"}
+            </span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {plannedNow.map((instance) => (
+              <article
+                key={instance.id}
+                className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-medium text-gray-900">
+                      {instance.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      {instance.startTime}–{instance.endTime}
+                    </p>
+                  </div>
+                  {instance.isOverdue && (
+                    <span className="rounded-full bg-[#F3B63F]/20 px-2 py-1 text-xs font-medium text-[#A66F00]">
+                      Überfällig
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 text-sm text-gray-600">
+                  {instance.expectedStudentsCount} erwartet
+                </div>
+                <button
+                  type="button"
+                  disabled={isStartingInstance === instance.id}
+                  onClick={() => void handleStartPlannedInstance(instance)}
+                  className="mt-4 w-full rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  Jetzt starten
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Modern Header with PageHeaderWithSearch component */}
       {/* Count rooms EXCLUDING Schulhof (to avoid double-counting with schulhofStatus) */}
