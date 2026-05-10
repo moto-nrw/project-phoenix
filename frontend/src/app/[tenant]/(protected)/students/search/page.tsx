@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  Suspense,
+  useMemo,
+  useCallback,
+} from "react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -8,12 +15,13 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
-import { studentService, groupService } from "~/lib/api";
-import type { Student, Group } from "~/lib/api";
+import { studentService, groupService, roomService } from "~/lib/api";
+import type { Student, Group, Room } from "~/lib/api";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
+  LOCATION_STATUSES,
   isHomeLocation,
   isPresentLocation,
   isSchoolyardLocation,
@@ -40,6 +48,7 @@ import {
 } from "~/lib/hooks/use-school-checkin-mode";
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
+import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -56,6 +65,167 @@ import {
 } from "./tracking-filter";
 
 const logger = createLogger({ component: "StudentSearchPage" });
+const EMPTY_STRING_ARRAY: string[] = [];
+
+type StatusFilter =
+  | "all"
+  | "anwesend"
+  | "abwesend"
+  | "unterwegs"
+  | "schulhof"
+  | "krank";
+type SortMode = "name" | "arrival" | "pickup";
+type GroupMode = "none" | "status" | "room" | "arrival" | "pickup";
+
+const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
+  { value: "all", label: "Alle" },
+  { value: "anwesend", label: "Anwesend" },
+  { value: "abwesend", label: "Abwesend" },
+  { value: "krank", label: "Krank" },
+  { value: "unterwegs", label: "Unterwegs" },
+  { value: "schulhof", label: "Schulhof" },
+];
+
+const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
+  { value: "name", label: "Name A-Z" },
+  { value: "arrival", label: "Nächste Ankunft" },
+  { value: "pickup", label: "Nächste Abholung" },
+];
+
+const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
+  { value: "none", label: "Liste" },
+  { value: "status", label: "Nach Status" },
+  { value: "room", label: "Nach Raum" },
+  { value: "arrival", label: "Nach Ankunftszeit" },
+  { value: "pickup", label: "Nach Abholzeit" },
+];
+
+const SCHOOL_YEAR_DROPDOWN_OPTIONS = SCHOOL_YEAR_FILTER_OPTIONS.map(
+  (option) => ({
+    value: option.value,
+    label: option.value === "all" ? "Alle Stufen" : `Stufe ${option.label}`,
+  }),
+);
+
+const STATUS_GROUP_ORDER = new Map([
+  ["Anwesend", 0],
+  ["Unterwegs", 1],
+  ["Schulhof", 2],
+  ["Krank", 3],
+  ["Abwesend", 4],
+]);
+
+function compareByName(a: Student, b: Student) {
+  const lastCmp = (a.second_name ?? "").localeCompare(
+    b.second_name ?? "",
+    "de",
+  );
+  if (lastCmp !== 0) return lastCmp;
+  return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
+}
+
+function statusLabelForStudent(student: Student): string {
+  if (student.sick) return "Krank";
+  if (isSchoolyardLocation(student.current_location)) return "Schulhof";
+  if (isTransitLocation(student.current_location)) return "Unterwegs";
+  if (isHomeLocation(student.current_location)) return "Abwesend";
+  return "Anwesend";
+}
+
+function roomLabelForStudent(student: Student): string {
+  if (student.has_full_access === false) return "Nicht einsehbar";
+
+  const location = student.current_location?.trim();
+  if (!location || isHomeLocation(location)) return "Kein Raum";
+  if (isTransitLocation(location)) return "Unterwegs";
+  if (isSchoolyardLocation(location)) return "Schulhof";
+  const separatorIndex = location.indexOf("-");
+  if (separatorIndex >= 0) {
+    const room = location.slice(separatorIndex + 1).trim();
+    return room || "Kein Raum";
+  }
+  if (Object.values(LOCATION_STATUSES).some((status) => status === location)) {
+    return "Kein Raum";
+  }
+  return location;
+}
+
+function pickupLabelForStudent(student: Student): string {
+  if (student.has_full_access === false) return "Nicht einsehbar";
+  return student.pickup_time ? `${student.pickup_time} Uhr` : "Keine Abholzeit";
+}
+
+function arrivalLabelForStudent(student: Student): string {
+  if (student.has_full_access === false) return "Nicht einsehbar";
+  return student.arrival_time
+    ? `${student.arrival_time} Uhr`
+    : "Keine Ankunftszeit";
+}
+
+function groupStudents(students: Student[], groupMode: GroupMode) {
+  if (groupMode === "none") return [];
+
+  const groups = new Map<string, Student[]>();
+  for (const student of students) {
+    const key =
+      groupMode === "status"
+        ? statusLabelForStudent(student)
+        : groupMode === "room"
+          ? roomLabelForStudent(student)
+          : groupMode === "arrival"
+            ? arrivalLabelForStudent(student)
+            : pickupLabelForStudent(student);
+    const bucket = groups.get(key);
+    if (bucket) {
+      bucket.push(student);
+    } else {
+      groups.set(key, [student]);
+    }
+  }
+
+  return Array.from(groups.entries())
+    .map(([label, items]) => ({
+      label,
+      items,
+    }))
+    .sort((a, b) => {
+      if (groupMode === "status") {
+        return (
+          (STATUS_GROUP_ORDER.get(a.label) ?? 99) -
+          (STATUS_GROUP_ORDER.get(b.label) ?? 99)
+        );
+      }
+      if (groupMode === "pickup" || groupMode === "arrival") {
+        const rank = (label: string) =>
+          label === "Keine Abholzeit" || label === "Keine Ankunftszeit"
+            ? "99"
+            : label === "Nicht einsehbar"
+              ? "zz"
+              : label;
+        return rank(a.label).localeCompare(rank(b.label), "de");
+      }
+      return a.label.localeCompare(b.label, "de");
+    });
+}
+
+function orderedRooms(
+  rooms: Room[],
+  groupRoomNames: string[],
+  supervisedRoomNames: string[],
+) {
+  const priorityNames = new Set(
+    [...groupRoomNames, ...supervisedRoomNames].map((name) =>
+      name.trim().toLowerCase(),
+    ),
+  );
+
+  return [...rooms].sort((a, b) => {
+    const aPriority = priorityNames.has(a.name.trim().toLowerCase());
+    const bPriority = priorityNames.has(b.name.trim().toLowerCase());
+    if (aPriority !== bPriority) return aPriority ? -1 : 1;
+    return a.name.localeCompare(b.name, "de");
+  });
+}
 
 function SearchPageContent() {
   const router = useTenantRouter();
@@ -71,16 +241,11 @@ function SearchPageContent() {
 
   // Read initial filter from URL params (supports deep-linking from dashboard)
   const initialStatus = searchParams.get("status") ?? "all";
-  const validStatuses = [
-    "all",
-    "anwesend",
-    "abwesend",
-    "unterwegs",
-    "schulhof",
-    "krank",
-  ];
-  const initialAttendanceFilter = validStatuses.includes(initialStatus)
-    ? initialStatus
+  const validStatuses = STATUS_FILTER_OPTIONS.map((option) => option.value);
+  const initialAttendanceFilter = validStatuses.includes(
+    initialStatus as StatusFilter,
+  )
+    ? (initialStatus as StatusFilter)
     : "all";
 
   // Room filter — populated when the user lands here from the room detail
@@ -94,12 +259,14 @@ function SearchPageContent() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
   const [selectedGroup, setSelectedGroup] = useState("");
   const [selectedYear, setSelectedYear] = useState("all");
-  const [attendanceFilter, setAttendanceFilter] = useState(
+  const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(
     initialAttendanceFilter,
   );
   const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
+  const [arrivalTimeFilter, setArrivalTimeFilter] = useState("all");
   const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>("all");
-  const [sortMode, setSortMode] = useState<"default" | "arrival">("default");
+  const [sortMode, setSortMode] = useState<SortMode>("name");
+  const [groupMode, setGroupMode] = useState<GroupMode>("none");
   const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoomName);
 
@@ -109,9 +276,11 @@ function SearchPageContent() {
   // OGS group tracking via shared BFF endpoint with SWR caching
   // This eliminates 2 separate API calls with 2 auth() calls each
   const { userContext } = useUserContext();
-  const myGroups = userContext?.educationalGroupIds ?? [];
-  const myGroupRooms = userContext?.educationalGroupRoomNames ?? [];
-  const mySupervisedRooms = userContext?.supervisedRoomNames ?? [];
+  const myGroups = userContext?.educationalGroupIds ?? EMPTY_STRING_ARRAY;
+  const myGroupRooms =
+    userContext?.educationalGroupRoomNames ?? EMPTY_STRING_ARRAY;
+  const mySupervisedRooms =
+    userContext?.supervisedRoomNames ?? EMPTY_STRING_ARRAY;
 
   // Page-level school check-in/out mode. When active, clicking a card toggles
   // the student's attendance instead of navigating to the detail page.
@@ -154,6 +323,20 @@ function SearchPageContent() {
     },
   );
 
+  // Room names/options are mutable from the rooms admin page, so this must
+  // revalidate stale cache entries when the search page remounts.
+  const { data: rooms = [] } = useSWRAuth<Room[]>(
+    SEARCH_ROOMS_LIST_CACHE_KEY,
+    async () => {
+      try {
+        return await roomService.getRooms({ page: 1, pageSize: 1000 });
+      } catch {
+        logger.warn("could not load rooms for filter");
+        return [];
+      }
+    },
+  );
+
   // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)
   // Note: User context is only for badge styling, not for fetching students
   const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}`;
@@ -188,28 +371,39 @@ function SearchPageContent() {
     },
   );
 
-  // Clearing the room filter resets state AND strips room_id/room_name from
-  // the URL so a refresh doesn't silently re-hydrate a filter the user has
-  // just removed. window.history.replaceState avoids a Next.js navigation,
-  // which would discard SWR data and flash the loading skeleton. Merge into
-  // the existing state object instead of replacing it — App Router stashes
-  // routing metadata (scroll restoration, RSC cache keys) on
-  // window.history.state, and clobbering it with `{}` can degrade browser
+  // Keep room state and room_id/room_name query params in sync without a
+  // Next.js navigation, which would discard SWR data and flash the loading
+  // skeleton. Merge into the existing state object instead of replacing it —
+  // App Router stashes routing metadata (scroll restoration, RSC cache keys)
+  // on window.history.state, and clobbering it with `{}` can degrade browser
   // back/forward into a hard reload for this entry.
-  const clearRoomFilter = () => {
-    setSelectedRoomId("");
-    setSelectedRoomName("");
+  const updateRoomFilter = useCallback((roomId: string, roomName: string) => {
+    setSelectedRoomId(roomId);
+    setSelectedRoomName(roomName);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
-      url.searchParams.delete("room_id");
-      url.searchParams.delete("room_name");
+      if (roomId) {
+        url.searchParams.set("room_id", roomId);
+        if (roomName) {
+          url.searchParams.set("room_name", roomName);
+        } else {
+          url.searchParams.delete("room_name");
+        }
+      } else {
+        url.searchParams.delete("room_id");
+        url.searchParams.delete("room_name");
+      }
       window.history.replaceState(
         window.history.state ?? null,
         "",
         url.toString(),
       );
     }
-  };
+  }, []);
+
+  const clearRoomFilter = useCallback(() => {
+    updateRoomFilter("", "");
+  }, [updateRoomFilter]);
 
   const students = studentsData?.students ?? [];
 
@@ -280,15 +474,20 @@ function SearchPageContent() {
   // which triggers SWR refetch for search-students-* keys automatically.
 
   // Prepare filter configurations for PageHeaderWithSearch
+  const orderedRoomOptions = useMemo(
+    () => orderedRooms(rooms, myGroupRooms, mySupervisedRooms),
+    [rooms, myGroupRooms, mySupervisedRooms],
+  );
+
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
       {
         id: "year",
-        label: "Klassenstufe",
-        type: "buttons",
+        label: "Stufe",
+        type: "dropdown",
         value: selectedYear,
         onChange: (value) => setSelectedYear(value as string),
-        options: [...SCHOOL_YEAR_FILTER_OPTIONS],
+        options: SCHOOL_YEAR_DROPDOWN_OPTIONS,
       },
       {
         id: "group",
@@ -302,29 +501,37 @@ function SearchPageContent() {
         ],
       },
       {
-        id: "sort",
-        label: "Sortierung",
-        type: "buttons",
-        value: sortMode,
-        onChange: (value) => setSortMode(value as "default" | "arrival"),
-        options: [
-          { value: "default", label: "Alphabetisch" },
-          { value: "arrival", label: "Nächste Ankunft" },
-        ],
-      },
-      {
-        id: "attendance",
-        label: "Anwesenheit",
+        id: "room",
+        label: "Raum",
         type: "dropdown",
-        value: attendanceFilter,
-        onChange: (value) => setAttendanceFilter(value as string),
+        value: selectedRoomId,
+        onChange: (value: string | string[]) => {
+          const v = Array.isArray(value) ? value[0] : value;
+          if (!v) {
+            clearRoomFilter();
+            return;
+          }
+          const room = rooms.find((r) => r.id === v);
+          updateRoomFilter(
+            v,
+            room?.name ?? (v === selectedRoomId ? selectedRoomName : ""),
+          );
+        },
         options: [
-          { value: "all", label: "Alle Status" },
-          { value: "anwesend", label: "Anwesend" },
-          { value: "abwesend", label: "Zuhause" },
-          { value: "unterwegs", label: "Unterwegs" },
-          { value: "schulhof", label: "Schulhof" },
-          { value: "krank", label: "Krank" },
+          { value: "", label: "Alle Räume" },
+          ...orderedRoomOptions.map((room) => ({
+            value: room.id,
+            label: room.name,
+          })),
+          ...(selectedRoomId &&
+          !orderedRoomOptions.some((room) => room.id === selectedRoomId)
+            ? [
+                {
+                  value: selectedRoomId,
+                  label: selectedRoomName || `Raum #${selectedRoomId}`,
+                },
+              ]
+            : []),
         ],
       },
       {
@@ -347,34 +554,57 @@ function SearchPageContent() {
           { value: "none", label: "Keine Abholzeit" },
         ],
       },
-      // Room (#1323): only surfaces when a deep-link from a room detail
-      // page set ?room_id=…. Following the established pattern of this
-      // page (every active filter must be clearable through the filter
-      // sheet, since activeFilterDisplay="count" hides chips), the room
-      // appears here with two options — its own value plus "Alle Räume"
-      // to clear. Same UX a user would use to clear a Dashboard "Krank"
-      // deep-link via the Anwesenheit dropdown.
-      ...(selectedRoomId
-        ? [
-            {
-              id: "room",
-              label: "Raum",
-              type: "dropdown" as const,
-              value: selectedRoomId,
-              onChange: (value: string | string[]) => {
-                const v = Array.isArray(value) ? value[0] : value;
-                if (!v) clearRoomFilter();
-              },
-              options: [
-                {
-                  value: selectedRoomId,
-                  label: selectedRoomName || `Raum #${selectedRoomId}`,
-                },
-                { value: "", label: "Alle Räume" },
-              ],
-            },
-          ]
-        : []),
+      {
+        id: "arrivalTime",
+        label: "Ankunftszeit",
+        type: "dropdown",
+        value: arrivalTimeFilter,
+        onChange: (value) => setArrivalTimeFilter(value as string),
+        options: [
+          { value: "all", label: "Alle Ankunftszeiten" },
+          ...Array.from(
+            new Set(
+              (studentsData?.students ?? [])
+                .map((s) => s.arrival_time)
+                .filter((t): t is string => !!t),
+            ),
+          )
+            .sort((a, b) => a.localeCompare(b))
+            .map((time) => ({ value: time, label: `${time} Uhr` })),
+          { value: "none", label: "Keine Ankunftszeit" },
+        ],
+      },
+      {
+        id: "attendance",
+        label: "Status",
+        type: "dropdown",
+        value: attendanceFilter,
+        onChange: (value) => setAttendanceFilter(value as StatusFilter),
+        options: [
+          { value: "all", label: "Alle Status" },
+          { value: "anwesend", label: "Anwesend" },
+          { value: "abwesend", label: "Abwesend" },
+          { value: "krank", label: "Krank" },
+          { value: "unterwegs", label: "Unterwegs" },
+          { value: "schulhof", label: "Schulhof" },
+        ],
+      },
+      {
+        id: "sort",
+        label: "Sortierung",
+        type: "dropdown",
+        value: sortMode,
+        onChange: (value) => setSortMode(value as SortMode),
+        options: SORT_OPTIONS,
+      },
+      {
+        id: "groupMode",
+        label: "Ansicht",
+        type: "dropdown",
+        value: groupMode,
+        onChange: (value) => setGroupMode(value as GroupMode),
+        options: GROUP_OPTIONS,
+      },
       ...(trackingLabels && trackingLabels.length > 0
         ? [
             {
@@ -399,15 +629,21 @@ function SearchPageContent() {
     [
       selectedYear,
       selectedGroup,
-      attendanceFilter,
       pickupTimeFilter,
+      arrivalTimeFilter,
+      attendanceFilter,
       trackingFilter,
       trackingLabels,
       groups,
+      rooms,
       studentsData,
-      sortMode,
       selectedRoomId,
       selectedRoomName,
+      orderedRoomOptions,
+      clearRoomFilter,
+      updateRoomFilter,
+      sortMode,
+      groupMode,
     ],
   );
 
@@ -455,9 +691,9 @@ function SearchPageContent() {
     }
 
     if (attendanceFilter !== "all") {
-      const statusLabels: Record<string, string> = {
+      const statusLabels: Record<Exclude<StatusFilter, "all">, string> = {
         anwesend: "Anwesend",
-        abwesend: "Zuhause",
+        abwesend: "Abwesend",
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
         krank: "Krank",
@@ -480,6 +716,17 @@ function SearchPageContent() {
       });
     }
 
+    if (arrivalTimeFilter !== "all") {
+      filters.push({
+        id: "arrivalTime",
+        label:
+          arrivalTimeFilter === "none"
+            ? "Keine Ankunftszeit"
+            : `Ankunftszeit ${arrivalTimeFilter} Uhr`,
+        onRemove: () => setArrivalTimeFilter("all"),
+      });
+    }
+
     if (trackingLabels) {
       const chipLabel = trackingFilterChipLabel(trackingFilter, trackingLabels);
       if (chipLabel !== null) {
@@ -491,6 +738,27 @@ function SearchPageContent() {
       }
     }
 
+    if (sortMode !== "name") {
+      filters.push({
+        id: "sort",
+        label:
+          SORT_OPTIONS.find((option) => option.value === sortMode)?.label ??
+          "Sortierung",
+        onRemove: () => setSortMode("name"),
+      });
+    }
+
+    if (groupMode !== "none") {
+      filters.push({
+        id: "groupMode",
+        label: `Ansicht: ${
+          GROUP_OPTIONS.find((option) => option.value === groupMode)?.label ??
+          "Ansicht"
+        }`,
+        onRemove: () => setGroupMode("none"),
+      });
+    }
+
     return filters;
   }, [
     searchTerm,
@@ -498,11 +766,15 @@ function SearchPageContent() {
     selectedGroup,
     attendanceFilter,
     pickupTimeFilter,
+    arrivalTimeFilter,
     trackingFilter,
     trackingLabels,
     groups,
     selectedRoomId,
     selectedRoomName,
+    sortMode,
+    groupMode,
+    clearRoomFilter,
   ]);
 
   // Apply additional client-side filtering for attendance statuses and year
@@ -566,6 +838,15 @@ function SearchPageContent() {
       }
     }
 
+    if (arrivalTimeFilter !== "all") {
+      if (student.has_full_access === false) return false;
+      if (arrivalTimeFilter === "none") {
+        if (student.arrival_time || student.arrival_is_exception) return false;
+      } else if (student.arrival_time !== arrivalTimeFilter) {
+        return false;
+      }
+    }
+
     if (!matchesTrackingFilter(student, trackingFilter, trackingData)) {
       return false;
     }
@@ -573,51 +854,54 @@ function SearchPageContent() {
     return true;
   });
 
-  // Apply sort mode (default = backend order; arrival = by arrival urgency + time)
+  // Apply sort mode (name = stable A-Z; arrival/pickup = daily operational order)
   const sortedStudents = useMemo(() => {
-    if (sortMode !== "arrival") return filteredStudents;
-
-    const compareByName = (a: Student, b: Student) => {
-      const lastCmp = (a.second_name ?? "").localeCompare(
-        b.second_name ?? "",
-        "de",
-      );
-      if (lastCmp !== 0) return lastCmp;
-      return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
-    };
+    if (sortMode === "name") return [...filteredStudents].sort(compareByName);
 
     return [...filteredStudents].sort((a, b) => {
+      if (sortMode === "pickup") {
+        const timeA = a.pickup_time;
+        const timeB = b.pickup_time;
+        if (timeA && !timeB) return -1;
+        if (!timeA && timeB) return 1;
+        if (timeA && timeB) {
+          const timeCmp = timeA.localeCompare(timeB);
+          if (timeCmp !== 0) return timeCmp;
+        }
+        return compareByName(a, b);
+      }
+
       const aHome = isHomeLocation(a.current_location);
       const bHome = isHomeLocation(b.current_location);
-
       if (!aHome && bHome) return 1;
       if (aHome && !bHome) return -1;
 
-      const timeA = a.arrival_time;
-      const timeB = b.arrival_time;
       const statusA = getStudentTimeStatus({
-        plannedTime: timeA,
+        plannedTime: a.arrival_time,
         actualTime: a.actual_arrival_time,
         now,
       });
       const statusB = getStudentTimeStatus({
-        plannedTime: timeB,
+        plannedTime: b.arrival_time,
         actualTime: b.actual_arrival_time,
         now,
       });
       const rankA = getTimeStatusSortRank(statusA);
       const rankB = getTimeStatusSortRank(statusB);
-
       if (rankA !== rankB) return rankA - rankB;
 
-      if (timeA && timeB) {
-        const timeCmp = timeA.localeCompare(timeB);
+      if (a.arrival_time && b.arrival_time) {
+        const timeCmp = a.arrival_time.localeCompare(b.arrival_time);
         if (timeCmp !== 0) return timeCmp;
       }
-
       return compareByName(a, b);
     });
   }, [filteredStudents, sortMode, now]);
+
+  const groupedStudents = useMemo(
+    () => groupStudents(sortedStudents, groupMode),
+    [sortedStudents, groupMode],
+  );
 
   // Fix P2: Show loading during initialization (prevents empty state flash)
   // Note: With required: true, unauthenticated users are auto-redirected to login
@@ -634,7 +918,7 @@ function SearchPageContent() {
           header on desktop via primaryAction. */}
       <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
         <PageHeaderWithSearch
-          title="Suche"
+          title="Kindersuche"
           badge={{
             icon: (
               <svg
@@ -669,7 +953,6 @@ function SearchPageContent() {
           // (1280px). Matches Stripe / Airbnb / Slack pattern for
           // filter-heavy pages.
           desktopFiltersFrom="xl"
-          activeFilterDisplay="count"
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
@@ -683,7 +966,10 @@ function SearchPageContent() {
             setSelectedYear("all");
             setAttendanceFilter("all");
             setPickupTimeFilter("all");
+            setArrivalTimeFilter("all");
             setTrackingFilter("all");
+            setSortMode("name");
+            setGroupMode("none");
             clearRoomFilter();
           }}
         />
@@ -804,101 +1090,114 @@ function SearchPageContent() {
             if (statusFilter) qs.set("status", statusFilter);
             return encodeURIComponent(`/students/search?${qs.toString()}`);
           })();
-          return (
-            <div>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-                {sortedStudents.map((student) => {
-                  const checkinState = deriveCheckinState(
-                    student.current_location,
-                  );
-                  const studentIdStr = student.id.toString();
-                  return (
-                    <StudentCard
-                      key={student.id}
-                      studentId={student.id}
-                      firstName={student.first_name}
-                      lastName={student.second_name}
-                      onClick={() =>
-                        router.push(
-                          `/students/${student.id}?from=${buildFromParam}`,
-                        )
-                      }
-                      checkinMode={isBinaryMode && schoolCheckin.isActive}
-                      checkinState={checkinState}
-                      isCheckinPending={schoolCheckin.pendingIds.has(
-                        studentIdStr,
-                      )}
-                      onCheckinClick={() =>
-                        void schoolCheckin.toggle(studentIdStr, checkinState)
-                      }
-                      locationBadge={
-                        <StudentPresenceBadge
-                          student={{
-                            ...student,
-                            not_arrival_today:
-                              (student.arrival_is_exception ?? false) &&
-                              !student.arrival_time,
-                            not_arrival_reason: student.arrival_notes ?? null,
-                          }}
-                          displayMode="contextAware"
-                          userGroups={myGroups}
-                          groupRooms={myGroupRooms}
-                          supervisedRooms={mySupervisedRooms}
-                          variant="modern"
-                          size="md"
+          const renderStudentCard = (student: Student) => {
+            const checkinState = deriveCheckinState(student.current_location);
+            const studentIdStr = student.id.toString();
+            return (
+              <StudentCard
+                key={student.id}
+                studentId={student.id}
+                firstName={student.first_name}
+                lastName={student.second_name}
+                onClick={() =>
+                  router.push(`/students/${student.id}?from=${buildFromParam}`)
+                }
+                checkinMode={isBinaryMode && schoolCheckin.isActive}
+                checkinState={checkinState}
+                isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+                onCheckinClick={() =>
+                  void schoolCheckin.toggle(studentIdStr, checkinState)
+                }
+                locationBadge={
+                  <StudentPresenceBadge
+                    student={{
+                      ...student,
+                      not_arrival_today:
+                        (student.arrival_is_exception ?? false) &&
+                        !student.arrival_time,
+                      not_arrival_reason: student.arrival_notes ?? null,
+                    }}
+                    displayMode="contextAware"
+                    userGroups={myGroups}
+                    groupRooms={myGroupRooms}
+                    supervisedRooms={mySupervisedRooms}
+                    variant="modern"
+                    size="md"
+                  />
+                }
+                extraContent={
+                  <>
+                    <StudentInfoRow icon={<SchoolClassIcon />}>
+                      {student.school_class}
+                    </StudentInfoRow>
+                    {student.group_name && (
+                      <StudentInfoRow icon={<GroupIcon />}>
+                        Gruppe: {student.group_name}
+                      </StudentInfoRow>
+                    )}
+                    {student.has_full_access !== false && (
+                      <>
+                        <ArrivalTimeRow
+                          arrivalTime={student.arrival_time}
+                          actualTime={student.actual_arrival_time}
+                          isException={student.arrival_is_exception ?? false}
+                          isAbsent={
+                            (student.arrival_is_exception ?? false) &&
+                            !student.arrival_time
+                          }
+                          notes={student.arrival_notes}
+                          now={now}
                         />
-                      }
-                      extraContent={
-                        <>
-                          <StudentInfoRow icon={<SchoolClassIcon />}>
-                            {student.school_class}
-                          </StudentInfoRow>
-                          {student.group_name && (
-                            <StudentInfoRow icon={<GroupIcon />}>
-                              Gruppe: {student.group_name}
-                            </StudentInfoRow>
-                          )}
-                          {student.has_full_access !== false && (
-                            <>
-                              <ArrivalTimeRow
-                                arrivalTime={student.arrival_time}
-                                actualTime={student.actual_arrival_time}
-                                isException={
-                                  student.arrival_is_exception ?? false
-                                }
-                                isAbsent={
-                                  (student.arrival_is_exception ?? false) &&
-                                  !student.arrival_time
-                                }
-                                notes={student.arrival_notes}
-                                now={now}
-                              />
-                              <PickupTimeRow
-                                pickupTime={student.pickup_time ?? undefined}
-                                actualTime={student.actual_pickup_time}
-                                isException={
-                                  student.pickup_is_exception ?? false
-                                }
-                                notes={student.pickup_notes}
-                                now={now}
-                              />
-                            </>
-                          )}
-                        </>
-                      }
-                      trackingIndicators={
-                        trackingData?.labels?.length &&
-                        student.has_full_access !== false ? (
-                          <TrackingIndicators
-                            labels={trackingData.labels}
-                            results={trackingData.results[student.id] ?? []}
-                          />
-                        ) : undefined
-                      }
+                        <PickupTimeRow
+                          pickupTime={student.pickup_time ?? undefined}
+                          actualTime={student.actual_pickup_time}
+                          isException={student.pickup_is_exception ?? false}
+                          notes={student.pickup_notes}
+                          now={now}
+                        />
+                      </>
+                    )}
+                  </>
+                }
+                trackingIndicators={
+                  trackingData?.labels?.length &&
+                  student.has_full_access !== false ? (
+                    <TrackingIndicators
+                      labels={trackingData.labels}
+                      results={trackingData.results[student.id] ?? []}
                     />
-                  );
-                })}
+                  ) : undefined
+                }
+              />
+            );
+          };
+
+          if (groupMode !== "none") {
+            return (
+              <div className="space-y-6">
+                {groupedStudents.map((group) => (
+                  <section key={group.label} data-testid="student-group">
+                    <div className="mb-3 flex items-center gap-3">
+                      <h2 className="text-sm font-semibold text-gray-900">
+                        {group.label}
+                      </h2>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                        {group.items.length}
+                      </span>
+                      <div className="h-px min-w-8 flex-1 bg-gray-200" />
+                    </div>
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                      {group.items.map(renderStudentCard)}
+                    </div>
+                  </section>
+                ))}
               </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+              {sortedStudents.map(renderStudentCard)}
             </div>
           );
         })()}

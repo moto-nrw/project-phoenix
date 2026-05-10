@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import { roomService } from "~/lib/api";
 import StudentSearchPage from "./page";
 
 // Mock next-auth/react
@@ -229,6 +230,7 @@ const mockStudents = [
     school_class: "1a",
     group_name: "Gruppe A",
     current_location: "Raum 101",
+    arrival_time: "08:00",
     pickup_time: "15:30",
     has_full_access: true,
   },
@@ -239,6 +241,7 @@ const mockStudents = [
     school_class: "2b",
     group_name: "Gruppe B",
     current_location: "Zuhause",
+    arrival_time: "08:30",
     has_full_access: true,
   },
   {
@@ -248,6 +251,7 @@ const mockStudents = [
     school_class: "1a",
     group_name: "Gruppe A",
     current_location: "Unterwegs",
+    arrival_time: "08:15",
     pickup_time: "16:00",
     has_full_access: true,
   },
@@ -258,6 +262,7 @@ const mockStudents = [
     school_class: "3c",
     group_name: "Gruppe C",
     current_location: "Schulhof",
+    arrival_time: "09:00",
     has_full_access: true,
   },
 ];
@@ -279,6 +284,14 @@ vi.mock("~/lib/api", () => ({
       ]),
     ),
   },
+  roomService: {
+    getRooms: vi.fn(() =>
+      Promise.resolve([
+        { id: "101", name: "Raum 101", isOccupied: true },
+        { id: "102", name: "Raum 102", isOccupied: false },
+      ]),
+    ),
+  },
 }));
 
 vi.mock("~/lib/usercontext-api", () => ({
@@ -288,10 +301,41 @@ vi.mock("~/lib/usercontext-api", () => ({
   },
 }));
 
+function mockUseSWRAuthWithStudents(
+  swrModule: typeof import("~/lib/swr"),
+  response: ReturnType<typeof swrModule.useSWRAuth>,
+) {
+  vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
+    if (key === "search-rooms-list") {
+      return {
+        data: [
+          { id: "101", name: "Raum 101", isOccupied: true },
+          { id: "102", name: "Raum 102", isOccupied: false },
+        ],
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+    }
+
+    if (typeof key === "string" && key.startsWith("tracking-indicators-")) {
+      return {
+        data: undefined,
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+    }
+
+    return response;
+  });
+}
+
 describe("StudentSearchPage", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockSearchParams.delete("status");
+    mockSearchParams.delete("room_id");
+    mockSearchParams.delete("room_name");
+    window.history.replaceState(null, "", "/students/search");
 
     // Reset useSession mock to authenticated state
     const sessionModule = await import("next-auth/react");
@@ -303,16 +347,26 @@ describe("StudentSearchPage", () => {
 
     // Reset SWR mock data for each test
     const swrModule = await import("~/lib/swr");
-    vi.mocked(swrModule.useImmutableSWR).mockReturnValue({
-      data: [
-        { id: "1", name: "Gruppe A" },
-        { id: "2", name: "Gruppe B" },
-        { id: "3", name: "Gruppe C" },
-      ],
-      isLoading: false,
-      error: null,
-    } as ReturnType<typeof swrModule.useImmutableSWR>);
-    vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+    vi.mocked(swrModule.useImmutableSWR).mockImplementation((key) => {
+      if (key === "search-groups-list") {
+        return {
+          data: [
+            { id: "1", name: "Gruppe A" },
+            { id: "2", name: "Gruppe B" },
+            { id: "3", name: "Gruppe C" },
+          ],
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useImmutableSWR>;
+      }
+
+      return {
+        data: [],
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useImmutableSWR>;
+    });
+    mockUseSWRAuthWithStudents(swrModule, {
       data: { students: mockStudents },
       isLoading: false,
       error: null,
@@ -458,9 +512,56 @@ describe("StudentSearchPage", () => {
         expect(screen.queryByText("Tom")).not.toBeInTheDocument();
       });
     });
+
+    it("filters to show only sick students when 'krank' is selected", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            { ...mockStudents[0]!, sick: true },
+            { ...mockStudents[1]!, sick: false },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-attendance"), {
+        target: { value: "krank" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId("active-filter-attendance"),
+        ).toHaveTextContent("Krank");
+      });
+    });
   });
 
   describe("Year Filtering", () => {
+    it("renders the school year filter as a stage dropdown", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-year")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByRole("option", { name: "Alle Stufen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Stufe 1" }),
+      ).toBeInTheDocument();
+    });
+
     it("filters students by school year when year filter changes", async () => {
       render(<StudentSearchPage />);
 
@@ -503,7 +604,7 @@ describe("StudentSearchPage", () => {
 
     it("shows loading state while fetching students", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: true,
         // IMPORTANT: Use undefined, not null. The page checks `error !== undefined`
@@ -523,7 +624,7 @@ describe("StudentSearchPage", () => {
   describe("Error Handling", () => {
     it("renders 403 permission denied error message", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("403 Forbidden"),
@@ -540,7 +641,7 @@ describe("StudentSearchPage", () => {
 
     it("renders 401 session expired error message", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("401 Unauthorized"),
@@ -556,7 +657,7 @@ describe("StudentSearchPage", () => {
 
     it("renders generic error for other API errors", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("Network Error"),
@@ -577,7 +678,7 @@ describe("StudentSearchPage", () => {
     it("shows empty state when no students match filters", async () => {
       // Mock SWR to return empty students
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: [] },
         isLoading: false,
         error: null,
@@ -676,7 +777,7 @@ describe("StudentSearchPage", () => {
         },
       );
 
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: mockStudents },
         isLoading: false,
         error: null,
@@ -729,7 +830,7 @@ describe("StudentSearchPage", () => {
         },
       );
 
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: mockStudents },
         isLoading: false,
         error: null,
@@ -775,6 +876,14 @@ describe("StudentSearchPage", () => {
       } as ReturnType<typeof swrModule.useImmutableSWR>);
 
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "search-rooms-list") {
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
         // Capture the students fetcher when the key contains "search-students"
         // Note: key is null until groupsLoaded state becomes true after useEffect runs
         if (
@@ -814,7 +923,7 @@ describe("StudentSearchPage", () => {
     // Fix P3 regression test: Error heading now uses errorType instead of substring matching
     it("renders 'Keine Berechtigung' heading for 403 errors (P3 fix)", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("403 Forbidden"),
@@ -837,7 +946,7 @@ describe("StudentSearchPage", () => {
 
     it("renders 'Fehler' heading for 401 session errors", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("401 Unauthorized"),
@@ -857,7 +966,7 @@ describe("StudentSearchPage", () => {
 
     it("renders generic error heading for non-403/401 errors", async () => {
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: new Error("500 Internal Server Error"),
@@ -914,7 +1023,7 @@ describe("StudentSearchPage", () => {
 
       // SWR won't fetch when unauthenticated
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: undefined,
@@ -936,7 +1045,7 @@ describe("StudentSearchPage", () => {
 
       // SWR won't fetch during auth loading
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined,
         isLoading: false,
         error: undefined,
@@ -991,7 +1100,7 @@ describe("StudentSearchPage", () => {
 
       // Groups haven't loaded yet, so studentsCacheKey is null
       // SWR returns undefined data (not yet fetched)
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: undefined, // No data yet - first fetch hasn't completed
         isLoading: true, // SWR is loading students
         error: undefined,
@@ -1026,7 +1135,7 @@ describe("StudentSearchPage", () => {
       } as ReturnType<typeof swrModule.useImmutableSWR>);
 
       // Students fetch completed with empty results (hasFetchedOnce = true)
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: [] }, // Empty results from completed fetch
         isLoading: false,
         error: undefined,
@@ -1159,7 +1268,7 @@ describe("StudentSearchPage", () => {
       ];
 
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: studentsWithRedacted },
         isLoading: false,
         error: null,
@@ -1249,7 +1358,7 @@ describe("StudentSearchPage", () => {
       ];
 
       const swrModule = await import("~/lib/swr");
-      vi.mocked(swrModule.useSWRAuth).mockReturnValue({
+      mockUseSWRAuthWithStudents(swrModule, {
         data: { students: studentsNoPickup },
         isLoading: false,
         error: null,
@@ -1263,6 +1372,201 @@ describe("StudentSearchPage", () => {
 
       // Should show "Abholzeit: —" fallback for students with full access but no pickup time
       expect(screen.getByText("Abholzeit: —")).toBeInTheDocument();
+    });
+  });
+
+  describe("Arrival Time Filtering", () => {
+    it("filters students by specific arrival time", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
+        target: { value: "08:15" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Tom")).toBeInTheDocument();
+        expect(screen.queryByText("Max")).not.toBeInTheDocument();
+        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+      });
+    });
+
+    it("filters students with no arrival time while excluding redacted and exception-only rows", async () => {
+      const studentsWithArrivalGaps = [
+        {
+          id: "30",
+          first_name: "NoArrival",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Raum 101",
+          has_full_access: true,
+        },
+        {
+          id: "31",
+          first_name: "Exception",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Raum 101",
+          arrival_is_exception: true,
+          has_full_access: true,
+        },
+        {
+          id: "32",
+          first_name: "RedactedArrival",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Raum 101",
+          has_full_access: false,
+        },
+      ];
+
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: { students: studentsWithArrivalGaps },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("NoArrival")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
+        target: { value: "none" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("NoArrival")).toBeInTheDocument();
+        expect(screen.queryByText("Exception")).not.toBeInTheDocument();
+        expect(screen.queryByText("RedactedArrival")).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId("active-filter-arrivalTime"),
+        ).toHaveTextContent("Keine Ankunftszeit");
+      });
+    });
+  });
+
+  describe("Sorting and Grouping", () => {
+    it("sorts students by pickup time before students without pickup times", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-sort"), {
+        target: { value: "pickup" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-filter-sort")).toHaveTextContent(
+          "Nächste Abholung",
+        );
+      });
+
+      const renderedNames = screen
+        .getAllByText(/^(Max|Tom|Lisa|Anna)$/)
+        .map((node) => node.textContent);
+      expect(renderedNames).toEqual(["Max", "Tom", "Lisa", "Anna"]);
+    });
+
+    it("groups students by status in operational order", async () => {
+      const studentsByStatus = [
+        { ...mockStudents[1]!, first_name: "HomeChild" },
+        { ...mockStudents[3]!, first_name: "YardChild" },
+        { ...mockStudents[2]!, first_name: "TransitChild" },
+        { ...mockStudents[0]!, first_name: "PresentChild" },
+        { ...mockStudents[0]!, id: "9", first_name: "SickChild", sick: true },
+      ];
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: { students: studentsByStatus },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("PresentChild")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "status" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-filter-groupMode")).toHaveTextContent(
+          "Ansicht: Nach Status",
+        );
+      });
+
+      expect(
+        screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+      ).toEqual(["Anwesend", "Unterwegs", "Schulhof", "Krank", "Abwesend"]);
+    });
+
+    it("groups redacted and missing room/time values under explicit fallback labels", async () => {
+      const groupedFixture = [
+        {
+          id: "40",
+          first_name: "Hidden",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Raum 101",
+          has_full_access: false,
+        },
+        {
+          id: "41",
+          first_name: "Home",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Zuhause",
+          has_full_access: true,
+        },
+        {
+          id: "42",
+          first_name: "Room",
+          second_name: "Student",
+          school_class: "1a",
+          current_location: "Gruppe A - Atelier",
+          has_full_access: true,
+        },
+      ];
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: { students: groupedFixture },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Hidden")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "room" },
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: "Atelier" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("heading", { name: "Kein Raum" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("heading", { name: "Nicht einsehbar" }),
+        ).toBeInTheDocument();
+      });
     });
   });
 
@@ -1316,6 +1620,14 @@ describe("StudentSearchPage", () => {
         error: null,
       } as ReturnType<typeof swrModule.useSWRAuth>;
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key: unknown) => {
+        if (key === "search-rooms-list") {
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
         if (typeof key === "string" && key.startsWith("tracking-indicators-")) {
           return trackingResult;
         }
@@ -1512,6 +1824,193 @@ describe("StudentSearchPage", () => {
       expect(screen.getByText("Anna")).toBeInTheDocument();
       expect(screen.getByText("Tom")).toBeInTheDocument();
       expect(screen.getByText("Lisa")).toBeInTheDocument();
+    });
+
+    it("offers pickup sorting as a dedicated sort mode", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId("filter-sort"), {
+        target: { value: "pickup" },
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("filter-sort")).toHaveValue("pickup"),
+      );
+      expect(screen.getByText("Max")).toBeInTheDocument();
+      expect(screen.getByText("Tom")).toBeInTheDocument();
+    });
+
+    it("filters by a specific arrival time", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
+        target: { value: "08:15" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Tom")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Max")).not.toBeInTheDocument();
+      expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+      expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+    });
+
+    it("groups the result list when a grouping mode is selected", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "status" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId("student-group")).toHaveLength(4);
+      });
+      expect(screen.getAllByText("Anwesend").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Abwesend").length).toBeGreaterThan(0);
+    });
+
+    it("shows the room filter even without a room deep-link", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-room")).toBeInTheDocument();
+      });
+      expect(
+        screen.getByRole("option", { name: "Raum 101" }),
+      ).toBeInTheDocument();
+    });
+
+    it("requests a large first page for the room filter options", async () => {
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "search-rooms-list") {
+          void (fetcher as () => Promise<unknown>)();
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
+        return {
+          data: { students: mockStudents },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>;
+      });
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(roomService.getRooms).toHaveBeenCalledWith({
+          page: 1,
+          pageSize: 1000,
+        });
+      });
+    });
+
+    it("syncs room selection changes into the URL", async () => {
+      mockSearchParams.set("room_id", "42");
+      mockSearchParams.set("room_name", "Alter Raum");
+      window.history.replaceState(
+        { preserved: true },
+        "",
+        "/students/search?room_id=42&room_name=Alter+Raum&status=anwesend",
+      );
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-room")).toHaveValue("42");
+      });
+
+      fireEvent.change(screen.getByTestId("filter-room"), {
+        target: { value: "101" },
+      });
+
+      const url = new URL(window.location.href);
+      expect(url.searchParams.get("room_id")).toBe("101");
+      expect(url.searchParams.get("room_name")).toBe("Raum 101");
+      expect(url.searchParams.get("status")).toBe("anwesend");
+      expect(window.history.state).toEqual({ preserved: true });
+    });
+
+    it("removes only room params when clearing the room filter", async () => {
+      mockSearchParams.set("room_id", "42");
+      mockSearchParams.set("room_name", "Alter Raum");
+      window.history.replaceState(
+        { preserved: true },
+        "",
+        "/students/search?room_id=42&room_name=Alter+Raum&status=anwesend",
+      );
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-room")).toHaveValue("42");
+      });
+
+      fireEvent.change(screen.getByTestId("filter-room"), {
+        target: { value: "" },
+      });
+
+      const url = new URL(window.location.href);
+      expect(url.searchParams.has("room_id")).toBe(false);
+      expect(url.searchParams.has("room_name")).toBe(false);
+      expect(url.searchParams.get("status")).toBe("anwesend");
+      expect(window.history.state).toEqual({ preserved: true });
+    });
+
+    it("does not group status-only locations as rooms", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              id: "5",
+              first_name: "Nina",
+              second_name: "Status",
+              school_class: "1a",
+              current_location: "Anwesend",
+              has_full_access: true,
+            },
+            {
+              id: "6",
+              first_name: "Rita",
+              second_name: "Redacted",
+              school_class: "1a",
+              current_location: "Anwesend",
+              has_full_access: false,
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Nina")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "room" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Kein Raum")).toBeInTheDocument();
+        expect(screen.getByText("Nicht einsehbar")).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByRole("heading", { name: "Anwesend" }),
+      ).not.toBeInTheDocument();
     });
   });
 });

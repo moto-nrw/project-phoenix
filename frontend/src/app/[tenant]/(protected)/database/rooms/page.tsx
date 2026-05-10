@@ -32,7 +32,11 @@ import {
   useTenantMutate,
   useTenantMutateMatching,
 } from "~/lib/swr";
-import { ROOM_DERIVED_CACHE_KEY_FRAGMENTS } from "~/lib/swr/room-derived-caches";
+import {
+  DATABASE_ROOMS_LIST_CACHE_KEY,
+  ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
+  ROOM_LIST_CACHE_KEYS,
+} from "~/lib/swr/room-derived-caches";
 
 const logger = createLogger({ component: "DatabaseRoomsPage" });
 
@@ -90,12 +94,16 @@ export default function RoomsPage() {
   const refreshRoomConsumers = useTenantMutateMatching(
     ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
   );
+  const refreshRoomLists = useCallback(
+    () => Promise.all(ROOM_LIST_CACHE_KEYS.map((key) => tenantMutate(key))),
+    [tenantMutate],
+  );
 
   const {
     data: roomsData,
     isLoading: loading,
     error: roomsError,
-  } = useSWRAuth("database-rooms-list", async () => {
+  } = useSWRAuth(DATABASE_ROOMS_LIST_CACHE_KEY, async () => {
     const data = await service.getList({ page: 1, pageSize: 500 });
     return Array.isArray(data.data) ? data.data : [];
   });
@@ -238,7 +246,7 @@ export default function RoomsPage() {
           ),
         );
         setShowCreateModal(false);
-        await tenantMutate("database-rooms-list");
+        await refreshRoomLists();
       } catch (createError) {
         logger.error("failed to create room", {
           error:
@@ -249,7 +257,7 @@ export default function RoomsPage() {
         throw createError;
       }
     },
-    [service, tenantMutate, toastSuccess],
+    [service, refreshRoomLists, toastSuccess],
   );
 
   const handleUpdateRoom = useCallback(
@@ -268,7 +276,7 @@ export default function RoomsPage() {
           ),
         );
         await Promise.all([
-          tenantMutate("database-rooms-list"),
+          refreshRoomLists(),
           // Refetch every consumer that holds room-stamped data so badges
           // pick up the new color without a manual reload.
           refreshRoomConsumers(),
@@ -284,7 +292,13 @@ export default function RoomsPage() {
         throw updateError;
       }
     },
-    [selectedRoom, service, tenantMutate, refreshRoomConsumers, toastSuccess],
+    [
+      selectedRoom,
+      service,
+      refreshRoomLists,
+      refreshRoomConsumers,
+      toastSuccess,
+    ],
   );
 
   const handleDeleteRoom = useCallback(async () => {
@@ -302,14 +316,14 @@ export default function RoomsPage() {
       ),
     );
     handleSelectRoom(null);
-    await tenantMutate("database-rooms-list");
+    await refreshRoomLists();
   }, [
     selectedRoom,
     service,
     toastError,
     toastSuccess,
     handleSelectRoom,
-    tenantMutate,
+    refreshRoomLists,
   ]);
 
   const canShowDetail =

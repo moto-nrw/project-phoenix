@@ -4,6 +4,11 @@ import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RoomsPage from "./page";
 
+const mockTenantMutate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+const mockRefreshRoomConsumers = vi.hoisted(() =>
+  vi.fn(() => Promise.resolve()),
+);
+
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
@@ -33,10 +38,10 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutate: vi.fn(() => mockTenantMutate),
   // Added with Issue #1324 — page invalidates badge consumer caches after a
-  // room save. Pure setup mock; no test asserts the matcher contents.
-  useTenantMutateMatching: vi.fn(() => vi.fn()),
+  // room save. Tests only assert that the returned refresher is called.
+  useTenantMutateMatching: vi.fn(() => mockRefreshRoomConsumers),
 }));
 
 const mockGetOne = vi.fn();
@@ -240,6 +245,7 @@ vi.mock("~/components/ui/modal", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 
 const mockRooms = [
   {
@@ -397,6 +403,11 @@ describe("RoomsPage", () => {
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalled();
     });
+    await waitFor(() => {
+      for (const key of ROOM_LIST_CACHE_KEYS) {
+        expect(mockTenantMutate).toHaveBeenCalledWith(key);
+      }
+    });
   });
 
   it("re-throws create errors so the form can render them inline (Issue #1356)", async () => {
@@ -509,6 +520,12 @@ describe("RoomsPage", () => {
         expect.objectContaining({ name: "Updated Room" }),
       );
     });
+    await waitFor(() => {
+      for (const key of ROOM_LIST_CACHE_KEYS) {
+        expect(mockTenantMutate).toHaveBeenCalledWith(key);
+      }
+      expect(mockRefreshRoomConsumers).toHaveBeenCalled();
+    });
   });
 
   it("calls delete service after confirming deletion from the detail panel", async () => {
@@ -534,6 +551,11 @@ describe("RoomsPage", () => {
       expect(mockReplace).toHaveBeenCalledWith("/tenant/database/rooms", {
         scroll: false,
       });
+    });
+    await waitFor(() => {
+      for (const key of ROOM_LIST_CACHE_KEYS) {
+        expect(mockTenantMutate).toHaveBeenCalledWith(key);
+      }
     });
   });
 

@@ -138,6 +138,9 @@ vi.mock("~/lib/api", () => ({
   groupService: {
     getGroups: vi.fn(() => Promise.resolve([])),
   },
+  roomService: {
+    getRooms: vi.fn(() => Promise.resolve([])),
+  },
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -195,10 +198,17 @@ beforeEach(() => {
   // sees the call — useSWRAuth's real impl runs the fetcher synchronously
   // for the test path; we mimic that here.
   mockUseSWRAuth.mockImplementation(
-    (_key: string | null, fetcher?: () => Promise<unknown>) => {
+    (key: string | null, fetcher?: () => Promise<unknown>) => {
       if (fetcher) {
         // Fire-and-forget — we only assert on mockGetStudents call shape.
         void fetcher().catch(() => undefined);
+      }
+      if (key === "search-rooms-list") {
+        return {
+          data: [],
+          isLoading: false,
+          error: null,
+        };
       }
       return {
         data: { students: [mockStudent] },

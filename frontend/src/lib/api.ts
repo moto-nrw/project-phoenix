@@ -278,6 +278,8 @@ function buildRoomQueryParams(filters?: {
   category?: string;
   occupied?: boolean;
   search?: string;
+  page?: number;
+  pageSize?: number;
 }): URLSearchParams {
   const params = new URLSearchParams();
   if (filters?.search) params.append("search", filters.search);
@@ -287,6 +289,10 @@ function buildRoomQueryParams(filters?: {
   if (filters?.category) params.append("category", filters.category);
   if (filters?.occupied !== undefined)
     params.append("occupied", filters.occupied.toString());
+  if (filters?.page !== undefined)
+    params.append("page", filters.page.toString());
+  if (filters?.pageSize !== undefined)
+    params.append("page_size", filters.pageSize.toString());
   return params;
 }
 
@@ -295,6 +301,15 @@ function buildRoomQueryParams(filters?: {
  * Returns empty array for invalid formats with warning.
  */
 function parseRoomsResponse(responseData: unknown): BackendRoom[] {
+  if (
+    responseData &&
+    typeof responseData === "object" &&
+    "data" in responseData &&
+    Array.isArray((responseData as { data?: unknown }).data)
+  ) {
+    return (responseData as { data: BackendRoom[] }).data;
+  }
+
   if (!responseData || !Array.isArray(responseData)) {
     logger.warn("invalid response format for rooms", {
       response_type: typeof responseData,
@@ -1872,6 +1887,8 @@ export const roomService = {
     category?: string;
     occupied?: boolean;
     search?: string;
+    page?: number;
+    pageSize?: number;
   }): Promise<Room[]> => {
     const params = buildRoomQueryParams(filters);
     const queryString = params.toString();
