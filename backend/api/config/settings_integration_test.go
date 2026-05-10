@@ -39,7 +39,7 @@ func setupSettingsTest(t *testing.T) *settingsTestContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := configAPI.NewSettingsResource(svc.Settings, db)
+	resource := configAPI.NewSettingsResource(svc.Settings, db, nil)
 
 	return &settingsTestContext{
 		db:       db,
@@ -415,11 +415,11 @@ func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
 	var callbackKey string
 	var callbackValue any
 	var callbackTenantID int64
-	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) error {
+	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
 		callbackTenantID = tenantID
 		callbackKey = key
 		callbackValue = value
-		return nil
+		return nil, nil
 	})
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -445,8 +445,8 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
-		return errors.New("hook failed")
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+		return nil, errors.New("hook failed")
 	})
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -478,9 +478,9 @@ func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	callbackInvoked := false
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		callbackInvoked = true
-		return nil
+		return nil, nil
 	})
 
 	router := testutil.NewTenantRouter(ctx.db)

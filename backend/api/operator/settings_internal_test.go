@@ -15,7 +15,7 @@ import (
 )
 
 func TestNewSettingsResource(t *testing.T) {
-	res := NewSettingsResource(nil, nil)
+	res := NewSettingsResource(nil, nil, nil)
 	assert.NotNil(t, res)
 	assert.Nil(t, res.settingsService)
 	assert.Nil(t, res.db)
