@@ -20,8 +20,7 @@ import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { Loading } from "~/components/ui/loading";
-import { LocationBadge } from "@/components/ui/location-badge";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
   StudentCard,
@@ -57,55 +56,32 @@ import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
 import { combineTimeNotes } from "~/lib/student-time-status";
+import {
+  ActiveSupervisionLoadingView,
+  EmptyRoomsView,
+  NoActiveSupervisionAccessView,
+  ReleaseSupervisionModal,
+  SchulhofNotSupervisingView,
+} from "~/components/active-supervisions/states";
+import { PlannedNowSection } from "~/components/active-supervisions/planned-now-section";
+import {
+  SCHULHOF_ROOM_NAME,
+  SCHULHOF_TAB_ID,
+  buildGroupNameToIdMap,
+  mapSupervisedGroupsToRooms,
+  mapVisitsToSupervisionStudents,
+} from "~/components/active-supervisions/view-model";
+import type {
+  ActiveSupervisionRoom,
+  ActiveSupervisionStudent,
+  MinimalActiveGroup,
+  SchulhofStatusResponse,
+} from "~/components/active-supervisions/view-model";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
-/** Minimal active group interface - compatible with both helper types */
-interface MinimalActiveGroup {
-  id: string;
-  room?: { name?: string };
-}
-
-// Schulhof room name - used for special release supervision feature
-const SCHULHOF_ROOM_NAME = "Schulhof";
-
-// Extended student interface that includes visit information
-interface StudentWithVisit extends Student {
-  activeGroupId: string;
-  checkInTime: Date;
-}
-
-// Define ActiveRoom type based on ActiveGroup with additional fields
-interface ActiveRoom {
-  id: string;
-  name: string;
-  room_name?: string;
-  room_id?: string;
-  /** Hex color of the room when set; drives the per-room badge color in LocationBadge. */
-  room_color?: string;
-  student_count?: number;
-  supervisor_name?: string;
-  students?: StudentWithVisit[];
-}
-
-// Schulhof status from BFF
-interface SchulhofStatusResponse {
-  exists: boolean;
-  roomId: string | null;
-  roomName: string;
-  activityGroupId: string | null;
-  activeGroupId: string | null;
-  isUserSupervising: boolean;
-  supervisionId: string | null;
-  supervisorCount: number;
-  studentCount: number;
-  supervisors: Array<{
-    id: string;
-    staffId: string;
-    name: string;
-    isCurrentUser: boolean;
-  }>;
-}
+type ActiveRoom = ActiveSupervisionRoom;
+type StudentWithVisit = ActiveSupervisionStudent;
 
 // BFF response type for consolidated dashboard data
 interface BFFDashboardResponse {
@@ -191,138 +167,6 @@ function rosterStudentMeta(row: TimetableRosterRow): string {
     .join(" · ");
 }
 
-/** Loading state view */
-function LoadingView() {
-  return <Loading fullPage={false} />;
-}
-
-/** No access empty state view */
-function NoAccessView() {
-  // Set breadcrumb for no access view
-  useSetBreadcrumb({
-    pageTitle: "Aktuelle Aufsicht",
-  });
-
-  return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Aktuelle Aufsicht" />
-
-      <div className="flex min-h-[60vh] items-center justify-center px-4">
-        <div className="flex max-w-md flex-col items-center gap-6 text-center">
-          <svg
-            className="h-12 w-12 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-            />
-          </svg>
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium text-gray-900">
-              Keine aktive Raum-Aufsicht
-            </h3>
-            <p className="text-gray-600">
-              Du bist aktuell in keinem Raum als Live-Aktivität registriert.
-            </p>
-            <p className="mt-4 text-sm text-gray-500">
-              Starte eine Aktivität an einem Terminal, um Live-Raumdaten
-              einzusehen.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Props for EmptyRoomsView */
-interface EmptyRoomsViewProps {
-  onClaimed: () => void;
-  cachedActiveGroups: MinimalActiveGroup[];
-  currentStaffId: string | undefined;
-  searchTerm: string;
-  setSearchTerm: (term: string) => void;
-  setGroupFilter: (filter: string) => void;
-  setSelectedYear: (year: string) => void;
-  filterConfigs: FilterConfig[];
-  activeFilters: ActiveFilter[];
-}
-
-/** View when user has access but no supervised rooms */
-function EmptyRoomsView({
-  onClaimed,
-  cachedActiveGroups,
-  currentStaffId,
-  searchTerm,
-  setSearchTerm,
-  setGroupFilter,
-  setSelectedYear,
-  filterConfigs,
-  activeFilters,
-}: Readonly<EmptyRoomsViewProps>) {
-  return (
-    <div className="w-full">
-      {/* Show unclaimed rooms banner - full width */}
-      <UnclaimedRooms
-        onClaimed={onClaimed}
-        activeGroups={
-          cachedActiveGroups.length > 0 ? cachedActiveGroups : undefined
-        }
-        currentStaffId={currentStaffId}
-      />
-
-      {/* Search bar and filters - always visible */}
-      <PageHeaderWithSearch
-        title=""
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Name suchen...",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setGroupFilter("all");
-          setSelectedYear("all");
-        }}
-      />
-
-      {/* Neutral info message */}
-      <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-        <div className="flex max-w-md flex-col items-center gap-4 text-center">
-          <svg
-            className="h-12 w-12 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-            />
-          </svg>
-          <div className="space-y-1">
-            <h3 className="text-lg font-medium text-gray-900">
-              Keine aktive Raum-Aufsicht
-            </h3>
-            <p className="text-sm text-gray-500">
-              Du beaufsichtigst aktuell keinen Raum.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function MeinRaumPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -394,9 +238,6 @@ function MeinRaumPageContent() {
   const schulhofStatusRef = useRef<SchulhofStatusResponse | null>(null);
   schulhofStatusRef.current = schulhofStatus;
 
-  // Schulhof tab ID constant for identifying the permanent tab
-  const SCHULHOF_TAB_ID = "schulhof";
-
   // Cached active groups for UnclaimedRooms (avoids duplicate API call)
   const [cachedActiveGroups, setCachedActiveGroups] = useState<
     MinimalActiveGroup[]
@@ -456,45 +297,11 @@ function MeinRaumPageContent() {
         const visits =
           await activeService.getActiveGroupVisitsWithDisplay(roomId);
 
-        // Filter only active visits (students currently checked in)
-        const currentlyCheckedIn = visits.filter((visit) => visit.isActive);
-
-        const enriched = currentlyCheckedIn.map((visit) => {
-          // Build from visit display data only (cross-group)
-          const nameParts = visit.studentName?.split(" ") ?? ["", ""];
-          const firstName = nameParts[0] ?? "";
-          const lastName = nameParts.slice(1).join(" ") ?? "";
-          // Set location with room name for proper badge display
-          const location = roomName ? `Anwesend - ${roomName}` : "Anwesend";
-
-          // Look up group_id from group_name using the map
-          const groupId =
-            visit.groupName && groupNameToId
-              ? groupNameToId.get(visit.groupName)
-              : undefined;
-
-          return {
-            id: visit.studentId,
-            name: visit.studentName ?? "",
-            first_name: firstName,
-            second_name: lastName,
-            school_class: visit.schoolClass ?? "",
-            current_location: location,
-            current_room_color: roomColor ?? null,
-            group_name: visit.groupName,
-            group_id: groupId, // Add group_id for permission checking
-            sick: visit.sick,
-            sick_since: visit.sickSince,
-            excused: visit.excused,
-            excused_since: visit.excusedSince,
-            actual_arrival_time: visit.actualArrivalTime,
-            actual_pickup_time: visit.actualPickupTime,
-            activeGroupId: visit.activeGroupId,
-            checkInTime: visit.checkInTime,
-          } as StudentWithVisit;
+        return mapVisitsToSupervisionStudents(visits, {
+          roomName,
+          roomColor,
+          groupNameToId,
         });
-
-        return enriched;
       } catch (error) {
         // Handle 403 Forbidden gracefully - user might not have group access
         if (error instanceof Error && error.message.includes("403")) {
@@ -701,13 +508,7 @@ function MeinRaumPageContent() {
     const groupIds = data.educationalGroups.map((group) => group.id);
     setMyGroupIds(groupIds);
 
-    // Create map from group name to group ID
-    const nameToIdMap = new Map<string, string>();
-    data.educationalGroups.forEach((group) => {
-      if (group.name) {
-        nameToIdMap.set(group.name, group.id);
-      }
-    });
+    const nameToIdMap = buildGroupNameToIdMap(data.educationalGroups);
     setGroupNameToIdMap(nameToIdMap);
     groupNameToIdMapRef.current = nameToIdMap;
 
@@ -758,20 +559,7 @@ function MeinRaumPageContent() {
     // Track if supervision was gained
     hasSupervisionRef.current = data.supervisedGroups.length > 0;
 
-    // Convert supervised groups to ActiveRoom format, sorted by room name
-    const activeRooms: ActiveRoom[] = data.supervisedGroups
-      .map((group) => ({
-        id: group.id,
-        name: group.name,
-        room_name: group.room?.name,
-        room_id: group.room_id,
-        room_color: group.room?.color ?? undefined,
-        student_count: undefined,
-        supervisor_name: undefined,
-      }))
-      .sort((a, b) =>
-        (a.room_name ?? a.name).localeCompare(b.room_name ?? b.name, "de"),
-      );
+    const activeRooms = mapSupervisedGroupsToRooms(data.supervisedGroups);
 
     setAllRooms(activeRooms);
 
@@ -801,38 +589,12 @@ function MeinRaumPageContent() {
         setSelectedRoomId(firstRoom.id);
       }
       if (firstRoom && data.firstRoomVisits.length > 0) {
-        const studentsFromVisits: StudentWithVisit[] = data.firstRoomVisits.map(
-          (visit) => {
-            const nameParts = visit.studentName?.split(" ") ?? ["", ""];
-            const firstName = nameParts[0] ?? "";
-            const lastName = nameParts.slice(1).join(" ") ?? "";
-            const location = firstRoom.room_name
-              ? `Anwesend - ${firstRoom.room_name}`
-              : "Anwesend";
-
-            const groupId = visit.groupName
-              ? nameToIdMap.get(visit.groupName)
-              : undefined;
-
-            return {
-              id: visit.studentId,
-              name: visit.studentName ?? "",
-              first_name: firstName,
-              second_name: lastName,
-              school_class: visit.schoolClass ?? "",
-              current_location: location,
-              current_room_color: firstRoom.room_color ?? null,
-              group_name: visit.groupName,
-              group_id: groupId,
-              sick: visit.sick,
-              sick_since: visit.sickSince,
-              excused: visit.excused,
-              excused_since: visit.excusedSince,
-              actual_arrival_time: visit.actualArrivalTime,
-              actual_pickup_time: visit.actualPickupTime,
-              activeGroupId: visit.activeGroupId,
-              checkInTime: new Date(visit.checkInTime),
-            } as StudentWithVisit;
+        const studentsFromVisits = mapVisitsToSupervisionStudents(
+          data.firstRoomVisits,
+          {
+            roomName: firstRoom.room_name,
+            roomColor: firstRoom.room_color,
+            groupNameToId: nameToIdMap,
           },
         );
 
@@ -958,41 +720,10 @@ function MeinRaumPageContent() {
         currentRoomId!,
       );
 
-      // Filter only active visits (students currently checked in)
-      const currentlyCheckedIn = visits.filter((visit) => visit.isActive);
-
-      return currentlyCheckedIn.map((visit) => {
-        const nameParts = visit.studentName?.split(" ") ?? ["", ""];
-        const firstName = nameParts[0] ?? "";
-        const lastName = nameParts.slice(1).join(" ") ?? "";
-        const location = currentRoom?.room_name
-          ? `Anwesend - ${currentRoom.room_name}`
-          : "Anwesend";
-
-        const groupId =
-          visit.groupName && groupNameToIdMapRef.current
-            ? groupNameToIdMapRef.current.get(visit.groupName)
-            : undefined;
-
-        return {
-          id: visit.studentId,
-          name: visit.studentName ?? "",
-          first_name: firstName,
-          second_name: lastName,
-          school_class: visit.schoolClass ?? "",
-          current_location: location,
-          current_room_color: currentRoom?.room_color ?? null,
-          group_name: visit.groupName,
-          group_id: groupId,
-          sick: visit.sick,
-          sick_since: visit.sickSince,
-          excused: visit.excused,
-          excused_since: visit.excusedSince,
-          actual_arrival_time: visit.actualArrivalTime,
-          actual_pickup_time: visit.actualPickupTime,
-          activeGroupId: visit.activeGroupId,
-          checkInTime: visit.checkInTime,
-        } as StudentWithVisit;
+      return mapVisitsToSupervisionStudents(visits, {
+        roomName: currentRoom.room_name,
+        roomColor: currentRoom.room_color,
+        groupNameToId: groupNameToIdMapRef.current,
       });
     },
     {
@@ -1042,7 +773,7 @@ function MeinRaumPageContent() {
       },
       { keepPreviousData: true, revalidateOnFocus: false },
     );
-  const activeTimetableInstanceId = timetableRoster?.instance.id ?? null;
+  const activeTimetableInstanceId = timetableRoster?.instance?.id ?? null;
 
   useEffect(() => {
     if (!activeTimetableInstanceId || addStudentSearch.trim().length < 2) {
@@ -1471,12 +1202,12 @@ function MeinRaumPageContent() {
   }, [searchTerm, selectedYear, groupFilter]);
 
   if (status === "loading" || isLoading || hasAccess === null) {
-    return <LoadingView />;
+    return <ActiveSupervisionLoadingView />;
   }
 
   // Show empty state if no active supervision
   if (!hasAccess) {
-    return <NoAccessView />;
+    return <NoActiveSupervisionAccessView />;
   }
 
   // Show unclaimed rooms banner when user has no supervised groups and no Schulhof
@@ -1753,7 +1484,7 @@ function MeinRaumPageContent() {
                     )
                   }
                   locationBadge={
-                    <LocationBadge
+                    <StudentPresenceBadge
                       student={{
                         ...student,
                         not_arrival_today:
@@ -1849,54 +1580,11 @@ function MeinRaumPageContent() {
         currentStaffId={currentStaffId}
       />
 
-      {plannedNow.length > 0 && (
-        <section className="mb-6 rounded-lg border border-[#83CD2D]/30 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">
-              Jetzt geplant
-            </h2>
-            <span className="text-sm text-gray-500">
-              {plannedNow.length} Aktivität
-              {plannedNow.length === 1 ? "" : "en"}
-            </span>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {plannedNow.map((instance) => (
-              <article
-                key={instance.id}
-                className="rounded-lg border border-gray-200 bg-gray-50 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-medium text-gray-900">
-                      {instance.title}
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-600">
-                      {instance.startTime}–{instance.endTime}
-                    </p>
-                  </div>
-                  {instance.isOverdue && (
-                    <span className="rounded-full bg-[#F3B63F]/20 px-2 py-1 text-xs font-medium text-[#A66F00]">
-                      Überfällig
-                    </span>
-                  )}
-                </div>
-                <div className="mt-3 text-sm text-gray-600">
-                  {instance.expectedStudentsCount} erwartet
-                </div>
-                <button
-                  type="button"
-                  disabled={isStartingInstance === instance.id}
-                  onClick={() => void handleStartPlannedInstance(instance)}
-                  className="mt-4 w-full rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  Jetzt starten
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
+      <PlannedNowSection
+        plannedNow={plannedNow}
+        isStartingInstance={isStartingInstance}
+        onStart={(instance) => void handleStartPlannedInstance(instance)}
+      />
 
       {/* Modern Header with PageHeaderWithSearch component */}
       {/* Count rooms EXCLUDING Schulhof (to avoid double-counting with schulhofStatus) */}
@@ -2090,43 +1778,12 @@ function MeinRaumPageContent() {
       })()}
 
       {/* Schulhof Release Supervision Modal */}
-      <ConfirmationModal
+      <ReleaseSupervisionModal
         isOpen={showReleaseModal}
         onClose={() => setShowReleaseModal(false)}
         onConfirm={() => handleReleaseSupervision().catch(() => undefined)}
-        title="Aufsicht abgeben"
-        confirmText="Abgeben"
-        confirmButtonClass="bg-red-600 hover:bg-red-700"
         isConfirmLoading={isReleasingSupervision}
-      >
-        <div className="space-y-4">
-          {/* Warning Box */}
-          <div className="rounded-lg border border-red-100 bg-red-50/50 p-3">
-            <div className="flex items-start gap-3">
-              <svg
-                className="mt-0.5 size-5 flex-shrink-0 text-red-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <div className="flex-1">
-                <p className="text-sm text-gray-600">
-                  Du wirst nicht mehr als Aufsicht angezeigt. Der Schulhof wird
-                  dann als &quot;ohne Aufsicht&quot; angezeigt, bis eine andere
-                  Lehrkraft die Aufsicht übernimmt.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </ConfirmationModal>
+      />
 
       {/* Mobile Error Display */}
       {error && (
@@ -2139,37 +1796,12 @@ function MeinRaumPageContent() {
       {isSchulhofActive &&
         schulhofStatus &&
         !schulhofStatus.isUserSupervising && (
-          <div className="flex flex-col items-center gap-4 py-12 text-center">
-            <svg
-              className="h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
-              />
-            </svg>
-            <p className="text-lg font-medium text-gray-900">
-              Schulhof ohne Aufsicht
-            </p>
-            <p className="text-sm text-gray-500">
-              {schulhofStatus.supervisorCount > 0
-                ? `Aktuelle Aufsicht: ${schulhofStatus.supervisors.map((s) => s.name).join(", ")}`
-                : "Übernimm die Aufsicht, um Schüler zu sehen."}
-            </p>
-            <button
-              type="button"
-              onClick={() => handleToggleSchulhof().catch(() => undefined)}
-              disabled={isTogglingSchulhof}
-              className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-            >
-              {isTogglingSchulhof ? "Wird übernommen..." : "Beaufsichtigen"}
-            </button>
-          </div>
+          <SchulhofNotSupervisingView
+            supervisorCount={schulhofStatus.supervisorCount}
+            supervisorNames={schulhofStatus.supervisors.map((s) => s.name)}
+            isToggling={isTogglingSchulhof}
+            onToggle={() => handleToggleSchulhof().catch(() => undefined)}
+          />
         )}
 
       {/* Student Grid - Mobile Optimized */}
