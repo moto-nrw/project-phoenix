@@ -27,10 +27,14 @@ const (
 //   - The Postgres CHECK constraint chk_work_sessions_source is the safety
 //     net for any code path that would bypass the service.
 //
-// Validate() on this entity intentionally does not re-check Source — partial
-// update flows (e.g. break management, notes patches) load existing rows
-// that may have been written before this column existed. Re-validating here
-// would reject those rows on otherwise-unrelated mutations.
+// Validate() on this entity intentionally does not re-check Source. Both
+// write paths in the service (CheckIn, reopenSession) set Source before
+// calling Validate(), and migration 1.15.49 guarantees every row has a
+// non-empty Source on disk — so the field is structurally always present.
+// We still skip Validate() for it because partial-update flows (break
+// management, notes patches) round-trip the loaded row, and a stricter
+// invariant here would risk rejecting otherwise-valid mutations if the
+// allowed value set ever expands.
 const (
 	WorkSessionSourceApp = "app" // POST /api/time-tracking/check-in (App / Web)
 	WorkSessionSourceNFC = "nfc" // Auto-stamp from a kiosk-driven scan
@@ -85,7 +89,8 @@ func (ws *WorkSession) Validate() error {
 		return errors.New("status must be 'present' or 'home_office'")
 	}
 	// Source is intentionally not validated here — see the const block above
-	// for why: partial-update flows load pre-Source rows.
+	// for the rationale (skipping keeps partial-update flows resilient if
+	// the allowed value set ever expands).
 	if ws.CheckOutTime != nil && ws.CheckInTime.After(*ws.CheckOutTime) {
 		return errors.New("check-in time must be before check-out time")
 	}

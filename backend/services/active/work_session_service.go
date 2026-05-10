@@ -57,10 +57,13 @@ type SessionResponse struct {
 // WorkSessionService defines operations for staff time tracking
 type WorkSessionService interface {
 	// CheckIn opens or reopens today's session for staffID. `source` records
-	// the channel that triggered the check-in (app/nfc/auto) so the export
-	// can label "Vor Ort (App)" vs "Vor Ort (NFC)" without inferring it from
-	// status alone (Issue #1368). Reopening overwrites the source to reflect
-	// the channel of the latest action.
+	// the channel that triggered the check-in (app/nfc) so the export can
+	// label "Vor Ort (App)" vs "Vor Ort (NFC)" without inferring it from
+	// status alone (Issue #1368). On reopen the originating Source is
+	// preserved — the channel that first recorded the session is the
+	// audit-relevant fact, and there is no FieldSource audit edit yet to
+	// capture a change. `status`, by contrast, IS overwritten because Vor
+	// Ort ↔ Homeoffice can legitimately change mid-day.
 	CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error)
 	CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
@@ -130,8 +133,10 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 		if existingSession.IsActive() {
 			return nil, fmt.Errorf("already checked in")
 		}
-		// Re-open the checked-out session (accidental checkout recovery)
-		return s.reopenSession(ctx, existingSession, staffID, status, source)
+		// Re-open the checked-out session (accidental checkout recovery).
+		// `source` is intentionally not forwarded — the original channel
+		// stays as the audit-relevant fact (see reopenSession).
+		return s.reopenSession(ctx, existingSession, staffID, status)
 	}
 
 	// Create new session
@@ -159,12 +164,14 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 	return session, nil
 }
 
-// reopenSession clears checkout on an existing session so the staff member can continue working
-func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64, status, source string) (*activeModels.WorkSession, error) {
+// reopenSession clears checkout on an existing session so the staff member
+// can continue working. Source is intentionally preserved: the originating
+// channel is an audit-relevant fact, and overwriting it on reopen would
+// silently drop that signal (there is no FieldSource audit edit yet).
+func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64, status string) (*activeModels.WorkSession, error) {
 	session.CheckOutTime = nil
 	session.AutoCheckedOut = false
 	session.Status = status
-	session.Source = source
 	session.UpdatedBy = &staffID
 
 	if err := session.Validate(); err != nil {

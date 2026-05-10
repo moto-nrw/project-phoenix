@@ -554,6 +554,50 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 	assert.Nil(t, session.CheckOutTime)
 }
 
+// TestWSCheckIn_ReopenPreservesOriginalSource locks in the audit-trail
+// behaviour for Issue #1368: an NFC-originated session that the staff
+// member reopens via the App must remain source='nfc'. Overwriting would
+// silently drop the originating channel, which is an audit-relevant fact
+// with no corresponding FieldSource audit edit to capture the change.
+// Status, by contrast, IS overwritten because Vor Ort ↔ Homeoffice can
+// legitimately change mid-day.
+func TestWSCheckIn_ReopenPreservesOriginalSource(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	checkOut := time.Now().Add(-1 * time.Hour)
+
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:          base.Model{ID: 1},
+			StaffID:        100,
+			CheckInTime:    time.Now().Add(-4 * time.Hour),
+			CheckOutTime:   &checkOut,
+			AutoCheckedOut: true,
+			Status:         activeModels.WorkSessionStatusPresent,
+			Source:         activeModels.WorkSessionSourceNFC,
+			Date:           time.Now().Truncate(24 * time.Hour),
+			CreatedBy:      100,
+		}, nil
+	}
+
+	var capturedSource, capturedStatus string
+	sessionRepo.updateFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		capturedSource = entity.Source
+		capturedStatus = entity.Status
+		return nil
+	}
+
+	// Reopen via App with a different status — the new status takes effect,
+	// the original NFC source must survive.
+	session, err := svc.CheckIn(context.Background(), 100,
+		activeModels.WorkSessionStatusHomeOffice, activeModels.WorkSessionSourceApp)
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Equal(t, activeModels.WorkSessionSourceNFC, capturedSource,
+		"reopen must preserve the originating Source")
+	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, capturedStatus,
+		"reopen must apply the new Status")
+}
+
 func TestWSCheckIn_InvalidStatus(t *testing.T) {
 	svc, _, _, _, _ := wsCreateTestService()
 
