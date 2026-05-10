@@ -65,4 +65,21 @@ describe("PlannedNowSection", () => {
     );
     expect(onStart).toHaveBeenCalledWith(plannedInstance);
   });
+
+  it("renders plural labels and hides overdue badge for on-time instances", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          { ...plannedInstance, id: "instance-1", isOverdue: false },
+          { ...plannedInstance, id: "instance-2", title: "AG Sport" },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("2 Aktivitäten")).toBeInTheDocument();
+    expect(screen.getByText("AG Sport")).toBeInTheDocument();
+    expect(screen.getAllByText("Überfällig")).toHaveLength(1);
+  });
 });
