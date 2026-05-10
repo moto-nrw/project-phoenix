@@ -131,6 +131,25 @@ const mockAnimate = vi.fn(() => ({
   cancel: vi.fn(),
 })) as unknown as typeof Element.prototype.animate;
 
+const originalFetch = global.fetch;
+
+function mockFetchResponse(status: number, body: unknown): typeof global.fetch {
+  return vi.fn().mockResolvedValue(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+function mockTenantAuthenticatedResponse(): typeof global.fetch {
+  return mockFetchResponse(200, {
+    status: "authenticated",
+    access_token: "access-token",
+    refresh_token: "refresh-token",
+  });
+}
+
 describe("HomePage (Login)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -142,10 +161,12 @@ describe("HomePage (Login)", () => {
 
     // Mock Element.animate globally
     Element.prototype.animate = mockAnimate;
+    global.fetch = mockTenantAuthenticatedResponse();
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+    global.fetch = originalFetch;
   });
 
   it("renders the login form", async () => {
@@ -225,7 +246,7 @@ describe("HomePage (Login)", () => {
     expect(screen.getByText("Sitzung wird überprüft…")).toBeInTheDocument();
   });
 
-  it("calls signIn with credentials on form submission", async () => {
+  it("posts to /api/auth/login then seeds session via internalRefresh (2-step MFA flow)", async () => {
     mockSignIn.mockResolvedValue({ error: null });
 
     render(<HomePage />);
@@ -248,17 +269,31 @@ describe("HomePage (Login)", () => {
     });
 
     await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "include",
+          body: JSON.stringify({
+            email: "test@example.com",
+            password: "password123",
+            tenant_slug: "test-tenant",
+          }),
+        }),
+      );
+    });
+    await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-        email: "test@example.com",
-        password: "password123",
         redirect: false,
-        tenantSlug: "test-tenant",
+        internalRefresh: "true",
+        token: "access-token",
+        refreshToken: "refresh-token",
       });
     });
   });
 
   it("shows error message on invalid credentials", async () => {
-    mockSignIn.mockResolvedValue({ error: "Invalid credentials" });
+    global.fetch = mockFetchResponse(401, { error: "Invalid credentials" });
 
     render(<HomePage />);
 
@@ -534,6 +569,11 @@ describe("Enter key form submission", () => {
       update: vi.fn(),
     });
     Element.prototype.animate = mockAnimate;
+    global.fetch = mockTenantAuthenticatedResponse();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
   });
 
   it("submits form when submit event is triggered", async () => {
@@ -559,6 +599,12 @@ describe("Enter key form submission", () => {
       fireEvent.submit(form);
     });
 
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
     await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalled();
     });
@@ -696,8 +742,12 @@ describe("Form error handling", () => {
     Element.prototype.animate = mockAnimate;
   });
 
-  it("shows generic error when signIn throws an Error", async () => {
-    mockSignIn.mockRejectedValue(new Error("Network error"));
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("shows generic error when fetch throws an Error", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     render(<HomePage />);
 
@@ -716,8 +766,8 @@ describe("Form error handling", () => {
     });
   });
 
-  it("shows generic error when signIn throws a non-Error", async () => {
-    mockSignIn.mockRejectedValue("unknown failure");
+  it("shows generic error when fetch throws a non-Error", async () => {
+    global.fetch = vi.fn().mockRejectedValue("unknown failure");
 
     render(<HomePage />);
 

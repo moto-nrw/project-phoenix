@@ -3,9 +3,12 @@ import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "AuthLoginRoute" });
+const logger = createLogger({ component: "AuthProxy" });
 
-export async function POST(request: NextRequest) {
+export async function forwardJsonPost(
+  request: NextRequest,
+  backendPath: string,
+): Promise<NextResponse> {
   try {
     const body: unknown = await request.json();
 
@@ -16,7 +19,7 @@ export async function POST(request: NextRequest) {
     };
     if (cookieHeader) headers.Cookie = cookieHeader;
 
-    const response = await fetch(`${getServerApiUrl()}/auth/login`, {
+    const response = await fetch(`${getServerApiUrl()}${backendPath}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -30,13 +33,12 @@ export async function POST(request: NextRequest) {
       try {
         data = responseText ? (JSON.parse(responseText) as unknown) : null;
       } catch (jsonError) {
-        logger.error("failed to parse JSON response", {
+        logger.error("failed to parse backend JSON", {
+          path: backendPath,
           error:
             jsonError instanceof Error ? jsonError.message : String(jsonError),
         });
-        data = {
-          message: responseText,
-        };
+        data = { message: responseText };
       }
     } else {
       data = { message: responseText || "Request failed with no response" };
@@ -50,7 +52,8 @@ export async function POST(request: NextRequest) {
     }
     return out;
   } catch (error) {
-    logger.error("login failed", {
+    logger.error("proxy_failed", {
+      path: backendPath,
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(

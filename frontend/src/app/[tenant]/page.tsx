@@ -8,6 +8,7 @@ import Image from "next/image";
 import { Input, Alert } from "~/components/ui";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
+import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
@@ -16,10 +17,21 @@ import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { env } from "~/env";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import {
+  login as loginApi,
+  germanMFAErrorMessage,
+  MFAApiError,
+  type MFATokenResponse,
+} from "~/lib/mfa-api";
 
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantLoginPage" });
+
+interface MFAStep {
+  challengeToken: string;
+  maskedEmail: string;
+}
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,6 +41,7 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
@@ -143,6 +156,28 @@ function LoginForm() {
     status === "loading" ||
     (awaitingRedirect && status === "authenticated");
 
+  const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
+    const result = await signIn("credentials", {
+      redirect: false,
+      internalRefresh: "true",
+      token: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+    });
+    if (result?.error) {
+      clearConfetti();
+      setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
+      logger.error("session_seed_failed", { error: result.error });
+      return;
+    }
+    setAwaitingRedirect(true);
+    router.refresh();
+  };
+
+  const handleMFASuccess = async (tokens: MFATokenResponse) => {
+    setMfaStep(null);
+    await seedSessionWithTokens(tokens);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -153,27 +188,33 @@ function LoginForm() {
       // This creates a perception of instant response
       launchConfetti();
 
-      const result = await signIn("credentials", {
+      const response = await loginApi("tenant", {
         email,
         password,
         tenantSlug,
-        redirect: false,
       });
 
-      if (result?.error) {
-        clearConfetti();
+      if (response.status === "mfa_required") {
+        setMfaStep({
+          challengeToken: response.challenge_token,
+          maskedEmail: response.masked_email,
+        });
+        return;
+      }
+
+      await seedSessionWithTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+    } catch (err) {
+      clearConfetti();
+      if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
       } else {
-        // Set flag to indicate we're awaiting redirect
-        setAwaitingRedirect(true);
-        // Refresh the router to update session state
-        router.refresh();
+        setError(germanMFAErrorMessage(err));
       }
-    } catch (error) {
-      clearConfetti();
-      setError("Anmeldefehler. Bitte versuchen Sie es erneut.");
       logger.error("login failed", {
-        error: error instanceof Error ? error.message : String(error),
+        error: err instanceof Error ? err.message : String(err),
       });
     } finally {
       setIsLoading(false);
@@ -264,9 +305,26 @@ function LoginForm() {
           </div>
         )}
 
+        {/* MFA Step — replaces login form when challenge is required */}
+        {!isCheckingAuth && mfaStep && (
+          <div className="transition-opacity duration-300">
+            <MFAChallengeForm
+              scope="tenant"
+              challengeToken={mfaStep.challengeToken}
+              maskedEmail={mfaStep.maskedEmail}
+              onSuccess={handleMFASuccess}
+              onCancel={() => {
+                setMfaStep(null);
+                setError("");
+                setPassword("");
+              }}
+            />
+          </div>
+        )}
+
         {/* Login Form — fades in after auth check */}
         <div
-          className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
+          className={`transition-opacity duration-300 ${isCheckingAuth || mfaStep ? "pointer-events-none hidden" : "opacity-100"}`}
         >
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {error && <Alert type="error" message={error} />}

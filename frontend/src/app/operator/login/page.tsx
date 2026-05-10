@@ -10,6 +10,21 @@ import { Loading } from "~/components/ui/loading";
 import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { operatorPath } from "~/lib/operator-url";
+import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
+import {
+  login as loginApi,
+  germanMFAErrorMessage,
+  MFAApiError,
+  type MFATokenResponse,
+} from "~/lib/mfa-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OperatorLoginPage" });
+
+interface MFAStep {
+  challengeToken: string;
+  maskedEmail: string;
+}
 
 export default function OperatorLoginPage() {
   const [email, setEmail] = useState("");
@@ -17,6 +32,7 @@ export default function OperatorLoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const router = useRouter();
   const { data: session, status } = useSession();
   // Ref prevents re-triggering signOut (not in effect deps → no loop).
@@ -71,6 +87,27 @@ export default function OperatorLoginPage() {
     );
   }
 
+  const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
+    const result = await signIn("operator-credentials", {
+      redirect: false,
+      internalRefresh: "true",
+      token: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+    });
+    if (result?.error) {
+      clearConfetti();
+      setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
+      logger.error("operator_session_seed_failed", { error: result.error });
+      return;
+    }
+    router.push(operatorPath("/operator/suggestions"));
+  };
+
+  const handleMFASuccess = async (tokens: MFATokenResponse) => {
+    setMfaStep(null);
+    await seedSessionWithTokens(tokens);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -79,34 +116,46 @@ export default function OperatorLoginPage() {
     try {
       launchConfetti();
 
-      const result = await signIn("operator-credentials", {
-        redirect: false,
-        email,
-        password,
-      });
+      const response = await loginApi("operator", { email, password });
 
-      if (result?.error) {
-        clearConfetti();
-        const errorMessages: Record<string, string> = {
-          account_inactive:
-            "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.",
-          rate_limited:
-            "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
-          invalid_credentials: "Ungültige Anmeldedaten",
-        };
-        setError(errorMessages[result.code ?? ""] ?? "Ungültige Anmeldedaten");
+      if (response.status === "mfa_required") {
+        setMfaStep({
+          challengeToken: response.challenge_token,
+          maskedEmail: response.masked_email,
+        });
         return;
       }
 
-      router.push(operatorPath("/operator/suggestions"));
+      await seedSessionWithTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
     } catch (err) {
       clearConfetti();
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Anmeldefehler. Bitte versuchen Sie es erneut.",
-      );
+      if (err instanceof MFAApiError) {
+        if (err.status === 403) {
+          setError(
+            "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.",
+          );
+        } else if (err.status === 429) {
+          setError(
+            "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
+          );
+        } else if (err.status === 401) {
+          setError("Ungültige Anmeldedaten");
+        } else {
+          setError(germanMFAErrorMessage(err));
+        }
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Anmeldefehler. Bitte versuchen Sie es erneut.",
+        );
+      }
+      logger.error("operator_login_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       setIsLoading(false);
     }
@@ -142,8 +191,26 @@ export default function OperatorLoginPage() {
           Operator Dashboard
         </p>
 
+        {mfaStep && (
+          <MFAChallengeForm
+            scope="operator"
+            challengeToken={mfaStep.challengeToken}
+            maskedEmail={mfaStep.maskedEmail}
+            onSuccess={handleMFASuccess}
+            onCancel={() => {
+              setMfaStep(null);
+              setError("");
+              setPassword("");
+            }}
+          />
+        )}
+
         {/* Login Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className={`space-y-6 ${mfaStep ? "hidden" : ""}`}
+        >
           {error && <Alert type="error" message={error} />}
 
           <div className="space-y-4">

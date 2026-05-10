@@ -12,11 +12,11 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 |---|---|
 | Branch | `feat/1308-2fa-email` (von `origin/development`) |
 | PR | _tbd_ |
-| Aktueller Stand | **Phase 8 abgeschlossen** — Settings-Audit: 2 Bugs gefunden + gefixt (TrustedDevice-Hint-Fallback, ungenutzter Resend-Cooldown), 8 neue defaults-Tests. Backend-Seite (Phasen 0–8) komplett. |
-| Letztes Update | 2026-05-09 |
+| Aktueller Stand | **Phase 9 abgeschlossen** — Frontend-Login auf 2-Step-Flow umgestellt (Tenant + Operator), `MFAChallengeForm` gebaut, 7 neue MFA-API-Proxys verdrahtet, alle 9156 Frontend-Tests grün. |
+| Letztes Update | 2026-05-10 |
 | Blocker | keine |
 
-**Nächster Schritt:** Phase 9 — Frontend Login mit MFA-Step. `/[tenant]/login` Page erweitert die Login-Response-Erkennung um `status="mfa_required"`, baut `MFAChallengeForm`-Komponente (6-stellige Code-Eingabe mit Auto-Tab/Auto-Submit, Resend-Button mit Cooldown aus Setting, Trusted-Device-Checkbox sichtbar wenn `mfa_trusted_device_enabled`, Recovery-Code-Switch, deutsche Fehlermeldungen). Operator-Login parallel unter `/operator/login`.
+**Nächster Schritt:** Phase 10 — Frontend Enrollment-Flow. `MFAEnrollmentScreen` als Force-Screen vor Dashboard, wenn Pflicht aktiv und User noch nicht enrolled. 4-Schritt-Flow (E-Mail bestätigen → Code eingeben → Recovery-Codes anzeigen mit Download/Copy/Bestätigung → Weiterleitung). Routing-Guard fängt nicht-enrolled Pflicht-Nutzer.
 
 ### Recherche-Findings (Phase 0)
 
@@ -246,21 +246,37 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 
 ---
 
-## Phase 9 — Frontend: Login mit MFA-Step
+## Phase 9 — Frontend: Login mit MFA-Step ✅
 
-- [ ] **Custom-Page-Ansatz** statt verschachteltem NextAuth-Provider
-- [ ] `/[tenant]/login` Page erweitert: nach Passwort-POST `MFAChallengeResponse` erkennen, auf Step 2 wechseln
-- [ ] Komponente `MFAChallengeForm`:
-  - [ ] 6-Stellen-Eingabe (Auto-Tab zwischen Felder, Auto-Submit bei 6 Zeichen)
-  - [ ] Resend-Button mit Cooldown (aus Setting)
-  - [ ] Trusted-Device-Checkbox (sichtbar nur wenn `mfa_trusted_device_enabled`)
-  - [ ] „Code per Recovery-Code eingeben"-Switch
-  - [ ] Fehlerzustände (abgelaufen, falsch, gesperrt) deutsch + freundlich
-- [ ] Nach erfolgreichem `/auth/mfa/verify`: `signIn("credentials", { token, ... })` für Session
-- [ ] Operator-Login parallel unter `/operator/login`
-- [ ] **Brand-Farben:** Hex aus `LOCATION_COLORS` (siehe CLAUDE.md §0), keine generischen Tailwind-Farben
-- [ ] Reuse-Check: bestehende Form-/Input-/Button-Komponenten suchen vor Neubau
-- [ ] `pnpm run check` grün
+- [x] **Custom-Page-Ansatz** — Page POSTed direkt an `/api/auth/login` (resp. `/api/operator/auth/login`), branched auf `status`-Discriminator. Bei `authenticated`: `signIn("credentials", { internalRefresh: "true", token, refreshToken })` zum Session-Seeding. Bei `mfa_required`: `MFAChallengeForm` rendern. NextAuth-Configs unverändert — `internalRefresh`-Pfad existiert bereits seit Refresh-Flow
+- [x] `/[tenant]/login` (= `frontend/src/app/[tenant]/page.tsx`) erweitert: nach Passwort-POST Discriminator-Response auswerten, auf Step 2 wechseln
+- [x] Komponente `MFAChallengeForm` (`components/auth/mfa-challenge-form.tsx`):
+  - [x] 6-Stellen-Eingabe (Auto-Tab zwischen Felder, Auto-Submit bei 6 Zeichen, Paste-Support, Backspace zum Vorgänger)
+  - [x] Resend-Button mit Cooldown (Default 60s, Countdown im Label, Reset des Code-Inputs nach Resend)
+  - [x] Trusted-Device-Checkbox **immer sichtbar** (User-Entscheidung: Backend könnte als Phase 9-Follow-up `KeyMFATrustedDeviceEnabled` vor `IssueTrustedDevice` prüfen)
+  - [x] „Wiederherstellungscode verwenden"-Switch (rendered alternative Eingabe + dedizierten Submit-Button)
+  - [x] Fehlerzustände in `germanMFAErrorMessage` (abgelaufen / falsch / gesperrt / 429 / 5xx) deutsch + freundlich
+- [x] Nach erfolgreichem `/auth/mfa/verify`: `signIn("credentials", { internalRefresh: "true", token, refreshToken })` seedet NextAuth-Session
+- [x] Operator-Login parallel unter `/operator/login` — `MFAChallengeForm` mit `scope="operator"`, derselbe Flow + Operator-Envelope-Handling
+- [x] **Brand-Farben:** `#5080D8` (LOCATION_COLORS.OTHER_ROOM) für Focus/Primary, `#83CD2D` (LOCATION_COLORS.GROUP_ROOM) für Checkbox-Accent — keine generischen Tailwind-Farben
+- [x] Reuse: bestehende `Input`/`Alert` aus `~/components/ui` + neue `MFAChallengeForm` für Tenant + Operator
+- [x] `pnpm run check` grün (oxlint + tsc)
+- [x] Tests: 11 bestehende Login-Tests an 2-Step-Flow angepasst (User-Freigabe nach Test-Regel — bewusste API-Änderung wie in Phase 7b-3), 6 neue Komponenten-Tests für `MFAChallengeForm`, alle 9156 Frontend-Tests grün
+
+**Neue Frontend-Files:**
+- `lib/mfa-api.ts` — Discriminated `LoginResponse`, `verifyMFA`, `verifyRecovery`, `resendChallenge`, `MFAApiError`, `germanMFAErrorMessage`. Tenant flat / Operator envelope `{status, data, message}` transparent
+- `lib/auth-proxy.ts` — Geteilter `forwardJsonPost(req, backendPath)` mit Cookie + Set-Cookie-Passthrough für `mfa_trust_device`
+- `components/auth/mfa-challenge-form.tsx` + `*.test.tsx`
+- `app/api/auth/mfa/verify/route.ts`, `app/api/auth/mfa/recovery/verify/route.ts`, `app/api/auth/mfa/resend/route.ts`
+- `app/api/operator/auth/login/route.ts` (NEU für 2-Step-Flow), `app/api/operator/auth/mfa/verify/route.ts`, `app/api/operator/auth/mfa/recovery/verify/route.ts`, `app/api/operator/auth/mfa/resend/route.ts`
+
+**Aktualisierte Files:**
+- `app/api/auth/login/route.ts` — Cookie-Forwarding für trusted-device-Skip + Set-Cookie-Passthrough
+- `app/[tenant]/page.tsx` — 2-Step-Flow mit `mfaStep`-State + `seedSessionWithTokens`-Helper
+- `app/operator/login/page.tsx` — analog für Operator-Pfad
+
+**Verschoben:**
+- Optional: Backend prüft `KeyMFATrustedDeviceEnabled` vor `IssueTrustedDevice`, damit deaktiviertes Setting auch das Cookie-Setzen unterdrückt — als Phase 9-Follow-up tracked, nicht v1-blockend
 
 ---
 
