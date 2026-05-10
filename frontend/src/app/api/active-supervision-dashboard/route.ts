@@ -302,7 +302,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       ? groupsResult.data
       : [];
     const schulhofData = schulhofResult.data;
-    const plannedNow = (plannedNowResult.data.instances ?? []).map((i) => ({
+    const plannedNow = (plannedNowResult.data?.instances ?? []).map((i) => ({
       id: i.id.toString(),
       title: i.title,
       date: i.date,

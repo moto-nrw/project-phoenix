@@ -506,7 +506,7 @@ describe("MeinRaumPage (Active Supervisions)", () => {
       if (key?.startsWith("timetable-roster-active-group")) {
         return {
           data: {
-            instance: { id: "99", title: "Kreativ AG" },
+            instance: { id: "99", title: "Kreativ AG", activeGroupId: "1" },
             rows: [],
           },
           isLoading: false,
