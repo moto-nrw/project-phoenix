@@ -218,6 +218,56 @@ describe("small timetable components", () => {
     expect(onDensityChange).toHaveBeenCalledWith("comfortable");
   });
 
+  it("closes the toolbar density menu from keyboard and outside clicks", () => {
+    render(
+      <TimetableToolbar
+        view="week"
+        onViewChange={vi.fn()}
+        rangeLabel="KW 19"
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+        onToday={vi.fn()}
+        density="normal"
+        onDensityChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("hides irrelevant toolbar controls for series and today states", () => {
+    render(
+      <TimetableToolbar
+        view="series"
+        onViewChange={vi.fn()}
+        rangeLabel="Serien"
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+        onToday={vi.fn()}
+        isOnToday
+        navDisabled
+      />,
+    );
+
+    expect(
+      screen.queryByLabelText("Vorheriger Zeitraum"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Heute" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Weitere Optionen")).not.toBeInTheDocument();
+  });
+
   it("renders week/month/year grids and forwards date selections", () => {
     const onInstanceClick = vi.fn();
     const onDayClick = vi.fn();

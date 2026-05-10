@@ -197,4 +197,92 @@ describe("InstanceDetailSlideOver", () => {
       ),
     );
   });
+
+  it("renders completed, empty, and detailed attendance states", () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          status: "completed",
+          staff: [],
+          staffCount: 0,
+          absentStaffCount: 0,
+          students: [],
+          studentIds: [],
+          expectedStudentsCount: 0,
+          presentStudentsCount: 0,
+          notes: undefined,
+          conflictWarnings: [],
+          roomName: "",
+        })}
+        onClose={onClose}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Niemand zugeordnet")).toBeInTheDocument();
+    expect(screen.getByText("Kein Personal zugeordnet.")).toBeInTheDocument();
+    expect(screen.getByText("Keine Kinder geplant.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Diese Aktivität ist bereits abgeschlossen."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Raum #3")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+    expect(onClose).toHaveBeenCalledOnce();
+
+    rerender(
+      <InstanceDetailSlideOver
+        instance={instance({
+          status: "completed",
+          students: [
+            { studentId: "31", status: "absent", substatus: "late" },
+            { studentId: "32", status: "absent", substatus: "excused" },
+            { studentId: "33", status: "absent", substatus: "field_trip" },
+            { studentId: "34", status: "absent", substatus: "other" },
+          ],
+          studentIds: ["31", "32", "33", "34"],
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={vi.fn()}
+        studentNames={
+          new Map([
+            ["31", "Late Kind"],
+            ["32", "Excused Kind"],
+            ["33", "Trip Kind"],
+            ["34", "Other Kind"],
+          ])
+        }
+      />,
+    );
+
+    expect(screen.getByText(/Verspätet/)).toBeInTheDocument();
+    expect(screen.getByText(/Entschuldigt/)).toBeInTheDocument();
+    expect(screen.getByText(/Ausflug/)).toBeInTheDocument();
+    expect(screen.getByText(/Sonstiges/)).toBeInTheDocument();
+  });
+
+  it("can back out of cancelled instance deletion confirmation", () => {
+    const onDeleteCancelled = vi.fn();
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ status: "cancelled" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onDeleteCancelled={onDeleteCancelled}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+    expect(
+      screen.getByRole("button", { name: /Löschen bestätigen/ }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Löschen abbrechen/ }));
+    expect(
+      screen.queryByRole("button", { name: /Löschen bestätigen/ }),
+    ).not.toBeInTheDocument();
+    expect(onDeleteCancelled).not.toHaveBeenCalled();
+  });
 });
