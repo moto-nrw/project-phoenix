@@ -81,12 +81,12 @@ export function TimetableToolbar({
   const showDensity = view === "week" && density && onDensityChange;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-6 py-2.5">
+    <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:py-2.5">
       {/* Segmented view tabs */}
       <div
         role="tablist"
         aria-label="Ansicht wählen"
-        className="inline-flex items-center rounded-md bg-slate-100 p-0.5"
+        className="grid w-full grid-cols-4 rounded-md bg-slate-100 p-0.5 sm:inline-flex sm:w-auto sm:items-center lg:self-auto"
       >
         {VIEW_TABS.map((tab) => {
           const isActive = view === tab.id;
@@ -97,7 +97,7 @@ export function TimetableToolbar({
               type="button"
               aria-selected={isActive}
               onClick={() => onViewChange(tab.id)}
-              className={`rounded px-3 py-1 text-[13px] font-medium transition-colors ${
+              className={`rounded px-2 py-1.5 text-[13px] font-medium transition-colors sm:px-3 sm:py-1 ${
                 isActive
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-600 hover:text-slate-900"
@@ -110,30 +110,33 @@ export function TimetableToolbar({
       </div>
 
       {showRangeNav && (
-        <>
-          <div className="h-6 w-px bg-slate-200" aria-hidden />
+        <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-x-2 gap-y-2 sm:flex sm:gap-3">
+          <div className="hidden h-6 w-px bg-slate-200 lg:block" aria-hidden />
 
           {/* Date navigator — ghost buttons, no borders */}
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={onPrev}
-              disabled={navDisabled}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Vorheriger Zeitraum"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={onNext}
-              disabled={navDisabled}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Nächster Zeitraum"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onPrev}
+            disabled={navDisabled}
+            className="order-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Vorheriger Zeitraum"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <span className="order-2 min-w-0 text-center text-sm leading-tight font-semibold text-slate-900 tabular-nums sm:order-4 sm:truncate sm:text-left">
+            {rangeLabel}
+          </span>
+
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={navDisabled}
+            className="order-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 sm:order-2"
+            aria-label="Nächster Zeitraum"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
 
           {/* Today pill — only when not already on today */}
           {!isOnToday && (
@@ -141,38 +144,38 @@ export function TimetableToolbar({
               type="button"
               onClick={onToday}
               disabled={navDisabled}
-              className="inline-flex h-8 items-center rounded-md border border-slate-200 px-2.5 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="order-4 col-span-3 inline-flex h-8 items-center justify-self-center rounded-md border border-slate-200 px-2.5 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:order-3"
             >
               Heute
             </button>
           )}
-
-          <span className="text-sm font-semibold text-slate-900 tabular-nums">
-            {rangeLabel}
-          </span>
-        </>
-      )}
-
-      {/* Spacer pushes everything below to the right */}
-      <div className="flex-1" />
-
-      {onAddInstance && (
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onAddInstance}
-            className="inline-flex h-8 items-center gap-1 rounded-md bg-slate-900 px-2.5 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Termin
-          </button>
         </div>
       )}
 
-      {planWeekAction}
+      {/* Spacer pushes everything below to the right */}
+      <div className="hidden flex-1 lg:block" />
 
-      {showDensity && (
-        <DensityMenu density={density} onDensityChange={onDensityChange} />
+      {(onAddInstance || planWeekAction || showDensity) && (
+        <div className="flex w-full items-stretch gap-2 sm:w-auto sm:items-center lg:ml-auto">
+          {planWeekAction && (
+            <div className="min-w-0 flex-1 sm:flex-none">{planWeekAction}</div>
+          )}
+
+          {onAddInstance && (
+            <button
+              type="button"
+              onClick={onAddInstance}
+              className="inline-flex h-8 items-center gap-1 rounded-md bg-slate-900 px-2.5 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Termin
+            </button>
+          )}
+
+          {showDensity && (
+            <DensityMenu density={density} onDensityChange={onDensityChange} />
+          )}
+        </div>
       )}
     </div>
   );

@@ -93,14 +93,14 @@ export function PlanningMenu({
 
   return (
     <>
-      <div className="relative" ref={containerRef}>
+      <div className="relative w-full sm:w-auto" ref={containerRef}>
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           disabled={disabled || isPending}
           aria-haspopup="menu"
           aria-expanded={open}
-          className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${triggerClass}`}
+          className={`inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md px-3 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${triggerClass}`}
         >
           {isPending ? (
             <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -118,7 +118,7 @@ export function PlanningMenu({
           <div
             role="menu"
             aria-label="Planungsoptionen"
-            className="absolute right-0 z-30 mt-2 w-80 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md"
+            className="absolute right-0 z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md"
           >
             <button
               type="button"
