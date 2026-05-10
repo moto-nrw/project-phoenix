@@ -12,12 +12,19 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
+	"github.com/spf13/viper"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
+
+// secureCookie returns true only in production so the trusted-device
+// cookie is accepted by browsers over HTTP in local dev.
+func secureCookie() bool {
+	return strings.ToLower(strings.TrimSpace(viper.GetString("app_env"))) == "production"
+}
 
 // MFA email-code length is shared with the tenant flow — both call into the
 // same crypto helpers in services/auth/mfa_codes.go.
@@ -338,7 +345,7 @@ func (rs *MFAResource) Disable(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
-		Secure:   true,
+		Secure:   secureCookie(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
@@ -482,7 +489,7 @@ func (rs *MFAResource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.R
 		Path:     "/",
 		Expires:  expiresAt,
 		MaxAge:   int(time.Until(expiresAt).Seconds()),
-		Secure:   true,
+		Secure:   secureCookie(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})

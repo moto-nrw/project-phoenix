@@ -12,11 +12,20 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
+	"github.com/spf13/viper"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
+
+// secureCookie returns true only outside non-production environments so
+// the trusted-device cookie is accepted by browsers over HTTP in local
+// dev. Production deployments serve HTTPS exclusively, so the cookie
+// stays Secure where it matters.
+func secureCookie() bool {
+	return strings.ToLower(strings.TrimSpace(viper.GetString("app_env"))) == "production"
+}
 
 // trustedDeviceCookieName is the browser cookie that carries the HMAC-signed
 // trusted-device token. The path is "/" so the cookie is sent on every
@@ -330,7 +339,7 @@ func (rs *Resource) mfaDisable(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
-		Secure:   true,
+		Secure:   secureCookie(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
@@ -464,7 +473,7 @@ func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Requ
 		Path:     "/",
 		Expires:  expiresAt,
 		MaxAge:   int(time.Until(expiresAt).Seconds()),
-		Secure:   true,
+		Secure:   secureCookie(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
