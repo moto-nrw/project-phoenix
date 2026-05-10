@@ -7,6 +7,7 @@ type SSEEventType =
   | "activity_start"
   | "activity_end"
   | "activity_update"
+  | "active_supervision_changed"
   | "dashboard_counts_changed"
   | "arrival_schedule_changed"
   // Timetable instance lifecycle events emitted by the backend (WP-B9).
@@ -42,6 +43,9 @@ interface SSEEventData {
 
   // Source tracking
   source?: "rfid" | "manual" | "automated";
+
+  // Reason tracking for generic refresh events.
+  reason?: string;
 }
 
 export interface SSEEvent {

@@ -1741,10 +1741,6 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	}
 }
 
-type tenantBroadcaster interface {
-	BroadcastToTenant(tenantID int64, event realtime.Event) error
-}
-
 // emitInstanceOverdue builds the SSE envelope and fires it tenant-wide:
 // a planned instance has no bridged active.group yet, so there is no group-
 // scoped topic to route through. Admin dashboard subscribers pick it up.
@@ -1760,16 +1756,21 @@ func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, ins
 		InstanceStartTime: &instanceStart,
 		RoomID:            &roomIDStr,
 	})
-	tenantScopedBroadcaster, ok := s.overdueBroadcaster.(tenantBroadcaster)
-	if !ok {
-		s.getLogger().Warn("overdue tick: tenant broadcast unsupported",
+	if err := s.overdueBroadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		s.getLogger().Warn("overdue tick: broadcast failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("instance_id", inst.ID),
+			slog.String("error", err.Error()),
 		)
 		return
 	}
-	if err := tenantScopedBroadcaster.BroadcastToTenant(tenantID, event); err != nil {
-		s.getLogger().Warn("overdue tick: broadcast failed",
+	reason := "instance_overdue"
+	refreshEvent := realtime.NewEvent(realtime.EventActiveSupervisionChanged, "", realtime.EventData{
+		InstanceID: &instanceIDStr,
+		Reason:     &reason,
+	})
+	if err := s.overdueBroadcaster.BroadcastToTenant(tenantID, refreshEvent); err != nil {
+		s.getLogger().Warn("overdue tick: active supervision broadcast failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("instance_id", inst.ID),
 			slog.String("error", err.Error()),

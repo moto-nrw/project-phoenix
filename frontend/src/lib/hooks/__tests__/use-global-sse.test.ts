@@ -298,6 +298,42 @@ describe("useGlobalSSE", () => {
       expect(mutate).toHaveBeenCalled();
     });
 
+    it("invalidates active supervision caches on active_supervision_changed event", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "active_supervision_changed",
+        active_group_id: "456",
+        data: { reason: "instance_started" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const activeSupervisionCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)(
+            "tenant:active-supervision-dashboard-0",
+          ) &&
+          (matcher as (key: string) => boolean)("tenant:supervision-visits-456")
+        );
+      });
+      expect(activeSupervisionCall).toBeDefined();
+
+      const matcher = activeSupervisionCall![0] as (key: string) => boolean;
+      expect(matcher("tenant:supervision-visits-456")).toBe(true);
+      expect(matcher("tenant:room-detail-12")).toBe(true);
+      expect(matcher("tenant:tracking-supervisions-1")).toBe(true);
+      expect(matcher("tenant:tracking-indicators-search")).toBe(true);
+      expect(matcher("tenant:dashboard")).toBe(true);
+      expect(matcher("tenant:timetable-week")).toBe(false);
+    });
+
     it("invalidates dashboard caches on dashboard_counts_changed event", () => {
       renderHook(() => useGlobalSSE());
 

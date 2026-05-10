@@ -152,10 +152,6 @@ type instanceService struct {
 	deps InstanceServiceDependencies
 }
 
-type tenantBroadcaster interface {
-	BroadcastToTenant(tenantID int64, event realtime.Event) error
-}
-
 // NewInstanceService constructs an InstanceService. Panics if a required
 // dependency is nil — the service has no sensible degraded mode for lifecycle
 // transitions, so the factory must wire it completely at startup.
@@ -781,20 +777,50 @@ func (s *instanceService) broadcastInstanceEvent(
 			)
 		}
 	}
-	tenantScopedBroadcaster, ok := s.deps.Broadcaster.(tenantBroadcaster)
-	if !ok {
-		s.getLogger().Warn("SSE tenant broadcast unsupported",
-			slog.String("event_type", string(eventType)),
-			slog.Int64("tenant_id", tenantID),
-		)
-		return
-	}
-	if err := tenantScopedBroadcaster.BroadcastToTenant(tenantID, event); err != nil {
+	if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
 		s.getLogger().Warn("SSE broadcast-to-tenant failed",
 			slog.String("event_type", string(eventType)),
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
+	}
+	s.broadcastActiveSupervisionChanged(tenantID, activeGroupIDStr, instanceIDStr, eventType)
+}
+
+func (s *instanceService) broadcastActiveSupervisionChanged(
+	tenantID int64,
+	activeGroupID string,
+	instanceID string,
+	sourceEventType realtime.EventType,
+) {
+	reason := instanceRefreshReason(sourceEventType)
+	data := realtime.EventData{
+		InstanceID: &instanceID,
+		Reason:     &reason,
+	}
+	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
+	if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		s.getLogger().Warn("SSE active supervision broadcast failed",
+			slog.String("event_type", string(sourceEventType)),
+			slog.String("active_group_id", activeGroupID),
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+func instanceRefreshReason(eventType realtime.EventType) string {
+	switch eventType {
+	case realtime.EventInstanceStarted:
+		return "instance_started"
+	case realtime.EventInstanceCompleted:
+		return "instance_completed"
+	case realtime.EventInstanceCancelled:
+		return "instance_cancelled"
+	case realtime.EventInstanceOverdue:
+		return "instance_overdue"
+	default:
+		return "instance_changed"
 	}
 }
 

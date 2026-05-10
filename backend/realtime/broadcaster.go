@@ -10,4 +10,8 @@ type Broadcaster interface {
 	// BroadcastToAll sends an event to every connected client regardless of group subscriptions.
 	// Used for global dashboard count refreshes. Fire-and-forget.
 	BroadcastToAll(event Event) error
+
+	// BroadcastToTenant sends an event to every connected client for one tenant,
+	// regardless of group subscriptions. Used for tenant-wide refresh signals.
+	BroadcastToTenant(tenantID int64, event Event) error
 }

@@ -221,6 +221,30 @@ describe("useSSE Hook", () => {
         { timeout: 500 },
       );
     });
+
+    it("should handle active_supervision_changed typed events", async () => {
+      const onMessage = vi.fn();
+      renderHook(() => useSSE("/api/sse/events", { onMessage }));
+
+      await waitForEventSource();
+      mockEventSource?.triggerOpen();
+
+      const testEvent: SSEEvent = {
+        type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "instance_started" },
+        timestamp: new Date().toISOString(),
+      };
+
+      mockEventSource?.triggerMessage(testEvent, "active_supervision_changed");
+
+      await waitFor(
+        () => {
+          expect(onMessage).toHaveBeenCalledWith(testEvent);
+        },
+        { timeout: 500 },
+      );
+    });
   });
 
   describe("Reconnection Logic", () => {

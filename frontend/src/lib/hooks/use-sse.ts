@@ -150,6 +150,7 @@ export function useSSE(
           "activity_start",
           "activity_end",
           "activity_update",
+          "active_supervision_changed",
           "dashboard_counts_changed",
           "arrival_schedule_changed",
           "instance_started",
