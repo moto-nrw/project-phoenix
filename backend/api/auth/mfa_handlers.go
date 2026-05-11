@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -202,6 +203,68 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ----- /mfa/status -----
+
+// MFAStatusResponse is the read-only view returned by GET /auth/mfa/status,
+// consumed by the Sicherheit settings page to decide whether to render the
+// "MFA aktiv" status card or the activation CTA. Aggregates enrollment +
+// recovery-code state in one round trip so the page can render in a single
+// fetch.
+type MFAStatusResponse struct {
+	Enrolled            bool       `json:"enrolled"`
+	LastUsedAt          *time.Time `json:"last_used_at,omitempty"`
+	UnusedRecoveryCodes int        `json:"unused_recovery_codes"`
+	ModeRequired        bool       `json:"mode_required"`
+}
+
+// mfaStatus reports the authenticated account's MFA enrollment + the tenant's
+// MFA mode. ModeRequired flips to true when the tenant has mfa_mode set to
+// required_all, or required_admins and the account holds the admin role —
+// the UI uses that to disable the "MFA deaktivieren" button.
+func (rs *Resource) mfaStatus(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFA(w, r) {
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	accountID := int64(claims.ID)
+
+	cred, err := rs.MFAService.GetCredential(r.Context(), accountID)
+	if err != nil {
+		mapMFAError(w, r, err)
+		return
+	}
+
+	resp := MFAStatusResponse{Enrolled: cred != nil && cred.ID > 0}
+	if cred != nil && cred.LastUsedAt != nil {
+		resp.LastUsedAt = cred.LastUsedAt
+	}
+	if resp.Enrolled {
+		count, cErr := rs.MFAService.CountUnusedRecoveryCodes(r.Context(), accountID)
+		if cErr == nil {
+			resp.UnusedRecoveryCodes = count
+		}
+	}
+
+	// IsRequired needs role context; build a minimal account view from the
+	// JWT claims so we don't hit the DB twice. The claims carry the role
+	// list directly when present.
+	account := &auth.Account{}
+	account.ID = accountID
+	for _, name := range claims.Roles {
+		account.Roles = append(account.Roles, &auth.Role{Name: name})
+	}
+	required, irErr := rs.MFAService.IsRequired(r.Context(), account, claims.TenantID)
+	if irErr == nil {
+		resp.ModeRequired = required
+	}
+
+	render.JSON(w, r, resp)
 }
 
 // ----- /mfa/enroll/start -----

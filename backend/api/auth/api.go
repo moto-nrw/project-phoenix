@@ -146,6 +146,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// MFA management for the currently authenticated user (issue #1308).
 		r.Route("/mfa", func(r chi.Router) {
+			r.Get("/status", rs.mfaStatus)
 			r.Post("/enroll/start", rs.mfaEnrollStart)
 			r.Post("/enroll/confirm", rs.mfaEnrollConfirm)
 			r.Post("/recovery-codes", rs.mfaRegenerateRecoveryCodes)

@@ -259,6 +259,7 @@ func (rs *Resource) Router() chi.Router {
 		// /auth/mfa/verify through this protected subtree, the JWT
 		// verifier rejects the missing access token, and the public
 		// handler is never reached.
+		r.Get("/auth/mfa/status", rs.mfaResource.Status)
 		r.Post("/auth/mfa/enroll/start", rs.mfaResource.EnrollStart)
 		r.Post("/auth/mfa/enroll/confirm", rs.mfaResource.EnrollConfirm)
 		r.Post("/auth/mfa/recovery-codes", rs.mfaResource.RegenerateRecoveryCodes)

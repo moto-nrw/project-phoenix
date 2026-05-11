@@ -210,6 +210,53 @@ func (rs *MFAResource) Resend(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
+// ----- /auth/mfa/status -----
+
+// MFAStatusResponse is the read-only view returned by GET
+// /operator/auth/mfa/status. Operators face hardcoded mandatory MFA, so
+// ModeRequired is always true here — kept on the response for shape
+// parity with the tenant endpoint so the frontend client doesn't branch.
+type MFAStatusResponse struct {
+	Enrolled            bool       `json:"enrolled"`
+	LastUsedAt          *time.Time `json:"last_used_at,omitempty"`
+	UnusedRecoveryCodes int        `json:"unused_recovery_codes"`
+	ModeRequired        bool       `json:"mode_required"`
+}
+
+// Status reports the authenticated operator's MFA enrollment + recovery
+// code count.
+func (rs *MFAResource) Status(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFA(w, r) {
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, ErrUnauthorized())
+		return
+	}
+	operatorID := int64(claims.ID)
+
+	cred, err := rs.mfaService.GetCredential(r.Context(), operatorID)
+	if err != nil {
+		mapOperatorMFAError(w, r, err)
+		return
+	}
+
+	resp := MFAStatusResponse{
+		Enrolled:     cred != nil && cred.ID > 0,
+		ModeRequired: true,
+	}
+	if cred != nil && cred.LastUsedAt != nil {
+		resp.LastUsedAt = cred.LastUsedAt
+	}
+	if resp.Enrolled {
+		if count, cErr := rs.mfaService.CountUnusedRecoveryCodes(r.Context(), operatorID); cErr == nil {
+			resp.UnusedRecoveryCodes = count
+		}
+	}
+	common.Respond(w, r, http.StatusOK, &resp, "")
+}
+
 // ----- /auth/mfa/enroll/start -----
 
 // EnrollStart triggers an email with a code that the operator must echo back
