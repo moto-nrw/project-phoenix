@@ -1011,7 +1011,7 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 }
 
 // quelleLabel renders the export "Quelle" cell from the persisted source.
-// 'unknown' marks rows that pre-date migration 1.15.49 — no channel was ever
+// 'unknown' marks rows that pre-date migration 1.15.54 — no channel was ever
 // recorded, so we render "—" rather than guess. Anything else falls through
 // to App, matching the DB column default for in-flight rows that may exist
 // briefly between migration and new-server boot.

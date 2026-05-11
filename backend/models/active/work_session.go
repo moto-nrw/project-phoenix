@@ -19,7 +19,7 @@ const (
 
 // WorkSessionSource records which channel produced the row (Issue #1368).
 // New writes are restricted to App/NFC by WorkSessionService.CheckIn;
-// 'unknown' exists only for rows that pre-date migration 1.15.49 and is
+// 'unknown' exists only for rows that pre-date migration 1.15.54 and is
 // rejected as a write value but accepted as a read value so legacy rows
 // survive partial-update flows (break edits, notes patches). The DB CHECK
 // constraint chk_work_sessions_source enforces the same set on disk.

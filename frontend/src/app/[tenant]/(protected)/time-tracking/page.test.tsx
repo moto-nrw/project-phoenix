@@ -1156,6 +1156,74 @@ describe("TimeTrackingPage", () => {
       expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
       expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
     });
+
+    it("reopen conflict before history loads: warns and shows toast instead of modal", async () => {
+      // SWR-race branch: the backend rejects with REOPEN_STATUS_CONFLICT_CODE
+      // but history hasn't loaded today's checked-out session yet, so the UI
+      // has no session id to drive the reason modal. Must surface a
+      // user-visible toast — not swallow the conflict behind a generic error.
+      setupDefaultMocks({ history: [] });
+      vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
+        makeReopenConflictError(),
+      );
+      const errorToast = vi.fn();
+      vi.mocked(useToast).mockReturnValue({
+        success: vi.fn(),
+        error: errorToast,
+        info: vi.fn(),
+        warning: vi.fn(),
+        remove: vi.fn(),
+      });
+
+      render(<TimeTrackingPage />);
+
+      fireEvent.click(screen.getByText("Homeoffice"));
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(errorToast).toHaveBeenCalledTimes(1);
+      });
+      const msg = errorToast.mock.calls[0]?.[0] as string;
+      expect(msg).toMatch(/bereits eine Sitzung/);
+      expect(
+        screen.queryByText("Status für heute ändern"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("home_office → present: modal text and confirm button reflect the inverse direction", async () => {
+      // Inverse of the other tests: today's existing session is home_office,
+      // user picks Vor Ort. Exercises the false branches of the
+      // existingStatus / requestedStatus ternaries in the modal copy.
+      const homeOfficeHistory: WorkSessionHistory = {
+        ...mockHistorySession,
+        status: "home_office",
+      };
+      setupDefaultMocks({ history: [homeOfficeHistory] });
+      vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
+        makeReopenConflictError(),
+      );
+
+      render(<TimeTrackingPage />);
+
+      selectPresentMode();
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
+      });
+
+      // Confirm button label flips when target is "present".
+      expect(screen.getByText("Auf Vor Ort ändern")).toBeInTheDocument();
+      // Modal copy names the existing Homeoffice session and the requested
+      // Vor Ort target.
+      const body = screen.getByTestId("modal-body");
+      expect(body.textContent).toMatch(/Homeoffice-Sitzung/);
+      expect(body.textContent).toMatch(/Vor Ort/);
+    });
   });
 
   // ── Edit Modal ──────────────────────────────────────────────────────────

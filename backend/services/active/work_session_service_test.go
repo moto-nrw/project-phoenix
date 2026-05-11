@@ -647,7 +647,7 @@ func TestWSCheckIn_InvalidStatus(t *testing.T) {
 // TestWSCheckIn_InvalidSource guards the second validation step in CheckIn:
 // a bogus channel must be rejected at the service boundary before any DB
 // write, so the only values that ever reach active.work_sessions.source are
-// 'app' or 'nfc' (matching the CHECK constraint in migration 1.15.49).
+// 'app' or 'nfc' (matching the CHECK constraint in migration 1.15.54).
 // The error string is also part of the HTTP-boundary contract — the
 // classifier in api/time-tracking/errors.go keys on the "source must be"
 // prefix to produce 400 instead of 500.
@@ -663,7 +663,7 @@ func TestWSCheckIn_InvalidSource(t *testing.T) {
 }
 
 // TestWSCheckIn_RejectsUnknownSource locks in the write/read asymmetry on
-// the 'unknown' sentinel: legacy rows on disk may carry it (migration 1.15.49
+// the 'unknown' sentinel: legacy rows on disk may carry it (migration 1.15.54
 // backfills NULL → 'unknown'), but the service must never produce a new row
 // with source='unknown'. Without this gate, a careless caller could erase
 // the audit signal "this stamp's channel was actually never recorded" by

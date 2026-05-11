@@ -13,8 +13,8 @@ import (
 )
 
 // dropWorkSessionsSourceColumn rolls back the schema portion of migration
-// 1.15.49 so a test can re-run the up against a controlled pre-migration
-// state. SetupTestDB has already run every migration including 1.15.49, so
+// 1.15.54 so a test can re-run the up against a controlled pre-migration
+// state. SetupTestDB has already run every migration including 1.15.54, so
 // the column exists at the start of every test in this file.
 //
 // SetupTestDB hands out a process-shared *bun.DB, so a panic or a require

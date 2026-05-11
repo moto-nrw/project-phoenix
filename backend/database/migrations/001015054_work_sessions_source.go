@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	workSessionsSourceVersion     = "1.15.49"
+	workSessionsSourceVersion     = "1.15.54"
 	workSessionsSourceDescription = "Add source column to active.work_sessions to distinguish App vs NFC stamps (Issue #1368)"
 )
 
@@ -48,7 +48,7 @@ func init() {
 // explicitly) being live. The CHECK constraint is the safety net for any
 // future code path that bypasses the service.
 func workSessionsSourceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.49: Adding source column to active.work_sessions...")
+	fmt.Println("Migration 1.15.54: Adding source column to active.work_sessions...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE active.work_sessions
@@ -66,7 +66,7 @@ func workSessionsSourceUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed backfilling source='unknown': %w", err)
 	}
 	affected, _ := res.RowsAffected()
-	fmt.Printf("Migration 1.15.49: labelled %d historical row(s) as 'unknown'\n", affected)
+	fmt.Printf("Migration 1.15.54: labelled %d historical row(s) as 'unknown'\n", affected)
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE active.work_sessions
@@ -87,7 +87,7 @@ func workSessionsSourceUp(ctx context.Context, db *bun.DB) error {
 }
 
 func workSessionsSourceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.49: Dropping source column from active.work_sessions...")
+	fmt.Println("Rolling back migration 1.15.54: Dropping source column from active.work_sessions...")
 
 	// Drop the constraint first so the down is idempotent even if a partial
 	// up left the constraint behind without the column.
