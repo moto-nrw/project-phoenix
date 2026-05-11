@@ -65,6 +65,10 @@ import {
 } from "~/components/active-supervisions/states";
 import { PlannedNowSection } from "~/components/active-supervisions/planned-now-section";
 import {
+  SpontaneousActivityStart,
+  type SpontaneousActivityStartPayload,
+} from "~/components/active-supervisions/spontaneous-activity-start";
+import {
   SCHULHOF_ROOM_NAME,
   SCHULHOF_TAB_ID,
   buildGroupNameToIdMap,
@@ -82,6 +86,39 @@ const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
 type ActiveRoom = ActiveSupervisionRoom;
 type StudentWithVisit = ActiveSupervisionStudent;
+
+function padClockPart(value: number): string {
+  return value.toString().padStart(2, "0");
+}
+
+function formatLocalDate(date: Date): string {
+  return [
+    date.getFullYear(),
+    padClockPart(date.getMonth() + 1),
+    padClockPart(date.getDate()),
+  ].join("-");
+}
+
+function formatClock(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${padClockPart(hours)}:${padClockPart(minutes)}`;
+}
+
+function spontaneousActivityWindow(now: Date): {
+  date: string;
+  startTime: string;
+  endTime: string;
+} {
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const startMinutes = Math.min(currentMinutes, 23 * 60 + 30);
+  const endMinutes = Math.min(startMinutes + 60, 23 * 60 + 59);
+  return {
+    date: formatLocalDate(now),
+    startTime: formatClock(startMinutes),
+    endTime: formatClock(endMinutes),
+  };
+}
 
 // BFF response type for consolidated dashboard data
 interface BFFDashboardResponse {
@@ -119,6 +156,9 @@ interface BFFDashboardResponse {
   }>;
   firstRoomId: string | null;
   schulhofStatus: SchulhofStatusResponse | null;
+  capabilities?: {
+    webSpontaneousActivitiesEnabled: boolean;
+  };
   plannedNow: PlannedTimetableInstance[];
 }
 
@@ -161,8 +201,15 @@ const ATTENDANCE_SUBSTATUS_LABELS: Record<
   other: "Sonstiges",
 };
 
-function rosterStudentMeta(row: TimetableRosterRow): string {
-  return [row.schoolClass, row.groupName, row.isUnplanned ? "ungeplant" : ""]
+function rosterStudentMeta(
+  row: TimetableRosterRow,
+  instanceIsSpontaneous: boolean,
+): string {
+  return [
+    row.schoolClass,
+    row.groupName,
+    row.isUnplanned && !instanceIsSpontaneous ? "ungeplant" : "",
+  ]
     .filter((value, index, values) => value && values.indexOf(value) === index)
     .join(" · ");
 }
@@ -199,6 +246,7 @@ function MeinRaumPageContent() {
   const [isStartingInstance, setIsStartingInstance] = useState<string | null>(
     null,
   );
+  const [isStartingSpontaneous, setIsStartingSpontaneous] = useState(false);
   const [isCompletingInstance, setIsCompletingInstance] = useState(false);
   const [addStudentSearch, setAddStudentSearch] = useState("");
   const [addStudentResults, setAddStudentResults] = useState<Student[]>([]);
@@ -276,6 +324,13 @@ function MeinRaumPageContent() {
   // or because the sidebar navigated with the room's actual ID (not "schulhof")
   const isSchulhofActive =
     isSchulhofTabSelected || currentRoom?.room_name === SCHULHOF_ROOM_NAME;
+  const occupiedRoomIds = useMemo(
+    () =>
+      allRooms
+        .map((room) => room.room_id)
+        .filter((roomId): roomId is string => Boolean(roomId)),
+    [allRooms],
+  );
 
   // Set breadcrumb so header shows current room name
   useSetBreadcrumb({
@@ -932,6 +987,73 @@ function MeinRaumPageContent() {
     [allRooms, mutateDashboard, router],
   );
 
+  const handleStartSpontaneousActivity = useCallback(
+    async (payload: SpontaneousActivityStartPayload) => {
+      if (!currentStaffId) {
+        setError(
+          "Aktivität konnte nicht gestartet werden: kein Betreuerprofil.",
+        );
+        return;
+      }
+
+      try {
+        setIsStartingSpontaneous(true);
+        const window = spontaneousActivityWindow(new Date());
+        const staffIds = Array.from(
+          new Set([currentStaffId, ...payload.additionalStaffIds]),
+        )
+          .map(Number)
+          .filter((id) => Number.isSafeInteger(id) && id > 0);
+        if (staffIds.length === 0) {
+          throw new Error("current staff id is not numeric");
+        }
+        const result = await timetableOperationsApi.createAndStartSpontaneous({
+          date: window.date,
+          start_time: window.startTime,
+          end_time: window.endTime,
+          title: payload.title,
+          room_id: Number(payload.roomId),
+          activity_group_id: payload.activityGroupId
+            ? Number(payload.activityGroupId)
+            : undefined,
+          staff_ids: staffIds,
+          student_ids: [],
+        });
+        setSelectedTimetableInstanceId(result.instanceId);
+        setSelectedRoomId(result.activeGroupId);
+        setIsSchulhofTabSelected(false);
+        router.push(`/active-supervisions?room=${payload.roomId}`);
+        localStorage.setItem("sidebar-last-room", payload.roomId);
+        await mutateDashboard();
+        setRefreshKey((prev) => prev + 1);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const isRoomOccupied = message.includes("room is already occupied");
+        const context = {
+          title: payload.title,
+          room_id: payload.roomId,
+          error: message,
+        };
+        if (isRoomOccupied) {
+          logger.warn("spontaneous timetable room already occupied", context);
+        } else {
+          logger.error(
+            "failed to start spontaneous timetable instance",
+            context,
+          );
+        }
+        setError(
+          isRoomOccupied
+            ? "Der Raum ist bereits belegt."
+            : "Spontane Aktivität konnte nicht gestartet werden.",
+        );
+      } finally {
+        setIsStartingSpontaneous(false);
+      }
+    },
+    [currentStaffId, mutateDashboard, router],
+  );
+
   const handleRosterAction = useCallback(
     async (
       action: "check-in" | "check-out" | "excused" | "absent" | "expected",
@@ -1251,6 +1373,18 @@ function MeinRaumPageContent() {
     return <NoActiveSupervisionAccessView />;
   }
 
+  const spontaneousStartBanner = dashboardData?.capabilities
+    ?.webSpontaneousActivitiesEnabled ? (
+    <SpontaneousActivityStart
+      currentStaffId={currentStaffId}
+      defaultRoomId={currentRoom?.room_id}
+      disabled={isSchulhofActive}
+      isStarting={isStartingSpontaneous}
+      occupiedRoomIds={occupiedRoomIds}
+      onStart={(payload) => void handleStartSpontaneousActivity(payload)}
+    />
+  ) : null;
+
   // Show unclaimed rooms banner when user has no supervised groups and no Schulhof
   // If Schulhof exists, we'll show the main view with just the Schulhof tab
   if (
@@ -1259,17 +1393,20 @@ function MeinRaumPageContent() {
     plannedNow.length === 0
   ) {
     return (
-      <EmptyRoomsView
-        onClaimed={handleRoomClaimed}
-        cachedActiveGroups={cachedActiveGroups}
-        currentStaffId={currentStaffId}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        setGroupFilter={setGroupFilter}
-        setSelectedYear={setSelectedYear}
-        filterConfigs={filterConfigs}
-        activeFilters={activeFilters}
-      />
+      <div className="w-full">
+        {spontaneousStartBanner}
+        <EmptyRoomsView
+          onClaimed={handleRoomClaimed}
+          cachedActiveGroups={cachedActiveGroups}
+          currentStaffId={currentStaffId}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          setGroupFilter={setGroupFilter}
+          setSelectedYear={setSelectedYear}
+          filterConfigs={filterConfigs}
+          activeFilters={activeFilters}
+        />
+      </div>
     );
   }
 
@@ -1280,6 +1417,8 @@ function MeinRaumPageContent() {
     }
 
     if (currentTimetableRoster) {
+      const isSpontaneousInstance =
+        currentTimetableRoster.instance.isSpontaneous;
       const present = currentTimetableRoster.rows.filter(
         (row) => row.currentlyPresent && row.planned,
       );
@@ -1309,7 +1448,7 @@ function MeinRaumPageContent() {
               {row.studentName || `Schüler ${row.studentId}`}
             </div>
             <div className="mt-1 text-sm text-gray-500">
-              {rosterStudentMeta(row)}
+              {rosterStudentMeta(row, isSpontaneousInstance)}
             </div>
             {row.substatus || row.note ? (
               <div className="mt-1 text-sm text-[#D89A16]">
@@ -1401,7 +1540,9 @@ function MeinRaumPageContent() {
                 {currentTimetableRoster.instance.title}
               </h2>
               <p className="text-sm text-gray-600">
-                Laufende geplante Aktivität
+                {isSpontaneousInstance
+                  ? "Laufende spontane Aktivität"
+                  : "Laufende geplante Aktivität"}
               </p>
             </div>
             <button
@@ -1471,7 +1612,10 @@ function MeinRaumPageContent() {
           {section("Erwartet", expected)}
           {section("Entschuldigt / Abwesend", absent)}
           {section("Nicht mehr im Raum", departed)}
-          {section("Ungeplant", unplanned)}
+          {section(
+            isSpontaneousInstance ? "Teilnehmende" : "Ungeplant",
+            unplanned,
+          )}
         </div>
       );
     }
@@ -1630,6 +1774,8 @@ function MeinRaumPageContent() {
         isStartingInstance={isStartingInstance}
         onStart={(instance) => void handleStartPlannedInstance(instance)}
       />
+
+      {spontaneousStartBanner}
 
       {/* Modern Header with PageHeaderWithSearch component */}
       {/* Count rooms EXCLUDING Schulhof (to avoid double-counting with schulhofStatus) */}

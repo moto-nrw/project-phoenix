@@ -2,6 +2,7 @@ package timetable
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,7 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -76,6 +79,96 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 			Warnings:      result.Warnings,
 		}, nil
 	}, "Timetable instance started")
+}
+
+func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r *http.Request) {
+	if rs.instanceService == nil || rs.operationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations resource not fully wired")))
+		return
+	}
+	if !rs.webSpontaneousActivitiesEnabled(r) {
+		common.RenderError(w, r, common.ErrorForbidden(scheduleSvc.ErrTimetableOperationForbidden))
+		return
+	}
+	parsed, ok := bindCreateInstanceRequest(w, r)
+	if !ok {
+		return
+	}
+	req := parsed.req
+	if len(req.StudentIDs) > 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are not accepted for spontaneous operational starts")))
+		return
+	}
+	if rs.activeGroupRepo != nil {
+		hasRoomConflict, _, err := rs.activeGroupRepo.CheckRoomConflict(r.Context(), req.RoomID, 0)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
+			return
+		}
+		if hasRoomConflict {
+			common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
+			return
+		}
+	}
+
+	currentStaffID := rs.resolveStartedByStaffID(r.Context())
+	if currentStaffID <= 0 {
+		common.RenderError(w, r, common.ErrorForbidden(scheduleSvc.ErrTimetableOperationForbidden))
+		return
+	}
+
+	req.StaffIDs = appendUniquePositive(req.StaffIDs, currentStaffID)
+	createdBy := currentStaffID
+	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
+		Date:             timezone.DateOfUTC(parsed.date),
+		StartTime:        parsed.startTime,
+		EndTime:          parsed.endTime,
+		Title:            req.Title,
+		Description:      req.Description,
+		Notes:            req.Notes,
+		RoomID:           req.RoomID,
+		ActivityGroupID:  req.ActivityGroupID,
+		StaffIDs:         req.StaffIDs,
+		StudentIDs:       nil,
+		CreatedByStaffID: &createdBy,
+	})
+	if err != nil {
+		renderCreateInstanceError(w, r, err)
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	result, err := rs.operationsService.Start(r.Context(), int64(claims.ID), claims.IsAdmin, inst.ID)
+	if err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, startOperationResponse{
+		InstanceID:    result.Instance.ID,
+		Status:        result.Instance.Status,
+		ActiveGroupID: result.ActiveGroupID,
+		Warnings:      result.Warnings,
+	}, "Spontaneous timetable instance created and started")
+}
+
+func (rs *Resource) operationsCapabilities(w http.ResponseWriter, r *http.Request) {
+	common.Respond(w, r, http.StatusOK, map[string]any{
+		"web_spontaneous_activities_enabled": rs.webSpontaneousActivitiesEnabled(r),
+	}, "Timetable operation capabilities retrieved")
+}
+
+func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
+	logger := rs.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return configSvc.ResolveBoolOrDefault(
+		r.Context(),
+		rs.settingsService,
+		configModel.KeyWebSpontaneousActivities,
+		false,
+		logger,
+	)
 }
 
 func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
@@ -188,6 +281,18 @@ type startOperationResponse struct {
 	Status        string                                `json:"status"`
 	ActiveGroupID int64                                 `json:"active_group_id"`
 	Warnings      []scheduleSvc.InstanceConflictWarning `json:"warnings"`
+}
+
+func appendUniquePositive(ids []int64, id int64) []int64 {
+	if id <= 0 {
+		return ids
+	}
+	for _, existing := range ids {
+		if existing == id {
+			return ids
+		}
+	}
+	return append(ids, id)
 }
 
 func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request, err error) {

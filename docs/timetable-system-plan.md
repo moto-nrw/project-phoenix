@@ -605,18 +605,20 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
   - The resulting live `active.group` appears in the current supervision UI without requiring navigation back to the admin timetable.
   - Prevent confusing duplicate starts: when a matching planned instance exists, the staff flow should start that instance instead of creating an unlinked live group.
   - **Bundled operational polish:** active-supervision dashboard now bridges timetable instances into the live roster flow, supports completion from the live view, avoids loading-state flashes, and handles timetable SSE invalidation for started/completed/cancelled/overdue events.
-- [ ] **WP-F5** — Instance detail/check-in list in active supervision
+- [x] **WP-F5** — Instance detail/check-in list in active supervision
   - After start, show expected children from `instance_students` alongside live visits.
   - Support quick status changes: expected, present, absent, substatus/note where needed.
   - Surface unplanned children separately instead of hiding them.
-- [ ] **WP-F6** — Spontaneous activity creation (staff-facing)
+- [x] **WP-F6** — Spontaneous activity creation (staff-facing)
   - Staff can create and immediately start an ad-hoc activity from `/active-supervisions`.
   - The flow creates a spontaneous timetable instance when useful for reporting, then bridges it to `active.groups`.
+  - **Shipped scope:** compact mobile-first start banner with plus action, existing-activity search/chips, custom title fallback, room selection, optional additional staff, immediate create+start, empty roster first, then F5 search/check-in flow for children.
+  - **SSE behavior:** start/complete still flows through the timetable instance lifecycle, so `instance_started`/`instance_completed` plus active-supervision invalidation keep other assigned staff in sync.
 
 #### F4 — Rollover + live updates
 
 - [ ] **WP-F7** — Semester rollover UI + enrollment validity management
-- [ ] **WP-F8** — Timetable/active-supervision SSE wiring (E19 level 2)
+- [x] **WP-F8** — Timetable/active-supervision SSE wiring (E19 level 2)
   - Backend emission is already shipped via WP-B9: `EventInstanceOverdue` from the scheduler plus `EventInstanceStarted/Completed/Cancelled` from `instance_service.go`.
   - Frontend work: extend `frontend/src/lib/sse-types.ts`, update global SSE handlers, invalidate timetable and active-supervision SWR keys, and bind overdue/started state to the operational cards.
   - Acceptance: starting a planned instance in the timetable updates `/active-supervisions` without browser refresh; starting/completing in active supervision updates the timetable card.
@@ -672,7 +674,7 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 **Aktueller Stand:** WP-F2 ist abgeschlossen. Der Admin-Stundenplan ist jetzt als Planungswerkzeug nutzbar: Buero/Admin kann Perioden, Serien, konkrete Termine, Personal-Luecken, Ersatz und Neuplanung pflegen.
 
-**Naechster Produktwert:** WP-F3/F4 sind der naechste gemeinsame PR-Schnitt: geplante Aktivitaeten erscheinen in `/active-supervisions` und koennen dort direkt gestartet werden. WP-F5/F8 folgen darauf, damit laufende Instanzen erwartete Kinder zeigen und ohne manuellen Refresh aktualisieren.
+**Naechster Produktwert:** WP-F3-F6 plus F8 sind im operativen `/active-supervisions`-Schnitt geschlossen: geplante Aktivitaeten erscheinen, koennen gestartet werden, laufende Instanzen zeigen erwartete/ungeplante Kinder, spontane Aktivitaeten koennen direkt gestartet werden, und SSE haelt die Ansichten ohne manuellen Refresh frisch.
 
 **Danach muss Timetable in die echten Startpunkte rein:** F13/F14 verbinden geplante Instanzen und spontane Aktivitaeten mit PyrePortal/Geraeten. Das Ziel ist: Ein Geraet startet nicht blind eine neue Live-Gruppe, sondern erkennt zuerst den passenden geplanten Termin. Spontane Aktivitaeten bleiben moeglich, aber nur in expliziten Zeitfenstern und mit Timetable-Instance fuer Reporting.
 

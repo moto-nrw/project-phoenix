@@ -100,6 +100,48 @@ describe("timetableOperationsApi", () => {
     });
   });
 
+  it("creates and starts a spontaneous operational instance", async () => {
+    const mockFetch = vi.mocked(globalThis.fetch);
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          instance_id: 132,
+          active_group_id: 232,
+          status: "active",
+        },
+      }),
+    );
+
+    const body = {
+      date: "2026-05-11",
+      start_time: "14:00",
+      end_time: "15:00",
+      title: "Freispiel",
+      room_id: 7,
+      staff_ids: [11, 12],
+      student_ids: [],
+    };
+    const result = await timetableOperationsApi.createAndStartSpontaneous(body);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/timetable/operations/spontaneous/start",
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    expect(result).toEqual({
+      instanceId: "132",
+      activeGroupId: "232",
+      status: "active",
+    });
+  });
+
   it("fetches rosters by instance and active group", async () => {
     const mockFetch = vi.mocked(globalThis.fetch);
     mockFetch
@@ -238,6 +280,7 @@ function rosterPayload(instanceId: number) {
       id: instanceId,
       title: "Lernzeit",
       status: "active",
+      is_spontaneous: false,
       active_group_id: 240,
       room_id: 241,
       room_name: "Raum A",

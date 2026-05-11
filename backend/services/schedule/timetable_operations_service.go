@@ -16,6 +16,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -104,6 +105,7 @@ type OperationRosterInstance struct {
 	ID            int64   `json:"id"`
 	Title         string  `json:"title"`
 	Status        string  `json:"status"`
+	IsSpontaneous bool    `json:"is_spontaneous"`
 	ActiveGroupID *int64  `json:"active_group_id,omitempty"`
 	RoomID        int64   `json:"room_id"`
 	RoomName      *string `json:"room_name,omitempty"`
@@ -300,6 +302,9 @@ func (s *timetableOperationsService) CheckOutStudent(ctx context.Context, accoun
 	staff.ID = staffID
 	visitCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	if err := s.deps.ActiveService.EndVisit(visitCtx, visit.ID); err != nil {
+		if errors.Is(err, activeSvc.ErrVisitAlreadyEnded) {
+			return s.buildRoster(ctx, instanceID)
+		}
 		return nil, err
 	}
 	return s.buildRoster(ctx, instanceID)
@@ -451,6 +456,7 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 			ID:            inst.ID,
 			Title:         inst.Title,
 			Status:        inst.Status,
+			IsSpontaneous: inst.IsSpontaneous,
 			ActiveGroupID: inst.ActiveGroupID,
 			RoomID:        inst.RoomID,
 		},
