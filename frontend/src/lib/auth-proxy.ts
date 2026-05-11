@@ -6,7 +6,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "AuthProxy" });
 
 export interface ForwardOptions {
-  readonly method?: "POST" | "DELETE";
+  readonly method?: "GET" | "POST" | "DELETE";
   readonly hasBody?: boolean;
 }
 

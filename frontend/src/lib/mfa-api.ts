@@ -49,7 +49,7 @@ function mfaUrl(scope: LoginScope, suffix: string): string {
 interface PostJsonOptions {
   readonly bearerToken?: string;
   readonly allowEmptyBody?: boolean;
-  readonly method?: "POST" | "DELETE";
+  readonly method?: "GET" | "POST" | "DELETE";
 }
 
 async function postJson<T>(
@@ -276,6 +276,73 @@ export async function disableMFA(
   bearerToken: string,
 ): Promise<void> {
   const url = enrollUrl(scope, "disable");
+  await postJson<unknown>(url, undefined, {
+    bearerToken,
+    method: "DELETE",
+    allowEmptyBody: true,
+  });
+}
+
+export interface MFAStatus {
+  enrolled: boolean;
+  last_used_at?: string;
+  unused_recovery_codes: number;
+  mode_required: boolean;
+}
+
+export async function getMFAStatus(
+  scope: LoginScope,
+  bearerToken: string,
+): Promise<MFAStatus> {
+  const url = enrollUrl(scope, "status");
+  if (isOperator(scope)) {
+    const envelope = await postJson<OperatorEnvelope<MFAStatus>>(
+      url,
+      undefined,
+      { bearerToken, method: "GET" },
+    );
+    return envelope.data;
+  }
+  return postJson<MFAStatus>(url, undefined, {
+    bearerToken,
+    method: "GET",
+  });
+}
+
+export interface MFATrustedDevice {
+  id: number;
+  user_agent?: string;
+  ip_address?: string;
+  expires_at: string;
+  last_used_at?: string;
+}
+
+export async function listTrustedDevices(
+  scope: LoginScope,
+  bearerToken: string,
+): Promise<MFATrustedDevice[]> {
+  const url = enrollUrl(scope, "trusted-devices");
+  if (isOperator(scope)) {
+    const envelope = await postJson<OperatorEnvelope<MFATrustedDevice[]>>(
+      url,
+      undefined,
+      { bearerToken, method: "GET" },
+    );
+    return envelope.data ?? [];
+  }
+  const result = await postJson<MFATrustedDevice[] | null>(url, undefined, {
+    bearerToken,
+    method: "GET",
+  });
+  return result ?? [];
+}
+
+export async function revokeTrustedDevice(
+  scope: LoginScope,
+  bearerToken: string,
+  id: number,
+): Promise<void> {
+  const url = `${enrollUrl(scope, "trusted-devices")}/${id}`;
   await postJson<unknown>(url, undefined, {
     bearerToken,
     method: "DELETE",

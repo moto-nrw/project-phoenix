@@ -12,11 +12,11 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 |---|---|
 | Branch | `feat/1308-2fa-email` (von `origin/development`) |
 | PR | _tbd_ |
-| Aktueller Stand | **Phase 10 abgeschlossen** — Force-Enrollment-Flow auf Login-Page integriert (Tenant + Operator), `MFAEnrollmentScreen` (3-Step-Wizard) + `RecoveryCodesDisplay` gebaut, 8 neue authenticated MFA-Proxys (enroll/start, enroll/confirm, recovery-codes regen, disable je tenant + operator), Bearer-Token-Forwarding im `auth-proxy`-Helper, alle 9163 Frontend-Tests grün. |
-| Letztes Update | 2026-05-10 |
+| Aktueller Stand | **Phase 11 abgeschlossen** — Sicherheits-Settings-Page unter `/[tenant]/settings/security` + `/operator/settings/security`. Neuer Backend-Endpoint `GET /auth/mfa/status` (+ Operator-Pendant). Sechs Frontend-Bugfixes aus der manuellen Browser-Begutachtung committet. Alle 9169 Frontend-Tests grün. |
+| Letztes Update | 2026-05-11 |
 | Blocker | keine |
 
-**Nächster Schritt:** Phase 11 — Frontend User-Settings unter `/[tenant]/settings/security` (+ Operator-Pendant). 2FA-Status-Card, Aktivieren/Deaktivieren-Button (deaktivieren nur wenn nicht Pflicht), Recovery-Codes-Regenerate-Modal, Trusted-Devices-Liste mit User-Agent + Last-Used + Revoke. Reuse von `MFAEnrollmentScreen` + `RecoveryCodesDisplay` aus Phase 10.
+**Nächster Schritt:** Phase 12 — Admin-Override UI. Section „2FA" im Admin-User-Detail (`/[tenant]/admin/users/{id}`), sichtbar bei `users:manage`. „2FA zurücksetzen"-Modal mit Pflichtfeld Grund → DELETE `/auth/admin/users/{id}/mfa`. „Recovery-Codes neu generieren"-Modal mit Grund → POST. Toast-Feedback via existierendem `ToastContext`. Backend-Endpoints existieren bereits aus Phase 6.
 
 ### Recherche-Findings (Phase 0)
 
@@ -317,15 +317,30 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 
 ---
 
-## Phase 11 — Frontend: User-Settings
+## Phase 11 — Frontend: User-Settings ✅
 
-**Pfad:** `/[tenant]/settings/security`
+**Pfad:** `/[tenant]/settings/security` + `/operator/settings/security`
 
-- [ ] 2FA-Status-Card (aktiv / inaktiv, letzter Login)
-- [ ] Aktivieren/Deaktivieren-Button (deaktivieren nur wenn nicht Pflicht)
-- [ ] Recovery-Codes regenerieren (mit Bestätigungs-Modal)
-- [ ] Trusted-Devices-Liste mit User-Agent + Last-Used + Revoke-Button
-- [ ] Operator-Pendant unter `/operator/settings/security`
+- [x] **Backend**: Neuer `GET /auth/mfa/status` Endpoint (`MFAStatusResponse{Enrolled, LastUsedAt, UnusedRecoveryCodes, ModeRequired}`) + Operator-Pendant. Frontend-Proxys `/api/auth/mfa/status`, `/api/auth/mfa/trusted-devices`, `/api/auth/mfa/trusted-devices/[id]` (DELETE) — je Tenant + Operator
+- [x] **Komponente** `MFASecuritySettings` (geteilt zwischen Tenant + Operator):
+  - [x] Status-Card mit Aktiv/Inaktiv-Badge, „Zuletzt verwendet", „N Wiederherstellungscodes ungenutzt"
+  - [x] „2FA aktivieren"-CTA wenn nicht enrolled → öffnet `MFAEnrollmentScreen` als Modal-Wizard (Reuse Phase 10)
+  - [x] „Neue Wiederherstellungscodes"-Button mit Bestätigungs-Modal → ruft existierendes `/recovery-codes` → zeigt neue Codes in `RecoveryCodesDisplay` (Reuse Phase 10)
+  - [x] „2FA deaktivieren"-Button mit zweistufiger Bestätigung → DELETE `/auth/mfa`. **Disabled mit Hinweistext** wenn `mode_required` true ist (Pflicht durch `mfa_mode = required_all`/`required_admins` oder Operator-Hardcoded)
+  - [x] Trusted-Devices-Liste mit User-Agent + IP + Gültig-bis + Last-Used + Pro-Gerät-„Entfernen"-Button
+- [x] **mfa-api.ts** um `getMFAStatus`, `listTrustedDevices`, `revokeTrustedDevice` erweitert; `forwardJsonPost` unterstützt jetzt `method: "GET"`
+- [x] **Pages** `[tenant]/(protected)/settings/security/page.tsx` + `operator/settings/security/page.tsx` — beide nutzen `useSession().user.token` als bearerToken, leiten auf Login um wenn nicht authentifiziert
+- [x] **Brand-Farben**: Grün `#83CD2D` für Aktivieren, Blau `#5080D8` für Regenerate, Rot `#FF3130` für Deaktivieren
+- [x] **6 Komponenten-Tests** für `MFASecuritySettings` (Inaktiv-Status, Aktiv-Status mit Last-Used, Disable-Disabled bei Pflicht, Disable-Confirm-Modal, Regenerate-Confirm-Modal, leere Trusted-Devices-Liste)
+- [x] `pnpm run check` clean, 9169 Frontend-Tests grün, Backend-Tests grün
+
+**Frontend-Bugfixes aus der manuellen Browser-Begutachtung** (auf demselben Branch committed):
+1. `IsRequired` brauchte expliziten `tenantID`-Parameter, weil Login außerhalb der `TenantTxMiddleware` läuft und `ResolveString` ohne Kontext den Registry-Default zurückgibt → Pflicht-Modus wurde ignoriert. Fix: `IsRequired(ctx, account, tenantID)` nutzt `ResolveStringForTenant`
+2. Migrationen 1.15.49–52 + 1.15.54 hatten keine GRANTs für `phoenix_auth`/`phoenix_tenant` auf die MFA-Tabellen → permission denied auf jeden `/auth/mfa/*`-Call. Fix: Migrationen 1.15.55 + 1.15.56 ergänzen GRANTs (Tenant + Operator)
+3. Trusted-Device-Cookie war hardcoded `Secure: true` → Browser akzeptiert es nicht über HTTP in dev. Fix: `secureCookie()`-Helper liest `app_env` (analog `shouldExposeSeedInvitationToken`)
+4. Operator-`AuthErrorRenderer` mapped `ErrMFARateLimited`/`ErrMFALocked` nicht → 500 statt 429. Fix: explizite `errors.Is`-Mapping + Server-Log auf 500-Pfad
+5. Operator `r.Route("/auth/mfa", ...)` im protected-Block überschattete public `/auth/mfa/verify` (Chi-Subtree-Mount). Fix: Routen einzeln als Leaves registrieren
+6. Tenant + Operator-Tests an 2-Step-Discriminator angepasst (Phase 9-Follow-up nach erstem Browser-Lauf)
 
 ---
 
