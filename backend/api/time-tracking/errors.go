@@ -38,6 +38,8 @@ func classifyServiceError(err error) render.Renderer {
 		return common.ErrorForbidden(err)
 
 	case strings.HasPrefix(msg, "status must be"),
+		strings.HasPrefix(msg, "source must be"),
+		msg == "notes required when changing status",
 		msg == "break minutes cannot be negative",
 		msg == "break duration cannot be negative",
 		strings.HasPrefix(msg, "planned_duration_minutes must be"),

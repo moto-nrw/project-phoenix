@@ -803,6 +803,35 @@ func TestUpdateSession_Forbidden(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+// TestUpdateSession_NotesRequiredOnStatusChange locks in the HTTP-boundary
+// contract for the service error introduced in Issue #1368: a status flip
+// without a reason in `notes` is a client validation failure and must
+// surface as HTTP 400, not 500. Without a matching case in
+// classifyServiceError the error would fall through to ErrorInternalServer
+// and leak the raw message — this test guards the classifier wiring.
+func TestUpdateSession_NotesRequiredOnStatusChange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		updateSessionFn: func(_ context.Context, _ int64, _ int64, _ activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
+			return nil, errors.New("notes required when changing status")
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"home_office"}`)
+	r := httptest.NewRequest(http.MethodPut, "/42", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	r = withChiParam(r, "id", "42")
+	w := httptest.NewRecorder()
+
+	rs.updateSession(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code,
+		"missing reason on status change must classify as 400, not 500")
+}
+
 // --- startBreak handler ---
 
 func TestStartBreak_Success(t *testing.T) {
