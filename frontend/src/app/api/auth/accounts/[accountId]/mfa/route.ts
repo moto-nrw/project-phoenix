@@ -3,12 +3,12 @@ import { forwardJsonPost } from "~/lib/auth-proxy";
 
 export async function DELETE(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ accountId: string }> },
 ) {
-  const { id } = await context.params;
+  const { accountId } = await context.params;
   return forwardJsonPost(
     request,
-    `/auth/accounts/${encodeURIComponent(id)}/mfa`,
+    `/auth/accounts/${encodeURIComponent(accountId)}/mfa`,
     { method: "DELETE", hasBody: true },
   );
 }

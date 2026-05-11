@@ -3,11 +3,11 @@ import { forwardJsonPost } from "~/lib/auth-proxy";
 
 export async function POST(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> },
+  context: { params: Promise<{ accountId: string }> },
 ) {
-  const { id } = await context.params;
+  const { accountId } = await context.params;
   return forwardJsonPost(
     request,
-    `/auth/accounts/${encodeURIComponent(id)}/mfa/recovery-codes`,
+    `/auth/accounts/${encodeURIComponent(accountId)}/mfa/recovery-codes`,
   );
 }
