@@ -644,6 +644,37 @@ func TestWSCheckIn_InvalidStatus(t *testing.T) {
 	assert.Contains(t, err.Error(), "status must be")
 }
 
+// TestWSCheckIn_InvalidSource guards the second validation step in CheckIn:
+// a bogus channel must be rejected at the service boundary before any DB
+// write, so the only values that ever reach active.work_sessions.source are
+// 'app' or 'nfc' (matching the CHECK constraint in migration 1.15.49).
+// The error string is also part of the HTTP-boundary contract — the
+// classifier in api/time-tracking/errors.go keys on the "source must be"
+// prefix to produce 400 instead of 500.
+func TestWSCheckIn_InvalidSource(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+
+	session, err := svc.CheckIn(context.Background(), 100,
+		activeModels.WorkSessionStatusPresent, "bogus")
+	require.Error(t, err)
+	assert.Nil(t, session)
+	assert.Contains(t, err.Error(), "source must be",
+		"classifyServiceError matches this prefix to map the error to HTTP 400")
+}
+
+// TestReopenStatusConflictError_Error covers the typed error's stringification.
+// Production callers use errors.As to branch on the type, which does not
+// invoke Error(), but the message still appears in slog warnings/info logs
+// when the error bubbles up — locking the string keeps log greps stable.
+func TestReopenStatusConflictError_Error(t *testing.T) {
+	err := &ReopenStatusConflictError{
+		SessionID:       7,
+		ExistingStatus:  activeModels.WorkSessionStatusPresent,
+		RequestedStatus: activeModels.WorkSessionStatusHomeOffice,
+	}
+	assert.Equal(t, "reopen status conflict", err.Error())
+}
+
 // TestWSReopenThenUpdateSession_EmitsFieldStatusEdit exercises the realistic
 // frontend sequence end-to-end: a checked-out 'present' session is reopened
 // at the existing status (no conflict), then the requested status flip is

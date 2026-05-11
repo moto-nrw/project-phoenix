@@ -273,3 +273,79 @@ func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
 	assert.Contains(t, err.Error(), "chk_work_sessions_source",
 		"error must name the constraint so the cause is obvious in logs")
 }
+
+// TestWorkSessionsSourceDown_DropsColumnAndConstraint exercises the rollback
+// path directly. Other tests in this file only invoke workSessionsSourceDown
+// indirectly via the dropWorkSessionsSourceColumn cleanup, so a regression
+// in Down (e.g. typo in the DROP COLUMN statement, missing IF EXISTS, wrong
+// constraint name) would otherwise go undetected until a real rollback was
+// attempted in production.
+//
+// We deliberately do not call dropWorkSessionsSourceColumn here — that helper
+// drops the column via raw SQL bypassing Down, which is exactly the code we
+// want to test. Instead we run Down on the schema as it stands after
+// SetupTestDB (column + constraint present), assert both are gone, then
+// re-run Up so sibling tests see the expected schema. A t.Cleanup also
+// re-runs Up as a belt-and-braces net in case the test fails mid-flight.
+func TestWorkSessionsSourceDown_DropsColumnAndConstraint(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	// Defers run LIFO: restore the column FIRST, then close the connection.
+	// Using t.Cleanup here is wrong because Cleanup runs AFTER the test
+	// function's deferred db.Close, which would leave the restore call
+	// hitting a dead pool and the shared Postgres schema in a column-less
+	// state for every sibling test that follows.
+	defer func() { _ = db.Close() }()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := workSessionsSourceUp(ctx, db); err != nil {
+			t.Logf("restoring active.work_sessions.source after TestDown: %v", err)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Self-heal the schema before testing. A previous test crashing between
+	// Down and Up — or a previous run of this very test failing to restore —
+	// would leave the column missing, and workSessionsSourceUp's ADD
+	// CONSTRAINT step is not idempotent (no IF NOT EXISTS). Run Down first
+	// (best-effort, uses IF EXISTS) then Up so we always start the assertion
+	// chain from a known fully-migrated state.
+	if err := workSessionsSourceDown(ctx, db); err != nil {
+		t.Logf("pre-test Down (best-effort): %v", err)
+	}
+	require.NoError(t, workSessionsSourceUp(ctx, db),
+		"pre-test Up must succeed to establish the known starting state")
+
+	var preColCount int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = 'active' AND table_name = 'work_sessions' AND column_name = 'source';
+	`).Scan(ctx, &preColCount))
+	require.Equal(t, 1, preColCount, "pre-condition: source column must exist before Down")
+
+	require.NoError(t, workSessionsSourceDown(ctx, db),
+		"Down on a fully-migrated schema must succeed")
+
+	var postColCount int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = 'active' AND table_name = 'work_sessions' AND column_name = 'source';
+	`).Scan(ctx, &postColCount))
+	assert.Equal(t, 0, postColCount, "Down must drop the source column")
+
+	var postConstraintCount int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*) FROM information_schema.table_constraints
+		WHERE table_schema = 'active' AND table_name = 'work_sessions'
+		  AND constraint_name = 'chk_work_sessions_source';
+	`).Scan(ctx, &postConstraintCount))
+	assert.Equal(t, 0, postConstraintCount, "Down must drop the CHECK constraint")
+
+	// Idempotency: Down on a schema that already lacks the column must not
+	// error — the DROP statements use IF EXISTS specifically to support
+	// re-running the rollback after a partial up.
+	require.NoError(t, workSessionsSourceDown(ctx, db),
+		"Down must be idempotent (second call on missing column must succeed)")
+}
