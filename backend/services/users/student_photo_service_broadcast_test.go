@@ -16,8 +16,10 @@ import (
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -223,4 +225,87 @@ func TestRegisterStudentPhotoSettingsSideEffects_OtherKeysIgnored(t *testing.T) 
 	assert.Nil(t, post, "unrelated keys must return a nil post-commit callback")
 	assert.Equal(t, int32(0), atomic.LoadInt32(&svc.calls),
 		"only the photos key may invoke the photo handler")
+}
+
+// --- no-tenant-ctx early returns (close 3 service entry points) ---
+
+func TestCommitUpload_NoTenantContext(t *testing.T) {
+	svc := &studentPhotoService{}
+	err := svc.CommitUpload(context.Background(), CommitUploadRequest{StudentID: 1})
+	assert.ErrorIs(t, err, ErrPhotoNoTenant)
+}
+
+func TestCommitDelete_NoTenantContext(t *testing.T) {
+	svc := &studentPhotoService{}
+	_, err := svc.CommitDelete(context.Background(), 1)
+	assert.ErrorIs(t, err, ErrPhotoNoTenant)
+}
+
+func TestLookupForRead_NoTenantContext(t *testing.T) {
+	svc := &studentPhotoService{}
+	_, err := svc.LookupForRead(context.Background(), 1, "x.jpg")
+	assert.ErrorIs(t, err, ErrPhotoNoTenant)
+}
+
+// --- PurgeAllPhotos + HandleFeatureToggle(false) via stub repo ---
+
+// stubRepo embeds the interface so we only implement what we call.
+type stubRepo struct {
+	userModels.StudentRepository
+	urls []string
+	err  error
+}
+
+func (s *stubRepo) PurgeAllPhotos(_ context.Context) ([]string, error) {
+	return s.urls, s.err
+}
+
+func TestPurgeAllPhotos_RepoErrorPropagates(t *testing.T) {
+	svc := &studentPhotoService{repo: &stubRepo{err: errors.New("boom")}}
+	post, err := svc.PurgeAllPhotos(context.Background(), 7)
+	assert.Nil(t, post)
+	require.Error(t, err)
+}
+
+func TestPurgeAllPhotos_UnlinksAndBroadcasts(t *testing.T) {
+	u := &recordingUnlinker{}
+	b := &recordingBroadcaster{}
+	svc := &studentPhotoService{
+		repo:        &stubRepo{urls: []string{"/uploads/student-photos/a.jpg", "/uploads/student-photos/b.jpg"}},
+		unlinker:    u,
+		broadcaster: b,
+		logger:      slog.Default(),
+	}
+	post, err := svc.PurgeAllPhotos(context.Background(), 7)
+	require.NoError(t, err)
+	require.NotNil(t, post)
+	post()
+	assert.Equal(t, []string{"/uploads/student-photos/a.jpg", "/uploads/student-photos/b.jpg"}, u.urls)
+	require.Len(t, b.calls, 1)
+	assert.Equal(t, realtime.EventStudentUpdated, b.calls[0].Type)
+}
+
+func TestHandleFeatureToggle_FalsePurgesAndBroadcasts(t *testing.T) {
+	u := &recordingUnlinker{}
+	b := &recordingBroadcaster{}
+	svc := &studentPhotoService{
+		repo:        &stubRepo{urls: []string{"/uploads/student-photos/x.jpg"}},
+		unlinker:    u,
+		broadcaster: b,
+		logger:      slog.Default(),
+	}
+	post, err := svc.HandleFeatureToggle(context.Background(), 9, false)
+	require.NoError(t, err)
+	require.NotNil(t, post)
+	post()
+	assert.Equal(t, []string{"/uploads/student-photos/x.jpg"}, u.urls)
+	require.Len(t, b.calls, 2, "purge broadcast + tenant_settings_changed")
+}
+
+func TestLookupForRead_EmptyFilename(t *testing.T) {
+	svc := &studentPhotoService{}
+	// Tenant must be present to reach the filename check.
+	ctx := tenant.WithTenantID(context.Background(), 5)
+	_, err := svc.LookupForRead(ctx, 1, "")
+	assert.ErrorIs(t, err, ErrPhotoFilenameMismatch)
 }
