@@ -17,27 +17,16 @@ const (
 	WorkSessionStatusHomeOffice = "home_office"
 )
 
-// WorkSessionSource records which channel produced the row. Used by the
-// export to label "Vor Ort (NFC)" vs "Vor Ort (App)" vs "Homeoffice (App)"
-// without inferring from status alone (Issue #1368).
-//
-// Validation lives in two layers on purpose:
-//   - WorkSessionService.CheckIn rejects unknown values at the service
-//     boundary, so bad input never reaches the DB.
-//   - The Postgres CHECK constraint chk_work_sessions_source is the safety
-//     net for any code path that would bypass the service.
-//
-// Validate() on this entity intentionally does not re-check Source. Both
-// write paths in the service (CheckIn, reopenSession) set Source before
-// calling Validate(), and migration 1.15.49 guarantees every row has a
-// non-empty Source on disk — so the field is structurally always present.
-// We still skip Validate() for it because partial-update flows (break
-// management, notes patches) round-trip the loaded row, and a stricter
-// invariant here would risk rejecting otherwise-valid mutations if the
-// allowed value set ever expands.
+// WorkSessionSource records which channel produced the row (Issue #1368).
+// New writes are restricted to App/NFC by WorkSessionService.CheckIn;
+// 'unknown' exists only for rows that pre-date migration 1.15.49 and is
+// rejected as a write value but accepted as a read value so legacy rows
+// survive partial-update flows (break edits, notes patches). The DB CHECK
+// constraint chk_work_sessions_source enforces the same set on disk.
 const (
-	WorkSessionSourceApp = "app" // POST /api/time-tracking/check-in (App / Web)
-	WorkSessionSourceNFC = "nfc" // Auto-stamp from a kiosk-driven scan
+	WorkSessionSourceApp     = "app"     // POST /api/time-tracking/check-in (App / Web)
+	WorkSessionSourceNFC     = "nfc"     // Auto-stamp from a kiosk-driven scan
+	WorkSessionSourceUnknown = "unknown" // Pre-migration legacy rows; never written by new code
 )
 
 type WorkSession struct {
@@ -88,9 +77,9 @@ func (ws *WorkSession) Validate() error {
 	if ws.Status != WorkSessionStatusPresent && ws.Status != WorkSessionStatusHomeOffice {
 		return errors.New("status must be 'present' or 'home_office'")
 	}
-	// Source is intentionally not validated here — see the const block above
-	// for the rationale (skipping keeps partial-update flows resilient if
-	// the allowed value set ever expands).
+	// Source is intentionally not re-validated here — write paths gate it at
+	// the service boundary, and legacy 'unknown' rows must round-trip cleanly
+	// through partial-update flows (break edits, notes patches).
 	if ws.CheckOutTime != nil && ws.CheckInTime.After(*ws.CheckOutTime) {
 		return errors.New("check-in time must be before check-out time")
 	}

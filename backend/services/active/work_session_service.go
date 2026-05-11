@@ -1011,14 +1011,19 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 }
 
 // quelleLabel renders the export "Quelle" cell from the persisted source.
-// NFC is the only non-default channel; anything else (including the zero
-// value on legacy rows the migration heuristic missed) renders as App,
-// matching the DB column default.
+// 'unknown' marks rows that pre-date migration 1.15.49 — no channel was ever
+// recorded, so we render "—" rather than guess. Anything else falls through
+// to App, matching the DB column default for in-flight rows that may exist
+// briefly between migration and new-server boot.
 func quelleLabel(source string) string {
-	if source == activeModels.WorkSessionSourceNFC {
+	switch source {
+	case activeModels.WorkSessionSourceNFC:
 		return "NFC"
+	case activeModels.WorkSessionSourceUnknown:
+		return "—"
+	default:
+		return "App"
 	}
-	return "App"
 }
 
 // AutoEndExpiredBreaks ends all breaks whose planned_end_time has passed

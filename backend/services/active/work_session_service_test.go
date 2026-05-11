@@ -662,6 +662,23 @@ func TestWSCheckIn_InvalidSource(t *testing.T) {
 		"classifyServiceError matches this prefix to map the error to HTTP 400")
 }
 
+// TestWSCheckIn_RejectsUnknownSource locks in the write/read asymmetry on
+// the 'unknown' sentinel: legacy rows on disk may carry it (migration 1.15.49
+// backfills NULL → 'unknown'), but the service must never produce a new row
+// with source='unknown'. Without this gate, a careless caller could erase
+// the audit signal "this stamp's channel was actually never recorded" by
+// re-writing a fresh row with the same sentinel.
+func TestWSCheckIn_RejectsUnknownSource(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+
+	session, err := svc.CheckIn(context.Background(), 100,
+		activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceUnknown)
+	require.Error(t, err)
+	assert.Nil(t, session)
+	assert.Contains(t, err.Error(), "source must be",
+		"'unknown' is a read-only sentinel for legacy rows and must not be writable")
+}
+
 // TestReopenStatusConflictError_Error covers the typed error's stringification.
 // Production callers use errors.As to branch on the type, which does not
 // invoke Error(), but the message still appears in slog warnings/info logs
@@ -692,7 +709,7 @@ func TestWSReopenThenUpdateSession_EmitsFieldStatusEdit(t *testing.T) {
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	ctx := context.Background()
 	staffID := int64(100)
-	sessionID := int64(7)
+	sessionID := int64(701)
 	checkOut := time.Now().Add(-1 * time.Hour)
 
 	current := &activeModels.WorkSession{

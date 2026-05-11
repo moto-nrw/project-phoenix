@@ -385,6 +385,32 @@ func TestWSSessionToRow_NFC(t *testing.T) {
 	assert.Equal(t, "NFC", row[7])
 }
 
+// TestWSSessionToRow_LegacyUnknownSource verifies that pre-migration rows
+// (source = 'unknown') render Quelle as "—" rather than guessing App or NFC.
+// Issue #1368: the audit trail must distinguish "we know it was App" from
+// "we never recorded the channel".
+func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	sr := &SessionResponse{
+		WorkSession: &activeModels.WorkSession{
+			Model:       base.Model{ID: 1},
+			Date:        date,
+			CheckInTime: checkIn,
+			Status:      activeModels.WorkSessionStatusPresent,
+			Source:      activeModels.WorkSessionSourceUnknown,
+		},
+		NetMinutes: 0,
+	}
+
+	row := svc.sessionToRow(sr)
+	assert.Equal(t, "Vor Ort", row[6])
+	assert.Equal(t, "—", row[7], "legacy 'unknown' source must render as em-dash, not guessed App/NFC")
+}
+
 func TestWSSessionToRow_NoCheckOut(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
