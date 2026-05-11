@@ -63,7 +63,7 @@ jobs:
           PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
         run: go run main.go migrate
 
-      - name: Run Go tests with coverage
+      - name: Run Go tests
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
@@ -73,10 +73,30 @@ jobs:
             --junitfile junit.xml \
             --rerun-fails \
             --rerun-fails-max-failures=5 \
-            --packages="./..." \
-            -- \
-            -coverprofile=coverage.out \
-            -covermode=atomic
+            --packages="./..."
+
+      - name: Generate Go coverage
+        working-directory: backend
+        env:
+          TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+
+          echo "mode: atomic" > coverage.out
+          go list ./... > "$tmpdir/packages.txt"
+
+          while IFS= read -r pkg; do
+            profile="$tmpdir/$(echo "$pkg" | tr '/.' '__').out"
+            if ! go test "$pkg" -coverprofile="$profile" -covermode=atomic; then
+              echo "Coverage run failed for $pkg; retrying once"
+              go test "$pkg" -coverprofile="$profile" -covermode=atomic
+            fi
+            if [ -f "$profile" ]; then
+              tail -n +2 "$profile" >> coverage.out
+            fi
+          done < "$tmpdir/packages.txt"
 
       - name: Drop flaky retries from junit.xml
         working-directory: backend

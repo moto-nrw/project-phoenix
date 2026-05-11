@@ -232,6 +232,48 @@ func TestInstance_Start_HappyPath(t *testing.T) {
 	})
 }
 
+func TestInstance_Start_BroadcastsActiveSupervisionChanged(t *testing.T) {
+	s := buildLifecycle(t)
+	broadcaster := &recordingInstanceBroadcaster{}
+	svc := instanceServiceWithBroadcaster(s, broadcaster)
+
+	ai := seedInstance(t, s, true, true)
+
+	result, err := svc.Start(s.ctx, ai.ID, s.staffID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Instance.ActiveGroupID)
+
+	var instanceStarted, activeSupervisionChanged *realtime.Event
+	for i := range broadcaster.tenantEvents {
+		event := &broadcaster.tenantEvents[i]
+		switch event.Type {
+		case realtime.EventInstanceStarted:
+			instanceStarted = event
+		case realtime.EventActiveSupervisionChanged:
+			activeSupervisionChanged = event
+		}
+	}
+
+	require.NotNil(t, instanceStarted, "expected instance_started tenant broadcast")
+	require.NotNil(t, activeSupervisionChanged, "expected active_supervision_changed tenant broadcast")
+	assert.Equal(t, instanceStarted.ActiveGroupID, activeSupervisionChanged.ActiveGroupID)
+	require.NotNil(t, activeSupervisionChanged.Data.InstanceID)
+	assert.Equal(t, fmt.Sprintf("%d", ai.ID), *activeSupervisionChanged.Data.InstanceID)
+	require.NotNil(t, activeSupervisionChanged.Data.Reason)
+	assert.Equal(t, "instance_started", *activeSupervisionChanged.Data.Reason)
+
+	t.Cleanup(func() {
+		sups, err := s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
+		if err == nil {
+			for _, sup := range sups {
+				testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID)
+			}
+		}
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
+	})
+}
+
 func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 	s := buildLifecycle(t)
 	broadcaster := &recordingInstanceBroadcaster{}
@@ -241,15 +283,23 @@ func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 	result, err := svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 	t.Cleanup(func() {
+		sups, err := s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
+		if err == nil {
+			for _, sup := range sups {
+				testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID)
+			}
+		}
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
 	})
 
 	require.Len(t, broadcaster.groupEvents, 1)
-	require.Len(t, broadcaster.tenantEvents, 1)
+	require.Len(t, broadcaster.tenantEvents, 2)
 	assert.Equal(t, tenant.FromContext(s.ctx), broadcaster.tenantID)
 	assert.Equal(t, realtime.EventInstanceStarted, broadcaster.groupEvents[0].Type)
 	assert.Equal(t, realtime.EventInstanceStarted, broadcaster.tenantEvents[0].Type)
+	assert.Equal(t, realtime.EventActiveSupervisionChanged, broadcaster.tenantEvents[1].Type)
 	assert.Equal(t, broadcaster.groupEvents[0].ActiveGroupID, broadcaster.tenantEvents[0].ActiveGroupID)
+	assert.Equal(t, broadcaster.groupEvents[0].ActiveGroupID, broadcaster.tenantEvents[1].ActiveGroupID)
 }
 
 func TestInstance_Complete_HappyPath(t *testing.T) {

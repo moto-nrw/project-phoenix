@@ -107,9 +107,9 @@ function getMondayOfWeek(ref: Date, weekOffset = 0): Date {
 }
 
 /**
- * Returns Monday and Friday (00:00 local) for the requested week. The
- * backend /instances endpoint accepts an inclusive range, so Friday is the
- * "to" boundary — Saturday and Sunday are not OGS days.
+ * Returns Monday and Sunday (00:00 local) for the requested week. The
+ * backend /instances endpoint accepts an inclusive range, so Sunday is the
+ * "to" boundary for the full calendar week.
  */
 export function getWeekRange(
   ref: Date,
@@ -117,7 +117,7 @@ export function getWeekRange(
 ): { from: Date; to: Date } {
   const from = getMondayOfWeek(ref, weekOffset);
   const to = new Date(from);
-  to.setDate(to.getDate() + 4); // Mo + 4 = Fr
+  to.setDate(to.getDate() + 6); // Mo + 6 = So
   return { from, to };
 }
 
@@ -206,7 +206,7 @@ export function getGermanWeekdayShort(d: Date): string {
 }
 
 /**
- * "KW 38 • Mo 22.09 – Fr 26.09.2026" — the week-navigator header.
+ * "KW 38 • Mo 22.09 – So 28.09.2026" — the week-navigator header.
  */
 export function formatWeekLabel(from: Date, to: Date): string {
   const kw = getISOWeekNumber(from);
@@ -215,7 +215,7 @@ export function formatWeekLabel(from: Date, to: Date): string {
   const toDay = String(to.getDate()).padStart(2, "0");
   const toMonth = String(to.getMonth() + 1).padStart(2, "0");
   const year = to.getFullYear();
-  return `KW ${kw} • Mo ${fromDay}.${fromMonth} – Fr ${toDay}.${toMonth}.${year}`;
+  return `KW ${kw} • Mo ${fromDay}.${fromMonth} – So ${toDay}.${toMonth}.${year}`;
 }
 
 /**
@@ -229,12 +229,12 @@ export function formatDayHeader(d: Date): string {
 }
 
 /**
- * Five Monday→Friday Date objects for the week containing `from`. Used to
+ * Seven Monday→Sunday Date objects for the week containing `from`. Used to
  * label the grid columns even on weeks with no instances.
  */
 export function getWeekdays(from: Date): Date[] {
   const days: Date[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 7; i++) {
     const d = new Date(from);
     d.setDate(d.getDate() + i);
     days.push(d);

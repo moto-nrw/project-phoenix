@@ -169,13 +169,19 @@ func TestOverdueTick_BroadcastsOncePerInstance(t *testing.T) {
 
 	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
 
-	assert.Equal(t, 1, spyFilter(s.spy, ai.ID), "one broadcast for the seeded instance expected")
+	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtime.EventInstanceOverdue), "one overdue broadcast for the seeded instance expected")
+	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtime.EventActiveSupervisionChanged), "one active supervision refresh broadcast expected")
 
-	evt := spyFindByInstance(s.spy, ai.ID)
+	evt := spyFindByInstance(s.spy, ai.ID, realtime.EventInstanceOverdue)
 	require.NotNil(t, evt, "expected broadcast for instance id %d", ai.ID)
 	assert.Equal(t, realtime.EventInstanceOverdue, evt.Type)
 	require.NotNil(t, evt.Data.InstanceID)
 	assert.Equal(t, fmt.Sprintf("%d", ai.ID), *evt.Data.InstanceID)
+
+	refresh := spyFindByInstance(s.spy, ai.ID, realtime.EventActiveSupervisionChanged)
+	require.NotNil(t, refresh, "expected active supervision refresh for instance id %d", ai.ID)
+	require.NotNil(t, refresh.Data.Reason)
+	assert.Equal(t, "instance_overdue", *refresh.Data.Reason)
 }
 
 func TestOverdueTick_ReFireGuard(t *testing.T) {
@@ -186,7 +192,8 @@ func TestOverdueTick_ReFireGuard(t *testing.T) {
 	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
 	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
 
-	assert.Equal(t, 1, spyFilter(s.spy, ai.ID), "second tick on same instance must be suppressed")
+	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtime.EventInstanceOverdue), "second tick on same instance must suppress overdue event")
+	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtime.EventActiveSupervisionChanged), "second tick on same instance must suppress active supervision refresh")
 }
 
 func TestOverdueTick_ActiveInstancesNotBroadcast(t *testing.T) {
@@ -197,20 +204,21 @@ func TestOverdueTick_ActiveInstancesNotBroadcast(t *testing.T) {
 
 	s.sched.runOverdueForTenant(s.ctx, 1, 5, s.now)
 
-	assert.Equal(t, 0, spyFilter(s.spy, ai.ID), "active instances must not trigger overdue broadcast")
+	assert.Equal(t, 0, spyFilter(s.spy, ai.ID, realtime.EventInstanceOverdue), "active instances must not trigger overdue broadcast")
+	assert.Equal(t, 0, spyFilter(s.spy, ai.ID, realtime.EventActiveSupervisionChanged), "active instances must not trigger active supervision refresh")
 }
 
 // spyFilter counts broadcasts whose InstanceID matches the given id. Needed
 // because the test DB is shared across runs and may contain unrelated
 // today-dated rows from other tests; we care only about our fixture's
 // fire count, not the grand total.
-func spyFilter(b *spyBroadcaster, instanceID int64) int {
+func spyFilter(b *spyBroadcaster, instanceID int64, eventType realtime.EventType) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	n := 0
 	needle := fmt.Sprintf("%d", instanceID)
 	for _, e := range b.all {
-		if e.Data.InstanceID != nil && *e.Data.InstanceID == needle {
+		if e.Type == eventType && e.Data.InstanceID != nil && *e.Data.InstanceID == needle {
 			n++
 		}
 	}
@@ -219,12 +227,12 @@ func spyFilter(b *spyBroadcaster, instanceID int64) int {
 
 // spyFindByInstance returns the first recorded event matching instanceID,
 // or nil if none. Companion to spyFilter for envelope-shape assertions.
-func spyFindByInstance(b *spyBroadcaster, instanceID int64) *realtime.Event {
+func spyFindByInstance(b *spyBroadcaster, instanceID int64, eventType realtime.EventType) *realtime.Event {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	needle := fmt.Sprintf("%d", instanceID)
 	for i := range b.all {
-		if b.all[i].Data.InstanceID != nil && *b.all[i].Data.InstanceID == needle {
+		if b.all[i].Type == eventType && b.all[i].Data.InstanceID != nil && *b.all[i].Data.InstanceID == needle {
 			return &b.all[i]
 		}
 	}
