@@ -53,6 +53,9 @@ func (m *configMockSettings) ResolveBool(_ context.Context, key string) (bool, e
 	}
 	return false, fmt.Errorf("not found: %s", key)
 }
+func (m *configMockSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
+	return m.ResolveBool(context.Background(), key)
+}
 func (m *configMockSettings) ResolveInt(_ context.Context, _ string) (int, error) {
 	return 0, nil
 }

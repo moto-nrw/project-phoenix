@@ -5,18 +5,15 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/spf13/viper"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -205,68 +202,6 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ----- /mfa/status -----
-
-// MFAStatusResponse is the read-only view returned by GET /auth/mfa/status,
-// consumed by the Sicherheit settings page to decide whether to render the
-// "MFA aktiv" status card or the activation CTA. Aggregates enrollment +
-// recovery-code state in one round trip so the page can render in a single
-// fetch.
-type MFAStatusResponse struct {
-	Enrolled            bool       `json:"enrolled"`
-	LastUsedAt          *time.Time `json:"last_used_at,omitempty"`
-	UnusedRecoveryCodes int        `json:"unused_recovery_codes"`
-	ModeRequired        bool       `json:"mode_required"`
-}
-
-// mfaStatus reports the authenticated account's MFA enrollment + the tenant's
-// MFA mode. ModeRequired flips to true when the tenant has mfa_mode set to
-// required_all, or required_admins and the account holds the admin role —
-// the UI uses that to disable the "MFA deaktivieren" button.
-func (rs *Resource) mfaStatus(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
-		return
-	}
-	accountID := int64(claims.ID)
-
-	cred, err := rs.MFAService.GetCredential(r.Context(), accountID)
-	if err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-
-	resp := MFAStatusResponse{Enrolled: cred != nil && cred.ID > 0}
-	if cred != nil && cred.LastUsedAt != nil {
-		resp.LastUsedAt = cred.LastUsedAt
-	}
-	if resp.Enrolled {
-		count, cErr := rs.MFAService.CountUnusedRecoveryCodes(r.Context(), accountID)
-		if cErr == nil {
-			resp.UnusedRecoveryCodes = count
-		}
-	}
-
-	// IsRequired needs role context; build a minimal account view from the
-	// JWT claims so we don't hit the DB twice. The claims carry the role
-	// list directly when present.
-	account := &auth.Account{}
-	account.ID = accountID
-	for _, name := range claims.Roles {
-		account.Roles = append(account.Roles, &auth.Role{Name: name})
-	}
-	required, irErr := rs.MFAService.IsRequired(r.Context(), account, claims.TenantID)
-	if irErr == nil {
-		resp.ModeRequired = required
-	}
-
-	render.JSON(w, r, resp)
-}
-
 // ----- /mfa/enroll/start -----
 
 // mfaEnrollStart triggers an email with a code that the user must echo back
@@ -349,130 +284,6 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.JSON(w, r, MFAEnrollConfirmResponse{RecoveryCodes: codes})
-}
-
-// ----- /mfa/recovery-codes (regenerate) -----
-
-// MFARecoveryCodesResponse mirrors MFAEnrollConfirmResponse for the
-// regenerate endpoint.
-type MFARecoveryCodesResponse struct {
-	RecoveryCodes []string `json:"recovery_codes"`
-}
-
-// mfaRegenerateRecoveryCodes wipes the user's existing recovery-code pool
-// and returns a fresh batch. Self-service, no permission gate beyond the
-// access-token middleware.
-func (rs *Resource) mfaRegenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
-		return
-	}
-	codes, err := rs.MFAService.GenerateRecoveryCodes(r.Context(), int64(claims.ID))
-	if err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-	render.JSON(w, r, MFARecoveryCodesResponse{RecoveryCodes: codes})
-}
-
-// ----- DELETE /mfa -----
-
-// mfaDisable lets the authenticated user opt out of MFA. The service handles
-// the cascade (credential, recovery codes, trusted devices revoked).
-func (rs *Resource) mfaDisable(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
-		return
-	}
-	if err := rs.MFAService.Disable(r.Context(), int64(claims.ID)); err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-	// Clear the trusted-device cookie on the responder's behalf.
-	http.SetCookie(w, &http.Cookie{
-		Name:     trustedDeviceCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		Secure:   secureCookie(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// ----- /mfa/trusted-devices -----
-
-// MFATrustedDeviceResponse is the listing shape returned by GET
-// /auth/mfa/trusted-devices.
-type MFATrustedDeviceResponse struct {
-	ID         int64      `json:"id"`
-	UserAgent  string     `json:"user_agent,omitempty"`
-	IPAddress  string     `json:"ip_address,omitempty"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-}
-
-func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
-		return
-	}
-	devices, err := rs.MFAService.ListTrustedDevices(r.Context(), int64(claims.ID))
-	if err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-	out := make([]MFATrustedDeviceResponse, 0, len(devices))
-	for _, d := range devices {
-		entry := MFATrustedDeviceResponse{
-			ID:         d.ID,
-			ExpiresAt:  d.ExpiresAt,
-			LastUsedAt: d.LastUsedAt,
-		}
-		if d.UserAgent != nil {
-			entry.UserAgent = *d.UserAgent
-		}
-		if d.IPAddress != nil {
-			entry.IPAddress = d.IPAddress.String()
-		}
-		out = append(out, entry)
-	}
-	render.JSON(w, r, out)
-}
-
-func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
-		return
-	}
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid trusted-device id")))
-		return
-	}
-	if err := rs.MFAService.RevokeTrustedDevice(r.Context(), int64(claims.ID), id); err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // ----- shared helpers -----

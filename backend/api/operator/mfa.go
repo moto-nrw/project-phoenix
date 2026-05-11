@@ -5,11 +5,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/spf13/viper"
@@ -210,53 +208,6 @@ func (rs *MFAResource) Resend(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
-// ----- /auth/mfa/status -----
-
-// MFAStatusResponse is the read-only view returned by GET
-// /operator/auth/mfa/status. Operators face hardcoded mandatory MFA, so
-// ModeRequired is always true here — kept on the response for shape
-// parity with the tenant endpoint so the frontend client doesn't branch.
-type MFAStatusResponse struct {
-	Enrolled            bool       `json:"enrolled"`
-	LastUsedAt          *time.Time `json:"last_used_at,omitempty"`
-	UnusedRecoveryCodes int        `json:"unused_recovery_codes"`
-	ModeRequired        bool       `json:"mode_required"`
-}
-
-// Status reports the authenticated operator's MFA enrollment + recovery
-// code count.
-func (rs *MFAResource) Status(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, ErrUnauthorized())
-		return
-	}
-	operatorID := int64(claims.ID)
-
-	cred, err := rs.mfaService.GetCredential(r.Context(), operatorID)
-	if err != nil {
-		mapOperatorMFAError(w, r, err)
-		return
-	}
-
-	resp := MFAStatusResponse{
-		Enrolled:     cred != nil && cred.ID > 0,
-		ModeRequired: true,
-	}
-	if cred != nil && cred.LastUsedAt != nil {
-		resp.LastUsedAt = cred.LastUsedAt
-	}
-	if resp.Enrolled {
-		if count, cErr := rs.mfaService.CountUnusedRecoveryCodes(r.Context(), operatorID); cErr == nil {
-			resp.UnusedRecoveryCodes = count
-		}
-	}
-	common.Respond(w, r, http.StatusOK, &resp, "")
-}
-
 // ----- /auth/mfa/enroll/start -----
 
 // EnrollStart triggers an email with a code that the operator must echo back
@@ -338,133 +289,6 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, &MFAEnrollConfirmResponse{RecoveryCodes: codes}, "MFA enrolled")
-}
-
-// ----- /auth/mfa/recovery-codes (regenerate) -----
-
-// MFARecoveryCodesResponse mirrors MFAEnrollConfirmResponse for the
-// regenerate endpoint.
-type MFARecoveryCodesResponse struct {
-	RecoveryCodes []string `json:"recovery_codes"`
-}
-
-// RegenerateRecoveryCodes wipes the operator's existing recovery-code pool
-// and returns a fresh batch. Self-service, no permission gate beyond the
-// access-token middleware.
-func (rs *MFAResource) RegenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, ErrUnauthorized())
-		return
-	}
-	codes, err := rs.mfaService.GenerateRecoveryCodes(r.Context(), int64(claims.ID))
-	if err != nil {
-		mapOperatorMFAError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, &MFARecoveryCodesResponse{RecoveryCodes: codes}, "Recovery codes regenerated")
-}
-
-// ----- DELETE /auth/mfa -----
-
-// Disable lets the authenticated operator opt out of MFA. The service handles
-// the cascade (credential, recovery codes, trusted devices revoked).
-func (rs *MFAResource) Disable(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, ErrUnauthorized())
-		return
-	}
-	if err := rs.mfaService.Disable(r.Context(), int64(claims.ID)); err != nil {
-		mapOperatorMFAError(w, r, err)
-		return
-	}
-	// Clear the trusted-device cookie on the responder's behalf so a logged-in
-	// operator who disables MFA doesn't carry a stale cookie around.
-	http.SetCookie(w, &http.Cookie{
-		Name:     trustedDeviceCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		Secure:   secureCookie(),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-	common.RespondNoContent(w, r)
-}
-
-// ----- /auth/mfa/trusted-devices -----
-
-// MFATrustedDeviceResponse is the listing shape returned by GET
-// /operator/auth/mfa/trusted-devices.
-type MFATrustedDeviceResponse struct {
-	ID         int64      `json:"id"`
-	UserAgent  string     `json:"user_agent,omitempty"`
-	IPAddress  string     `json:"ip_address,omitempty"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-}
-
-// ListTrustedDevices returns the operator's currently-trusted devices.
-func (rs *MFAResource) ListTrustedDevices(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, ErrUnauthorized())
-		return
-	}
-	devices, err := rs.mfaService.ListTrustedDevices(r.Context(), int64(claims.ID))
-	if err != nil {
-		mapOperatorMFAError(w, r, err)
-		return
-	}
-	out := make([]MFATrustedDeviceResponse, 0, len(devices))
-	for _, d := range devices {
-		entry := MFATrustedDeviceResponse{
-			ID:         d.ID,
-			ExpiresAt:  d.ExpiresAt,
-			LastUsedAt: d.LastUsedAt,
-		}
-		if d.UserAgent != nil {
-			entry.UserAgent = *d.UserAgent
-		}
-		if d.IPAddress != nil {
-			entry.IPAddress = d.IPAddress.String()
-		}
-		out = append(out, entry)
-	}
-	common.Respond(w, r, http.StatusOK, out, "Trusted devices")
-}
-
-// RevokeTrustedDevice removes a single trusted device entry by ID.
-func (rs *MFAResource) RevokeTrustedDevice(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, ErrUnauthorized())
-		return
-	}
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, ErrInvalidRequest(errors.New("invalid trusted-device id")))
-		return
-	}
-	if err := rs.mfaService.RevokeTrustedDevice(r.Context(), int64(claims.ID), id); err != nil {
-		mapOperatorMFAError(w, r, err)
-		return
-	}
-	common.RespondNoContent(w, r)
 }
 
 // ----- shared helpers -----

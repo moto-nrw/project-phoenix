@@ -82,6 +82,11 @@ type LoginResult struct {
 	ChallengeToken        string
 	MaskedEmail           string
 	MFAEnrollmentRequired bool
+	// TrustedDeviceEnabled is populated on the MFA-required branch only.
+	// It mirrors security.mfa_trusted_device_enabled for the tenant so the
+	// frontend can hide the "remember this device" checkbox when the admin
+	// has disabled the feature.
+	TrustedDeviceEnabled bool
 }
 
 // LoginWithMFAGate is the MFA-aware sibling of LoginWithAudit. The pure-
@@ -147,9 +152,10 @@ func (s *Service) LoginWithMFAGate(
 			return nil, &AuthError{Op: "start mfa challenge", Err: chErr}
 		}
 		return &LoginResult{
-			Status:         LoginStatusMFARequired,
-			ChallengeToken: challenge,
-			MaskedEmail:    maskEmailForUX(account.Email),
+			Status:               LoginStatusMFARequired,
+			ChallengeToken:       challenge,
+			MaskedEmail:          maskEmailForUX(account.Email),
+			TrustedDeviceEnabled: s.mfaService.IsTrustedDeviceEnabled(ctx, metadata.tenantID),
 		}, nil
 	}
 

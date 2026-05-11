@@ -32,6 +32,7 @@ const logger = createLogger({ component: "TenantLoginPage" });
 interface MFAStep {
   challengeToken: string;
   maskedEmail: string;
+  trustedDeviceEnabled: boolean;
 }
 
 interface MFAEnrollmentStep {
@@ -207,6 +208,7 @@ function LoginForm() {
         setMfaStep({
           challengeToken: response.challenge_token,
           maskedEmail: response.masked_email,
+          trustedDeviceEnabled: response.trusted_device_enabled ?? true,
         });
         return;
       }
@@ -330,6 +332,7 @@ function LoginForm() {
               scope="tenant"
               challengeToken={mfaStep.challengeToken}
               maskedEmail={mfaStep.maskedEmail}
+              trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
               onSuccess={handleMFASuccess}
               onCancel={() => {
                 setMfaStep(null);

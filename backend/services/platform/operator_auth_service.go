@@ -168,6 +168,11 @@ type OperatorLoginResult struct {
 	ChallengeToken        string
 	MaskedEmail           string
 	MFAEnrollmentRequired bool
+	// TrustedDeviceEnabled is populated on the MFA-required branch only.
+	// Operator MFA has no per-tenant toggle today — the feature is
+	// always on — but the field is kept for symmetry with the tenant
+	// response shape so the frontend code can stay identical.
+	TrustedDeviceEnabled bool
 }
 
 // LoginWithMFAGate is the MFA-aware sibling of Login. The original
@@ -236,9 +241,10 @@ func (s *operatorAuthService) LoginWithMFAGate(
 			return nil, fmt.Errorf("start operator mfa challenge: %w", chErr)
 		}
 		return &OperatorLoginResult{
-			Status:         OperatorLoginStatusMFARequired,
-			ChallengeToken: challenge,
-			MaskedEmail:    maskOperatorEmailForUX(operator.Email),
+			Status:               OperatorLoginStatusMFARequired,
+			ChallengeToken:       challenge,
+			MaskedEmail:          maskOperatorEmailForUX(operator.Email),
+			TrustedDeviceEnabled: true,
 		}, nil
 	}
 

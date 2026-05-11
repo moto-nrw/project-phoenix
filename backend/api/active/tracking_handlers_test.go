@@ -50,6 +50,9 @@ func (m *trackingMockSettingsService) ResolveBool(ctx context.Context, key strin
 	}
 	return false, nil
 }
+func (m *trackingMockSettingsService) ResolveBoolForTenant(ctx context.Context, _ int64, key string) (bool, error) {
+	return m.ResolveBool(ctx, key)
+}
 func (m *trackingMockSettingsService) ResolveInt(ctx context.Context, key string) (int, error) {
 	return 0, nil
 }

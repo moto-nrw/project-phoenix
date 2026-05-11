@@ -113,9 +113,6 @@ func TestOperatorMFAService_RecoveryCodeFlow(t *testing.T) {
 
 	// Real code consumed.
 	require.NoError(t, svc.VerifyRecoveryCode(ctx, op.ID, codes[0]))
-	count, err := svc.CountUnusedRecoveryCodes(ctx, op.ID)
-	require.NoError(t, err)
-	assert.Equal(t, 9, count)
 
 	// Single-use guarantee.
 	require.ErrorIs(t, svc.VerifyRecoveryCode(ctx, op.ID, codes[0]), platform.ErrOperatorMFACodeInvalid)
@@ -142,15 +139,6 @@ func TestOperatorMFAService_TrustedDeviceFlow(t *testing.T) {
 	ok, err = svc.VerifyTrustedDevice(ctx, op.ID, cookie+"x")
 	require.NoError(t, err)
 	assert.False(t, ok, "tampered cookie must not verify")
-
-	listed, err := svc.ListTrustedDevices(ctx, op.ID)
-	require.NoError(t, err)
-	require.Len(t, listed, 1)
-
-	require.NoError(t, svc.RevokeTrustedDevice(ctx, op.ID, listed[0].ID))
-	listed, err = svc.ListTrustedDevices(ctx, op.ID)
-	require.NoError(t, err)
-	assert.Empty(t, listed)
 }
 
 func TestOperatorMFAService_StartChallengeAndWrongCode(t *testing.T) {

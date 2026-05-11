@@ -250,22 +250,14 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/email-change", rs.profileResource.InitiateEmailChange)
 		})
 
-		// MFA self-management for the currently-authenticated operator
+		// MFA enrollment for the currently-authenticated operator
 		// (issue #1308). Routes are registered as individual leaves rather
 		// than via r.Route("/auth/mfa", ...) because the public sibling
 		// routes (mfa/verify, mfa/recovery/verify, mfa/resend) already own
 		// the /auth/mfa/* subtree from a different group, and mounting a
-		// second sub-router on that prefix here shadows them — chi serves
-		// /auth/mfa/verify through this protected subtree, the JWT
-		// verifier rejects the missing access token, and the public
-		// handler is never reached.
-		r.Get("/auth/mfa/status", rs.mfaResource.Status)
+		// second sub-router on that prefix here shadows them.
 		r.Post("/auth/mfa/enroll/start", rs.mfaResource.EnrollStart)
 		r.Post("/auth/mfa/enroll/confirm", rs.mfaResource.EnrollConfirm)
-		r.Post("/auth/mfa/recovery-codes", rs.mfaResource.RegenerateRecoveryCodes)
-		r.Delete("/auth/mfa", rs.mfaResource.Disable)
-		r.Get("/auth/mfa/trusted-devices", rs.mfaResource.ListTrustedDevices)
-		r.Delete("/auth/mfa/trusted-devices/{id}", rs.mfaResource.RevokeTrustedDevice)
 
 		// Operator invitations
 		r.Route("/invitations", func(r chi.Router) {

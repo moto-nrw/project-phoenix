@@ -57,6 +57,10 @@ type LoginResponse struct {
 	ChallengeToken        string            `json:"challenge_token,omitempty"`
 	MaskedEmail           string            `json:"masked_email,omitempty"`
 	MFAEnrollmentRequired bool              `json:"mfa_enrollment_required,omitempty"`
+	// TrustedDeviceEnabled is set on the mfa_required branch. Operator
+	// MFA always exposes the trusted-device feature, but the field is
+	// emitted for response-shape symmetry with the tenant login.
+	TrustedDeviceEnabled *bool `json:"trusted_device_enabled,omitempty"`
 }
 
 // OperatorResponse represents an operator in the response
@@ -105,10 +109,12 @@ func (rs *AuthResource) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if result.Status == platformSvc.OperatorLoginStatusMFARequired {
+		tde := result.TrustedDeviceEnabled
 		common.Respond(w, r, http.StatusOK, &LoginResponse{
-			Status:         string(platformSvc.OperatorLoginStatusMFARequired),
-			ChallengeToken: result.ChallengeToken,
-			MaskedEmail:    result.MaskedEmail,
+			Status:               string(platformSvc.OperatorLoginStatusMFARequired),
+			ChallengeToken:       result.ChallengeToken,
+			MaskedEmail:          result.MaskedEmail,
+			TrustedDeviceEnabled: &tde,
 		}, "MFA verification required")
 		return
 	}

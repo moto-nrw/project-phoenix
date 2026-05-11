@@ -34,6 +34,13 @@ interface MFAChallengeFormProps {
   readonly resendCooldownSeconds?: number;
   readonly onSuccess: (tokens: MFATokenResponse) => void | Promise<void>;
   readonly onCancel?: () => void;
+  /**
+   * Mirrors security.mfa_trusted_device_enabled for the tenant. When false
+   * we hide the "30 Tage merken" checkbox and skip its state in the verify
+   * request. Undefined defaults to `true` for backwards compatibility with
+   * older backends that haven't shipped the field.
+   */
+  readonly trustedDeviceEnabled?: boolean;
 }
 
 export function MFAChallengeForm({
@@ -43,6 +50,7 @@ export function MFAChallengeForm({
   resendCooldownSeconds = DEFAULT_RESEND_COOLDOWN_SECONDS,
   onSuccess,
   onCancel,
+  trustedDeviceEnabled = true,
 }: MFAChallengeFormProps) {
   const [digits, setDigits] = useState<string[]>(() =>
     Array.from({ length: CODE_LENGTH }, () => ""),
@@ -291,23 +299,25 @@ export function MFAChallengeForm({
         </form>
       )}
 
-      <div className="flex items-center justify-center gap-2">
-        <input
-          id="mfa-remember-device"
-          type="checkbox"
-          checked={rememberDevice}
-          onChange={(e) => setRememberDevice(e.target.checked)}
-          disabled={isVerifying}
-          className="h-4 w-4 rounded border-gray-300 accent-[#83CD2D]"
-          style={{ accentColor: PRIMARY_GREEN }}
-        />
-        <label
-          htmlFor="mfa-remember-device"
-          className="text-sm text-gray-700 select-none"
-        >
-          Auf diesem Gerät 30 Tage merken
-        </label>
-      </div>
+      {trustedDeviceEnabled && (
+        <div className="flex items-center justify-center gap-2">
+          <input
+            id="mfa-remember-device"
+            type="checkbox"
+            checked={rememberDevice}
+            onChange={(e) => setRememberDevice(e.target.checked)}
+            disabled={isVerifying}
+            className="h-4 w-4 rounded border-gray-300 accent-[#83CD2D]"
+            style={{ accentColor: PRIMARY_GREEN }}
+          />
+          <label
+            htmlFor="mfa-remember-device"
+            className="text-sm text-gray-700 select-none"
+          >
+            Auf diesem Gerät 30 Tage merken
+          </label>
+        </div>
+      )}
 
       <div className="flex flex-col items-center gap-2 text-sm">
         <button

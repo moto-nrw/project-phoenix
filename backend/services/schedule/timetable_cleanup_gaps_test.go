@@ -45,6 +45,9 @@ func (s *stubSettingsService) ResolveStringForTenant(context.Context, int64, str
 	return "", nil
 }
 func (s *stubSettingsService) ResolveBool(context.Context, string) (bool, error) { return false, nil }
+func (s *stubSettingsService) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
+	return false, nil
+}
 func (s *stubSettingsService) ResolveInt(_ context.Context, _ string) (int, error) {
 	return s.intVal, s.intErr
 }

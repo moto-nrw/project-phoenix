@@ -78,18 +78,11 @@ func TestMFAService_RecoveryCodeFlow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, codes, auth.MFARecoveryCodeCount, "expected 10 recovery codes")
 
-	count, err := svc.CountUnusedRecoveryCodes(ctx, acc.ID)
-	require.NoError(t, err)
-	assert.Equal(t, auth.MFARecoveryCodeCount, count)
-
 	// Wrong code rejected.
 	require.ErrorIs(t, svc.VerifyRecoveryCode(ctx, acc.ID, "0000-0000-0000-0000"), auth.ErrMFACodeInvalid)
 
 	// Real code accepted; one row consumed.
 	require.NoError(t, svc.VerifyRecoveryCode(ctx, acc.ID, codes[0]))
-	count, err = svc.CountUnusedRecoveryCodes(ctx, acc.ID)
-	require.NoError(t, err)
-	assert.Equal(t, auth.MFARecoveryCodeCount-1, count)
 
 	// Same code cannot be used twice.
 	require.ErrorIs(t, svc.VerifyRecoveryCode(ctx, acc.ID, codes[0]), auth.ErrMFACodeInvalid)
@@ -118,15 +111,6 @@ func TestMFAService_TrustedDeviceFlow(t *testing.T) {
 	ok, err = svc.VerifyTrustedDevice(ctx, acc.ID, 0, badCookie)
 	require.NoError(t, err)
 	assert.False(t, ok, "tampered cookie must not verify")
-
-	listed, err := svc.ListTrustedDevices(ctx, acc.ID)
-	require.NoError(t, err)
-	require.Len(t, listed, 1)
-
-	require.NoError(t, svc.RevokeTrustedDevice(ctx, acc.ID, listed[0].ID))
-	listed, err = svc.ListTrustedDevices(ctx, acc.ID)
-	require.NoError(t, err)
-	assert.Empty(t, listed)
 }
 
 func TestMFAService_StartAndVerifyChallenge(t *testing.T) {

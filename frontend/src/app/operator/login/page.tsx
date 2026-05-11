@@ -25,6 +25,7 @@ const logger = createLogger({ component: "OperatorLoginPage" });
 interface MFAStep {
   challengeToken: string;
   maskedEmail: string;
+  trustedDeviceEnabled: boolean;
 }
 
 interface MFAEnrollmentStep {
@@ -131,6 +132,7 @@ export default function OperatorLoginPage() {
         setMfaStep({
           challengeToken: response.challenge_token,
           maskedEmail: response.masked_email,
+          trustedDeviceEnabled: response.trusted_device_enabled ?? true,
         });
         return;
       }
@@ -214,6 +216,7 @@ export default function OperatorLoginPage() {
             scope="operator"
             challengeToken={mfaStep.challengeToken}
             maskedEmail={mfaStep.maskedEmail}
+            trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
             onSuccess={handleMFASuccess}
             onCancel={() => {
               setMfaStep(null);

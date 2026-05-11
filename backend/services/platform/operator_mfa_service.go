@@ -53,7 +53,6 @@ type OperatorVerifiedChallenge struct {
 // login flow + (Phase 7b-4) operator HTTP handlers.
 type OperatorMFAService interface {
 	HasEnrollment(ctx context.Context, operatorID int64) (bool, error)
-	GetCredential(ctx context.Context, operatorID int64) (*platform.OperatorMFACredential, error)
 
 	StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
 	VerifyChallenge(ctx context.Context, challengeToken, code string) (*OperatorVerifiedChallenge, error)
@@ -65,12 +64,9 @@ type OperatorMFAService interface {
 
 	GenerateRecoveryCodes(ctx context.Context, operatorID int64) ([]string, error)
 	VerifyRecoveryCode(ctx context.Context, operatorID int64, code string) error
-	CountUnusedRecoveryCodes(ctx context.Context, operatorID int64) (int, error)
 
 	IssueTrustedDevice(ctx context.Context, operatorID int64, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
 	VerifyTrustedDevice(ctx context.Context, operatorID int64, signedCookie string) (bool, error)
-	ListTrustedDevices(ctx context.Context, operatorID int64) ([]*platform.OperatorMFATrustedDevice, error)
-	RevokeTrustedDevice(ctx context.Context, operatorID, deviceID int64) error
 }
 
 // OperatorMFAServiceConfig groups dependencies for NewOperatorMFAService.
@@ -137,10 +133,6 @@ func (s *operatorMFAService) HasEnrollment(ctx context.Context, operatorID int64
 		return false, nil
 	}
 	return cred != nil && cred.ID > 0, nil
-}
-
-func (s *operatorMFAService) GetCredential(ctx context.Context, operatorID int64) (*platform.OperatorMFACredential, error) {
-	return s.repos.OperatorMFACredential.FindByOperatorID(ctx, operatorID)
 }
 
 // ===== Challenge / verify =====
@@ -381,10 +373,6 @@ func (s *operatorMFAService) VerifyRecoveryCode(ctx context.Context, operatorID 
 	return ErrOperatorMFACodeInvalid
 }
 
-func (s *operatorMFAService) CountUnusedRecoveryCodes(ctx context.Context, operatorID int64) (int, error) {
-	return s.repos.OperatorMFARecoveryCode.CountUnused(ctx, operatorID)
-}
-
 // ===== Trusted device =====
 
 func (s *operatorMFAService) IssueTrustedDevice(ctx context.Context, operatorID int64, userAgent string, ip net.IP) (string, time.Time, error) {
@@ -423,28 +411,6 @@ func (s *operatorMFAService) VerifyTrustedDevice(ctx context.Context, operatorID
 	}
 	_ = s.repos.OperatorMFATrustedDevice.UpdateLastUsedAt(ctx, device.ID, time.Now())
 	return true, nil
-}
-
-func (s *operatorMFAService) ListTrustedDevices(ctx context.Context, operatorID int64) ([]*platform.OperatorMFATrustedDevice, error) {
-	return s.repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
-}
-
-func (s *operatorMFAService) RevokeTrustedDevice(ctx context.Context, operatorID, deviceID int64) error {
-	devices, err := s.repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
-	if err != nil {
-		return err
-	}
-	owned := false
-	for _, d := range devices {
-		if d.ID == deviceID {
-			owned = true
-			break
-		}
-	}
-	if !owned {
-		return errors.New("trusted device does not belong to operator")
-	}
-	return s.repos.OperatorMFATrustedDevice.Revoke(ctx, deviceID, time.Now())
 }
 
 // ===== Internal helpers =====

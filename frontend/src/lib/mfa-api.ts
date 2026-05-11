@@ -4,22 +4,26 @@ const logger = createLogger({ component: "MFAApi" });
 
 export type LoginScope = "tenant" | "operator";
 
-export interface AuthenticatedLoginResponse {
+interface AuthenticatedLoginResponse {
   status: "authenticated";
   access_token: string;
   refresh_token: string;
   mfa_enrollment_required?: boolean;
 }
 
-export interface MFARequiredLoginResponse {
+interface MFARequiredLoginResponse {
   status: "mfa_required";
   challenge_token: string;
   masked_email: string;
+  /**
+   * Mirrors security.mfa_trusted_device_enabled for the tenant. Omitted by
+   * older backends — treat undefined as `true` so the checkbox keeps
+   * appearing for clients that haven't shipped this field yet.
+   */
+  trusted_device_enabled?: boolean;
 }
 
-export type LoginResponse =
-  | AuthenticatedLoginResponse
-  | MFARequiredLoginResponse;
+type LoginResponse = AuthenticatedLoginResponse | MFARequiredLoginResponse;
 
 export interface MFATokenResponse {
   access_token: string;
@@ -121,7 +125,7 @@ export class MFAApiError extends Error {
   }
 }
 
-export interface LoginParams {
+interface LoginParams {
   email: string;
   password: string;
   tenantSlug?: string;
@@ -150,7 +154,7 @@ export async function login(
   return postJson<LoginResponse>(url, payload);
 }
 
-export interface VerifyParams {
+interface VerifyParams {
   challengeToken: string;
   code: string;
   rememberDevice: boolean;
@@ -176,7 +180,7 @@ export async function verifyMFA(
   return postJson<MFATokenResponse>(url, payload);
 }
 
-export interface RecoveryParams {
+interface RecoveryParams {
   challengeToken: string;
   recoveryCode: string;
   rememberDevice: boolean;
@@ -202,7 +206,7 @@ export async function verifyRecovery(
   return postJson<MFATokenResponse>(url, payload);
 }
 
-export interface ResendParams {
+interface ResendParams {
   challengeToken: string;
 }
 
@@ -223,7 +227,7 @@ function enrollUrl(scope: LoginScope, suffix: string): string {
     : `/api/auth/mfa/${suffix}`;
 }
 
-export interface RecoveryCodesResponse {
+interface RecoveryCodesResponse {
   recovery_codes: string[];
 }
 
@@ -253,101 +257,6 @@ export async function enrollConfirm(
     return envelope.data;
   }
   return postJson<RecoveryCodesResponse>(url, { code }, { bearerToken });
-}
-
-export async function regenerateRecoveryCodes(
-  scope: LoginScope,
-  bearerToken: string,
-): Promise<RecoveryCodesResponse> {
-  const url = enrollUrl(scope, "recovery-codes");
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<RecoveryCodesResponse>>(
-      url,
-      undefined,
-      { bearerToken },
-    );
-    return envelope.data;
-  }
-  return postJson<RecoveryCodesResponse>(url, undefined, { bearerToken });
-}
-
-export async function disableMFA(
-  scope: LoginScope,
-  bearerToken: string,
-): Promise<void> {
-  const url = enrollUrl(scope, "disable");
-  await postJson<unknown>(url, undefined, {
-    bearerToken,
-    method: "DELETE",
-    allowEmptyBody: true,
-  });
-}
-
-export interface MFAStatus {
-  enrolled: boolean;
-  last_used_at?: string;
-  unused_recovery_codes: number;
-  mode_required: boolean;
-}
-
-export async function getMFAStatus(
-  scope: LoginScope,
-  bearerToken: string,
-): Promise<MFAStatus> {
-  const url = enrollUrl(scope, "status");
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFAStatus>>(
-      url,
-      undefined,
-      { bearerToken, method: "GET" },
-    );
-    return envelope.data;
-  }
-  return postJson<MFAStatus>(url, undefined, {
-    bearerToken,
-    method: "GET",
-  });
-}
-
-export interface MFATrustedDevice {
-  id: number;
-  user_agent?: string;
-  ip_address?: string;
-  expires_at: string;
-  last_used_at?: string;
-}
-
-export async function listTrustedDevices(
-  scope: LoginScope,
-  bearerToken: string,
-): Promise<MFATrustedDevice[]> {
-  const url = enrollUrl(scope, "trusted-devices");
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATrustedDevice[]>>(
-      url,
-      undefined,
-      { bearerToken, method: "GET" },
-    );
-    return envelope.data ?? [];
-  }
-  const result = await postJson<MFATrustedDevice[] | null>(url, undefined, {
-    bearerToken,
-    method: "GET",
-  });
-  return result ?? [];
-}
-
-export async function revokeTrustedDevice(
-  scope: LoginScope,
-  bearerToken: string,
-  id: number,
-): Promise<void> {
-  const url = `${enrollUrl(scope, "trusted-devices")}/${id}`;
-  await postJson<unknown>(url, undefined, {
-    bearerToken,
-    method: "DELETE",
-    allowEmptyBody: true,
-  });
 }
 
 // ----- Admin-Override (Tenant-only; requires users:manage) -----
@@ -392,11 +301,17 @@ export function germanMFAErrorMessage(err: unknown): string {
     if (text.includes("locked") || text.includes("gesperrt")) {
       return "Konto vorübergehend gesperrt. Bitte versuchen Sie es in 15 Minuten erneut.";
     }
-    if (text.includes("expired") || text.includes("abgelaufen")) {
-      return "Der Code ist abgelaufen. Fordern Sie einen neuen Code an.";
-    }
+    // Check "invalid" before "expired": the backend conflates both into the
+    // single string "invalid or expired code" for security (no oracle on
+    // whether the code was wrong vs. timed out). In practice the dominant
+    // cause is a mistyped code, so we surface the friendlier "ungültig"
+    // message and let the user retry. A genuinely expired code falls into
+    // the same branch — both states are resolved by requesting a new code.
     if (text.includes("invalid") || text.includes("ungültig")) {
       return "Der eingegebene Code ist ungültig. Bitte erneut versuchen.";
+    }
+    if (text.includes("expired") || text.includes("abgelaufen")) {
+      return "Der Code ist abgelaufen. Fordern Sie einen neuen Code an.";
     }
     return "Anmeldung fehlgeschlagen. Bitte erneut versuchen.";
   }

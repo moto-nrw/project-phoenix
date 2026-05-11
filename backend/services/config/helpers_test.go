@@ -42,6 +42,9 @@ func (f *fakeSettingsService) ResolveStringForTenant(context.Context, int64, str
 func (f *fakeSettingsService) ResolveBool(context.Context, string) (bool, error) {
 	return f.boolVal, f.boolErr
 }
+func (f *fakeSettingsService) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
+	return f.boolVal, f.boolErr
+}
 func (f *fakeSettingsService) ResolveInt(context.Context, string) (int, error) {
 	return f.intVal, f.intErr
 }

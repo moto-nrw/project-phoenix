@@ -144,15 +144,14 @@ func (rs *Resource) Router() chi.Router {
 		// Password change - users can change their own password without special permissions
 		r.Post("/password", rs.changePassword)
 
-		// MFA management for the currently authenticated user (issue #1308).
+		// MFA enrollment for the currently authenticated user (issue #1308).
+		// The two endpoints here cover the forced-enrollment flow that runs
+		// when the tenant has mfa_mode = required_* and the user has no
+		// credential yet — all other MFA lifecycle operations (disable,
+		// recovery-code regen) flow through the admin-override path.
 		r.Route("/mfa", func(r chi.Router) {
-			r.Get("/status", rs.mfaStatus)
 			r.Post("/enroll/start", rs.mfaEnrollStart)
 			r.Post("/enroll/confirm", rs.mfaEnrollConfirm)
-			r.Post("/recovery-codes", rs.mfaRegenerateRecoveryCodes)
-			r.Delete("/", rs.mfaDisable)
-			r.Get("/trusted-devices", rs.mfaListTrustedDevices)
-			r.Delete("/trusted-devices/{id}", rs.mfaRevokeTrustedDevice)
 		})
 
 		// Admin routes - require admin role or specific permissions
@@ -540,6 +539,11 @@ type LoginResponse struct {
 	ChallengeToken        string `json:"challenge_token,omitempty"`
 	MaskedEmail           string `json:"masked_email,omitempty"`
 	MFAEnrollmentRequired bool   `json:"mfa_enrollment_required,omitempty"`
+	// TrustedDeviceEnabled is sent on the mfa_required branch so the
+	// frontend can hide the "remember this device" checkbox when the
+	// tenant admin has disabled the feature. A missing field defaults to
+	// "enabled" on the client for backwards compatibility.
+	TrustedDeviceEnabled *bool `json:"trusted_device_enabled,omitempty"`
 }
 
 // login handles user login. The handler is a thin orchestrator: it pulls
@@ -573,10 +577,12 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if result.Status == authService.LoginStatusMFARequired {
+		tde := result.TrustedDeviceEnabled
 		render.JSON(w, r, LoginResponse{
-			Status:         string(authService.LoginStatusMFARequired),
-			ChallengeToken: result.ChallengeToken,
-			MaskedEmail:    result.MaskedEmail,
+			Status:               string(authService.LoginStatusMFARequired),
+			ChallengeToken:       result.ChallengeToken,
+			MaskedEmail:          result.MaskedEmail,
+			TrustedDeviceEnabled: &tde,
 		})
 		return
 	}

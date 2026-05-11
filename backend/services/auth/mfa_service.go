@@ -63,7 +63,6 @@ type MFAService interface {
 	// the tenant explicitly instead of relying on tenant.FromContext.
 	IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error)
 	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
-	GetCredential(ctx context.Context, accountID int64) (*auth.MFACredential, error)
 
 	// Email-code challenge flow.
 	StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
@@ -84,7 +83,6 @@ type MFAService interface {
 	// Recovery codes.
 	GenerateRecoveryCodes(ctx context.Context, accountID int64) ([]string, error)
 	VerifyRecoveryCode(ctx context.Context, accountID int64, code string) error
-	CountUnusedRecoveryCodes(ctx context.Context, accountID int64) (int, error)
 
 	// Trusted-device cookie. The handler is responsible for the actual Set-Cookie
 	// header — the service only mints/verifies the value.
@@ -99,8 +97,11 @@ type MFAService interface {
 	// flipping the setting off immediately invalidates any cookies
 	// already issued, instead of waiting for natural expiry.
 	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error)
-	ListTrustedDevices(ctx context.Context, accountID int64) ([]*auth.MFATrustedDevice, error)
-	RevokeTrustedDevice(ctx context.Context, accountID, deviceID int64) error
+	// IsTrustedDeviceEnabled reports whether the tenant has the
+	// security.mfa_trusted_device_enabled setting on. The login flow uses
+	// this to tell the frontend whether to render the "remember this
+	// device" checkbox on the MFA challenge screen.
+	IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool
 
 	// Admin override ("Godmode") — defense-in-depth permission check.
 	AdminDisable(ctx context.Context, actorID, targetAccountID int64, reason string, actorPermissions []string) error
@@ -220,10 +221,6 @@ func (s *mfaService) HasEnrollment(ctx context.Context, accountID int64) (bool, 
 		return false, nil // not-found is the most common case; treat as "no enrollment"
 	}
 	return cred != nil && cred.ID > 0, nil
-}
-
-func (s *mfaService) GetCredential(ctx context.Context, accountID int64) (*auth.MFACredential, error) {
-	return s.repos.MFACredential.FindByAccountID(ctx, accountID)
 }
 
 // ===== Challenge / verify =====
@@ -521,10 +518,6 @@ func (s *mfaService) VerifyRecoveryCode(ctx context.Context, accountID int64, co
 	return ErrMFACodeInvalid
 }
 
-func (s *mfaService) CountUnusedRecoveryCodes(ctx context.Context, accountID int64) (int, error) {
-	return s.repos.MFARecoveryCode.CountUnused(ctx, accountID)
-}
-
 // ===== Trusted device =====
 
 // isTrustedDeviceEnabled reads security.mfa_trusted_device_enabled for the
@@ -536,6 +529,13 @@ func (s *mfaService) CountUnusedRecoveryCodes(ctx context.Context, accountID int
 // missing we honor the registry default (true). When the lookup itself
 // fails we log and return false — better to surprise the user with a
 // missing checkbox than to ignore the admin's opt-out.
+// IsTrustedDeviceEnabled is the public-interface entry point. Internally it
+// delegates to the same helper used by Issue/VerifyTrustedDevice so callers
+// see exactly the same answer the gating logic uses.
+func (s *mfaService) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {
+	return s.isTrustedDeviceEnabled(ctx, tenantID)
+}
+
 func (s *mfaService) isTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {
 	if s.settings == nil {
 		return true
@@ -609,30 +609,6 @@ func (s *mfaService) VerifyTrustedDevice(ctx context.Context, accountID, tenantI
 	}
 	_ = s.repos.MFATrustedDevice.UpdateLastUsedAt(ctx, device.ID, time.Now())
 	return true, nil
-}
-
-func (s *mfaService) ListTrustedDevices(ctx context.Context, accountID int64) ([]*auth.MFATrustedDevice, error) {
-	return s.repos.MFATrustedDevice.ListActiveByAccountID(ctx, accountID)
-}
-
-func (s *mfaService) RevokeTrustedDevice(ctx context.Context, accountID, deviceID int64) error {
-	// Validate ownership: a device row can only be revoked by its own account,
-	// even though Revoke itself doesn't enforce it.
-	devices, err := s.repos.MFATrustedDevice.ListActiveByAccountID(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	owned := false
-	for _, d := range devices {
-		if d.ID == deviceID {
-			owned = true
-			break
-		}
-	}
-	if !owned {
-		return ErrMFAPermissionDenied
-	}
-	return s.repos.MFATrustedDevice.Revoke(ctx, deviceID, time.Now())
 }
 
 // ===== Admin override ("Godmode") =====

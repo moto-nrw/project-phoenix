@@ -188,6 +188,9 @@ func (m *mockSettingsService) ResolveBool(_ context.Context, key string) (bool, 
 	}
 	return false, nil
 }
+func (m *mockSettingsService) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
+	return m.ResolveBool(context.Background(), key)
+}
 func (m *mockSettingsService) ResolveInt(_ context.Context, key string) (int, error) {
 	if m.intValues != nil {
 		if v, ok := m.intValues[key]; ok {
