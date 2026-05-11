@@ -272,7 +272,11 @@ const mockMutate = vi.fn();
 // Tests that exercise the check-in flow call this helper to make the
 // requirement explicit and keep prologue noise out of the assertions.
 function selectPresentMode() {
-  fireEvent.click(screen.getByText("In der OGS"));
+  // Use role+name to disambiguate from "In der OGS" text that also appears
+  // in status badges, edit-modal options, and history rows when today's
+  // session has Status = 'present'. getByText would throw
+  // getMultipleElementsFoundError in those setups.
+  fireEvent.click(screen.getByRole("button", { name: "In der OGS" }));
 }
 
 function setupDefaultMocks(overrides?: {
