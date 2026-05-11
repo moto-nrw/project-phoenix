@@ -1060,6 +1060,98 @@ describe("TimeTrackingPage", () => {
         screen.queryByText("Status für heute ändern"),
       ).not.toBeInTheDocument();
     });
+
+    it("partial-state failure: reopen succeeds but updateSession fails — modal closes with explicit toast", async () => {
+      // Issue #1368: the two-step confirm flow can leave the session
+      // reopened at the OLD status if UpdateSession fails. The UI must:
+      //   (a) refresh data so the now-active session is visible,
+      //   (b) close the modal (don't trap the user in the reason prompt),
+      //   (c) surface a toast that names the partial state and points at
+      //       "Sitzung bearbeiten" as the recovery path.
+      setupDefaultMocks({ history: [mockHistorySession] });
+      // Step 1: initial CheckIn(home_office) → typed conflict.
+      // Step 2: CheckIn(present) (the reopen at existing status) → succeeds.
+      // Step 3: UpdateSession → fails. This is the partial-state branch.
+      vi.mocked(timeTrackingService.checkIn)
+        .mockRejectedValueOnce(makeReopenConflictError())
+        .mockResolvedValueOnce(mockActiveSession);
+      vi.mocked(timeTrackingService.updateSession).mockRejectedValue(
+        new Error("network down"),
+      );
+      const errorToast = vi.fn();
+      vi.mocked(useToast).mockReturnValue({
+        success: vi.fn(),
+        error: errorToast,
+        info: vi.fn(),
+        warning: vi.fn(),
+        remove: vi.fn(),
+      });
+
+      render(<TimeTrackingPage />);
+
+      fireEvent.click(screen.getByText("Homeoffice"));
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByLabelText("Grund"), {
+        target: { value: "Mittags ins Homeoffice gewechselt" },
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Auf Homeoffice ändern"));
+      });
+
+      // Modal closed so the user can see the now-active session and act.
+      await waitFor(() => {
+        expect(
+          screen.queryByText("Status für heute ändern"),
+        ).not.toBeInTheDocument();
+      });
+
+      // Toast names the partial state and points at the recovery path.
+      expect(errorToast).toHaveBeenCalledTimes(1);
+      const toastMsg = errorToast.mock.calls[0]?.[0] as string;
+      expect(toastMsg).toMatch(/wiedereröffnet/);
+      expect(toastMsg).toMatch(/Sitzung bearbeiten/);
+    });
+
+    it("reopen itself fails: modal stays open so the user can retry", async () => {
+      // Distinct from the partial-state branch above. If the reopen call
+      // never succeeded, no state changed on the server; the modal must
+      // stay open so the user can retry without re-entering the reason.
+      setupDefaultMocks({ history: [mockHistorySession] });
+      vi.mocked(timeTrackingService.checkIn)
+        .mockRejectedValueOnce(makeReopenConflictError())
+        .mockRejectedValueOnce(new Error("network down"));
+
+      render(<TimeTrackingPage />);
+
+      fireEvent.click(screen.getByText("Homeoffice"));
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByLabelText("Grund"), {
+        target: { value: "Mittags ins Homeoffice gewechselt" },
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("Auf Homeoffice ändern"));
+      });
+
+      // Reopen failed → no UpdateSession attempt and modal stays open.
+      expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
+      expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
+    });
   });
 
   // ── Edit Modal ──────────────────────────────────────────────────────────

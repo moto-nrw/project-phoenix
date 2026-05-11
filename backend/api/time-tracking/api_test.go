@@ -502,6 +502,48 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
+// TestCheckIn_ReopenStatusConflict locks in the HTTP-boundary contract for
+// Issue #1368: when the service returns *ReopenStatusConflictError, the
+// handler must respond 409 with a stable {"code":"reopen_status_conflict"}
+// body so the frontend can branch into the "change status with reason" flow
+// without parsing message strings. The errors.As wiring in
+// classifyServiceError is what would silently break if someone wrapped the
+// error or moved the type — service-level tests alone don't catch that.
+func TestCheckIn_ReopenStatusConflict(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+			return nil, &activeSvc.ReopenStatusConflictError{
+				SessionID:       42,
+				ExistingStatus:  activeModels.WorkSessionStatusPresent,
+				RequestedStatus: activeModels.WorkSessionStatusHomeOffice,
+			}
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"home_office"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkIn(w, r)
+	require.Equal(t, http.StatusConflict, w.Code)
+
+	var resp struct {
+		Status string `json:"status"`
+		Code   string `json:"code"`
+		Error  string `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "error", resp.Status)
+	assert.Equal(t, "reopen_status_conflict", resp.Code,
+		"frontend branches on this code via REOPEN_STATUS_CONFLICT_CODE")
+}
+
 // --- checkOut handler ---
 
 func TestCheckOut_Success(t *testing.T) {

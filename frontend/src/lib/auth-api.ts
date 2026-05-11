@@ -181,11 +181,12 @@ function parseRetryAfter(value: string | null): number | null {
   return null;
 }
 
-async function buildApiError(
+export async function buildApiError(
   response: Response,
   fallbackMessage: string,
 ): Promise<ApiError> {
   let message = fallbackMessage;
+  let code: string | undefined;
 
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
@@ -193,8 +194,10 @@ async function buildApiError(
       const body = (await response.json()) as {
         error?: string;
         message?: string;
+        code?: string;
       };
       message = body?.error ?? body?.message ?? fallbackMessage;
+      code = body?.code;
     } else {
       const text = (await response.text()).trim();
       if (text) {
@@ -209,6 +212,9 @@ async function buildApiError(
 
   const apiError = new Error(message) as ApiError;
   apiError.status = response.status;
+  if (code) {
+    apiError.code = code;
+  }
 
   const retryAfter = parseRetryAfter(response.headers.get("Retry-After"));
   if (retryAfter !== null) {

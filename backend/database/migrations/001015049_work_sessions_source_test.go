@@ -15,10 +15,29 @@ import (
 // dropWorkSessionsSourceColumn rolls back the schema portion of migration
 // 1.15.49 so a test can re-run the up against a controlled pre-migration
 // state. SetupTestDB has already run every migration including 1.15.49, so
-// the column exists at the start of every test in this file; the deferred
-// cleanup branch puts it back via workSessionsSourceUp.
+// the column exists at the start of every test in this file.
+//
+// SetupTestDB hands out a process-shared *bun.DB, so a panic or a require
+// failure between the drop and the subsequent workSessionsSourceUp would
+// leave sibling tests running against a column-less schema. We register a
+// t.Cleanup that restores the schema regardless of how the test exits:
+// down() drops the constraint + column (no-ops if already gone), then
+// up() re-adds both. This handles every failure mode — succeeded, failed
+// after drop, failed before drop — without relying on workSessionsSourceUp
+// being self-idempotent (its ADD CONSTRAINT step is not).
 func dropWorkSessionsSourceColumn(t *testing.T, db *bun.DB) {
 	t.Helper()
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		if err := workSessionsSourceDown(cleanupCtx, db); err != nil {
+			t.Logf("rollback before schema restore failed: %v", err)
+			return
+		}
+		if err := workSessionsSourceUp(cleanupCtx, db); err != nil {
+			t.Logf("restoring active.work_sessions.source after test: %v", err)
+		}
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := db.ExecContext(ctx, `
@@ -239,7 +258,6 @@ func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
 	defer cleanupWorkSessionsSourceTest(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Constraint", "Test")
-	wsTime := time.Date(2026, 3, 4, 8, 0, 0, 0, time.UTC)
 
 	// Re-running up() on the existing schema is idempotent (column already
 	// exists with IF NOT EXISTS), so we don't need to drop/re-add to assert
@@ -254,6 +272,4 @@ func TestWorkSessionsSourceUp_ConstraintRejectsBadValue(t *testing.T) {
 	require.Error(t, err, "CHECK constraint must reject unknown source values")
 	assert.Contains(t, err.Error(), "chk_work_sessions_source",
 		"error must name the constraint so the cause is obvious in logs")
-
-	_ = wsTime
 }

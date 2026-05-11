@@ -3612,6 +3612,17 @@ function TimeTrackingContent() {
   // the status change through UpdateSession with the user's reason. Two
   // round-trips, but each one carries a distinct audit meaning: reopen =
   // resume work, update = change of work mode.
+  //
+  // Partial-state handling: if the reopen succeeds but UpdateSession fails,
+  // the session is now active again at the OLD status with no audit edit.
+  // That is a consistent state — old status, no edit — but the user's
+  // intent (status flip) wasn't applied. We refresh the data so the UI
+  // reflects reality, close the modal so the now-active session is visible,
+  // and surface a specific toast pointing the user at the "edit session"
+  // path for retrying just the status change. We deliberately do NOT
+  // attempt to roll back the reopen via checkOut, because that would
+  // introduce a second failure point and leave the audit trail with two
+  // unrelated state changes for one user action.
   const confirmReopenStatusChange = useCallback(async () => {
     const pending = pendingReopenStatusChange;
     if (!pending) return;
@@ -3619,8 +3630,10 @@ function TimeTrackingContent() {
     if (!reason) return;
 
     setReopenStatusChangeSubmitting(true);
+    let reopenSucceeded = false;
     try {
       await timeTrackingService.checkIn(pending.existingStatus);
+      reopenSucceeded = true;
       await timeTrackingService.updateSession(pending.sessionId, {
         status: pending.requestedStatus,
         notes: reason,
@@ -3632,8 +3645,22 @@ function TimeTrackingContent() {
     } catch (err) {
       logger.error("reopen_status_change_failed", {
         error: err instanceof Error ? err.message : String(err),
+        reopen_succeeded: reopenSucceeded,
+        session_id: pending.sessionId,
       });
-      toast.error(friendlyError(err, "Fehler beim Statuswechsel"));
+      if (reopenSucceeded) {
+        // Refresh so the UI shows the now-active session at the old status,
+        // then close the modal so the user can act on it via the edit flow.
+        await Promise.all([mutateCurrentSession(), mutateHistory()]);
+        toast.error(
+          "Sitzung wurde wiedereröffnet, aber der Statuswechsel ist fehlgeschlagen. Bitte den Status über „Sitzung bearbeiten“ ändern.",
+        );
+        setPendingReopenStatusChange(null);
+        setReopenStatusChangeReason("");
+      } else {
+        // Reopen itself failed — modal stays open so the user can retry.
+        toast.error(friendlyError(err, "Fehler beim Statuswechsel"));
+      }
     } finally {
       setReopenStatusChangeSubmitting(false);
     }
