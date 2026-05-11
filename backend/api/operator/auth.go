@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -97,6 +98,8 @@ func (rs *AuthResource) Login(w http.ResponseWriter, r *http.Request) {
 		r.Context(), req.Email, req.Password, ipString, userAgent, trustedDeviceCookie,
 	)
 	if err != nil {
+		slog.Default().ErrorContext(r.Context(), "operator login error",
+			slog.String("error", err.Error()))
 		common.RenderError(w, r, AuthErrorRenderer(err))
 		return
 	}

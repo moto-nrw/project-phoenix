@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
 )
@@ -93,6 +94,13 @@ func AuthErrorRenderer(err error) render.Renderer {
 	case errors.As(err, &operatorInactive):
 		return ErrForbidden("Operator account is inactive")
 	case errors.As(err, &operatorNotFound):
+		return ErrInvalidCredentials()
+	case errors.Is(err, authService.ErrMFARateLimited):
+		return ErrTooManyRequests("Too many code requests, please wait")
+	case errors.Is(err, authService.ErrMFALocked):
+		return ErrTooManyRequests("MFA account temporarily locked")
+	case errors.Is(err, authService.ErrMFAChallengeTokenInvalid),
+		errors.Is(err, authService.ErrMFACodeInvalid):
 		return ErrInvalidCredentials()
 	default:
 		return ErrInternal("Authentication failed")
