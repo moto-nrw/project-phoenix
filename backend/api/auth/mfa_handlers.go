@@ -506,7 +506,7 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 	}
 
 	if rememberDevice {
-		if err := rs.issueTrustedDeviceCookie(w, r, accountID); err != nil {
+		if err := rs.issueTrustedDeviceCookie(w, r, accountID, tenantID); err != nil {
 			// Don't fail the whole login — log and proceed.
 			slog.Default().Warn("failed to issue trusted-device cookie",
 				slog.Int64("account_id", accountID),
@@ -522,13 +522,19 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 }
 
 // issueTrustedDeviceCookie hooks into MFAService.IssueTrustedDevice and
-// writes the resulting Set-Cookie header.
-func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, accountID int64) error {
+// writes the resulting Set-Cookie header. When the tenant has disabled
+// trusted devices, the service returns an empty cookie value — we skip
+// the Set-Cookie write entirely so the browser doesn't store a useless
+// cookie.
+func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, accountID, tenantID int64) error {
 	cookieValue, expiresAt, err := rs.MFAService.IssueTrustedDevice(
-		r.Context(), accountID, r.Header.Get(headerUserAgent), parseClientIP(r),
+		r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), parseClientIP(r),
 	)
 	if err != nil {
 		return err
+	}
+	if cookieValue == "" {
+		return nil
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     trustedDeviceCookieName,

@@ -134,7 +134,7 @@ func (s *Service) LoginWithMFAGate(
 	// Branch 3: trusted-device cookie short-circuits MFA when verifiable.
 	trustedDeviceVerified := false
 	if mfaRequired && enrolled && trustedDeviceCookie != "" && s.mfaService != nil {
-		ok, _ := s.mfaService.VerifyTrustedDevice(ctx, account.ID, trustedDeviceCookie)
+		ok, _ := s.mfaService.VerifyTrustedDevice(ctx, account.ID, metadata.tenantID, trustedDeviceCookie)
 		trustedDeviceVerified = ok
 	}
 

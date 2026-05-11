@@ -88,8 +88,17 @@ type MFAService interface {
 
 	// Trusted-device cookie. The handler is responsible for the actual Set-Cookie
 	// header — the service only mints/verifies the value.
-	IssueTrustedDevice(ctx context.Context, accountID int64, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
-	VerifyTrustedDevice(ctx context.Context, accountID int64, signedCookie string) (bool, error)
+	// IssueTrustedDevice returns ("", zero time, nil) without persisting a
+	// row when mfa_trusted_device_enabled is false for the tenant — callers
+	// must check the empty cookie value and skip the Set-Cookie write in
+	// that case. tenantID is used to resolve the per-tenant setting since
+	// the verify handler runs outside TenantTxMiddleware.
+	IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
+	// VerifyTrustedDevice short-circuits to (false, nil) when the tenant
+	// has mfa_trusted_device_enabled set to false. This ensures that
+	// flipping the setting off immediately invalidates any cookies
+	// already issued, instead of waiting for natural expiry.
+	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error)
 	ListTrustedDevices(ctx context.Context, accountID int64) ([]*auth.MFATrustedDevice, error)
 	RevokeTrustedDevice(ctx context.Context, accountID, deviceID int64) error
 
@@ -518,7 +527,44 @@ func (s *mfaService) CountUnusedRecoveryCodes(ctx context.Context, accountID int
 
 // ===== Trusted device =====
 
-func (s *mfaService) IssueTrustedDevice(ctx context.Context, accountID int64, userAgent string, ip net.IP) (string, time.Time, error) {
+// isTrustedDeviceEnabled reads security.mfa_trusted_device_enabled for the
+// given tenant. Login + verify both run outside the TenantTxMiddleware, so
+// we resolve via the explicit-tenant variant; otherwise the helper would
+// fall back to the registry default and ignore an admin's opt-out.
+//
+// Conservative defaults: when the settings service or the tenant ID are
+// missing we honor the registry default (true). When the lookup itself
+// fails we log and return false — better to surprise the user with a
+// missing checkbox than to ignore the admin's opt-out.
+func (s *mfaService) isTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {
+	if s.settings == nil {
+		return true
+	}
+	if tenantID <= 0 {
+		enabled, err := s.settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled)
+		if err != nil {
+			s.logger.Warn("trusted_device_enabled resolve failed; disabling feature",
+				slog.String("error", err.Error()))
+			return false
+		}
+		return enabled
+	}
+	enabled, err := s.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
+	if err != nil {
+		s.logger.Warn("trusted_device_enabled resolve failed; disabling feature",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()))
+		return false
+	}
+	return enabled
+}
+
+func (s *mfaService) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
+	if !s.isTrustedDeviceEnabled(ctx, tenantID) {
+		// Setting is off for this tenant — caller treats empty value as
+		// "skip cookie".
+		return "", time.Time{}, nil
+	}
 	days := s.resolveTrustedDeviceDays(ctx)
 	expiresAt := time.Now().Add(time.Duration(days) * 24 * time.Hour)
 
@@ -546,7 +592,12 @@ func (s *mfaService) IssueTrustedDevice(ctx context.Context, accountID int64, us
 	return signed, expiresAt, nil
 }
 
-func (s *mfaService) VerifyTrustedDevice(ctx context.Context, accountID int64, signedCookie string) (bool, error) {
+func (s *mfaService) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error) {
+	if !s.isTrustedDeviceEnabled(ctx, tenantID) {
+		// Tenant has flipped the feature off after a cookie was issued —
+		// reject it immediately instead of waiting for natural expiry.
+		return false, nil
+	}
 	rawToken, ok := VerifyTrustedDeviceToken(signedCookie, s.mfaSecret)
 	if !ok {
 		return false, nil
