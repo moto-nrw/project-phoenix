@@ -135,23 +135,6 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 		renderValidationErrors(w, r, []fieldError{{Field: "body", Reason: "at least one of status, substatus, note must be set"}})
 		return
 	}
-	if rs.instanceStudentRepo == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance student repository not wired")))
-		return
-	}
-	current, err := rs.instanceStudentRepo.FindByInstanceAndStudent(r.Context(), instanceID, studentID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	if current == nil {
-		rs.renderOperationsError(w, r, scheduleSvc.ErrTimetableOperationNotFound)
-		return
-	}
-	if verrs := validateAttendancePatch(patch, current); len(verrs) > 0 {
-		renderValidationErrors(w, r, verrs)
-		return
-	}
 	claims := jwt.ClaimsFromCtx(r.Context())
 	result, err := rs.operationsService.PatchAttendance(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID, patch)
 	if err != nil {
@@ -208,7 +191,10 @@ type startOperationResponse struct {
 }
 
 func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request, err error) {
+	var validationErr *scheduleSvc.TimetableAttendanceValidationError
 	switch {
+	case errors.As(err, &validationErr):
+		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationForbidden):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationNotFound):

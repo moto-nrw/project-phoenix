@@ -145,13 +145,10 @@ func TestOperationsStudentEndpoints(t *testing.T) {
 
 func TestOperationsPatchAttendanceValidatesAndDelegates(t *testing.T) {
 	status := schedule.AttendanceStatusAbsent
-	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected}
-	current.ID = 260
 	service := &fakeOperationsService{
 		patchRow: &scheduleSvc.OperationRosterRow{StudentID: 360, Status: schedule.AttendanceStatusAbsent},
 	}
-	repo := &fakeRepo{currentState: current}
-	res := NewResource(Dependencies{OperationsService: service, InstanceStudentRepo: repo})
+	res := NewResource(Dependencies{OperationsService: service})
 	router := operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
 
 	rr := executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{
@@ -181,39 +178,18 @@ func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
 	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", "{bad json")
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	res = NewResource(Dependencies{OperationsService: &fakeOperationsService{}, InstanceStudentRepo: &fakeRepo{}})
-	router = operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
-	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "present"})
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-
-	res = NewResource(Dependencies{OperationsService: &fakeOperationsService{}})
-	router = operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
-	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "present"})
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-
-	res = NewResource(Dependencies{
-		OperationsService: &fakeOperationsService{},
-		InstanceStudentRepo: &fakeRepo{findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
-			return nil, errors.New("find failed")
-		}},
-	})
-	router = operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
-	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "present"})
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-
-	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected}
-	current.ID = 261
-	res = NewResource(Dependencies{
-		OperationsService:   &fakeOperationsService{},
-		InstanceStudentRepo: &fakeRepo{currentState: current},
-	})
+	res = NewResource(Dependencies{OperationsService: &fakeOperationsService{
+		err: &scheduleSvc.TimetableAttendanceValidationError{
+			Fields: []schedule.AttendancePatchFieldError{{Field: "substatus", Reason: "cannot be set when status is expected"}},
+		},
+	}})
 	router = operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
 	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"substatus": "sick"})
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "substatus")
 
 	res = NewResource(Dependencies{
-		OperationsService:   &fakeOperationsService{err: scheduleSvc.ErrTimetableOperationForbidden},
-		InstanceStudentRepo: &fakeRepo{currentState: current},
+		OperationsService: &fakeOperationsService{err: scheduleSvc.ErrTimetableOperationForbidden},
 	})
 	router = operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
 	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "absent"})

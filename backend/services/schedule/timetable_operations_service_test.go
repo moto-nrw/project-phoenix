@@ -12,6 +12,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,15 +72,71 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 	assert.True(t, result[0].IsOverdue)
 }
 
+func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
+	t.Run("does not return future-date instances as overdue today", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+		tomorrowStart := time.Date(2026, time.May, 11, 8, 0, 0, 0, time.UTC)
+		deps := newTimetableOpsDeps()
+		deps.settings.enabled = true
+		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+			instanceWithTimes(334, scheduleModel.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour)),
+		}
+		deps.staffRepo.byInstance[334] = []*scheduleModel.InstanceStaff{{StaffID: 224}}
+
+		result, err := deps.service.PlannedNow(context.Background(), 625, true, tomorrowStart, now)
+
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("calculates overdue metadata from instance date", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 23, 55, 0, 0, time.UTC)
+		tomorrowStart := time.Date(2026, time.May, 11, 0, 5, 0, 0, time.UTC)
+		inst := instanceWithTimes(335, scheduleModel.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour))
+
+		result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 225}}, nil, now)
+
+		assert.False(t, result.IsOverdue)
+		assert.Equal(t, 10, result.MinutesUntilStart)
+	})
+}
+
 func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 
 	t.Run("forbids accounts without staff when admin overview is disabled", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
+		deps.personService.accountErr = usersSvc.ErrPersonNotFound
 
 		result, err := deps.service.PlannedNow(context.Background(), 621, false, now, now)
 
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Nil(t, result)
+	})
+
+	t.Run("admin overview allows missing person profile", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.enabled = true
+		deps.personService.accountErr = usersSvc.ErrPersonNotFound
+		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+			instanceWithTimes(336, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+		}
+		deps.staffRepo.byInstance[336] = []*scheduleModel.InstanceStaff{{StaffID: 226}}
+
+		result, err := deps.service.PlannedNow(context.Background(), 626, true, now, now)
+
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, int64(336), result[0].ID)
+	})
+
+	t.Run("propagates unexpected person lookup errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.personService.accountErr = errors.New("person lookup failed")
+
+		result, err := deps.service.PlannedNow(context.Background(), 627, true, now, now)
+
+		require.EqualError(t, err, "person lookup failed")
 		assert.Nil(t, result)
 	})
 
@@ -480,6 +537,47 @@ func TestTimetableOperationsPatchAttendanceBranches(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
 	assert.Nil(t, row)
+
+	t.Run("forbidden before attendance row validation", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		instanceID := int64(423)
+		studentID := int64(565)
+		wireAssignedStaff(deps, 691, 513, 271, instanceID)
+		deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 272}}
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 303)
+		excused := scheduleModel.AttendanceSubstatusExcused
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusPresent, Substatus: &excused}
+		row.ID = 424
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+		expected := scheduleModel.AttendanceStatusExpected
+
+		result, err := deps.service.PatchAttendance(context.Background(), 691, false, instanceID, studentID, scheduleModel.AttendanceFieldPatch{Status: &expected})
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Nil(t, result)
+		assert.Empty(t, deps.studentRepo.updates)
+	})
+
+	t.Run("authorized invalid patch returns field validation error", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		instanceID := int64(425)
+		studentID := int64(566)
+		wireAssignedStaff(deps, 692, 514, 273, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 304)
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected}
+		row.ID = 426
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+		late := scheduleModel.AttendanceSubstatusLate
+
+		result, err := deps.service.PatchAttendance(context.Background(), 692, false, instanceID, studentID, scheduleModel.AttendanceFieldPatch{Substatus: &late})
+
+		var validationErr *TimetableAttendanceValidationError
+		require.ErrorAs(t, err, &validationErr)
+		require.Len(t, validationErr.Fields, 1)
+		assert.Equal(t, "substatus", validationErr.Fields[0].Field)
+		assert.Nil(t, result)
+		assert.Empty(t, deps.studentRepo.updates)
+	})
 }
 
 func TestTimetableOperationsDependencyErrorsPropagate(t *testing.T) {
@@ -901,12 +999,16 @@ func (r *fakeOpsEducationGroupRepo) FindByIDs(_ context.Context, ids []int64) (m
 
 type fakeOpsPersonService struct {
 	accountPerson   *usersModel.Person
+	accountErr      error
 	people          map[int64]*usersModel.Person
 	staffByPersonID map[int64]*usersModel.Staff
 	staffErr        error
 }
 
 func (s *fakeOpsPersonService) FindByAccountID(_ context.Context, _ int64) (*usersModel.Person, error) {
+	if s.accountErr != nil {
+		return nil, s.accountErr
+	}
 	return s.accountPerson, nil
 }
 

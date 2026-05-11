@@ -16,6 +16,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -28,6 +29,14 @@ var (
 
 type OperationSettings interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
+type TimetableAttendanceValidationError struct {
+	Fields []scheduleModel.AttendancePatchFieldError
+}
+
+func (e *TimetableAttendanceValidationError) Error() string {
+	return "timetable attendance validation failed"
 }
 
 type OperationPersonService interface {
@@ -307,6 +316,9 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 	if row == nil {
 		return nil, ErrTimetableOperationNotFound
 	}
+	if verrs := scheduleModel.ValidateAttendancePatch(patch, row); len(verrs) > 0 {
+		return nil, &TimetableAttendanceValidationError{Fields: verrs}
+	}
 	if err := s.deps.InstanceStudents.UpdateAttendanceFields(ctx, row.ID, patch); err != nil {
 		return nil, err
 	}
@@ -489,6 +501,9 @@ func (s *timetableOperationsService) resolveStaffID(ctx context.Context, account
 	}
 	person, err := s.deps.PersonService.FindByAccountID(ctx, accountID)
 	if err != nil {
+		if errors.Is(err, usersSvc.ErrPersonNotFound) {
+			return 0, false, nil
+		}
 		return 0, false, err
 	}
 	if person == nil {
@@ -587,7 +602,7 @@ func (s *timetableOperationsService) logger() *slog.Logger {
 }
 
 func plannedNowWindow(inst *scheduleModel.ActivityInstance, now time.Time) bool {
-	start := time.Date(now.Year(), now.Month(), now.Day(), inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), 0, now.Location())
+	start := instanceStartAt(inst, now.Location())
 	return (start.After(now.Add(-15*time.Minute)) && start.Before(now.Add(15*time.Minute))) || start.Before(now)
 }
 
@@ -607,7 +622,7 @@ func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*sched
 			present++
 		}
 	}
-	start := time.Date(now.Year(), now.Month(), now.Day(), inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), 0, now.Location())
+	start := instanceStartAt(inst, now.Location())
 	return OperationPlannedInstance{
 		ID:                    inst.ID,
 		Title:                 inst.Title,
@@ -623,6 +638,10 @@ func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*sched
 		AssignedStaffIDs:      assigned,
 		Warnings:              []InstanceConflictWarning{},
 	}
+}
+
+func instanceStartAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {
+	return time.Date(inst.Date.Year(), inst.Date.Month(), inst.Date.Day(), inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), 0, loc)
 }
 
 func staffAssigned(rows []*scheduleModel.InstanceStaff, staffID int64) bool {
