@@ -1,0 +1,226 @@
+package users
+
+// In-package unit tests for the side-effect helpers and feature-toggle
+// dispatcher on studentPhotoService. The integration tests in
+// api/students/photo_routes_test.go exercise the DB-bound methods but live
+// in a different Go package — they don't credit this file under
+// SonarCloud's "new code coverage" metric. These tests close the broadcast
+// + toggle paths without standing up a real DB.
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"log/slog"
+	"sync/atomic"
+	"testing"
+
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+type recordingBroadcaster struct {
+	calls []realtime.Event
+	tids  []int64
+	err   error
+}
+
+func (r *recordingBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
+	r.calls = append(r.calls, event)
+	r.tids = append(r.tids, tenantID)
+	return r.err
+}
+
+// --- NewStudentPhotoService --------------------------------------------
+
+func TestNewStudentPhotoService_WiresAllFields(t *testing.T) {
+	unlinker := &recordingUnlinker{}
+	broadcaster := &recordingBroadcaster{}
+	logger := slog.Default()
+	settings := &stubPhotoSettings{}
+
+	svc := NewStudentPhotoService(StudentPhotoServiceDependencies{
+		StudentRepo: nil, // not used by the broadcast helpers
+		Settings:    settings,
+		UserContext: nil,
+		Broadcaster: broadcaster,
+		Unlinker:    unlinker,
+		DB:          nil,
+		Logger:      logger,
+	})
+
+	concrete, ok := svc.(*studentPhotoService)
+	require.True(t, ok, "NewStudentPhotoService must return *studentPhotoService")
+	assert.Same(t, broadcaster, concrete.broadcaster)
+	assert.Same(t, unlinker, concrete.unlinker)
+	assert.Equal(t, settings, concrete.settings)
+	assert.Same(t, logger, concrete.logger)
+}
+
+// --- broadcastStudentUpdated -------------------------------------------
+
+func TestBroadcastStudentUpdated_NilBroadcasterIsNoOp(t *testing.T) {
+	svc := &studentPhotoService{broadcaster: nil}
+	require.NotPanics(t, func() {
+		svc.broadcastStudentUpdated(1, 2, photoSourceUploaded)
+	})
+}
+
+func TestBroadcastStudentUpdated_NonPositiveTenantSkipsAndLogs(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	b := &recordingBroadcaster{}
+	svc := &studentPhotoService{broadcaster: b, logger: logger}
+
+	svc.broadcastStudentUpdated(0, 42, photoSourceDeleted)
+
+	assert.Empty(t, b.calls, "tenantID<=0 must never broadcast")
+	assert.Contains(t, buf.String(), "no tenant context")
+}
+
+func TestBroadcastStudentUpdated_HappyPath(t *testing.T) {
+	b := &recordingBroadcaster{}
+	svc := &studentPhotoService{broadcaster: b, logger: slog.Default()}
+
+	svc.broadcastStudentUpdated(7, 99, photoSourceUploaded)
+
+	require.Len(t, b.calls, 1)
+	assert.Equal(t, realtime.EventStudentUpdated, b.calls[0].Type)
+	require.NotNil(t, b.calls[0].Data.Source)
+	assert.Equal(t, photoSourceUploaded, *b.calls[0].Data.Source)
+	assert.Equal(t, []int64{7}, b.tids)
+}
+
+func TestBroadcastStudentUpdated_ErrorIsLoggedNotPropagated(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	b := &recordingBroadcaster{err: errors.New("hub stopped")}
+	svc := &studentPhotoService{broadcaster: b, logger: logger}
+
+	require.NotPanics(t, func() {
+		svc.broadcastStudentUpdated(1, 2, photoSourceDeleted)
+	})
+	assert.Contains(t, buf.String(), "failed to broadcast student_updated")
+	assert.Contains(t, buf.String(), "hub stopped")
+}
+
+// --- deferTenantSettingsChanged ----------------------------------------
+
+func TestDeferTenantSettingsChanged_NilBroadcasterIsNoOp(t *testing.T) {
+	svc := &studentPhotoService{broadcaster: nil}
+	notify := svc.deferTenantSettingsChanged(1, configModel.KeyStudentPhotosEnabled)
+	require.NotPanics(t, notify)
+}
+
+func TestDeferTenantSettingsChanged_BroadcastsAndCarriesKey(t *testing.T) {
+	b := &recordingBroadcaster{}
+	svc := &studentPhotoService{broadcaster: b, logger: slog.Default()}
+
+	notify := svc.deferTenantSettingsChanged(13, configModel.KeyStudentPhotosEnabled)
+	notify()
+
+	require.Len(t, b.calls, 1)
+	assert.Equal(t, realtime.EventTenantSettingsChanged, b.calls[0].Type)
+	require.NotNil(t, b.calls[0].Data.Source)
+	assert.Equal(t, configModel.KeyStudentPhotosEnabled, *b.calls[0].Data.Source)
+	assert.Equal(t, []int64{13}, b.tids)
+}
+
+func TestDeferTenantSettingsChanged_BroadcastErrorLogged(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	b := &recordingBroadcaster{err: errors.New("hub overflow")}
+	svc := &studentPhotoService{broadcaster: b, logger: logger}
+
+	notify := svc.deferTenantSettingsChanged(1, "operations.student_photos_enabled")
+	require.NotPanics(t, notify)
+	assert.Contains(t, buf.String(), "tenant_settings_changed broadcast failed")
+	assert.Contains(t, buf.String(), "hub overflow")
+}
+
+// --- HandleFeatureToggle (paths that don't require the repo) -----------
+
+func TestHandleFeatureToggle_NonBoolValueTreatedAsEnable(t *testing.T) {
+	// Anything that isn't a bool falls through the "enable" branch — the
+	// service never tries to purge.
+	b := &recordingBroadcaster{}
+	svc := &studentPhotoService{broadcaster: b, logger: slog.Default()}
+
+	post, err := svc.HandleFeatureToggle(context.Background(), 9, "not-a-bool")
+	require.NoError(t, err)
+	require.NotNil(t, post)
+
+	post()
+
+	// One student_updated + one tenant_settings_changed broadcast.
+	require.Len(t, b.calls, 2)
+	types := []realtime.EventType{b.calls[0].Type, b.calls[1].Type}
+	assert.Contains(t, types, realtime.EventStudentUpdated)
+	assert.Contains(t, types, realtime.EventTenantSettingsChanged)
+}
+
+func TestHandleFeatureToggle_TrueEmitsEnableBroadcasts(t *testing.T) {
+	b := &recordingBroadcaster{}
+	svc := &studentPhotoService{broadcaster: b, logger: slog.Default()}
+
+	post, err := svc.HandleFeatureToggle(context.Background(), 5, true)
+	require.NoError(t, err)
+	require.NotNil(t, post)
+	post()
+
+	require.Len(t, b.calls, 2)
+	// Source on the student_updated event labels the enable trigger.
+	var sawEnableSource bool
+	for _, ev := range b.calls {
+		if ev.Type == realtime.EventStudentUpdated && ev.Data.Source != nil && *ev.Data.Source == photoSourceFeatureEnabled {
+			sawEnableSource = true
+		}
+	}
+	assert.True(t, sawEnableSource, "enable path must label its broadcast source")
+}
+
+// --- RegisterStudentPhotoSettingsSideEffects ---------------------------
+
+type fakeStudentPhotoService struct {
+	StudentPhotoService
+	calls int32
+}
+
+func (f *fakeStudentPhotoService) HandleFeatureToggle(_ context.Context, _ int64, _ any) (func(), error) {
+	atomic.AddInt32(&f.calls, 1)
+	return func() {}, nil
+}
+
+func TestRegisterStudentPhotoSettingsSideEffects_DispatchesToService(t *testing.T) {
+	registry := sideeffects.NewRegistry()
+	svc := &fakeStudentPhotoService{}
+
+	RegisterStudentPhotoSettingsSideEffects(registry, svc)
+
+	post, err := registry.Dispatch(
+		context.Background(),
+		1,
+		configModel.KeyStudentPhotosEnabled,
+		true,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, post)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&svc.calls),
+		"registry must route the photo feature key to the service")
+}
+
+func TestRegisterStudentPhotoSettingsSideEffects_OtherKeysIgnored(t *testing.T) {
+	registry := sideeffects.NewRegistry()
+	svc := &fakeStudentPhotoService{}
+
+	RegisterStudentPhotoSettingsSideEffects(registry, svc)
+
+	post, err := registry.Dispatch(context.Background(), 1, "operations.session_end_time", "18:00")
+	require.NoError(t, err)
+	assert.Nil(t, post, "unrelated keys must return a nil post-commit callback")
+	assert.Equal(t, int32(0), atomic.LoadInt32(&svc.calls),
+		"only the photos key may invoke the photo handler")
+}
