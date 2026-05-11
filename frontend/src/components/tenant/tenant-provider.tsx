@@ -55,7 +55,10 @@ export function TenantProvider({
   // Sequence-token to drop out-of-order resolveTenant responses when
   // multiple signals land in the same tick. Kept monotonic across slug
   // changes so an in-flight resolve from a previous slug can't satisfy
-  // the token check after the counter rolls back to zero.
+  // the token check after the counter rolls back to zero. Bumped in
+  // this effect's cleanup so navigation away from slug A invalidates
+  // any A-resolve still in flight, even if no B-refetch fires before
+  // A's response lands.
   const requestSeqRef = useRef(0);
 
   useEffect(() => {
@@ -67,9 +70,11 @@ export function TenantProvider({
       void resolveTenant(requestedSlug).then((fresh) => {
         if (token !== requestSeqRef.current) return;
         if (!fresh) return;
-        // Drop responses for a slug we no longer care about (the URL
-        // changed mid-flight). Without this, an A-slug response could
-        // overwrite a B-slug context after the user navigated.
+        // Defence-in-depth: also drop responses whose payload slug
+        // doesn't match the slug we asked for. The counter-bump on
+        // slug change already invalidates stale responses, but the
+        // explicit slug compare guards against an upstream that
+        // returned data for a different slug than requested.
         if (fresh.slug !== requestedSlug) return;
         setTenant(fresh);
       });
@@ -98,6 +103,17 @@ export function TenantProvider({
     }
 
     return () => {
+      // Invalidate any in-flight resolve for the slug we're leaving so
+      // its response can't overwrite the next slug's context. Without
+      // this, navigating A → B while an A-resolve is pending leaves
+      // token === counter and requestedSlug === fresh.slug both true,
+      // and A's payload wins the last write on B's tenant context.
+      // Direct ref mutation in cleanup is intentional here — the ref
+      // is a counter, not a DOM node, so the lint rule's concern
+      // (node identity changing between effect and cleanup) does not
+      // apply.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      requestSeqRef.current++;
       unsubscribeBroadcast();
       if (typeof window !== "undefined") {
         window.removeEventListener(

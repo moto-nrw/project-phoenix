@@ -24,11 +24,20 @@ describe("tenantSlugFromHost", () => {
     expect(tenantSlugFromHost("")).toBeNull();
   });
 
-  it("returns null when TENANT_DOMAIN is unset", () => {
+  it("throws when TENANT_DOMAIN is unset (fail-fast, not silent skip)", () => {
     const prev = process.env.TENANT_DOMAIN;
     delete process.env.TENANT_DOMAIN;
     try {
-      expect(tenantSlugFromHost("school-a.localhost:3000")).toBeNull();
+      expect(() => tenantSlugFromHost("school-a.localhost:3000")).toThrow(
+        /TENANT_DOMAIN is not set/,
+      );
+      // Also throws even when host is null/empty — the env-var contract
+      // is checked first so callers can't accidentally rely on the
+      // null-host short-circuit to mask the missing var.
+      expect(() => tenantSlugFromHost(null)).toThrow(
+        /TENANT_DOMAIN is not set/,
+      );
+      expect(() => tenantSlugFromHost("")).toThrow(/TENANT_DOMAIN is not set/);
     } finally {
       process.env.TENANT_DOMAIN = prev;
     }

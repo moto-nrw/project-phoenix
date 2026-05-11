@@ -341,6 +341,67 @@ describe("TenantProvider — cross-tab settings sync", () => {
     });
     expect(observed.value?.slug).toBe("school-b");
   });
+
+  it("drops A's in-flight response even when B never fires its own refetch", async () => {
+    // Tighter variant of the test above: the reviewer flagged that the
+    // slug guard alone is not enough. If A's refetch is in flight,
+    // and the user navigates to B BEFORE a B-refetch bumps the
+    // sequence counter, then at A's resolve time:
+    //   token === counter (both still 1)
+    //   fresh.slug === requestedSlug (both "school-a", captured at refetch time)
+    // → setTenant(A) wins and overwrites B's server-provided context.
+    // The cleanup-counter-bump prevents this.
+    const tenantA: TenantInfo = { ...mockTenant, slug: "school-a", name: "A" };
+    const tenantB: TenantInfo = { ...mockTenant, slug: "school-b", name: "B" };
+
+    let resolveForA: (v: TenantInfo) => void = () => {};
+    const aPromise = new Promise<TenantInfo>((r) => (resolveForA = r));
+
+    mockResolveTenant.mockImplementation((slug: string) => {
+      if (slug === "school-a") return aPromise;
+      // school-b never resolves in this test — no B-refetch is fired.
+      return new Promise<TenantInfo>(() => {
+        /* never */
+      });
+    });
+
+    const observed: { value: TenantInfo | null } = { value: null };
+    function Probe() {
+      observed.value = useTenantSafe()?.tenant ?? null;
+      return null;
+    }
+
+    const { rerender } = render(
+      <TenantProvider tenantSlug="school-a" tenant={tenantA}>
+        <Probe />
+      </TenantProvider>,
+    );
+
+    // Kick off A's refetch.
+    act(() => {
+      for (const handler of broadcastHandlers) handler();
+    });
+
+    // Navigate to B without firing a B-refetch.
+    rerender(
+      <TenantProvider tenantSlug="school-b" tenant={tenantB}>
+        <Probe />
+      </TenantProvider>,
+    );
+
+    expect(observed.value?.slug).toBe("school-b");
+
+    // A's in-flight resolve lands. With the counter-bump on cleanup,
+    // its token is now stale (counter advanced when A's effect tore
+    // down) and the response must be ignored.
+    await act(async () => {
+      resolveForA({ ...tenantA, name: "A (stale)" });
+      await Promise.resolve();
+    });
+
+    expect(observed.value?.slug).toBe("school-b");
+    expect(observed.value?.name).toBe("B");
+  });
 });
 
 describe("usePresenceMode", () => {
