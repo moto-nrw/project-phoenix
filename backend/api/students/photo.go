@@ -153,7 +153,7 @@ func mapPhotoDeleteError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, userService.ErrPhotoFeatureDisabled):
 		render.Status(r, http.StatusForbidden)
-		renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled)))
+		renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, userService.ErrPhotoStudentNotFound):
 		renderError(w, r, ErrorNotFound(errors.New("student not found")))
 	case errors.Is(err, userService.ErrPhotoStudentForbidden),
