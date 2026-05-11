@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useEffect, useState } from "react";
 import { render, waitFor, fireEvent, screen } from "@testing-library/react";
 import { ToastProvider } from "~/contexts/ToastContext";
 
@@ -6,11 +7,85 @@ const mockFetchSchema = vi.fn<() => Promise<unknown>>();
 const mockSetSettingValue = vi.fn<() => Promise<string | null>>();
 const mockResetSettingValue = vi.fn<() => Promise<string | null>>();
 
+// Local SWR override — global mock in test/setup.ts returns isLoading
+// forever, which would deadlock the page after the migration to useSWR.
+// Subscribers track per-key consumers; top-level mutate(key) triggers the
+// matching fetcher re-runs so optimistic-update tests still observe the
+// authoritative re-fetch.
+const swrSubscribers = new Map<unknown, Set<() => void>>();
+function notifyKey(key: unknown) {
+  const subs = swrSubscribers.get(key);
+  if (!subs) return;
+  for (const fn of subs) fn();
+}
+const swrMutate = vi.fn((key: unknown) => {
+  notifyKey(key);
+  return Promise.resolve();
+});
+vi.mock("swr", () => ({
+  default: (key: unknown, fetcher: () => Promise<unknown>) => {
+    const [data, setData] = useState<unknown>(undefined);
+    const [error, setError] = useState<unknown>(undefined);
+    const [isLoading, setLoading] = useState(true);
+    const fetchOnce = () => {
+      setLoading(true);
+      Promise.resolve()
+        .then(() => fetcher())
+        .then((d) => {
+          setData(d);
+          setError(undefined);
+        })
+        .catch((e: unknown) => setError(e))
+        .finally(() => setLoading(false));
+    };
+    useEffect(() => {
+      if (key == null) {
+        setLoading(false);
+        return;
+      }
+      const subs = swrSubscribers.get(key) ?? new Set<() => void>();
+      subs.add(fetchOnce);
+      swrSubscribers.set(key, subs);
+      fetchOnce();
+      return () => {
+        subs.delete(fetchOnce);
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [key]);
+    return {
+      data,
+      error,
+      isLoading: isLoading && data === undefined,
+      isValidating: isLoading,
+      mutate: () => {
+        fetchOnce();
+        return Promise.resolve(data);
+      },
+    };
+  },
+  mutate: swrMutate,
+  useSWRConfig: () => ({ mutate: swrMutate, cache: new Map() }),
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: { user: { token: "test-token" }, expires: "2099-01-01" },
     status: "authenticated",
     update: vi.fn(),
+  }),
+}));
+
+// Settings page now calls router.refresh() after save/reset for tenant-
+// resolve-affecting keys; jsdom tests don't mount the App-Router context
+// so we provide a stub that satisfies the invariant check.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: vi.fn(),
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
   }),
 }));
 
@@ -108,8 +183,14 @@ function renderWithProviders(ui: React.ReactElement) {
   return render(<ToastProvider>{ui}</ToastProvider>);
 }
 
-// Renders the actual SettingsContent via the hook's renderTab
+// Renders the actual SettingsContent via the hook's renderTab.
+// Mounts useSettingsCacheBridge so cross-tab BroadcastChannel and SSE
+// (phoenix:tenant-settings-stale) invalidations hit the SWR cache the
+// same way they do under the protected layout.
+const { useSettingsCacheBridge } =
+  await import("~/lib/hooks/use-settings-cache-bridge");
 function RenderedTab({ tabId }: { readonly tabId: string }) {
+  useSettingsCacheBridge();
   const result = useSettingsTabs();
   if (!result) return <div data-testid="no-tabs">No tabs</div>;
   return <div>{result.renderTab(tabId)}</div>;
@@ -247,7 +328,8 @@ describe("SettingsContent (via renderTab)", () => {
     expect(await screen.findByText("Sitzungen")).toBeDefined();
   });
 
-  it("updates value optimistically after save (no immediate re-fetch)", async () => {
+  it("updates value optimistically and re-fetches authoritatively after save", async () => {
+    // Save paints optimistically, then converges on canonical server state.
     mockFetchSchema.mockResolvedValue(mockSchema);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
@@ -262,8 +344,30 @@ describe("SettingsContent (via renderTab)", () => {
       expect(mockSetSettingValue).toHaveBeenCalled();
     });
 
-    // No immediate re-fetch — uses optimistic update
-    expect(mockFetchSchema.mock.calls.length).toBe(fetchCountBefore);
+    // Authoritative re-fetch happens immediately after save — covers
+    // server-side derived state (defaults, audit columns) the
+    // optimistic setSchema doesn't know about.
+    await waitFor(() => {
+      expect(mockFetchSchema.mock.calls.length).toBeGreaterThan(
+        fetchCountBefore,
+      );
+    });
+  });
+
+  it("re-fetches schema on tenant settings SSE invalidation", async () => {
+    mockFetchSchema.mockResolvedValue(mockSchema);
+
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
+    await screen.findByText("Aktiviert");
+
+    const fetchCountBefore = mockFetchSchema.mock.calls.length;
+    window.dispatchEvent(new CustomEvent("phoenix:tenant-settings-stale"));
+
+    await waitFor(() => {
+      expect(mockFetchSchema.mock.calls.length).toBeGreaterThan(
+        fetchCountBefore,
+      );
+    });
   });
 
   it("shows error banner on save network error", async () => {

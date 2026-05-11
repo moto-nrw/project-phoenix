@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -46,7 +45,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -302,30 +300,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
-	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db)
-	// Shared side-effect hook: when checkout.schulhof_enabled or
-	// checkout.wc_enabled flips on (regardless of who flipped it), make sure
-	// the corresponding system room exists. Registered on BOTH the tenant-
-	// admin resource and the operator resource so that either writer triggers
-	// infrastructure provisioning.
-	onSettingValueSet := func(ctx context.Context, _ int64, key string, value any) error {
-		boolVal, ok := value.(bool)
-		if !ok || !boolVal {
-			return nil // only trigger on enable (true), not disable
-		}
-
-		switch key {
-		case configModel.KeyCheckoutSchulhofEnabled:
-			_, err := api.Services.Schulhof.EnsureInfrastructure(ctx, 0)
-			return err
-		case configModel.KeyCheckoutWCEnabled:
-			_, err := api.Services.WC.EnsureInfrastructure(ctx)
-			return err
-		default:
-			return nil
-		}
-	}
-	api.Settings.OnValueSet(onSettingValueSet)
+	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub)
+	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
@@ -389,13 +365,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SuggestionsService:         api.Services.OperatorSuggestions,
 		AnnouncementsService:       api.Services.Announcement,
 		SettingsService:            api.Services.Settings,
+		Broadcaster:                api.Services.RealtimeHub,
 		TokenAuth:                  nil, // Created internally by operator API
 		DB:                         db,
 	})
 	// Mirror the tenant-side OnValueSet hook so operator writes also trigger
 	// side effects (e.g. auto-creating the Schulhof/WC rooms when the
 	// corresponding checkout toggle flips on).
-	api.Operator.OnSettingValueSet(onSettingValueSet)
+	api.Operator.OnSettingValueSet(api.Services.SettingsSideEffects.Dispatch)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware

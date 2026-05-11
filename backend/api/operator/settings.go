@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -100,24 +101,48 @@ func guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
-	onValueSet      func(ctx context.Context, tenantID int64, key string, value any) error
+	broadcaster     realtime.Broadcaster
+	// onValueSet shares its signature with config.ValueSetCallback — see
+	// that type for the in-tx vs post-commit contract. Duplicated here
+	// (rather than imported) so api/operator stays free of api/config
+	// dependency, mirroring the rest of the operator package's isolation.
+	onValueSet func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)
 }
 
-// NewSettingsResource creates a new operator settings resource.
-func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB) *SettingsResource {
+// NewSettingsResource creates a new operator settings resource. broadcaster
+// is optional — when supplied, the resource emits a tenant_settings_changed
+// SSE event after every successful Set/Reset so the affected tenant's tabs
+// invalidate their settings caches across origins. The same hook is wired
+// on the tenant-side SettingsResource so either writer triggers it.
+func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster) *SettingsResource {
 	return &SettingsResource{
 		settingsService: svc,
 		db:              db,
+		broadcaster:     broadcaster,
 	}
 }
 
-// OnValueSet registers a callback that runs after a setting value is validated
-// and saved. The callback executes inside the same tenant transaction as the
-// setting write, so returning an error aborts the request and rolls back the
-// update. Mirrors the tenant SettingsResource.OnValueSet contract so side
-// effects (e.g. auto-creating the Schulhof/WC rooms when the corresponding
-// checkout toggle flips on) apply uniformly regardless of who flipped it.
-func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+// scheduleSettingsBroadcast queues a tenant_settings_changed SSE event to
+// fire after the OUTERMOST tenant tx commits. Mirrors the tenant-side
+// helper so both writers fan out the same event shape.
+func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenantID int64, key string) {
+	if rs.broadcaster == nil || tenantID == 0 {
+		return
+	}
+	tenant.RegisterAfterCommit(ctx, func() {
+		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
+			Source: &key,
+		})
+		_ = rs.broadcaster.BroadcastToTenant(tenantID, event)
+	})
+}
+
+// OnValueSet registers a callback that runs after a setting value change is
+// validated and persisted. The callback runs inside the tenant transaction;
+// the optional postCommit closure it returns runs only after a successful
+// commit. Mirrors the tenant SettingsResource.OnValueSet contract so side
+// effects apply uniformly regardless of who flipped the value.
+func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)) {
 	rs.onValueSet = fn
 }
 
@@ -190,8 +215,13 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 			return err
 		}
 		if rs.onValueSet != nil {
-			return rs.onValueSet(ctx, schoolID, key, req.Value)
+			cb, err := rs.onValueSet(ctx, schoolID, key, req.Value)
+			if err != nil {
+				return err
+			}
+			tenant.RegisterAfterCommit(ctx, cb)
 		}
+		rs.scheduleSettingsBroadcast(ctx, schoolID, key)
 		return nil
 	})
 	if err != nil {
@@ -224,7 +254,11 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 	changedBy := int64(claims.ID)
 
 	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.ResetValue(ctx, key, &changedBy, nil)
+		if err := rs.settingsService.ResetValue(ctx, key, &changedBy, nil); err != nil {
+			return err
+		}
+		rs.scheduleSettingsBroadcast(ctx, schoolID, key)
+		return nil
 	})
 	if err != nil {
 		renderOperatorSettingsError(w, r, err)

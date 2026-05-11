@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
+	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
@@ -80,6 +81,12 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	OperatorSuggestions  platform.OperatorSuggestionsService
+
+	// SettingsSideEffects is the per-key handler registry the API binds to
+	// SettingsResource.OnValueSet. Domain packages register their own
+	// handlers; the API never owns the registry — its only job is to
+	// dispatch.
+	SettingsSideEffects *sideeffects.Registry
 }
 
 // NewFactory creates a new services factory
@@ -618,7 +625,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              platformLogger,
 	})
 
-	return &Factory{
+	factory := &Factory{
 		Auth:                     authService,
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
@@ -666,5 +673,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		OperatorSuggestions:  operatorSuggestionsService,
-	}, nil
+	}
+
+	factory.SettingsSideEffects = sideeffects.NewRegistry()
+	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
+	return factory, nil
 }

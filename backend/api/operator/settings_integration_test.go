@@ -56,7 +56,7 @@ func setupOperatorSettingsTest(t *testing.T) *operatorSettingsTestContext {
 	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := operatorAPI.NewSettingsResource(svc.Settings, db)
+	resource := operatorAPI.NewSettingsResource(svc.Settings, db, nil)
 
 	// Operator routes do not use TenantTxMiddleware — handlers call
 	// tenant.WithTenantTx internally using the school ID from the URL path.
@@ -364,12 +364,12 @@ func TestOperatorSetSchoolSettingValue_InvokesOnValueSetHook(t *testing.T) {
 	var capturedTenantID int64
 	var capturedKey string
 	var capturedValue any
-	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) error {
+	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
 		called = true
 		capturedTenantID = tenantID
 		capturedKey = key
 		capturedValue = value
-		return nil
+		return nil, nil
 	})
 
 	body := map[string]interface{}{"value": true}
@@ -398,8 +398,8 @@ func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.
 		Count(context.Background())
 	require.NoError(t, err)
 
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
-		return errors.New("hook rejected the change")
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+		return nil, errors.New("hook rejected the change")
 	})
 
 	body := map[string]interface{}{"value": true}
