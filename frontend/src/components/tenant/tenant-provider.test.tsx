@@ -270,6 +270,77 @@ describe("TenantProvider — cross-tab settings sync", () => {
 
     expect(observed.value?.name).toBe("New name");
   });
+
+  it("drops in-flight responses from a previous tenantSlug after navigation", async () => {
+    // Real-world scenario: a user toggles a setting on School A, then
+    // immediately switches to School B before School A's resolveTenant
+    // returns. Without the slug guard + monotonic counter, A's response
+    // would land last and overwrite B's context, leaving the new tab
+    // showing School A's metadata under School B's URL.
+    const tenantA: TenantInfo = { ...mockTenant, slug: "school-a", name: "A" };
+    const tenantB: TenantInfo = { ...mockTenant, slug: "school-b", name: "B" };
+
+    let resolveForA: (v: TenantInfo) => void = () => {};
+    let resolveForB: (v: TenantInfo) => void = () => {};
+    const aPromise = new Promise<TenantInfo>((r) => (resolveForA = r));
+    const bPromise = new Promise<TenantInfo>((r) => (resolveForB = r));
+
+    mockResolveTenant.mockImplementation((slug: string) => {
+      if (slug === "school-a") return aPromise;
+      if (slug === "school-b") return bPromise;
+      return Promise.resolve(null);
+    });
+
+    const observed: { value: TenantInfo | null } = { value: null };
+    function Probe() {
+      observed.value = useTenantSafe()?.tenant ?? null;
+      return null;
+    }
+
+    const { rerender } = render(
+      <TenantProvider tenantSlug="school-a" tenant={tenantA}>
+        <Probe />
+      </TenantProvider>,
+    );
+
+    // Kick off A's refetch.
+    act(() => {
+      for (const handler of broadcastHandlers) handler();
+    });
+
+    // Navigate to School B — new slug, new server-provided tenant.
+    rerender(
+      <TenantProvider tenantSlug="school-b" tenant={tenantB}>
+        <Probe />
+      </TenantProvider>,
+    );
+
+    // Kick off B's refetch.
+    act(() => {
+      for (const handler of broadcastHandlers) handler();
+    });
+
+    // School A's in-flight resolve finally lands — must be ignored.
+    await act(async () => {
+      resolveForA({ ...tenantA, name: "A (stale update)" });
+      await Promise.resolve();
+    });
+
+    // Context still shows B's server-provided tenant; A's response was
+    // dropped by either the counter or the slug guard.
+    expect(observed.value?.slug).toBe("school-b");
+
+    // B's resolve lands with a fresh value — that one DOES apply.
+    await act(async () => {
+      resolveForB({ ...tenantB, name: "B (fresh)" });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(observed.value?.name).toBe("B (fresh)");
+    });
+    expect(observed.value?.slug).toBe("school-b");
+  });
 });
 
 describe("usePresenceMode", () => {

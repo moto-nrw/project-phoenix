@@ -53,18 +53,25 @@ export function TenantProvider({
   }, [serverTenant]);
 
   // Sequence-token to drop out-of-order resolveTenant responses when
-  // multiple signals land in the same tick.
+  // multiple signals land in the same tick. Kept monotonic across slug
+  // changes so an in-flight resolve from a previous slug can't satisfy
+  // the token check after the counter rolls back to zero.
   const requestSeqRef = useRef(0);
 
   useEffect(() => {
     if (!tenantSlug) return undefined;
-    requestSeqRef.current = 0;
 
     const refetch = () => {
       const token = ++requestSeqRef.current;
-      void resolveTenant(tenantSlug).then((fresh) => {
+      const requestedSlug = tenantSlug;
+      void resolveTenant(requestedSlug).then((fresh) => {
         if (token !== requestSeqRef.current) return;
-        if (fresh) setTenant(fresh);
+        if (!fresh) return;
+        // Drop responses for a slug we no longer care about (the URL
+        // changed mid-flight). Without this, an A-slug response could
+        // overwrite a B-slug context after the user navigated.
+        if (fresh.slug !== requestedSlug) return;
+        setTenant(fresh);
       });
     };
 
