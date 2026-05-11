@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
@@ -236,8 +237,49 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
           </button>
         </div>
       )}
+      {tab.key === "security" && <PersonalSecurityHintCard />}
       <SettingsTabContent tab={tab} onSave={handleSave} onReset={handleReset} />
     </>
+  );
+}
+
+/**
+ * Hint card injected at the top of the (admin-only) Sicherheit tab so admins
+ * can find the per-user 2FA management page without hunting for the URL.
+ * The page itself is at /[tenant]/settings/security and is accessible to
+ * any logged-in user — the hint just lives in the admin tab because that is
+ * the most visible "security" surface in the app today.
+ */
+function PersonalSecurityHintCard() {
+  return (
+    <div
+      className="mb-4 rounded-2xl border p-4 backdrop-blur-sm md:p-5"
+      style={{
+        borderColor: "#5080D81F",
+        backgroundColor: "#5080D80A",
+      }}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-gray-900">
+            Ihre persönliche Zwei-Faktor-Authentifizierung
+          </h3>
+          <p className="mt-1 text-xs text-gray-600">
+            Hier verwalten Sie die Schul-weiten 2FA-Regeln. Ihre eigenen
+            2FA-Einstellungen (aktivieren, Wiederherstellungscodes,
+            vertrauenswürdige Geräte) finden Sie auf der separaten
+            Sicherheits-Seite.
+          </p>
+        </div>
+        <Link
+          href="/settings/security"
+          className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-xs font-semibold text-white transition-all hover:opacity-90 focus:outline-none active:scale-95 md:text-sm"
+          style={{ backgroundColor: "#5080D8" }}
+        >
+          Meine 2FA verwalten →
+        </Link>
+      </div>
+    </div>
   );
 }
 
