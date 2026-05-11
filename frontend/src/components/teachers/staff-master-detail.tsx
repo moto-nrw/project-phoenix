@@ -37,6 +37,7 @@ interface StaffMasterDetailProps {
   onDeleteClick: () => void;
   onUpdateNotes: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
+  onManageMFA?: () => void;
 }
 
 function keyForTeacher(teacher: Teacher): string {
@@ -96,6 +97,7 @@ export function StaffMasterDetail({
   onDeleteClick,
   onUpdateNotes,
   onManageCaregiver,
+  onManageMFA,
 }: StaffMasterDetailProps) {
   const renderItem = (teacher: Teacher) => (
     <DatabaseListItem
@@ -126,6 +128,7 @@ export function StaffMasterDetail({
       onDeleteClick={onDeleteClick}
       onUpdateNotes={onUpdateNotes}
       onManageCaregiver={onManageCaregiver}
+      onManageMFA={onManageMFA}
     />
   ) : (
     <EmptyDetailState
@@ -154,6 +157,7 @@ interface StaffDetailContentProps {
   onDeleteClick: () => void;
   onUpdateNotes: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
+  onManageMFA?: () => void;
 }
 
 function StaffDetailContent({
@@ -162,6 +166,7 @@ function StaffDetailContent({
   onDeleteClick,
   onUpdateNotes,
   onManageCaregiver,
+  onManageMFA,
 }: StaffDetailContentProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
 
@@ -188,6 +193,7 @@ function StaffDetailContent({
           teacher={teacher}
           onUpdateNotes={onUpdateNotes}
           onManageCaregiver={onManageCaregiver}
+          onManageMFA={onManageMFA}
         />
       ),
     },
@@ -214,12 +220,14 @@ interface StaffStammdatenTabProps {
   teacher: Teacher;
   onUpdateNotes: (notes: string) => Promise<void>;
   onManageCaregiver?: () => void;
+  onManageMFA?: () => void;
 }
 
 function StaffStammdatenTab({
   teacher,
   onUpdateNotes,
   onManageCaregiver,
+  onManageMFA,
 }: StaffStammdatenTabProps) {
   const trimmedQualifications = teacher.qualifications?.trim() ?? "";
 
@@ -316,17 +324,28 @@ function StaffStammdatenTab({
         </InfoSection>
       ) : null}
 
-      {onManageCaregiver ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={onManageCaregiver}
-            className="rounded-lg border border-[#F78C10]/30 px-3 py-2 text-xs font-medium text-[#F78C10] transition-all duration-200 hover:bg-[#F78C10]/10 md:text-sm"
-          >
-            Betreuung verwalten
-          </button>
+      {(onManageCaregiver || onManageMFA) && (
+        <div className="flex flex-wrap justify-end gap-2">
+          {onManageMFA ? (
+            <button
+              type="button"
+              onClick={onManageMFA}
+              className="rounded-lg border border-[#5080D8]/30 px-3 py-2 text-xs font-medium text-[#5080D8] transition-all duration-200 hover:bg-[#5080D8]/10 md:text-sm"
+            >
+              2FA verwalten
+            </button>
+          ) : null}
+          {onManageCaregiver ? (
+            <button
+              type="button"
+              onClick={onManageCaregiver}
+              className="rounded-lg border border-[#F78C10]/30 px-3 py-2 text-xs font-medium text-[#F78C10] transition-all duration-200 hover:bg-[#F78C10]/10 md:text-sm"
+            >
+              Betreuung verwalten
+            </button>
+          ) : null}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

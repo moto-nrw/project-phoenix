@@ -350,6 +350,36 @@ export async function revokeTrustedDevice(
   });
 }
 
+// ----- Admin-Override (Tenant-only; requires users:manage) -----
+
+function adminMFAUrl(accountId: string, suffix: string): string {
+  return `/api/auth/accounts/${encodeURIComponent(accountId)}/mfa${suffix}`;
+}
+
+export async function adminResetMFA(
+  bearerToken: string,
+  accountId: string,
+  reason: string,
+): Promise<void> {
+  await postJson<unknown>(
+    adminMFAUrl(accountId, ""),
+    { reason },
+    { bearerToken, method: "DELETE", allowEmptyBody: true },
+  );
+}
+
+export async function adminRegenerateRecoveryCodes(
+  bearerToken: string,
+  accountId: string,
+  reason: string,
+): Promise<RecoveryCodesResponse> {
+  return postJson<RecoveryCodesResponse>(
+    adminMFAUrl(accountId, "/recovery-codes"),
+    { reason },
+    { bearerToken },
+  );
+}
+
 export function germanMFAErrorMessage(err: unknown): string {
   if (!(err instanceof MFAApiError)) {
     logger.warn("unexpected_mfa_error_shape", {

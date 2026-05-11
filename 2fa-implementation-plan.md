@@ -12,11 +12,11 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 |---|---|
 | Branch | `feat/1308-2fa-email` (von `origin/development`) |
 | PR | _tbd_ |
-| Aktueller Stand | **Phase 11 abgeschlossen** — Sicherheits-Settings-Page unter `/[tenant]/settings/security` + `/operator/settings/security`. Neuer Backend-Endpoint `GET /auth/mfa/status` (+ Operator-Pendant). Sechs Frontend-Bugfixes aus der manuellen Browser-Begutachtung committet. Alle 9169 Frontend-Tests grün. |
+| Aktueller Stand | **Phase 12 abgeschlossen** — Admin-Override-Modal („Godmode") im Personal-Detail (`/[tenant]/database/personal`) integriert. „2FA verwalten"-Button öffnet `MFAAdminOverrideModal` mit zwei Aktionen + Pflichtgrund + Audit-Trail. Alle 9174 Frontend-Tests grün. |
 | Letztes Update | 2026-05-11 |
 | Blocker | keine |
 
-**Nächster Schritt:** Phase 12 — Admin-Override UI. Section „2FA" im Admin-User-Detail (`/[tenant]/admin/users/{id}`), sichtbar bei `users:manage`. „2FA zurücksetzen"-Modal mit Pflichtfeld Grund → DELETE `/auth/admin/users/{id}/mfa`. „Recovery-Codes neu generieren"-Modal mit Grund → POST. Toast-Feedback via existierendem `ToastContext`. Backend-Endpoints existieren bereits aus Phase 6.
+**Nächster Schritt:** Phase 13 — Tests. Backend Integration-Tests gegen Test-DB für Login → Challenge → Verify → Tokens, Recovery-Code-Pfad, Lockout, Rate-Limit, Admin-Override, Trusted-Device-Skip. Hermetic-Check grün halten. E2E (Playwright) für den kompletten Login-Flow inkl. Enrollment + Admin-Override. Edge Cases aus Design-Doku §11 abdecken.
 
 ### Recherche-Findings (Phase 0)
 
@@ -344,14 +344,32 @@ Design-Referenz: [`2fa-plan-issue-1308.md`](./2fa-plan-issue-1308.md). Bei Konfl
 
 ---
 
-## Phase 12 — Frontend: Admin-Override UI
+## Phase 12 — Frontend: Admin-Override UI ✅
 
-**Pfad:** `/[tenant]/admin/users/{id}` (oder dort wo User-Detail bereits lebt)
+**Pfad:** `/[tenant]/database/personal` (existierende User-Detail-Page, parallel zu „Betreuung verwalten")
 
-- [ ] Section „2FA" sichtbar nur bei Permission
-- [ ] Button „2FA zurücksetzen" → Modal mit Pflichtfeld „Grund" → POST `/auth/admin/users/{id}/mfa` (DELETE)
-- [ ] Button „Recovery-Codes neu generieren" → Modal mit Grund → Codes werden im Modal angezeigt (einmalig)
-- [ ] Toast-Feedback (siehe `ToastContext.tsx`)
+- [x] **Komponente** `MFAAdminOverrideModal` (`components/auth/mfa-admin-override-modal.tsx`):
+  - [x] Menu-View mit zwei Aktionen — Wiederherstellungscodes neu generieren (Blau `#5080D8`) + 2FA komplett zurücksetzen (Rot `#FF3130`)
+  - [x] Form-View pro Aktion mit Pflicht-Textarea „Grund" (mind. 3 Zeichen, max 500, wird ins Audit-Log geschrieben). Frontend-Validation + Server-Side-Errors
+  - [x] Regenerate-Erfolg zeigt `RecoveryCodesDisplay` einmalig (Reuse Phase 10)
+  - [x] Reset-Erfolg zeigt Bestätigungs-Hinweis mit Folge-Anweisung („beim nächsten Login ohne 2FA-Code …")
+  - [x] Toast-Feedback via existierendem `ToastContext` (success/error)
+  - [x] Schließen via X-Icon, „Schließen"-Button oder Backdrop-Click (über fixed-overlay-Pattern)
+- [x] **Integration** in `database/personal/page.tsx`:
+  - [x] Neuer State `mfaModalOpen` + Handler `handleManageMFAClick`
+  - [x] `StaffMasterDetail` um Prop `onManageMFA` erweitert (parallel zu `onManageCaregiver`)
+  - [x] „2FA verwalten"-Button im Detail-Bereich (Blau `#5080D8`-Border), nur sichtbar wenn `account_id` gesetzt
+  - [x] Backend-Permission-Gate (`users:manage`) bleibt die Source of Truth — Frontend zeigt den Button breit, ein 403 wird via Toast übersetzt
+- [x] **mfa-api.ts** um `adminResetMFA` + `adminRegenerateRecoveryCodes` erweitert (Bearer-Token-Forwarding, body `{reason}`)
+- [x] **2 neue Proxy-Routen**:
+  - `DELETE /api/auth/accounts/[id]/mfa` → Backend `DELETE /auth/accounts/{accountId}/mfa`
+  - `POST /api/auth/accounts/[id]/mfa/recovery-codes` → Backend POST
+- [x] **5 Komponenten-Tests** (Menu-Render, Pflicht-Grund-Validation, Reset-Flow + Erfolgs-Bestätigung, Regenerate-Flow + Codes-Display, 403-Fehlerpfad)
+- [x] `pnpm run check` clean, 9174 Frontend-Tests grün
+
+**Bewusst nicht im Scope:**
+- Operator-Pendant — Operator-Accounts haben kein bestehendes Admin-Override-Backend (Phase 6 ist tenant-only), kein Frontend-Trigger nötig. Falls später Operator-Override-Endpunkte kommen, einfach `scope`-Param in der Komponente ergänzen
+- Mail-Benachrichtigung an betroffenen User („Ihr 2FA wurde zurückgesetzt") — bleibt aus Phase 6 als Phase-14-Optional
 
 ---
 
