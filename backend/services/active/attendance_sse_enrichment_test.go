@@ -60,6 +60,13 @@ func (r *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
 	return nil
 }
 
+func (r *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.allCalls = append(r.allCalls, event)
+	return nil
+}
+
 // firstOfType returns the first event of the given type seen across either
 // broadcast channel, or nil if none matches.
 func (r *recordingBroadcaster) firstOfType(t realtime.EventType) *realtime.Event {

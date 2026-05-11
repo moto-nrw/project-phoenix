@@ -168,7 +168,7 @@ export function PeriodSwitcherDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-96 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md">
+        <div className="absolute left-0 z-30 mt-2 w-[calc(100vw-3rem)] max-w-96 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md sm:right-0 sm:left-auto sm:w-96">
           <div className="border-b border-slate-100 px-4 py-3">
             <p className="text-sm font-semibold text-slate-900">
               Planungsperiode

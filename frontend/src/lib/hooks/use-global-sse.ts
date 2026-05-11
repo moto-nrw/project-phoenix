@@ -62,6 +62,7 @@ export function useGlobalSSE(): SSEHookState {
   const pendingGroupIds = useRef(new Set<string>());
   const pendingStudentIds = useRef(new Set<string>());
   const hasPendingActivityEvent = useRef(false);
+  const hasPendingActiveSupervisionEvent = useRef(false);
   const hasPendingDashboardEvent = useRef(false);
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const hasPendingArrivalScheduleEvent = useRef(false);
@@ -186,6 +187,7 @@ export function useGlobalSSE(): SSEHookState {
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
       hasPendingActivityEvent.current ||
+      hasPendingActiveSupervisionEvent.current ||
       hasPendingDashboardEvent.current ||
       hasPendingDailyCheckoutDashboardEvent.current ||
       hasPendingArrivalScheduleEvent.current ||
@@ -221,6 +223,25 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    if (hasPendingActiveSupervisionEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("active-supervision-dashboard-") ||
+            key.includes("supervision-visits-") ||
+            key.includes("timetable-roster-") ||
+            key.includes("room-detail-") ||
+            key.includes("tracking-supervisions-") ||
+            key.includes("tracking-indicators-") ||
+            key.includes("dashboard")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "active_supervision",
+        });
+      });
+    }
+
     if (hasPendingTimetableEvent.current) {
       mutate(
         (key) =>
@@ -239,6 +260,7 @@ export function useGlobalSSE(): SSEHookState {
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();
     hasPendingActivityEvent.current = false;
+    hasPendingActiveSupervisionEvent.current = false;
     hasPendingDashboardEvent.current = false;
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
@@ -287,6 +309,18 @@ export function useGlobalSSE(): SSEHookState {
             pendingGroupIds.current.add(event.active_group_id);
           }
           hasPendingActivityEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "active_supervision_changed": {
+          if (event.active_group_id) {
+            pendingGroupIds.current.add(event.active_group_id);
+          }
+          if (event.data.student_id) {
+            pendingStudentIds.current.add(event.data.student_id);
+          }
+          hasPendingActiveSupervisionEvent.current = true;
           scheduleFlush();
           break;
         }

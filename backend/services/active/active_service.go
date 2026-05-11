@@ -32,6 +32,10 @@ type Broadcaster = realtime.Broadcaster
 const (
 	// sseErrorMessage is the standard error message for SSE broadcast failures
 	sseErrorMessage = "SSE broadcast failed"
+
+	activeSupervisionReasonActivityStarted = "activity_started"
+	activeSupervisionReasonActivityEnded   = "activity_ended"
+	activeSupervisionReasonStudentMoved    = "student_moved"
 )
 
 // RoomConflictStrategy defines how to handle room conflicts when determining room ID
@@ -723,6 +727,7 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 
 	// Notify all clients so dashboard counts refresh
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
@@ -791,6 +796,7 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// Single global broadcast for the entire batch
 	if len(visitsToNotify) > 0 && s.broadcaster != nil {
 		_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonStudentMoved)
 	}
 }
 
@@ -820,6 +826,7 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 
 	// Notify all clients (including zero-topic) so dashboard refreshes
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonActivityEnded)
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.

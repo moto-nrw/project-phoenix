@@ -625,7 +625,7 @@ func TestScheduleService_FindTimeframesByTimeRange(t *testing.T) {
 
 	t.Run("finds timeframes in range", func(t *testing.T) {
 		// ARRANGE
-		startTime := time.Now().Add(1 * time.Hour)
+		startTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		endTime := startTime.Add(2 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
 		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)

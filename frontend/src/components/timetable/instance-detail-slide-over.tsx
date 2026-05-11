@@ -11,12 +11,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 import {
+  Check,
   CheckCircle2,
   CircleX,
   DoorOpen,
   Pencil,
   Repeat,
-  Square,
+  RotateCcw,
   StickyNote,
   Timer,
   Trash2,
@@ -27,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   SlideOver,
   SlideOverClose,
@@ -86,9 +88,9 @@ interface StatusBadgeProps {
 function StatusBadge({ status }: StatusBadgeProps) {
   const palette: Record<InstanceStatus, { bg: string; text: string }> = {
     planned: { bg: "#F3F4F6", text: "#374151" },
-    active: { bg: "#83CD2D", text: "#FFFFFF" },
+    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: "#FFFFFF" },
     completed: { bg: "#E5E7EB", text: "#6B7280" },
-    cancelled: { bg: "#FF3130", text: "#FFFFFF" },
+    cancelled: { bg: LOCATION_COLORS.HOME, text: "#FFFFFF" },
   };
   const { bg, text } = palette[status];
   return (
@@ -97,7 +99,7 @@ function StatusBadge({ status }: StatusBadgeProps) {
       style={{ backgroundColor: bg, color: text }}
     >
       {status === "active" && (
-        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
       )}
       {getStatusLabel(status)}
     </span>
@@ -112,6 +114,23 @@ function attendanceLabel(status: InstanceStudentSummary["status"]): string {
       return "Anwesend";
     case "absent":
       return "Fehlt";
+  }
+}
+
+function attendanceSubstatusLabel(
+  substatus: NonNullable<InstanceStudentSummary["substatus"]>,
+): string {
+  switch (substatus) {
+    case "late":
+      return "Verspätet";
+    case "excused":
+      return "Entschuldigt";
+    case "sick":
+      return "Krank";
+    case "field_trip":
+      return "Ausflug";
+    case "other":
+      return "Sonstiges";
   }
 }
 
@@ -405,7 +424,7 @@ export function InstanceDetailSlideOver({
                   disabled={pendingAction !== null}
                 >
                   <span className="inline-flex items-center gap-2">
-                    <Square className="h-4 w-4" />
+                    <CheckCircle2 className="h-4 w-4" />
                     Beenden
                   </span>
                 </Button>
@@ -519,17 +538,19 @@ function StudentGroup({
             </div>
             <div className="text-[11px] text-slate-500">
               {attendanceLabel(student.status)}
-              {student.substatus ? ` • ${student.substatus}` : ""}
+              {student.substatus
+                ? ` • ${attendanceSubstatusLabel(student.substatus)}`
+                : ""}
               {student.note ? ` • ${student.note}` : ""}
             </div>
           </div>
           {onAttendancePatch && (
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               {student.status !== "present" && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                <IconActionButton
+                  icon={<Check className="h-3.5 w-3.5" />}
+                  label="Als anwesend markieren"
+                  tone="green"
                   isLoading={pendingStudentId === student.studentId}
                   disabled={pendingStudentId !== null}
                   onClick={() =>
@@ -538,15 +559,13 @@ function StudentGroup({
                       substatus: null,
                     })
                   }
-                >
-                  Anwesend
-                </Button>
+                />
               )}
               {student.status !== "absent" && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                <IconActionButton
+                  icon={<X className="h-3.5 w-3.5" />}
+                  label="Als fehlend markieren"
+                  tone="red"
                   isLoading={pendingStudentId === student.studentId}
                   disabled={pendingStudentId !== null}
                   onClick={() =>
@@ -555,15 +574,13 @@ function StudentGroup({
                       substatus: null,
                     })
                   }
-                >
-                  Fehlt
-                </Button>
+                />
               )}
               {student.status !== "expected" && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                <IconActionButton
+                  icon={<RotateCcw className="h-3.5 w-3.5" />}
+                  label="Status zurücksetzen"
+                  tone="slate"
                   isLoading={pendingStudentId === student.studentId}
                   disabled={pendingStudentId !== null}
                   onClick={() =>
@@ -573,9 +590,7 @@ function StudentGroup({
                       note: null,
                     })
                   }
-                >
-                  Zurücksetzen
-                </Button>
+                />
               )}
             </div>
           )}
@@ -590,6 +605,51 @@ function EmptyLine({ children }: { children: React.ReactNode }) {
     <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
       {children}
     </div>
+  );
+}
+
+type IconActionTone = "green" | "red" | "slate";
+
+interface IconActionButtonProps {
+  icon: React.ReactNode;
+  label: string;
+  tone: IconActionTone;
+  onClick: () => void;
+  isLoading?: boolean;
+  disabled?: boolean;
+}
+
+const ICON_ACTION_PALETTE: Record<IconActionTone, string> = {
+  green:
+    "border-[#BBF7D0] bg-white text-[#15803D] hover:border-[#86EFAC] hover:bg-[#F0FDF4]",
+  red: "border-[#FECACA] bg-white text-[#B91C1C] hover:border-[#FCA5A5] hover:bg-[#FEF2F2]",
+  slate:
+    "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+};
+
+function IconActionButton({
+  icon,
+  label,
+  tone,
+  onClick,
+  isLoading,
+  disabled,
+}: IconActionButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || isLoading}
+      title={label}
+      aria-label={label}
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${ICON_ACTION_PALETTE[tone]}`}
+    >
+      {isLoading ? (
+        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      ) : (
+        icon
+      )}
+    </button>
   );
 }
 
@@ -632,57 +692,94 @@ interface StatsRowProps {
 function StatsRow({ instance }: StatsRowProps) {
   const expected = instance.expectedStudentsCount;
   const present = instance.presentStudentsCount;
+  const totalStudents = expected + present;
+  const activeStaff = instance.staffCount - instance.absentStaffCount;
+
+  const studentTone: StatPillTone =
+    totalStudents === 0 ? "slate" : present > 0 ? "green" : "slate";
+  const staffTone: StatPillTone =
+    instance.staffCount === 0
+      ? "slate"
+      : instance.absentStaffCount > 0
+        ? "amber"
+        : "blue";
+
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <StatBox
+    <div className="flex flex-wrap items-center gap-1.5">
+      <StatPill
+        icon={<Users className="h-3.5 w-3.5" />}
         label="Anwesend"
-        value={present > 0 ? `${present} / ${expected + present}` : "—"}
-        color="#15803D"
-        bg="#F0FDF4"
-        border="#BBF7D0"
+        value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
+        tone={studentTone}
       />
-      <StatBox
+      <StatPill
+        icon={<UserCheck className="h-3.5 w-3.5" />}
         label="Personal"
-        value={`${instance.staffCount - instance.absentStaffCount} / ${instance.staffCount}`}
-        color="#1E3A8A"
-        bg="#EFF6FF"
-        border="#BFDBFE"
-      />
-      <StatBox
-        label="Status"
-        value={getStatusLabel(instance.status)}
-        color={instance.status === "cancelled" ? "#7F1D1D" : "#1F2937"}
-        bg={instance.status === "cancelled" ? "#FEF2F2" : "#F8FAFC"}
-        border={instance.status === "cancelled" ? "#FECACA" : "#E2E8F0"}
+        value={
+          instance.staffCount === 0
+            ? "—"
+            : `${activeStaff} / ${instance.staffCount}`
+        }
+        tone={staffTone}
       />
     </div>
   );
 }
 
-interface StatBoxProps {
+type StatPillTone = "green" | "blue" | "amber" | "slate";
+
+interface StatPillProps {
+  icon: React.ReactNode;
   label: string;
   value: string;
-  color: string;
-  bg: string;
-  border: string;
+  tone: StatPillTone;
 }
 
-function StatBox({ label, value, color, bg, border }: StatBoxProps) {
+const STAT_PILL_PALETTE: Record<
+  StatPillTone,
+  { bg: string; border: string; accent: string; muted: string }
+> = {
+  green: {
+    bg: "#F0FDF4",
+    border: "#BBF7D0",
+    accent: "#15803D",
+    muted: "#166534CC",
+  },
+  blue: {
+    bg: "#EFF6FF",
+    border: "#BFDBFE",
+    accent: "#1E40AF",
+    muted: "#1E3A8ACC",
+  },
+  amber: {
+    bg: "#FEF3C7",
+    border: "#FDE68A",
+    accent: "#92400E",
+    muted: "#78350FCC",
+  },
+  slate: {
+    bg: "#F8FAFC",
+    border: "#E2E8F0",
+    accent: "#334155",
+    muted: "#475569CC",
+  },
+};
+
+function StatPill({ icon, label, value, tone }: StatPillProps) {
+  const { bg, border, accent, muted } = STAT_PILL_PALETTE[tone];
   return (
-    <div
-      className="rounded-md border px-3 py-2"
-      style={{ backgroundColor: bg, borderColor: border }}
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+      style={{ backgroundColor: bg, borderColor: border, color: accent }}
     >
-      <div
-        className="text-[10px] font-semibold tracking-wide uppercase"
-        style={{ color }}
-      >
+      <span aria-hidden className="flex shrink-0 items-center">
+        {icon}
+      </span>
+      <span className="font-medium" style={{ color: muted }}>
         {label}
-      </div>
-      <div className="text-base font-bold" style={{ color }}>
-        {value}
-      </div>
-    </div>
+      </span>
+      <span className="font-bold tabular-nums">{value}</span>
+    </span>
   );
 }
 

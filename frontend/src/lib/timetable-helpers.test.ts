@@ -83,25 +83,27 @@ describe("parseTimeToMinutes", () => {
 });
 
 describe("date and range helpers", () => {
-  it("anchors week ranges to Monday through Friday", () => {
+  it("anchors week ranges to Monday through Sunday", () => {
     const { from, to } = getWeekRange(new Date("2026-05-06T12:00:00"), 0);
 
     expect(toISODate(from)).toBe("2026-05-04");
-    expect(toISODate(to)).toBe("2026-05-08");
+    expect(toISODate(to)).toBe("2026-05-10");
     expect(getWeekdays(from).map(toISODate)).toEqual([
       "2026-05-04",
       "2026-05-05",
       "2026-05-06",
       "2026-05-07",
       "2026-05-08",
+      "2026-05-09",
+      "2026-05-10",
     ]);
   });
 
-  it("treats Sunday as part of the previous school week", () => {
+  it("treats Sunday as part of the current visible week", () => {
     const { from, to } = getWeekRange(new Date("2026-05-10T12:00:00"), 0);
 
     expect(toISODate(from)).toBe("2026-05-04");
-    expect(toISODate(to)).toBe("2026-05-08");
+    expect(toISODate(to)).toBe("2026-05-10");
   });
 
   it("expands a month to full calendar weeks", () => {
@@ -137,10 +139,11 @@ describe("date and range helpers", () => {
 
   it("formats German labels", () => {
     const monday = new Date("2026-05-04T00:00:00");
-    const friday = new Date("2026-05-08T00:00:00");
+    const sunday = new Date("2026-05-10T00:00:00");
 
-    expect(formatWeekLabel(monday, friday)).toContain("KW 19");
-    expect(formatWeekLabel(monday, friday)).toContain("04.05");
+    expect(formatWeekLabel(monday, sunday)).toContain("KW 19");
+    expect(formatWeekLabel(monday, sunday)).toContain("04.05");
+    expect(formatWeekLabel(monday, sunday)).toContain("So 10.05.2026");
     expect(formatDayHeader(monday)).toBe("Mo 04.05.");
     expect(formatMonthLabel(monday)).toMatch(/Mai 2026/i);
     expect(formatYearLabel(monday)).toBe("2026");

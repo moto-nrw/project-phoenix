@@ -35,6 +35,13 @@ func (m *mockBroadcaster) BroadcastToAll(event realtime.Event) error {
 	return nil
 }
 
+func (m *mockBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.allCalls = append(m.allCalls, event)
+	return nil
+}
+
 func (m *mockBroadcaster) getAllCalls() []realtime.Event {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -112,6 +119,8 @@ func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
 
 	assert.True(t, broadcaster.hasEventType(realtime.EventDashboardCountsChanged),
 		"expected dashboard_counts_changed after CreateVisit")
+	assert.True(t, broadcaster.hasEventType(realtime.EventActiveSupervisionChanged),
+		"expected active_supervision_changed after CreateVisit")
 }
 
 func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
@@ -136,6 +145,8 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 
 	assert.True(t, broadcaster.hasEventType(realtime.EventDashboardCountsChanged),
 		"expected dashboard_counts_changed after EndVisit")
+	assert.True(t, broadcaster.hasEventType(realtime.EventActiveSupervisionChanged),
+		"expected active_supervision_changed after EndVisit")
 }
 
 func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
@@ -169,6 +180,8 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "expected dashboard_counts_changed after EndActivitySession with active visits")
+	assert.True(t, broadcaster.hasEventType(realtime.EventActiveSupervisionChanged),
+		"expected active_supervision_changed after EndActivitySession")
 }
 
 func TestBroadcast_DailyCheckoutSendsDashboardCounts(t *testing.T) {

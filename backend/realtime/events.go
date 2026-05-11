@@ -31,6 +31,11 @@ const (
 	// Global refresh event — tells all clients to re-fetch dashboard counts
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
 
+	// Active supervision refresh event — tenant-wide signal that the active
+	// supervision view is stale regardless of whether the cause was IoT, NFC,
+	// timetable operations, or another lifecycle action.
+	EventActiveSupervisionChanged EventType = "active_supervision_changed"
+
 	// Arrival schedule events affect derived "not arriving today" badges and
 	// bulk arrival-time lookups across student list/detail pages.
 	EventArrivalScheduleChanged EventType = "arrival_schedule_changed"
@@ -90,6 +95,9 @@ type EventData struct {
 
 	// Source tracking
 	Source *string `json:"source,omitempty"` // "rfid", "manual", "automated"
+
+	// Reason tracking for generic refresh events.
+	Reason *string `json:"reason,omitempty"`
 }
 
 // NewEvent creates a new event with current timestamp

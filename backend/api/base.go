@@ -328,6 +328,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		CalendarPeriodService:  api.Services.CalendarPeriod,
 		MaterializationService: api.Services.Materialization,
 		InstanceService:        api.Services.Instance,
+		OperationsService:      api.Services.TimetableOperations,
 		PersonService:          api.Services.Users,
 		InstanceStudentRepo:    repoFactory.InstanceStudent,
 		ActivityInstanceRepo:   repoFactory.ActivityInstance,

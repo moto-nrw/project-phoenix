@@ -561,14 +561,72 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 			s.getLogger().Error("session end failed", "error", err)
 			return nil
 		}
+		timetableCompleted, err := s.completeTimetableInstancesForEndedSessions(tenantCtx, result)
+		if err != nil {
+			s.getLogger().Error("session end timetable sync failed",
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
 		if result.SessionsEnded > 0 {
 			s.getLogger().Info("session end completed",
 				slog.Int("sessions_ended", result.SessionsEnded),
 				slog.Int("visits_ended", result.VisitsEnded),
+				slog.Int("timetable_instances_completed", timetableCompleted),
 			)
 		}
 		return nil
 	})
+}
+
+// completeTimetableInstancesForEndedSessions closes the schedule-side rows
+// linked to active.groups that the daily session-end job just closed.
+//
+// The active service owns active.groups/visits/supervisors; timetable
+// instances live in schedule.*, so the scheduler bridges the two inside the
+// tenant transaction created by ForEachActive. If this sync fails, callers
+// return the error so the active close rolls back too instead of leaving the
+// planner in a stale "active" state.
+func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *active.DailySessionCleanupResult) (int, error) {
+	if result == nil || len(result.EndedActiveGroupIDs) == 0 || s.db == nil {
+		return 0, nil
+	}
+
+	db := repoBase.GetDB(ctx, s.db)
+	now := time.Now()
+
+	if _, err := db.NewUpdate().
+		TableExpr(`schedule.instance_students AS "student"`).
+		Set("status = ?", scheduleModel.AttendanceStatusAbsent).
+		Set("updated_at = ?", now).
+		Where(`"student".status = ?`, scheduleModel.AttendanceStatusExpected).
+		Where(`"student".instance_id IN (
+			SELECT "instance".id
+			FROM schedule.activity_instances AS "instance"
+			WHERE "instance".status = ?
+				AND "instance".active_group_id IN (?)
+		)`, scheduleModel.InstanceStatusActive, bun.List(result.EndedActiveGroupIDs)).
+		Exec(ctx); err != nil {
+		return 0, fmt.Errorf("mark expected timetable students absent: %w", err)
+	}
+
+	res, err := db.NewUpdate().
+		TableExpr(`schedule.activity_instances AS "instance"`).
+		Set("status = ?", scheduleModel.InstanceStatusCompleted).
+		Set("completed_at = ?", now).
+		Set("updated_at = ?", now).
+		Where(`"instance".status = ?`, scheduleModel.InstanceStatusActive).
+		Where(`"instance".active_group_id IN (?)`, bun.List(result.EndedActiveGroupIDs)).
+		Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("complete active timetable instances: %w", err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("complete active timetable instances rows affected: %w", err)
+	}
+	return int(rows), nil
 }
 
 // executeSessionCleanup runs session cleanup for all tenants (backward-compatible wrapper).
@@ -898,12 +956,21 @@ func (s *Scheduler) checkAndRunSessionEnd(task *ScheduledTask) {
 			)
 			return nil // don't fail other tenants
 		}
+		timetableCompleted, err := s.completeTimetableInstancesForEndedSessions(endCtx, result)
+		if err != nil {
+			s.getLogger().Error("session end timetable sync failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
 
 		s.getLogger().Info("session end completed for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int("sessions_ended", result.SessionsEnded),
 			slog.Int("visits_ended", result.VisitsEnded),
 			slog.Int("supervisors_ended", result.SupervisorsEnded),
+			slog.Int("timetable_instances_completed", timetableCompleted),
 		)
 
 		markRunToday(&s.lastSessionEnd, tenantID)
@@ -1741,10 +1808,6 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	}
 }
 
-type tenantBroadcaster interface {
-	BroadcastToTenant(tenantID int64, event realtime.Event) error
-}
-
 // emitInstanceOverdue builds the SSE envelope and fires it tenant-wide:
 // a planned instance has no bridged active.group yet, so there is no group-
 // scoped topic to route through. Admin dashboard subscribers pick it up.
@@ -1760,16 +1823,21 @@ func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, ins
 		InstanceStartTime: &instanceStart,
 		RoomID:            &roomIDStr,
 	})
-	tenantScopedBroadcaster, ok := s.overdueBroadcaster.(tenantBroadcaster)
-	if !ok {
-		s.getLogger().Warn("overdue tick: tenant broadcast unsupported",
+	if err := s.overdueBroadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		s.getLogger().Warn("overdue tick: broadcast failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("instance_id", inst.ID),
+			slog.String("error", err.Error()),
 		)
 		return
 	}
-	if err := tenantScopedBroadcaster.BroadcastToTenant(tenantID, event); err != nil {
-		s.getLogger().Warn("overdue tick: broadcast failed",
+	reason := "instance_overdue"
+	refreshEvent := realtime.NewEvent(realtime.EventActiveSupervisionChanged, "", realtime.EventData{
+		InstanceID: &instanceIDStr,
+		Reason:     &reason,
+	})
+	if err := s.overdueBroadcaster.BroadcastToTenant(tenantID, refreshEvent); err != nil {
+		s.getLogger().Warn("overdue tick: active supervision broadcast failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("instance_id", inst.ID),
 			slog.String("error", err.Error()),

@@ -49,6 +49,11 @@ func (b *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
 	return nil
 }
 
+func (b *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
+	b.events = append(b.events, event)
+	return nil
+}
+
 // setupTestContext initializes the test environment.
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()

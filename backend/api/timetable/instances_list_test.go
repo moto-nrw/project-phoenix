@@ -18,6 +18,7 @@ import (
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -258,8 +259,10 @@ func TestListInstances_IncludesPlannedConflictWarnings(t *testing.T) {
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
-	from, fromDate := listFutureDate(0)
-	to, _ := listFutureDate(7)
+	fromDate := timezone.TodayUTC()
+	from := fromDate.Format("2006-01-02")
+	toDate := fromDate.AddDate(0, 0, 7)
+	to := toDate.Format("2006-01-02")
 
 	suffix := time.Now().UnixNano()
 	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("Conflict-Category-%d", suffix))
