@@ -3552,20 +3552,6 @@ function TimeTrackingContent() {
     [currentSession, historyData, todayISO],
   );
 
-  // Today's checked-out session (if any) — used to drive the
-  // reopen-with-status-change confirmation when the backend rejects a
-  // CheckIn with REOPEN_STATUS_CONFLICT_CODE.
-  const todayCheckedOutSession = useMemo(
-    () =>
-      (historyData ?? []).find(
-        (s) =>
-          s.date === todayISO &&
-          s.checkOutTime &&
-          (s.status === "present" || s.status === "home_office"),
-      ),
-    [historyData, todayISO],
-  );
-
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
       try {
@@ -3575,24 +3561,46 @@ function TimeTrackingContent() {
       } catch (err) {
         const apiErr = err as ApiError;
         if (apiErr.code === REOPEN_STATUS_CONFLICT_CODE) {
-          if (todayCheckedOutSession) {
-            // Audit-trail gate: silent status change on reopen is forbidden.
-            // Surface the prompt; the user supplies a reason and we route
-            // the change through UpdateSession (which emits a FieldStatus
-            // edit). See work_session_service.go ReopenStatusConflictError.
+          // Audit-trail gate: silent status change on reopen is forbidden.
+          // Surface the prompt; the user supplies a reason and we route
+          // the change through UpdateSession (which emits a FieldStatus
+          // edit). See work_session_service.go ReopenStatusConflictError.
+          //
+          // The conflict's identifying fields come from the API response so
+          // this works regardless of which week the user is viewing — the
+          // historyData fetch is offset-based and won't contain today's
+          // session when weekOffset < 0.
+          const details = apiErr.details;
+          const sessionId =
+            typeof details?.session_id === "string"
+              ? details.session_id
+              : undefined;
+          const existingStatus =
+            typeof details?.existing_status === "string"
+              ? (details.existing_status as SessionStatus)
+              : undefined;
+          const requestedStatus =
+            typeof details?.requested_status === "string"
+              ? (details.requested_status as SessionStatus)
+              : status;
+
+          if (sessionId && existingStatus) {
             setReopenStatusChangeReason("");
             setPendingReopenStatusChange({
-              sessionId: todayCheckedOutSession.id,
-              existingStatus: todayCheckedOutSession.status as SessionStatus,
-              requestedStatus: status,
+              sessionId,
+              existingStatus,
+              requestedStatus,
             });
             return;
           }
-          // SWR hasn't loaded today's history yet — we can't open the
-          // reason modal without the session id. Tell the user explicitly
-          // rather than swallowing the conflict behind a generic error.
-          logger.warn("reopen_conflict_missing_history", {
+          // Backend returned the conflict code without the details payload —
+          // older server, schema drift, or middleware stripping fields. Log
+          // loudly so this regression is visible in Grafana and fall back to
+          // a user-facing error instead of opening an unfilled modal.
+          logger.warn("reopen_conflict_missing_details", {
             requested_status: status,
+            has_session_id: Boolean(sessionId),
+            has_existing_status: Boolean(existingStatus),
           });
           toast.error(
             "Heute liegt bereits eine Sitzung vor. Bitte kurz warten und erneut versuchen.",
@@ -3605,7 +3613,7 @@ function TimeTrackingContent() {
         toast.error(friendlyError(err, "Fehler beim Einstempeln"));
       }
     },
-    [mutateCurrentSession, mutateHistory, toast, todayCheckedOutSession],
+    [mutateCurrentSession, mutateHistory, toast],
   );
 
   // Confirm path: reopen the session at its existing status, then route

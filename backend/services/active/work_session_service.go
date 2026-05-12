@@ -869,9 +869,15 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 		for !d.After(absence.DateEnd) {
 			datum := d.Format("02.01.2006")
 			wochentag := germanWeekdays[d.Weekday()]
+			// Column layout must match the export header (9 cells):
+			// Datum, Wochentag, Start, Ende, Pause, Netto, Status, Quelle, Bemerkungen.
+			// Absences have no Quelle (the staff member did not stamp at all),
+			// so that cell stays empty rather than borrowing the "—" sentinel
+			// already used by quelleLabel for legacy work_sessions of unknown
+			// channel — those are two different facts and must read distinctly.
 			rows = append(rows, exportRow{
 				Date: d,
-				Row:  []string{datum, wochentag, "--", "--", "--", "--", label, absence.Note},
+				Row:  []string{datum, wochentag, "--", "--", "--", "--", label, "", absence.Note},
 			})
 			d = d.AddDate(0, 0, 1)
 		}

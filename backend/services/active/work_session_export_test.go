@@ -238,8 +238,13 @@ func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 
 	require.Len(t, rows, 3) // 3 days: Jan 2, 3, 4
 	assert.Equal(t, dateStart, rows[0].Date)
-	assert.Contains(t, rows[0].Row[6], "Krank")
-	assert.Contains(t, rows[0].Row[7], "Flu")
+	// Header is 9 cells after the Status/Quelle split — pin the length so a
+	// future regression that drops a cell (and silently shifts Note into the
+	// Quelle column) fails here instead of on the user's CSV.
+	require.Len(t, rows[0].Row, 9, "absence rows must match the 9-column export header")
+	assert.Contains(t, rows[0].Row[6], "Krank")                     // Status
+	assert.Equal(t, "", rows[0].Row[7], "absences carry no Quelle") // Quelle
+	assert.Contains(t, rows[0].Row[8], "Flu")                       // Bemerkungen
 }
 
 func TestWSBuildExportRows_Mixed(t *testing.T) {

@@ -250,6 +250,12 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 
 // assignMultipleSupervisorsNonCritical assigns multiple supervisors but doesn't fail if assignment fails.
 // Each supervisor is inserted independently so one bad row doesn't prevent the other valid assignments.
+//
+// Mirrors the single-supervisor variant's NFC auto-check-in (assignSupervisorNonCritical):
+// the kiosk-driven IoT activity start dispatches through this path, so each
+// supervisor must get a work_session stamped with source='nfc' for the audit
+// trail to distinguish kiosk scans from app check-ins. Without the loop here,
+// /api/iot/* started sessions silently miss the NFC stamp (Issue #1368).
 func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, groupID int64, supervisorIDs []int64, startDate time.Time) {
 	// Deduplicate supervisor IDs
 	uniqueSupervisors := make(map[int64]bool)
@@ -276,6 +282,28 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 				slog.Int64("group_id", groupID),
 				slog.String("error", err.Error()),
 			)
+		}
+
+		// NFC auto-check-in (kiosk-driven multi-supervisor flow). Same
+		// asymmetric-audit caveat as the single-supervisor path: if the
+		// staff member already checked out today, EnsureCheckedIn returns
+		// (nil, nil) and we log it so a dispute over the supervisor row
+		// without a matching NFC stamp can be traced later.
+		if s.workSessionService != nil {
+			session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
+			switch {
+			case err != nil:
+				s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
+					slog.Int64("staff_id", staffID),
+					slog.Int64("group_id", groupID),
+					slog.String("error", err.Error()),
+				)
+			case session == nil:
+				s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
+					slog.Int64("staff_id", staffID),
+					slog.Int64("group_id", groupID),
+				)
+			}
 		}
 	}
 }

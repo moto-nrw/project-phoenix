@@ -17,17 +17,34 @@ import (
 // state. SetupTestDB has already run every migration including 1.15.54, so
 // the column exists at the start of every test in this file.
 //
-// SetupTestDB hands out a process-shared *bun.DB, so a panic or a require
-// failure between the drop and the subsequent workSessionsSourceUp would
-// leave sibling tests running against a column-less schema. We register a
-// t.Cleanup that restores the schema regardless of how the test exits:
-// down() drops the constraint + column (no-ops if already gone), then
-// up() re-adds both. This handles every failure mode — succeeded, failed
-// after drop, failed before drop — without relying on workSessionsSourceUp
-// being self-idempotent (its ADD CONSTRAINT step is not).
-func dropWorkSessionsSourceColumn(t *testing.T, db *bun.DB) {
+// The schema is shared across every test in the package (Postgres database
+// scoped per process), so a panic or a require failure between the drop and
+// the subsequent workSessionsSourceUp would leave sibling tests running
+// against a column-less schema. To handle that we return a restore closure
+// that down()s any leftover constraint/column and then up()s the migration
+// — this works regardless of how the test exits (success, fail after drop,
+// fail before drop) without relying on workSessionsSourceUp being
+// self-idempotent (its ADD CONSTRAINT step is not).
+//
+// IMPORTANT: callers MUST register the returned closure with `defer` BEFORE
+// any `defer db.Close()`, so LIFO order runs the restore against an open
+// pool. Registering via t.Cleanup is wrong here because t.Cleanup fires
+// AFTER the test function's deferred db.Close(), which would route the
+// restore through a closed pool ("sql: database is closed") and leave the
+// shared schema column-less for every subsequent test. See
+// TestWorkSessionsSourceDown_DropsColumnAndConstraint for the same pattern.
+func dropWorkSessionsSourceColumn(t *testing.T, db *bun.DB) func() {
 	t.Helper()
-	t.Cleanup(func() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := db.ExecContext(ctx, `
+		ALTER TABLE active.work_sessions
+		DROP CONSTRAINT IF EXISTS chk_work_sessions_source;
+		ALTER TABLE active.work_sessions DROP COLUMN IF EXISTS source;
+	`)
+	require.NoError(t, err, "drop work_sessions.source column")
+
+	return func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
 		if err := workSessionsSourceDown(cleanupCtx, db); err != nil {
@@ -37,15 +54,7 @@ func dropWorkSessionsSourceColumn(t *testing.T, db *bun.DB) {
 		if err := workSessionsSourceUp(cleanupCtx, db); err != nil {
 			t.Logf("restoring active.work_sessions.source after test: %v", err)
 		}
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.ExecContext(ctx, `
-		ALTER TABLE active.work_sessions
-		DROP CONSTRAINT IF EXISTS chk_work_sessions_source;
-		ALTER TABLE active.work_sessions DROP COLUMN IF EXISTS source;
-	`)
-	require.NoError(t, err, "drop work_sessions.source column")
+	}
 }
 
 // insertWorkSession stages a work_sessions row to verify that the migration's
@@ -102,7 +111,12 @@ func TestWorkSessionsSourceUp_LabelsLegacyRowsUnknown(t *testing.T) {
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Legacy", "Stamper")
 
-	dropWorkSessionsSourceColumn(t, db)
+	// Register restore via defer so LIFO runs it before the test function's
+	// db.Close (line 104). t.Cleanup is wrong here — it fires AFTER deferred
+	// calls return, by which point the pool is closed.
+	restoreSchema := dropWorkSessionsSourceColumn(t, db)
+	defer restoreSchema()
+
 	wsID := insertWorkSession(t, db, tenantID, staff.ID,
 		time.Date(2026, 3, 4, 8, 0, 0, 0, time.UTC))
 	require.NoError(t, workSessionsSourceUp(context.Background(), db))

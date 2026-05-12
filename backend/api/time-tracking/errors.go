@@ -2,6 +2,7 @@ package timetracking
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/render"
@@ -14,9 +15,18 @@ func classifyServiceError(err error) render.Renderer {
 	// Typed reopen-status-conflict: surfaced as 409 with a stable code so the
 	// frontend can branch into the "change status with reason" flow instead
 	// of showing a generic conflict toast (Issue #1368).
+	//
+	// We also serialize the conflict's identifying fields into details so the
+	// frontend can drive the follow-up modal directly from the response —
+	// without scanning local history (which may not even cover today's date
+	// when the user is viewing a past week).
 	var reopenConflict *activeSvc.ReopenStatusConflictError
 	if errors.As(err, &reopenConflict) {
-		return common.ErrorConflictWithCode(err, "reopen_status_conflict")
+		return common.ErrorConflictWithDetails(err, "reopen_status_conflict", map[string]any{
+			"session_id":       strconv.FormatInt(reopenConflict.SessionID, 10),
+			"existing_status":  reopenConflict.ExistingStatus,
+			"requested_status": reopenConflict.RequestedStatus,
+		})
 	}
 
 	msg := err.Error()

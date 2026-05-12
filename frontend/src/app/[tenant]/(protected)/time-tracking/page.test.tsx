@@ -932,16 +932,40 @@ describe("TimeTrackingPage", () => {
   // route the change through CheckIn(existingStatus) + UpdateSession.
 
   describe("reopen-with-status-change", () => {
-    function makeReopenConflictError(): Error & {
+    // makeReopenConflictError builds the typed 409 the backend returns from
+    // CheckIn when the requested status differs from today's existing
+    // (checked-out) session's status. The structured `details` payload comes
+    // straight from ErrorConflictWithDetails on the backend (see
+    // api/time-tracking/errors.go) and is what drives the modal — the
+    // frontend no longer reads today's session out of historyData, because
+    // history is fetched per-week and won't include today when the user is
+    // viewing a past week.
+    function makeReopenConflictError(
+      overrides?: Partial<{
+        sessionId: string;
+        existingStatus: string;
+        requestedStatus: string;
+        omitDetails: boolean;
+      }>,
+    ): Error & {
       code?: string;
       status?: number;
+      details?: Record<string, unknown>;
     } {
       const err = new Error("reopen status conflict") as Error & {
         code?: string;
         status?: number;
+        details?: Record<string, unknown>;
       };
       err.code = "reopen_status_conflict";
       err.status = 409;
+      if (!overrides?.omitDetails) {
+        err.details = {
+          session_id: overrides?.sessionId ?? mockHistorySession.id,
+          existing_status: overrides?.existingStatus ?? "present",
+          requested_status: overrides?.requestedStatus ?? "home_office",
+        };
+      }
       return err;
     }
 
@@ -1157,14 +1181,15 @@ describe("TimeTrackingPage", () => {
       expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
     });
 
-    it("reopen conflict before history loads: warns and shows toast instead of modal", async () => {
-      // SWR-race branch: the backend rejects with REOPEN_STATUS_CONFLICT_CODE
-      // but history hasn't loaded today's checked-out session yet, so the UI
-      // has no session id to drive the reason modal. Must surface a
-      // user-visible toast — not swallow the conflict behind a generic error.
+    it("reopen conflict without details payload: warns and shows toast instead of modal", async () => {
+      // Defensive branch: the typed code arrives but the structured details
+      // payload is missing (older server, middleware stripping fields, schema
+      // drift). Without session_id + existing_status we cannot drive the
+      // reason modal, so the UI must surface a user-visible toast — not
+      // swallow the conflict behind a generic error.
       setupDefaultMocks({ history: [] });
       vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
-        makeReopenConflictError(),
+        makeReopenConflictError({ omitDetails: true }),
       );
       const errorToast = vi.fn();
       vi.mocked(useToast).mockReturnValue({
@@ -1202,7 +1227,10 @@ describe("TimeTrackingPage", () => {
       };
       setupDefaultMocks({ history: [homeOfficeHistory] });
       vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
-        makeReopenConflictError(),
+        makeReopenConflictError({
+          existingStatus: "home_office",
+          requestedStatus: "present",
+        }),
       );
 
       render(<TimeTrackingPage />);

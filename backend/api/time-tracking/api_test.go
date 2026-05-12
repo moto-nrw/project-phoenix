@@ -534,14 +534,25 @@ func TestCheckIn_ReopenStatusConflict(t *testing.T) {
 	require.Equal(t, http.StatusConflict, w.Code)
 
 	var resp struct {
-		Status string `json:"status"`
-		Code   string `json:"code"`
-		Error  string `json:"error"`
+		Status  string         `json:"status"`
+		Code    string         `json:"code"`
+		Error   string         `json:"error"`
+		Details map[string]any `json:"details"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "reopen_status_conflict", resp.Code,
 		"frontend branches on this code via REOPEN_STATUS_CONFLICT_CODE")
+
+	// Details payload drives the reopen-with-status-change modal directly.
+	// Without it the frontend would have to look up the session in local
+	// history — which fails when the user is viewing a past week and today's
+	// session isn't in the fetched range.
+	require.NotNil(t, resp.Details, "details must carry the conflicting session id and statuses")
+	assert.Equal(t, "42", resp.Details["session_id"],
+		"session_id is an int64; serialize as string so the frontend can use it as-is")
+	assert.Equal(t, activeModels.WorkSessionStatusPresent, resp.Details["existing_status"])
+	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, resp.Details["requested_status"])
 }
 
 // --- checkOut handler ---
