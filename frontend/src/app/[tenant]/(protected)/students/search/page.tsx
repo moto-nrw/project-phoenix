@@ -227,6 +227,14 @@ function compactStoredFilters(filters: PersistedSearchFilters) {
   ) as PersistedSearchFilters;
 }
 
+function safelyRemoveStoredFilters(storageKey: string) {
+  try {
+    window.localStorage.removeItem(storageKey);
+  } catch {
+    // Storage can be fully blocked by browser/privacy settings.
+  }
+}
+
 function readStoredFilters(storageKey: string | null) {
   if (!storageKey || typeof window === "undefined") return null;
 
@@ -235,14 +243,14 @@ function readStoredFilters(storageKey: string | null) {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      window.localStorage.removeItem(storageKey);
+      safelyRemoveStoredFilters(storageKey);
       return null;
     }
     return compactStoredFilters(
       normalizeStoredFilters(parsed as PersistedSearchFilters),
     );
   } catch {
-    window.localStorage.removeItem(storageKey);
+    safelyRemoveStoredFilters(storageKey);
     return null;
   }
 }
@@ -256,7 +264,7 @@ function writeStoredFilters(
   const compacted = compactStoredFilters(normalizeStoredFilters(filters));
   try {
     if (Object.keys(compacted).length === 0) {
-      window.localStorage.removeItem(storageKey);
+      safelyRemoveStoredFilters(storageKey);
       return;
     }
     window.localStorage.setItem(storageKey, JSON.stringify(compacted));
@@ -268,12 +276,7 @@ function writeStoredFilters(
 
 function removeStoredFilters(storageKey: string | null) {
   if (!storageKey || typeof window === "undefined") return;
-
-  try {
-    window.localStorage.removeItem(storageKey);
-  } catch {
-    // See writeStoredFilters: storage is a convenience layer, not required.
-  }
+  safelyRemoveStoredFilters(storageKey);
 }
 
 function buildSearchFilterStorageKey(

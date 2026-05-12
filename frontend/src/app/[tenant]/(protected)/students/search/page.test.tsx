@@ -616,6 +616,47 @@ describe("StudentSearchPage", () => {
         localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY),
       ).toBeNull();
     });
+
+    it("continues with default filters when localStorage access is blocked", async () => {
+      const originalLocalStorage = window.localStorage;
+      const getItemSpy = vi.fn(() => {
+        throw new DOMException("Blocked", "SecurityError");
+      });
+      const removeItemSpy = vi.fn(() => {
+        throw new DOMException("Blocked", "SecurityError");
+      });
+      Object.defineProperty(window, "localStorage", {
+        configurable: true,
+        value: {
+          clear: vi.fn(),
+          getItem: getItemSpy,
+          key: vi.fn(),
+          removeItem: removeItemSpy,
+          setItem: vi.fn(() => {
+            throw new DOMException("Blocked", "SecurityError");
+          }),
+          length: 0,
+        },
+      });
+
+      try {
+        render(<StudentSearchPage />);
+
+        await waitFor(() => {
+          expect(screen.getByTestId("filter-year")).toHaveValue("all");
+          expect(screen.getByTestId("filter-group")).toHaveValue("");
+          expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
+        });
+
+        expect(getItemSpy).toHaveBeenCalled();
+        expect(removeItemSpy).toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(window, "localStorage", {
+          configurable: true,
+          value: originalLocalStorage,
+        });
+      }
+    });
   });
 
   describe("Client-Side Filtering", () => {
