@@ -1,18 +1,49 @@
 package timetable
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+type spontaneousStartRequest struct {
+	Title           string  `json:"title"`
+	Description     *string `json:"description,omitempty"`
+	Notes           *string `json:"notes,omitempty"`
+	RoomID          int64   `json:"room_id"`
+	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
+	StaffIDs        []int64 `json:"staff_ids,omitempty"`
+	StudentIDs      []int64 `json:"student_ids,omitempty"`
+}
+
+func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
+	if req.Title == "" {
+		return errors.New("title is required")
+	}
+	if len(req.Title) > 255 {
+		return errors.New("title cannot exceed 255 characters")
+	}
+	if req.RoomID <= 0 {
+		return errors.New("room_id is required")
+	}
+	return nil
+}
 
 func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request) {
 	if rs.operationsService == nil {
@@ -76,6 +107,150 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 			Warnings:      result.Warnings,
 		}, nil
 	}, "Timetable instance started")
+}
+
+func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r *http.Request) {
+	if rs.instanceService == nil || rs.operationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations resource not fully wired")))
+		return
+	}
+	if !rs.webSpontaneousActivitiesEnabled(r) {
+		common.RenderError(w, r, common.ErrorForbidden(scheduleSvc.ErrTimetableOperationForbidden))
+		return
+	}
+	req, ok := bindSpontaneousStartRequest(w, r)
+	if !ok {
+		return
+	}
+	if len(req.StudentIDs) > 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are not accepted for spontaneous operational starts")))
+		return
+	}
+	if err := rs.lockSpontaneousStartRoom(r.Context(), req.RoomID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start room failed", err))
+		return
+	}
+	if rs.activeGroupRepo != nil {
+		hasRoomConflict, _, err := rs.activeGroupRepo.CheckRoomConflict(r.Context(), req.RoomID, 0)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
+			return
+		}
+		if hasRoomConflict {
+			common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
+			return
+		}
+	}
+
+	currentStaffID := rs.resolveStartedByStaffID(r.Context())
+	if currentStaffID <= 0 {
+		common.RenderError(w, r, common.ErrorForbidden(scheduleSvc.ErrTimetableOperationForbidden))
+		return
+	}
+
+	req.StaffIDs = appendUniquePositive(req.StaffIDs, currentStaffID)
+	createdBy := currentStaffID
+	isSpontaneous := true
+	window := serverSpontaneousActivityWindow(timezone.Now())
+	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
+		Date:             window.date,
+		StartTime:        window.startTime,
+		EndTime:          window.endTime,
+		Title:            req.Title,
+		Description:      req.Description,
+		Notes:            req.Notes,
+		RoomID:           req.RoomID,
+		ActivityGroupID:  req.ActivityGroupID,
+		IsSpontaneous:    &isSpontaneous,
+		StaffIDs:         req.StaffIDs,
+		StudentIDs:       nil,
+		CreatedByStaffID: &createdBy,
+	})
+	if err != nil {
+		renderCreateInstanceError(w, r, err)
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	result, err := rs.operationsService.Start(r.Context(), int64(claims.ID), claims.IsAdmin, inst.ID)
+	if err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, startOperationResponse{
+		InstanceID:    result.Instance.ID,
+		Status:        result.Instance.Status,
+		ActiveGroupID: result.ActiveGroupID,
+		Warnings:      result.Warnings,
+	}, "Spontaneous timetable instance created and started")
+}
+
+type spontaneousActivityWindow struct {
+	date      time.Time
+	startTime time.Time
+	endTime   time.Time
+}
+
+func bindSpontaneousStartRequest(w http.ResponseWriter, r *http.Request) (*spontaneousStartRequest, bool) {
+	req := &spontaneousStartRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return nil, false
+	}
+	return req, true
+}
+
+func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
+	now = now.In(timezone.Berlin)
+	currentMinutes := now.Hour()*60 + now.Minute()
+	startMinutes := min(currentMinutes, 23*60+30)
+	endMinutes := min(startMinutes+60, 23*60+59)
+	return spontaneousActivityWindow{
+		date:      timezone.DateOfUTC(now),
+		startTime: clockTimeFromMinutes(startMinutes),
+		endTime:   clockTimeFromMinutes(endMinutes),
+	}
+}
+
+func clockTimeFromMinutes(minutes int) time.Time {
+	return time.Date(2000, 1, 1, minutes/60, minutes%60, 0, 0, time.UTC)
+}
+
+func (rs *Resource) lockSpontaneousStartRoom(ctx context.Context, roomID int64) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("tenant id is required")
+	}
+	tx, ok := modelBase.TxFromContext(ctx)
+	if !ok || tx == nil {
+		if rs.db == nil {
+			return nil
+		}
+		return errors.New("tenant transaction is required")
+	}
+	key := fmt.Sprintf("timetable:spontaneous-start-room:%d:%d", tenantID, roomID)
+	_, err := (*tx).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	return err
+}
+
+func (rs *Resource) operationsCapabilities(w http.ResponseWriter, r *http.Request) {
+	common.Respond(w, r, http.StatusOK, map[string]any{
+		"web_spontaneous_activities_enabled": rs.webSpontaneousActivitiesEnabled(r),
+	}, "Timetable operation capabilities retrieved")
+}
+
+func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
+	logger := rs.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return configSvc.ResolveBoolOrDefault(
+		r.Context(),
+		rs.settingsService,
+		configModel.KeyWebSpontaneousActivities,
+		false,
+		logger,
+	)
 }
 
 func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
@@ -188,6 +363,18 @@ type startOperationResponse struct {
 	Status        string                                `json:"status"`
 	ActiveGroupID int64                                 `json:"active_group_id"`
 	Warnings      []scheduleSvc.InstanceConflictWarning `json:"warnings"`
+}
+
+func appendUniquePositive(ids []int64, id int64) []int64 {
+	if id <= 0 {
+		return ids
+	}
+	for _, existing := range ids {
+		if existing == id {
+			return ids
+		}
+	}
+	return append(ids, id)
 }
 
 func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request, err error) {

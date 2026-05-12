@@ -27,7 +27,9 @@ export function AppShell({ children }: AppShellProps) {
         <Sidebar className="hidden lg:block" />
 
         {/* Main content with bottom padding on mobile for bottom navigation */}
-        <main className="flex-1 p-4 pb-24 md:p-8 lg:pb-8">{children}</main>
+        <main className="min-w-0 flex-1 p-4 pb-24 md:p-8 lg:pb-8">
+          {children}
+        </main>
       </div>
 
       {/* Mobile bottom navigation */}

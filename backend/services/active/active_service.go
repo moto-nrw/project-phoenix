@@ -684,8 +684,15 @@ func (s *service) endVisitRecord(ctx context.Context, id int64) (*active.Visit, 
 	if err != nil || visit == nil {
 		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
 	}
+	if visit.ExitTime != nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitAlreadyEnded}
+	}
 
-	if s.visitRepo.EndVisit(ctx, id) != nil {
+	if err := s.visitRepo.EndVisit(ctx, id); err != nil {
+		latest, findErr := s.visitRepo.FindByID(ctx, id)
+		if findErr == nil && latest != nil && latest.ExitTime != nil {
+			return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitAlreadyEnded}
+		}
 		return nil, &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
 	}
 

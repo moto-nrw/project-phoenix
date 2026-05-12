@@ -12,6 +12,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -312,6 +313,25 @@ func TestTimetableOperationsCheckOutEndsMatchingVisit(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{visitID}, deps.activeService.ended)
+}
+
+func TestTimetableOperationsCheckOutAlreadyEndedReturnsRoster(t *testing.T) {
+	instanceID := int64(413)
+	activeGroupID := int64(299)
+	studentID := int64(559)
+	visitID := int64(414)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 682, 504, 263, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.visitRepo.byActiveGroup[activeGroupID] = []*activeModel.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
+	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
+	deps.activeService.endErr = activeSvc.ErrVisitAlreadyEnded
+
+	roster, err := deps.service.CheckOutStudent(context.Background(), 682, false, instanceID, studentID)
+
+	require.NoError(t, err)
+	require.NotNil(t, roster)
+	assert.Equal(t, int64(413), roster.Instance.ID)
 }
 
 func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T) {

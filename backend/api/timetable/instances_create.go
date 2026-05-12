@@ -39,6 +39,13 @@ type createInstanceRequest struct {
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
 }
 
+type parsedCreateInstanceRequest struct {
+	req       *createInstanceRequest
+	date      time.Time
+	startTime time.Time
+	endTime   time.Time
+}
+
 // Bind runs cheap presence checks. Format errors (date / time) bubble up
 // from the handler so the user sees a precise message ("invalid start_time
 // format, expected HH:MM") instead of a generic 400.
@@ -75,6 +82,45 @@ func parseClockTime(hhmm string) (time.Time, error) {
 	return time.Date(2000, 1, 1, t.Hour(), t.Minute(), 0, 0, time.UTC), nil
 }
 
+func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedCreateInstanceRequest, bool) {
+	req := &createInstanceRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return nil, false
+	}
+
+	date, err := berlinDate(req.Date)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			errors.New("invalid date format, expected YYYY-MM-DD")))
+		return nil, false
+	}
+	startTime, err := parseClockTime(req.StartTime)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			errors.New("invalid start_time format, expected HH:MM")))
+		return nil, false
+	}
+	endTime, err := parseClockTime(req.EndTime)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			errors.New("invalid end_time format, expected HH:MM")))
+		return nil, false
+	}
+	if !endTime.After(startTime) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			errors.New("end_time must be after start_time")))
+		return nil, false
+	}
+
+	return &parsedCreateInstanceRequest{
+		req:       req,
+		date:      date,
+		startTime: startTime,
+		endTime:   endTime,
+	}, true
+}
+
 // createInstance handles POST /api/timetable/instances.
 func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	if rs.instanceService == nil || rs.activityInstanceRepo == nil ||
@@ -84,35 +130,11 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := &createInstanceRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	parsed, ok := bindCreateInstanceRequest(w, r)
+	if !ok {
 		return
 	}
-
-	date, err := berlinDate(req.Date)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("invalid date format, expected YYYY-MM-DD")))
-		return
-	}
-	startTime, err := parseClockTime(req.StartTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("invalid start_time format, expected HH:MM")))
-		return
-	}
-	endTime, err := parseClockTime(req.EndTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("invalid end_time format, expected HH:MM")))
-		return
-	}
-	if !endTime.After(startTime) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("end_time must be after start_time")))
-		return
-	}
+	req := parsed.req
 
 	createdBy := rs.resolveStartedByStaffID(r.Context())
 	var createdByPtr *int64
@@ -122,9 +144,9 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
-		Date:             timezone.DateOfUTC(date),
-		StartTime:        startTime,
-		EndTime:          endTime,
+		Date:             timezone.DateOfUTC(parsed.date),
+		StartTime:        parsed.startTime,
+		EndTime:          parsed.endTime,
 		Title:            req.Title,
 		Description:      req.Description,
 		Notes:            req.Notes,

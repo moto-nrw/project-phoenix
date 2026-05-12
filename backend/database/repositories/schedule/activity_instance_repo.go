@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -57,6 +58,36 @@ func (r *ActivityInstanceRepository) Update(ctx context.Context, i *schedule.Act
 		return err
 	}
 	return r.Repository.Update(ctx, i)
+}
+
+// MarkCompleted updates only lifecycle columns. It intentionally avoids the
+// generic full-row Update path because SQL TIME columns on activity instances
+// are unsafe to write back after a DB decode round-trip.
+func (r *ActivityInstanceRepository) MarkCompleted(ctx context.Context, instanceID int64, completedAt time.Time) error {
+	inst := &schedule.ActivityInstance{
+		Status:      schedule.InstanceStatusCompleted,
+		CompletedAt: &completedAt,
+	}
+	inst.ID = instanceID
+
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model(inst).
+		ModelTableExpr(modelTblActivityInstance).
+		Column("status", "completed_at").
+		Where(`"activity_instance".id = ?`, instanceID)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		q = q.Where(`"activity_instance".tenant_id = ?`, tenantID)
+	}
+
+	result, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark completed", Err: err}
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return &modelBase.DatabaseError{Op: "mark completed", Err: sql.ErrNoRows}
+	}
+	return nil
 }
 
 // FindByID overrides the base method to ensure schema-qualified queries.

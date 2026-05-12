@@ -62,6 +62,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_checkin_access",
+		"attendance.web_spontaneous_activities_enabled",
 	}
 
 	for _, key := range expectedKeys {
@@ -100,6 +101,17 @@ func TestWebCheckinAccessSetting(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab)
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 2)
+}
+
+func TestWebSpontaneousActivitiesSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyWebSpontaneousActivities)
+	require.NotNil(t, def, "attendance.web_spontaneous_activities_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "web spontaneous activities must default off")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy, "tenant admins and operators should both be able to manage this operational setting")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "anwesenheit", def.Category)
+	assert.Equal(t, "config:manage", def.WritePermission)
 }
 
 func TestTimetableSettings_Types(t *testing.T) {

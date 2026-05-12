@@ -226,6 +226,8 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/capabilities", rs.operationsCapabilities)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/planned-now", rs.operationsPlannedNow)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/instances/{id}/roster", rs.operationsRoster)
@@ -234,6 +236,8 @@ func (rs *Resource) Router() chi.Router {
 			// Operational mutations are available to normal supervisors with
 			// SchedulesRead; the service enforces assignment/admin access via
 			// requireCanOperate before touching schedule or active state.
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Post("/spontaneous/start", rs.operationsCreateAndStartSpontaneous)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Post("/instances/{id}/start", rs.operationsStart)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).

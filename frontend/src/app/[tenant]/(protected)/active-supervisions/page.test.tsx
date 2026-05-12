@@ -255,7 +255,25 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
-import MeinRaumPage from "./page";
+import MeinRaumPage, { spontaneousActivityWindow } from "./page";
+
+describe("spontaneousActivityWindow", () => {
+  it("builds a one-hour local window from the current clock time", () => {
+    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 9, 5))).toEqual({
+      date: "2026-05-12",
+      startTime: "09:05",
+      endTime: "10:05",
+    });
+  });
+
+  it("caps late starts and ends inside the same day", () => {
+    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 23, 45))).toEqual({
+      date: "2026-05-12",
+      startTime: "23:30",
+      endTime: "23:59",
+    });
+  });
+});
 
 describe("MeinRaumPage (Active Supervisions)", () => {
   const mockMutate = vi.fn();
@@ -342,6 +360,33 @@ describe("MeinRaumPage (Active Supervisions)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("unclaimed-rooms")).toBeInTheDocument();
     });
+  });
+
+  it("shows the spontaneous activity start banner when the capability is enabled", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        supervisedGroups: [],
+        unclaimedGroups: [],
+        currentStaff: { id: "1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: null,
+        capabilities: { webSpontaneousActivitiesEnabled: true },
+        plannedNow: [],
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    expect(
+      await screen.findByRole("button", {
+        name: /Spontane Aktivität starten/,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("shows loading state when SWR is loading", async () => {
@@ -506,7 +551,12 @@ describe("MeinRaumPage (Active Supervisions)", () => {
       if (key?.startsWith("timetable-roster-active-group")) {
         return {
           data: {
-            instance: { id: "99", title: "Kreativ AG", activeGroupId: "1" },
+            instance: {
+              id: "99",
+              title: "Kreativ AG",
+              activeGroupId: "1",
+              isSpontaneous: false,
+            },
             rows: [
               {
                 studentId: "100",
@@ -605,6 +655,9 @@ describe("MeinRaumPage (Active Supervisions)", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Nicht mehr im Raum (1)")).toBeInTheDocument();
       expect(screen.getByText("Ungeplant (1)")).toBeInTheDocument();
+      expect(
+        screen.getByText("1b · OGS Gruppe A · ungeplant"),
+      ).toBeInTheDocument();
       expect(screen.getByText("Krank · Abgemeldet")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Einchecken" }),
@@ -613,6 +666,84 @@ describe("MeinRaumPage (Active Supervisions)", () => {
         screen.getAllByRole("button", { name: "Raum verlassen" }),
       ).toHaveLength(2);
       expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+    });
+  });
+
+  it("labels unplanned rows as participants for spontaneous rosters", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Aula", room: { id: "10", name: "Aula" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: {
+            instance: {
+              id: "99",
+              title: "Malen",
+              activeGroupId: "1",
+              isSpontaneous: true,
+            },
+            rows: [
+              {
+                studentId: "104",
+                studentName: "Jan Peters",
+                schoolClass: "2a",
+                groupName: "Sonnengruppe",
+                planned: false,
+                isUnplanned: true,
+                currentlyPresent: true,
+                visitId: "visit-104",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+            ],
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Malen")).toBeInTheDocument();
+      expect(
+        screen.getByText("Laufende spontane Aktivität"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Teilnehmende (1)")).toBeInTheDocument();
+      expect(screen.getByText("2a · Sonnengruppe")).toBeInTheDocument();
+      expect(screen.queryByText("Ungeplant (1)")).not.toBeInTheDocument();
+      expect(screen.queryByText(/ungeplant/)).not.toBeInTheDocument();
     });
   });
 
