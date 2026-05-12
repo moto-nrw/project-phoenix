@@ -167,6 +167,58 @@ describe("handleApiError", () => {
     expect(body.error).toBe("email already exists");
     expect(body.code).toBeUndefined();
   });
+
+  // Regression for Issue #1368: the proxy must forward the backend's
+  // structured `details` payload alongside `error` and `code`. Dropping
+  // details here breaks the reopen-with-status-change modal because the
+  // UI can no longer learn which session is conflicting from the response —
+  // it falls back to history-data lookup, which is empty on past weeks.
+  it("forwards backend details payload (e.g. reopen_status_conflict)", async () => {
+    const backendJson = JSON.stringify({
+      status: "error",
+      error: "reopen status conflict",
+      code: "reopen_status_conflict",
+      details: {
+        session_id: "42",
+        existing_status: "present",
+        requested_status: "home_office",
+      },
+    });
+    const error = new Error(`API error (409): ${backendJson}`);
+
+    const response = handleApiError(error);
+    const body = (await response.json()) as {
+      error: string;
+      code?: string;
+      details?: Record<string, unknown>;
+    };
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("reopen_status_conflict");
+    expect(body.details).toEqual({
+      session_id: "42",
+      existing_status: "present",
+      requested_status: "home_office",
+    });
+  });
+
+  it("omits details field when backend JSON has no details", async () => {
+    const backendJson = JSON.stringify({
+      status: "error",
+      error: "generic 409",
+      code: "generic_conflict",
+    });
+    const error = new Error(`API error (409): ${backendJson}`);
+
+    const response = handleApiError(error);
+    const body = (await response.json()) as {
+      error: string;
+      code?: string;
+      details?: Record<string, unknown>;
+    };
+
+    expect(body.details).toBeUndefined();
+  });
 });
 
 describe("handleDomainApiError", () => {
