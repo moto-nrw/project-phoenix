@@ -129,9 +129,6 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	roomID := int64(70)
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
-		"date":              "2026-05-11",
-		"start_time":        "14:00",
-		"end_time":          "15:00",
 		"title":             "Freispiel",
 		"room_id":           roomID,
 		"activity_group_id": int64(71),
@@ -149,6 +146,22 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	assert.Empty(t, instanceSvc.lastCreate.StudentIDs)
 	assert.Equal(t, int64(241), service.lastInstanceID)
 	assert.Contains(t, rr.Body.String(), `"active_group_id":341`)
+}
+
+func TestServerSpontaneousActivityWindowUsesBerlinServerTime(t *testing.T) {
+	window := serverSpontaneousActivityWindow(time.Date(2026, 5, 12, 7, 5, 44, 0, time.UTC))
+
+	assert.Equal(t, "2026-05-12", window.date.Format(dateLayout))
+	assert.Equal(t, "09:05", window.startTime.Format("15:04"))
+	assert.Equal(t, "10:05", window.endTime.Format("15:04"))
+}
+
+func TestServerSpontaneousActivityWindowCapsLateWindowSameDay(t *testing.T) {
+	window := serverSpontaneousActivityWindow(time.Date(2026, 5, 12, 21, 45, 0, 0, time.UTC))
+
+	assert.Equal(t, "2026-05-12", window.date.Format(dateLayout))
+	assert.Equal(t, "23:30", window.startTime.Format("15:04"))
+	assert.Equal(t, "23:59", window.endTime.Format("15:04"))
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
