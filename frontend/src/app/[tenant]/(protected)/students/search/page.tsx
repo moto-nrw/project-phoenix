@@ -59,6 +59,7 @@ import {
 } from "~/lib/student-time-status";
 import {
   matchesTrackingFilter,
+  parseTrackingFilter,
   resolveTrackingFilterAfterLabelChange,
   trackingFilterChipLabel,
   type TrackingFilter,
@@ -100,6 +101,19 @@ const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
   { value: "pickup", label: "Nach Abholzeit" },
 ];
 
+const FILTER_QUERY_PARAMS = [
+  "year",
+  "group_id",
+  "room_id",
+  "room_name",
+  "pickup_time",
+  "arrival_time",
+  "status",
+  "tracking",
+  "sort",
+  "view",
+] as const;
+
 const SCHOOL_YEAR_DROPDOWN_OPTIONS = SCHOOL_YEAR_FILTER_OPTIONS.map(
   (option) => ({
     value: option.value,
@@ -114,6 +128,14 @@ const STATUS_GROUP_ORDER = new Map([
   ["Krank", 3],
   ["Abwesend", 4],
 ]);
+
+function validQueryValue<T extends string>(
+  value: string | null,
+  validValues: readonly T[],
+  fallback: T,
+): T {
+  return value && validValues.includes(value as T) ? (value as T) : fallback;
+}
 
 function compareByName(a: Student, b: Student) {
   const lastCmp = (a.second_name ?? "").localeCompare(
@@ -239,14 +261,33 @@ function SearchPageContent() {
   const searchParams = useSearchParams();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Read initial filter from URL params (supports deep-linking from dashboard)
-  const initialStatus = searchParams.get("status") ?? "all";
-  const validStatuses = STATUS_FILTER_OPTIONS.map((option) => option.value);
-  const initialAttendanceFilter = validStatuses.includes(
-    initialStatus as StatusFilter,
-  )
-    ? (initialStatus as StatusFilter)
-    : "all";
+  // Read initial filters from URL params so refreshes, revisits via browser
+  // history, and copied links restore the same operational view.
+  const initialAttendanceFilter = validQueryValue(
+    searchParams.get("status"),
+    STATUS_FILTER_OPTIONS.map((option) => option.value),
+    "all",
+  );
+  const initialYear = validQueryValue(
+    searchParams.get("year"),
+    SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
+    "all",
+  );
+  const initialTrackingParam = searchParams.get("tracking") ?? "all";
+  const initialTrackingFilter =
+    parseTrackingFilter(initialTrackingParam).kind === "invalid"
+      ? "all"
+      : (initialTrackingParam as TrackingFilter);
+  const initialSortMode = validQueryValue(
+    searchParams.get("sort"),
+    SORT_OPTIONS.map((option) => option.value),
+    "name",
+  );
+  const initialGroupMode = validQueryValue(
+    searchParams.get("view"),
+    GROUP_OPTIONS.map((option) => option.value),
+    "none",
+  );
 
   // Room filter — populated when the user lands here from the room detail
   // page's "In Kindersuche öffnen" link (#1323). room_name is purely a
@@ -257,18 +298,46 @@ function SearchPageContent() {
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
-  const [selectedGroup, setSelectedGroup] = useState("");
-  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedGroup, setSelectedGroup] = useState(
+    searchParams.get("group_id") ?? "",
+  );
+  const [selectedYear, setSelectedYear] = useState<string>(initialYear);
   const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(
     initialAttendanceFilter,
   );
-  const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
-  const [arrivalTimeFilter, setArrivalTimeFilter] = useState("all");
-  const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>("all");
-  const [sortMode, setSortMode] = useState<SortMode>("name");
-  const [groupMode, setGroupMode] = useState<GroupMode>("none");
+  const [pickupTimeFilter, setPickupTimeFilter] = useState(
+    searchParams.get("pickup_time") ?? "all",
+  );
+  const [arrivalTimeFilter, setArrivalTimeFilter] = useState(
+    searchParams.get("arrival_time") ?? "all",
+  );
+  const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>(
+    initialTrackingFilter,
+  );
+  const [sortMode, setSortMode] = useState<SortMode>(initialSortMode);
+  const [groupMode, setGroupMode] = useState<GroupMode>(initialGroupMode);
   const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoomName);
+
+  const updateUrlParams = useCallback(
+    (patch: Partial<Record<(typeof FILTER_QUERY_PARAMS)[number], string>>) => {
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === undefined || value === "") {
+          url.searchParams.delete(key);
+        } else {
+          url.searchParams.set(key, value);
+        }
+      }
+      window.history.replaceState(
+        window.history.state ?? null,
+        "",
+        url.toString(),
+      );
+    },
+    [],
+  );
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -377,33 +446,102 @@ function SearchPageContent() {
   // App Router stashes routing metadata (scroll restoration, RSC cache keys)
   // on window.history.state, and clobbering it with `{}` can degrade browser
   // back/forward into a hard reload for this entry.
-  const updateRoomFilter = useCallback((roomId: string, roomName: string) => {
-    setSelectedRoomId(roomId);
-    setSelectedRoomName(roomName);
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      if (roomId) {
-        url.searchParams.set("room_id", roomId);
-        if (roomName) {
-          url.searchParams.set("room_name", roomName);
-        } else {
-          url.searchParams.delete("room_name");
-        }
-      } else {
-        url.searchParams.delete("room_id");
-        url.searchParams.delete("room_name");
-      }
-      window.history.replaceState(
-        window.history.state ?? null,
-        "",
-        url.toString(),
-      );
-    }
-  }, []);
+  const updateRoomFilter = useCallback(
+    (roomId: string, roomName: string) => {
+      setSelectedRoomId(roomId);
+      setSelectedRoomName(roomName);
+      updateUrlParams({
+        room_id: roomId,
+        room_name: roomId ? roomName : "",
+      });
+    },
+    [updateUrlParams],
+  );
 
   const clearRoomFilter = useCallback(() => {
     updateRoomFilter("", "");
   }, [updateRoomFilter]);
+
+  const updateSelectedYear = useCallback(
+    (value: string) => {
+      setSelectedYear(value);
+      updateUrlParams({ year: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateSelectedGroup = useCallback(
+    (value: string) => {
+      setSelectedGroup(value);
+      updateUrlParams({ group_id: value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateAttendanceFilter = useCallback(
+    (value: StatusFilter) => {
+      setAttendanceFilter(value);
+      updateUrlParams({ status: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updatePickupTimeFilter = useCallback(
+    (value: string) => {
+      setPickupTimeFilter(value);
+      updateUrlParams({ pickup_time: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateArrivalTimeFilter = useCallback(
+    (value: string) => {
+      setArrivalTimeFilter(value);
+      updateUrlParams({ arrival_time: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateTrackingFilter = useCallback(
+    (value: TrackingFilter) => {
+      setTrackingFilter(value);
+      updateUrlParams({ tracking: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateSortMode = useCallback(
+    (value: SortMode) => {
+      setSortMode(value);
+      updateUrlParams({ sort: value === "name" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateGroupMode = useCallback(
+    (value: GroupMode) => {
+      setGroupMode(value);
+      updateUrlParams({ view: value === "none" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const clearAllFilters = useCallback(() => {
+    setSearchTerm("");
+    setSelectedGroup("");
+    setSelectedYear("all");
+    setAttendanceFilter("all");
+    setPickupTimeFilter("all");
+    setArrivalTimeFilter("all");
+    setTrackingFilter("all");
+    setSortMode("name");
+    setGroupMode("none");
+    setSelectedRoomId("");
+    setSelectedRoomName("");
+    updateUrlParams(
+      Object.fromEntries(FILTER_QUERY_PARAMS.map((key) => [key, ""])),
+    );
+  }, [updateUrlParams]);
 
   const students = studentsData?.students ?? [];
 
@@ -429,8 +567,8 @@ function SearchPageContent() {
       trackingFilter,
       trackingData,
     );
-    if (next !== trackingFilter) setTrackingFilter(next);
-  }, [trackingData, trackingFilter]);
+    if (next !== trackingFilter) updateTrackingFilter(next);
+  }, [trackingData, trackingFilter, updateTrackingFilter]);
 
   // Error type for proper heading display (Fix P3: substring matching on transformed string)
   type ErrorType = "permission" | "session" | "generic" | null;
@@ -486,7 +624,7 @@ function SearchPageContent() {
         label: "Stufe",
         type: "dropdown",
         value: selectedYear,
-        onChange: (value) => setSelectedYear(value as string),
+        onChange: (value) => updateSelectedYear(value as string),
         options: SCHOOL_YEAR_DROPDOWN_OPTIONS,
       },
       {
@@ -494,7 +632,7 @@ function SearchPageContent() {
         label: "Gruppe",
         type: "dropdown",
         value: selectedGroup,
-        onChange: (value) => setSelectedGroup(value as string),
+        onChange: (value) => updateSelectedGroup(value as string),
         options: [
           { value: "", label: "Alle Gruppen" },
           ...groups.map((group) => ({ value: group.id, label: group.name })),
@@ -539,7 +677,7 @@ function SearchPageContent() {
         label: "Abholzeit",
         type: "dropdown",
         value: pickupTimeFilter,
-        onChange: (value) => setPickupTimeFilter(value as string),
+        onChange: (value) => updatePickupTimeFilter(value as string),
         options: [
           { value: "all", label: "Alle Abholzeiten" },
           ...Array.from(
@@ -559,7 +697,7 @@ function SearchPageContent() {
         label: "Ankunftszeit",
         type: "dropdown",
         value: arrivalTimeFilter,
-        onChange: (value) => setArrivalTimeFilter(value as string),
+        onChange: (value) => updateArrivalTimeFilter(value as string),
         options: [
           { value: "all", label: "Alle Ankunftszeiten" },
           ...Array.from(
@@ -579,7 +717,7 @@ function SearchPageContent() {
         label: "Status",
         type: "dropdown",
         value: attendanceFilter,
-        onChange: (value) => setAttendanceFilter(value as StatusFilter),
+        onChange: (value) => updateAttendanceFilter(value as StatusFilter),
         options: [
           { value: "all", label: "Alle Status" },
           { value: "anwesend", label: "Anwesend" },
@@ -594,7 +732,7 @@ function SearchPageContent() {
         label: "Sortierung",
         type: "dropdown",
         value: sortMode,
-        onChange: (value) => setSortMode(value as SortMode),
+        onChange: (value) => updateSortMode(value as SortMode),
         options: SORT_OPTIONS,
       },
       {
@@ -602,7 +740,7 @@ function SearchPageContent() {
         label: "Ansicht",
         type: "dropdown",
         value: groupMode,
-        onChange: (value) => setGroupMode(value as GroupMode),
+        onChange: (value) => updateGroupMode(value as GroupMode),
         options: GROUP_OPTIONS,
       },
       ...(trackingLabels && trackingLabels.length > 0
@@ -613,7 +751,7 @@ function SearchPageContent() {
               type: "dropdown" as const,
               value: trackingFilter,
               onChange: (value: string | string[]) =>
-                setTrackingFilter(value as TrackingFilter),
+                updateTrackingFilter(value as TrackingFilter),
               options: [
                 { value: "all", label: "Alle Aktivitäten heute" },
                 ...trackingLabels.map((lbl, idx) => ({
@@ -644,6 +782,14 @@ function SearchPageContent() {
       updateRoomFilter,
       sortMode,
       groupMode,
+      updateSelectedYear,
+      updateSelectedGroup,
+      updateAttendanceFilter,
+      updatePickupTimeFilter,
+      updateArrivalTimeFilter,
+      updateTrackingFilter,
+      updateSortMode,
+      updateGroupMode,
     ],
   );
 
@@ -663,7 +809,7 @@ function SearchPageContent() {
       filters.push({
         id: "year",
         label: `Jahr ${selectedYear}`,
-        onRemove: () => setSelectedYear("all"),
+        onRemove: () => updateSelectedYear("all"),
       });
     }
 
@@ -673,7 +819,7 @@ function SearchPageContent() {
       filters.push({
         id: "group",
         label: groupName,
-        onRemove: () => setSelectedGroup(""),
+        onRemove: () => updateSelectedGroup(""),
       });
     }
 
@@ -701,7 +847,7 @@ function SearchPageContent() {
       filters.push({
         id: "attendance",
         label: statusLabels[attendanceFilter] ?? attendanceFilter,
-        onRemove: () => setAttendanceFilter("all"),
+        onRemove: () => updateAttendanceFilter("all"),
       });
     }
 
@@ -712,7 +858,7 @@ function SearchPageContent() {
           pickupTimeFilter === "none"
             ? "Keine Abholzeit"
             : `Abholzeit ${pickupTimeFilter} Uhr`,
-        onRemove: () => setPickupTimeFilter("all"),
+        onRemove: () => updatePickupTimeFilter("all"),
       });
     }
 
@@ -723,7 +869,7 @@ function SearchPageContent() {
           arrivalTimeFilter === "none"
             ? "Keine Ankunftszeit"
             : `Ankunftszeit ${arrivalTimeFilter} Uhr`,
-        onRemove: () => setArrivalTimeFilter("all"),
+        onRemove: () => updateArrivalTimeFilter("all"),
       });
     }
 
@@ -733,7 +879,7 @@ function SearchPageContent() {
         filters.push({
           id: "tracking",
           label: chipLabel,
-          onRemove: () => setTrackingFilter("all"),
+          onRemove: () => updateTrackingFilter("all"),
         });
       }
     }
@@ -744,7 +890,7 @@ function SearchPageContent() {
         label:
           SORT_OPTIONS.find((option) => option.value === sortMode)?.label ??
           "Sortierung",
-        onRemove: () => setSortMode("name"),
+        onRemove: () => updateSortMode("name"),
       });
     }
 
@@ -755,7 +901,7 @@ function SearchPageContent() {
           GROUP_OPTIONS.find((option) => option.value === groupMode)?.label ??
           "Ansicht"
         }`,
-        onRemove: () => setGroupMode("none"),
+        onRemove: () => updateGroupMode("none"),
       });
     }
 
@@ -775,6 +921,14 @@ function SearchPageContent() {
     sortMode,
     groupMode,
     clearRoomFilter,
+    updateSelectedYear,
+    updateSelectedGroup,
+    updateAttendanceFilter,
+    updatePickupTimeFilter,
+    updateArrivalTimeFilter,
+    updateTrackingFilter,
+    updateSortMode,
+    updateGroupMode,
   ]);
 
   // Apply additional client-side filtering for attendance statuses and year
@@ -960,18 +1114,7 @@ function SearchPageContent() {
           }}
           filters={filterConfigs}
           activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setSelectedGroup("");
-            setSelectedYear("all");
-            setAttendanceFilter("all");
-            setPickupTimeFilter("all");
-            setArrivalTimeFilter("all");
-            setTrackingFilter("all");
-            setSortMode("name");
-            setGroupMode("none");
-            clearRoomFilter();
-          }}
+          onClearAllFilters={clearAllFilters}
         />
       </div>
 
@@ -1063,31 +1206,26 @@ function SearchPageContent() {
               </div>
             );
           }
-          // Preserve the active room filter in the back-link so stepping
-          // from a room → child → back returns to the same filtered list
-          // (#1323). Plain `/students/search` would drop room_id/room_name.
-          // Encoding is only needed when a query string is appended; the
-          // bare path stays unencoded so existing call sites/tests keep
-          // matching the established `from=/students/search` shape.
-          //
-          // Also forward `?status=` (attendanceFilter) — it is the only
-          // URL-rehydrating refinement on this page beyond the room
-          // filter, and the dashboard deep-links here with it. Without
-          // forwarding it, drilling into a child after narrowing by
-          // status silently broadens the result set on back. The other
-          // local refinements (search term, group, year, pickup,
-          // tracking, sort) are not URL-rehydrated on this page, so
-          // forwarding them would not survive the remount anyway.
+          // Preserve the URL-rehydrating filters in the back-link so stepping
+          // from the search page → child → back returns to the same operational
+          // view. Free-text search intentionally remains transient.
           const buildFromParam = (() => {
-            const statusFilter =
-              attendanceFilter !== "all" ? attendanceFilter : "";
-            if (!selectedRoomId && !statusFilter) return "/students/search";
             const qs = new URLSearchParams();
             if (selectedRoomId) {
               qs.set("room_id", selectedRoomId);
               if (selectedRoomName) qs.set("room_name", selectedRoomName);
             }
-            if (statusFilter) qs.set("status", statusFilter);
+            if (selectedGroup) qs.set("group_id", selectedGroup);
+            if (selectedYear !== "all") qs.set("year", selectedYear);
+            if (attendanceFilter !== "all") qs.set("status", attendanceFilter);
+            if (pickupTimeFilter !== "all")
+              qs.set("pickup_time", pickupTimeFilter);
+            if (arrivalTimeFilter !== "all")
+              qs.set("arrival_time", arrivalTimeFilter);
+            if (trackingFilter !== "all") qs.set("tracking", trackingFilter);
+            if (sortMode !== "name") qs.set("sort", sortMode);
+            if (groupMode !== "none") qs.set("view", groupMode);
+            if (qs.size === 0) return "/students/search";
             return encodeURIComponent(`/students/search?${qs.toString()}`);
           })();
           const renderStudentCard = (student: Student) => {

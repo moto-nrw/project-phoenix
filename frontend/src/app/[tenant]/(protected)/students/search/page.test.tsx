@@ -333,8 +333,15 @@ describe("StudentSearchPage", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockSearchParams.delete("status");
+    mockSearchParams.delete("year");
+    mockSearchParams.delete("group_id");
     mockSearchParams.delete("room_id");
     mockSearchParams.delete("room_name");
+    mockSearchParams.delete("pickup_time");
+    mockSearchParams.delete("arrival_time");
+    mockSearchParams.delete("tracking");
+    mockSearchParams.delete("sort");
+    mockSearchParams.delete("view");
     window.history.replaceState(null, "", "/students/search");
 
     // Reset useSession mock to authenticated state
@@ -440,6 +447,71 @@ describe("StudentSearchPage", () => {
         const attendanceFilter = screen.getByTestId("filter-attendance");
         expect(attendanceFilter).toHaveValue("all");
       });
+    });
+
+    it("restores non-text filters from URL params after a reload", async () => {
+      mockSearchParams.set("year", "1");
+      mockSearchParams.set("group_id", "1");
+      mockSearchParams.set("room_id", "101");
+      mockSearchParams.set("room_name", "Raum 101");
+      mockSearchParams.set("pickup_time", "15:30");
+      mockSearchParams.set("arrival_time", "08:00");
+      mockSearchParams.set("status", "anwesend");
+      mockSearchParams.set("sort", "pickup");
+      mockSearchParams.set("view", "room");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-year")).toHaveValue("1");
+        expect(screen.getByTestId("filter-group")).toHaveValue("1");
+        expect(screen.getByTestId("filter-room")).toHaveValue("101");
+        expect(screen.getByTestId("filter-pickupTime")).toHaveValue("15:30");
+        expect(screen.getByTestId("filter-arrivalTime")).toHaveValue("08:00");
+        expect(screen.getByTestId("filter-attendance")).toHaveValue("anwesend");
+        expect(screen.getByTestId("filter-sort")).toHaveValue("pickup");
+        expect(screen.getByTestId("filter-groupMode")).toHaveValue("room");
+      });
+    });
+
+    it("syncs non-text filter changes into the URL and clear-all removes them", async () => {
+      window.history.replaceState({ preserved: true }, "", "/students/search");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-year")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-year"), {
+        target: { value: "2" },
+      });
+      fireEvent.change(screen.getByTestId("filter-group"), {
+        target: { value: "2" },
+      });
+      fireEvent.change(screen.getByTestId("filter-attendance"), {
+        target: { value: "unterwegs" },
+      });
+      fireEvent.change(screen.getByTestId("filter-sort"), {
+        target: { value: "pickup" },
+      });
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "status" },
+      });
+
+      let url = new URL(window.location.href);
+      expect(url.searchParams.get("year")).toBe("2");
+      expect(url.searchParams.get("group_id")).toBe("2");
+      expect(url.searchParams.get("status")).toBe("unterwegs");
+      expect(url.searchParams.get("sort")).toBe("pickup");
+      expect(url.searchParams.get("view")).toBe("status");
+      expect(window.history.state).toEqual({ preserved: true });
+
+      fireEvent.click(screen.getByTestId("clear-filters"));
+
+      url = new URL(window.location.href);
+      expect(url.searchParams.toString()).toBe("");
+      expect(window.history.state).toEqual({ preserved: true });
     });
   });
 
