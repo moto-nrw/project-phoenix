@@ -59,6 +59,7 @@ import {
 } from "~/lib/student-time-status";
 import {
   matchesTrackingFilter,
+  parseTrackingFilter,
   resolveTrackingFilterAfterLabelChange,
   trackingFilterChipLabel,
   type TrackingFilter,
@@ -100,6 +101,25 @@ const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
   { value: "pickup", label: "Nach Abholzeit" },
 ];
 
+const FILTER_QUERY_PARAMS = [
+  "year",
+  "group_id",
+  "room_id",
+  "room_name",
+  "pickup_time",
+  "arrival_time",
+  "status",
+  "tracking",
+  "sort",
+  "view",
+] as const;
+
+type FilterQueryParam = (typeof FILTER_QUERY_PARAMS)[number];
+type PersistedSearchFilters = Partial<Record<FilterQueryParam, string>>;
+type SearchParamReader = Pick<URLSearchParams, "get" | "has">;
+
+const STUDENT_SEARCH_FILTER_STORAGE_PREFIX = "student-search:last-filters";
+
 const SCHOOL_YEAR_DROPDOWN_OPTIONS = SCHOOL_YEAR_FILTER_OPTIONS.map(
   (option) => ({
     value: option.value,
@@ -114,6 +134,169 @@ const STATUS_GROUP_ORDER = new Map([
   ["Krank", 3],
   ["Abwesend", 4],
 ]);
+
+function validQueryValue<T extends string>(
+  value: string | null,
+  validValues: readonly T[],
+  fallback: T,
+): T {
+  return value && validValues.includes(value as T) ? (value as T) : fallback;
+}
+
+function searchParamsHavePersistedFilters(searchParams: SearchParamReader) {
+  return FILTER_QUERY_PARAMS.some((key) => searchParams.has(key));
+}
+
+function persistedFiltersToSearchParams(filters: PersistedSearchFilters) {
+  const params = new URLSearchParams();
+  for (const key of FILTER_QUERY_PARAMS) {
+    const value = filters[key];
+    if (value) params.set(key, value);
+  }
+  return params;
+}
+
+function filtersFromSearchParams(
+  searchParams: SearchParamReader,
+): PersistedSearchFilters {
+  const filters: PersistedSearchFilters = {};
+  for (const key of FILTER_QUERY_PARAMS) {
+    const value = searchParams.get(key);
+    if (value) filters[key] = value;
+  }
+  return filters;
+}
+
+function normalizeStoredFilters(
+  filters: PersistedSearchFilters,
+): PersistedSearchFilters {
+  const params = persistedFiltersToSearchParams(filters);
+  const trackingParam = params.get("tracking");
+  const trackingFilter =
+    trackingParam && parseTrackingFilter(trackingParam).kind !== "invalid"
+      ? trackingParam
+      : "";
+
+  return {
+    year:
+      validQueryValue(
+        params.get("year"),
+        SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
+        "all",
+      ) === "all"
+        ? ""
+        : (params.get("year") ?? ""),
+    group_id: params.get("group_id") ?? "",
+    room_id: params.get("room_id") ?? "",
+    room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
+    pickup_time: params.get("pickup_time") ?? "",
+    arrival_time: params.get("arrival_time") ?? "",
+    status:
+      validQueryValue(
+        params.get("status"),
+        STATUS_FILTER_OPTIONS.map((option) => option.value),
+        "all",
+      ) === "all"
+        ? ""
+        : (params.get("status") ?? ""),
+    tracking: trackingFilter,
+    sort:
+      validQueryValue(
+        params.get("sort"),
+        SORT_OPTIONS.map((option) => option.value),
+        "name",
+      ) === "name"
+        ? ""
+        : (params.get("sort") ?? ""),
+    view:
+      validQueryValue(
+        params.get("view"),
+        GROUP_OPTIONS.map((option) => option.value),
+        "none",
+      ) === "none"
+        ? ""
+        : (params.get("view") ?? ""),
+  };
+}
+
+function compactStoredFilters(filters: PersistedSearchFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(
+      (entry): entry is [FilterQueryParam, string] => Boolean(entry[1]),
+    ),
+  ) as PersistedSearchFilters;
+}
+
+function safelyRemoveStoredFilters(storageKey: string) {
+  try {
+    window.localStorage.removeItem(storageKey);
+  } catch {
+    // Storage can be fully blocked by browser/privacy settings.
+  }
+}
+
+function readStoredFilters(storageKey: string | null) {
+  if (!storageKey || typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      safelyRemoveStoredFilters(storageKey);
+      return null;
+    }
+    return compactStoredFilters(
+      normalizeStoredFilters(parsed as PersistedSearchFilters),
+    );
+  } catch {
+    safelyRemoveStoredFilters(storageKey);
+    return null;
+  }
+}
+
+function writeStoredFilters(
+  storageKey: string | null,
+  filters: PersistedSearchFilters,
+) {
+  if (!storageKey || typeof window === "undefined") return;
+
+  const compacted = compactStoredFilters(normalizeStoredFilters(filters));
+  try {
+    if (Object.keys(compacted).length === 0) {
+      safelyRemoveStoredFilters(storageKey);
+      return;
+    }
+    window.localStorage.setItem(storageKey, JSON.stringify(compacted));
+  } catch {
+    // localStorage can fail in private mode or when quota is exceeded. URL
+    // persistence still works, so ignore storage failures.
+  }
+}
+
+function removeStoredFilters(storageKey: string | null) {
+  if (!storageKey || typeof window === "undefined") return;
+  safelyRemoveStoredFilters(storageKey);
+}
+
+function buildSearchFilterStorageKey(
+  user:
+    | {
+        id?: string | null;
+        email?: string | null;
+        tenantId?: number | null;
+      }
+    | undefined,
+) {
+  if (typeof window === "undefined") return null;
+
+  const tenantKey =
+    user?.tenantId !== undefined && user.tenantId !== null
+      ? `tenant-${user.tenantId}`
+      : `host-${window.location.host}`;
+  const accountKey = user?.id ?? user?.email ?? "anonymous";
+  return `${STUDENT_SEARCH_FILTER_STORAGE_PREFIX}:${tenantKey}:${accountKey}`;
+}
 
 function compareByName(a: Student, b: Student) {
   const lastCmp = (a.second_name ?? "").localeCompare(
@@ -238,37 +421,174 @@ function SearchPageContent() {
   });
   const searchParams = useSearchParams();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const storageKey = useMemo(
+    () => buildSearchFilterStorageKey(session?.user),
+    [session?.user],
+  );
+  const hasUrlFilterParams = searchParamsHavePersistedFilters(searchParams);
+  const storedInitialFilters = useMemo(
+    () => (hasUrlFilterParams ? null : readStoredFilters(storageKey)),
+    [hasUrlFilterParams, storageKey],
+  );
+  const initialFilterParams = useMemo(
+    () =>
+      storedInitialFilters
+        ? persistedFiltersToSearchParams(storedInitialFilters)
+        : searchParams,
+    [searchParams, storedInitialFilters],
+  );
 
-  // Read initial filter from URL params (supports deep-linking from dashboard)
-  const initialStatus = searchParams.get("status") ?? "all";
-  const validStatuses = STATUS_FILTER_OPTIONS.map((option) => option.value);
-  const initialAttendanceFilter = validStatuses.includes(
-    initialStatus as StatusFilter,
-  )
-    ? (initialStatus as StatusFilter)
-    : "all";
+  // Read initial filters from URL params so refreshes, revisits via browser
+  // history, and copied links restore the same operational view. When no URL
+  // filters are present, fall back to the last browser-local PWA view.
+  const initialAttendanceFilter = validQueryValue(
+    initialFilterParams.get("status"),
+    STATUS_FILTER_OPTIONS.map((option) => option.value),
+    "all",
+  );
+  const initialYear = validQueryValue(
+    initialFilterParams.get("year"),
+    SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
+    "all",
+  );
+  const initialTrackingParam = initialFilterParams.get("tracking") ?? "all";
+  const initialTrackingFilter =
+    parseTrackingFilter(initialTrackingParam).kind === "invalid"
+      ? "all"
+      : (initialTrackingParam as TrackingFilter);
+  const initialSortMode = validQueryValue(
+    initialFilterParams.get("sort"),
+    SORT_OPTIONS.map((option) => option.value),
+    "name",
+  );
+  const initialGroupMode = validQueryValue(
+    initialFilterParams.get("view"),
+    GROUP_OPTIONS.map((option) => option.value),
+    "none",
+  );
 
   // Room filter — populated when the user lands here from the room detail
   // page's "In Kindersuche öffnen" link (#1323). room_name is purely a
   // display affordance for the chip; the backend filter only uses room_id.
-  const initialRoomId = searchParams.get("room_id") ?? "";
-  const initialRoomName = searchParams.get("room_name") ?? "";
+  const initialRoomId = initialFilterParams.get("room_id") ?? "";
+  const initialRoomName = initialFilterParams.get("room_name") ?? "";
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
-  const [selectedGroup, setSelectedGroup] = useState("");
-  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedGroup, setSelectedGroup] = useState(
+    initialFilterParams.get("group_id") ?? "",
+  );
+  const [selectedYear, setSelectedYear] = useState<string>(initialYear);
   const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(
     initialAttendanceFilter,
   );
-  const [pickupTimeFilter, setPickupTimeFilter] = useState("all");
-  const [arrivalTimeFilter, setArrivalTimeFilter] = useState("all");
-  const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>("all");
-  const [sortMode, setSortMode] = useState<SortMode>("name");
-  const [groupMode, setGroupMode] = useState<GroupMode>("none");
+  const [pickupTimeFilter, setPickupTimeFilter] = useState(
+    initialFilterParams.get("pickup_time") ?? "all",
+  );
+  const [arrivalTimeFilter, setArrivalTimeFilter] = useState(
+    initialFilterParams.get("arrival_time") ?? "all",
+  );
+  const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>(
+    initialTrackingFilter,
+  );
+  const [sortMode, setSortMode] = useState<SortMode>(initialSortMode);
+  const [groupMode, setGroupMode] = useState<GroupMode>(initialGroupMode);
   const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoomName);
+
+  const updateUrlParams = useCallback(
+    (patch: Partial<Record<(typeof FILTER_QUERY_PARAMS)[number], string>>) => {
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === undefined || value === "") {
+          url.searchParams.delete(key);
+        } else {
+          url.searchParams.set(key, value);
+        }
+      }
+      window.history.replaceState(
+        window.history.state ?? null,
+        "",
+        url.toString(),
+      );
+      writeStoredFilters(storageKey, filtersFromSearchParams(url.searchParams));
+    },
+    [storageKey],
+  );
+
+  const applyPersistedFilters = useCallback(
+    (filters: PersistedSearchFilters) => {
+      const params = persistedFiltersToSearchParams(
+        compactStoredFilters(normalizeStoredFilters(filters)),
+      );
+
+      setSelectedGroup(params.get("group_id") ?? "");
+      setSelectedYear(
+        validQueryValue(
+          params.get("year"),
+          SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
+          "all",
+        ),
+      );
+      setAttendanceFilter(
+        validQueryValue(
+          params.get("status"),
+          STATUS_FILTER_OPTIONS.map((option) => option.value),
+          "all",
+        ),
+      );
+      setPickupTimeFilter(params.get("pickup_time") ?? "all");
+      setArrivalTimeFilter(params.get("arrival_time") ?? "all");
+
+      const trackingParam = params.get("tracking") ?? "all";
+      setTrackingFilter(
+        parseTrackingFilter(trackingParam).kind === "invalid"
+          ? "all"
+          : (trackingParam as TrackingFilter),
+      );
+
+      setSortMode(
+        validQueryValue(
+          params.get("sort"),
+          SORT_OPTIONS.map((option) => option.value),
+          "name",
+        ),
+      );
+      setGroupMode(
+        validQueryValue(
+          params.get("view"),
+          GROUP_OPTIONS.map((option) => option.value),
+          "none",
+        ),
+      );
+      setSelectedRoomId(params.get("room_id") ?? "");
+      setSelectedRoomName(params.get("room_name") ?? "");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!storageKey) return;
+
+    if (hasUrlFilterParams) {
+      writeStoredFilters(storageKey, filtersFromSearchParams(searchParams));
+      return;
+    }
+
+    const storedFilters = readStoredFilters(storageKey);
+    if (!storedFilters || Object.keys(storedFilters).length === 0) return;
+
+    applyPersistedFilters(storedFilters);
+    updateUrlParams(storedFilters);
+  }, [
+    applyPersistedFilters,
+    hasUrlFilterParams,
+    searchParams,
+    storageKey,
+    updateUrlParams,
+  ]);
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -377,33 +697,103 @@ function SearchPageContent() {
   // App Router stashes routing metadata (scroll restoration, RSC cache keys)
   // on window.history.state, and clobbering it with `{}` can degrade browser
   // back/forward into a hard reload for this entry.
-  const updateRoomFilter = useCallback((roomId: string, roomName: string) => {
-    setSelectedRoomId(roomId);
-    setSelectedRoomName(roomName);
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      if (roomId) {
-        url.searchParams.set("room_id", roomId);
-        if (roomName) {
-          url.searchParams.set("room_name", roomName);
-        } else {
-          url.searchParams.delete("room_name");
-        }
-      } else {
-        url.searchParams.delete("room_id");
-        url.searchParams.delete("room_name");
-      }
-      window.history.replaceState(
-        window.history.state ?? null,
-        "",
-        url.toString(),
-      );
-    }
-  }, []);
+  const updateRoomFilter = useCallback(
+    (roomId: string, roomName: string) => {
+      setSelectedRoomId(roomId);
+      setSelectedRoomName(roomName);
+      updateUrlParams({
+        room_id: roomId,
+        room_name: roomId ? roomName : "",
+      });
+    },
+    [updateUrlParams],
+  );
 
   const clearRoomFilter = useCallback(() => {
     updateRoomFilter("", "");
   }, [updateRoomFilter]);
+
+  const updateSelectedYear = useCallback(
+    (value: string) => {
+      setSelectedYear(value);
+      updateUrlParams({ year: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateSelectedGroup = useCallback(
+    (value: string) => {
+      setSelectedGroup(value);
+      updateUrlParams({ group_id: value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateAttendanceFilter = useCallback(
+    (value: StatusFilter) => {
+      setAttendanceFilter(value);
+      updateUrlParams({ status: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updatePickupTimeFilter = useCallback(
+    (value: string) => {
+      setPickupTimeFilter(value);
+      updateUrlParams({ pickup_time: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateArrivalTimeFilter = useCallback(
+    (value: string) => {
+      setArrivalTimeFilter(value);
+      updateUrlParams({ arrival_time: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateTrackingFilter = useCallback(
+    (value: TrackingFilter) => {
+      setTrackingFilter(value);
+      updateUrlParams({ tracking: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateSortMode = useCallback(
+    (value: SortMode) => {
+      setSortMode(value);
+      updateUrlParams({ sort: value === "name" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateGroupMode = useCallback(
+    (value: GroupMode) => {
+      setGroupMode(value);
+      updateUrlParams({ view: value === "none" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const clearAllFilters = useCallback(() => {
+    setSearchTerm("");
+    setSelectedGroup("");
+    setSelectedYear("all");
+    setAttendanceFilter("all");
+    setPickupTimeFilter("all");
+    setArrivalTimeFilter("all");
+    setTrackingFilter("all");
+    setSortMode("name");
+    setGroupMode("none");
+    setSelectedRoomId("");
+    setSelectedRoomName("");
+    updateUrlParams(
+      Object.fromEntries(FILTER_QUERY_PARAMS.map((key) => [key, ""])),
+    );
+    removeStoredFilters(storageKey);
+  }, [storageKey, updateUrlParams]);
 
   const students = studentsData?.students ?? [];
 
@@ -429,8 +819,8 @@ function SearchPageContent() {
       trackingFilter,
       trackingData,
     );
-    if (next !== trackingFilter) setTrackingFilter(next);
-  }, [trackingData, trackingFilter]);
+    if (next !== trackingFilter) updateTrackingFilter(next);
+  }, [trackingData, trackingFilter, updateTrackingFilter]);
 
   // Error type for proper heading display (Fix P3: substring matching on transformed string)
   type ErrorType = "permission" | "session" | "generic" | null;
@@ -486,7 +876,7 @@ function SearchPageContent() {
         label: "Stufe",
         type: "dropdown",
         value: selectedYear,
-        onChange: (value) => setSelectedYear(value as string),
+        onChange: (value) => updateSelectedYear(value as string),
         options: SCHOOL_YEAR_DROPDOWN_OPTIONS,
       },
       {
@@ -494,7 +884,7 @@ function SearchPageContent() {
         label: "Gruppe",
         type: "dropdown",
         value: selectedGroup,
-        onChange: (value) => setSelectedGroup(value as string),
+        onChange: (value) => updateSelectedGroup(value as string),
         options: [
           { value: "", label: "Alle Gruppen" },
           ...groups.map((group) => ({ value: group.id, label: group.name })),
@@ -539,7 +929,7 @@ function SearchPageContent() {
         label: "Abholzeit",
         type: "dropdown",
         value: pickupTimeFilter,
-        onChange: (value) => setPickupTimeFilter(value as string),
+        onChange: (value) => updatePickupTimeFilter(value as string),
         options: [
           { value: "all", label: "Alle Abholzeiten" },
           ...Array.from(
@@ -559,7 +949,7 @@ function SearchPageContent() {
         label: "Ankunftszeit",
         type: "dropdown",
         value: arrivalTimeFilter,
-        onChange: (value) => setArrivalTimeFilter(value as string),
+        onChange: (value) => updateArrivalTimeFilter(value as string),
         options: [
           { value: "all", label: "Alle Ankunftszeiten" },
           ...Array.from(
@@ -579,7 +969,7 @@ function SearchPageContent() {
         label: "Status",
         type: "dropdown",
         value: attendanceFilter,
-        onChange: (value) => setAttendanceFilter(value as StatusFilter),
+        onChange: (value) => updateAttendanceFilter(value as StatusFilter),
         options: [
           { value: "all", label: "Alle Status" },
           { value: "anwesend", label: "Anwesend" },
@@ -594,7 +984,7 @@ function SearchPageContent() {
         label: "Sortierung",
         type: "dropdown",
         value: sortMode,
-        onChange: (value) => setSortMode(value as SortMode),
+        onChange: (value) => updateSortMode(value as SortMode),
         options: SORT_OPTIONS,
       },
       {
@@ -602,7 +992,7 @@ function SearchPageContent() {
         label: "Ansicht",
         type: "dropdown",
         value: groupMode,
-        onChange: (value) => setGroupMode(value as GroupMode),
+        onChange: (value) => updateGroupMode(value as GroupMode),
         options: GROUP_OPTIONS,
       },
       ...(trackingLabels && trackingLabels.length > 0
@@ -613,7 +1003,7 @@ function SearchPageContent() {
               type: "dropdown" as const,
               value: trackingFilter,
               onChange: (value: string | string[]) =>
-                setTrackingFilter(value as TrackingFilter),
+                updateTrackingFilter(value as TrackingFilter),
               options: [
                 { value: "all", label: "Alle Aktivitäten heute" },
                 ...trackingLabels.map((lbl, idx) => ({
@@ -644,6 +1034,14 @@ function SearchPageContent() {
       updateRoomFilter,
       sortMode,
       groupMode,
+      updateSelectedYear,
+      updateSelectedGroup,
+      updateAttendanceFilter,
+      updatePickupTimeFilter,
+      updateArrivalTimeFilter,
+      updateTrackingFilter,
+      updateSortMode,
+      updateGroupMode,
     ],
   );
 
@@ -663,7 +1061,7 @@ function SearchPageContent() {
       filters.push({
         id: "year",
         label: `Jahr ${selectedYear}`,
-        onRemove: () => setSelectedYear("all"),
+        onRemove: () => updateSelectedYear("all"),
       });
     }
 
@@ -673,7 +1071,7 @@ function SearchPageContent() {
       filters.push({
         id: "group",
         label: groupName,
-        onRemove: () => setSelectedGroup(""),
+        onRemove: () => updateSelectedGroup(""),
       });
     }
 
@@ -701,7 +1099,7 @@ function SearchPageContent() {
       filters.push({
         id: "attendance",
         label: statusLabels[attendanceFilter] ?? attendanceFilter,
-        onRemove: () => setAttendanceFilter("all"),
+        onRemove: () => updateAttendanceFilter("all"),
       });
     }
 
@@ -712,7 +1110,7 @@ function SearchPageContent() {
           pickupTimeFilter === "none"
             ? "Keine Abholzeit"
             : `Abholzeit ${pickupTimeFilter} Uhr`,
-        onRemove: () => setPickupTimeFilter("all"),
+        onRemove: () => updatePickupTimeFilter("all"),
       });
     }
 
@@ -723,7 +1121,7 @@ function SearchPageContent() {
           arrivalTimeFilter === "none"
             ? "Keine Ankunftszeit"
             : `Ankunftszeit ${arrivalTimeFilter} Uhr`,
-        onRemove: () => setArrivalTimeFilter("all"),
+        onRemove: () => updateArrivalTimeFilter("all"),
       });
     }
 
@@ -733,7 +1131,7 @@ function SearchPageContent() {
         filters.push({
           id: "tracking",
           label: chipLabel,
-          onRemove: () => setTrackingFilter("all"),
+          onRemove: () => updateTrackingFilter("all"),
         });
       }
     }
@@ -744,7 +1142,7 @@ function SearchPageContent() {
         label:
           SORT_OPTIONS.find((option) => option.value === sortMode)?.label ??
           "Sortierung",
-        onRemove: () => setSortMode("name"),
+        onRemove: () => updateSortMode("name"),
       });
     }
 
@@ -755,7 +1153,7 @@ function SearchPageContent() {
           GROUP_OPTIONS.find((option) => option.value === groupMode)?.label ??
           "Ansicht"
         }`,
-        onRemove: () => setGroupMode("none"),
+        onRemove: () => updateGroupMode("none"),
       });
     }
 
@@ -775,6 +1173,14 @@ function SearchPageContent() {
     sortMode,
     groupMode,
     clearRoomFilter,
+    updateSelectedYear,
+    updateSelectedGroup,
+    updateAttendanceFilter,
+    updatePickupTimeFilter,
+    updateArrivalTimeFilter,
+    updateTrackingFilter,
+    updateSortMode,
+    updateGroupMode,
   ]);
 
   // Apply additional client-side filtering for attendance statuses and year
@@ -960,18 +1366,7 @@ function SearchPageContent() {
           }}
           filters={filterConfigs}
           activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setSelectedGroup("");
-            setSelectedYear("all");
-            setAttendanceFilter("all");
-            setPickupTimeFilter("all");
-            setArrivalTimeFilter("all");
-            setTrackingFilter("all");
-            setSortMode("name");
-            setGroupMode("none");
-            clearRoomFilter();
-          }}
+          onClearAllFilters={clearAllFilters}
         />
       </div>
 
@@ -1063,31 +1458,26 @@ function SearchPageContent() {
               </div>
             );
           }
-          // Preserve the active room filter in the back-link so stepping
-          // from a room → child → back returns to the same filtered list
-          // (#1323). Plain `/students/search` would drop room_id/room_name.
-          // Encoding is only needed when a query string is appended; the
-          // bare path stays unencoded so existing call sites/tests keep
-          // matching the established `from=/students/search` shape.
-          //
-          // Also forward `?status=` (attendanceFilter) — it is the only
-          // URL-rehydrating refinement on this page beyond the room
-          // filter, and the dashboard deep-links here with it. Without
-          // forwarding it, drilling into a child after narrowing by
-          // status silently broadens the result set on back. The other
-          // local refinements (search term, group, year, pickup,
-          // tracking, sort) are not URL-rehydrated on this page, so
-          // forwarding them would not survive the remount anyway.
+          // Preserve the URL-rehydrating filters in the back-link so stepping
+          // from the search page → child → back returns to the same operational
+          // view. Free-text search intentionally remains transient.
           const buildFromParam = (() => {
-            const statusFilter =
-              attendanceFilter !== "all" ? attendanceFilter : "";
-            if (!selectedRoomId && !statusFilter) return "/students/search";
             const qs = new URLSearchParams();
             if (selectedRoomId) {
               qs.set("room_id", selectedRoomId);
               if (selectedRoomName) qs.set("room_name", selectedRoomName);
             }
-            if (statusFilter) qs.set("status", statusFilter);
+            if (selectedGroup) qs.set("group_id", selectedGroup);
+            if (selectedYear !== "all") qs.set("year", selectedYear);
+            if (attendanceFilter !== "all") qs.set("status", attendanceFilter);
+            if (pickupTimeFilter !== "all")
+              qs.set("pickup_time", pickupTimeFilter);
+            if (arrivalTimeFilter !== "all")
+              qs.set("arrival_time", arrivalTimeFilter);
+            if (trackingFilter !== "all") qs.set("tracking", trackingFilter);
+            if (sortMode !== "name") qs.set("sort", sortMode);
+            if (groupMode !== "none") qs.set("view", groupMode);
+            if (qs.size === 0) return "/students/search";
             return encodeURIComponent(`/students/search?${qs.toString()}`);
           })();
           const renderStudentCard = (student: Student) => {

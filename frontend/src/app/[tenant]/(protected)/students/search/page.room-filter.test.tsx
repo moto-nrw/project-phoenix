@@ -186,6 +186,7 @@ const mockStudent = {
 beforeEach(() => {
   vi.clearAllMocks();
   currentSearch = new URLSearchParams();
+  localStorage.clear();
 
   // Default: no in-flight tracking-indicators result.
   mockUseImmutableSWR.mockReturnValue({
@@ -221,7 +222,10 @@ beforeEach(() => {
   mockGetStudents.mockResolvedValue({ students: [mockStudent] });
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 describe("StudentSearchPage — room_id deep-link (#1323)", () => {
   it("forwards room_id from the URL into studentService.getStudents", async () => {
