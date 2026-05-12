@@ -316,6 +316,15 @@ export function germanMFAErrorMessage(err: unknown): string {
     return "Anmeldung fehlgeschlagen. Bitte erneut versuchen.";
   }
   if (err.status === 429) {
+    // Distinguish the two 429 paths from the backend:
+    //   ErrMFALocked      ("account locked due to too many failed attempts")
+    //   ErrMFARateLimited ("too many code requests, please wait")
+    if (text.includes("locked") || text.includes("gesperrt")) {
+      return "Konto vorübergehend gesperrt. Bitte versuchen Sie es in 15 Minuten erneut.";
+    }
+    if (text.includes("code request") || text.includes("code-anfrage")) {
+      return "Zu viele Code-Anfragen. Bitte warten Sie ein paar Minuten, bevor Sie einen neuen Code anfordern.";
+    }
     return "Zu viele Versuche. Bitte warten Sie einen Moment.";
   }
   if (err.status >= 500) {

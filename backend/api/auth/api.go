@@ -612,6 +612,16 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
 		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
 			common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+		case errors.Is(authErr.Err, authService.ErrMFARateLimited):
+			// MFA challenge initiation tripped the 3/15min sliding-window
+			// cap. Surface as 429 so the frontend shows the dedicated "too
+			// many code requests" message instead of a generic 5xx.
+			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
+		case errors.Is(authErr.Err, authService.ErrMFALocked):
+			// Account hit the failed-attempt lockout threshold while we were
+			// preparing the next challenge. Same HTTP status as rate limit,
+			// distinct message body — handled separately on the frontend.
+			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
 		default:
 			common.RenderError(w, r, ErrorInternalServer(err))
 		}
