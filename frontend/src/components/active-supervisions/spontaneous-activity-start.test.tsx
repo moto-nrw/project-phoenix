@@ -166,4 +166,127 @@ describe("SpontaneousActivityStart", () => {
     ).toBeDisabled();
     expect(onStart).not.toHaveBeenCalled();
   });
+
+  it("uses suggested activities and removes staff when toggled twice", async () => {
+    const onStart = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="3"
+        onStart={onStart}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
+    );
+
+    await screen.findByTestId("modal");
+    fireEvent.click(screen.getByRole("button", { name: "Freispiel" }));
+    fireEvent.click(screen.getByLabelText("Ben Staff"));
+    fireEvent.click(screen.getByLabelText("Ben Staff"));
+    fireEvent.click(screen.getByRole("button", { name: "Aktivität starten" }));
+
+    await waitFor(() => {
+      expect(onStart).toHaveBeenCalledWith({
+        title: "Freispiel",
+        roomId: "3",
+        activityGroupId: "7",
+        additionalStaffIds: [],
+      });
+    });
+  });
+
+  it("falls back to available labels when reference fetches fail", async () => {
+    mocks.getActivities.mockRejectedValueOnce(new Error("activities down"));
+    mocks.getAllStaff.mockRejectedValueOnce(new Error("staff down"));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValueOnce(new Error("rooms down")),
+    );
+
+    render(<SpontaneousActivityStart onStart={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
+    );
+
+    await screen.findByTestId("modal");
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Raum auswählen" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Weitere Betreuer")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Aktivität starten" }),
+    ).toBeDisabled();
+  });
+
+  it("shows an error when submitting an occupied selected room", async () => {
+    const onStart = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        occupiedRoomIds={["3"]}
+        onStart={onStart}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
+    );
+
+    await screen.findByTestId("modal");
+    fireEvent.change(
+      screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
+      {
+        target: { value: "Tennis" },
+      },
+    );
+    fireEvent.change(screen.getByLabelText("Raum"), {
+      target: { value: "3" },
+    });
+    fireEvent.submit(
+      screen
+        .getByRole("button", { name: "Aktivität starten" })
+        .closest("form")!,
+    );
+
+    expect(
+      await screen.findByText("Der Raum ist bereits belegt."),
+    ).toBeInTheDocument();
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
+  it("resets draft state when the modal is cancelled", async () => {
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="3"
+        onStart={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
+    );
+
+    await screen.findByTestId("modal");
+    fireEvent.change(
+      screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
+      {
+        target: { value: "Tennis" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
+    );
+
+    await screen.findByTestId("modal");
+    expect(
+      screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
+    ).toHaveValue("");
+  });
 });

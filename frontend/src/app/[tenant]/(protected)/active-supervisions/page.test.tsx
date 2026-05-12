@@ -255,7 +255,25 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
-import MeinRaumPage from "./page";
+import MeinRaumPage, { spontaneousActivityWindow } from "./page";
+
+describe("spontaneousActivityWindow", () => {
+  it("builds a one-hour local window from the current clock time", () => {
+    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 9, 5))).toEqual({
+      date: "2026-05-12",
+      startTime: "09:05",
+      endTime: "10:05",
+    });
+  });
+
+  it("caps late starts and ends inside the same day", () => {
+    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 23, 45))).toEqual({
+      date: "2026-05-12",
+      startTime: "23:30",
+      endTime: "23:59",
+    });
+  });
+});
 
 describe("MeinRaumPage (Active Supervisions)", () => {
   const mockMutate = vi.fn();
@@ -342,6 +360,33 @@ describe("MeinRaumPage (Active Supervisions)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("unclaimed-rooms")).toBeInTheDocument();
     });
+  });
+
+  it("shows the spontaneous activity start banner when the capability is enabled", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        supervisedGroups: [],
+        unclaimedGroups: [],
+        currentStaff: { id: "1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: null,
+        capabilities: { webSpontaneousActivitiesEnabled: true },
+        plannedNow: [],
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    expect(
+      await screen.findByRole("button", {
+        name: /Spontane Aktivität starten/,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("shows loading state when SWR is loading", async () => {

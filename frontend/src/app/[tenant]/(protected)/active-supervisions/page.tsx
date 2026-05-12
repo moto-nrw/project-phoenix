@@ -105,7 +105,7 @@ function formatClock(totalMinutes: number): string {
   return `${padClockPart(hours)}:${padClockPart(minutes)}`;
 }
 
-function spontaneousActivityWindow(now: Date): {
+export function spontaneousActivityWindow(now: Date): {
   date: string;
   startTime: string;
   endTime: string;
