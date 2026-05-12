@@ -552,12 +552,14 @@ func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Cont
 		Reason:     &reason,
 	})
 	tenantID := tenant.FromContext(ctx)
-	if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-		s.logger().WarnContext(ctx, "SSE timetable attendance broadcast failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("active_group_id", activeGroupID),
-			slog.String("error", err.Error()))
-	}
+	tenant.RegisterAfterCommit(ctx, func() {
+		if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			s.logger().WarnContext(ctx, "SSE timetable attendance broadcast failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("active_group_id", activeGroupID),
+				slog.String("error", err.Error()))
+		}
+	})
 }
 
 func (s *timetableOperationsService) adminOverviewEnabled(ctx context.Context, isAdmin bool) bool {

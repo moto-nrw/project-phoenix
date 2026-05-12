@@ -119,6 +119,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 
 	req.StaffIDs = appendUniquePositive(req.StaffIDs, currentStaffID)
 	createdBy := currentStaffID
+	isSpontaneous := true
 	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
 		Date:             timezone.DateOfUTC(parsed.date),
 		StartTime:        parsed.startTime,
@@ -128,6 +129,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		Notes:            req.Notes,
 		RoomID:           req.RoomID,
 		ActivityGroupID:  req.ActivityGroupID,
+		IsSpontaneous:    &isSpontaneous,
 		StaffIDs:         req.StaffIDs,
 		StudentIDs:       nil,
 		CreatedByStaffID: &createdBy,

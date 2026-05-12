@@ -253,7 +253,7 @@ func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activ
 	now := time.Now()
 	inst.Status = scheduleModel.InstanceStatusCompleted
 	inst.CompletedAt = &now
-	if err := rs.InstanceRepo.Update(ctx, inst); err != nil {
+	if err := rs.InstanceRepo.MarkCompleted(ctx, inst.ID, now); err != nil {
 		slog.Default().WarnContext(ctx, "failed to complete mirrored timetable instance",
 			slog.Int64("instance_id", inst.ID),
 			slog.String("error", err.Error()),
@@ -295,13 +295,16 @@ func (rs *Resource) broadcastMirroredInstance(ctx context.Context, eventType rea
 		data.RoomID = &roomID
 	}
 	event := realtime.NewEvent(eventType, activeGroupID, data)
-	if err := rs.Broadcaster.BroadcastToTenant(tenant.FromContext(ctx), event); err != nil {
-		slog.Default().WarnContext(ctx, "failed to broadcast mirrored timetable instance",
-			slog.String("event_type", string(eventType)),
-			slog.Int64("instance_id", inst.ID),
-			slog.String("error", err.Error()),
-		)
-	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			slog.Default().WarnContext(ctx, "failed to broadcast mirrored timetable instance",
+				slog.String("event_type", string(eventType)),
+				slog.Int64("instance_id", inst.ID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
 }
 
 func clockFromMinutes(minutes int) time.Time {

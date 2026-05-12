@@ -129,17 +129,22 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	roomID := int64(70)
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
-		"date":       "2026-05-11",
-		"start_time": "14:00",
-		"end_time":   "15:00",
-		"title":      "Freispiel",
-		"room_id":    roomID,
-		"staff_ids":  []int64{321},
+		"date":              "2026-05-11",
+		"start_time":        "14:00",
+		"end_time":          "15:00",
+		"title":             "Freispiel",
+		"room_id":           roomID,
+		"activity_group_id": int64(71),
+		"staff_ids":         []int64{321},
 	})
 
 	require.Equal(t, http.StatusCreated, rr.Code)
 	require.NotNil(t, instanceSvc.lastCreate)
 	assert.Equal(t, roomID, instanceSvc.lastCreate.RoomID)
+	require.NotNil(t, instanceSvc.lastCreate.ActivityGroupID)
+	assert.Equal(t, int64(71), *instanceSvc.lastCreate.ActivityGroupID)
+	require.NotNil(t, instanceSvc.lastCreate.IsSpontaneous)
+	assert.True(t, *instanceSvc.lastCreate.IsSpontaneous)
 	assert.Equal(t, []int64{321, 320}, instanceSvc.lastCreate.StaffIDs)
 	assert.Empty(t, instanceSvc.lastCreate.StudentIDs)
 	assert.Equal(t, int64(241), service.lastInstanceID)
