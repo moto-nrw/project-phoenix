@@ -422,7 +422,13 @@ export async function uploadStudentPhoto(
 ): Promise<{ photoUrl: string }> {
   const url = `/api/students/${studentId}/photo`;
   const formData = new FormData();
-  formData.append("photo", file);
+  const photoFile =
+    file instanceof File
+      ? file
+      : new File([file], "student-photo.jpg", {
+          type: file.type || "image/jpeg",
+        });
+  formData.append("photo", photoFile);
   if (options.consentAcknowledged) {
     formData.append("consent_acknowledged", "true");
   }

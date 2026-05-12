@@ -604,8 +604,28 @@ describe("student-api", () => {
       const body = calledOptions.body as FormData;
       expect(body).toBeInstanceOf(FormData);
       expect(body.get("photo")).toBeInstanceOf(Blob);
+      expect((body.get("photo") as File).name).toBe("student-photo.jpg");
       // No consent_acknowledged when option not passed.
       expect(body.get("consent_acknowledged")).toBeNull();
+    });
+
+    it("preserves File names when caller passes a File", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { photo_url: "/u/file.jpg" } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const file = new File(["binary"], "student.jpg", { type: "image/jpeg" });
+      await uploadStudentPhoto("42", file);
+
+      const [, calledOptions] = fetchMock.mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      const body = calledOptions.body as FormData;
+      expect((body.get("photo") as File).name).toBe("student.jpg");
     });
 
     it("appends consent_acknowledged=true when caller opts in", async () => {

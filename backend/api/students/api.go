@@ -785,6 +785,31 @@ func applyStudentFieldUpdates(req *UpdateStudentRequest, student *users.Student)
 	applyExcusedStatus(req, student)
 }
 
+func reconcilePhotoConsentRequest(requested *bool, snapshot, fresh *users.Student) *bool {
+	if requested == nil {
+		return nil
+	}
+	snapshotHadConsent := snapshot != nil && snapshot.PhotoConsentGivenAt != nil
+	freshHasConsent := fresh != nil && fresh.PhotoConsentGivenAt != nil
+
+	// Treat values that merely echo the pre-transaction snapshot as no-ops.
+	// Old clients used to serialize photo_consent_given on every PUT; if another
+	// tab changed consent between the snapshot read and this row lock, replaying
+	// that stale unchanged boolean would re-grant withdrawn consent or withdraw a
+	// newly granted consent/photo.
+	if *requested == snapshotHadConsent {
+		return nil
+	}
+
+	// If a concurrent request already completed the intended transition, do not
+	// re-stamp audit metadata or schedule duplicate photo cleanup.
+	if *requested == freshHasConsent {
+		return nil
+	}
+
+	return requested
+}
+
 // applyGuardianUpdates handles legacy guardian field updates
 func applyGuardianUpdates(req *UpdateStudentRequest, student *users.Student) {
 	if req.GuardianName != nil {
@@ -1053,7 +1078,8 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		wasExcused := boolPtrValue(fresh.Excused)
 
 		applyStudentFieldUpdates(req, fresh)
-		rs.StudentPhotos.ApplyConsentTransition(ctx, req.PhotoConsentGiven, fresh)
+		effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
+		rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
 
 		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow); err != nil {
 			rs.logStatusHistoryError(student.ID, err)

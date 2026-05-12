@@ -240,8 +240,14 @@ export function StudentStammdatenTab({
       event.preventDefault();
       if (!validateForm()) return;
       setSaving(true);
+      const submitData: Partial<Student> = { ...formData };
+      if (
+        submitData.photo_consent_given === originalDraft.photo_consent_given
+      ) {
+        delete submitData.photo_consent_given;
+      }
       try {
-        await onSave(formData);
+        await onSave(submitData);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.error("error saving student", { error: message });
@@ -300,6 +306,7 @@ export function StudentStammdatenTab({
       formData,
       onSave,
       onStudentRefresh,
+      originalDraft.photo_consent_given,
       pendingPhotoBlob,
       pendingPhotoRemoved,
       student.id,

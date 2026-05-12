@@ -30,10 +30,7 @@ func TestMapPhotoUploadError(t *testing.T) {
 		{"student forbidden", userService.ErrPhotoStudentForbidden, http.StatusForbidden},
 		{"student reassigned mid-tx", userService.ErrPhotoStudentReassigned, http.StatusForbidden},
 		{"consent required first", userService.ErrPhotoConsentRequired, http.StatusBadRequest},
-		// ErrPhotoConsentWithdrawn calls render.Status(r, 409) — but that
-		// only sticks when chi's middleware reads it on the way out. In
-		// isolation the InvalidRequest renderer overrides to 400, so we
-		// assert the body content instead to pin the right branch.
+		{"consent withdrawn mid-tx", userService.ErrPhotoConsentWithdrawn, http.StatusConflict},
 		{"no tenant context", userService.ErrPhotoNoTenant, http.StatusBadRequest},
 		{"unknown error", errors.New("boom"), http.StatusInternalServerError},
 	}
@@ -50,6 +47,9 @@ func TestMapPhotoUploadError(t *testing.T) {
 	t.Run("consent withdrawn mid-tx body", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		mapPhotoUploadError(rec, mapperReq(), userService.ErrPhotoConsentWithdrawn)
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("withdrawn branch got status %d, want 409", rec.Code)
+		}
 		if !contains(rec.Body.String(), "widerrufen") {
 			t.Fatalf("withdrawn branch did not emit the German conflict message: %s", rec.Body.String())
 		}

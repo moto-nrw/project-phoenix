@@ -3,6 +3,17 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ImageUtils" });
 
+function safeJpegFilename(fileName: string): string {
+  const originalName = fileName.replace(/\.[^/.]+$/, "");
+  const safeBase =
+    originalName
+      .replace(/\.+/g, "-")
+      .replace(/[^a-zA-Z0-9_-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "avatar";
+  return `${safeBase}.jpg`;
+}
+
 /**
  * Compress avatar image before upload
  *
@@ -27,10 +38,9 @@ export async function compressAvatar(file: File): Promise<File> {
   try {
     const compressedBlob = await imageCompression(file, options);
 
-    // Create new File with proper filename and extension
-    // Preserve original filename but change extension to .jpg (since we convert to JPEG)
-    const originalName = file.name.replace(/\.[^/.]+$/, ""); // Remove old extension
-    const newFileName = `${originalName}.jpg`;
+    // Create new File with a single safe extension. The upload proxy rejects
+    // multiple-dot filenames as suspicious, and compression always emits JPEG.
+    const newFileName = safeJpegFilename(file.name);
 
     // Convert blob to File with proper name and type
     const compressedFile = new File([compressedBlob], newFileName, {

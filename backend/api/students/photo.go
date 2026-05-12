@@ -16,7 +16,8 @@ import (
 // publicPhotoBaseDir + StudentPhotoStoredURLPrefix must stay aligned —
 // ResolveStoredPath and BuildStudentPhotoServeURL both key off them.
 const (
-	maxStudentPhotoBody = 5 * 1024 * 1024 // 5 MiB
+	maxStudentPhotoFile = 5 * 1024 * 1024 // 5 MiB advertised file limit
+	maxStudentPhotoBody = maxStudentPhotoFile + 1024
 	publicPhotoBaseDir  = "public/uploads/student-photos"
 )
 
@@ -45,7 +46,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uploaded, err := common.ParseImage(w, r, "photo", maxStudentPhotoBody)
+	uploaded, err := common.ParseImageWithLimits(w, r, "photo", maxStudentPhotoFile, maxStudentPhotoBody)
 	if err != nil {
 		renderError(w, r, ErrorInvalidRequest(err))
 		return
@@ -140,8 +141,7 @@ func mapPhotoUploadError(w http.ResponseWriter, r *http.Request, err error) {
 		renderError(w, r, ErrorInvalidRequest(errors.New(msgConsentRequiredFirst))) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, userService.ErrPhotoConsentWithdrawn):
 		// 409 — consent flipped between request and commit; frontend re-prompts.
-		render.Status(r, http.StatusConflict)
-		renderError(w, r, ErrorInvalidRequest(errors.New(msgConsentWithdrawnRetry))) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorConflictMessage(msgConsentWithdrawnRetry))
 	case errors.Is(err, userService.ErrPhotoNoTenant):
 		renderError(w, r, ErrorInvalidRequest(err))
 	default:

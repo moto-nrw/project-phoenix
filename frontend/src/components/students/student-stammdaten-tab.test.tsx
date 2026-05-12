@@ -32,11 +32,13 @@ vi.mock("~/lib/student-api", () => ({
 vi.mock("./student-photo-section", () => ({
   StudentPhotoSection: ({
     consentGiven,
+    onConsentChange,
     onPickPhoto,
     onMarkRemoved,
     onCancelRemove,
   }: {
     consentGiven: boolean;
+    onConsentChange: (value: boolean) => void;
     onPickPhoto: (blob: Blob | null) => void;
     onMarkRemoved: () => void;
     onCancelRemove: () => void;
@@ -50,6 +52,20 @@ vi.mock("./student-photo-section", () => ({
         }
       >
         pick
+      </button>
+      <button
+        type="button"
+        data-testid="consent-on"
+        onClick={() => onConsentChange(true)}
+      >
+        consent-on
+      </button>
+      <button
+        type="button"
+        data-testid="consent-off"
+        onClick={() => onConsentChange(false)}
+      >
+        consent-off
       </button>
       <button
         type="button"
@@ -479,9 +495,73 @@ describe("StudentStammdatenTab — photo orchestration", () => {
     expect(uploadStudentPhotoMock).toHaveBeenCalledWith("1", expect.any(Blob), {
       consentAcknowledged: true,
     });
-    // photo_consent_given is part of the PUT body since the feature is on.
+    // Existing consent was not changed in this form, so the PUT omits it.
+    expect(
+      Object.keys(onSave.mock.calls[0]![0] as Partial<Student>),
+    ).not.toContain("photo_consent_given");
+  });
+
+  it("sends photo_consent_given only when the checkbox changed", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent({ photo_consent_given_at: undefined })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("consent-on"));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0]![0]).toMatchObject({
       photo_consent_given: true,
+    });
+  });
+
+  it("omits unchanged false consent so stale forms cannot withdraw new consent", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent({ photo_consent_given_at: undefined })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("first-name"), {
+      target: { value: "Updated" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.first_name).toBe("Updated");
+    expect(Object.keys(submitted)).not.toContain("photo_consent_given");
+  });
+
+  it("sends false when the user explicitly withdraws consent", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent({
+          photo_consent_given_at: "2026-01-01T00:00:00Z",
+        })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("consent-off"));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0]).toMatchObject({
+      photo_consent_given: false,
     });
   });
 

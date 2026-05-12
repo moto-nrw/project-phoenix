@@ -31,9 +31,8 @@ interface UploadResult {
 }
 
 // POST handler — multipart upload, field name "photo" (matches backend
-// uploadStudentPhoto). Validation cap matches the backend constant
-// `maxStudentPhotoBody` (5 MiB) so callers fail at the proxy boundary
-// rather than burning a backend call to learn the body was too big.
+// uploadStudentPhoto). Validation cap matches the backend's advertised
+// file cap; the backend allows a little multipart body headroom.
 export const POST = createFileUploadHandler<UploadResult>(
   async (request: NextRequest, formData: FormData, token: string) => {
     const studentId = extractStudentIdFromUrl(request);
