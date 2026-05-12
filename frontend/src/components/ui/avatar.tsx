@@ -7,25 +7,16 @@ import { useEffect, useState } from "react";
 import { getInitials } from "~/lib/format-utils";
 
 type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
-type AvatarVariant = "student" | "staff";
 
 interface AvatarProps {
   readonly imageUrl?: string | null;
   readonly name: string;
   readonly size?: AvatarSize;
   readonly className?: string;
-  /**
-   * Colour tone of the initials-fallback background. `student` (default) uses
-   * the brand green (LOCATION_COLORS.GROUP_ROOM); `staff` uses a neutral grey
-   * so children and staff are visually distinguishable at a glance.
-   */
-  readonly variant?: AvatarVariant;
 }
 
-const VARIANT_BG: Record<AvatarVariant, string> = {
-  student: "#83CD2D", // LOCATION_COLORS.GROUP_ROOM — brand green for kids
-  staff: "#6B7280", // LOCATION_COLORS.UNKNOWN — neutral grey for staff
-};
+// Single brand-green fallback background for every avatar (LOCATION_COLORS.GROUP_ROOM).
+const FALLBACK_BG = "#83CD2D";
 
 const SIZE_CLASSES: Record<AvatarSize, string> = {
   xs: "w-6 h-6 text-[10px]",
@@ -48,7 +39,6 @@ export function Avatar({
   name,
   size = "sm",
   className,
-  variant = "student",
 }: AvatarProps) {
   const initials = getInitials(name);
   const sizeClass = SIZE_CLASSES[size];
@@ -70,7 +60,7 @@ export function Avatar({
     <div
       className={`relative ${sizeClass} ${ringClass} flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white ${className ?? ""}`}
       style={{
-        background: showImage ? "transparent" : VARIANT_BG[variant],
+        background: showImage ? "transparent" : FALLBACK_BG,
       }}
       aria-label={name}
     >

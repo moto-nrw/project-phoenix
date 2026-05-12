@@ -17,9 +17,7 @@ interface UserAvatarProps {
 }
 
 function UserAvatar({ avatarUrl, userName, size = "sm" }: UserAvatarProps) {
-  return (
-    <Avatar imageUrl={avatarUrl} name={userName} size={size} variant="staff" />
-  );
+  return <Avatar imageUrl={avatarUrl} name={userName} size={size} />;
 }
 
 /**

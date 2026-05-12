@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ArrivalTimeRow,
   ExceptionIcon,
@@ -10,6 +10,26 @@ import {
   StudentCard,
   StudentInfoRow,
 } from "./student-card";
+
+// Default the photos feature flag to off so the original test suite (which
+// pre-dates the avatar overlay) keeps its existing assertions. Individual
+// tests below flip the mock to `true` to exercise the avatar branch.
+const photosEnabledMock = vi.fn(() => ({
+  enabled: false,
+  isLoading: false,
+}));
+
+vi.mock("~/lib/hooks/use-student-photos-enabled", () => ({
+  useStudentPhotosEnabled: () => photosEnabledMock(),
+}));
+
+beforeEach(() => {
+  photosEnabledMock.mockReturnValue({ enabled: false, isLoading: false });
+});
+
+afterEach(() => {
+  photosEnabledMock.mockReset();
+});
 
 describe("StudentCard", () => {
   const defaultProps = {
@@ -247,6 +267,91 @@ describe("StudentCard", () => {
     // Disabled button must NOT fire onCheckinClick.
     fireEvent.click(btn);
     expect(onCheckinClick).not.toHaveBeenCalled();
+  });
+
+  // ── Avatar overlay (per-tenant student-photos feature) ────────────────
+  // Covers the photosEnabled branch and the photoUrl / fallback-initials
+  // permutations on the Avatar embedded in the card header.
+
+  it("does NOT render the avatar when the photos feature is disabled", () => {
+    photosEnabledMock.mockReturnValue({ enabled: false, isLoading: false });
+    render(<StudentCard {...defaultProps} photoUrl="https://x/y.jpg" />);
+    // aria-label on Avatar is the trimmed full name; absence proves the
+    // overlay was skipped despite a photoUrl being passed in.
+    expect(screen.queryByLabelText("Max Mustermann")).toBeNull();
+  });
+
+  it("renders the avatar with the student photo when the feature is enabled", () => {
+    photosEnabledMock.mockReturnValue({ enabled: true, isLoading: false });
+    render(
+      <StudentCard {...defaultProps} photoUrl="https://example.com/max.jpg" />,
+    );
+    const avatar = screen.getByLabelText("Max Mustermann");
+    expect(avatar).toBeInTheDocument();
+    // Image element is rendered by next/image inside the avatar — the alt
+    // text mirrors the trimmed name, which is what screen readers announce.
+    expect(screen.getByAltText("Max Mustermann")).toBeInTheDocument();
+  });
+
+  it("falls back to initials when photoUrl is omitted", () => {
+    photosEnabledMock.mockReturnValue({ enabled: true, isLoading: false });
+    render(<StudentCard {...defaultProps} photoUrl={null} />);
+    const avatar = screen.getByLabelText("Max Mustermann");
+    expect(avatar.textContent).toBe("MM");
+  });
+
+  it("falls back to '?' initials when both names are missing", () => {
+    // Hits the `firstName ?? "" + lastName ?? ""`.trim() || "?"` branch.
+    photosEnabledMock.mockReturnValue({ enabled: true, isLoading: false });
+    render(
+      <StudentCard
+        {...defaultProps}
+        firstName={undefined}
+        lastName={undefined}
+      />,
+    );
+    const avatar = screen.getByLabelText("?");
+    expect(avatar.textContent).toBe("?");
+  });
+
+  it("renders the 'anmelden' (+) action icon on the tap-strip for absent students", () => {
+    // Covers tapStrip.action === "anmelden" branch in the SVG path switch.
+    const { container } = render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="abwesend"
+        onCheckinClick={vi.fn()}
+      />,
+    );
+    const strip = container.querySelector("[data-checkin-tap-strip='true']");
+    expect(strip).not.toBeNull();
+    // The "anmelden" icon path is the plus sign (vertical + horizontal line).
+    expect(strip?.querySelector('path[d="M12 4v16m8-8H4"]')).not.toBeNull();
+  });
+
+  it("renders the 'abmelden' (−) action icon on the tap-strip for present students", () => {
+    // Covers tapStrip.action === "abmelden" branch in the SVG path switch.
+    const { container } = render(
+      <StudentCard
+        {...defaultProps}
+        checkinMode
+        checkinState="anwesend"
+        onCheckinClick={vi.fn()}
+      />,
+    );
+    const strip = container.querySelector("[data-checkin-tap-strip='true']");
+    // The "abmelden" icon path is the single horizontal line (minus sign).
+    expect(strip?.querySelector('path[d="M20 12H4"]')).not.toBeNull();
+  });
+
+  it("does not set the data-checkin-* attributes when checkinMode is off", () => {
+    // Covers the `checkinMode || undefined` and `checkinMode ? ... : undefined`
+    // false branches on the data attributes.
+    render(<StudentCard {...defaultProps} />);
+    const btn = screen.getByRole("button");
+    expect(btn).not.toHaveAttribute("data-checkin-mode");
+    expect(btn).not.toHaveAttribute("data-checkin-state");
   });
 
   it("hides the navigation arrow + 'mehr Infos' hint when checkinMode is true", () => {
