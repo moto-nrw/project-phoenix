@@ -181,6 +181,11 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/facilities/settings_sideeffects_test.go",       // Pure side-effect dispatch unit test against fake services; tenant IDs are not DB rows
 		"api/config/settings_broadcast_test.go",                  // Pure unit test for scheduleSettingsBroadcast; tenant IDs are pass-through arguments to a fake broadcaster
 		"api/operator/settings_broadcast_test.go",                // Pure unit test for the operator-side scheduleSettingsBroadcast; tenant IDs are pass-through arguments to a fake broadcaster
+		"api/students/response_helpers_test.go",                  // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
+		"auth/authorize/student_access_test.go",                  // Pure-logic tests against stub user-context + settings; int64 literals are fake group IDs in stack-allocated structs (no DB)
+		"api/students/photo_error_mappers_test.go",               // Table-driven mapper tests with httptest.NewRecorder; no DB
+		"api/students/photo_unlinker_test.go",                    // Pure file-system unit test for the unlinker; uses a temp dir, no DB
+		"services/users/student_photo_service_broadcast_test.go", // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {

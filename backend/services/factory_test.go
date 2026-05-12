@@ -1,12 +1,14 @@
 package services_test
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -271,4 +273,13 @@ func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 	require.NotNil(t, factory)
 
 	assert.Equal(t, 30*time.Minute, factory.PasswordResetTokenExpiry)
+}
+
+func TestEnableStudentPhotos(t *testing.T) {
+	f := &services.Factory{SettingsSideEffects: sideeffects.NewRegistry()}
+	f.EnableStudentPhotos(services.StudentPhotoBootstrap{Logger: slog.Default()})
+	require.NotNil(t, f.StudentPhotos)
+	post, err := f.SettingsSideEffects.Dispatch(context.Background(), 1, "operations.student_photos_enabled", "x")
+	require.NoError(t, err)
+	require.NotNil(t, post)
 }

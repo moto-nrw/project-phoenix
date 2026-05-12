@@ -31,6 +31,14 @@ type Student struct {
 	Excused         *bool      `bun:"excused" json:"excused,omitempty"`             // true = currently excused (not attending today)
 	ExcusedSince    *time.Time `bun:"excused_since" json:"excused_since,omitempty"` // When excused status was reported
 
+	// Photo (optional, gated by operations.student_photos_enabled setting +
+	// per-student parental consent recorded in photo_consent_given_at).
+	// PhotoPath stores the on-disk path; the JSON-facing photo_url is filled
+	// by the service layer mapping the path to a tenant-scoped /uploads URL.
+	PhotoPath           *string    `bun:"photo_path" json:"-"`
+	PhotoConsentGivenAt *time.Time `bun:"photo_consent_given_at" json:"photo_consent_given_at,omitempty"`
+	PhotoConsentGivenBy *int64     `bun:"photo_consent_given_by" json:"photo_consent_given_by,omitempty"`
+
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
 	// Group relation is loaded dynamically to avoid import cycle

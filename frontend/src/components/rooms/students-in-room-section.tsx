@@ -21,6 +21,7 @@ import { Alert } from "~/components/ui/alert";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
@@ -169,12 +170,20 @@ interface StudentsInRoomBodyProps {
 // (rounded-xl border, px-4 py-3, name line + meta line). The skeleton
 // list lives inside the same `flex flex-col gap-2` wrapper the populated
 // list uses, so swapping skeleton → real cards causes zero layout shift
-// (review feedback #1323).
-function StudentRowSkeleton() {
+// (review feedback #1323). When the per-tenant photo feature is on we
+// also reserve the avatar slot (sm = 32px) so the row height + horizontal
+// content origin match the populated card; opt-out tenants keep the
+// original tighter shape.
+function StudentRowSkeleton({ withAvatar }: { withAvatar: boolean }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-      <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
-      <div className="mt-2 h-3 w-24 animate-pulse rounded bg-gray-200" />
+    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+      {withAvatar ? (
+        <div className="h-8 w-8 flex-shrink-0 animate-pulse rounded-full bg-gray-200" />
+      ) : null}
+      <div className="min-w-0 flex-1">
+        <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
+        <div className="mt-2 h-3 w-24 animate-pulse rounded bg-gray-200" />
+      </div>
     </div>
   );
 }
@@ -186,6 +195,7 @@ function StudentsInRoomBody({
   students,
   router,
 }: StudentsInRoomBodyProps) {
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
   if (hasError) {
     return (
       <Alert
@@ -207,10 +217,10 @@ function StudentsInRoomBody({
         data-testid="students-in-room-skeleton"
         className="flex flex-col gap-2"
       >
-        <StudentRowSkeleton />
-        <StudentRowSkeleton />
-        <StudentRowSkeleton />
-        <StudentRowSkeleton />
+        <StudentRowSkeleton withAvatar={photosEnabled} />
+        <StudentRowSkeleton withAvatar={photosEnabled} />
+        <StudentRowSkeleton withAvatar={photosEnabled} />
+        <StudentRowSkeleton withAvatar={photosEnabled} />
       </output>
     );
   }
@@ -243,6 +253,7 @@ function StudentsInRoomBody({
           lastName={student.second_name}
           schoolClass={student.school_class}
           groupName={student.group_name ?? undefined}
+          photoUrl={student.photo_url ?? null}
           onClick={() =>
             router.push(
               `/students/${student.id}?from=${encodeURIComponent(fromReferrer)}`,

@@ -153,6 +153,9 @@ interface BFFDashboardResponse {
     sickSince?: string;
     excused?: boolean;
     excusedSince?: string;
+    // Authenticated proxy URL — backend rewrites the raw /uploads path
+    // to /api/students/{id}/photo/{filename} before sending it down.
+    photoUrl?: string;
   }>;
   firstRoomId: string | null;
   schulhofStatus: SchulhofStatusResponse | null;
@@ -1666,6 +1669,7 @@ function MeinRaumPageContent() {
                   studentId={student.id}
                   firstName={student.first_name}
                   lastName={student.second_name}
+                  photoUrl={student.photo_url ?? null}
                   gradient={GROUP_CARD_GRADIENT}
                   onClick={() =>
                     router.push(

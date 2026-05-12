@@ -132,6 +132,7 @@ describe("tenant-api", () => {
         // Missing presence_mode on a backend response defaults to "detailed"
         // — matches backend's own safe fallback.
         presenceMode: "detailed",
+        studentPhotosEnabled: false,
       });
     });
 
@@ -275,6 +276,7 @@ describe("tenant-api", () => {
         // List endpoints don't carry per-tenant presence mode; consumers
         // call resolveTenant() once the user picks a tenant.
         presenceMode: "detailed",
+        studentPhotosEnabled: false,
       });
     });
 
@@ -393,6 +395,7 @@ describe("tenant-api", () => {
         // account-tenants is pre-switch listing; presenceMode is re-resolved
         // when the new tenant's layout mounts and calls resolveTenant.
         presenceMode: "detailed",
+        studentPhotosEnabled: false,
       });
     });
 

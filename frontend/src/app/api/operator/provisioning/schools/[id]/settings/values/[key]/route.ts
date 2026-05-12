@@ -1,5 +1,6 @@
-import type { NextRequest } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
+import type { NextRequest } from "next/server";
+import { createLogger } from "~/lib/logger";
 import {
   createOperatorPutHandler,
   createOperatorDeleteHandler,
@@ -9,7 +10,6 @@ import {
   operatorApiDelete,
 } from "~/lib/operator/route-wrapper";
 import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
-import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({
   component: "OperatorSchoolSettingsValuesRoute",

@@ -13,12 +13,21 @@
 
 "use client";
 
+import { Avatar } from "~/components/ui/avatar";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+
 interface CompactStudentCardProps {
   readonly studentId: string | number;
   readonly firstName?: string;
   readonly lastName?: string;
   readonly schoolClass?: string;
   readonly groupName?: string;
+  /**
+   * Photo URL — gated server-side by operations.student_photos_enabled +
+   * parental consent. When falsy the Avatar falls back to brand initials,
+   * so callers can pass `student.photo_url` unconditionally.
+   */
+  readonly photoUrl?: string | null;
   readonly onClick?: () => void;
 }
 
@@ -28,12 +37,17 @@ export function CompactStudentCard({
   lastName,
   schoolClass,
   groupName,
+  photoUrl,
   onClick,
 }: CompactStudentCardProps) {
+  // Per-tenant feature flag. When off, the avatar slot is suppressed so
+  // opt-out schools see the original pre-feature shape (name + meta only).
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
   // No "Gruppe X" prefix — group names are already self-evidently
   // group names ("Bärengruppe", "Sternengruppe", …), so prefixing with
   // "Gruppe" reads as a stutter ("Gruppe Bärengruppe").
   const meta = [schoolClass, groupName].filter(Boolean).join(" · ");
+  const fullName = `${firstName ?? ""} ${lastName ?? ""}`.trim() || "?";
 
   return (
     <button
@@ -42,12 +56,19 @@ export function CompactStudentCard({
       onClick={onClick}
       aria-label={`${firstName} ${lastName} – Profil öffnen`}
       data-testid={`compact-student-card-${studentId}`}
-      className="group w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition-colors duration-150 hover:border-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none"
+      className="group flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition-colors duration-150 hover:border-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none"
     >
-      <p className="truncate text-base font-semibold text-gray-900">
-        {firstName} {lastName}
-      </p>
-      {meta && <p className="mt-0.5 truncate text-sm text-gray-500">{meta}</p>}
+      {photosEnabled ? (
+        <Avatar imageUrl={photoUrl ?? null} name={fullName} size="sm" />
+      ) : null}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-base font-semibold text-gray-900">
+          {firstName} {lastName}
+        </p>
+        {meta && (
+          <p className="mt-0.5 truncate text-sm text-gray-500">{meta}</p>
+        )}
+      </div>
     </button>
   );
 }

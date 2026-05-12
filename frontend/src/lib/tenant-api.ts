@@ -40,6 +40,13 @@ export interface TenantInfo {
   organizationName: string;
   settings: TenantSettings;
   presenceMode: PresenceMode;
+  /**
+   * Whether the tenant has the photo feature enabled. Surfaced via the
+   * tenant resolve endpoint (which any authenticated session reaches)
+   * rather than /api/settings/schema, because non-admin Betreuer don't
+   * carry config:read but still need to know whether to render avatars.
+   */
+  studentPhotosEnabled: boolean;
 }
 
 interface TenantResolveResponse {
@@ -51,6 +58,7 @@ interface TenantResolveResponse {
   organization_name: string;
   settings: TenantSettings;
   presence_mode?: string;
+  student_photos_enabled?: boolean;
 }
 
 /**
@@ -90,6 +98,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       organizationName: data.organization_name,
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),
+      studentPhotosEnabled: data.student_photos_enabled === true,
     };
   } catch {
     return null;
@@ -151,6 +160,8 @@ export async function listAllTenants(
           // list endpoints don't carry per-tenant presence mode; consumers
           // that need it call resolveTenant() on the selected slug.
           presenceMode: "detailed",
+          // Same story for the photo flag — re-resolved on tenant landing.
+          studentPhotosEnabled: false,
         })),
         status: "ok",
       };
@@ -204,6 +215,7 @@ export async function listAvailableTenants(): Promise<TenantInfo[]> {
     // account-tenants endpoint is pre-switch listing; presenceMode is re-resolved
     // after the switch when the new tenant's layout mounts and calls resolveTenant.
     presenceMode: "detailed",
+    studentPhotosEnabled: false,
   }));
 }
 

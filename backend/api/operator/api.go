@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -42,8 +43,12 @@ type ResourceConfig struct {
 	// a tenant_settings_changed SSE event after every successful Set/Reset so
 	// open tenant tabs invalidate their settings caches across origins.
 	Broadcaster realtime.Broadcaster
-	TokenAuth   *jwt.TokenAuth
-	DB          *bun.DB
+	// SchoolRepo lets the SettingsResource emit `school_slug` in set/reset
+	// responses so the frontend operator proxy can bust the slug-keyed
+	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
+	SchoolRepo platformModels.SchoolRepository
+	TokenAuth  *jwt.TokenAuth
+	DB         *bun.DB
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
@@ -98,7 +103,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		tokenAuth:             tokenAuth,
 	}
 	if cfg.SettingsService != nil {
-		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster)
+		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolRepo)
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB

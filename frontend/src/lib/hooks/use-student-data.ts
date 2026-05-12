@@ -99,6 +99,17 @@ function mapStudentResponse(
       ? (mappedStudent.actual_pickup_time ?? undefined)
       : undefined,
     has_full_access: hasAccess,
+    // Photo URL is visible to anyone with users:read who can see the
+    // student. The backend returns the authenticated proxy URL, so the
+    // browser can render <img src> with the same-origin session cookie.
+    // Forgetting this field on the detail-page hook was the bug where the
+    // big xl avatar in StudentDetailHeader stayed empty even though all
+    // other surfaces (master-detail header, search cards, OGS-room cards)
+    // showed the photo correctly.
+    photo_url: mappedStudent.photo_url ?? undefined,
+    photo_consent_given: mappedStudent.photo_consent_given ?? undefined,
+    photo_consent_given_at: mappedStudent.photo_consent_given_at ?? undefined,
+    photo_consent_given_by: mappedStudent.photo_consent_given_by ?? undefined,
   };
 }
 

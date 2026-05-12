@@ -107,8 +107,13 @@ type VisitWithDisplayDataResponse struct {
 	SickSince     *time.Time `json:"sick_since,omitempty"`
 	Excused       bool       `json:"excused"`
 	ExcusedSince  *time.Time `json:"excused_since,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	// Photo URL — already rewritten by the visit-display handler from the
+	// raw /uploads/student-photos/{f} on-disk path to the authenticated
+	// /api/students/{id}/photo/{f} proxy URL the browser can fetch via
+	// same-origin cookie session.
+	PhotoURL  string    `json:"photo_url,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // SupervisorResponse represents a group supervisor API response

@@ -272,6 +272,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
+	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
+		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker")),
+		StudentRepo: repoFactory.Student,
+		DB:          db,
+		Logger:      logger.With("service", "student-photo"),
+	})
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          api.Services.Users,
 		StudentRepo:            repoFactory.Student,
@@ -289,6 +295,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		VisitRepo:              repoFactory.ActiveVisit,
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
 		Broadcaster:            api.Services.RealtimeHub,
+		StudentPhotos:          api.Services.StudentPhotos,
 		Logger:                 logger.With("handler", "students"),
 		DB:                     db,
 	})
@@ -369,6 +376,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService:       api.Services.Announcement,
 		SettingsService:            api.Services.Settings,
 		Broadcaster:                api.Services.RealtimeHub,
+		SchoolRepo:                 repoFactory.School,
 		TokenAuth:                  nil, // Created internally by operator API
 		DB:                         db,
 	})

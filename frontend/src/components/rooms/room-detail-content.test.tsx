@@ -17,6 +17,11 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantSlugSafe: () => "test-tenant",
+  // RoomDetailSkeleton + StudentsInRoomSection both call
+  // useStudentPhotosEnabled, which reads from useTenantSafe. Returning a
+  // null tenant keeps the photo feature off in this test (matching the
+  // pre-feature shape the skeleton assertions were written against).
+  useTenantSafe: () => ({ tenantSlug: "test-tenant", tenant: null }),
 }));
 
 // The global test setup mocks `swr` to always return isLoading=true. To

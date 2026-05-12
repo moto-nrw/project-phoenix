@@ -49,6 +49,7 @@ const mockTenant: TenantInfo = {
   organizationName: "Org A",
   settings: {},
   presenceMode: "detailed",
+  studentPhotosEnabled: false,
 };
 
 // ============================================================================
@@ -167,7 +168,7 @@ describe("TenantProvider — cross-tab settings sync", () => {
   it("re-resolves the tenant on broadcast and propagates the fresh value", async () => {
     const updatedTenant: TenantInfo = {
       ...mockTenant,
-      name: "Demo School (renamed)",
+      studentPhotosEnabled: true,
     };
     mockResolveTenant.mockResolvedValue(updatedTenant);
 
@@ -191,7 +192,7 @@ describe("TenantProvider — cross-tab settings sync", () => {
     });
 
     await waitFor(() => {
-      expect(observed?.name).toBe("Demo School (renamed)");
+      expect(observed?.studentPhotosEnabled).toBe(true);
     });
     expect(mockResolveTenant).toHaveBeenCalledTimes(1);
     expect(mockResolveTenant).toHaveBeenCalledWith("demo-school");
@@ -201,16 +202,16 @@ describe("TenantProvider — cross-tab settings sync", () => {
     // Bursting refetches (visibilitychange + SSE + BroadcastChannel
     // landing in the same tick) used to last-writer-wins on whichever
     // promise resolved last. If the OLDER request finished last, it would
-    // overwrite the newer state and leave the tab stale until the next
-    // refresh. The provider now sequences requests with a token; this
-    // test pins that contract.
+    // overwrite the newer studentPhotosEnabled state and leave the tab on
+    // a stale flag until the next refresh. The provider now sequences
+    // requests with a token; this test pins that contract.
     const oldStateTenant: TenantInfo = {
       ...mockTenant,
-      name: "Old name",
+      studentPhotosEnabled: false,
     };
     const newStateTenant: TenantInfo = {
       ...mockTenant,
-      name: "New name",
+      studentPhotosEnabled: true,
     };
 
     // Two pending promises we control resolution order on.
@@ -259,7 +260,7 @@ describe("TenantProvider — cross-tab settings sync", () => {
     });
 
     await waitFor(() => {
-      expect(observed.value?.name).toBe("New name");
+      expect(observed.value?.studentPhotosEnabled).toBe(true);
     });
 
     // Now the older request finishes — it must NOT overwrite the new state.
@@ -268,7 +269,7 @@ describe("TenantProvider — cross-tab settings sync", () => {
       await Promise.resolve();
     });
 
-    expect(observed.value?.name).toBe("New name");
+    expect(observed.value?.studentPhotosEnabled).toBe(true);
   });
 
   it("drops in-flight responses from a previous tenantSlug after navigation", async () => {
