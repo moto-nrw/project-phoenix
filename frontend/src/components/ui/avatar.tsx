@@ -15,6 +15,9 @@ interface AvatarProps {
   readonly className?: string;
 }
 
+// Single brand-green fallback background for every avatar (LOCATION_COLORS.GROUP_ROOM).
+const FALLBACK_BG = "#83CD2D";
+
 const SIZE_CLASSES: Record<AvatarSize, string> = {
   xs: "w-6 h-6 text-[10px]",
   sm: "w-8 h-8 text-sm",
@@ -57,9 +60,7 @@ export function Avatar({
     <div
       className={`relative ${sizeClass} ${ringClass} flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white ${className ?? ""}`}
       style={{
-        background: showImage
-          ? "transparent"
-          : "linear-gradient(135deg, #5080d8, #83cd2d)",
+        background: showImage ? "transparent" : FALLBACK_BG,
       }}
       aria-label={name}
     >

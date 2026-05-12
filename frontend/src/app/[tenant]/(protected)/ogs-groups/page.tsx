@@ -1269,7 +1269,6 @@ function OGSGroupPageContent() {
                   onCheckinClick={() =>
                     void schoolCheckin.toggle(studentIdStr, checkinState)
                   }
-                  useInlineHintAvatarRow={photosEnabled}
                   locationBadge={
                     <StudentPresenceBadge
                       student={{

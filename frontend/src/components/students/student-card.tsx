@@ -37,12 +37,6 @@ interface StudentCardProps {
   /** Optional tracking indicators (right-aligned, below location badge) */
   readonly trackingIndicators?: ReactNode;
   /**
-   * Opt-in compact-surface layout: render the navigation hint and avatar in a
-   * shared in-flow bottom row so the card grows subtly instead of letting the
-   * avatar overlap a dense indicator stack.
-   */
-  readonly useInlineHintAvatarRow?: boolean;
-  /**
    * When true, the card is rendered in school check-in/out mode: the bottom
    * hint area becomes a coloured tap-strip whose copy + colour follow
    * checkinState, click fires onCheckinClick instead of onClick, and a
@@ -114,7 +108,6 @@ export function StudentCard({
   locationBadge,
   extraContent,
   trackingIndicators,
-  useInlineHintAvatarRow = false,
   checkinMode = false,
   checkinState = "unknown",
   isCheckinPending = false,
@@ -179,40 +172,49 @@ export function StudentCard({
         {/* Card body content sits above the decorative layers */}
         <div className="relative">
           {/* Header with student name */}
-          <div
-            className={`flex items-start justify-between gap-3 ${
-              !checkinMode && photosEnabled && useInlineHintAvatarRow
-                ? "mb-1"
-                : "mb-3"
-            }`}
-          >
+          <div className="mb-3 flex items-start justify-between gap-3">
             {/* Student Name */}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-150 md:group-hover:text-blue-600">
-                  {firstName}
-                </h3>
-                {/* Arrow hint only points to navigation; in check-in mode the
-                  bottom strip carries the action signal instead. */}
-                {!checkinMode && (
-                  <svg
-                    className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-150 md:group-hover:text-blue-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
+              {/* Avatar moved to top-left, inline with first/last name so only
+                  the name gets pushed aside. extraContent below stays full
+                  width. */}
+              <div className="flex items-start gap-3">
+                {photosEnabled && (
+                  <Avatar
+                    imageUrl={photoUrl ?? null}
+                    name={`${firstName ?? ""} ${lastName ?? ""}`.trim() || "?"}
+                    size="md"
+                    className="flex-shrink-0"
+                  />
                 )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-150 md:group-hover:text-blue-600">
+                      {firstName}
+                    </h3>
+                    {/* Arrow hint only points to navigation; in check-in mode the
+                      bottom strip carries the action signal instead. */}
+                    {!checkinMode && (
+                      <svg
+                        className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-150 md:group-hover:text-blue-500"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-150 md:group-hover:text-blue-500">
+                    {lastName}
+                  </p>
+                </div>
               </div>
-              <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-150 md:group-hover:text-blue-500">
-                {lastName}
-              </p>
               {/* Extra content slot (school class, group name, etc.) */}
               {extraContent}
             </div>
@@ -228,54 +230,17 @@ export function StudentCard({
             )}
           </div>
 
-          {/* Bottom hint in navigation mode only. Compact surfaces can opt
-              into an in-flow row with the avatar so the card grows just
-              enough to clear a tall indicator stack without affecting other
-              StudentCard consumers. */}
-          {!checkinMode &&
-            (photosEnabled && useInlineHintAvatarRow ? (
-              <div className="flex items-center gap-3">
-                <p className="text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
-                  Tippen für mehr Infos
-                </p>
-                <Avatar
-                  imageUrl={photoUrl ?? null}
-                  name={`${firstName ?? ""} ${lastName ?? ""}`.trim() || "?"}
-                  size="md"
-                  className="ml-auto flex-shrink-0"
-                />
-              </div>
-            ) : (
-              <p
-                className={`text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400 ${photosEnabled ? "pr-14" : ""}`}
-              >
-                Tippen für mehr Infos
-              </p>
-            ))}
-
-          {/* Decorative pings — kept in both modes, they belong to the card's
-              visual identity, not to the navigation affordance. The bottom-
-              right ping is suppressed when the avatar overlay takes its
-              place so they don't visually overlap. */}
-          <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20" />
-          {!photosEnabled && (
-            <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30" />
+          {/* Bottom hint in navigation mode only. */}
+          {!checkinMode && (
+            <p className="text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
+              Tippen für mehr Infos
+            </p>
           )}
 
-          {/* Avatar overlay — sits at the same bottom-right corner the
-              decorative ping used to occupy. Pinned absolutely so it never
-              shifts the card layout, pointer-events-none so the whole card
-              stays a single click target. Size md (44px) keeps it discreet
-              in dense grids while still readable as a face/initials. */}
-          {photosEnabled && !(!checkinMode && useInlineHintAvatarRow) ? (
-            <div className="pointer-events-none absolute right-0 bottom-3">
-              <Avatar
-                imageUrl={photoUrl ?? null}
-                name={`${firstName ?? ""} ${lastName ?? ""}`.trim() || "?"}
-                size="md"
-              />
-            </div>
-          ) : null}
+          {/* Decorative bottom-right ping — static, no pulse animation.
+              The previous top-left animate-ping was removed because it
+              visually pulsed through the avatar now sitting in that corner. */}
+          <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30" />
         </div>
       </div>
 
