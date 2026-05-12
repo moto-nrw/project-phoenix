@@ -11,10 +11,13 @@ import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { roomService } from "~/lib/api";
 import StudentSearchPage from "./page";
 
+const STUDENT_SEARCH_FILTER_STORAGE_KEY =
+  "student-search:last-filters:tenant-7:user-1";
+
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { id: "user-1", tenantId: 7, token: "test-token" } },
     status: "authenticated",
   })),
 }));
@@ -342,12 +345,16 @@ describe("StudentSearchPage", () => {
     mockSearchParams.delete("tracking");
     mockSearchParams.delete("sort");
     mockSearchParams.delete("view");
+    localStorage.clear();
     window.history.replaceState(null, "", "/students/search");
 
     // Reset useSession mock to authenticated state
     const sessionModule = await import("next-auth/react");
     vi.mocked(sessionModule.useSession).mockReturnValue({
-      data: { user: { token: "test-token" }, expires: "2099-01-01" },
+      data: {
+        user: { id: "user-1", tenantId: 7, token: "test-token" },
+        expires: "2099-01-01",
+      },
       status: "authenticated",
       update: vi.fn(),
     } as unknown as ReturnType<typeof sessionModule.useSession>);
@@ -382,6 +389,7 @@ describe("StudentSearchPage", () => {
 
   afterEach(() => {
     cleanup();
+    localStorage.clear();
   });
 
   describe("URL Parameter Handling", () => {
@@ -506,12 +514,107 @@ describe("StudentSearchPage", () => {
       expect(url.searchParams.get("sort")).toBe("pickup");
       expect(url.searchParams.get("view")).toBe("status");
       expect(window.history.state).toEqual({ preserved: true });
+      expect(
+        JSON.parse(
+          localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY) ?? "{}",
+        ),
+      ).toEqual({
+        group_id: "2",
+        sort: "pickup",
+        status: "unterwegs",
+        view: "status",
+        year: "2",
+      });
 
       fireEvent.click(screen.getByTestId("clear-filters"));
 
       url = new URL(window.location.href);
       expect(url.searchParams.toString()).toBe("");
       expect(window.history.state).toEqual({ preserved: true });
+      expect(
+        localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY),
+      ).toBeNull();
+    });
+
+    it("restores filters from localStorage when opening without URL params", async () => {
+      localStorage.setItem(
+        STUDENT_SEARCH_FILTER_STORAGE_KEY,
+        JSON.stringify({
+          year: "2",
+          group_id: "2",
+          room_id: "101",
+          room_name: "Raum 101",
+          status: "schulhof",
+          sort: "arrival",
+          view: "room",
+        }),
+      );
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-year")).toHaveValue("2");
+        expect(screen.getByTestId("filter-group")).toHaveValue("2");
+        expect(screen.getByTestId("filter-room")).toHaveValue("101");
+        expect(screen.getByTestId("filter-attendance")).toHaveValue("schulhof");
+        expect(screen.getByTestId("filter-sort")).toHaveValue("arrival");
+        expect(screen.getByTestId("filter-groupMode")).toHaveValue("room");
+      });
+
+      const url = new URL(window.location.href);
+      expect(url.searchParams.get("year")).toBe("2");
+      expect(url.searchParams.get("group_id")).toBe("2");
+      expect(url.searchParams.get("room_id")).toBe("101");
+      expect(url.searchParams.get("room_name")).toBe("Raum 101");
+      expect(url.searchParams.get("status")).toBe("schulhof");
+    });
+
+    it("uses URL params instead of localStorage when both are present", async () => {
+      localStorage.setItem(
+        STUDENT_SEARCH_FILTER_STORAGE_KEY,
+        JSON.stringify({
+          year: "2",
+          group_id: "2",
+          status: "schulhof",
+        }),
+      );
+      mockSearchParams.set("year", "1");
+      mockSearchParams.set("group_id", "1");
+      mockSearchParams.set("status", "anwesend");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-year")).toHaveValue("1");
+        expect(screen.getByTestId("filter-group")).toHaveValue("1");
+        expect(screen.getByTestId("filter-attendance")).toHaveValue("anwesend");
+      });
+
+      expect(
+        JSON.parse(
+          localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY) ?? "{}",
+        ),
+      ).toEqual({
+        group_id: "1",
+        status: "anwesend",
+        year: "1",
+      });
+    });
+
+    it("ignores invalid localStorage filter data", async () => {
+      localStorage.setItem(STUDENT_SEARCH_FILTER_STORAGE_KEY, "not-json");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-year")).toHaveValue("all");
+        expect(screen.getByTestId("filter-group")).toHaveValue("");
+        expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
+      });
+
+      expect(
+        localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY),
+      ).toBeNull();
     });
   });
 

@@ -114,6 +114,12 @@ const FILTER_QUERY_PARAMS = [
   "view",
 ] as const;
 
+type FilterQueryParam = (typeof FILTER_QUERY_PARAMS)[number];
+type PersistedSearchFilters = Partial<Record<FilterQueryParam, string>>;
+type SearchParamReader = Pick<URLSearchParams, "get" | "has">;
+
+const STUDENT_SEARCH_FILTER_STORAGE_PREFIX = "student-search:last-filters";
+
 const SCHOOL_YEAR_DROPDOWN_OPTIONS = SCHOOL_YEAR_FILTER_OPTIONS.map(
   (option) => ({
     value: option.value,
@@ -135,6 +141,158 @@ function validQueryValue<T extends string>(
   fallback: T,
 ): T {
   return value && validValues.includes(value as T) ? (value as T) : fallback;
+}
+
+function searchParamsHavePersistedFilters(searchParams: SearchParamReader) {
+  return FILTER_QUERY_PARAMS.some((key) => searchParams.has(key));
+}
+
+function persistedFiltersToSearchParams(filters: PersistedSearchFilters) {
+  const params = new URLSearchParams();
+  for (const key of FILTER_QUERY_PARAMS) {
+    const value = filters[key];
+    if (value) params.set(key, value);
+  }
+  return params;
+}
+
+function filtersFromSearchParams(
+  searchParams: SearchParamReader,
+): PersistedSearchFilters {
+  const filters: PersistedSearchFilters = {};
+  for (const key of FILTER_QUERY_PARAMS) {
+    const value = searchParams.get(key);
+    if (value) filters[key] = value;
+  }
+  return filters;
+}
+
+function normalizeStoredFilters(
+  filters: PersistedSearchFilters,
+): PersistedSearchFilters {
+  const params = persistedFiltersToSearchParams(filters);
+  const trackingParam = params.get("tracking");
+  const trackingFilter =
+    trackingParam && parseTrackingFilter(trackingParam).kind !== "invalid"
+      ? trackingParam
+      : "";
+
+  return {
+    year:
+      validQueryValue(
+        params.get("year"),
+        SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
+        "all",
+      ) === "all"
+        ? ""
+        : (params.get("year") ?? ""),
+    group_id: params.get("group_id") ?? "",
+    room_id: params.get("room_id") ?? "",
+    room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
+    pickup_time: params.get("pickup_time") ?? "",
+    arrival_time: params.get("arrival_time") ?? "",
+    status:
+      validQueryValue(
+        params.get("status"),
+        STATUS_FILTER_OPTIONS.map((option) => option.value),
+        "all",
+      ) === "all"
+        ? ""
+        : (params.get("status") ?? ""),
+    tracking: trackingFilter,
+    sort:
+      validQueryValue(
+        params.get("sort"),
+        SORT_OPTIONS.map((option) => option.value),
+        "name",
+      ) === "name"
+        ? ""
+        : (params.get("sort") ?? ""),
+    view:
+      validQueryValue(
+        params.get("view"),
+        GROUP_OPTIONS.map((option) => option.value),
+        "none",
+      ) === "none"
+        ? ""
+        : (params.get("view") ?? ""),
+  };
+}
+
+function compactStoredFilters(filters: PersistedSearchFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(
+      (entry): entry is [FilterQueryParam, string] => Boolean(entry[1]),
+    ),
+  ) as PersistedSearchFilters;
+}
+
+function readStoredFilters(storageKey: string | null) {
+  if (!storageKey || typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      window.localStorage.removeItem(storageKey);
+      return null;
+    }
+    return compactStoredFilters(
+      normalizeStoredFilters(parsed as PersistedSearchFilters),
+    );
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return null;
+  }
+}
+
+function writeStoredFilters(
+  storageKey: string | null,
+  filters: PersistedSearchFilters,
+) {
+  if (!storageKey || typeof window === "undefined") return;
+
+  const compacted = compactStoredFilters(normalizeStoredFilters(filters));
+  try {
+    if (Object.keys(compacted).length === 0) {
+      window.localStorage.removeItem(storageKey);
+      return;
+    }
+    window.localStorage.setItem(storageKey, JSON.stringify(compacted));
+  } catch {
+    // localStorage can fail in private mode or when quota is exceeded. URL
+    // persistence still works, so ignore storage failures.
+  }
+}
+
+function removeStoredFilters(storageKey: string | null) {
+  if (!storageKey || typeof window === "undefined") return;
+
+  try {
+    window.localStorage.removeItem(storageKey);
+  } catch {
+    // See writeStoredFilters: storage is a convenience layer, not required.
+  }
+}
+
+function buildSearchFilterStorageKey(
+  user:
+    | {
+        id?: string | null;
+        email?: string | null;
+        tenantId?: number | null;
+      }
+    | undefined,
+) {
+  if (typeof window === "undefined") return null;
+
+  const tenantKey =
+    user?.tenantId !== undefined && user.tenantId !== null
+      ? `tenant-${user.tenantId}`
+      : `host-${window.location.host}`;
+  const accountKey = user?.id ?? user?.email ?? "anonymous";
+  return `${STUDENT_SEARCH_FILTER_STORAGE_PREFIX}:${tenantKey}:${accountKey}`;
 }
 
 function compareByName(a: Student, b: Student) {
@@ -260,31 +418,48 @@ function SearchPageContent() {
   });
   const searchParams = useSearchParams();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const storageKey = useMemo(
+    () => buildSearchFilterStorageKey(session?.user),
+    [session?.user],
+  );
+  const hasUrlFilterParams = searchParamsHavePersistedFilters(searchParams);
+  const storedInitialFilters = useMemo(
+    () => (hasUrlFilterParams ? null : readStoredFilters(storageKey)),
+    [hasUrlFilterParams, storageKey],
+  );
+  const initialFilterParams = useMemo(
+    () =>
+      storedInitialFilters
+        ? persistedFiltersToSearchParams(storedInitialFilters)
+        : searchParams,
+    [searchParams, storedInitialFilters],
+  );
 
   // Read initial filters from URL params so refreshes, revisits via browser
-  // history, and copied links restore the same operational view.
+  // history, and copied links restore the same operational view. When no URL
+  // filters are present, fall back to the last browser-local PWA view.
   const initialAttendanceFilter = validQueryValue(
-    searchParams.get("status"),
+    initialFilterParams.get("status"),
     STATUS_FILTER_OPTIONS.map((option) => option.value),
     "all",
   );
   const initialYear = validQueryValue(
-    searchParams.get("year"),
+    initialFilterParams.get("year"),
     SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
     "all",
   );
-  const initialTrackingParam = searchParams.get("tracking") ?? "all";
+  const initialTrackingParam = initialFilterParams.get("tracking") ?? "all";
   const initialTrackingFilter =
     parseTrackingFilter(initialTrackingParam).kind === "invalid"
       ? "all"
       : (initialTrackingParam as TrackingFilter);
   const initialSortMode = validQueryValue(
-    searchParams.get("sort"),
+    initialFilterParams.get("sort"),
     SORT_OPTIONS.map((option) => option.value),
     "name",
   );
   const initialGroupMode = validQueryValue(
-    searchParams.get("view"),
+    initialFilterParams.get("view"),
     GROUP_OPTIONS.map((option) => option.value),
     "none",
   );
@@ -292,24 +467,24 @@ function SearchPageContent() {
   // Room filter — populated when the user lands here from the room detail
   // page's "In Kindersuche öffnen" link (#1323). room_name is purely a
   // display affordance for the chip; the backend filter only uses room_id.
-  const initialRoomId = searchParams.get("room_id") ?? "";
-  const initialRoomName = searchParams.get("room_name") ?? "";
+  const initialRoomId = initialFilterParams.get("room_id") ?? "";
+  const initialRoomName = initialFilterParams.get("room_name") ?? "";
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
   const [selectedGroup, setSelectedGroup] = useState(
-    searchParams.get("group_id") ?? "",
+    initialFilterParams.get("group_id") ?? "",
   );
   const [selectedYear, setSelectedYear] = useState<string>(initialYear);
   const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(
     initialAttendanceFilter,
   );
   const [pickupTimeFilter, setPickupTimeFilter] = useState(
-    searchParams.get("pickup_time") ?? "all",
+    initialFilterParams.get("pickup_time") ?? "all",
   );
   const [arrivalTimeFilter, setArrivalTimeFilter] = useState(
-    searchParams.get("arrival_time") ?? "all",
+    initialFilterParams.get("arrival_time") ?? "all",
   );
   const [trackingFilter, setTrackingFilter] = useState<TrackingFilter>(
     initialTrackingFilter,
@@ -335,9 +510,82 @@ function SearchPageContent() {
         "",
         url.toString(),
       );
+      writeStoredFilters(storageKey, filtersFromSearchParams(url.searchParams));
+    },
+    [storageKey],
+  );
+
+  const applyPersistedFilters = useCallback(
+    (filters: PersistedSearchFilters) => {
+      const params = persistedFiltersToSearchParams(
+        compactStoredFilters(normalizeStoredFilters(filters)),
+      );
+
+      setSelectedGroup(params.get("group_id") ?? "");
+      setSelectedYear(
+        validQueryValue(
+          params.get("year"),
+          SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
+          "all",
+        ),
+      );
+      setAttendanceFilter(
+        validQueryValue(
+          params.get("status"),
+          STATUS_FILTER_OPTIONS.map((option) => option.value),
+          "all",
+        ),
+      );
+      setPickupTimeFilter(params.get("pickup_time") ?? "all");
+      setArrivalTimeFilter(params.get("arrival_time") ?? "all");
+
+      const trackingParam = params.get("tracking") ?? "all";
+      setTrackingFilter(
+        parseTrackingFilter(trackingParam).kind === "invalid"
+          ? "all"
+          : (trackingParam as TrackingFilter),
+      );
+
+      setSortMode(
+        validQueryValue(
+          params.get("sort"),
+          SORT_OPTIONS.map((option) => option.value),
+          "name",
+        ),
+      );
+      setGroupMode(
+        validQueryValue(
+          params.get("view"),
+          GROUP_OPTIONS.map((option) => option.value),
+          "none",
+        ),
+      );
+      setSelectedRoomId(params.get("room_id") ?? "");
+      setSelectedRoomName(params.get("room_name") ?? "");
     },
     [],
   );
+
+  useEffect(() => {
+    if (!storageKey) return;
+
+    if (hasUrlFilterParams) {
+      writeStoredFilters(storageKey, filtersFromSearchParams(searchParams));
+      return;
+    }
+
+    const storedFilters = readStoredFilters(storageKey);
+    if (!storedFilters || Object.keys(storedFilters).length === 0) return;
+
+    applyPersistedFilters(storedFilters);
+    updateUrlParams(storedFilters);
+  }, [
+    applyPersistedFilters,
+    hasUrlFilterParams,
+    searchParams,
+    storageKey,
+    updateUrlParams,
+  ]);
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -541,7 +789,8 @@ function SearchPageContent() {
     updateUrlParams(
       Object.fromEntries(FILTER_QUERY_PARAMS.map((key) => [key, ""])),
     );
-  }, [updateUrlParams]);
+    removeStoredFilters(storageKey);
+  }, [storageKey, updateUrlParams]);
 
   const students = studentsData?.students ?? [];
 
