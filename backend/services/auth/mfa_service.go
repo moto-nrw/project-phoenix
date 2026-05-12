@@ -373,37 +373,12 @@ func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string,
 		return ErrMFAChallengeTokenInvalid
 	}
 
-	// Per-tenant cooldown gate. Distinct from the sliding-window cap inside
-	// StartChallenge: the window cap (3 codes / 15 min) is an abuse defense;
-	// this cooldown is a UX / cost knob exposed to school admins via the
-	// `security.mfa_email_resend_cooldown_seconds` setting.
-	if cooldown := s.resolveResendCooldown(ctx); cooldown > 0 {
-		if last, err := s.repos.MFAEmailChallenge.FindActiveByAccountID(ctx, claims.AccountID); err == nil && last != nil {
-			if time.Since(last.CreatedAt) < cooldown {
-				return ErrMFARateLimited
-			}
-		}
-	}
-
+	// No per-resend cooldown gate — the sliding-window cap inside
+	// StartChallenge (3 codes / 15 min) remains as the abuse defense.
 	if _, err := s.StartChallenge(ctx, claims.AccountID, claims.TenantID, claims.Scope, ip); err != nil {
 		return err
 	}
 	return nil
-}
-
-// resolveResendCooldown returns the per-tenant cooldown duration between
-// successive email-code resends. Falls back to zero (no cooldown) on errors
-// — the sliding-window rate limit inside StartChallenge still applies as
-// the abuse defense.
-func (s *mfaService) resolveResendCooldown(ctx context.Context) time.Duration {
-	if s.settings == nil {
-		return 0
-	}
-	seconds, err := s.settings.ResolveInt(ctx, configModel.KeyMFAEmailResendCooldownSeconds)
-	if err != nil || seconds <= 0 {
-		return 0
-	}
-	return time.Duration(seconds) * time.Second
 }
 
 // handleFailedAttempt increments the lockout counter and emits an mfa_locked

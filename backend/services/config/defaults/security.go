@@ -82,24 +82,4 @@ func init() {
 		},
 	})
 
-	mfaResendMin := float64(30)
-	mfaResendMax := float64(300)
-	config.Register(config.Definition{
-		Key:             config.KeyMFAEmailResendCooldownSeconds,
-		Label:           "Cooldown für E-Mail-Code-Versand (Sekunden)",
-		Description:     "Wartezeit zwischen zwei E-Mail-Code-Anfragen pro Konto, um Spam und unnötige Versandkosten zu vermeiden.",
-		Type:            config.FieldNumber,
-		Default:         60,
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
-		Tab:             "security",
-		Category:        "mfa",
-		SortOrder:       30,
-		Validation:      &config.ValidationRules{Min: &mfaResendMin, Max: &mfaResendMax},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyMFAMode,
-			Condition: "neq",
-			Value:     config.MFAModeOff,
-		},
-	})
 }

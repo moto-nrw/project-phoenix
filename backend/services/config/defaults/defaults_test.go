@@ -65,11 +65,10 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"attendance.web_spontaneous_activities_enabled",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
-		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair + email-resend cooldown.
+		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
 		"security.mfa_mode",
 		"security.mfa_trusted_device_enabled",
 		"security.mfa_trusted_device_days",
-		"security.mfa_email_resend_cooldown_seconds",
 	}
 
 	for _, key := range expectedKeys {
@@ -403,17 +402,6 @@ func TestMFASettings_TypesAndDefaults(t *testing.T) {
 		assert.Equal(t, float64(90), *def.Validation.Max)
 	})
 
-	t.Run("mfa_email_resend_cooldown_seconds", func(t *testing.T) {
-		def := config.GetDefinition(config.KeyMFAEmailResendCooldownSeconds)
-		require.NotNil(t, def)
-		assert.Equal(t, config.FieldNumber, def.Type)
-		assert.Equal(t, 60, def.Default)
-		require.NotNil(t, def.Validation)
-		require.NotNil(t, def.Validation.Min)
-		require.NotNil(t, def.Validation.Max)
-		assert.Equal(t, float64(30), *def.Validation.Min)
-		assert.Equal(t, float64(300), *def.Validation.Max)
-	})
 }
 
 // TestMFASettings_DependsOnGraph locks the conditional-visibility rules so
@@ -436,15 +424,6 @@ func TestMFASettings_DependsOnGraph(t *testing.T) {
 		assert.Equal(t, config.KeyMFATrustedDeviceEnabled, def.DependsOn.Key)
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
-	})
-
-	t.Run("email_resend_cooldown hidden when mfa_mode is off", func(t *testing.T) {
-		def := config.GetDefinition(config.KeyMFAEmailResendCooldownSeconds)
-		require.NotNil(t, def)
-		require.NotNil(t, def.DependsOn)
-		assert.Equal(t, config.KeyMFAMode, def.DependsOn.Key)
-		assert.Equal(t, "neq", def.DependsOn.Condition)
-		assert.Equal(t, config.MFAModeOff, def.DependsOn.Value)
 	})
 
 	t.Run("mfa_mode itself has no DependsOn", func(t *testing.T) {

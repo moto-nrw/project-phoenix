@@ -8,10 +8,9 @@ const (
 	KeyOGSDevicePIN = "security.ogs_device_pin"
 
 	// MFA settings (issue #1308 — Phase 3).
-	KeyMFAMode                       = "security.mfa_mode"
-	KeyMFATrustedDeviceEnabled       = "security.mfa_trusted_device_enabled"
-	KeyMFATrustedDeviceDays          = "security.mfa_trusted_device_days"
-	KeyMFAEmailResendCooldownSeconds = "security.mfa_email_resend_cooldown_seconds"
+	KeyMFAMode                 = "security.mfa_mode"
+	KeyMFATrustedDeviceEnabled = "security.mfa_trusted_device_enabled"
+	KeyMFATrustedDeviceDays    = "security.mfa_trusted_device_days"
 )
 
 // MFAMode option values for KeyMFAMode.
