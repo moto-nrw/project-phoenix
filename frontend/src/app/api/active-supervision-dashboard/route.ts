@@ -120,6 +120,10 @@ interface BackendPlannedTimetableInstance {
   assigned_staff_ids: number[];
 }
 
+interface BackendTimetableOperationCapabilities {
+  web_spontaneous_activities_enabled?: boolean;
+}
+
 // Combined dashboard response type
 interface ActiveSupervisionDashboardResponse {
   // User's supervised active groups (with room info pre-loaded)
@@ -188,6 +192,9 @@ interface ActiveSupervisionDashboardResponse {
       isCurrentUser: boolean;
     }>;
   } | null;
+  capabilities?: {
+    webSpontaneousActivitiesEnabled: boolean;
+  };
   plannedNow: Array<{
     id: string;
     title: string;
@@ -342,8 +349,26 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         }
       : null;
 
+    const fetchCapabilities = async () => {
+      const result = await Promise.resolve(
+        apiGet<{ data: BackendTimetableOperationCapabilities }>(
+          "/api/timetable/operations/capabilities",
+          token,
+        ),
+      ).catch(() => ({
+        data: {
+          web_spontaneous_activities_enabled: false,
+        } satisfies BackendTimetableOperationCapabilities,
+      }));
+      return {
+        webSpontaneousActivitiesEnabled:
+          result?.data?.web_spontaneous_activities_enabled === true,
+      };
+    };
+
     // If no supervised groups, return early with just unclaimed groups data
     if (supervisedGroups.length === 0) {
+      const capabilities = await fetchCapabilities();
       return {
         supervisedGroups: [],
         unclaimedGroups: unclaimedGroups.map((g) => ({
@@ -360,6 +385,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         firstRoomVisits: [],
         firstRoomId: null,
         schulhofStatus,
+        capabilities,
         plannedNow,
       };
     }
@@ -457,6 +483,8 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       }
     }
 
+    const capabilities = await fetchCapabilities();
+
     return {
       supervisedGroups: enrichedGroups,
       unclaimedGroups: unclaimedGroups.map((g) => ({
@@ -473,6 +501,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       firstRoomVisits,
       firstRoomId: firstGroupId,
       schulhofStatus,
+      capabilities,
       plannedNow,
     };
   },

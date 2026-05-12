@@ -714,6 +714,22 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 	assert.True(t, inst.IsSpontaneous)
 	assert.Nil(t, inst.ActivityGroupID)
 
+	isSpontaneous := true
+	linked, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:            time.Date(2026, 5, 7, 0, 0, 0, 0, time.UTC),
+		StartTime:       time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		Title:           "Linked spontaneous service test",
+		RoomID:          s.roomID,
+		ActivityGroupID: &s.tmplID,
+		IsSpontaneous:   &isSpontaneous,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", linked.ID) })
+	assert.True(t, linked.IsSpontaneous)
+	require.NotNil(t, linked.ActivityGroupID)
+	assert.Equal(t, s.tmplID, *linked.ActivityGroupID)
+
 	_, err = s.svc.Create(context.Background(), scheduleSvc.CreateInstanceInput{
 		Date:      time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC),
 		StartTime: time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),

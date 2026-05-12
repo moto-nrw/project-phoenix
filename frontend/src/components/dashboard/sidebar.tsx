@@ -843,7 +843,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
             >
               {supervisedRooms.map((room, index) => (
                 <SidebarSubItem
-                  key={room.id}
+                  key={`${room.id}-${room.groupId ?? index}`}
                   href={
                     room.isSchulhof
                       ? `/active-supervisions?room=schulhof`

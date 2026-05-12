@@ -17,6 +17,7 @@ interface TimetableRosterInstance {
   id: string;
   title: string;
   status: "planned" | "active" | "completed" | "cancelled";
+  isSpontaneous: boolean;
   activeGroupId: string | null;
   roomId: string;
   roomName?: string | null;
@@ -75,6 +76,7 @@ interface BackendRosterInstance {
   id: number;
   title: string;
   status: TimetableRosterInstance["status"];
+  is_spontaneous?: boolean;
   active_group_id?: number | null;
   room_id: number;
   room_name?: string | null;
@@ -132,6 +134,7 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
       id: raw.instance.id.toString(),
       title: raw.instance.title,
       status: raw.instance.status,
+      isSpontaneous: raw.instance.is_spontaneous ?? false,
       activeGroupId: raw.instance.active_group_id?.toString() ?? null,
       roomId: raw.instance.room_id.toString(),
       roomName: raw.instance.room_name ?? null,

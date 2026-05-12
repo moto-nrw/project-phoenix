@@ -6,6 +6,7 @@ import type {
   StartOperationResult,
   TimetableRoster,
 } from "./timetable-operations-types";
+import type { CreateInstanceBody } from "./timetable-types";
 import {
   mapPlannedInstance,
   mapRoster,
@@ -51,6 +52,23 @@ export const timetableOperationsApi = {
         method: "POST",
         credentials: "include",
         headers: { Accept: "application/json" },
+      }),
+    );
+    return mapStartOperation(raw);
+  },
+
+  async createAndStartSpontaneous(
+    body: CreateInstanceBody,
+  ): Promise<StartOperationResult> {
+    const raw = await unwrap<BackendStartOperationResult>(
+      await fetch("/api/timetable/operations/spontaneous/start", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
       }),
     );
     return mapStartOperation(raw);

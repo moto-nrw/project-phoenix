@@ -52,6 +52,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
+	rs.mirrorSessionToTimetable(r.Context(), activeGroup, req.SupervisorIDs)
 
 	// Build success response with supervisor information
 	response := rs.buildSessionStartResponse(r.Context(), activeGroup, deviceCtx)
@@ -88,6 +89,7 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
+	rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID)
 
 	response := map[string]interface{}{
 		"active_group_id": currentSession.ID,

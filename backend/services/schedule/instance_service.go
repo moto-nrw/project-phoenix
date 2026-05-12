@@ -80,10 +80,11 @@ type InstanceService interface {
 // CreateInstanceInput bundles the fields needed to insert a fresh instance
 // (spontaneous or scheduled) outside the materialization flow.
 //
-// IsSpontaneous is computed from ActivityGroupID: when nil the instance is
-// purely free-form; when set it is bound to a template (e.g. an
-// admin-scheduled extra Yoga slot using the existing Yoga template's
-// metadata, but on a date that materialization would not have emitted).
+// By default, IsSpontaneous is computed from ActivityGroupID: when nil the
+// instance is purely free-form; when set it is bound to a template (e.g. an
+// admin-scheduled extra Yoga slot using the existing Yoga template's metadata,
+// but on a date that materialization would not have emitted). Operational
+// spontaneous starts may override this while still linking template metadata.
 type CreateInstanceInput struct {
 	Date             time.Time // YYYY-MM-DD anchored at UTC midnight
 	StartTime        time.Time // 2000-01-01 HH:MM in UTC
@@ -93,6 +94,7 @@ type CreateInstanceInput struct {
 	Notes            *string
 	RoomID           int64
 	ActivityGroupID  *int64
+	IsSpontaneous    *bool
 	StaffIDs         []int64
 	StudentIDs       []int64
 	CreatedByStaffID *int64
@@ -391,6 +393,11 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
 	}
 
+	isSpontaneous := req.ActivityGroupID == nil
+	if req.IsSpontaneous != nil {
+		isSpontaneous = *req.IsSpontaneous
+	}
+
 	inst := &scheduleModel.ActivityInstance{
 		Date:            req.Date,
 		StartTime:       req.StartTime,
@@ -401,7 +408,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		RoomID:          req.RoomID,
 		ActivityGroupID: req.ActivityGroupID,
 		Status:          scheduleModel.InstanceStatusPlanned,
-		IsSpontaneous:   req.ActivityGroupID == nil,
+		IsSpontaneous:   isSpontaneous,
 		CreatedBy:       req.CreatedByStaffID,
 	}
 	inst.SetTenantID(tenantID)
@@ -709,14 +716,8 @@ func (s *instanceService) loadForTransition(ctx context.Context, instanceID int6
 // with a live active.group route to group subscribers; events without (i.e.
 // cancelled-from-planned) broadcast to all so the admin dashboard sees them.
 //
-// Timing caveat: the broadcast happens BEFORE the TenantTxMiddleware commit.
-// In the very narrow window where the tenant tx rolls back after a 2xx
-// response (e.g. late middleware panic, render failure), subscribers will
-// have already seen an instance_* event for a DB state that no longer exists.
-// We accept that trade-off: the alternative — broadcasting after commit —
-// would require either plumbing a post-commit hook through the middleware
-// stack, or running the service outside the ambient tx. Neither is worth the
-// complexity for a fire-and-forget UI notification.
+// Broadcasts are queued through tenant.RegisterAfterCommit so subscribers that
+// refetch in response to the event see committed timetable state.
 func (s *instanceService) broadcastInstanceEvent(
 	ctx context.Context,
 	eventType realtime.EventType,
@@ -768,23 +769,25 @@ func (s *instanceService) broadcastInstanceEvent(
 
 	event := realtime.NewEvent(eventType, activeGroupIDStr, data)
 	tenantID := tenant.FromContext(ctx)
-	if activeGroupIDStr != "" {
-		if err := s.deps.Broadcaster.BroadcastToGroup(tenantID, activeGroupIDStr, event); err != nil {
-			s.getLogger().Warn("SSE broadcast failed",
+	tenant.RegisterAfterCommit(ctx, func() {
+		if activeGroupIDStr != "" {
+			if err := s.deps.Broadcaster.BroadcastToGroup(tenantID, activeGroupIDStr, event); err != nil {
+				s.getLogger().Warn("SSE broadcast failed",
+					slog.String("event_type", string(eventType)),
+					slog.String("active_group_id", activeGroupIDStr),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+		if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			s.getLogger().Warn("SSE broadcast-to-tenant failed",
 				slog.String("event_type", string(eventType)),
-				slog.String("active_group_id", activeGroupIDStr),
+				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),
 			)
 		}
-	}
-	if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-		s.getLogger().Warn("SSE broadcast-to-tenant failed",
-			slog.String("event_type", string(eventType)),
-			slog.Int64("tenant_id", tenantID),
-			slog.String("error", err.Error()),
-		)
-	}
-	s.broadcastActiveSupervisionChanged(tenantID, activeGroupIDStr, instanceIDStr, eventType)
+		s.broadcastActiveSupervisionChanged(tenantID, activeGroupIDStr, instanceIDStr, eventType)
+	})
 }
 
 func (s *instanceService) broadcastActiveSupervisionChanged(

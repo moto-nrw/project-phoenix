@@ -321,6 +321,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		FeedbackService:       api.Services.Feedback,
 		PickupScheduleService: api.Services.PickupSchedule,
 		SchoolRepo:            repoFactory.School,
+		ActivityInstanceRepo:  repoFactory.ActivityInstance,
+		InstanceStaffRepo:     repoFactory.InstanceStaff,
+		Broadcaster:           api.Services.RealtimeHub,
 		Logger:                logger.With("handler", "iot"),
 		DB:                    db,
 	})
