@@ -99,14 +99,30 @@ func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// ErrorInvalidRequest returns a 400 Bad Request error response
-func ErrorInvalidRequest(err error) render.Renderer {
+// newErrResponse builds an ErrResponse, tolerating a nil err by falling back to
+// the standard HTTP status text. A nil err here means a caller violated the
+// helper contract — we log a warning so the bug surfaces instead of being
+// masked by a panic or a silent "unknown error" string.
+func newErrResponse(status int, err error) *ErrResponse {
+	text := http.StatusText(status)
+	if err != nil {
+		text = err.Error()
+	} else {
+		slog.Default().Warn("error helper called with nil error",
+			slog.Int("status", status),
+		)
+	}
 	return &ErrResponse{
 		Err:            err,
-		HTTPStatusCode: http.StatusBadRequest,
+		HTTPStatusCode: status,
 		Status:         "error",
-		ErrorText:      err.Error(),
+		ErrorText:      text,
 	}
+}
+
+// ErrorInvalidRequest returns a 400 Bad Request error response
+func ErrorInvalidRequest(err error) render.Renderer {
+	return newErrResponse(http.StatusBadRequest, err)
 }
 
 // ErrorValidation returns a 400 Bad Request with a summary message and a
@@ -126,42 +142,22 @@ func ErrorValidation(summary string, fields []FieldError) render.Renderer {
 
 // ErrorUnauthorized returns a 401 Unauthorized error response
 func ErrorUnauthorized(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusUnauthorized,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusUnauthorized, err)
 }
 
 // ErrorForbidden returns a 403 Forbidden error response
 func ErrorForbidden(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusForbidden,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusForbidden, err)
 }
 
 // ErrorNotFound returns a 404 Not Found error response
 func ErrorNotFound(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusNotFound,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusNotFound, err)
 }
 
 // ErrorInternalServer returns a 500 Internal Server Error response
 func ErrorInternalServer(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusInternalServerError, err)
 }
 
 // ErrorInternalServerWrap returns a 500 response with a stable client-facing message
@@ -179,23 +175,14 @@ func ErrorInternalServerWrap(clientMsg string, cause error) render.Renderer {
 
 // ErrorConflict returns a 409 Conflict error response
 func ErrorConflict(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusConflict,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusConflict, err)
 }
 
 // ErrorConflictWithCode returns a 409 Conflict with a stable error code for frontend disambiguation.
 func ErrorConflictWithCode(err error, code string) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusConflict,
-		Status:         "error",
-		ErrorText:      err.Error(),
-		Code:           code,
-	}
+	resp := newErrResponse(http.StatusConflict, err)
+	resp.Code = code
+	return resp
 }
 
 // ErrorConflictMessage returns a 409 Conflict with a user-facing message string.
@@ -211,12 +198,7 @@ func ErrorConflictMessage(message string) render.Renderer {
 
 // ErrorTooManyRequests returns a 429 Too Many Requests error response
 func ErrorTooManyRequests(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusTooManyRequests,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusTooManyRequests, err)
 }
 
 // IsConstraintViolation checks if an error is a PostgreSQL constraint violation
@@ -243,10 +225,5 @@ func IsConstraintViolation(err error) bool {
 
 // ErrorGone returns a 410 Gone error response
 func ErrorGone(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusGone,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusGone, err)
 }
