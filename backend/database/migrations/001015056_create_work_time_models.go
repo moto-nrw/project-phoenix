@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	workTimeModelsVersion     = "1.10.9"
+	workTimeModelsVersion     = "1.15.56"
 	workTimeModelsDescription = "Create config.work_time_models, model entries, and rotation columns on staff + schedules"
 )
 
@@ -18,7 +18,10 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     workTimeModelsVersion,
 		Description: workTimeModelsDescription,
-		DependsOn:   []string{"1.10.8"},
+		// platform.schools is the FK target for tenant_id (created in 1.13.1).
+		// staff_work_schedules + users.staff (FK target for work_time_model_id)
+		// live in 1.10.8.
+		DependsOn: []string{"1.10.8", "1.13.1"},
 	})
 
 	Migrations.MustRegister(
@@ -32,7 +35,7 @@ func init() {
 }
 
 func createWorkTimeModels(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.10.9: Creating work-time model tables and rotation columns...")
+	fmt.Println("Migration 1.15.56: Creating work-time model tables and rotation columns...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -97,12 +100,12 @@ func createWorkTimeModels(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating work-time model tables: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.9: Successfully created work-time model tables")
+	fmt.Println("Migration 1.15.56: Successfully created work-time model tables")
 	return tx.Commit()
 }
 
 func dropWorkTimeModels(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.10.9: Dropping work-time model tables...")
+	fmt.Println("Rolling back migration 1.15.56: Dropping work-time model tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -128,6 +131,6 @@ func dropWorkTimeModels(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping work-time model tables: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.9: Successfully rolled back")
+	fmt.Println("Migration 1.15.56: Successfully rolled back")
 	return tx.Commit()
 }
