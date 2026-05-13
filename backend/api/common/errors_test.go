@@ -616,3 +616,118 @@ func TestRenderError_NonErrResponseRenderer(t *testing.T) {
 	common.RenderError(w, r, renderer)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+// =============================================================================
+// Regression: Nil-Error Inputs (Issue #423)
+// =============================================================================
+//
+// Prior behavior: each helper called err.Error() unconditionally, so passing
+// nil panicked with a nil-pointer dereference. The fix routes every helper
+// through a shared constructor that falls back to http.StatusText(status)
+// when err is nil. These tests pin that behavior so a future refactor can't
+// reintroduce the panic.
+
+func TestErrorHelpers_NilErrorDoesNotPanic(t *testing.T) {
+	// Each entry: helper name -> (invocation, expected HTTP status).
+	// Every helper that takes a single `error` parameter must accept nil
+	// without panicking and return the corresponding HTTP status with a
+	// non-empty ErrorText fallback.
+	cases := []struct {
+		name           string
+		renderer       render.Renderer
+		expectedStatus int
+	}{
+		{"ErrorInvalidRequest", common.ErrorInvalidRequest(nil), http.StatusBadRequest},
+		{"ErrorUnauthorized", common.ErrorUnauthorized(nil), http.StatusUnauthorized},
+		{"ErrorForbidden", common.ErrorForbidden(nil), http.StatusForbidden},
+		{"ErrorNotFound", common.ErrorNotFound(nil), http.StatusNotFound},
+		{"ErrorInternalServer", common.ErrorInternalServer(nil), http.StatusInternalServerError},
+		{"ErrorConflict", common.ErrorConflict(nil), http.StatusConflict},
+		{"ErrorTooManyRequests", common.ErrorTooManyRequests(nil), http.StatusTooManyRequests},
+		{"ErrorGone", common.ErrorGone(nil), http.StatusGone},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NotNil(t, tc.renderer, "helper returned nil renderer")
+
+			errResp, ok := tc.renderer.(*common.ErrResponse)
+			require.True(t, ok, "helper must return *ErrResponse")
+			assert.Equal(t, tc.expectedStatus, errResp.HTTPStatusCode)
+			assert.Equal(t, "error", errResp.Status)
+			assert.Nil(t, errResp.Err, "Err must remain nil when caller passed nil")
+			// Fallback text must be non-empty so the client gets a meaningful body.
+			assert.NotEmpty(t, errResp.ErrorText, "ErrorText must fall back, not be empty")
+			// And it must match the standard HTTP status text for the code.
+			assert.Equal(t, http.StatusText(tc.expectedStatus), errResp.ErrorText)
+
+			// End-to-end: rendering must succeed and the response body must
+			// contain the fallback text.
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "/test", nil)
+			require.NoError(t, render.Render(w, r, tc.renderer))
+			assert.Equal(t, tc.expectedStatus, w.Code)
+
+			var body map[string]interface{}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, "error", body["status"])
+			assert.Equal(t, http.StatusText(tc.expectedStatus), body["error"])
+		})
+	}
+}
+
+func TestErrorConflictWithCode_NilError(t *testing.T) {
+	// ErrorConflictWithCode takes (err, code). nil err must still produce
+	// a valid response, and the provided code must be preserved.
+	renderer := common.ErrorConflictWithCode(nil, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS")
+	require.NotNil(t, renderer)
+
+	errResp, ok := renderer.(*common.ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
+	assert.Equal(t, "error", errResp.Status)
+	assert.Nil(t, errResp.Err)
+	assert.Equal(t, http.StatusText(http.StatusConflict), errResp.ErrorText)
+	assert.Equal(t, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS", errResp.Code,
+		"code must be preserved even when err is nil")
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+	require.NoError(t, render.Render(w, r, renderer))
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var body map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS", body["code"])
+}
+
+func TestErrorHelpers_NonNilErrorPreservesMessage(t *testing.T) {
+	// Sibling check to the nil-error suite: when a real error is passed,
+	// ErrorText must reflect err.Error() — not the http.StatusText fallback.
+	// Guards against a future "always use StatusText" regression.
+	customErr := errors.New("custom failure message")
+
+	cases := []struct {
+		name     string
+		renderer render.Renderer
+	}{
+		{"ErrorInvalidRequest", common.ErrorInvalidRequest(customErr)},
+		{"ErrorUnauthorized", common.ErrorUnauthorized(customErr)},
+		{"ErrorForbidden", common.ErrorForbidden(customErr)},
+		{"ErrorNotFound", common.ErrorNotFound(customErr)},
+		{"ErrorInternalServer", common.ErrorInternalServer(customErr)},
+		{"ErrorConflict", common.ErrorConflict(customErr)},
+		{"ErrorTooManyRequests", common.ErrorTooManyRequests(customErr)},
+		{"ErrorGone", common.ErrorGone(customErr)},
+		{"ErrorConflictWithCode", common.ErrorConflictWithCode(customErr, "SOME_CODE")},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			errResp, ok := tc.renderer.(*common.ErrResponse)
+			require.True(t, ok)
+			assert.Same(t, customErr, errResp.Err, "Err pointer must be preserved")
+			assert.Equal(t, "custom failure message", errResp.ErrorText)
+		})
+	}
+}
