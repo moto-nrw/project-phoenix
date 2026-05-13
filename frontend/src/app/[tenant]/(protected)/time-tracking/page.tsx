@@ -25,7 +25,11 @@ import {
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
-import { timeTrackingService } from "~/lib/time-tracking-api";
+import {
+  REOPEN_STATUS_CONFLICT_CODE,
+  timeTrackingService,
+} from "~/lib/time-tracking-api";
+import type { ApiError } from "~/lib/auth-api";
 import {
   type AbsenceType,
   type StaffAbsence,
@@ -236,33 +240,46 @@ function getSessionStatusBadge(
     return { className: "bg-amber-100 text-amber-700", label: "Pause" };
   }
   if (status === "home_office") {
-    return { className: "bg-sky-100 text-sky-700", label: "Homeoffice" };
+    return {
+      className: "bg-[#5080D8]/10 text-[#5080D8]",
+      label: "Homeoffice",
+    };
   }
   return { className: "bg-[#83CD2D]/10 text-[#70b525]", label: "In der OGS" };
 }
 
-// Returns className for mode toggle button
+// Returns className for mode toggle button. `currentMode` is null before the
+// staff member has actively chosen Vor Ort / Homeoffice / Abwesend (Issue #1368
+// — no pre-selection). All buttons render inactive in that case.
 function getModeToggleClassName(
   buttonMode: WorkMode,
-  currentMode: WorkMode,
+  currentMode: WorkMode | null,
 ): string {
   const base =
     "rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4";
   const inactive = "bg-gray-100 text-gray-500 hover:bg-gray-200";
   if (buttonMode !== currentMode) return `${base} ${inactive}`;
+  // Brand colors from LOCATION_COLORS (lib/location-helper.ts):
+  //   present     → GROUP_ROOM #83CD2D (green)
+  //   home_office → OTHER_ROOM #5080D8 (blue)
+  //   absent      → HOME       #FF3130 (red)
   if (buttonMode === "present")
     return `${base} bg-[#83CD2D]/10 text-[#70b525] ring-1 ring-[#83CD2D]/40`;
   if (buttonMode === "home_office")
-    return `${base} bg-sky-100 text-sky-700 ring-1 ring-sky-300`;
-  return `${base} bg-red-100 text-red-700 ring-1 ring-red-300`;
+    return `${base} bg-[#5080D8]/10 text-[#5080D8] ring-1 ring-[#5080D8]/40`;
+  return `${base} bg-[#FF3130]/10 text-[#FF3130] ring-1 ring-[#FF3130]/40`;
 }
 
-// Returns className for check-in button based on mode
-function getCheckInButtonClassName(mode: WorkMode): string {
+// Returns className for check-in button. When `mode` is null the button is
+// rendered in a muted style and disabled — the staff member must pick a status
+// first (Issue #1368: keine Vorauswahl).
+function getCheckInButtonClassName(mode: WorkMode | null): string {
   const base =
-    "flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50";
+    "flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50";
+  if (mode === null)
+    return `${base} border-[#6B7280]/40 text-[#6B7280]/60 cursor-not-allowed`;
   if (mode === "home_office")
-    return `${base} border-sky-500 text-sky-500 hover:bg-sky-50`;
+    return `${base} border-[#5080D8] text-[#5080D8] hover:bg-[#5080D8]/5`;
   return `${base} border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5`;
 }
 
@@ -432,7 +449,10 @@ function ClockInCard({
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
 }) {
-  const [mode, setMode] = useState<WorkMode>("present");
+  // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
+  // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
+  // audit-relevant choice.
+  const [mode, setMode] = useState<WorkMode | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [tick, setTick] = useState(0); // forces re-render for live times
   const [breakMenuOpen, setBreakMenuOpen] = useState(false);
@@ -540,7 +560,10 @@ function ClockInCard({
       : null;
 
   const handleCheckIn = async () => {
-    if (mode === "absent") return;
+    // mode === null: user has not yet chosen — the button is disabled in the
+    // UI, but guard here too in case of stray double-clicks.
+    // mode === "absent": that path opens the absence modal, not check-in.
+    if (mode === null || mode === "absent") return;
     setActionLoading(true);
     try {
       await onCheckIn(mode);
@@ -645,7 +668,7 @@ function ClockInCard({
             ) : (
               <button
                 onClick={handleCheckIn}
-                disabled={actionLoading}
+                disabled={actionLoading || mode === null}
                 className={getCheckInButtonClassName(mode)}
                 aria-label="Einstempeln"
               >
@@ -664,7 +687,11 @@ function ClockInCard({
             )}
 
             <span className="text-xs text-gray-400 sm:text-sm">
-              {mode === "absent" ? "Abwesenheit melden" : "Einstempeln"}
+              {mode === null
+                ? "Bitte Status wählen"
+                : mode === "absent"
+                  ? "Abwesenheit melden"
+                  : "Einstempeln"}
             </span>
           </div>
         )}
@@ -3486,6 +3513,24 @@ function TimeTrackingContent() {
   const [pendingManualEditCheckIn, setPendingManualEditCheckIn] =
     useState<SessionStatus | null>(null);
 
+  // Reopen-with-status-change confirmation. Set when the backend rejects a
+  // CheckIn with REOPEN_STATUS_CONFLICT_CODE because the requested status
+  // differs from today's existing (checked-out) session. The follow-up
+  // modal collects the audit reason and routes the change through
+  // UpdateSession instead of silently flipping status on reopen.
+  const [pendingReopenStatusChange, setPendingReopenStatusChange] = useState<{
+    sessionId: string;
+    existingStatus: SessionStatus;
+    requestedStatus: SessionStatus;
+  } | null>(null);
+  const [reopenStatusChangeReason, setReopenStatusChangeReason] = useState("");
+  const [reopenStatusChangeSubmitting, setReopenStatusChangeSubmitting] =
+    useState(false);
+  const handleClosePendingReopenStatusChange = useCallback(() => {
+    setPendingReopenStatusChange(null);
+    setReopenStatusChangeReason("");
+  }, []);
+
   // Calculate date range for data fetching
   // - Chart shows trailing 10 workdays ending at reference date
   // - WeekView shows calendar week containing reference date, so the
@@ -3611,6 +3656,54 @@ function TimeTrackingContent() {
         await Promise.all([mutateCurrentSession(), mutateHistory()]);
         toast.success("Erfolgreich eingestempelt");
       } catch (err) {
+        const apiErr = err as ApiError;
+        if (apiErr.code === REOPEN_STATUS_CONFLICT_CODE) {
+          // Audit-trail gate: silent status change on reopen is forbidden.
+          // Surface the prompt; the user supplies a reason and we route
+          // the change through UpdateSession (which emits a FieldStatus
+          // edit). See work_session_service.go ReopenStatusConflictError.
+          //
+          // The conflict's identifying fields come from the API response so
+          // this works regardless of which week the user is viewing — the
+          // historyData fetch is offset-based and won't contain today's
+          // session when weekOffset < 0.
+          const details = apiErr.details;
+          const sessionId =
+            typeof details?.session_id === "string"
+              ? details.session_id
+              : undefined;
+          const existingStatus =
+            typeof details?.existing_status === "string"
+              ? (details.existing_status as SessionStatus)
+              : undefined;
+          const requestedStatus =
+            typeof details?.requested_status === "string"
+              ? (details.requested_status as SessionStatus)
+              : status;
+
+          if (sessionId && existingStatus) {
+            setReopenStatusChangeReason("");
+            setPendingReopenStatusChange({
+              sessionId,
+              existingStatus,
+              requestedStatus,
+            });
+            return;
+          }
+          // Backend returned the conflict code without the details payload —
+          // older server, schema drift, or middleware stripping fields. Log
+          // loudly so this regression is visible in Grafana and fall back to
+          // a user-facing error instead of opening an unfilled modal.
+          logger.warn("reopen_conflict_missing_details", {
+            requested_status: status,
+            has_session_id: Boolean(sessionId),
+            has_existing_status: Boolean(existingStatus),
+          });
+          toast.error(
+            "Heute liegt bereits eine Sitzung vor. Bitte kurz warten und erneut versuchen.",
+          );
+          return;
+        }
         logger.error("check_in_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -3619,6 +3712,70 @@ function TimeTrackingContent() {
     },
     [mutateCurrentSession, mutateHistory, toast],
   );
+
+  // Confirm path: reopen the session at its existing status, then route
+  // the status change through UpdateSession with the user's reason. Two
+  // round-trips, but each one carries a distinct audit meaning: reopen =
+  // resume work, update = change of work mode.
+  //
+  // Partial-state handling: if the reopen succeeds but UpdateSession fails,
+  // the session is now active again at the OLD status with no audit edit.
+  // That is a consistent state — old status, no edit — but the user's
+  // intent (status flip) wasn't applied. We refresh the data so the UI
+  // reflects reality, close the modal so the now-active session is visible,
+  // and surface a specific toast pointing the user at the "edit session"
+  // path for retrying just the status change. We deliberately do NOT
+  // attempt to roll back the reopen via checkOut, because that would
+  // introduce a second failure point and leave the audit trail with two
+  // unrelated state changes for one user action.
+  const confirmReopenStatusChange = useCallback(async () => {
+    const pending = pendingReopenStatusChange;
+    if (!pending) return;
+    const reason = reopenStatusChangeReason.trim();
+    if (!reason) return;
+
+    setReopenStatusChangeSubmitting(true);
+    let reopenSucceeded = false;
+    try {
+      await timeTrackingService.checkIn(pending.existingStatus);
+      reopenSucceeded = true;
+      await timeTrackingService.updateSession(pending.sessionId, {
+        status: pending.requestedStatus,
+        notes: reason,
+      });
+      await Promise.all([mutateCurrentSession(), mutateHistory()]);
+      toast.success("Status geändert");
+      setPendingReopenStatusChange(null);
+      setReopenStatusChangeReason("");
+    } catch (err) {
+      logger.error("reopen_status_change_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        reopen_succeeded: reopenSucceeded,
+        session_id: pending.sessionId,
+      });
+      if (reopenSucceeded) {
+        // Refresh so the UI shows the now-active session at the old status,
+        // then close the modal so the user can act on it via the edit flow.
+        await Promise.all([mutateCurrentSession(), mutateHistory()]);
+        toast.error(
+          "Sitzung wurde wiedereröffnet, aber der Statuswechsel ist fehlgeschlagen. Bitte den Status über „Sitzung bearbeiten“ ändern.",
+        );
+        setPendingReopenStatusChange(null);
+        setReopenStatusChangeReason("");
+      } else {
+        // Reopen itself failed — modal stays open so the user can retry.
+        toast.error(friendlyError(err, "Fehler beim Statuswechsel"));
+      }
+    } finally {
+      setReopenStatusChangeSubmitting(false);
+    }
+  }, [
+    pendingReopenStatusChange,
+    reopenStatusChangeReason,
+    mutateCurrentSession,
+    mutateHistory,
+    toast,
+  ]);
 
   const handleCheckIn = useCallback(
     async (status: SessionStatus) => {
@@ -4005,6 +4162,72 @@ function TimeTrackingContent() {
               : ""}
             . Trotzdem einstempeln?
           </p>
+        </div>
+      </Modal>
+
+      {/* Reopen-with-status-change: collect a reason and route through
+          UpdateSession so the audit trail gets a FieldStatus edit. */}
+      <Modal
+        isOpen={pendingReopenStatusChange !== null}
+        onClose={handleClosePendingReopenStatusChange}
+        title="Status für heute ändern"
+        footer={
+          <div className="flex w-full gap-3">
+            <button
+              onClick={handleClosePendingReopenStatusChange}
+              disabled={reopenStatusChangeSubmitting}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={confirmReopenStatusChange}
+              disabled={
+                reopenStatusChangeSubmitting ||
+                reopenStatusChangeReason.trim() === ""
+              }
+              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pendingReopenStatusChange?.requestedStatus === "home_office"
+                ? "Auf Homeoffice ändern"
+                : "Auf Vor Ort ändern"}
+            </button>
+          </div>
+        }
+      >
+        <div className="py-2">
+          <p className="text-sm text-gray-600">
+            Du hast heute bereits eine{" "}
+            <span className="font-medium text-gray-900">
+              {pendingReopenStatusChange?.existingStatus === "home_office"
+                ? "Homeoffice"
+                : "Vor-Ort"}
+              -Sitzung
+            </span>
+            . Möchtest du sie als{" "}
+            <span className="font-medium text-gray-900">
+              {pendingReopenStatusChange?.requestedStatus === "home_office"
+                ? "Homeoffice"
+                : "Vor Ort"}
+            </span>{" "}
+            fortsetzen? Bitte gib einen kurzen Grund an — er erscheint im
+            Audit-Trail.
+          </p>
+          <label
+            htmlFor="reopen-status-change-reason"
+            className="mt-4 block text-xs font-medium text-gray-700"
+          >
+            Grund
+          </label>
+          <textarea
+            id="reopen-status-change-reason"
+            value={reopenStatusChangeReason}
+            onChange={(e) => setReopenStatusChangeReason(e.target.value)}
+            disabled={reopenStatusChangeSubmitting}
+            placeholder="z. B. Mittags ins Homeoffice gewechselt"
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
+          />
         </div>
       </Modal>
     </div>

@@ -28,6 +28,10 @@ export interface ApiErrorResponse {
   error: string;
   status?: number;
   code?: string;
+  // Structured payload mirrored from the backend's ErrResponse.details.
+  // Forwarded through the proxy so codes like reopen_status_conflict can
+  // carry identifying fields (session_id, existing_status, …) to the UI.
+  details?: Record<string, unknown>;
 }
 
 /**
@@ -268,7 +272,10 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
         });
       }
 
-      // Try to extract structured fields from embedded backend JSON response
+      // Try to extract structured fields from embedded backend JSON response.
+      // Mirror the wire shape: error, code, AND details — the proxy must not
+      // silently drop details, or codes like reopen_status_conflict that carry
+      // identifying fields lose them between backend and browser (Issue #1368).
       const response: ApiErrorResponse = { error: error.message };
       const jsonStart = error.message.indexOf("{");
       if (jsonStart !== -1) {
@@ -277,12 +284,16 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
             error?: string;
             message?: string;
             code?: string;
+            details?: Record<string, unknown>;
           };
           if (parsed.error ?? parsed.message) {
             response.error = (parsed.error ?? parsed.message) as string;
           }
           if (parsed.code) {
             response.code = parsed.code;
+          }
+          if (parsed.details) {
+            response.details = parsed.details;
           }
         } catch {
           // Not valid JSON, keep original error message

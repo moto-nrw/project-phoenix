@@ -19,7 +19,9 @@ function mockFetchResponse(data: unknown, ok = true, status = 200) {
   return vi.fn().mockResolvedValue({
     ok,
     status,
+    headers: new Headers({ "Content-Type": "application/json" }),
     json: vi.fn().mockResolvedValue(data),
+    text: vi.fn().mockResolvedValue(JSON.stringify(data)),
   });
 }
 
