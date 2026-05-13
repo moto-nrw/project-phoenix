@@ -85,6 +85,7 @@ export function StaffSessionTable({
               <th className="px-4 py-3 text-right tabular-nums">Ist</th>
               <th className="px-4 py-3 text-right tabular-nums">Δ</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Quelle</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -148,6 +149,9 @@ export function StaffSessionTable({
                   <td className="px-4 py-3">
                     {status && <StatusBadge status={status} />}
                   </td>
+                  <td className="px-4 py-3">
+                    <SourceBadge session={session} />
+                  </td>
                 </tr>
               );
             })}
@@ -164,10 +168,14 @@ export function StaffSessionTable({
   );
 }
 
+// Row-Status drückt den Arbeitsmodus oder ein Fehlen aus. Vor Ort vs.
+// Homeoffice ist Mitarbeiter-Intent. "Nicht erfasst" markiert Werktage ohne
+// Session (sichtbar als Lücke im Audit-Trail). Auto-Close- und Edit-Hinweise
+// gehören NICHT hier rein — die fließen in die Quelle-Spalte (Issue #1368).
 type RowStatus =
-  | { kind: "auto-closed" }
+  | { kind: "present" }
   | { kind: "home-office" }
-  | { kind: "missing"; future: boolean };
+  | { kind: "missing" };
 
 function computeRowStatus(
   session: StaffHistorySession | undefined,
@@ -176,37 +184,81 @@ function computeRowStatus(
 ): RowStatus | null {
   if (!session) {
     if (target > 0 && !isFuture) {
-      return { kind: "missing", future: false };
+      return { kind: "missing" };
     }
     return null;
-  }
-  if (session.auto_checked_out) {
-    return { kind: "auto-closed" };
   }
   if (session.status === "home_office") {
     return { kind: "home-office" };
   }
-  return null;
+  return { kind: "present" };
 }
 
 function StatusBadge({ status }: { readonly status: RowStatus }) {
-  if (status.kind === "auto-closed") {
+  if (status.kind === "home-office") {
     return (
-      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-        Auto-Close
+      <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+        Homeoffice
       </span>
     );
   }
-  if (status.kind === "home-office") {
+  if (status.kind === "present") {
     return (
-      <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-        Homeoffice
+      <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
+        Vor Ort
       </span>
     );
   }
   return (
     <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-500">
       Nicht erfasst
+    </span>
+  );
+}
+
+// Quelle-Badge spiegelt den Original-Kanal der Session, mit Overlays für
+// auditrelevante System-Ereignisse. Last-write-wins-Präzedenz aus Tristans
+// Export (Issue #1368):
+//   1. EditCount > 0          → "Manuell korrigiert" (Audit-Edit existiert)
+//   2. auto_checked_out=true  → "Auto-Checkout" (Scheduler hat geschlossen)
+//   3. source = 'nfc'         → "NFC" (Kiosk)
+//   4. source = 'unknown'     → "—" (Legacy-Row pre-Migration)
+//   5. source = 'app' / def.  → "App" (Web/App-Selbststempel)
+function SourceBadge({
+  session,
+}: {
+  readonly session: StaffHistorySession | undefined;
+}) {
+  if (!session) {
+    return <span className="text-xs text-gray-300">–</span>;
+  }
+  if ((session.edit_count ?? 0) > 0) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+        Manuell korrigiert
+      </span>
+    );
+  }
+  if (session.auto_checked_out) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+        Auto-Checkout
+      </span>
+    );
+  }
+  if (session.source === "nfc") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+        NFC
+      </span>
+    );
+  }
+  if (session.source === "unknown") {
+    return <span className="text-xs text-gray-400">–</span>;
+  }
+  return (
+    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+      App
     </span>
   );
 }

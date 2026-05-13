@@ -640,6 +640,10 @@ export interface StaffHistorySession {
   id?: number;
   date: string;
   status?: "present" | "home_office";
+  // Channel the row was created on. `app` = self-service Web/App,
+  // `nfc` = kiosk auto-stamp, `unknown` = pre-migration legacy row.
+  // Comes from active.work_sessions.source (Issue #1368).
+  source?: "app" | "nfc" | "unknown";
   net_minutes: number;
   check_in_time: string;
   check_out_time: string | null;
