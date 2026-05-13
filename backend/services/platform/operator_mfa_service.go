@@ -62,9 +62,6 @@ type OperatorMFAService interface {
 	Enroll(ctx context.Context, operatorID int64) error
 	Disable(ctx context.Context, operatorID int64) error
 
-	GenerateRecoveryCodes(ctx context.Context, operatorID int64) ([]string, error)
-	VerifyRecoveryCode(ctx context.Context, operatorID int64, code string) error
-
 	IssueTrustedDevice(ctx context.Context, operatorID int64, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
 	VerifyTrustedDevice(ctx context.Context, operatorID int64, signedCookie string) (bool, error)
 }
@@ -308,9 +305,6 @@ func (s *operatorMFAService) Disable(ctx context.Context, operatorID int64) erro
 	if err := s.repos.OperatorMFACredential.DeleteByOperatorID(ctx, operatorID); err != nil {
 		return fmt.Errorf("delete operator credential: %w", err)
 	}
-	if err := s.repos.OperatorMFARecoveryCode.DeleteByOperatorID(ctx, operatorID); err != nil {
-		return fmt.Errorf("delete operator recovery codes: %w", err)
-	}
 	if err := s.repos.OperatorMFATrustedDevice.RevokeAllByOperatorID(ctx, operatorID, time.Now()); err != nil {
 		return fmt.Errorf("revoke operator trusted devices: %w", err)
 	}
@@ -320,57 +314,6 @@ func (s *operatorMFAService) Disable(ctx context.Context, operatorID int64) erro
 	}
 	s.recordAudit(ctx, operatorID, platform.ActionMFADisabled, nil, nil, nil)
 	return nil
-}
-
-// ===== Recovery codes =====
-
-func (s *operatorMFAService) GenerateRecoveryCodes(ctx context.Context, operatorID int64) ([]string, error) {
-	plain, err := authService.GenerateRecoveryCodes(authService.MFARecoveryCodeCount)
-	if err != nil {
-		return nil, fmt.Errorf("generate recovery codes: %w", err)
-	}
-	rows := make([]*platform.OperatorMFARecoveryCode, 0, len(plain))
-	for _, code := range plain {
-		hash, err := authService.HashShortCode(code)
-		if err != nil {
-			return nil, fmt.Errorf("hash recovery code: %w", err)
-		}
-		rows = append(rows, &platform.OperatorMFARecoveryCode{
-			OperatorID: operatorID,
-			CodeHash:   hash,
-		})
-	}
-	if err := s.repos.OperatorMFARecoveryCode.DeleteByOperatorID(ctx, operatorID); err != nil {
-		return nil, fmt.Errorf("clear old operator recovery codes: %w", err)
-	}
-	if err := s.repos.OperatorMFARecoveryCode.BulkCreate(ctx, rows); err != nil {
-		return nil, fmt.Errorf("persist operator recovery codes: %w", err)
-	}
-	return plain, nil
-}
-
-func (s *operatorMFAService) VerifyRecoveryCode(ctx context.Context, operatorID int64, code string) error {
-	code = strings.TrimSpace(strings.ToLower(code))
-	candidates, err := s.repos.OperatorMFARecoveryCode.FindUnusedByOperatorID(ctx, operatorID)
-	if err != nil {
-		return fmt.Errorf("load operator recovery codes: %w", err)
-	}
-	for _, candidate := range candidates {
-		ok, vErr := authService.VerifyShortCode(code, candidate.CodeHash)
-		if vErr == nil && ok {
-			if err := s.repos.OperatorMFARecoveryCode.MarkUsed(ctx, candidate.ID, time.Now()); err != nil {
-				return fmt.Errorf("mark operator recovery code used: %w", err)
-			}
-			if op, _ := s.repos.Operator.FindByID(ctx, operatorID); op != nil {
-				op.ResetMFAAttempts()
-				_ = s.repos.Operator.Update(ctx, op)
-			}
-			s.recordAudit(ctx, operatorID, platform.ActionMFARecoveryUsed, nil, &candidate.ID, nil)
-			return nil
-		}
-	}
-	s.recordAudit(ctx, operatorID, platform.ActionMFAFailed, nil, nil, map[string]any{"reason": "recovery code mismatch"})
-	return ErrOperatorMFACodeInvalid
 }
 
 // ===== Trusted device =====

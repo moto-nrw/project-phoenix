@@ -40,7 +40,6 @@ func TestMFAAdminHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 		fn   func(http.ResponseWriter, *http.Request)
 	}{
 		{"admin-disable", rs.mfaAdminDisable},
-		{"admin-regenerate-recovery", rs.mfaAdminRegenerateRecoveryCodes},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

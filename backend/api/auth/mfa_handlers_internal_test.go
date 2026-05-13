@@ -40,11 +40,6 @@ func TestMFAVerifyRequest_BindAcceptsHappyPath(t *testing.T) {
 	assert.Equal(t, "482157", req.Code)
 }
 
-func TestMFARecoveryVerifyRequest_BindRejectsMissingFields(t *testing.T) {
-	req := MFARecoveryVerifyRequest{ChallengeToken: ""}
-	assert.Error(t, req.Bind(nil))
-}
-
 func TestMFAEnrollConfirmRequest_BindEnforcesCodeLength(t *testing.T) {
 	short := MFAEnrollConfirmRequest{Code: "12345"}
 	assert.Error(t, short.Bind(nil), "five-digit code must be rejected")
@@ -69,7 +64,6 @@ func TestMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 		body any
 	}{
 		{"verify", rs.mfaVerify, MFAVerifyRequest{ChallengeToken: "x", Code: "123456"}},
-		{"recovery-verify", rs.mfaRecoveryVerify, MFARecoveryVerifyRequest{ChallengeToken: "x", RecoveryCode: "y"}},
 		{"resend", rs.mfaResend, MFAResendRequest{ChallengeToken: "x"}},
 		{"enroll-start", rs.mfaEnrollStart, nil},
 		{"enroll-confirm", rs.mfaEnrollConfirm, MFAEnrollConfirmRequest{Code: "123456"}},

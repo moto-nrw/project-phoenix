@@ -133,42 +133,11 @@ describe("MFAChallengeForm", () => {
     });
   });
 
-  it("switches to recovery code mode and submits", async () => {
-    global.fetch = mockOk({
-      access_token: "tok",
-      refresh_token: "rtok",
-    });
-    const onSuccess = vi.fn();
-
-    render(<MFAChallengeForm {...defaultProps} onSuccess={onSuccess} />);
-
-    fireEvent.click(screen.getByText("Wiederherstellungscode verwenden"));
-
-    const recovery = screen.getByLabelText("Wiederherstellungscode");
-    fireEvent.change(recovery, { target: { value: "abcd-efgh-ijkl-mnop" } });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wiederherstellungscode prüfen" }),
-    );
-
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/auth/mfa/recovery/verify",
-        expect.objectContaining({
-          body: JSON.stringify({
-            challenge_token: "challenge-token-abc",
-            recovery_code: "abcd-efgh-ijkl-mnop",
-            remember_device: false,
-          }),
-        }),
-      );
-    });
-    await waitFor(() => {
-      expect(onSuccess).toHaveBeenCalledWith({
-        access_token: "tok",
-        refresh_token: "rtok",
-      });
-    });
+  it("does not render any recovery-code affordance", () => {
+    render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
+    expect(
+      screen.queryByText(/Wiederherstellungscode/i),
+    ).not.toBeInTheDocument();
   });
 
   it("disables resend until cooldown elapses", () => {

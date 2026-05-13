@@ -80,10 +80,6 @@ type MFAService interface {
 	Enroll(ctx context.Context, accountID int64) error
 	Disable(ctx context.Context, accountID int64) error
 
-	// Recovery codes.
-	GenerateRecoveryCodes(ctx context.Context, accountID int64) ([]string, error)
-	VerifyRecoveryCode(ctx context.Context, accountID int64, code string) error
-
 	// Trusted-device cookie. The handler is responsible for the actual Set-Cookie
 	// header — the service only mints/verifies the value.
 	// IssueTrustedDevice returns ("", zero time, nil) without persisting a
@@ -111,7 +107,6 @@ type MFAService interface {
 
 	// Admin override ("Godmode") — defense-in-depth permission check.
 	AdminDisable(ctx context.Context, actorID, targetAccountID int64, reason string, actorPermissions []string) error
-	AdminRegenerateRecoveryCodes(ctx context.Context, actorID, targetAccountID int64, reason string, actorPermissions []string) ([]string, error)
 }
 
 // MFAServiceConfig groups dependencies for NewMFAService. Fields without zero
@@ -423,14 +418,11 @@ func (s *mfaService) Enroll(ctx context.Context, accountID int64) error {
 	return nil
 }
 
-// Disable cascades: credential -> recovery codes -> trusted devices revoked.
+// Disable cascades: credential -> trusted devices revoked.
 // Account-level lockout fields are reset so a future re-enrollment starts clean.
 func (s *mfaService) Disable(ctx context.Context, accountID int64) error {
 	if err := s.repos.MFACredential.DeleteByAccountID(ctx, accountID); err != nil {
 		return fmt.Errorf("delete credential: %w", err)
-	}
-	if err := s.repos.MFARecoveryCode.DeleteByAccountID(ctx, accountID); err != nil {
-		return fmt.Errorf("delete recovery codes: %w", err)
 	}
 	if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(ctx, accountID, time.Now()); err != nil {
 		return fmt.Errorf("revoke trusted devices: %w", err)
@@ -441,62 +433,6 @@ func (s *mfaService) Disable(ctx context.Context, accountID int64) error {
 	}
 	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFADisabled, true, nil, "", nil)
 	return nil
-}
-
-// ===== Recovery codes =====
-
-func (s *mfaService) GenerateRecoveryCodes(ctx context.Context, accountID int64) ([]string, error) {
-	plain, err := GenerateRecoveryCodes(MFARecoveryCodeCount)
-	if err != nil {
-		return nil, fmt.Errorf("generate recovery codes: %w", err)
-	}
-	rows := make([]*auth.MFARecoveryCode, 0, len(plain))
-	for _, code := range plain {
-		hash, err := HashShortCode(code)
-		if err != nil {
-			return nil, fmt.Errorf("hash recovery code: %w", err)
-		}
-		rows = append(rows, &auth.MFARecoveryCode{
-			AccountID: accountID,
-			CodeHash:  hash,
-		})
-	}
-	// Wholesale replacement: the user has no copy of the old codes by definition,
-	// so we delete the lot and seed a fresh batch.
-	if err := s.repos.MFARecoveryCode.DeleteByAccountID(ctx, accountID); err != nil {
-		return nil, fmt.Errorf("clear old recovery codes: %w", err)
-	}
-	if err := s.repos.MFARecoveryCode.BulkCreate(ctx, rows); err != nil {
-		return nil, fmt.Errorf("persist recovery codes: %w", err)
-	}
-	return plain, nil
-}
-
-// VerifyRecoveryCode walks all unused codes and Argon2id-checks them in
-// constant time. A match marks that single row used and resets the
-// failure-counter lockout (the user proved possession).
-func (s *mfaService) VerifyRecoveryCode(ctx context.Context, accountID int64, code string) error {
-	code = strings.TrimSpace(strings.ToLower(code))
-	candidates, err := s.repos.MFARecoveryCode.FindUnusedByAccountID(ctx, accountID)
-	if err != nil {
-		return fmt.Errorf("load recovery codes: %w", err)
-	}
-	for _, candidate := range candidates {
-		ok, vErr := VerifyShortCode(code, candidate.CodeHash)
-		if vErr == nil && ok {
-			if err := s.repos.MFARecoveryCode.MarkUsed(ctx, candidate.ID, time.Now()); err != nil {
-				return fmt.Errorf("mark recovery code used: %w", err)
-			}
-			if account, _ := s.repos.Account.FindByID(ctx, accountID); account != nil {
-				account.ResetMFAAttempts()
-				_ = s.repos.Account.Update(ctx, account)
-			}
-			s.recordAuthEvent(ctx, accountID, audit.EventTypeMFARecoveryUsed, true, nil, "", nil)
-			return nil
-		}
-	}
-	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAFailed, false, nil, "recovery code mismatch", nil)
-	return ErrMFACodeInvalid
 }
 
 // ===== Trusted device =====
@@ -611,26 +547,6 @@ func (s *mfaService) AdminDisable(ctx context.Context, actorID, targetAccountID 
 		"reason":           reason,
 	})
 	return nil
-}
-
-func (s *mfaService) AdminRegenerateRecoveryCodes(ctx context.Context, actorID, targetAccountID int64, reason string, actorPermissions []string) ([]string, error) {
-	if err := s.requireAdminPermission(actorPermissions); err != nil {
-		return nil, err
-	}
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		return nil, errors.New("reason is required for admin override")
-	}
-	codes, err := s.GenerateRecoveryCodes(ctx, targetAccountID)
-	if err != nil {
-		return nil, err
-	}
-	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
-		"actor_account_id": actorID,
-		"action":           "regenerate_recovery_codes",
-		"reason":           reason,
-	})
-	return codes, nil
 }
 
 func (s *mfaService) requireAdminPermission(actorPermissions []string) error {

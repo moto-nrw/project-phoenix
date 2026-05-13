@@ -14,10 +14,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 )
 
-// MFAAdminOverrideRequest is the body shared by both admin-override
-// endpoints — the `reason` field is mandatory and ends up in the audit
-// row so revoked-by-admin events can be traced back to a human decision
-// (e.g. "Postfach gesperrt, kein Recovery-Code mehr verfügbar").
+// MFAAdminOverrideRequest is the body for the admin-override endpoint —
+// the `reason` field is mandatory and ends up in the audit row so
+// revoked-by-admin events can be traced back to a human decision (e.g.
+// "Postfach gesperrt, Nutzer hat sein 2FA-Gerät verloren").
 type MFAAdminOverrideRequest struct {
 	Reason string `json:"reason"`
 }
@@ -74,9 +74,9 @@ func (rs *Resource) resolveAdminOverrideContext(w http.ResponseWriter, r *http.R
 	}
 }
 
-// mfaAdminDisable wipes the target's MFA enrollment, recovery codes and
-// trusted devices. The MFAService's AdminDisable runs the cascade and
-// records the audit event with the actor's identity + reason.
+// mfaAdminDisable wipes the target's MFA enrollment and trusted devices.
+// The MFAService's AdminDisable runs the cascade and records the audit
+// event with the actor's identity + reason.
 func (rs *Resource) mfaAdminDisable(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -97,36 +97,4 @@ func (rs *Resource) mfaAdminDisable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// MFAAdminRecoveryCodesResponse mirrors the user-facing equivalent. The
-// returned codes must be displayed to the admin once and copied to the
-// user out-of-band (e.g. printed sealed, handed over in person).
-type MFAAdminRecoveryCodesResponse struct {
-	RecoveryCodes []string `json:"recovery_codes"`
-}
-
-// mfaAdminRegenerateRecoveryCodes wipes the target's existing recovery
-// codes and seeds a fresh batch. Used when a user has lost both their
-// email access and their recovery codes.
-func (rs *Resource) mfaAdminRegenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	octx := rs.resolveAdminOverrideContext(w, r)
-	if octx == nil {
-		return
-	}
-	codes, err := rs.MFAService.AdminRegenerateRecoveryCodes(
-		r.Context(),
-		octx.actorAccountID,
-		octx.targetAccountID,
-		octx.reason,
-		octx.actorPermissions,
-	)
-	if err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-	render.JSON(w, r, MFAAdminRecoveryCodesResponse{RecoveryCodes: codes})
 }

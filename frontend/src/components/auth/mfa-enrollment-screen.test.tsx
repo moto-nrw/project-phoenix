@@ -12,6 +12,30 @@ vi.mock("~/components/ui", () => ({
   Alert: ({ message }: { message: string }) => (
     <div role="alert">{message}</div>
   ),
+  Button: ({
+    children,
+    onClick,
+    type = "button",
+    disabled,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    type?: "button" | "submit" | "reset";
+    disabled?: boolean;
+  }) => (
+    <button type={type} onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  ),
+  WizardStepper: ({ steps, current }: { steps: string[]; current: number }) => (
+    <ol data-testid="wizard-stepper">
+      {steps.map((label, idx) => (
+        <li key={label} aria-current={idx === current ? "step" : undefined}>
+          {label}
+        </li>
+      ))}
+    </ol>
+  ),
 }));
 
 const originalFetch = global.fetch;
@@ -73,11 +97,9 @@ describe("MFAEnrollmentScreen", () => {
     });
   });
 
-  it("auto-submits enroll/confirm when 6 digits are entered and shows recovery codes", async () => {
+  it("auto-submits enroll/confirm when 6 digits are entered and shows the success screen", async () => {
     const startMock = mockResponse(204, null);
-    const confirmMock = mockResponse(200, {
-      recovery_codes: ["aaaa-bbbb-cccc-dddd", "1111-2222-3333-4444"],
-    });
+    const confirmMock = mockResponse(204, null);
     let callCount = 0;
     global.fetch = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -87,7 +109,8 @@ describe("MFAEnrollmentScreen", () => {
       },
     ) as unknown as typeof global.fetch;
 
-    render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
+    const onComplete = vi.fn();
+    render(<MFAEnrollmentScreen {...props} onComplete={onComplete} />);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
@@ -114,7 +137,16 @@ describe("MFAEnrollmentScreen", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "2FA erfolgreich aktiviert" }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zum Dashboard" }),
+    );
+    await waitFor(() => {
+      expect(onComplete).toHaveBeenCalled();
     });
   });
 
@@ -127,9 +159,9 @@ describe("MFAEnrollmentScreen", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Zu viele Versuche. Bitte warten Sie einen Moment.",
-      );
+      expect(
+        screen.getByText("Zu viele Versuche. Bitte warten Sie einen Moment."),
+      ).toBeInTheDocument();
     });
   });
 });

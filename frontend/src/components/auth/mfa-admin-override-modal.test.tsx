@@ -52,16 +52,12 @@ describe("MFAAdminOverrideModal", () => {
     global.fetch = originalFetch;
   });
 
-  it("renders the menu with both actions when open", () => {
+  it("renders the reset form with reason field when open", () => {
     render(<MFAAdminOverrideModal {...props} />);
     expect(screen.getByText("Anna Beispiel")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Grund/)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", {
-        name: /Wiederherstellungscodes neu generieren/,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /2FA komplett zurücksetzen/ }),
+      screen.getByRole("button", { name: /2FA endgültig zurücksetzen/ }),
     ).toBeInTheDocument();
   });
 
@@ -69,13 +65,9 @@ describe("MFAAdminOverrideModal", () => {
     global.fetch = noContent();
     render(<MFAAdminOverrideModal {...props} />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /2FA komplett zurücksetzen/ }),
-    );
-
-    const textarea = screen.getByLabelText(/Grund/);
-    fireEvent.change(textarea, { target: { value: "ok" } });
-
+    fireEvent.change(screen.getByLabelText(/Grund/), {
+      target: { value: "ok" },
+    });
     fireEvent.click(
       screen.getByRole("button", { name: /2FA endgültig zurücksetzen/ }),
     );
@@ -90,9 +82,6 @@ describe("MFAAdminOverrideModal", () => {
     global.fetch = noContent();
     render(<MFAAdminOverrideModal {...props} />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /2FA komplett zurücksetzen/ }),
-    );
     fireEvent.change(screen.getByLabelText(/Grund/), {
       target: { value: "Mailbox gesperrt" },
     });
@@ -117,47 +106,10 @@ describe("MFAAdminOverrideModal", () => {
     expect(screen.getByText(/vollständig entfernt/)).toBeInTheDocument();
   });
 
-  it("regenerates recovery codes and renders them once via RecoveryCodesDisplay", async () => {
-    global.fetch = ok({
-      recovery_codes: ["aaaa-bbbb-cccc-dddd", "1111-2222-3333-4444"],
-    });
-    render(<MFAAdminOverrideModal {...props} />);
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /Wiederherstellungscodes neu generieren/,
-      }),
-    );
-    fireEvent.change(screen.getByLabelText(/Grund/), {
-      target: { value: "User hat alle Codes verloren" },
-    });
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole("button", { name: /Codes neu generieren/ }),
-      );
-    });
-
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/auth/accounts/42/mfa/recovery-codes",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ reason: "User hat alle Codes verloren" }),
-        }),
-      );
-    });
-    await waitFor(() => {
-      expect(screen.getByText("aaaa-bbbb-cccc-dddd")).toBeInTheDocument();
-    });
-  });
-
   it("shows German error from a 403 reject", async () => {
     global.fetch = ok({ error: "Forbidden" }, 403);
     render(<MFAAdminOverrideModal {...props} />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /2FA komplett zurücksetzen/ }),
-    );
     fireEvent.change(screen.getByLabelText(/Grund/), {
       target: { value: "Test-Grund" },
     });

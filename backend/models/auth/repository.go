@@ -213,15 +213,6 @@ type MFAEmailChallengeRepository interface {
 	DeleteExpired(ctx context.Context) (int, error)
 }
 
-// MFARecoveryCodeRepository persists Argon2id-hashed single-use recovery codes.
-type MFARecoveryCodeRepository interface {
-	BulkCreate(ctx context.Context, codes []*MFARecoveryCode) error
-	FindUnusedByAccountID(ctx context.Context, accountID int64) ([]*MFARecoveryCode, error)
-	MarkUsed(ctx context.Context, id int64, usedAt time.Time) error
-	DeleteByAccountID(ctx context.Context, accountID int64) error
-	CountUnused(ctx context.Context, accountID int64) (int, error)
-}
-
 // MFATrustedDeviceRepository persists HMAC-signed trusted-device records.
 type MFATrustedDeviceRepository interface {
 	Create(ctx context.Context, device *MFATrustedDevice) error

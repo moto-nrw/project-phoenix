@@ -50,7 +50,6 @@ type Factory struct {
 	GuardianInvitation     authModels.GuardianInvitationRepository
 	MFACredential          authModels.MFACredentialRepository
 	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
-	MFARecoveryCode        authModels.MFARecoveryCodeRepository
 	MFATrustedDevice       authModels.MFATrustedDeviceRepository
 
 	// Users domain
@@ -149,7 +148,6 @@ type Factory struct {
 	// Operator MFA (issue #1308 phase 7b)
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
 	OperatorMFAEmailChallenge platformModels.OperatorMFAEmailChallengeRepository
-	OperatorMFARecoveryCode   platformModels.OperatorMFARecoveryCodeRepository
 	OperatorMFATrustedDevice  platformModels.OperatorMFATrustedDeviceRepository
 }
 
@@ -172,7 +170,6 @@ func NewFactory(db *bun.DB) *Factory {
 		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
 		MFACredential:          auth.NewMFACredentialRepository(db),
 		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
-		MFARecoveryCode:        auth.NewMFARecoveryCodeRepository(db),
 		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
 
 		// Users repositories
@@ -270,7 +267,6 @@ func NewFactory(db *bun.DB) *Factory {
 
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
 		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
-		OperatorMFARecoveryCode:   platformRepo.NewOperatorMFARecoveryCodeRepository(db),
 		OperatorMFATrustedDevice:  platformRepo.NewOperatorMFATrustedDeviceRepository(db),
 	}
 }

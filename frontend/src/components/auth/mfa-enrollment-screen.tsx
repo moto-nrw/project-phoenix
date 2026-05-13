@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Alert, Button, WizardStepper } from "~/components/ui";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   enrollConfirm,
@@ -16,19 +17,18 @@ import {
   germanMFAErrorMessage,
   type LoginScope,
 } from "~/lib/mfa-api";
-import { RecoveryCodesDisplay } from "./recovery-codes-display";
 
 const logger = createLogger({ component: "MFAEnrollmentScreen" });
 
 const CODE_LENGTH = 6;
 const STEPS = ["Start", "Bestätigung", "Abschluss"] as const;
 
-type Step = "intro" | "code" | "recovery";
+type Step = "intro" | "code" | "success";
 
 const STEP_INDEX: Record<Step, number> = {
   intro: 0,
   code: 1,
-  recovery: 2,
+  success: 2,
 };
 
 interface MFAEnrollmentScreenProps {
@@ -53,7 +53,6 @@ export function MFAEnrollmentScreen({
   const [digits, setDigits] = useState<string[]>(() =>
     Array.from({ length: CODE_LENGTH }, () => ""),
   );
-  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const submittedRef = useRef(false);
 
@@ -99,9 +98,8 @@ export function MFAEnrollmentScreen({
       setError("");
       const code = overrideCode ?? digits.join("");
       try {
-        const response = await enrollConfirm(scope, bearerToken, code);
-        setRecoveryCodes(response.recovery_codes);
-        setStep("recovery");
+        await enrollConfirm(scope, bearerToken, code);
+        setStep("success");
       } catch (err) {
         submittedRef.current = false;
         setError(germanMFAErrorMessage(err));
@@ -180,7 +178,7 @@ export function MFAEnrollmentScreen({
     handleDigitChange(0, pasted);
   };
 
-  const showBack = step !== "recovery";
+  const showBack = step !== "success";
 
   return (
     <div className="space-y-7 text-left">
@@ -213,13 +211,48 @@ export function MFAEnrollmentScreen({
 
       <WizardStepper steps={[...STEPS]} current={STEP_INDEX[step]} />
 
-      {step === "recovery" ? (
-        <RecoveryCodesDisplay
-          codes={recoveryCodes}
-          onConfirm={() => {
-            void onComplete();
-          }}
-        />
+      {step === "success" ? (
+        <div className="space-y-5 text-center">
+          <div
+            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
+            style={{ backgroundColor: `${LOCATION_COLORS.GROUP_ROOM}22` }}
+            aria-hidden="true"
+          >
+            <svg
+              className="h-7 w-7"
+              fill="none"
+              stroke={LOCATION_COLORS.GROUP_ROOM}
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.5}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-xl font-semibold text-gray-900">
+              2FA erfolgreich aktiviert
+            </h2>
+            <p className="text-sm leading-relaxed text-gray-600">
+              Beim nächsten Login erhalten Sie zusätzlich zu Ihrem Passwort
+              einen Code per E-Mail.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="primary"
+            size="base"
+            className="w-full"
+            onClick={() => {
+              void onComplete();
+            }}
+          >
+            Weiter zum Dashboard
+          </Button>
+        </div>
       ) : (
         <>
           <div className="space-y-1.5">
@@ -252,7 +285,7 @@ export function MFAEnrollmentScreen({
             <div className="space-y-5">
               <Alert
                 type="info"
-                message="Nach dem Code erhalten Sie 10 Wiederherstellungscodes für den Notfall, falls Sie keinen E-Mail-Zugriff haben."
+                message="Falls Sie keinen Zugriff mehr auf Ihr E-Mail-Postfach haben, kann Ihre Schul-Administration die 2FA für Sie zurücksetzen."
               />
               <Button
                 type="button"

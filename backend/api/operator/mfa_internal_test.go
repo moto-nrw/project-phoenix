@@ -40,16 +40,6 @@ func TestOperatorMFAVerifyRequest_BindAcceptsHappyPath(t *testing.T) {
 	assert.Equal(t, "482157", req.Code)
 }
 
-func TestOperatorMFARecoveryVerifyRequest_BindRejectsMissingFields(t *testing.T) {
-	cases := []MFARecoveryVerifyRequest{
-		{ChallengeToken: ""},
-		{ChallengeToken: "x"}, // missing recovery_code
-	}
-	for _, req := range cases {
-		assert.Error(t, req.Bind(nil))
-	}
-}
-
 func TestOperatorMFAResendRequest_BindRejectsEmpty(t *testing.T) {
 	req := MFAResendRequest{}
 	assert.Error(t, req.Bind(nil))
@@ -80,7 +70,6 @@ func TestOperatorMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 		body any
 	}{
 		{"verify", rs.Verify, MFAVerifyRequest{ChallengeToken: "x", Code: "123456"}},
-		{"recovery-verify", rs.RecoveryVerify, MFARecoveryVerifyRequest{ChallengeToken: "x", RecoveryCode: "y"}},
 		{"resend", rs.Resend, MFAResendRequest{ChallengeToken: "x"}},
 		{"enroll-start", rs.EnrollStart, nil},
 		{"enroll-confirm", rs.EnrollConfirm, MFAEnrollConfirmRequest{Code: "123456"}},

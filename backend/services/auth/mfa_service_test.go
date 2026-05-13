@@ -65,29 +65,6 @@ func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
 	assert.False(t, enrolled)
 }
 
-func TestMFAService_RecoveryCodeFlow(t *testing.T) {
-	ctx := context.Background()
-	svc, _, db := newTestMFAService(t)
-
-	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-recovery")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
-
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
-
-	codes, err := svc.GenerateRecoveryCodes(ctx, acc.ID)
-	require.NoError(t, err)
-	assert.Len(t, codes, auth.MFARecoveryCodeCount, "expected 10 recovery codes")
-
-	// Wrong code rejected.
-	require.ErrorIs(t, svc.VerifyRecoveryCode(ctx, acc.ID, "0000-0000-0000-0000"), auth.ErrMFACodeInvalid)
-
-	// Real code accepted; one row consumed.
-	require.NoError(t, svc.VerifyRecoveryCode(ctx, acc.ID, codes[0]))
-
-	// Same code cannot be used twice.
-	require.ErrorIs(t, svc.VerifyRecoveryCode(ctx, acc.ID, codes[0]), auth.ErrMFACodeInvalid)
-}
-
 func TestMFAService_TrustedDeviceFlow(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
@@ -153,12 +130,6 @@ func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
 	// Wildcard admin permission -> allowed.
 	require.NoError(t, svc.AdminDisable(ctx, actorID, target.ID, "lost mailbox", []string{"admin:*"}))
 
-	// Empty reason -> rejected even with permission.
-	_, err = svc.AdminRegenerateRecoveryCodes(ctx, actorID, target.ID, "   ", []string{"users:manage"})
-	assert.Error(t, err)
-
-	// Explicit users:manage permission + reason returns 10 codes.
-	codes, err := svc.AdminRegenerateRecoveryCodes(ctx, actorID, target.ID, "user lost device", []string{"users:manage"})
-	require.NoError(t, err)
-	assert.Len(t, codes, auth.MFARecoveryCodeCount)
+	// Explicit users:manage permission also works.
+	require.NoError(t, svc.AdminDisable(ctx, actorID, target.ID, "user lost device", []string{"users:manage"}))
 }

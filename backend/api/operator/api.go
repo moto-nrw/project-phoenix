@@ -134,7 +134,6 @@ func (rs *Resource) Router() chi.Router {
 			// header, because the operator is mid-login and has no access
 			// token yet.
 			r.Post("/mfa/verify", rs.mfaResource.Verify)
-			r.Post("/mfa/recovery/verify", rs.mfaResource.RecoveryVerify)
 			r.Post("/mfa/resend", rs.mfaResource.Resend)
 		})
 		r.Group(func(r chi.Router) {
@@ -253,9 +252,9 @@ func (rs *Resource) Router() chi.Router {
 		// MFA enrollment for the currently-authenticated operator
 		// (issue #1308). Routes are registered as individual leaves rather
 		// than via r.Route("/auth/mfa", ...) because the public sibling
-		// routes (mfa/verify, mfa/recovery/verify, mfa/resend) already own
-		// the /auth/mfa/* subtree from a different group, and mounting a
-		// second sub-router on that prefix here shadows them.
+		// routes (mfa/verify, mfa/resend) already own the /auth/mfa/*
+		// subtree from a different group, and mounting a second sub-router
+		// on that prefix here shadows them.
 		r.Post("/auth/mfa/enroll/start", rs.mfaResource.EnrollStart)
 		r.Post("/auth/mfa/enroll/confirm", rs.mfaResource.EnrollConfirm)
 

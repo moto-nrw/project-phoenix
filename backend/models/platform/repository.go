@@ -155,17 +155,6 @@ type OperatorMFAEmailChallengeRepository interface {
 	DeleteExpired(ctx context.Context) (int, error)
 }
 
-// OperatorMFARecoveryCodeRepository persists Argon2id-hashed single-use
-// recovery codes for moto-Operators. Mirror of
-// auth.MFARecoveryCodeRepository.
-type OperatorMFARecoveryCodeRepository interface {
-	BulkCreate(ctx context.Context, codes []*OperatorMFARecoveryCode) error
-	FindUnusedByOperatorID(ctx context.Context, operatorID int64) ([]*OperatorMFARecoveryCode, error)
-	MarkUsed(ctx context.Context, id int64, usedAt time.Time) error
-	DeleteByOperatorID(ctx context.Context, operatorID int64) error
-	CountUnused(ctx context.Context, operatorID int64) (int, error)
-}
-
 // OperatorMFATrustedDeviceRepository persists HMAC-signed trusted-device
 // records for moto-Operators. Mirror of auth.MFATrustedDeviceRepository.
 type OperatorMFATrustedDeviceRepository interface {

@@ -110,7 +110,6 @@ func (rs *Resource) Router() chi.Router {
 		// Authorization header — the user is mid-login and has no access
 		// token yet.
 		r.Post("/mfa/verify", rs.mfaVerify)
-		r.Post("/mfa/recovery/verify", rs.mfaRecoveryVerify)
 		r.Post("/mfa/resend", rs.mfaResend)
 	})
 
@@ -232,7 +231,6 @@ func (rs *Resource) Router() chi.Router {
 					// defense-in-depth permission re-check.
 					r.Route("/mfa", func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.mfaAdminDisable)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post("/recovery-codes", rs.mfaAdminRegenerateRecoveryCodes)
 					})
 				})
 			})

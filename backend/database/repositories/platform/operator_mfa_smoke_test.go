@@ -31,7 +31,6 @@ func TestOperatorMFARepositoriesSmoke(t *testing.T) {
 
 	credentialRepo := platformRepo.NewOperatorMFACredentialRepository(db)
 	challengeRepo := platformRepo.NewOperatorMFAEmailChallengeRepository(db)
-	recoveryRepo := platformRepo.NewOperatorMFARecoveryCodeRepository(db)
 	deviceRepo := platformRepo.NewOperatorMFATrustedDeviceRepository(db)
 
 	t.Run("credential lifecycle", func(t *testing.T) {
@@ -81,29 +80,6 @@ func TestOperatorMFARepositoriesSmoke(t *testing.T) {
 		removed, err := challengeRepo.DeleteExpired(ctx)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, removed, 1)
-	})
-
-	t.Run("recovery codes bulk + mark-used", func(t *testing.T) {
-		codes := []*platform.OperatorMFARecoveryCode{
-			{OperatorID: op.ID, CodeHash: "$argon2id$op-rc-1"},
-			{OperatorID: op.ID, CodeHash: "$argon2id$op-rc-2"},
-			{OperatorID: op.ID, CodeHash: "$argon2id$op-rc-3"},
-		}
-		require.NoError(t, recoveryRepo.BulkCreate(ctx, codes))
-
-		unused, err := recoveryRepo.FindUnusedByOperatorID(ctx, op.ID)
-		require.NoError(t, err)
-		assert.Len(t, unused, 3)
-
-		require.NoError(t, recoveryRepo.MarkUsed(ctx, unused[0].ID, time.Now()))
-		count, err := recoveryRepo.CountUnused(ctx, op.ID)
-		require.NoError(t, err)
-		assert.Equal(t, 2, count)
-
-		require.NoError(t, recoveryRepo.DeleteByOperatorID(ctx, op.ID))
-		count, err = recoveryRepo.CountUnused(ctx, op.ID)
-		require.NoError(t, err)
-		assert.Equal(t, 0, count)
 	})
 
 	t.Run("trusted device + revoke + delete-expired", func(t *testing.T) {

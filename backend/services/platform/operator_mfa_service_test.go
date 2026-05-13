@@ -95,29 +95,6 @@ func TestOperatorMFAService_EnrollDisableLifecycle(t *testing.T) {
 	assert.False(t, enrolled)
 }
 
-func TestOperatorMFAService_RecoveryCodeFlow(t *testing.T) {
-	ctx := context.Background()
-	svc, _, db := newTestOperatorMFAService(t)
-
-	op := createTestOperatorForMFAService(t, db, "recovery")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
-
-	require.NoError(t, svc.Enroll(ctx, op.ID))
-
-	codes, err := svc.GenerateRecoveryCodes(ctx, op.ID)
-	require.NoError(t, err)
-	assert.Len(t, codes, 10)
-
-	// Wrong code rejected.
-	require.ErrorIs(t, svc.VerifyRecoveryCode(ctx, op.ID, "0000-0000-0000-0000"), platform.ErrOperatorMFACodeInvalid)
-
-	// Real code consumed.
-	require.NoError(t, svc.VerifyRecoveryCode(ctx, op.ID, codes[0]))
-
-	// Single-use guarantee.
-	require.ErrorIs(t, svc.VerifyRecoveryCode(ctx, op.ID, codes[0]), platform.ErrOperatorMFACodeInvalid)
-}
-
 func TestOperatorMFAService_TrustedDeviceFlow(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)

@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
@@ -19,13 +18,6 @@ import (
 const (
 	// MFAEmailCodeLength is the number of decimal digits in a 6-digit email code.
 	MFAEmailCodeLength = 6
-
-	// MFARecoveryCodeCount is how many recovery codes are generated per enrollment.
-	MFARecoveryCodeCount = 10
-
-	// MFARecoveryCodeBytes is the random-source size for each recovery code.
-	// 8 bytes -> 16 hex chars (broken into 4-4-4-4 for readability) -> ~64 bits of entropy.
-	MFARecoveryCodeBytes = 8
 
 	// MFATrustedDeviceTokenBytes is the random-source size for trusted-device tokens.
 	// 32 bytes -> 256 bits of entropy, far above the OWASP "≥128 bits" recommendation.
@@ -52,31 +44,10 @@ func GenerateEmailCode() (string, error) {
 	return fmt.Sprintf("%06d", n), nil
 }
 
-// GenerateRecoveryCodes returns `count` plain-text recovery codes formatted as
-// 16 hex characters split with dashes ("XXXX-XXXX-XXXX-XXXX") for readability.
-// Callers MUST hash each returned code via HashShortCode before persisting and
-// MUST surface the plain values to the user exactly once.
-func GenerateRecoveryCodes(count int) ([]string, error) {
-	if count <= 0 {
-		return nil, errors.New("recovery code count must be positive")
-	}
-	codes := make([]string, count)
-	buf := make([]byte, MFARecoveryCodeBytes)
-	for i := 0; i < count; i++ {
-		if _, err := rand.Read(buf); err != nil {
-			return nil, fmt.Errorf("read random bytes for recovery code: %w", err)
-		}
-		raw := hex.EncodeToString(buf) // 16 hex chars
-		codes[i] = fmt.Sprintf("%s-%s-%s-%s", raw[0:4], raw[4:8], raw[8:12], raw[12:16])
-	}
-	return codes, nil
-}
-
-// HashShortCode wraps userpass.HashPassword so all MFA short-code hashing
-// (email codes + recovery codes) goes through the project-wide Argon2id
-// helper. That keeps the algorithm + parameters consistent across token
-// types and means that any future tuning of the Argon2 parameters
-// automatically applies to MFA hashes too.
+// HashShortCode wraps userpass.HashPassword so MFA email-code hashing goes
+// through the project-wide Argon2id helper. That keeps the algorithm +
+// parameters consistent across token types and means that any future tuning
+// of the Argon2 parameters automatically applies to MFA hashes too.
 func HashShortCode(plain string) (string, error) {
 	return userpass.HashPassword(plain, nil)
 }

@@ -112,63 +112,6 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 	rs.completeMFAExchange(w, r, verified.AccountID, verified.TenantID, req.RememberDevice)
 }
 
-// ----- /mfa/recovery/verify -----
-
-// MFARecoveryVerifyRequest is the body for POST /auth/mfa/recovery/verify.
-type MFARecoveryVerifyRequest struct {
-	ChallengeToken string `json:"challenge_token"`
-	RecoveryCode   string `json:"recovery_code"`
-	RememberDevice bool   `json:"remember_device,omitempty"`
-}
-
-// Bind validates the recovery verify request.
-func (req *MFARecoveryVerifyRequest) Bind(_ *http.Request) error {
-	req.ChallengeToken = strings.TrimSpace(req.ChallengeToken)
-	req.RecoveryCode = strings.TrimSpace(req.RecoveryCode)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.ChallengeToken, validation.Required),
-		validation.Field(&req.RecoveryCode, validation.Required),
-	)
-}
-
-// mfaRecoveryVerify is the recovery-code analogue of mfaVerify. The user
-// reaches this when the email channel is unavailable. We still parse the
-// challenge token to identify the account, then call VerifyRecoveryCode.
-func (rs *Resource) mfaRecoveryVerify(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	req := &MFARecoveryVerifyRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	// Reuse VerifyChallenge with a deliberately-wrong-but-shaped code so we
-	// get the typed error path that includes challenge-token validation
-	// without consuming an email-code row. Then fall through to recovery.
-	// Simpler: parse the challenge ourselves via a tiny resend-shaped path.
-	// We already have ResendChallenge for that — but it would issue a new
-	// code. Instead we reach into the service via a small new helper.
-	//
-	// For the v1 cut, accept the same challenge flow: VerifyChallenge errors
-	// on a wrong code, but the recovery handler doesn't care — it only needs
-	// the account_id + tenant_id from the challenge JWT. We extract those
-	// via a 1-call helper to keep this handler thin.
-	accountID, tenantID, err := rs.peekChallengeIdentity(r, req.ChallengeToken)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrMFAChallengeTokenInvalid))
-		return
-	}
-
-	if err := rs.MFAService.VerifyRecoveryCode(r.Context(), accountID, req.RecoveryCode); err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-
-	rs.completeMFAExchange(w, r, accountID, tenantID, req.RememberDevice)
-}
-
 // ----- /mfa/resend -----
 
 // MFAResendRequest is the body for POST /auth/mfa/resend.
@@ -239,17 +182,9 @@ func (req *MFAEnrollConfirmRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// MFAEnrollConfirmResponse returns the freshly-generated recovery codes.
-// Per the design plan the client must show these once and require the user
-// to confirm they have stored them before continuing — so the response is
-// intentionally minimal.
-type MFAEnrollConfirmResponse struct {
-	RecoveryCodes []string `json:"recovery_codes"`
-}
-
-// mfaEnrollConfirm verifies the just-emailed code, marks the account as
-// enrolled, and seeds the recovery-code pool. The plain codes are returned
-// once and only once.
+// mfaEnrollConfirm verifies the just-emailed code and marks the account as
+// enrolled. No body — the frontend only cares about the 204 to advance to
+// the "2FA aktiviert" success screen.
 func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -272,18 +207,14 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := rs.MFAService.Enroll(r.Context(), accountID); err != nil {
-		// Already enrolled is fine here — surface a 409 but proceed to recovery codes.
+		// Already enrolled is fine here — treat the second enroll call as a
+		// no-op so a retried request still ends with a 204.
 		if !errors.Is(err, authService.ErrMFAAlreadyEnrolled) {
 			mapMFAError(w, r, err)
 			return
 		}
 	}
-	codes, err := rs.MFAService.GenerateRecoveryCodes(r.Context(), accountID)
-	if err != nil {
-		mapMFAError(w, r, err)
-		return
-	}
-	render.JSON(w, r, MFAEnrollConfirmResponse{RecoveryCodes: codes})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ----- shared helpers -----
@@ -368,32 +299,4 @@ func parseClientIP(r *http.Request) net.IP {
 		return nil
 	}
 	return net.ParseIP(raw)
-}
-
-// peekChallengeIdentity decodes the JWT just enough to recover (account_id,
-// tenant_id). Used by mfaRecoveryVerify, where we need the identity but the
-// MFAService surface only exposes "verify the email code", not "tell me who
-// owns this challenge". We deliberately keep this minimal — full claim
-// validation still runs once VerifyChallenge is called via the email path.
-func (rs *Resource) peekChallengeIdentity(r *http.Request, tokenString string) (int64, int64, error) {
-	jwtAuth := jwt.MustNewTokenAuth().JwtAuth
-	tok, err := jwtAuth.Decode(tokenString)
-	if err != nil {
-		return 0, 0, err
-	}
-	raw := make(map[string]any)
-	for _, k := range tok.Keys() {
-		var v any
-		if gErr := tok.Get(k, &v); gErr == nil {
-			raw[k] = v
-		}
-	}
-	var claims jwt.MFAChallengeClaims
-	if err := claims.ParseClaims(raw); err != nil {
-		return 0, 0, err
-	}
-	if claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
-		return 0, 0, errors.New("challenge token expired")
-	}
-	return claims.AccountID, claims.TenantID, nil
 }

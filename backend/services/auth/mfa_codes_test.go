@@ -19,26 +19,6 @@ func TestGenerateEmailCode(t *testing.T) {
 	}
 }
 
-func TestGenerateRecoveryCodes_FormatAndUniqueness(t *testing.T) {
-	codes, err := GenerateRecoveryCodes(MFARecoveryCodeCount)
-	require.NoError(t, err)
-	assert.Len(t, codes, MFARecoveryCodeCount)
-
-	seen := make(map[string]bool, len(codes))
-	for _, code := range codes {
-		// 16 hex chars + 3 dashes = 19 chars
-		assert.Len(t, code, 19, "expected 4-4-4-4 hex grouping")
-		assert.Equal(t, 3, strings.Count(code, "-"), "expected 3 dashes")
-		assert.False(t, seen[code], "recovery codes must be unique within a batch")
-		seen[code] = true
-	}
-}
-
-func TestGenerateRecoveryCodes_RejectsZero(t *testing.T) {
-	_, err := GenerateRecoveryCodes(0)
-	require.Error(t, err)
-}
-
 func TestHashShortCode_RoundTripEmailCode(t *testing.T) {
 	code, err := GenerateEmailCode()
 	require.NoError(t, err)
@@ -55,19 +35,6 @@ func TestHashShortCode_RoundTripEmailCode(t *testing.T) {
 	bad, err := VerifyShortCode("000000", hash)
 	require.NoError(t, err)
 	assert.False(t, bad, "wrong code must not verify")
-}
-
-func TestHashShortCode_RoundTripRecoveryCode(t *testing.T) {
-	codes, err := GenerateRecoveryCodes(1)
-	require.NoError(t, err)
-	code := codes[0]
-
-	hash, err := HashShortCode(code)
-	require.NoError(t, err)
-
-	ok, err := VerifyShortCode(code, hash)
-	require.NoError(t, err)
-	assert.True(t, ok)
 }
 
 func TestTrustedDeviceToken_GenerateHashSignVerify(t *testing.T) {

@@ -129,52 +129,6 @@ func (rs *MFAResource) Verify(w http.ResponseWriter, r *http.Request) {
 	rs.completeMFAExchange(w, r, verified.OperatorID, req.RememberDevice)
 }
 
-// ----- /auth/mfa/recovery/verify -----
-
-// MFARecoveryVerifyRequest is the body for POST /operator/auth/mfa/recovery/verify.
-type MFARecoveryVerifyRequest struct {
-	ChallengeToken string `json:"challenge_token"`
-	RecoveryCode   string `json:"recovery_code"`
-	RememberDevice bool   `json:"remember_device,omitempty"`
-}
-
-// Bind validates the recovery verify request.
-func (req *MFARecoveryVerifyRequest) Bind(_ *http.Request) error {
-	req.ChallengeToken = strings.TrimSpace(req.ChallengeToken)
-	req.RecoveryCode = strings.TrimSpace(req.RecoveryCode)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.ChallengeToken, validation.Required),
-		validation.Field(&req.RecoveryCode, validation.Required),
-	)
-}
-
-// RecoveryVerify is the recovery-code analogue of Verify. The user reaches
-// this when the email channel is unavailable. We peek the operator_id out of
-// the challenge JWT, then call VerifyRecoveryCode.
-func (rs *MFAResource) RecoveryVerify(w http.ResponseWriter, r *http.Request) {
-	if !rs.requireMFA(w, r) {
-		return
-	}
-	req := &MFARecoveryVerifyRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
-		return
-	}
-
-	operatorID, err := rs.peekOperatorChallengeIdentity(req.ChallengeToken)
-	if err != nil {
-		common.RenderError(w, r, ErrUnauthorized())
-		return
-	}
-
-	if err := rs.mfaService.VerifyRecoveryCode(r.Context(), operatorID, req.RecoveryCode); err != nil {
-		mapOperatorMFAError(w, r, err)
-		return
-	}
-
-	rs.completeMFAExchange(w, r, operatorID, req.RememberDevice)
-}
-
 // ----- /auth/mfa/resend -----
 
 // MFAResendRequest is the body for POST /operator/auth/mfa/resend.
@@ -244,16 +198,9 @@ func (req *MFAEnrollConfirmRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// MFAEnrollConfirmResponse returns the freshly-generated recovery codes.
-// Per the design plan the client must show these once and require the
-// operator to confirm storage before continuing.
-type MFAEnrollConfirmResponse struct {
-	RecoveryCodes []string `json:"recovery_codes"`
-}
-
-// EnrollConfirm verifies the just-emailed code, marks the operator as
-// enrolled, and seeds the recovery-code pool. Plain codes are returned once
-// and only once.
+// EnrollConfirm verifies the just-emailed code and marks the operator as
+// enrolled. Returns 204 — the frontend uses that as the cue to show the
+// success screen and continue.
 func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -276,19 +223,14 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := rs.mfaService.Enroll(r.Context(), operatorID); err != nil {
-		// Already-enrolled is not fatal — fall through to recovery-code
-		// regeneration so re-running enrol gives the operator fresh codes.
+		// Already-enrolled is not fatal — treat a retried enroll call as a
+		// no-op so the frontend still advances to the success screen.
 		if !errors.Is(err, authService.ErrMFAAlreadyEnrolled) {
 			mapOperatorMFAError(w, r, err)
 			return
 		}
 	}
-	codes, err := rs.mfaService.GenerateRecoveryCodes(r.Context(), operatorID)
-	if err != nil {
-		mapOperatorMFAError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, &MFAEnrollConfirmResponse{RecoveryCodes: codes}, "MFA enrolled")
+	common.RespondNoContent(w, r)
 }
 
 // ----- shared helpers -----
@@ -371,38 +313,4 @@ func (rs *MFAResource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.R
 // nil when nothing parseable is on the request.
 func parseOperatorClientIP(r *http.Request) net.IP {
 	return getClientIP(r)
-}
-
-// peekOperatorChallengeIdentity decodes the JWT just enough to recover the
-// operator_id (carried as `account_id` in MFAChallengeClaims). Used by
-// RecoveryVerify, where we need the identity but the OperatorMFAService
-// surface only exposes "verify the email code", not "tell me who owns this
-// challenge". Full claim validation still runs once VerifyChallenge is called
-// via the email path, so this helper is intentionally minimal.
-func (rs *MFAResource) peekOperatorChallengeIdentity(tokenString string) (int64, error) {
-	if rs.tokenAuth == nil {
-		return 0, errors.New("token auth not configured")
-	}
-	tok, err := rs.tokenAuth.JwtAuth.Decode(tokenString)
-	if err != nil {
-		return 0, err
-	}
-	raw := make(map[string]any)
-	for _, k := range tok.Keys() {
-		var v any
-		if gErr := tok.Get(k, &v); gErr == nil {
-			raw[k] = v
-		}
-	}
-	var claims jwt.MFAChallengeClaims
-	if err := claims.ParseClaims(raw); err != nil {
-		return 0, err
-	}
-	if claims.Scope != jwt.MFAChallengeScopePlatform {
-		return 0, errors.New("challenge is not platform-scoped")
-	}
-	if claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
-		return 0, errors.New("challenge token expired")
-	}
-	return claims.AccountID, nil
 }

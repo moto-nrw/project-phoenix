@@ -187,32 +187,6 @@ export async function verifyMFA(
   return postJson<MFATokenResponse>(url, payload);
 }
 
-interface RecoveryParams {
-  challengeToken: string;
-  recoveryCode: string;
-  rememberDevice: boolean;
-}
-
-export async function verifyRecovery(
-  scope: LoginScope,
-  params: RecoveryParams,
-): Promise<MFATokenResponse> {
-  const url = mfaUrl(scope, "recovery/verify");
-  const payload = {
-    challenge_token: params.challengeToken,
-    recovery_code: params.recoveryCode,
-    remember_device: params.rememberDevice,
-  };
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
-      url,
-      payload,
-    );
-    return envelope.data;
-  }
-  return postJson<MFATokenResponse>(url, payload);
-}
-
 interface ResendParams {
   challengeToken: string;
 }
@@ -234,10 +208,6 @@ function enrollUrl(scope: LoginScope, suffix: string): string {
     : `/api/auth/mfa/${suffix}`;
 }
 
-interface RecoveryCodesResponse {
-  recovery_codes: string[];
-}
-
 export async function enrollStart(
   scope: LoginScope,
   bearerToken: string,
@@ -253,17 +223,16 @@ export async function enrollConfirm(
   scope: LoginScope,
   bearerToken: string,
   code: string,
-): Promise<RecoveryCodesResponse> {
+): Promise<void> {
   const url = enrollUrl(scope, "enroll/confirm");
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<RecoveryCodesResponse>>(
-      url,
-      { code },
-      { bearerToken },
-    );
-    return envelope.data;
-  }
-  return postJson<RecoveryCodesResponse>(url, { code }, { bearerToken });
+  await postJson<unknown>(
+    url,
+    { code },
+    {
+      bearerToken,
+      allowEmptyBody: true,
+    },
+  );
 }
 
 // ----- Admin-Override (Tenant-only; requires users:manage) -----
@@ -281,18 +250,6 @@ export async function adminResetMFA(
     adminMFAUrl(accountId, ""),
     { reason },
     { bearerToken, method: "DELETE", allowEmptyBody: true },
-  );
-}
-
-export async function adminRegenerateRecoveryCodes(
-  bearerToken: string,
-  accountId: string,
-  reason: string,
-): Promise<RecoveryCodesResponse> {
-  return postJson<RecoveryCodesResponse>(
-    adminMFAUrl(accountId, "/recovery-codes"),
-    { reason },
-    { bearerToken },
   );
 }
 
