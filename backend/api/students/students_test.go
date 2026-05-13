@@ -52,7 +52,7 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 		StudentID:  studentWithSchedule.ID,
 		Weekday:    todayWeekday,
 		PickupTime: pickupTime,
-		CreatedBy:  1,
+		CreatedBy:  createStudentsAPITestStaffID(t, tc),
 	}
 	schedule.SetTenantID(1)
 	_, err := tc.db.NewInsert().Model(schedule).

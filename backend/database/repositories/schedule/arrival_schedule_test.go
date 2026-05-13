@@ -35,7 +35,7 @@ func TestStudentArrivalScheduleRepository_Create(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createRepositoryTestStaffID(t, db),
 		}
 
 		err := repo.Create(ctx, schedule)
@@ -56,7 +56,7 @@ func TestStudentArrivalScheduleRepository_Create(t *testing.T) {
 			StudentID:       1,
 			Weekday:         10,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createRepositoryTestStaffID(t, db),
 		}
 
 		err := repo.Create(ctx, schedule)
@@ -80,7 +80,7 @@ func TestStudentArrivalScheduleRepository_FindByID(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayTuesday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, schedule)
 		require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestStudentArrivalScheduleRepository_FindByStudentID(t *testing.T) {
 				StudentID:       student.ID,
 				Weekday:         weekday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, schedule)
 			require.NoError(t, err)
@@ -155,7 +155,7 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDAndWeekday(t *testing.T
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayThursday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 15, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, schedule)
 		require.NoError(t, err)
@@ -193,7 +193,7 @@ func TestStudentArrivalScheduleRepository_FindByStudentIDsAndWeekday(t *testing.
 				StudentID:       studentID,
 				Weekday:         scheduleModels.WeekdayFriday,
 				ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, schedule)
 			require.NoError(t, err)
@@ -228,7 +228,7 @@ func TestStudentArrivalScheduleRepository_UpsertSchedule(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createRepositoryTestStaffID(t, db),
 		}
 
 		err := repo.UpsertSchedule(ctx, schedule)
@@ -245,7 +245,7 @@ func TestStudentArrivalScheduleRepository_UpsertSchedule(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayTuesday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createRepositoryTestStaffID(t, db),
 		}
 		err := repo.UpsertSchedule(ctx, schedule)
 		require.NoError(t, err)
@@ -287,7 +287,7 @@ func TestStudentArrivalScheduleRepository_Update(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, schedule)
 		require.NoError(t, err)
@@ -318,7 +318,7 @@ func TestStudentArrivalScheduleRepository_Update(t *testing.T) {
 			StudentID:       0, // Invalid
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createRepositoryTestStaffID(t, db),
 		}
 
 		err := repo.Update(ctx, schedule)
@@ -343,7 +343,7 @@ func TestStudentArrivalScheduleRepository_List(t *testing.T) {
 				StudentID:       student.ID,
 				Weekday:         weekday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, schedule)
 			require.NoError(t, err)
@@ -380,7 +380,7 @@ func TestStudentArrivalScheduleRepository_DeleteByStudentID(t *testing.T) {
 				StudentID:       student.ID,
 				Weekday:         weekday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, schedule)
 			require.NoError(t, err)
@@ -421,7 +421,7 @@ func TestStudentArrivalExceptionRepository_Create(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: time.Date(2024, 2, 14, 12, 0, 0, 0, timezone.Berlin),
 			Reason:        strPtr("Doctor appointment"),
-			CreatedBy:     1,
+			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 
 		err := repo.Create(ctx, exception)
@@ -459,7 +459,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentID(t *testing.T) {
 				StudentID:     student.ID,
 				ExceptionDate: date,
 				Reason:        strPtr("Test reason"),
-				CreatedBy:     1,
+				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
@@ -488,7 +488,7 @@ func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T)
 			StudentID:     student.ID,
 			ExceptionDate: time.Now().AddDate(0, 0, -7),
 			Reason:        strPtr("Past exception"),
-			CreatedBy:     1,
+			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, pastException)
 		require.NoError(t, err)
@@ -497,7 +497,7 @@ func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T)
 			StudentID:     student.ID,
 			ExceptionDate: time.Now().AddDate(0, 0, 7),
 			Reason:        strPtr("Future exception"),
-			CreatedBy:     1,
+			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 		err = repo.Create(ctx, futureException)
 		require.NoError(t, err)
@@ -526,7 +526,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDAndDate(t *testing.T) 
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			Reason:        strPtr("Specific date exception"),
-			CreatedBy:     1,
+			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, exception)
 		require.NoError(t, err)
@@ -668,7 +668,7 @@ func TestStudentArrivalExceptionRepository_FindByID(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: time.Date(2024, 5, 20, 12, 0, 0, 0, timezone.Berlin),
 			Reason:        strPtr("Test reason"),
-			CreatedBy:     1,
+			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, exception)
 		require.NoError(t, err)
@@ -705,7 +705,7 @@ func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
 			ExceptionDate:   time.Date(2024, 6, 15, 12, 0, 0, 0, timezone.Berlin),
 			ExpectedArrival: &arrivalTime,
 			Reason:          strPtr("Original reason"),
-			CreatedBy:       1,
+			CreatedBy:       createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, exception)
 		require.NoError(t, err)
@@ -736,7 +736,7 @@ func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
 			StudentID:     0, // Invalid
 			ExceptionDate: time.Date(2024, 6, 15, 12, 0, 0, 0, timezone.Berlin),
 			Reason:        strPtr("Test"),
-			CreatedBy:     1,
+			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
 
 		err := repo.Update(ctx, exception)
@@ -761,7 +761,7 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 				StudentID:     student.ID,
 				ExceptionDate: time.Now().AddDate(0, 0, i+100), // Far future to avoid conflicts
 				Reason:        strPtr("Test exception"),
-				CreatedBy:     1,
+				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
@@ -798,7 +798,7 @@ func TestStudentArrivalExceptionRepository_DeleteByStudentID(t *testing.T) {
 				StudentID:     student.ID,
 				ExceptionDate: time.Now().AddDate(0, 0, i),
 				Reason:        strPtr("Exception"),
-				CreatedBy:     1,
+				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
@@ -832,7 +832,7 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 				StudentID:     student.ID,
 				ExceptionDate: time.Now().AddDate(0, 0, i),
 				Reason:        strPtr("Past exception"),
-				CreatedBy:     1,
+				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
@@ -846,7 +846,7 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 				StudentID:     student.ID,
 				ExceptionDate: time.Now().AddDate(0, 0, i),
 				Reason:        strPtr("Future exception"),
-				CreatedBy:     1,
+				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
@@ -889,7 +889,7 @@ func TestStudentArrivalNoteRepository_Create(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 2, 14, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Arrives by school bus",
-			CreatedBy: 1,
+			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
 
 		err := repo.Create(ctx, note)
@@ -910,7 +910,7 @@ func TestStudentArrivalNoteRepository_Create(t *testing.T) {
 			StudentID: 0, // Invalid
 			NoteDate:  time.Date(2024, 2, 14, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Test",
-			CreatedBy: 1,
+			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
 
 		err := repo.Create(ctx, note)
@@ -934,7 +934,7 @@ func TestStudentArrivalNoteRepository_FindByID(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 5, 20, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Test note",
-			CreatedBy: 1,
+			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, note)
 		require.NoError(t, err)
@@ -976,7 +976,7 @@ func TestStudentArrivalNoteRepository_FindByStudentID(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  date,
 				Content:   "Test note",
-				CreatedBy: 1,
+				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, note)
 			require.NoError(t, err)
@@ -1017,7 +1017,7 @@ func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  targetDate,
 				Content:   fmt.Sprintf("Note %d", i),
-				CreatedBy: 1,
+				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, note)
 			require.NoError(t, err)
@@ -1029,7 +1029,7 @@ func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  differentDate,
 			Content:   "Different date",
-			CreatedBy: 1,
+			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, note)
 		require.NoError(t, err)
@@ -1070,7 +1070,7 @@ func TestStudentArrivalNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 				StudentID: studentID,
 				NoteDate:  noteDate,
 				Content:   "Group note",
-				CreatedBy: 1,
+				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, note)
 			require.NoError(t, err)
@@ -1105,7 +1105,7 @@ func TestStudentArrivalNoteRepository_Update(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 6, 15, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Original content",
-			CreatedBy: 1,
+			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
 		err := repo.Create(ctx, note)
 		require.NoError(t, err)
@@ -1133,7 +1133,7 @@ func TestStudentArrivalNoteRepository_Update(t *testing.T) {
 			StudentID: 0, // Invalid
 			NoteDate:  time.Date(2024, 6, 15, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Test",
-			CreatedBy: 1,
+			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
 
 		err := repo.Update(ctx, note)
@@ -1158,7 +1158,7 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  time.Now().AddDate(0, 0, i+200), // Far future to avoid conflicts
 				Content:   "Test note",
-				CreatedBy: 1,
+				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, note)
 			require.NoError(t, err)
@@ -1195,7 +1195,7 @@ func TestStudentArrivalNoteRepository_DeleteByStudentID(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  time.Now().AddDate(0, 0, i),
 				Content:   "Note",
-				CreatedBy: 1,
+				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, note)
 			require.NoError(t, err)
@@ -1235,7 +1235,7 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  time.Now().AddDate(0, 0, i),
 				Content:   "Past note",
-				CreatedBy: 1,
+				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, note)
 			require.NoError(t, err)
@@ -1249,7 +1249,7 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  time.Now().AddDate(0, 0, i),
 				Content:   "Future note",
-				CreatedBy: 1,
+				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
 			err := repo.Create(ctx, note)
 			require.NoError(t, err)

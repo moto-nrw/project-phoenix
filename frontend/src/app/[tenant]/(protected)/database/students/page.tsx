@@ -143,15 +143,27 @@ export default function StudentsPage() {
 
     if (searchTerm) {
       const searchLower = searchTerm.trim().toLowerCase();
-      filtered = filtered.filter(
-        (student) =>
+      filtered = filtered.filter((student) => {
+        const fullName = [student.first_name, student.second_name]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const lastNameFirst = [student.second_name, student.first_name]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return (
           (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
           (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
+          fullName.includes(searchLower) ||
+          lastNameFirst.includes(searchLower) ||
           (student.school_class?.toLowerCase().includes(searchLower) ??
             false) ||
           (student.group_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.name_lg?.toLowerCase().includes(searchLower) ?? false),
-      );
+          (student.name_lg?.toLowerCase().includes(searchLower) ?? false)
+        );
+      });
     }
 
     if (groupFilter !== "all") {

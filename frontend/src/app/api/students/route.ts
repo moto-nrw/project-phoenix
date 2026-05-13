@@ -89,8 +89,23 @@ export const GET = createGetHandler(
       queryParams.append(key, value);
     });
 
-    // Override page_size to load all students at once
-    queryParams.set("page_size", "1000");
+    // Default page_size to 1000 so callers that don't paginate (Kindersuche,
+    // database list views) still get every row in one trip, but honor an
+    // explicit page_size from the client. The room-detail modal sends 200
+    // and relies on a smaller payload to drive its own truncation/overflow
+    // notice (#1374) — overwriting it here would render up to 1000 cards
+    // and silently disable the cap the UX depends on. Cap any client-
+    // supplied value at MAX_PAGE_SIZE so an authenticated caller can't
+    // force an arbitrarily large query (e.g. ?page_size=1000000).
+    const MAX_PAGE_SIZE = 1000;
+    const DEFAULT_PAGE_SIZE = 1000;
+    const rawPageSize = queryParams.get("page_size");
+    const parsedPageSize = rawPageSize !== null ? Number(rawPageSize) : NaN;
+    const pageSize =
+      Number.isInteger(parsedPageSize) && parsedPageSize > 0
+        ? Math.min(parsedPageSize, MAX_PAGE_SIZE)
+        : DEFAULT_PAGE_SIZE;
+    queryParams.set("page_size", String(pageSize));
 
     const endpoint = `/api/students${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
 

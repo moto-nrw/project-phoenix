@@ -13,6 +13,13 @@ interface ModalProps {
   readonly title: string;
   readonly children: React.ReactNode;
   readonly footer?: React.ReactNode;
+  /**
+   * Tailwind width utilities for the dialog container. Defaults to
+   * `mx-4 w-[calc(100%-2rem)] max-w-lg` to keep existing form/confirm
+   * modals unchanged. Pass a wider value (e.g. `max-w-4xl`) for detail
+   * views that need more horizontal space.
+   */
+  readonly widthClass?: string;
 }
 
 export function Modal({
@@ -21,6 +28,7 @@ export function Modal({
   title,
   children,
   footer,
+  widthClass = "mx-4 w-[calc(100%-2rem)] max-w-lg",
 }: ModalProps) {
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
@@ -131,7 +139,7 @@ export function Modal({
         />
         {/* Dialog container */}
         <div
-          className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
+          className={`relative ${widthClass} transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
           style={{
             background:

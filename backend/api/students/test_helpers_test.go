@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -39,6 +40,11 @@ func (b *recordingBroadcaster) BroadcastToGroup(_ int64, _ string, event realtim
 	return nil
 }
 
+func (b *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
+	b.events = append(b.events, event)
+	return nil
+}
+
 func (b *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
 	b.events = append(b.events, event)
 	return nil
@@ -54,6 +60,16 @@ func setupTestContext(t *testing.T) *testContext {
 	svc, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	broadcaster := &recordingBroadcaster{}
+
+	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
+		StudentRepo: repoFactory.Student,
+		Settings:    svc.Settings,
+		UserContext: svc.UserContext,
+		Broadcaster: broadcaster,
+		Unlinker:    studentsAPI.NewPhotoUnlinker(slog.Default()),
+		DB:          db,
+		Logger:      slog.Default(),
+	})
 
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          svc.Users,
@@ -72,6 +88,7 @@ func setupTestContext(t *testing.T) *testContext {
 		VisitRepo:              repoFactory.ActiveVisit,
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
 		Broadcaster:            broadcaster,
+		StudentPhotos:          studentPhotos,
 		Logger:                 slog.Default(),
 		DB:                     db,
 	})

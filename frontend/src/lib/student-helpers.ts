@@ -78,6 +78,13 @@ export interface BackendStudent {
   actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
   actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
   has_full_access?: boolean;
+  // Photo (gated by operations.student_photos_enabled). Empty string or
+  // undefined when no photo / feature off / no consent — the <Avatar>
+  // component falls back to initials in any of those cases.
+  photo_url?: string;
+  photo_consent_given?: boolean;
+  photo_consent_given_at?: string;
+  photo_consent_given_by?: number;
   created_at: string;
   updated_at: string;
 }
@@ -191,6 +198,14 @@ export interface Student {
   arrival_notes?: string; // Exception reason or schedule notes
   actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
   actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
+  // Photo + consent (gated server-side by operations.student_photos_enabled
+  // setting). photo_url empty/missing is the universal "no photo to show"
+  // signal; consumers do NOT need to read the setting separately — when the
+  // setting is off the backend simply returns photo_url unset.
+  photo_url?: string;
+  photo_consent_given?: boolean;
+  photo_consent_given_at?: string;
+  photo_consent_given_by?: number;
 }
 
 // Mapping functions
@@ -246,6 +261,10 @@ export function mapStudentResponse(
     actual_arrival_time: backendStudent.actual_arrival_time,
     actual_pickup_time: backendStudent.actual_pickup_time,
     has_full_access: backendStudent.has_full_access,
+    photo_url: backendStudent.photo_url,
+    photo_consent_given: backendStudent.photo_consent_given,
+    photo_consent_given_at: backendStudent.photo_consent_given_at,
+    photo_consent_given_by: backendStudent.photo_consent_given_by,
   };
 
   // Add scheduled checkout info if present
@@ -333,6 +352,10 @@ export function prepareStudentForBackend(
     pickup_status: student.pickup_status,
     sick: student.sick,
     excused: student.excused,
+    // Photo consent toggle flows through the regular student PUT — see
+    // backend applyPhotoConsent for the false→true (stamp) and true→false
+    // (clear photo + metadata) transitions.
+    photo_consent_given: student.photo_consent_given,
   };
 }
 
@@ -356,6 +379,12 @@ export interface UpdateStudentRequest {
   bus?: boolean;
   sick?: boolean;
   excused?: boolean;
+  /**
+   * Parental photo-consent flag. Send `true` to record consent (server stamps
+   * who/when), `false` to withdraw — withdrawing also deletes any existing
+   * photo file in the same DB transaction. Omit to leave consent unchanged.
+   */
+  photo_consent_given?: boolean;
 }
 
 // Backend request type (for actual API calls)
@@ -377,6 +406,7 @@ export interface BackendUpdateRequest {
   bus?: boolean;
   sick?: boolean;
   excused?: boolean;
+  photo_consent_given?: boolean;
 }
 
 // Map privacy consent from backend to frontend
@@ -427,6 +457,7 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "bus", target: "bus" },
   { source: "sick", target: "sick" },
   { source: "excused", target: "excused" },
+  { source: "photo_consent_given", target: "photo_consent_given" },
 ];
 
 /**

@@ -39,6 +39,7 @@ type Service interface {
 	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error)
 	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
+	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
@@ -324,12 +325,13 @@ type AttendanceResult struct {
 
 // DailySessionCleanupResult represents the result of ending daily sessions
 type DailySessionCleanupResult struct {
-	SessionsEnded    int       `json:"sessions_ended"`
-	VisitsEnded      int       `json:"visits_ended"`
-	SupervisorsEnded int       `json:"supervisors_ended"`
-	ExecutedAt       time.Time `json:"executed_at"`
-	Success          bool      `json:"success"`
-	Errors           []string  `json:"errors,omitempty"`
+	SessionsEnded       int       `json:"sessions_ended"`
+	VisitsEnded         int       `json:"visits_ended"`
+	SupervisorsEnded    int       `json:"supervisors_ended"`
+	EndedActiveGroupIDs []int64   `json:"-"`
+	ExecutedAt          time.Time `json:"executed_at"`
+	Success             bool      `json:"success"`
+	Errors              []string  `json:"errors,omitempty"`
 }
 
 // AttendanceCleanupResult represents the result of cleaning stale attendance records

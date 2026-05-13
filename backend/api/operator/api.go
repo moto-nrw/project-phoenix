@@ -7,6 +7,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -37,8 +39,16 @@ type ResourceConfig struct {
 	SuggestionsService         platformSvc.OperatorSuggestionsService
 	AnnouncementsService       platformSvc.AnnouncementService
 	SettingsService            configSvc.SettingsService
-	TokenAuth                  *jwt.TokenAuth
-	DB                         *bun.DB
+	// Broadcaster is optional. When supplied, the inner SettingsResource emits
+	// a tenant_settings_changed SSE event after every successful Set/Reset so
+	// open tenant tabs invalidate their settings caches across origins.
+	Broadcaster realtime.Broadcaster
+	// SchoolRepo lets the SettingsResource emit `school_slug` in set/reset
+	// responses so the frontend operator proxy can bust the slug-keyed
+	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
+	SchoolRepo platformModels.SchoolRepository
+	TokenAuth  *jwt.TokenAuth
+	DB         *bun.DB
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
@@ -62,9 +72,13 @@ func (rs *Resource) SetInvitationRateLimiter(mw func(http.Handler) http.Handler)
 
 // OnSettingValueSet forwards to the internal SettingsResource.OnValueSet hook
 // so the caller can register a side-effect callback (e.g. auto-provisioning
-// system rooms when checkout toggles flip on). No-op when the settings
-// resource is unconfigured (cfg.SettingsService was nil).
-func (rs *Resource) OnSettingValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+// system rooms when checkout toggles flip on). The callback runs in-tx; the
+// optional postCommit closure it returns runs only on successful commit so
+// non-transactional side effects (file unlinks, external API calls) never
+// outlive a rolled-back DB write.
+//
+// No-op when the settings resource is unconfigured (cfg.SettingsService was nil).
+func (rs *Resource) OnSettingValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)) {
 	if rs.settingsResource == nil {
 		return
 	}
@@ -89,7 +103,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		tokenAuth:             tokenAuth,
 	}
 	if cfg.SettingsService != nil {
-		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB)
+		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolRepo)
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB

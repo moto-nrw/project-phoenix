@@ -16,6 +16,9 @@
 - **2026-04-23 (Iteration 6):** E2E-Sweep-Findings nachgezogen. §6.1 praezisiert die Evaluation-Reihenfolge (Exception schlaegt existing-row-Dedupe, E2E-B1). §10 ergaenzt Query-Budget-Semantik (Handler-Ebene vs. End-to-End, E2E-C2). Siehe `backend/test/e2e/timetable/E2E_FINDINGS.md`.
 - **2026-04-24 (Iteration 7):** F-Track gestartet. WP-F1 (Arrival Schedule Editor) shipped via #1306, gebuendelt mit Master-Detail-Refactor der Database-Studenten-Page und B1/B2-Polish (Listen-Enrichment via `include_arrival_times`, neue SSE-Events `student_updated` + `arrival_schedule_changed`, LocationBadge-Status "Kommt heute nicht", Bulk-DTO-Fix `arrival_time` → `expected_arrival`). Naechster Einstieg: F2/F3/F4 parallelisierbar.
 - **2026-04-24 (Iteration 7, Klarstellung):** SSE-Backend-Emission fuer `instance_started/completed/cancelled/overdue` wurde bereits in B9 (#1294) mitgeliefert (in `instance_service.go` und `scheduler.go::runOverdueForTenant`). F7 reduziert sich damit auf reines Frontend-Wiring (sse-types + use-sse-Handler + Badge-Bindung) — kein neuer Backend-Code noetig.
+- **2026-04-30 (Iteration 8):** F2-Realitaetscheck nach erstem Klicktest. Admin planner ist funktional weitgehend da (Monat/Woche, Perioden, Vorlagen, Termine, Start/Complete/Cancel, Konflikte), braucht aber UI-Polish vor Abschluss. Operativer Betreuer-Wert wird als Folge-WP geschnitten: geplante Instanzen in `/active-supervisions`, "Jetzt starten" im ±15-Minuten-Fenster, erwartete Kinder in der Aufsicht und SSE-Refresh ohne manuellen Reload.
+- **2026-05-06 (Iteration 9):** F2 als Admin-Planungsoberflaeche abgeschlossen. Operatives Zielbild geschaerft: Timetable wird nicht nur Kalender, sondern verbindet Buero-Planung, Staff-Ansichten, PyrePortal/Geraete, spontane Aktivitaeten, Self-Check-in und Zeiterfassung. Neue Frontend-/Integration-WPs F13-F17 schneiden diese Arbeit explizit.
+- **2026-05-11 (Iteration 10):** WP-F5/F6/F8 abgeschlossen. `/active-supervisions` kann geplante und spontane Instanzen operativ fuehren, Kinder im laufenden Detail ein-/ausbuchen, per SSE aktualisieren und spontane Aktivitaeten hinter der Tenant-Einstellung `attendance.web_spontaneous_activities_enabled` freischalten. Zusaetzlich spiegeln PyrePortal/RFID gestartete Sessions nun in den Timetable, damit sie im Stundenplan sichtbar sind; F13 bleibt fuer planned-instance matching vor dem Device-Start offen.
 
 ---
 
@@ -24,6 +27,13 @@
 Replace paper-based daily planning in OGS after-school care with a digital system that bridges the gap between **planned activities** (templates) and **real-time attendance** (active sessions). Staff see "my day" before children arrive, check in children against a plan, and admins get plan-vs-reality reporting — all without losing the flexibility of spontaneous activities.
 
 The system connects three independent scheduling domains — **Arrival** (when does the child come?), **Timetable** (what does the child do?), and **Pickup** (when does the child leave?) — into a unified student day view, while keeping each domain independently deployable.
+
+The product goal after the admin planner is operational integration:
+
+- The office plans the day or week: homework, Mensa, activities, free-play blocks, staff assignments, rooms, and expected children.
+- Staff and devices see the right next action at the right time: "Start your planned activity now" when a matching instance exists, or "create a spontaneous activity" only when the school allows that in the current time block.
+- Planned and spontaneous work both end up in the same timetable history, so the school can answer: what was planned, what actually ran, who supervised it, which children attended, and where the time was booked.
+- Every role gets a calendar-shaped view of their day: staff see "what am I doing now/next/this week", admins see what is running, and student views can combine arrival, activities, and pickup.
 
 ## 2. Requirements Summary
 
@@ -57,6 +67,10 @@ The system connects three independent scheduling domains — **Arrival** (when d
 **Operations:**
 - Conflict detection with soft warnings (room overlap, staff/student double-booking)
 - Auto-start in three levels: passive (UI indicators), active (SSE events), automatic (scheduler)
+- Device-aware start flow: PyrePortal and other staff devices can start the planned instance that matches staff, time, room, and tenant context
+- Time-block rules for spontaneous activities: schools can define windows where ad-hoc activities are allowed, suggested, or blocked
+- Timetable visibility outside the planner: active supervision, staff day/week, student day/week, and reporting all read from the same plan-vs-reality model
+- Time tracking integration: started/completed instances can feed working-time context without making timetable the canonical time-clock system
 - GDPR retention setting for completed timetable data
 - Per-tenant configurable via 7 settings in the existing registry system
 
@@ -571,23 +585,80 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
   - **LocationBadge:** Neuer State "Kommt heute nicht" ersetzt das Home-Badge wenn `arrival_exception` mit `expected_arrival=NULL` fuer heute existiert. Sortierung nach Ankunftszeit in OGS-Groups + Student-Search ergaenzt.
   - **Out-of-scope-Bundled (nicht im F-Plan, aber im selben PR):** Master-Detail-Refactor der Database-Studenten-Page (`MasterDetailLayout`, `GroupedList`, `GroupHeader`, `DetailPanel`, `EmptyDetailState`) als wiederverwendbare Primitiven fuer kommende Database-Refactors (Groups, Rooms). Ersetzt das alte Modal-Editor-Muster durch tabbed Detail-Panel mit URL-Sync (`?student=ID&groupBy=class|group|none`). Tab-Strip horizontal scrollbar fuer Viewports < 640px. Redundantes "Klasse "-Prefix in Listen entfernt (Backend liefert bereits "Klasse 1a").
 
-#### F2 — Admin planner + Staff daily UI
+#### F2 — Admin planner (current PR)
 
-- [ ] **WP-F2** — Admin weekly planner UI (grid view, instance CRUD)
-- [ ] **WP-F3** — Staff "My Day" view + passive auto-start indicators (E19 level 1)
-- [ ] **WP-F4** — Instance detail view with check-in list (expected / present / missing)
-- [ ] **WP-F5** — Spontaneous activity creation (staff-facing)
+- [x] **WP-F2** — Admin weekly planner UI (current branch)
+  - **Shipped scope:** month view, week view, calendar-period CRUD, recurring template CRUD, manual materialization, one-off instance CRUD, instance complete/cancel, conflict warnings, staff gaps, substitute action, re-plan-week.
+  - **Scope decision:** The admin planner is a planning and correction surface. Starting planned instances from the planner is intentionally deferred; the operational start flow belongs to `/active-supervisions` (F3-F4), where staff already work during live operations.
+  - **Deferred follow-up:** Recurring template archive remains a later planner-lifecycle polish item (see F12), not a blocker for F2.
+  - **Non-goal for WP-F2:** staff-facing operational flow. That belongs to F3-F6 plus F8 below.
 
-#### F3 — Rollover + live updates
+#### F3 — Staff operations from the plan
 
-- [ ] **WP-F6** — Semester rollover UI + enrollment validity management
-- [ ] **WP-F7** — SSE events for overdue instances (E19 level 2) — **nur Frontend-Wiring offen.** Backend-Emission ist via WP-B9 (#1294) shipped: `EventInstanceOverdue` aus dem Scheduler plus `EventInstanceStarted/Completed/Cancelled` aus `instance_service.go`. Offen: `frontend/src/lib/sse-types.ts` um die vier Instance-Event-Typen erweitern, `use-sse.ts` Handler ergaenzen, "Ueberfaellig"-Badge in der F3-My-Day-Card binden.
+**Implementation cut:** F3 and F4 should ship together in one PR. F3 alone only shows planned work; F4 turns that card into the operational action that starts the planned instance and prevents duplicate unlinked live groups.
 
-#### F4 — Frontend roadmap
+- [x] **WP-F3** — Planned items in `/active-supervisions` ("Jetzt geplant") → current PR
+  - Show planned instances for today in an operational window: `now - 15min` through `now + 15min`, plus overdue planned instances.
+  - Cards show title, time, room, assigned staff, expected child count, conflict/gap status and a clear **Jetzt starten** action.
+  - Prefer instances assigned to the current staff member; admins may see all when supervision overview is enabled.
+- [x] **WP-F4** — Start planned instance from `/active-supervisions` → current PR
+  - **Jetzt starten** calls `POST /api/timetable/instances/{id}/start`.
+  - The resulting live `active.group` appears in the current supervision UI without requiring navigation back to the admin timetable.
+  - Prevent confusing duplicate starts: when a matching planned instance exists, the staff flow should start that instance instead of creating an unlinked live group.
+  - **Bundled operational polish:** active-supervision dashboard now bridges timetable instances into the live roster flow, supports completion from the live view, avoids loading-state flashes, and handles timetable SSE invalidation for started/completed/cancelled/overdue events.
+- [x] **WP-F5** — Instance detail/check-in list in active supervision
+  - After start, show expected children from `instance_students` alongside live visits.
+  - Support quick status changes: expected, present, absent, substatus/note where needed.
+  - Surface unplanned children separately instead of hiding them.
+- [x] **WP-F6** — Spontaneous activity creation (staff-facing)
+  - Staff can create and immediately start an ad-hoc activity from `/active-supervisions`.
+  - The flow creates a spontaneous timetable instance when useful for reporting, then bridges it to `active.groups`.
+  - The mobile/web entry point is tenant-gated by `attendance.web_spontaneous_activities_enabled` under Betrieb → Anwesenheit and defaults to off.
+  - **Shipped scope:** compact mobile-first start banner with plus action, existing-activity search/chips, custom title fallback, room selection, optional additional staff, immediate create+start, empty roster first, then F5 search/check-in flow for children.
+  - **SSE behavior:** start/complete still flows through the timetable instance lifecycle, so `instance_started`/`instance_completed` plus active-supervision invalidation keep other assigned staff in sync.
 
-- [ ] **WP-F8** — Calendar period admin UI
-- [ ] **WP-F9** — Student day view in frontend (currently API-only)
-- [ ] **WP-F10** — Automatic auto-start (E19 level 3)
+#### F4 — Rollover + live updates
+
+- [ ] **WP-F7** — Semester rollover UI + enrollment validity management
+- [x] **WP-F8** — Timetable/active-supervision SSE wiring (E19 level 2)
+  - Backend emission is already shipped via WP-B9: `EventInstanceOverdue` from the scheduler plus `EventInstanceStarted/Completed/Cancelled` from `instance_service.go`.
+  - Frontend work: extend `frontend/src/lib/sse-types.ts`, update global SSE handlers, invalidate timetable and active-supervision SWR keys, and bind overdue/started state to the operational cards.
+  - Acceptance: starting a planned instance in the timetable updates `/active-supervisions` without browser refresh; starting/completing in active supervision updates the timetable card.
+
+#### F5 — Frontend roadmap
+
+- [ ] **WP-F9** — Calendar period admin UI beyond the planner header
+- [ ] **WP-F10** — Student day view in frontend (currently API-only)
+- [ ] **WP-F11** — Automatic auto-start (E19 level 3)
+- [ ] **WP-F12** — Recurring template archive action
+  - Add archive action to the series UI with confirmation, success/error toast, and SWR refresh for the affected `timetable-templates-*` cache.
+  - Backend and proxy support already exist via `DELETE /api/timetable/templates/{id}`; this is frontend wiring only.
+- [ ] **WP-F13** — Device-aware planned instance start flow
+  - **Partial shipped with WP-F6 PR:** PyrePortal/RFID sessions that start through the existing IoT API are mirrored into `schedule.activity_instances` and completed with the live session, so device-created activity records now show up in the timetable.
+  - **Remaining F13 scope:** before creating a new live group, devices should match planned timetable instances and start the matching planned instance when possible.
+  - PyrePortal and future staff devices should ask the timetable before starting an activity session: "Is there a planned instance for this staff member, room, and current time window?"
+  - If exactly one planned instance matches, the device starts that instance via the existing lifecycle path instead of creating an unlinked `active.group`.
+  - If multiple candidates match, the device shows a short chooser with title, time, room, and expected count.
+  - If no candidate matches, the device falls back to the spontaneous flow only when the current time block allows ad-hoc activities.
+  - Keep the existing IoT auth and response contract stable for old PyrePortal builds; add new optional fields/endpoints rather than changing hardcoded error messages.
+- [ ] **WP-F14** — Spontaneous activity windows and rules
+  - Add a tenant-configurable rule model for spontaneous activity windows: allowed, suggested, or blocked by weekday/time range and optionally room/activity type.
+  - Use the rules in `/active-supervisions`, PyrePortal, and future mobile flows so spontaneous sessions are not just "always possible" in the UI.
+  - When staff creates a spontaneous session inside an allowed block, create a spontaneous timetable instance first, then bridge it to `active.groups` for live visits and reporting.
+  - Outside allowed blocks, show the matching planned instance or a clear reason why a spontaneous session cannot be started.
+- [ ] **WP-F15** — Staff calendar views ("my day" / "my week")
+  - Build staff-facing calendar views from timetable instances, arrival context, active sessions, and pickup context.
+  - Show "now", "next", and "this week" states: planned, active, completed, cancelled, overdue, and spontaneous.
+  - Let staff jump from a calendar item into the active supervision/check-in view when an instance is running or ready to start.
+  - Keep admins able to inspect "who is doing what right now" without turning the admin planner into the operational UI.
+- [ ] **WP-F16** — Timetable + time tracking integration
+  - Define how started/completed timetable instances inform staff time tracking: supervision time, substitutions, late starts, early endings, and spontaneous coverage.
+  - Do not make timetable the canonical time-clock system. It supplies context and reporting links; the time tracking domain remains authoritative for working time.
+  - Add reporting hooks so plan-vs-reality can show planned staff vs. actual staff and planned time vs. actual active duration.
+- [ ] **WP-F17** — Mobile self-check-in scope decision
+  - Decide whether "self-check-in" means staff mobile check-in, child device self-service, parent app, or multiple flows.
+  - Define auth, permissions, room/instance selection, abuse prevention, and offline/error behavior before building UI.
+  - If the first scope is staff mobile check-in, reuse the F5 instance detail/check-in list and attendance sync model.
 
 ### Backend dependency map
 
@@ -605,11 +676,17 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 
 **F-Track ist gestartet.** WP-F1 (Arrival Schedule Editor) ist via #1306 shipped. Damit ist der erste sichtbare Admin-Mehrwert live und das Master-Detail-Layout-Pattern als wiederverwendbare Primitive etabliert.
 
-**Naechste F-WPs sind parallelisierbar:** F2 (Admin Weekly Planner, konsumiert B5/B8/B9), F3 (Staff "My Day", konsumiert B11), F4 (Instance Detail mit Check-in-Liste, konsumiert B10/B11). Logische Reihenfolge fuer ersten Aufschlag: **F2 zuerst** (Admin sieht den materialisierten Plan, validiert B8/B9), dann **F3 + F4 zusammen** (Staff-Workflow End-to-End: My Day → Instance Detail → Check-in). F5 (Spontane Aktivitaet) kann parallel zu F4 laufen, weil dieselben Detail-Komponenten verwendet werden.
+**Aktueller Stand:** WP-F2 ist abgeschlossen. Der Admin-Stundenplan ist jetzt als Planungswerkzeug nutzbar: Buero/Admin kann Perioden, Serien, konkrete Termine, Personal-Luecken, Ersatz und Neuplanung pflegen.
 
-**F7 ist ein Quick-Win nach F3:** Die Backend-SSE-Emission fuer `instance_started/completed/cancelled/overdue` ist via B9 bereits live. Sobald F3 die My-Day-Card hat, ist F7 nur noch ein Frontend-Wiring (sse-types + use-sse-Handler + Badge-Bindung) — kein neuer Backend-Code noetig.
+**Naechster Produktwert:** WP-F3-F6 plus F8 sind im operativen `/active-supervisions`-Schnitt geschlossen: geplante Aktivitaeten erscheinen, koennen gestartet werden, laufende Instanzen zeigen erwartete/ungeplante Kinder, spontane Aktivitaeten koennen direkt gestartet werden, und SSE haelt die Ansichten ohne manuellen Refresh frisch.
 
-**F10 (Automatic Auto-Start)** kommt zuletzt, weil es die Scheduler-Erweiterung um automatisches `active.group`-Anlegen voraussetzt (E19 Level 3) und auf der UI-Indikator-Schicht aus F3 aufbaut.
+**Danach muss Timetable tiefer in die echten Startpunkte rein:** Ein erster Mirror ist umgesetzt: PyrePortal/RFID-Sessions erscheinen im Stundenplan. F13/F14 bleiben fuer den naechsten Schritt offen: Ein Geraet soll vor dem Start den passenden geplanten Termin erkennen statt blind eine neue Live-Gruppe zu erzeugen. Spontane Aktivitaeten bleiben moeglich, aber nur in expliziten Zeitfenstern und mit Timetable-Instance fuer Reporting.
+
+**Staff-Kalender und Zeiterfassung folgen darauf:** F15/F16 machen aus den Instanzen eine persoenliche Tages-/Wochenansicht und verbinden geplante/gelaufene Zeiten mit der Zeiterfassung, ohne die Zeiterfassung als eigene Domain zu ersetzen.
+
+**F8 ist ein Quick-Win nach F3:** Die Backend-SSE-Emission fuer `instance_started/completed/cancelled/overdue` ist via B9 bereits live. Sobald F3 die operational cards hat, ist F8 nur noch Frontend-Wiring (sse-types + globaler SSE-Handler + SWR-Invalidierung + Badge-Bindung).
+
+**F11 (Automatic Auto-Start)** kommt zuletzt, weil es die Scheduler-Erweiterung um automatisches `active.group`-Anlegen voraussetzt (E19 Level 3) und auf der UI-Indikator-Schicht aus F3 aufbaut.
 
 **Alternative Backend-Arbeit** falls jemand auf dem Backend bleiben will: B15 ist die logische Fortsetzung von B12 (Staff-Absence als persistente Entity statt Ad-hoc-Flag). B16 kann parallel zu F-Track laufen, wenn die Schule Ferienbetreuung konkret anfragt.
 
@@ -626,7 +703,10 @@ Two tracks: **all backend first, frontend after.** Each item is a **Work Package
 | **Enrollment rollover data loss** | `valid_from`/`valid_until` preserves all history. Old enrollments are never deleted — they expire. Partial UNIQUE index ensures only active enrollments are deduplicated. |
 | **Period overlap during materialization** | Each template has an optional `calendar_period_id`. Templates without a period match all active periods. Templates with a period only materialize within that period's date range. |
 | **Care offering → enrollment mapping unclear** | Flagged as open question (§4.8). No blocking dependency — systems can proceed independently and the mapping can be defined later. |
-| **PyrePortal impact** | None for IoT endpoints. Check-in handler gains instance-awareness but the existing NFC payload/response is unchanged. |
+| **PyrePortal impact** | Existing IoT endpoints and error messages stay stable for old kiosk builds. New planned-instance behavior must be additive: device can discover/start a planned instance, but old NFC payloads still work. |
+| **Device creates duplicate live group instead of starting plan** | F13 adds a pre-start matching step. If a planned instance matches staff/room/time, the device starts that instance. Only unmatched allowed windows create spontaneous instances. |
+| **Spontaneous activity rules become hidden business logic** | F14 makes time-block rules explicit in tenant settings/UI and reuses the same rule check in active supervision, PyrePortal, and mobile flows. |
+| **Time tracking source-of-truth drift** | F16 keeps time tracking authoritative for working time. Timetable links planned/actual supervision context but does not overwrite clock records silently. |
 | **GDPR: student names in timetable data** | `instance_students` stores only `student_id`. GDPR cleanup removes completed instances after retention period. slog uses student IDs only at info level. |
 | **Large-scale materialization (many templates × many students)** | Materialization runs as background scheduler job, not in request path. Idempotent via partial UNIQUE index — re-running creates only missing instances. |
 | **Multi-room complexity in UI** | ~90% of instances use single room (override is NULL). UI defaults to simple view, shows room assignments only when overrides exist. |

@@ -492,6 +492,55 @@ func TestHubBroadcastToAllReachesAllClients(t *testing.T) {
 	}
 }
 
+func TestHubBroadcastToTenantOnlyReachesTenantClients(t *testing.T) {
+	hub := NewHub(slog.Default())
+
+	tenantClient := &Client{
+		Channel:          make(chan Event, 10),
+		UserID:           1,
+		SubscribedGroups: make(map[string]bool),
+	}
+	sameTenantNoGroupClient := &Client{
+		Channel:          make(chan Event, 10),
+		UserID:           2,
+		SubscribedGroups: make(map[string]bool),
+	}
+	otherTenantClient := &Client{
+		Channel:          make(chan Event, 10),
+		UserID:           3,
+		SubscribedGroups: make(map[string]bool),
+	}
+
+	hub.Register(tenantClient, int64(42), []string{"group_1"})
+	hub.Register(sameTenantNoGroupClient, int64(42), []string{})
+	hub.Register(otherTenantClient, int64(84), []string{"group_1"})
+
+	event := NewEvent(EventInstanceStarted, "group_1", EventData{})
+	if err := hub.BroadcastToTenant(int64(42), event); err != nil {
+		t.Errorf("BroadcastToTenant() error = %v", err)
+	}
+
+	for name, client := range map[string]*Client{
+		"tenant subscribed": tenantClient,
+		"tenant no group":   sameTenantNoGroupClient,
+	} {
+		select {
+		case received := <-client.Channel:
+			if received.Type != EventInstanceStarted {
+				t.Errorf("%s: got type %v, want %v", name, received.Type, EventInstanceStarted)
+			}
+		case <-time.After(100 * time.Millisecond):
+			t.Errorf("%s: timeout waiting for tenant event", name)
+		}
+	}
+
+	select {
+	case received := <-otherTenantClient.Channel:
+		t.Errorf("other tenant received event: %v", received.Type)
+	default:
+	}
+}
+
 // TestHubBroadcastToAllNoClients verifies BroadcastToAll with empty hub
 func TestHubBroadcastToAllNoClients(t *testing.T) {
 	hub := NewHub(slog.Default())

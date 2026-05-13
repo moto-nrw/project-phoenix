@@ -368,6 +368,8 @@ describe("api.ts helper functions", () => {
           category: "classroom",
           occupied: true,
           search: "test",
+          page: 1,
+          pageSize: 1000,
         });
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -376,6 +378,8 @@ describe("api.ts helper functions", () => {
         expect(callUrl).toContain("category=classroom");
         expect(callUrl).toContain("occupied=true");
         expect(callUrl).toContain("search=test");
+        expect(callUrl).toContain("page=1");
+        expect(callUrl).toContain("page_size=1000");
       } finally {
         restore();
       }
@@ -385,6 +389,56 @@ describe("api.ts helper functions", () => {
       const { fetchWithRetry } = await import("./api-helpers");
       vi.mocked(fetchWithRetry).mockResolvedValue({
         data: null,
+        response: new Response(),
+      });
+
+      const { roomService } = await import("./api");
+      const { mapRoomsResponse } = await import("./room-helpers");
+
+      const restore = setupBrowserEnv();
+      try {
+        await roomService.getRooms();
+        expect(mapRoomsResponse).toHaveBeenCalledWith([]);
+      } finally {
+        restore();
+      }
+    });
+
+    it("unwraps paginated room responses before mapping", async () => {
+      const wrappedRooms = {
+        data: [
+          { id: 101, name: "Raum 101", capacity: 20 },
+          { id: 102, name: "Raum 102", capacity: 18 },
+        ],
+        pagination: {
+          current_page: 1,
+          page_size: 1000,
+          total_pages: 1,
+          total_records: 2,
+        },
+      };
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: wrappedRooms,
+        response: new Response(),
+      });
+
+      const { roomService } = await import("./api");
+      const { mapRoomsResponse } = await import("./room-helpers");
+
+      const restore = setupBrowserEnv();
+      try {
+        await roomService.getRooms({ page: 1, pageSize: 1000 });
+        expect(mapRoomsResponse).toHaveBeenCalledWith(wrappedRooms.data);
+      } finally {
+        restore();
+      }
+    });
+
+    it("treats wrapped room responses with non-array data as invalid", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: { data: { id: 101, name: "Not a list" } },
         response: new Response(),
       });
 
@@ -1843,6 +1897,8 @@ describe("api.ts helper functions", () => {
           category: "lab",
           occupied: false,
           search: "chemistry",
+          page: 1,
+          pageSize: 1000,
         });
 
         const url = vi.mocked(fetchWithRetry).mock.calls[0]?.[0] ?? "";
@@ -1851,6 +1907,8 @@ describe("api.ts helper functions", () => {
         expect(url).toContain("category=lab");
         expect(url).toContain("occupied=false");
         expect(url).toContain("search=chemistry");
+        expect(url).toContain("page=1");
+        expect(url).toContain("page_size=1000");
       } finally {
         restore();
       }

@@ -5,12 +5,14 @@ import { GroupAttendanceCountProvider } from "~/lib/group-attendance-count-conte
 import { TeacherShellProvider } from "~/lib/shell-auth-context";
 import { AppShell } from "~/components/dashboard/app-shell";
 import { AnnouncementModal } from "~/components/platform/announcement-modal";
+import { useSettingsCacheBridge } from "~/lib/hooks/use-settings-cache-bridge";
 
 export default function ProtectedLayout({
   children,
 }: {
   readonly children: React.ReactNode;
 }) {
+  useSettingsCacheBridge();
   return (
     <TeacherShellProvider>
       <BreadcrumbProvider>

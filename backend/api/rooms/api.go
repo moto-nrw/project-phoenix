@@ -27,7 +27,7 @@ type Resource struct {
 	db              *bun.DB
 }
 
-// NewResource creates a new rooms resource
+// NewResource creates a new rooms resource.
 func NewResource(facilityService facilityService.Service, db *bun.DB) *Resource {
 	return &Resource{
 		FacilityService: facilityService,

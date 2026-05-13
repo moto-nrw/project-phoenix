@@ -2,8 +2,10 @@ package authorize
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -16,6 +18,14 @@ import (
 type StudentReadUserContext interface {
 	GetCurrentStaff(ctx context.Context) (*users.Staff, error)
 	GetMyGroups(ctx context.Context) ([]*education.Group, error)
+}
+
+// StudentModifyUserContext is the narrow subset CanModifyStudent needs.
+// Adds GetMyActiveGroups so spontaneous-session supervision counts the
+// same way as it does for the reads.
+type StudentModifyUserContext interface {
+	StudentReadUserContext
+	GetMyActiveGroups(ctx context.Context) ([]*active.Group, error)
 }
 
 // StudentReadSettings is the narrow subset of the settings service CanReadStudent
@@ -124,4 +134,85 @@ func resolveStudentDataScope(ctx context.Context, settings StudentReadSettings, 
 		return fallback
 	}
 	return val
+}
+
+// CanModifyStudent decides whether the caller may write to this student row
+// (update, delete, photo change, ...). The scope setting only relaxes READS,
+// so this gate is stricter than CanReadStudent: admin OR group supervisor
+// only. The `operation` parameter shapes the human-readable error so the
+// caller can map it to the right HTTP message ("update", "delete", ...).
+//
+// Returns (true, nil) when allowed; (false, error) with a stable error
+// message otherwise — handlers map the error string to the user-facing
+// 403 reason.
+func CanModifyStudent(
+	ctx context.Context,
+	userPermissions []string,
+	student *users.Student,
+	userCtx StudentModifyUserContext,
+	operation string,
+) (bool, error) {
+	if hasAdminPermissions(userPermissions) {
+		return true, nil
+	}
+	if student == nil || student.GroupID == nil {
+		return false, fmt.Errorf("only administrators can %s students without assigned groups", operation)
+	}
+	if userCtx == nil {
+		return false, fmt.Errorf("insufficient permissions to %s this student's data", operation)
+	}
+	staff, err := userCtx.GetCurrentStaff(ctx)
+	if err != nil || staff == nil {
+		return false, fmt.Errorf("insufficient permissions to %s this student's data", operation)
+	}
+	if IsGroupSupervisor(ctx, *student.GroupID, userCtx) {
+		return true, nil
+	}
+	return false, fmt.Errorf("you can only %s students in groups you supervise", operation)
+}
+
+// CanUpdateStudent is a convenience wrapper for update operations.
+func CanUpdateStudent(
+	ctx context.Context,
+	userPermissions []string,
+	student *users.Student,
+	userCtx StudentModifyUserContext,
+) (bool, error) {
+	return CanModifyStudent(ctx, userPermissions, student, userCtx, "update")
+}
+
+// CanDeleteStudent is a convenience wrapper for delete operations.
+func CanDeleteStudent(
+	ctx context.Context,
+	userPermissions []string,
+	student *users.Student,
+	userCtx StudentModifyUserContext,
+) (bool, error) {
+	return CanModifyStudent(ctx, userPermissions, student, userCtx, "delete")
+}
+
+// IsGroupSupervisor reports whether the caller supervises the given
+// education group, counting both the persistent education-group assignment
+// and any active group whose template ID matches. Spontaneous active
+// sessions (no parent template) are skipped because they cannot match a
+// caller-provided template ID.
+func IsGroupSupervisor(ctx context.Context, groupID int64, userCtx StudentModifyUserContext) bool {
+	if userCtx == nil {
+		return false
+	}
+	if educationGroups, err := userCtx.GetMyGroups(ctx); err == nil {
+		for _, g := range educationGroups {
+			if g.ID == groupID {
+				return true
+			}
+		}
+	}
+	if activeGroups, err := userCtx.GetMyActiveGroups(ctx); err == nil {
+		for _, ag := range activeGroups {
+			if templateID, ok := ag.TemplateID(); ok && templateID == groupID {
+				return true
+			}
+		}
+	}
+	return false
 }

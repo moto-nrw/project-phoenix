@@ -625,7 +625,7 @@ func TestScheduleService_FindTimeframesByTimeRange(t *testing.T) {
 
 	t.Run("finds timeframes in range", func(t *testing.T) {
 		// ARRANGE
-		startTime := time.Now().Add(1 * time.Hour)
+		startTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		endTime := startTime.Add(2 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
 		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
@@ -1309,8 +1309,10 @@ func TestScheduleService_CheckConflict(t *testing.T) {
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
 		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
 
-		// ACT - Check for conflict outside the timeframe (1 hour after it ends)
-		checkStart := endTime.Add(1 * time.Hour)
+		// ACT - Check for conflict outside the timeframe and outside seeded
+		// daytime slots. schedule.timeframes stores wall-clock TIME values, so
+		// the calendar date does not isolate this query from seeded fixtures.
+		checkStart := time.Date(3000, 6, 15, 22, 0, 0, 0, time.UTC)
 		checkEnd := checkStart.Add(1 * time.Hour)
 		hasConflict, conflicts, err := service.CheckConflict(ctx, checkStart, checkEnd)
 
@@ -1340,7 +1342,7 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 
 	t.Run("finds available slots between timeframes", func(t *testing.T) {
 		// ARRANGE - Create two timeframes with a gap
-		baseTime := time.Now().Add(1 * time.Hour).Truncate(time.Hour)
+		baseTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		endTime1 := baseTime.Add(1 * time.Hour)
 		startTime2 := baseTime.Add(3 * time.Hour)
 		endTime2 := baseTime.Add(4 * time.Hour)
@@ -1362,7 +1364,7 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 
 	t.Run("returns empty when no slots available", func(t *testing.T) {
 		// ARRANGE - Create a continuous timeframe
-		startTime := time.Now().Add(1 * time.Hour).Truncate(time.Hour)
+		startTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		endTime := startTime.Add(10 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
 		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)

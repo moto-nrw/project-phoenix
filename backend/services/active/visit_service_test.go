@@ -490,6 +490,23 @@ func TestActiveService_EndVisit(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("returns already ended for closed visit", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, "end-visit-closed")
+		room := testpkg.CreateTestRoom(t, db, "End Visit Closed Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, db, "End", "ClosedVisit", "1a")
+		exit := time.Now()
+		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, exit.Add(-time.Hour), &exit)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
+
+		// ACT
+		err := service.EndVisit(ctx, visit.ID)
+
+		// ASSERT
+		require.ErrorIs(t, err, active.ErrVisitAlreadyEnded)
+	})
 }
 
 // =============================================================================

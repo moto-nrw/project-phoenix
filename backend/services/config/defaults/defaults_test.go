@@ -47,7 +47,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"tracking.indicator_1",
 		"tracking.indicator_2",
 		"tracking.indicator_3",
-		// Timetable settings (WP-B7): 6 in operations tab + 1 in gdpr tab.
+		// Timetable settings: top-level enable toggle + operations/GDPR details.
+		"timetable.enabled",
 		"timetable.materialization_enabled",
 		"timetable.materialization_weekday",
 		"timetable.materialization_weeks_ahead",
@@ -55,9 +56,15 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
 		"gdpr.timetable_retention_days",
+		// Display range for the admin weekly calendar (Apple-style grid).
+		"timetable.day_start_time",
+		"timetable.day_end_time",
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_checkin_access",
+		"attendance.web_spontaneous_activities_enabled",
+		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
+		"operations.student_photos_enabled",
 	}
 
 	for _, key := range expectedKeys {
@@ -68,10 +75,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	// 28 pre-WP-B7 settings + 7 timetable settings + 3 status-flag settings
-	// == 38 minimum. The `>=` is intentional so later work packages can add more
-	// settings without retrofitting this assertion.
-	assert.GreaterOrEqual(t, len(all), 38, "at least 38 settings should be registered (28 existing + 7 timetable + 3 status-flag)")
+	// The `>=` is intentional so later work packages can add more settings
+	// without retrofitting this assertion.
+	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
 }
 
 func TestPresenceModeSetting(t *testing.T) {
@@ -99,11 +105,23 @@ func TestWebCheckinAccessSetting(t *testing.T) {
 	require.Len(t, def.Options.Static, 2)
 }
 
+func TestWebSpontaneousActivitiesSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyWebSpontaneousActivities)
+	require.NotNil(t, def, "attendance.web_spontaneous_activities_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "web spontaneous activities must default off")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy, "tenant admins and operators should both be able to manage this operational setting")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "anwesenheit", def.Category)
+	assert.Equal(t, "config:manage", def.WritePermission)
+}
+
 func TestTimetableSettings_Types(t *testing.T) {
 	tests := []struct {
 		key      string
 		expected config.FieldType
 	}{
+		{"timetable.enabled", config.FieldBoolean},
 		{"timetable.materialization_enabled", config.FieldBoolean},
 		{"timetable.materialization_weekday", config.FieldSelect},
 		{"timetable.materialization_weeks_ahead", config.FieldNumber},
@@ -121,6 +139,10 @@ func TestTimetableSettings_Types(t *testing.T) {
 }
 
 func TestTimetableSettings_Defaults(t *testing.T) {
+	enabledDef := config.GetDefinition("timetable.enabled")
+	require.NotNil(t, enabledDef)
+	assert.Equal(t, false, enabledDef.Default, "timetable must default to false")
+
 	// Both the materialization and auto-start flags default to FALSE so that
 	// WP-B7 is a pure no-op until the consuming services (WP-B8 / B9) ship
 	// AND a tenant explicitly opts in. Regressing either of these defaults
@@ -145,7 +167,30 @@ func TestTimetableSettings_Defaults(t *testing.T) {
 }
 
 func TestTimetableSettings_DependsOn(t *testing.T) {
-	// Materialization sub-settings are gated on the top-level toggle.
+	toggleDef := config.GetDefinition("timetable.enabled")
+	require.NotNil(t, toggleDef)
+	assert.Nil(t, toggleDef.DependsOn, "top-level timetable toggle must stand alone")
+
+	// All timetable detail settings are hidden until the top-level feature is enabled.
+	topLevelGatedKeys := []string{
+		"timetable.materialization_enabled",
+		"timetable.auto_start_planned",
+		"timetable.overdue_threshold_minutes",
+		"timetable.show_expected_children_count",
+		"gdpr.timetable_retention_days",
+		"timetable.day_start_time",
+		"timetable.day_end_time",
+	}
+	for _, key := range topLevelGatedKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.DependsOn, "setting %q should have DependsOn", key)
+		assert.Equalf(t, "timetable.enabled", def.DependsOn.Key, "setting %q should depend on timetable.enabled", key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+
+	// Materialization sub-settings are gated on the materialization toggle.
 	gatedKeys := []string{
 		"timetable.materialization_weekday",
 		"timetable.materialization_weeks_ahead",
@@ -159,18 +204,8 @@ func TestTimetableSettings_DependsOn(t *testing.T) {
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
 
-	// Retention hangs off the shared GDPR cleanup toggle — same pattern as
-	// the other gdpr.* time/timeout settings.
-	retentionDef := config.GetDefinition("gdpr.timetable_retention_days")
-	require.NotNil(t, retentionDef)
-	require.NotNil(t, retentionDef.DependsOn)
-	assert.Equal(t, "gdpr.data_cleanup_enabled", retentionDef.DependsOn.Key)
-
-	// Overdue threshold is independent — materialization can be off while
-	// staff still see passive "this instance is overdue" indicators.
-	overdueDef := config.GetDefinition("timetable.overdue_threshold_minutes")
-	require.NotNil(t, overdueDef)
-	assert.Nil(t, overdueDef.DependsOn, "overdue threshold must stand alone (no DependsOn)")
+	// Overdue threshold is independent of materialization — it only depends on
+	// the top-level feature toggle.
 }
 
 func TestTimetableSettings_Permissions(t *testing.T) {
@@ -190,6 +225,11 @@ func TestTimetableSettings_Permissions(t *testing.T) {
 		assert.Equal(t, "operations", def.Tab, "setting %q should be in operations tab", key)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 	}
+
+	toggleDef := config.GetDefinition("timetable.enabled")
+	require.NotNil(t, toggleDef)
+	assert.Equal(t, "operations", toggleDef.Tab)
+	assert.Equal(t, "config:update", toggleDef.WritePermission)
 
 	retentionDef := config.GetDefinition("gdpr.timetable_retention_days")
 	require.NotNil(t, retentionDef)
@@ -533,6 +573,8 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"tracking.indicator_1", ""},
 		{"tracking.indicator_2", ""},
 		{"tracking.indicator_3", ""},
+		{"attendance.web_spontaneous_activities_enabled", false},
+		{"operations.student_photos_enabled", false},
 	}
 
 	for _, tc := range tests {
@@ -540,6 +582,21 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expectedDefault, def.Default, "setting %q default", tc.key)
 	}
+}
+
+// TestStudentPhotosSetting guards the photo-feature toggle: defaults to OFF so
+// no school surfaces photos until an admin opts in, sits in the operations tab
+// alongside other Datenverwaltung-affecting toggles, and uses config:update
+// (operational, not GDPR-scoped — consent itself is captured per student).
+func TestStudentPhotosSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyStudentPhotosEnabled)
+	require.NotNil(t, def, "operations.student_photos_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "must default to false — feature is off until admin opts in")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "kinder", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
 }
 
 func TestTrackingSettings_Types(t *testing.T) {

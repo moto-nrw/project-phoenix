@@ -32,6 +32,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 
 	// Determine if user has full access to student location details
 	hasFullAccess := rs.checkStudentReadAccess(r, student)
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
 	// Build student response
 	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -39,6 +40,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 		Person:        person,
 		Group:         group,
 		HasFullAccess: hasFullAccess,
+		PhotosEnabled: photosEnabled,
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,

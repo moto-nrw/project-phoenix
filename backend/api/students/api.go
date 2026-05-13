@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -59,6 +60,7 @@ type Resource struct {
 	VisitRepo              active.VisitRepository
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
+	StudentPhotos          userService.StudentPhotoService
 	Logger                 *slog.Logger
 	db                     *bun.DB
 }
@@ -82,6 +84,7 @@ type ResourceConfig struct {
 	VisitRepo              active.VisitRepository
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
+	StudentPhotos          userService.StudentPhotoService
 	Logger                 *slog.Logger
 	DB                     *bun.DB
 }
@@ -105,6 +108,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		VisitRepo:              cfg.VisitRepo,
 		DataAccessLogRepo:      cfg.DataAccessLogRepo,
 		Broadcaster:            cfg.Broadcaster,
+		StudentPhotos:          cfg.StudentPhotos,
 		Logger:                 cfg.Logger,
 		db:                     cfg.DB,
 	}
@@ -183,6 +187,14 @@ func (rs *Resource) Router() chi.Router {
 		// attendance.web_checkin_access setting is the fine gate enforced inside
 		// the handler (group_supervisors vs all_staff).
 		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
+
+		// Student photo (Datenverwaltung). upload + delete: users:update;
+		// serve: users:read. Feature gate + consent enforced in photo.go.
+		// upload + serve skip withTx so a slow body / file stream doesn't
+		// pin a bun pool connection — the handlers open their own short tx.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/photo", rs.uploadStudentPhoto)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/photo", rs.deleteStudentPhoto)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/photo/{filename}", rs.serveStudentPhoto)
 	})
 
 	// Device-authenticated routes for RFID devices.
@@ -355,8 +367,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve once per request — populatePhotoFields runs per student.
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
+
 	// Build and filter responses
-	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot)
+	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, photosEnabled)
 
 	// Apply in-memory pagination if person-based filters were used
 	if params.hasPersonFilters() {
@@ -389,8 +404,48 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListParams) ([]*users.Student, int, error) {
 	ctx := r.Context()
 
-	// If specific group filter requested
-	if params.groupID > 0 {
+	// room_id pre-filter (#1323) — resolve students currently checked-in to
+	// any active group in the room, then push the IDs through the standard
+	// query path so school_class / guardian_name / pagination still apply.
+	// The visit join lives in the active service (rule 11: services own
+	// queries, not handlers).
+	if params.roomID > 0 {
+		ids, err := rs.ActiveService.ListStudentsPresentInRoom(ctx, params.roomID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(ids) == 0 {
+			return []*users.Student{}, 0, nil
+		}
+		// When both room_id and group_id are supplied, intersect with the
+		// student's group_id so the response stays consistent with the
+		// active-group chip in the search UI. group_id lives on the Student
+		// row, so a single bulk lookup is enough.
+		if params.groupID > 0 {
+			studentMap, err := rs.StudentRepo.FindByIDs(ctx, ids)
+			if err != nil {
+				return nil, 0, err
+			}
+			filtered := make([]int64, 0, len(studentMap))
+			for _, sid := range ids {
+				s, ok := studentMap[sid]
+				if !ok || s.GroupID == nil || *s.GroupID != params.groupID {
+					continue
+				}
+				filtered = append(filtered, sid)
+			}
+			if len(filtered) == 0 {
+				return []*users.Student{}, 0, nil
+			}
+			ids = filtered
+		}
+		params.studentIDs = ids
+		// fall through to the standard ListWithOptions path. params.groupID is
+		// intentionally NOT cleared here even though buildBaseFilter ignores it
+		// — the room∩group intersection has already been computed via FindByIDs
+		// above, so re-applying group_id downstream would be redundant.
+	} else if params.groupID > 0 {
+		// group-only branch keeps existing behavior
 		students, err := rs.StudentRepo.FindByGroupIDs(ctx, []int64{params.groupID})
 		if err != nil {
 			return nil, 0, err
@@ -398,17 +453,17 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		return students, len(students), nil
 	}
 
-	// No specific group filter - get all students
+	// Standard path — buildBaseFilter picks up params.studentIDs (if set by
+	// the room_id branch above) and combines it with school_class /
+	// guardian_name and pagination.
 	queryOptions := params.buildQueryOptions()
-
-	// Get count for pagination
 	countOptions := params.buildCountOptions()
+
 	totalCount, err := rs.StudentRepo.CountWithOptions(ctx, countOptions)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Get students
 	students, err := rs.StudentRepo.ListWithOptions(ctx, queryOptions)
 	if err != nil {
 		return nil, 0, err
@@ -418,11 +473,11 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 }
 
 // buildStudentResponses builds filtered student responses
-func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) []StudentResponse {
+func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) []StudentResponse {
 	responses := make([]StudentResponse, 0, len(students))
 
 	for _, student := range students {
-		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot)
+		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot, photosEnabled)
 		if response != nil {
 			responses = append(responses, *response)
 		}
@@ -432,7 +487,7 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users
 }
 
 // buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
-func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot) *StudentResponse {
+func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) *StudentResponse {
 	hasFullAccess := accessCtx.HasFullAccessToStudent(student)
 
 	// Get person data from snapshot
@@ -456,7 +511,7 @@ func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *use
 	}
 
 	// Build response
-	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot)
+	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot, photosEnabled)
 
 	// Apply location filter
 	if !matchesLocationFilter(params.location, studentResponse.Location, hasFullAccess) {
@@ -484,6 +539,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
 	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
 	response := StudentDetailResponse{
 		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -491,6 +547,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			Person:        person,
 			Group:         group,
 			HasFullAccess: hasFullAccess,
+			PhotosEnabled: photosEnabled,
 		}, StudentResponseServices{
 			ActiveService: rs.ActiveService,
 			PersonService: rs.PersonService,
@@ -639,11 +696,13 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 	common.Respond(w, r, http.StatusCreated, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,
 		Person:        person,
 		Group:         group,
 		HasFullAccess: hasFullAccess,
+		PhotosEnabled: photosEnabled,
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
@@ -724,6 +783,31 @@ func applyStudentFieldUpdates(req *UpdateStudentRequest, student *users.Student)
 	applyOptionalStudentFields(req, student)
 	applySickStatus(req, student)
 	applyExcusedStatus(req, student)
+}
+
+func reconcilePhotoConsentRequest(requested *bool, snapshot, fresh *users.Student) *bool {
+	if requested == nil {
+		return nil
+	}
+	snapshotHadConsent := snapshot != nil && snapshot.PhotoConsentGivenAt != nil
+	freshHasConsent := fresh != nil && fresh.PhotoConsentGivenAt != nil
+
+	// Treat values that merely echo the pre-transaction snapshot as no-ops.
+	// Old clients used to serialize photo_consent_given on every PUT; if another
+	// tab changed consent between the snapshot read and this row lock, replaying
+	// that stale unchanged boolean would re-grant withdrawn consent or withdraw a
+	// newly granted consent/photo.
+	if *requested == snapshotHadConsent {
+		return nil
+	}
+
+	// If a concurrent request already completed the intended transition, do not
+	// re-stamp audit metadata or schedule duplicate photo cleanup.
+	if *requested == freshHasConsent {
+		return nil
+	}
+
+	return requested
 }
 
 // applyGuardianUpdates handles legacy guardian field updates
@@ -824,8 +908,35 @@ func checkSickExcusedConflict(req *UpdateStudentRequest, student *users.Student)
 	return nil
 }
 
-func (rs *Resource) broadcastStudentUpdated(studentID int64) {
+// broadcastStudentUpdated emits an SSE student_updated event to the
+// AFFECTED tenant's connected clients only. use-global-sse.ts treats
+// that event as "invalidate every student / room / dashboard cache in
+// this tab", so a global fan-out (BroadcastToAll) would force tabs in
+// schools B…N to refetch unrelated data whenever school A edits one
+// student or one avatar. Routing via BroadcastToTenant — the helper
+// already added in this branch for tenant_settings_changed — keeps the
+// invalidation scoped to the school that actually changed.
+//
+// Callers MUST pass tenantID from request context (tenant.FromContext)
+// or from a captured value inside an after-commit hook. Passing zero
+// no-ops the broadcast rather than fanning out, since
+// BroadcastToTenant rejects zero tenant IDs by definition (no Client
+// has TenantID == 0).
+func (rs *Resource) broadcastStudentUpdated(tenantID, studentID int64) {
 	if rs.Broadcaster == nil {
+		return
+	}
+	if tenantID <= 0 {
+		// Defensive: a missing tenant context means we don't know which
+		// school's clients should invalidate. Logging the case so a
+		// future caller that forgets to thread tenantID through gets a
+		// breadcrumb instead of silent loss.
+		if rs.Logger != nil {
+			rs.Logger.Warn(
+				"skipping student_updated broadcast — no tenant context",
+				"student_id", studentID,
+			)
+		}
 		return
 	}
 
@@ -834,9 +945,10 @@ func (rs *Resource) broadcastStudentUpdated(studentID int64) {
 		Source: &source,
 	})
 
-	if err := rs.Broadcaster.BroadcastToAll(event); err != nil && rs.Logger != nil {
+	if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && rs.Logger != nil {
 		rs.Logger.Warn(
 			"failed to broadcast student update",
+			"tenant_id", tenantID,
 			"student_id", studentID,
 			"error", err.Error(),
 		)
@@ -891,27 +1003,116 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wasSick := boolPtrValue(student.Sick)
-	wasExcused := boolPtrValue(student.Excused)
 	statusHistoryNow := time.Now()
 
-	// Update student fields using helper function
-	applyStudentFieldUpdates(req, student)
+	// In-tx sentinel: a concurrent partial update committed between our
+	// pre-tx conflict check and the locked-row re-check below produced
+	// the forbidden sick && excused state. Mapped to 409 +
+	// SICK_EXCUSED_CONFLICT in the outer error switch so the frontend
+	// can prompt the user the same way it does for a synchronous
+	// conflict. errors.Is keeps the dispatch resilient to wrapping.
+	errSickExcusedConflict := errors.New("sick and excused conflict on locked row")
 
-	// Persist person and student updates in tenant transaction
+	// In-tx sentinel: a concurrent delete removed the student row
+	// between parseAndGetStudent above and the locked re-read below.
+	// The non-racy path returns 404; bare sql.ErrNoRows would otherwise
+	// fall through to a 500 for a legitimate concurrent delete.
+	errStudentNotFoundUnderLock := errors.New("student deleted between snapshot and lock")
+
+	// In-tx sentinel: the pre-tx canUpdateStudent check ran on
+	// student.GroupID from the snapshot. canUpdateStudent decides off
+	// group membership, so a concurrent admin moving the student into
+	// a different group between snapshot and lock can leave the caller
+	// without write authority on the locked row. Re-checking against
+	// fresh closes that window. Mapped to 403 in the outer switch so
+	// the response status matches what the pre-tx gate would emit.
+	errStudentReassigned := errors.New("student reassigned out of caller's scope mid-update")
+
+	// Patch is applied to a freshly FOR-UPDATE-locked row inside the tx so a
+	// concurrent photo upload can't have its photo_path clobbered by a stale
+	// snapshot write.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Acquire the photo-feature advisory lock only when consent is
+		// actually toggling — name/notes edits must not queue behind
+		// feature disable/purge.
+		consentChanging := req.PhotoConsentGiven != nil &&
+			(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
+		if consentChanging {
+			if err := rs.StudentRepo.LockPhotoFeature(ctx); err != nil {
+				return err
+			}
+		}
+
+		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return errStudentNotFoundUnderLock
+			}
+			return err
+		}
+
+		// Re-check authorisation against the LOCKED row — a concurrent admin
+		// reassignment could otherwise let a non-supervisor mutate the row.
+		if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
+			return errStudentReassigned
+		}
+
+		// Re-validate sick/excused on fresh: two concurrent partial updates
+		// against a stale snapshot can otherwise merge into the forbidden
+		// sick && excused state. TenantTxMiddleware only rolls back on 5xx,
+		// so this 409-mapped sentinel must fire before any write below.
+		if err := checkSickExcusedConflict(req, fresh); err != nil {
+			return errSickExcusedConflict
+		}
+
 		if personResult.updated {
 			if err := rs.PersonService.Update(ctx, person); err != nil {
 				return err
 			}
 		}
-		if err := rs.persistStudentStatusHistory(ctx, student, wasSick, wasExcused, statusHistoryNow); err != nil {
+
+		// Read pre-update flags off fresh, not the snapshot, so status
+		// history reflects the actual transition the commit will perform.
+		wasSick := boolPtrValue(fresh.Sick)
+		wasExcused := boolPtrValue(fresh.Excused)
+
+		applyStudentFieldUpdates(req, fresh)
+		effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
+		rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
+
+		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow); err != nil {
 			rs.logStatusHistoryError(student.ID, err)
 			return err
 		}
-		return rs.StudentRepo.Update(ctx, student)
+		if err := rs.StudentRepo.Update(ctx, fresh); err != nil {
+			return err
+		}
+
+		// Broadcast after the OUTER tx commits — broadcasting now would race
+		// subscribers into refetching the still-pre-commit row.
+		studentID := student.ID
+		capturedTenantID := tenantID
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.broadcastStudentUpdated(capturedTenantID, studentID)
+		})
+		return nil
 	}); err != nil {
+		if errors.Is(err, errSickExcusedConflict) {
+			renderError(w, r, ErrorConflictWithCode(
+				errors.New("a student cannot be both sick and excused at the same time"),
+				ErrCodeSickExcusedConflict,
+			))
+			return
+		}
+		if errors.Is(err, errStudentReassigned) {
+			renderError(w, r, ErrorForbidden(errors.New("you can only update students in groups you supervise")))
+			return
+		}
+		if errors.Is(err, errStudentNotFoundUnderLock) {
+			renderError(w, r, ErrorNotFound(errors.New("student not found")))
+			return
+		}
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -929,14 +1130,15 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Admin users and group supervisors can see full data including detailed location
 	// Explicitly verify access level based on the checks performed above
 	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
-	rs.broadcastStudentUpdated(updatedStudent.ID)
 
 	// Return the updated student with person data
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       updatedStudent,
 		Person:        person,
 		Group:         group,
 		HasFullAccess: hasFullAccess,
+		PhotosEnabled: photosEnabled,
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
@@ -959,21 +1161,36 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete the student and associated person record in tenant transaction
+	// Capture the photo path from the locked row (not the pre-tx snapshot)
+	// so a concurrent upload can't orphan a new file on disk. The unlink
+	// itself runs after the OUTER tenant tx commits.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		// Delete the student first
+		// FOR UPDATE row-locks against any in-flight upload tx — we either
+		// observe its committed photo_path or it sees our deleted row and
+		// aborts.
+		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		if err != nil {
+			return err
+		}
+		var photoToRemove string
+		if fresh.PhotoPath != nil {
+			photoToRemove = *fresh.PhotoPath
+		}
+
 		if err := rs.StudentRepo.Delete(ctx, student.ID); err != nil {
 			return err
 		}
 
-		// Then delete the associated person record
+		// Person delete failure must not fail the request — the student row
+		// is already gone, leaving the person orphaned is recoverable.
 		if err := rs.PersonService.Delete(ctx, student.PersonID); err != nil {
-			// Log the error but don't fail the request since student is already deleted
 			slog.Default().Error("failed to delete associated person record",
 				slog.Int64("person_id", student.PersonID),
 				slog.String("error", err.Error()))
 		}
+
+		rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, photoToRemove)
 		return nil
 	}); err != nil {
 		if common.IsConstraintViolation(err) {

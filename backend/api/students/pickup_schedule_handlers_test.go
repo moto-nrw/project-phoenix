@@ -54,7 +54,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 			Weekday:    1, // Monday
 			PickupTime: pickupTime,
 			Notes:      &notes,
-			CreatedBy:  1,
+			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		}
 		schedule.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(schedule).
@@ -78,7 +78,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 			ExceptionDate: exceptionDate,
 			PickupTime:    &exceptionTime,
 			Reason:        &arztterminReason,
-			CreatedBy:     1,
+			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
 		exception.SetTenantID(1)
 		_, err = tc.db.NewInsert().Model(exception).
@@ -484,7 +484,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			ExceptionDate: exceptionDate,
 			PickupTime:    &exceptionTime,
 			Reason:        &originalReason,
-			CreatedBy:     1,
+			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
 		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
@@ -527,7 +527,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			StudentID:     student2.ID, // Belongs to student2
 			ExceptionDate: exceptionDate,
 			Reason:        &testReason,
-			CreatedBy:     1,
+			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
 		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
@@ -629,7 +629,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			Reason:        &deleteReason,
-			CreatedBy:     1,
+			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
 		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
@@ -660,7 +660,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 			StudentID:     student2.ID, // Belongs to student2
 			ExceptionDate: exceptionDate,
 			Reason:        &deleteTestReason,
-			CreatedBy:     1,
+			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
 		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
@@ -843,7 +843,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			Weekday:    1, // Monday
 			PickupTime: pickupTime,
 			Notes:      &notes,
-			CreatedBy:  1,
+			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		}
 		schedule.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(schedule).
@@ -882,7 +882,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			StudentID:  student.ID,
 			Weekday:    1,
 			PickupTime: baseTime,
-			CreatedBy:  1,
+			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		}
 		schedule.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(schedule).
@@ -906,7 +906,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			ExceptionDate: exceptionDate,
 			PickupTime:    &exceptionTime,
 			Reason:        &earlyPickupReason,
-			CreatedBy:     1,
+			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
 		exception.SetTenantID(1)
 		_, err = tc.db.NewInsert().Model(exception).
@@ -1070,7 +1070,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  noteDate,
 			Content:   originalContent,
-			CreatedBy: 1,
+			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
 		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).
@@ -1110,7 +1110,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 			StudentID: student2.ID, // Belongs to student2
 			NoteDate:  noteDate,
 			Content:   testContent,
-			CreatedBy: 1,
+			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
 		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).
@@ -1189,7 +1189,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  noteDate,
 			Content:   deleteContent,
-			CreatedBy: 1,
+			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
 		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).
@@ -1219,7 +1219,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 			StudentID: student2.ID, // Belongs to student2
 			NoteDate:  noteDate,
 			Content:   deleteTestContent,
-			CreatedBy: 1,
+			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
 		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).

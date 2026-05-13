@@ -136,9 +136,10 @@ func TestSchulhofService_GetSchulhofStatus_NoInfrastructure(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupSchulhofService(t, db)
-	ctx := testpkg.TenantContext(1)
+	tenantID := createFacilityTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
 
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// ACT

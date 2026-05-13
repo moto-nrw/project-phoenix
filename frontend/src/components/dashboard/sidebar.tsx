@@ -3,6 +3,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
@@ -21,6 +22,10 @@ import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
+import {
+  SETTINGS_SCHEMA_SWR_KEY,
+  fetchSettingsSchema,
+} from "~/lib/settings-api";
 
 // Type für Navigation Items
 interface NavItem {
@@ -77,6 +82,13 @@ const NAV_ITEMS: NavItem[] = [
     label: "Vertretungen",
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     activeColor: "text-pink-500",
+    requiresAdmin: true,
+  },
+  {
+    href: "/timetables",
+    label: "Stundenplan",
+    icon: navigationIcons.calendar,
+    activeColor: "text-[#5080D8]",
     requiresAdmin: true,
   },
   {
@@ -329,6 +341,20 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const isBinaryMode = presenceMode === "binary";
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
+  const { data: settingsSchema } = useSWR(
+    userIsAdmin ? SETTINGS_SCHEMA_SWR_KEY : null,
+    fetchSettingsSchema,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    },
+  );
+
+  const timetableEnabled =
+    settingsSchema?.tabs
+      .flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .find((item) => item.key === "timetable.enabled")?.value === true;
 
   const formatGroupAttendanceCount = (groupId: string | number) => {
     if (!canShowGroupAttendanceCounts) return undefined;
@@ -346,6 +372,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const filteredNavItems = NAV_ITEMS.filter((item) => {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
+    if (item.href === "/timetables" && !timetableEnabled) {
+      return false;
+    }
     if (item.alwaysShow) return true;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
@@ -356,6 +385,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!from) return "/students/search";
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
+    // Drill-in from a room ("Kinder im Raum") — both the legacy subpage
+    // /rooms/{id} and the modal URL /rooms?room={id} count, so the
+    // sidebar reflects the actual entry path in either flow.
+    if (from.startsWith("/rooms/") || from.startsWith("/rooms?"))
+      return "/rooms";
     if (from.startsWith("/students/search")) return "/students/search";
     return "/students/search";
   };
@@ -809,7 +843,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
             >
               {supervisedRooms.map((room, index) => (
                 <SidebarSubItem
-                  key={room.id}
+                  key={`${room.id}-${room.groupId ?? index}`}
                   href={
                     room.isSchulhof
                       ? `/active-supervisions?room=schulhof`

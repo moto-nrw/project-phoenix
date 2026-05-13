@@ -269,7 +269,7 @@ func TestApplyException(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// TestExtractTimeOfDay — the TIMESTAMPTZ → TIME bridge.
+// TestExtractTimeOfDay — SQL TIME normalisation.
 // -----------------------------------------------------------------------------
 
 func TestExtractTimeOfDay(t *testing.T) {

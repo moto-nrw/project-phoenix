@@ -206,6 +206,16 @@ describe("breadcrumb-utils", () => {
       );
     });
 
+    it("should return 'Räume' for /rooms/{id} referrer (drill-in from room detail)", () => {
+      expect(getBreadcrumbLabel("/rooms/42")).toBe("Räume");
+    });
+
+    it("should return 'Räume' for /rooms?room={id} referrer (drill-in from modal)", () => {
+      // Modal flow at /rooms?room={id} (#1374) — same room context as the
+      // legacy subpage drill-in, must produce the same breadcrumb label.
+      expect(getBreadcrumbLabel("/rooms?room=42")).toBe("Räume");
+    });
+
     it("should return 'Kindersuche' for unknown referrer", () => {
       expect(getBreadcrumbLabel("/students")).toBe("Kindersuche");
     });

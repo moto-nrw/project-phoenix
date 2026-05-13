@@ -31,7 +31,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -150,6 +149,11 @@ func (s *scenario) mountRouter() chi.Router {
 		VisitRepo:              s.repos.ActiveVisit,
 		StudentRepo:            s.repos.Student,
 		StaffRepo:              s.repos.Staff,
+		RoomRepo:               s.repos.Room,
+		ActivityGroupRepo:      s.repos.ActivityGroup,
+		ActivitySupervisorRepo: s.repos.ActivitySupervisor,
+		StudentEnrollmentRepo:  s.repos.StudentEnrollment,
+		TimeframeRepo:          s.repos.Timeframe,
 		UserContextService:     s.factory.UserContext,
 		SettingsService:        s.factory.Settings,
 		Broadcaster:            s.factory.RealtimeHub,
@@ -261,15 +265,13 @@ func (s *scenario) createActivePeriod(name string, anchor time.Time) *scheduleMo
 }
 
 // createTimeframeWithTimes inserts a timeframe with explicit HH:MM times.
-// The start_time / end_time columns are TIMESTAMPTZ; the service layer reads
-// them back through timezone.WallClock(), which extracts .Hour() from the
-// time.Time as loaded by the driver. Store the values anchored to local
-// (Berlin) time so the wall clock hours match what we intended — using UTC
-// would cross a DST/CET offset and shift the hour by +1 or +2 on read.
+// schedule.timeframes stores timezone-free SQL TIME values; the service layer
+// still normalises through timezone.WallClock() so driver-specific date
+// anchors cannot affect comparisons.
 func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM string) *scheduleModels.Timeframe {
 	s.t.Helper()
-	start := parseHHMMLocal(s.t, startHHMM)
-	end := parseHHMMLocal(s.t, endHHMM)
+	start := parseHHMM(s.t, startHHMM)
+	end := parseHHMM(s.t, endHHMM)
 
 	tf := &scheduleModels.Timeframe{
 		StartTime:   start,
@@ -288,18 +290,9 @@ func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM stri
 	return tf
 }
 
-// parseHHMMLocal builds a time.Time at today's date with the given wall-clock
-// time pinned to Europe/Berlin. We cannot use `time.Local` here because the
-// CI runner's Local is UTC while the dev box's Local is Europe/Berlin — the
-// TIMESTAMPTZ column round-trips the value through Postgres's session TZ
-// (Europe/Berlin), so inserting in UTC yields a +2h shift on read. Pinning
-// the input to Europe/Berlin keeps the wall-clock stable across both envs.
 func parseHHMMLocal(t *testing.T, hhmm string) time.Time {
 	t.Helper()
-	parsed, err := time.Parse("15:04", hhmm)
-	require.NoError(t, err, "invalid HH:MM literal %q", hhmm)
-	now := time.Now().In(timezone.Berlin)
-	return time.Date(now.Year(), now.Month(), now.Day(), parsed.Hour(), parsed.Minute(), 0, 0, timezone.Berlin)
+	return parseHHMM(t, hhmm)
 }
 
 // templateSpec describes a weekly template to materialize later.

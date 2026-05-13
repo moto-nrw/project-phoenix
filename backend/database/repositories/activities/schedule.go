@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -111,7 +110,7 @@ func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Contex
 	// uses a raw SQL statement and manual row scanning. The belt-and-
 	// suspenders tenant filter (RLS + explicit WHERE) is kept intact.
 	q := `
-		SELECT s.activity_group_id, s.weekday, t.start_time
+		SELECT s.activity_group_id, s.weekday, TO_CHAR(t.start_time, 'HH24:MI:SS') AS start_time
 		FROM activities.schedules AS s
 		INNER JOIN schedule.timeframes AS t ON t.id = s.timeframe_id
 		WHERE s.activity_group_id IN (?)
@@ -136,17 +135,24 @@ func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Contex
 	for rows.Next() {
 		var gid int64
 		var wd int
-		var raw time.Time
+		var raw string
 		if err := rows.Scan(&gid, &wd, &raw); err != nil {
 			return nil, &modelBase.DatabaseError{
 				Op:  "find template start times by group ids: scan",
 				Err: err,
 			}
 		}
+		startTime, err := parseSQLClock(raw)
+		if err != nil {
+			return nil, &modelBase.DatabaseError{
+				Op:  "find template start times by group ids: parse clock",
+				Err: err,
+			}
+		}
 		out = append(out, &activities.TemplateStartTime{
 			ActivityGroupID: gid,
 			Weekday:         wd,
-			StartTime:       timezone.WallClock(raw),
+			StartTime:       startTime,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -156,6 +162,14 @@ func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Contex
 		}
 	}
 	return out, nil
+}
+
+func parseSQLClock(raw string) (time.Time, error) {
+	parsed, err := time.Parse("15:04:05", raw)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Date(1, 1, 1, parsed.Hour(), parsed.Minute(), parsed.Second(), parsed.Nanosecond(), time.UTC), nil
 }
 
 // FindByTimeframeID finds all schedules for a specific timeframe

@@ -29,6 +29,7 @@ type StatsPermissions struct {
 	CanViewRoles       bool `json:"canViewRoles"`
 	CanViewDevices     bool `json:"canViewDevices"`
 	CanViewPermissions bool `json:"canViewPermissions"`
+	CanViewTimetables  bool `json:"canViewTimetables"`
 }
 
 // StatsGetter defines operations for database statistics and management

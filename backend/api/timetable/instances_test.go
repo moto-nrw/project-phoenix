@@ -39,12 +39,19 @@ type mockInstanceService struct {
 	completeErr   error
 	cancelRes     *scheduleModel.ActivityInstance
 	cancelErr     error
+	deleteErr     error
 	replanRes     *scheduleSvc.ReplanWeekResult
 	replanErr     error
+	createRes     *scheduleModel.ActivityInstance
+	createErr     error
+	updateRes     *scheduleModel.ActivityInstance
+	updateErr     error
 	lastStartID   int64
 	lastStartedBy int64
 	lastFrom      time.Time
 	lastTo        time.Time
+	lastCreate    *scheduleSvc.CreateInstanceInput
+	lastUpdate    *scheduleSvc.UpdateInstanceInput
 }
 
 func (m *mockInstanceService) Start(_ context.Context, id, startedBy int64) (*scheduleSvc.StartInstanceResult, error) {
@@ -70,6 +77,10 @@ func (m *mockInstanceService) Cancel(_ context.Context, _ int64) (*scheduleModel
 	return m.cancelRes, nil
 }
 
+func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error {
+	return m.deleteErr
+}
+
 func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to time.Time) (*scheduleSvc.ReplanWeekResult, error) {
 	m.lastFrom = from
 	m.lastTo = to
@@ -77,6 +88,24 @@ func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to time.Time) 
 		return nil, m.replanErr
 	}
 	return m.replanRes, nil
+}
+
+func (m *mockInstanceService) Create(_ context.Context, req scheduleSvc.CreateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+	reqCopy := req
+	m.lastCreate = &reqCopy
+	if m.createErr != nil {
+		return nil, m.createErr
+	}
+	return m.createRes, nil
+}
+
+func (m *mockInstanceService) UpdatePlanned(_ context.Context, _ int64, req scheduleSvc.UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+	reqCopy := req
+	m.lastUpdate = &reqCopy
+	if m.updateErr != nil {
+		return nil, m.updateErr
+	}
+	return m.updateRes, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -214,6 +243,14 @@ func doPost(t *testing.T, router chi.Router, path string, body any) *httptest.Re
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func doDelete(t *testing.T, router chi.Router, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodDelete, path, nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w
@@ -512,6 +549,76 @@ func TestCancelInstance_InternalError(t *testing.T) {
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
 	w := doPost(t, router, "/instances/1/cancel", nil)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// -----------------------------------------------------------------------------
+// deleteInstance handler tests.
+// -----------------------------------------------------------------------------
+
+func TestDeleteInstance_Success(t *testing.T) {
+	mock := &mockInstanceService{}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := chi.NewRouter()
+	router.Delete("/instances/{id}", rs.deleteInstance)
+
+	w := doDelete(t, router, "/instances/11")
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.String())
+}
+
+func TestDeleteInstance_InvalidID(t *testing.T) {
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
+	router := chi.NewRouter()
+	router.Delete("/instances/{id}", rs.deleteInstance)
+
+	w := doDelete(t, router, "/instances/nope")
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestDeleteInstance_NilService(t *testing.T) {
+	rs := NewResource(Dependencies{})
+	router := chi.NewRouter()
+	router.Delete("/instances/{id}", rs.deleteInstance)
+
+	w := doDelete(t, router, "/instances/1")
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestDeleteInstance_NotFound(t *testing.T) {
+	mock := &mockInstanceService{deleteErr: scheduleSvc.ErrInstanceNotFound}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := chi.NewRouter()
+	router.Delete("/instances/{id}", rs.deleteInstance)
+
+	w := doDelete(t, router, "/instances/1")
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestDeleteInstance_InvalidTransition(t *testing.T) {
+	mock := &mockInstanceService{deleteErr: &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := chi.NewRouter()
+	router.Delete("/instances/{id}", rs.deleteInstance)
+
+	w := doDelete(t, router, "/instances/1")
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid_transition")
+}
+
+func TestDeleteInstance_InternalError(t *testing.T) {
+	mock := &mockInstanceService{deleteErr: errors.New("db failure")}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := chi.NewRouter()
+	router.Delete("/instances/{id}", rs.deleteInstance)
+
+	w := doDelete(t, router, "/instances/1")
+
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 

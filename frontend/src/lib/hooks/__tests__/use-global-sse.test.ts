@@ -128,6 +128,63 @@ describe("useGlobalSSE", () => {
       );
     });
 
+    it("is disabled when authenticated session has no access token", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        status: "authenticated",
+        data: {
+          user: { tenantId: 1, roles: ["user"] },
+        } as never,
+        update: vi.fn(),
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          enabled: false,
+        }),
+      );
+    });
+
+    it("is disabled for authenticated users without staff or admin roles", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        status: "authenticated",
+        data: {
+          user: { token: "test-token", tenantId: 1, roles: ["guardian"] },
+        } as never,
+        update: vi.fn(),
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          enabled: false,
+        }),
+      );
+    });
+
+    it("is disabled when authenticated session has no role list", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        status: "authenticated",
+        data: {
+          user: { token: "test-token", tenantId: 1 },
+        } as never,
+        update: vi.fn(),
+      });
+
+      renderHook(() => useGlobalSSE());
+
+      expect(useSSE).toHaveBeenCalledWith(
+        "/api/sse/events",
+        expect.objectContaining({
+          enabled: false,
+        }),
+      );
+    });
+
     it("passes tenantId as reconnectKey to useSSE", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
@@ -298,6 +355,58 @@ describe("useGlobalSSE", () => {
       expect(mutate).toHaveBeenCalled();
     });
 
+    it("invalidates active supervision caches on active_supervision_changed event", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "active_supervision_changed",
+        active_group_id: "456",
+        data: { reason: "instance_started", student_id: "77" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const activeSupervisionCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)(
+            "tenant:active-supervision-dashboard-0",
+          ) &&
+          (matcher as (key: string) => boolean)(
+            "tenant:supervision-visits-456",
+          ) &&
+          (matcher as (key: string) => boolean)(
+            "tenant:timetable-roster-active-group-456",
+          )
+        );
+      });
+      expect(activeSupervisionCall).toBeDefined();
+
+      const matcher = activeSupervisionCall![0] as (key: string) => boolean;
+      expect(matcher("tenant:supervision-visits-456")).toBe(true);
+      expect(matcher("tenant:timetable-roster-123")).toBe(true);
+      expect(matcher("tenant:timetable-roster-active-group-456")).toBe(true);
+      expect(matcher("tenant:room-detail-12")).toBe(true);
+      expect(matcher("tenant:tracking-supervisions-1")).toBe(true);
+      expect(matcher("tenant:tracking-indicators-search")).toBe(true);
+      expect(matcher("tenant:dashboard")).toBe(true);
+      expect(matcher("tenant:timetable-week")).toBe(false);
+
+      const studentDetailCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:student-detail-77")
+        );
+      });
+      expect(studentDetailCall).toBeDefined();
+    });
+
     it("invalidates dashboard caches on dashboard_counts_changed event", () => {
       renderHook(() => useGlobalSSE());
 
@@ -459,6 +568,33 @@ describe("useGlobalSSE", () => {
         );
       });
       expect(dashboardCall).toBeDefined();
+    });
+
+    it("handles mutate rejection in student_updated detail scope gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: "student_updated",
+        active_group_id: "",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "student_detail" }),
+      );
+
+      consoleSpy.mockRestore();
     });
 
     it("student_checkout without active_group_id does NOT invalidate supervision-visits", () => {
@@ -674,6 +810,33 @@ describe("useGlobalSSE", () => {
       consoleSpy.mockRestore();
     });
 
+    it("handles mutate rejection in active_supervision scope gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: "active_supervision_changed",
+        active_group_id: "1",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "active_supervision" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
     it("handles mutate rejection in supervision_visits scope gracefully", async () => {
       vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
       const consoleSpy = vi
@@ -696,6 +859,63 @@ describe("useGlobalSSE", () => {
       expect(consoleSpy).toHaveBeenCalledWith(
         "swr_revalidation_failed",
         expect.objectContaining({ scope: "supervision_visits" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("invalidates timetable caches on instance lifecycle events", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "instance_started",
+        active_group_id: "",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const timetableCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:timetable-week")
+        );
+      });
+      expect(timetableCall).toBeDefined();
+
+      const matcher = timetableCall![0] as (key: string) => boolean;
+      expect(matcher("tenant:timetable-month-2026-05")).toBe(true);
+      expect(matcher("tenant:database-calendar-periods-list")).toBe(true);
+      expect(matcher("tenant:supervision-visits-1")).toBe(false);
+    });
+
+    it("handles mutate rejection in timetable scope gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: "instance_completed",
+        active_group_id: "",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "timetable" }),
       );
 
       consoleSpy.mockRestore();
@@ -734,6 +954,71 @@ describe("useGlobalSSE", () => {
       expect(mutate).toHaveBeenCalled();
     });
 
+    it("dispatches phoenix:tenant-settings-stale window event on tenant_settings_changed", () => {
+      // Cross-origin tenant settings sync: receiving a tenant_settings_changed
+      // SSE event must surface as a window event so the settings-cache bridge
+      // can invalidate SWR. We don't mutate SWR directly here — the bridge
+      // owns that, this hook only translates SSE → window event.
+      renderHook(() => useGlobalSSE());
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      const dispatched: Event[] = [];
+      const listener = (event: Event) => {
+        dispatched.push(event);
+      };
+      window.addEventListener("phoenix:tenant-settings-stale", listener);
+      try {
+        onMessage?.({
+          type: "tenant_settings_changed",
+          active_group_id: "",
+          data: { source: "operations.student_photos_enabled" },
+          timestamp: new Date().toISOString(),
+        });
+
+        expect(dispatched).toHaveLength(1);
+        expect(dispatched[0]!.type).toBe("phoenix:tenant-settings-stale");
+        const detail = (dispatched[0] as CustomEvent).detail as {
+          source: string | null;
+        };
+        expect(detail.source).toBe("operations.student_photos_enabled");
+      } finally {
+        window.removeEventListener("phoenix:tenant-settings-stale", listener);
+      }
+
+      // Tenant invalidations must NOT trigger SWR mutate from this hook —
+      // that's the bridge's job. This guard prevents accidental fan-out to
+      // unrelated caches.
+      vi.advanceTimersByTime(500);
+      expect(vi.mocked(mutate)).not.toHaveBeenCalled();
+    });
+
+    it("falls back to null source on tenant_settings_changed without a source field", () => {
+      renderHook(() => useGlobalSSE());
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      const dispatched: Event[] = [];
+      const listener = (event: Event) => {
+        dispatched.push(event);
+      };
+      window.addEventListener("phoenix:tenant-settings-stale", listener);
+      try {
+        onMessage?.({
+          type: "tenant_settings_changed",
+          active_group_id: "",
+          data: {},
+          timestamp: new Date().toISOString(),
+        });
+
+        expect(dispatched).toHaveLength(1);
+        const detail = (dispatched[0] as CustomEvent).detail as {
+          source: string | null;
+        };
+        expect(detail.source).toBeNull();
+      } finally {
+        window.removeEventListener("phoenix:tenant-settings-stale", listener);
+      }
+    });
+
     it("silently ignores unknown event types without invalidating caches", () => {
       renderHook(() => useGlobalSSE());
 
@@ -752,6 +1037,61 @@ describe("useGlobalSSE", () => {
 
       // Verify no caches were invalidated for unknown event type
       expect(vi.mocked(mutate)).not.toHaveBeenCalled();
+    });
+
+    // tenant_settings_changed crosses origins (operator subdomain ↔ tenant
+    // subdomain) — BroadcastChannel can't deliver across origins, only SSE
+    // can. The hook dispatches a window event so TenantProvider (which owns
+    // serialised resolveTenant refetches) can respond without this hook
+    // importing tenant internals.
+    it("dispatches phoenix:tenant-settings-stale on tenant_settings_changed event", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      const dispatched: CustomEvent[] = [];
+      const handler = (e: Event) => {
+        dispatched.push(e as CustomEvent);
+      };
+      window.addEventListener("phoenix:tenant-settings-stale", handler);
+
+      onMessage?.({
+        type: "tenant_settings_changed" as never,
+        active_group_id: "",
+        data: { source: "tenant_photos_disabled" },
+        timestamp: new Date().toISOString(),
+      });
+
+      window.removeEventListener("phoenix:tenant-settings-stale", handler);
+
+      expect(dispatched).toHaveLength(1);
+      expect(dispatched[0]?.detail).toEqual({
+        source: "tenant_photos_disabled",
+      });
+    });
+
+    it("falls back to null source when tenant_settings_changed omits it", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      const dispatched: CustomEvent[] = [];
+      const handler = (e: Event) => {
+        dispatched.push(e as CustomEvent);
+      };
+      window.addEventListener("phoenix:tenant-settings-stale", handler);
+
+      onMessage?.({
+        type: "tenant_settings_changed" as never,
+        active_group_id: "",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      window.removeEventListener("phoenix:tenant-settings-stale", handler);
+
+      expect(dispatched).toHaveLength(1);
+      expect(dispatched[0]?.detail).toEqual({ source: null });
     });
   });
 });
