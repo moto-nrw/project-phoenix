@@ -531,6 +531,18 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 			Where("tenant_id = ?", tenantID),
 			"users.students")
 
+		// Delete from active.work_sessions referencing this staff. The IoT
+		// supervisor flow auto-creates a work_session via EnsureCheckedIn
+		// when StartActivitySession runs in tests; the FK to users.staff has
+		// no ON DELETE CASCADE, so the row must be cleared first.
+		// active.work_session_breaks and audit.work_session_edits cascade
+		// via session_id ON DELETE CASCADE.
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("active.work_sessions").
+			Where("staff_id = ? OR created_by = ? OR updated_by = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
+			"active.work_sessions")
+
 		// Delete from users.staff, but never the system staff fixture
 		// (id=1, created by SetupTestDB). Tests across parallel packages share it.
 		cleanupDelete(tb, db.NewDelete().

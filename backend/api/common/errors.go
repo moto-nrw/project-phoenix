@@ -91,6 +91,11 @@ type ErrResponse struct {
 	ErrorText string       `json:"error,omitempty"`
 	Code      string       `json:"code,omitempty"`
 	Errors    []FieldError `json:"errors,omitempty"`
+	// Details carries structured, code-specific payload that lets the frontend
+	// react to a conflict without having to refetch and pattern-match local
+	// state. Populated by helpers like ErrorConflictWithDetails. Keys are
+	// snake_case to match the rest of the API's wire format.
+	Details map[string]any `json:"details,omitempty"`
 }
 
 // Render implements the render.Renderer interface for ErrResponse
@@ -183,6 +188,21 @@ func ErrorConflictWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusConflict, err)
 	resp.Code = code
 	return resp
+}
+
+// ErrorConflictWithDetails returns a 409 Conflict carrying both a stable code
+// and a structured details payload. Use this when the frontend needs concrete
+// fields (e.g. the conflicting session_id) to drive a follow-up action — it
+// removes the dependency on whichever local state happens to be loaded.
+func ErrorConflictWithDetails(err error, code string, details map[string]any) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusConflict,
+		Status:         "error",
+		ErrorText:      err.Error(),
+		Code:           code,
+		Details:        details,
+	}
 }
 
 // ErrorConflictMessage returns a 409 Conflict with a user-facing message string.

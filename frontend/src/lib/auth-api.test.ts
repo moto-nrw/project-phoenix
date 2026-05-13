@@ -757,5 +757,80 @@ describe("auth-api", () => {
         "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     });
+
+    // Locks in the typed-code propagation added in Issue #1368: backend
+    // returns `code: "reopen_status_conflict"` so the frontend can branch
+    // into the change-status-with-reason flow rather than showing a
+    // generic 409 toast. If `buildApiError` ever drops this assignment
+    // the App reopen path will degrade silently — an unrecoverable
+    // status flip from the user's perspective.
+    it("propagates the typed code from the JSON body to ApiError.code", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        headers: new Headers({
+          "Content-Type": "application/json",
+        }),
+        json: () =>
+          Promise.resolve({
+            error: "reopen status conflict",
+            code: "reopen_status_conflict",
+          }),
+      });
+
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      try {
+        await requestPasswordReset("test@example.com");
+        throw new Error("expected requestPasswordReset to reject");
+      } catch (err) {
+        const apiErr = err as { code?: string; status?: number };
+        expect(apiErr.code).toBe("reopen_status_conflict");
+        expect(apiErr.status).toBe(409);
+      }
+    });
+
+    // The structured `details` payload was added so the reopen-status-change
+    // modal can be driven from the response instead of looking the session up
+    // in local history (which is offset-fetched and may not include today).
+    // If buildApiError ever stops surfacing details, the modal will silently
+    // fall back to the generic toast for any user viewing a past week.
+    it("propagates structured details from the JSON body to ApiError.details", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        headers: new Headers({
+          "Content-Type": "application/json",
+        }),
+        json: () =>
+          Promise.resolve({
+            error: "reopen status conflict",
+            code: "reopen_status_conflict",
+            details: {
+              session_id: "42",
+              existing_status: "present",
+              requested_status: "home_office",
+            },
+          }),
+      });
+
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      try {
+        await requestPasswordReset("test@example.com");
+        throw new Error("expected requestPasswordReset to reject");
+      } catch (err) {
+        const apiErr = err as {
+          code?: string;
+          details?: Record<string, unknown>;
+        };
+        expect(apiErr.code).toBe("reopen_status_conflict");
+        expect(apiErr.details).toEqual({
+          session_id: "42",
+          existing_status: "present",
+          requested_status: "home_office",
+        });
+      }
+    });
   });
 });

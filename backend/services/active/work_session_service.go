@@ -11,6 +11,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -53,9 +54,39 @@ type SessionResponse struct {
 	EditCount        int                              `json:"edit_count"`
 }
 
+// ReopenStatusConflictError is returned by CheckIn when the staff member
+// already has a checked-out session for today and the requested status
+// differs from the existing one. Reopening would silently change the status
+// without an audit edit; the caller (App UI) must instead reopen with the
+// existing status and then go through UpdateSession (which requires a
+// notes reason and emits a FieldStatus edit).
+//
+// The frontend disambiguates this from other 409s via the typed code
+// "reopen_status_conflict" produced by api/time-tracking/errors.go.
+type ReopenStatusConflictError struct {
+	SessionID       int64
+	ExistingStatus  string
+	RequestedStatus string
+}
+
+func (e *ReopenStatusConflictError) Error() string {
+	return "reopen status conflict"
+}
+
 // WorkSessionService defines operations for staff time tracking
 type WorkSessionService interface {
-	CheckIn(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error)
+	// CheckIn opens or reopens today's session for staffID. `source` records
+	// the channel that triggered the check-in (app/nfc) so the export can
+	// label "Vor Ort (App)" vs "Vor Ort (NFC)" without inferring it from
+	// status alone (Issue #1368).
+	//
+	// Reopen rules: the originating Source AND Status are both preserved.
+	// The channel is an audit-relevant fact with no audit edit to capture
+	// a change; status changes carry audit weight and must go through
+	// UpdateSession (which gates on a notes reason). If `status` differs
+	// from the existing session's status, CheckIn returns
+	// *ReopenStatusConflictError instead of silently overwriting.
+	CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error)
 	CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
@@ -66,7 +97,13 @@ type WorkSessionService interface {
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
-	EnsureCheckedIn(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	// EnsureCheckedIn opens today's session if the staff member has no active
+	// row. The caller passes `source` (`app`/`nfc`) to record which channel
+	// triggered the auto-stamp; this avoids hard-coding the channel inside
+	// the service so future callers (web action triggers, schedulers) cannot
+	// be silently mislabelled as NFC. Returns nil if the staff member is
+	// already checked out today (no re-open).
+	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
 	ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 }
@@ -94,16 +131,15 @@ func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo ac
 	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, logger: logger}
 }
 
-// CheckIn creates a new work session for the staff member
-func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error) {
-	// Default status to present if empty
-	if status == "" {
-		status = activeModels.WorkSessionStatusPresent
-	}
-
-	// Validate status
+// CheckIn creates a new work session for the staff member.
+// Status must be explicitly chosen — empty values are rejected so the caller
+// (HTTP handler or internal worker) cannot accidentally fall back to "present".
+func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
+	}
+	if source != activeModels.WorkSessionSourceApp && source != activeModels.WorkSessionSourceNFC {
+		return nil, fmt.Errorf("source must be 'app' or 'nfc'")
 	}
 
 	// Get today's date as UTC midnight for PostgreSQL DATE column
@@ -119,8 +155,20 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status 
 		if existingSession.IsActive() {
 			return nil, fmt.Errorf("already checked in")
 		}
-		// Re-open the checked-out session (accidental checkout recovery)
-		return s.reopenSession(ctx, existingSession, staffID, status)
+		// A status mismatch on reopen would silently rewrite an audit-relevant
+		// field with no FieldStatus edit emitted. Force the caller to reopen
+		// with the existing status, then change it via UpdateSession (which
+		// gates on a notes reason and produces the audit edit).
+		if existingSession.Status != status {
+			return nil, &ReopenStatusConflictError{
+				SessionID:       existingSession.ID,
+				ExistingStatus:  existingSession.Status,
+				RequestedStatus: status,
+			}
+		}
+		// Re-open the checked-out session (accidental checkout recovery).
+		// Source and Status are both preserved (see reopenSession comment).
+		return s.reopenSession(ctx, existingSession, staffID)
 	}
 
 	// Create new session
@@ -129,6 +177,7 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status 
 		StaffID:      staffID,
 		Date:         today,
 		Status:       status,
+		Source:       source,
 		CheckInTime:  now,
 		CheckOutTime: nil,
 		BreakMinutes: 0,
@@ -147,11 +196,17 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status 
 	return session, nil
 }
 
-// reopenSession clears checkout on an existing session so the staff member can continue working
-func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64, status string) (*activeModels.WorkSession, error) {
+// reopenSession clears checkout on an existing session so the staff member
+// can continue working. Both Source and Status are intentionally preserved:
+// the originating channel and the previously-chosen work mode are
+// audit-relevant facts, and overwriting either on reopen would silently
+// drop the signal with no audit edit. CheckIn rejects the call with
+// ReopenStatusConflictError before this point if the requested status
+// differs from the existing one — the caller is expected to follow up
+// with UpdateSession (which gates on a notes reason).
+func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64) (*activeModels.WorkSession, error) {
 	session.CheckOutTime = nil
 	session.AutoCheckedOut = false
-	session.Status = status
 	session.UpdatedBy = &staffID
 
 	if err := session.Validate(); err != nil {
@@ -413,6 +468,15 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 
 	if session.StaffID != staffID {
 		return nil, fmt.Errorf("can only update own sessions")
+	}
+
+	// A status change (Vor Ort ↔ Homeoffice) carries audit weight and must be
+	// justified — otherwise the audit trail loses meaning. Requires the caller
+	// to send the reason in `notes` on the same request.
+	if updates.Status != nil && *updates.Status != session.Status {
+		if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
+			return nil, fmt.Errorf("notes required when changing status")
+		}
 	}
 
 	uc := &sessionUpdateContext{
@@ -698,8 +762,9 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 	return count, nil
 }
 
-// EnsureCheckedIn ensures a staff member is checked in, creating a session if needed
-func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+// EnsureCheckedIn ensures a staff member is checked in, creating a session if needed.
+// `source` is forwarded to CheckIn so the channel is recorded faithfully.
+func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
 	// Check if already checked in
 	currentSession, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -722,8 +787,8 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64)
 		return nil, nil
 	}
 
-	// No session today, create one
-	return s.CheckIn(ctx, staffID, activeModels.WorkSessionStatusPresent)
+	// No session today, create one with the channel the caller passed in.
+	return s.CheckIn(ctx, staffID, activeModels.WorkSessionStatusPresent, source)
 }
 
 // German weekday names for export
@@ -804,9 +869,15 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 		for !d.After(absence.DateEnd) {
 			datum := d.Format("02.01.2006")
 			wochentag := germanWeekdays[d.Weekday()]
+			// Column layout must match the export header (9 cells):
+			// Datum, Wochentag, Start, Ende, Pause, Netto, Status, Quelle, Bemerkungen.
+			// Absences have no Quelle (the staff member did not stamp at all),
+			// so that cell stays empty rather than borrowing the "—" sentinel
+			// already used by quelleLabel for legacy work_sessions of unknown
+			// channel — those are two different facts and must read distinctly.
 			rows = append(rows, exportRow{
 				Date: d,
-				Row:  []string{datum, wochentag, "--", "--", "--", "--", label, absence.Note},
+				Row:  []string{datum, wochentag, "--", "--", "--", "--", label, "", absence.Note},
 			})
 			d = d.AddDate(0, 0, 1)
 		}
@@ -830,7 +901,7 @@ func (s *workSessionService) exportCSV(rows []exportRow) ([]byte, error) {
 	w.Comma = ';'
 
 	// Header
-	if err := w.Write([]string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Ort", "Bemerkungen"}); err != nil {
+	if err := w.Write([]string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Status", "Quelle", "Bemerkungen"}); err != nil {
 		return nil, fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
@@ -863,7 +934,7 @@ func (s *workSessionService) exportXLSX(rows []exportRow) ([]byte, error) {
 		_ = f.DeleteSheet("Sheet1")
 	}
 
-	headers := []string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Ort", "Bemerkungen"}
+	headers := []string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Status", "Quelle", "Bemerkungen"}
 
 	// Header style
 	headerStyle, _ := f.NewStyle(&excelize.Style{
@@ -920,12 +991,45 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	m := netMins % 60
 	netto := fmt.Sprintf("%dh %02dmin", h, m)
 
-	ort := "In der OGS"
+	// Status carries the underlying work mode and is never overwritten by
+	// system events — the OGS-Leitung must always be able to see whether
+	// the row was Vor Ort or Homeoffice, even if the session was later
+	// auto-closed or manually corrected.
+	status := "Vor Ort"
 	if sess.Status == activeModels.WorkSessionStatusHomeOffice {
-		ort = "Homeoffice"
+		status = "Homeoffice"
 	}
 
-	return []string{datum, wochentag, start, ende, pauseMin, netto, ort, sess.Notes}
+	// Quelle records the originating channel, with system-event overlays:
+	// a manual correction is the most informative signal and wins; an
+	// auto-checkout still tells the reader the session was closed by the
+	// scheduler rather than the staff member; otherwise the persisted
+	// source (App / NFC) is shown verbatim.
+	quelle := quelleLabel(sess.Source)
+	if sess.AutoCheckedOut {
+		quelle = "Auto-Checkout"
+	}
+	if sr.EditCount > 0 {
+		quelle = "Manuell korrigiert"
+	}
+
+	return []string{datum, wochentag, start, ende, pauseMin, netto, status, quelle, sess.Notes}
+}
+
+// quelleLabel renders the export "Quelle" cell from the persisted source.
+// 'unknown' marks rows that pre-date migration 1.15.54 — no channel was ever
+// recorded, so we render "—" rather than guess. Anything else falls through
+// to App, matching the DB column default for in-flight rows that may exist
+// briefly between migration and new-server boot.
+func quelleLabel(source string) string {
+	switch source {
+	case activeModels.WorkSessionSourceNFC:
+		return "NFC"
+	case activeModels.WorkSessionSourceUnknown:
+		return "—"
+	default:
+		return "App"
+	}
 }
 
 // AutoEndExpiredBreaks ends all breaks whose planned_end_time has passed

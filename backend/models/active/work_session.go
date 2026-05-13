@@ -17,12 +17,25 @@ const (
 	WorkSessionStatusHomeOffice = "home_office"
 )
 
+// WorkSessionSource records which channel produced the row (Issue #1368).
+// New writes are restricted to App/NFC by WorkSessionService.CheckIn;
+// 'unknown' exists only for rows that pre-date migration 1.15.54 and is
+// rejected as a write value but accepted as a read value so legacy rows
+// survive partial-update flows (break edits, notes patches). The DB CHECK
+// constraint chk_work_sessions_source enforces the same set on disk.
+const (
+	WorkSessionSourceApp     = "app"     // POST /api/time-tracking/check-in (App / Web)
+	WorkSessionSourceNFC     = "nfc"     // Auto-stamp from a kiosk-driven scan
+	WorkSessionSourceUnknown = "unknown" // Pre-migration legacy rows; never written by new code
+)
+
 type WorkSession struct {
 	base.Model `bun:"schema:active,table:work_sessions"`
 	base.TenantModel
 	StaffID        int64      `bun:"staff_id,notnull" json:"staff_id"`
 	Date           time.Time  `bun:"date,notnull,type:date" json:"date"`
 	Status         string     `bun:"status,notnull,default:'present'" json:"status"`
+	Source         string     `bun:"source,notnull,default:'app'" json:"source"`
 	CheckInTime    time.Time  `bun:"check_in_time,notnull" json:"check_in_time"`
 	CheckOutTime   *time.Time `bun:"check_out_time" json:"check_out_time,omitempty"`
 	BreakMinutes   int        `bun:"break_minutes,notnull,default:0" json:"break_minutes"`
@@ -64,6 +77,9 @@ func (ws *WorkSession) Validate() error {
 	if ws.Status != WorkSessionStatusPresent && ws.Status != WorkSessionStatusHomeOffice {
 		return errors.New("status must be 'present' or 'home_office'")
 	}
+	// Source is intentionally not re-validated here — write paths gate it at
+	// the service boundary, and legacy 'unknown' rows must round-trip cleanly
+	// through partial-update flows (break edits, notes patches).
 	if ws.CheckOutTime != nil && ws.CheckInTime.After(*ws.CheckOutTime) {
 		return errors.New("check-in time must be before check-out time")
 	}
