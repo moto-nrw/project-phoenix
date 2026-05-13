@@ -179,13 +179,14 @@ function LoginForm() {
       logger.error("session_seed_failed", { error: result.error });
       return;
     }
+    launchConfetti();
     setAwaitingRedirect(true);
     router.refresh();
   };
 
   const handleMFASuccess = async (tokens: MFATokenResponse) => {
-    setMfaStep(null);
     await seedSessionWithTokens(tokens);
+    setMfaStep(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -194,10 +195,6 @@ function LoginForm() {
     setError("");
 
     try {
-      // Start confetti immediately when button is clicked
-      // This creates a perception of instant response
-      launchConfetti();
-
       const response = await loginApi("tenant", {
         email,
         password,
@@ -243,9 +240,13 @@ function LoginForm() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-10 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl">
+      <div
+        className={`relative mx-auto w-full rounded-2xl bg-white/80 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl ${
+          mfaStep || enrollmentStep ? "max-w-lg p-10" : "max-w-2xl p-10"
+        }`}
+      >
         {/* Top Bar: Tenant Selector (left) + Help (right) */}
-        {tenant?.hidden !== true && (
+        {tenant?.hidden !== true && !mfaStep && !enrollmentStep && (
           <div className="absolute top-4 right-4 left-4 flex items-center justify-between">
             <button
               type="button"
@@ -276,40 +277,44 @@ function LoginForm() {
           </div>
         )}
 
-        {/* Logo Section */}
-        <div className="mb-8 flex justify-center">
-          {tenant?.settings?.loginImageUrl ? (
-            <Image
-              src={loginImageSrc(tenant.settings.loginImageUrl)}
-              alt={`${tenant.name} Logo`}
-              width={200}
-              height={142}
-              className="max-h-[142px] w-auto object-contain"
-              priority
-              unoptimized
-            />
-          ) : (
-            <Image
-              src="/images/moto_transparent.png"
-              alt="MOTO Logo"
-              width={200}
-              height={80}
-              priority
-            />
-          )}
-        </div>
+        {!mfaStep && !enrollmentStep && (
+          <>
+            {/* Logo Section */}
+            <div className="mb-8 flex justify-center">
+              {tenant?.settings?.loginImageUrl ? (
+                <Image
+                  src={loginImageSrc(tenant.settings.loginImageUrl)}
+                  alt={`${tenant.name} Logo`}
+                  width={200}
+                  height={142}
+                  className="max-h-[142px] w-auto object-contain"
+                  priority
+                  unoptimized
+                />
+              ) : (
+                <Image
+                  src="/images/moto_transparent.png"
+                  alt="MOTO Logo"
+                  width={200}
+                  height={80}
+                  priority
+                />
+              )}
+            </div>
 
-        {/* Welcome Text */}
-        <h1 className="mb-2 bg-gradient-to-r from-[#5080d8] to-[#83cd2d] bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
-          Willkommen bei moto!
-        </h1>
-        <p className="text-xl text-gray-700">Ganztag. Digital.</p>
-        {tenant?.name && (
-          <p className="mt-4 mb-10 text-2xl font-semibold text-gray-800">
-            {tenant.name}
-          </p>
+            {/* Welcome Text */}
+            <h1 className="mb-2 bg-gradient-to-r from-[#5080d8] to-[#83cd2d] bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
+              Willkommen bei moto!
+            </h1>
+            <p className="text-xl text-gray-700">Ganztag. Digital.</p>
+            {tenant?.name && (
+              <p className="mt-4 mb-10 text-2xl font-semibold text-gray-800">
+                {tenant.name}
+              </p>
+            )}
+            {!tenant?.name && <div className="mb-10" />}
+          </>
         )}
-        {!tenant?.name && <div className="mb-10" />}
 
         {/* Loading spinner while checking auth or awaiting redirect */}
         {isCheckingAuth && (
@@ -350,13 +355,18 @@ function LoginForm() {
               scope="tenant"
               bearerToken={enrollmentStep.accessToken}
               userEmail={enrollmentStep.email}
+              onExit={() => {
+                setEnrollmentStep(null);
+                setError("");
+                setPassword("");
+              }}
               onComplete={async () => {
                 const tokens = {
                   access_token: enrollmentStep.accessToken,
                   refresh_token: enrollmentStep.refreshToken,
                 };
-                setEnrollmentStep(null);
                 await seedSessionWithTokens(tokens);
+                setEnrollmentStep(null);
               }}
             />
           </div>

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { Alert, Button } from "~/components/ui";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RecoveryCodesDisplay" });
-
-const PRIMARY_GREEN = "#83CD2D";
-const PRIMARY_BLUE = "#5080D8";
 
 interface RecoveryCodesDisplayProps {
   readonly codes: readonly string[];
@@ -18,8 +17,8 @@ interface RecoveryCodesDisplayProps {
 export function RecoveryCodesDisplay({
   codes,
   onConfirm,
-  title = "Wiederherstellungscodes",
-  intro = "Speichern Sie diese Codes an einem sicheren Ort. Jeder Code kann genau einmal anstelle eines E-Mail-Codes verwendet werden, falls Sie keinen Zugriff auf Ihre E-Mail haben.",
+  title = "Wiederherstellungscodes sichern",
+  intro = "Speichern Sie diese 10 Codes sicher. Jeder gilt einmal, falls Sie keinen E-Mail-Zugriff haben.",
 }: RecoveryCodesDisplayProps) {
   const [confirmed, setConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -54,50 +53,63 @@ export function RecoveryCodesDisplay({
     setDownloaded(true);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div className="space-y-5 text-left">
-      <div>
-        <h2 className="mb-1 text-xl font-semibold text-gray-900">{title}</h2>
-        <p className="text-sm text-gray-600">{intro}</p>
+      <div className="space-y-1">
+        <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+        <p className="text-sm leading-relaxed text-gray-600">{intro}</p>
       </div>
+
+      <Alert
+        type="warning"
+        message="Diese Codes werden nur einmalig angezeigt."
+      />
 
       <div
-        className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+        className="rounded-lg border border-gray-200 bg-gray-50 p-3"
         aria-label="Liste der Wiederherstellungscodes"
       >
-        <ul className="grid grid-cols-1 gap-2 font-mono text-base text-gray-900 sm:grid-cols-2">
-          {codes.map((code) => (
-            <li key={code} className="rounded bg-white px-3 py-2 shadow-sm">
-              {code}
+        <ol className="grid grid-cols-2 gap-1.5 font-mono text-xs text-gray-900">
+          {codes.map((code, index) => (
+            <li
+              key={code}
+              className="flex items-center gap-1.5 rounded bg-white px-2 py-1.5 shadow-sm"
+            >
+              <span className="w-4 shrink-0 text-[10px] text-gray-400 tabular-nums">
+                {(index + 1).toString().padStart(2, "0")}
+              </span>
+              <span className="truncate">{code}</span>
             </li>
           ))}
-        </ul>
+        </ol>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button
+      <div className="flex flex-wrap justify-center gap-2">
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => {
             void handleCopy();
           }}
-          className="rounded-lg px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90 focus:outline-none active:scale-95"
-          style={{ backgroundColor: PRIMARY_BLUE }}
         >
-          {copied ? "Kopiert!" : "In Zwischenablage kopieren"}
-        </button>
-        <button
+          {copied ? "Kopiert" : "Kopieren"}
+        </Button>
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={handleDownload}
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none active:scale-95"
         >
-          {downloaded ? "Heruntergeladen ✓" : "Als .txt herunterladen"}
-        </button>
-      </div>
-
-      <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-        <strong>Wichtig:</strong> Diese Codes werden nur jetzt einmalig
-        angezeigt. Wenn Sie diese Seite verlassen, sind sie nicht erneut
-        einsehbar. Sie können später jederzeit neue Codes generieren.
+          {downloaded ? "Heruntergeladen" : "Herunterladen"}
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={handlePrint}>
+          Drucken
+        </Button>
       </div>
 
       <label className="flex items-start gap-2 select-none">
@@ -105,24 +117,24 @@ export function RecoveryCodesDisplay({
           type="checkbox"
           checked={confirmed}
           onChange={(e) => setConfirmed(e.target.checked)}
-          className="mt-1 h-4 w-4 rounded border-gray-300"
-          style={{ accentColor: PRIMARY_GREEN }}
+          className="mt-0.5 h-4 w-4 rounded border-gray-300"
+          style={{ accentColor: LOCATION_COLORS.GROUP_ROOM }}
         />
         <span className="text-sm text-gray-700">
-          Ich habe die Codes gespeichert und kann darauf zugreifen, falls ich
-          keinen Zugriff auf meine E-Mail habe.
+          Ich habe die Codes sicher gespeichert.
         </span>
       </label>
 
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="base"
+        className="w-full"
         onClick={onConfirm}
         disabled={!confirmed}
-        className="w-full rounded-xl px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-        style={{ backgroundColor: PRIMARY_GREEN }}
       >
-        Weiter zum Dashboard
-      </button>
+        Los geht&apos;s
+      </Button>
     </div>
   );
 }

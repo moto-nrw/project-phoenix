@@ -8,7 +8,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
 } from "react";
-import { Alert } from "~/components/ui";
+import { Alert, Button, WizardStepper } from "~/components/ui";
 import { createLogger } from "~/lib/logger";
 import {
   enrollConfirm,
@@ -21,16 +21,22 @@ import { RecoveryCodesDisplay } from "./recovery-codes-display";
 const logger = createLogger({ component: "MFAEnrollmentScreen" });
 
 const CODE_LENGTH = 6;
-const PRIMARY_BLUE = "#5080D8";
-const PRIMARY_GREEN = "#83CD2D";
+const STEPS = ["Start", "Bestätigung", "Abschluss"] as const;
 
 type Step = "intro" | "code" | "recovery";
+
+const STEP_INDEX: Record<Step, number> = {
+  intro: 0,
+  code: 1,
+  recovery: 2,
+};
 
 interface MFAEnrollmentScreenProps {
   readonly scope: LoginScope;
   readonly bearerToken: string;
   readonly userEmail: string;
   readonly onComplete: () => void | Promise<void>;
+  readonly onExit?: () => void;
 }
 
 export function MFAEnrollmentScreen({
@@ -38,6 +44,7 @@ export function MFAEnrollmentScreen({
   bearerToken,
   userEmail,
   onComplete,
+  onExit,
 }: MFAEnrollmentScreenProps) {
   const [step, setStep] = useState<Step>("intro");
   const [error, setError] = useState("");
@@ -71,6 +78,17 @@ export function MFAEnrollmentScreen({
     } finally {
       setIsStarting(false);
     }
+  };
+
+  const handleBack = () => {
+    setError("");
+    if (step === "code") {
+      setDigits(Array.from({ length: CODE_LENGTH }, () => ""));
+      submittedRef.current = false;
+      setStep("intro");
+      return;
+    }
+    onExit?.();
   };
 
   const performConfirm = useCallback(
@@ -162,114 +180,147 @@ export function MFAEnrollmentScreen({
     handleDigitChange(0, pasted);
   };
 
-  if (step === "recovery") {
-    return (
-      <RecoveryCodesDisplay
-        codes={recoveryCodes}
-        onConfirm={() => {
-          void onComplete();
-        }}
-      />
-    );
-  }
+  const showBack = step !== "recovery";
 
   return (
-    <div className="space-y-6 text-left">
-      <div>
-        <h2 className="mb-1 text-xl font-semibold text-gray-900">
-          Zwei-Faktor-Authentifizierung einrichten
-        </h2>
-        <p className="text-sm text-gray-600">
-          Ihr Konto erfordert die Aktivierung der Zwei-Faktor-Authentifizierung.
-          Beim Login wird zusätzlich zum Passwort ein 6-stelliger Code per
-          E-Mail an{" "}
-          <span className="font-medium text-gray-800">{userEmail}</span>{" "}
-          gesendet.
-        </p>
-      </div>
-
-      {error && <Alert type="error" message={error} />}
-
-      {step === "intro" && (
-        <div className="space-y-3">
-          <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
-            <strong>So funktioniert&apos;s:</strong>
-            <ol className="mt-1 ml-4 list-decimal space-y-1">
-              <li>Sie erhalten einen Bestätigungscode per E-Mail.</li>
-              <li>Sie geben den Code hier ein.</li>
-              <li>
-                Sie erhalten Wiederherstellungscodes für den Notfall (z. B. wenn
-                Sie keinen E-Mail-Zugriff haben).
-              </li>
-            </ol>
-          </div>
+    <div className="space-y-7 text-left">
+      {showBack && (
+        <div>
           <button
             type="button"
-            onClick={() => {
-              void handleStart();
-            }}
-            disabled={isStarting}
-            className="w-full rounded-xl px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: PRIMARY_GREEN }}
+            onClick={handleBack}
+            className="-ml-1 flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
+            aria-label="Zurück zum vorherigen Schritt"
           >
-            {isStarting ? "Code wird gesendet…" : "Code an meine E-Mail senden"}
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+            Zurück
           </button>
         </div>
       )}
 
-      {step === "code" && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Wir haben einen Code an{" "}
-            <span className="font-medium text-gray-800">{userEmail}</span>{" "}
-            gesendet. Geben Sie ihn unten ein:
-          </p>
+      <WizardStepper steps={[...STEPS]} current={STEP_INDEX[step]} />
 
-          <div
-            className="flex justify-center gap-2"
-            role="group"
-            aria-label="6-stelliger Bestätigungscode"
-          >
-            {digits.map((digit, index) => (
-              <input
-                // eslint-disable-next-line react/no-array-index-key -- positional digit slots
-                key={index}
-                ref={(el) => {
-                  inputRefs.current[index] = el;
-                }}
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]"
-                maxLength={CODE_LENGTH}
-                value={digit}
-                onChange={(e) => handleDigitChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={handlePaste}
-                disabled={isConfirming}
-                aria-label={`Stelle ${index + 1}`}
-                className="h-14 w-12 rounded-lg border-0 bg-white text-center text-2xl font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5080D8] disabled:bg-gray-50 disabled:text-gray-400"
-              />
-            ))}
+      {step === "recovery" ? (
+        <RecoveryCodesDisplay
+          codes={recoveryCodes}
+          onConfirm={() => {
+            void onComplete();
+          }}
+        />
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <h2 className="text-xl font-semibold text-gray-900">
+              {step === "intro"
+                ? "Zwei-Faktor-Authentifizierung einrichten"
+                : "Code aus E-Mail eingeben"}
+            </h2>
+            <p className="text-sm leading-relaxed text-gray-600">
+              {step === "intro" ? (
+                <>
+                  Ihre Schule verlangt eine zweite Sicherheitsstufe beim Login.
+                  Wir senden dafür einen 6-stelligen Code an{" "}
+                  <span className="font-medium text-gray-800">{userEmail}</span>
+                  .
+                </>
+              ) : (
+                <>
+                  Wir haben einen Code an{" "}
+                  <span className="font-medium text-gray-800">{userEmail}</span>{" "}
+                  gesendet. Geben Sie ihn unten ein.
+                </>
+              )}
+            </p>
           </div>
-          <p className="text-center text-xs text-gray-500">
-            {isConfirming
-              ? "Code wird geprüft…"
-              : "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben."}
-          </p>
 
-          <button
-            type="button"
-            onClick={() => {
-              void handleStart();
-            }}
-            disabled={isStarting || isConfirming}
-            className="w-full text-sm text-gray-600 transition-colors hover:text-gray-900 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
-            style={{ color: PRIMARY_BLUE }}
-          >
-            Keinen Code erhalten? Erneut senden
-          </button>
-        </div>
+          {error && <Alert type="error" message={error} />}
+
+          {step === "intro" && (
+            <div className="space-y-5">
+              <Alert
+                type="info"
+                message="Nach dem Code erhalten Sie 10 Wiederherstellungscodes für den Notfall, falls Sie keinen E-Mail-Zugriff haben."
+              />
+              <Button
+                type="button"
+                variant="primary"
+                size="base"
+                className="w-full"
+                onClick={() => {
+                  void handleStart();
+                }}
+                disabled={isStarting}
+                isLoading={isStarting}
+                loadingText="Code wird gesendet…"
+              >
+                Code an meine E-Mail senden
+              </Button>
+            </div>
+          )}
+
+          {step === "code" && (
+            <div className="space-y-5">
+              <div
+                className="flex justify-center gap-2"
+                role="group"
+                aria-label="6-stelliger Bestätigungscode"
+              >
+                {digits.map((digit, index) => (
+                  <input
+                    // eslint-disable-next-line react/no-array-index-key -- positional digit slots
+                    key={index}
+                    ref={(el) => {
+                      inputRefs.current[index] = el;
+                    }}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]"
+                    maxLength={CODE_LENGTH}
+                    value={digit}
+                    onChange={(e) => handleDigitChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onPaste={handlePaste}
+                    disabled={isConfirming}
+                    aria-label={`Stelle ${index + 1}`}
+                    className="h-14 w-12 rounded-lg border-0 bg-white text-center text-2xl font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5080D8] disabled:bg-gray-50 disabled:text-gray-400"
+                  />
+                ))}
+              </div>
+              <p className="text-center text-xs text-gray-500">
+                {isConfirming
+                  ? "Code wird geprüft…"
+                  : "Der Code wird automatisch geprüft, sobald alle 6 Stellen eingegeben sind."}
+              </p>
+
+              <div className="flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleStart();
+                  }}
+                  disabled={isStarting || isConfirming}
+                  className="text-sm font-medium text-gray-700 underline-offset-2 transition-colors hover:text-gray-900 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+                >
+                  Keinen Code erhalten? Erneut senden
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

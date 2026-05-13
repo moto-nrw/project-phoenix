@@ -9,7 +9,8 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
 } from "react";
-import { Alert } from "~/components/ui";
+import { Alert, Button } from "~/components/ui";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   germanMFAErrorMessage,
@@ -24,8 +25,6 @@ const logger = createLogger({ component: "MFAChallengeForm" });
 
 const CODE_LENGTH = 6;
 const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
-const PRIMARY_BLUE = "#5080D8";
-const PRIMARY_GREEN = "#83CD2D";
 
 interface MFAChallengeFormProps {
   readonly scope: LoginScope;
@@ -216,23 +215,82 @@ export function MFAChallengeForm({
     }
   };
 
+  const resendLabel =
+    resendIn > 0
+      ? `Neuen Code anfordern (${resendIn}s)`
+      : isResending
+        ? "Code wird gesendet…"
+        : "Neuen Code anfordern";
+
+  const handleBack = () => {
+    if (useRecovery) {
+      setError("");
+      setRecoveryCode("");
+      setDigits(Array.from({ length: CODE_LENGTH }, () => ""));
+      setUseRecovery(false);
+      return;
+    }
+    onCancel?.();
+  };
+
+  const showBack = useRecovery || Boolean(onCancel);
+
   return (
-    <div className="space-y-6">
-      <div className="text-left">
-        <h2 className="mb-1 text-xl font-semibold text-gray-900">
-          Code-Eingabe
+    <div className="space-y-6 text-left">
+      {showBack && (
+        <div>
+          <button
+            type="button"
+            onClick={handleBack}
+            disabled={isVerifying}
+            className="-ml-1 flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-300"
+            aria-label={
+              useRecovery ? "Zurück zur Code-Eingabe" : "Zurück zum Login"
+            }
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+            Zurück
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <h2 className="text-xl font-semibold text-gray-900">
+          {useRecovery ? "Wiederherstellungscode" : "Code-Eingabe"}
         </h2>
-        <p className="text-sm text-gray-600">
-          Wir haben einen 6-stelligen Code an{" "}
-          <span className="font-medium text-gray-800">{maskedEmail}</span>{" "}
-          gesendet. Der Code ist 10 Minuten gültig.
+        <p className="text-sm leading-relaxed text-gray-600">
+          {useRecovery ? (
+            <>
+              Geben Sie einen Ihrer gespeicherten Wiederherstellungscodes ein.
+              Jeder Code kann nur einmal verwendet werden.
+            </>
+          ) : (
+            <>
+              Wir haben einen 6-stelligen Code an{" "}
+              <span className="font-medium text-gray-800">{maskedEmail}</span>{" "}
+              gesendet. Der Code ist 10 Minuten gültig.
+            </>
+          )}
         </p>
       </div>
 
       {error && <Alert type="error" message={error} />}
 
       {!useRecovery && (
-        <div>
+        <div className="space-y-3">
           <div
             className="flex justify-center gap-2"
             role="group"
@@ -260,11 +318,23 @@ export function MFAChallengeForm({
               />
             ))}
           </div>
-          <p className="mt-3 text-center text-xs text-gray-500">
+          <p className="text-center text-xs text-gray-500">
             {isVerifying
               ? "Code wird geprüft…"
               : "Der Code wird automatisch geprüft, sobald Sie alle 6 Stellen eingegeben haben."}
           </p>
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                void handleResend();
+              }}
+              disabled={resendIn > 0 || isResending || isVerifying}
+              className="text-sm font-medium text-gray-700 underline-offset-2 transition-colors hover:text-gray-900 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+            >
+              {resendLabel}
+            </button>
+          </div>
         </div>
       )}
 
@@ -288,14 +358,17 @@ export function MFAChallengeForm({
             placeholder="xxxx-xxxx-xxxx-xxxx"
             className="block w-full rounded-lg border-0 bg-white px-4 py-3 font-mono text-base tracking-wider text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5080D8] disabled:bg-gray-50"
           />
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            size="base"
+            className="w-full"
             disabled={isVerifying || recoveryCode.trim().length === 0}
-            className="w-full rounded-xl px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: PRIMARY_BLUE }}
+            isLoading={isVerifying}
+            loadingText="Wird geprüft…"
           >
-            {isVerifying ? "Wird geprüft…" : "Wiederherstellungscode prüfen"}
-          </button>
+            Wiederherstellungscode prüfen
+          </Button>
         </form>
       )}
 
@@ -307,8 +380,8 @@ export function MFAChallengeForm({
             checked={rememberDevice}
             onChange={(e) => setRememberDevice(e.target.checked)}
             disabled={isVerifying}
-            className="h-4 w-4 rounded border-gray-300 accent-[#83CD2D]"
-            style={{ accentColor: PRIMARY_GREEN }}
+            className="h-4 w-4 rounded border-gray-300"
+            style={{ accentColor: LOCATION_COLORS.GROUP_ROOM }}
           />
           <label
             htmlFor="mfa-remember-device"
@@ -319,49 +392,23 @@ export function MFAChallengeForm({
         </div>
       )}
 
-      <div className="flex flex-col items-center gap-2 text-sm">
-        <button
-          type="button"
-          onClick={() => {
-            void handleResend();
-          }}
-          disabled={resendIn > 0 || isResending || isVerifying}
-          className="text-gray-600 transition-colors hover:text-gray-900 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
-        >
-          {resendIn > 0
-            ? `Neuen Code anfordern (${resendIn}s)`
-            : isResending
-              ? "Code wird gesendet…"
-              : "Neuen Code anfordern"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setError("");
-            setRecoveryCode("");
-            setDigits(Array.from({ length: CODE_LENGTH }, () => ""));
-            setUseRecovery((v) => !v);
-          }}
-          disabled={isVerifying}
-          className="text-gray-600 transition-colors hover:text-gray-900 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
-        >
-          {useRecovery
-            ? "Zurück zur Code-Eingabe"
-            : "Wiederherstellungscode verwenden"}
-        </button>
-
-        {onCancel && (
+      {!useRecovery && (
+        <div className="border-t border-gray-200 pt-4 text-center">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => {
+              setError("");
+              setRecoveryCode("");
+              setDigits(Array.from({ length: CODE_LENGTH }, () => ""));
+              setUseRecovery(true);
+            }}
             disabled={isVerifying}
-            className="text-gray-500 transition-colors hover:text-gray-700 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-300"
+            className="text-sm text-gray-600 transition-colors hover:text-gray-900 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
           >
-            Abbrechen
+            Wiederherstellungscode verwenden
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
