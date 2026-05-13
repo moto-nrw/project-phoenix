@@ -55,6 +55,9 @@ func (m *mockSettingsSvc) ResolveBoolForTenant(_ context.Context, _ int64, key s
 	return m.ResolveBool(context.Background(), key)
 }
 func (m *mockSettingsSvc) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
+func (m *mockSettingsSvc) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
+	return 0, nil
+}
 func (m *mockSettingsSvc) HasTenantOverride(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }

@@ -56,6 +56,9 @@ func (m *trackingMockSettingsService) ResolveBoolForTenant(ctx context.Context, 
 func (m *trackingMockSettingsService) ResolveInt(ctx context.Context, key string) (int, error) {
 	return 0, nil
 }
+func (m *trackingMockSettingsService) ResolveIntForTenant(ctx context.Context, _ int64, key string) (int, error) {
+	return m.ResolveInt(ctx, key)
+}
 func (m *trackingMockSettingsService) HasTenantOverride(ctx context.Context, key string) (bool, error) {
 	return false, nil
 }

@@ -62,13 +62,13 @@ func init() {
 	})
 
 	mfaTrustedDeviceMin := float64(1)
-	mfaTrustedDeviceMax := float64(90)
+	mfaTrustedDeviceMax := float64(180)
 	config.Register(config.Definition{
 		Key:             config.KeyMFATrustedDeviceDays,
 		Label:           "Vertrauenswürdige Geräte: Gültigkeit (Tage)",
 		Description:     "Wie lange ein als vertrauenswürdig markierter Browser ohne erneute 2FA gilt.",
 		Type:            config.FieldNumber,
-		Default:         30,
+		Default:         90,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "security",

@@ -199,6 +199,9 @@ func (m *mockSettingsService) ResolveInt(_ context.Context, key string) (int, er
 	}
 	return 0, nil
 }
+func (m *mockSettingsService) ResolveIntForTenant(_ context.Context, _ int64, key string) (int, error) {
+	return m.ResolveInt(context.Background(), key)
+}
 func (m *mockSettingsService) HasTenantOverride(_ context.Context, key string) (bool, error) {
 	_, exists := m.values[key]
 	return exists, nil

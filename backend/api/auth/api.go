@@ -544,6 +544,11 @@ type LoginResponse struct {
 	// tenant admin has disabled the feature. A missing field defaults to
 	// "enabled" on the client for backwards compatibility.
 	TrustedDeviceEnabled *bool `json:"trusted_device_enabled,omitempty"`
+	// TrustedDeviceDays mirrors security.mfa_trusted_device_days for the
+	// tenant. The frontend uses it to render the dynamic "Auf diesem
+	// Gerät N Tage merken" label so the checkbox always reflects the
+	// cookie lifetime the backend will actually issue.
+	TrustedDeviceDays *int `json:"trusted_device_days,omitempty"`
 }
 
 // login handles user login. The handler is a thin orchestrator: it pulls
@@ -578,11 +583,13 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 
 	if result.Status == authService.LoginStatusMFARequired {
 		tde := result.TrustedDeviceEnabled
+		tdd := result.TrustedDeviceDays
 		render.JSON(w, r, LoginResponse{
 			Status:               string(authService.LoginStatusMFARequired),
 			ChallengeToken:       result.ChallengeToken,
 			MaskedEmail:          result.MaskedEmail,
 			TrustedDeviceEnabled: &tde,
+			TrustedDeviceDays:    &tdd,
 		})
 		return
 	}

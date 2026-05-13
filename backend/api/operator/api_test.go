@@ -47,6 +47,9 @@ func (stubSettingsService) ResolveBoolForTenant(context.Context, int64, string) 
 	return false, nil
 }
 func (stubSettingsService) ResolveInt(context.Context, string) (int, error) { return 0, nil }
+func (stubSettingsService) ResolveIntForTenant(context.Context, int64, string) (int, error) {
+	return 0, nil
+}
 func (stubSettingsService) HasTenantOverride(context.Context, string) (bool, error) {
 	return false, nil
 }

@@ -33,6 +33,7 @@ interface MFAStep {
   challengeToken: string;
   maskedEmail: string;
   trustedDeviceEnabled: boolean;
+  trustedDeviceDays: number;
 }
 
 interface MFAEnrollmentStep {
@@ -206,6 +207,7 @@ function LoginForm() {
           challengeToken: response.challenge_token,
           maskedEmail: response.masked_email,
           trustedDeviceEnabled: response.trusted_device_enabled ?? true,
+          trustedDeviceDays: response.trusted_device_days ?? 90,
         });
         return;
       }
@@ -338,6 +340,7 @@ function LoginForm() {
               challengeToken={mfaStep.challengeToken}
               maskedEmail={mfaStep.maskedEmail}
               trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
+              trustedDeviceDays={mfaStep.trustedDeviceDays}
               onSuccess={handleMFASuccess}
               onCancel={() => {
                 setMfaStep(null);

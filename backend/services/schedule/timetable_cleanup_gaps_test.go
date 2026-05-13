@@ -51,6 +51,9 @@ func (s *stubSettingsService) ResolveBoolForTenant(context.Context, int64, strin
 func (s *stubSettingsService) ResolveInt(_ context.Context, _ string) (int, error) {
 	return s.intVal, s.intErr
 }
+func (s *stubSettingsService) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
+	return s.intVal, s.intErr
+}
 func (s *stubSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
 	return s.hasOverride, s.hasOverrideErr
 }

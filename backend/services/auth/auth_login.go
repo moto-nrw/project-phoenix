@@ -87,6 +87,11 @@ type LoginResult struct {
 	// frontend can hide the "remember this device" checkbox when the admin
 	// has disabled the feature.
 	TrustedDeviceEnabled bool
+	// TrustedDeviceDays is populated on the MFA-required branch only. It
+	// mirrors security.mfa_trusted_device_days so the frontend can render
+	// the exact label ("Auf diesem Gerät N Tage merken") that matches the
+	// cookie lifetime the backend will actually issue.
+	TrustedDeviceDays int
 }
 
 // LoginWithMFAGate is the MFA-aware sibling of LoginWithAudit. The pure-
@@ -156,6 +161,7 @@ func (s *Service) LoginWithMFAGate(
 			ChallengeToken:       challenge,
 			MaskedEmail:          maskEmailForUX(account.Email),
 			TrustedDeviceEnabled: s.mfaService.IsTrustedDeviceEnabled(ctx, metadata.tenantID),
+			TrustedDeviceDays:    s.mfaService.TrustedDeviceDays(ctx, metadata.tenantID),
 		}, nil
 	}
 

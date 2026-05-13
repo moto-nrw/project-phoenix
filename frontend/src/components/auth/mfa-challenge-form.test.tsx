@@ -100,7 +100,7 @@ describe("MFAChallengeForm", () => {
 
     render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
 
-    const checkbox = screen.getByLabelText("Auf diesem Gerät 30 Tage merken");
+    const checkbox = screen.getByLabelText("Auf diesem Gerät 90 Tage merken");
     fireEvent.click(checkbox);
 
     const inputs = screen.getAllByRole("textbox").slice(0, 6);

@@ -35,11 +35,18 @@ interface MFAChallengeFormProps {
   readonly onCancel?: () => void;
   /**
    * Mirrors security.mfa_trusted_device_enabled for the tenant. When false
-   * we hide the "30 Tage merken" checkbox and skip its state in the verify
+   * we hide the "N Tage merken" checkbox and skip its state in the verify
    * request. Undefined defaults to `true` for backwards compatibility with
    * older backends that haven't shipped the field.
    */
   readonly trustedDeviceEnabled?: boolean;
+  /**
+   * Day count rendered into the "Auf diesem Gerät N Tage merken" label.
+   * Mirrors security.mfa_trusted_device_days so the label always matches
+   * the actual cookie lifetime. Defaults to 90 — the registry default —
+   * if an older backend doesn't surface the field.
+   */
+  readonly trustedDeviceDays?: number;
 }
 
 export function MFAChallengeForm({
@@ -50,6 +57,7 @@ export function MFAChallengeForm({
   onSuccess,
   onCancel,
   trustedDeviceEnabled = true,
+  trustedDeviceDays = 90,
 }: MFAChallengeFormProps) {
   const [digits, setDigits] = useState<string[]>(() =>
     Array.from({ length: CODE_LENGTH }, () => ""),
@@ -387,7 +395,7 @@ export function MFAChallengeForm({
             htmlFor="mfa-remember-device"
             className="text-sm text-gray-700 select-none"
           >
-            Auf diesem Gerät 30 Tage merken
+            Auf diesem Gerät {trustedDeviceDays} Tage merken
           </label>
         </div>
       )}

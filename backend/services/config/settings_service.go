@@ -108,6 +108,23 @@ func (s *settingsService) ResolveBoolForTenant(ctx context.Context, tenantID int
 	return result, nil
 }
 
+// ResolveIntForTenant mirrors ResolveBoolForTenant but for integer settings.
+func (s *settingsService) ResolveIntForTenant(ctx context.Context, tenantID int64, key string) (int, error) {
+	var result int
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		val, resolveErr := s.ResolveInt(txCtx, key)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		result = val
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return result, nil
+}
+
 // ResolveString resolves a setting as a string.
 func (s *settingsService) ResolveString(ctx context.Context, key string) (string, error) {
 	val, err := s.Resolve(ctx, key)

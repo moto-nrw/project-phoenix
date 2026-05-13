@@ -54,6 +54,9 @@ func (f *fakeSettingsService) ResolveBoolForTenant(_ context.Context, _ int64, k
 	return f.ResolveBool(context.Background(), key)
 }
 func (f *fakeSettingsService) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
+func (f *fakeSettingsService) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
+	return 0, nil
+}
 func (f *fakeSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }

@@ -61,6 +61,9 @@ type LoginResponse struct {
 	// MFA always exposes the trusted-device feature, but the field is
 	// emitted for response-shape symmetry with the tenant login.
 	TrustedDeviceEnabled *bool `json:"trusted_device_enabled,omitempty"`
+	// TrustedDeviceDays mirrors the tenant response so the frontend can
+	// render a dynamic "Auf diesem Gerät N Tage merken" label.
+	TrustedDeviceDays *int `json:"trusted_device_days,omitempty"`
 }
 
 // OperatorResponse represents an operator in the response
@@ -110,11 +113,13 @@ func (rs *AuthResource) Login(w http.ResponseWriter, r *http.Request) {
 
 	if result.Status == platformSvc.OperatorLoginStatusMFARequired {
 		tde := result.TrustedDeviceEnabled
+		tdd := result.TrustedDeviceDays
 		common.Respond(w, r, http.StatusOK, &LoginResponse{
 			Status:               string(platformSvc.OperatorLoginStatusMFARequired),
 			ChallengeToken:       result.ChallengeToken,
 			MaskedEmail:          result.MaskedEmail,
 			TrustedDeviceEnabled: &tde,
+			TrustedDeviceDays:    &tdd,
 		}, "MFA verification required")
 		return
 	}

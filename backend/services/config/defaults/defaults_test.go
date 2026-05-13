@@ -394,12 +394,12 @@ func TestMFASettings_TypesAndDefaults(t *testing.T) {
 		def := config.GetDefinition(config.KeyMFATrustedDeviceDays)
 		require.NotNil(t, def)
 		assert.Equal(t, config.FieldNumber, def.Type)
-		assert.Equal(t, 30, def.Default)
+		assert.Equal(t, 90, def.Default)
 		require.NotNil(t, def.Validation)
 		require.NotNil(t, def.Validation.Min)
 		require.NotNil(t, def.Validation.Max)
 		assert.Equal(t, float64(1), *def.Validation.Min)
-		assert.Equal(t, float64(90), *def.Validation.Max)
+		assert.Equal(t, float64(180), *def.Validation.Max)
 	})
 
 }

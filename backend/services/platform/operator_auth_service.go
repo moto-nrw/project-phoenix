@@ -173,6 +173,10 @@ type OperatorLoginResult struct {
 	// always on — but the field is kept for symmetry with the tenant
 	// response shape so the frontend code can stay identical.
 	TrustedDeviceEnabled bool
+	// TrustedDeviceDays mirrors the tenant field. Derived from the
+	// hardcoded OperatorMFATrustedDeviceDuration constant — operators
+	// don't expose this as a configurable setting today.
+	TrustedDeviceDays int
 }
 
 // LoginWithMFAGate is the MFA-aware sibling of Login. The original
@@ -245,6 +249,7 @@ func (s *operatorAuthService) LoginWithMFAGate(
 			ChallengeToken:       challenge,
 			MaskedEmail:          maskOperatorEmailForUX(operator.Email),
 			TrustedDeviceEnabled: true,
+			TrustedDeviceDays:    int(OperatorMFATrustedDeviceDuration.Hours() / 24),
 		}, nil
 	}
 

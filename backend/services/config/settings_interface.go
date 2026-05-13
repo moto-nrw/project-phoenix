@@ -43,6 +43,12 @@ type SettingsService interface {
 	// ResolveInt resolves a setting as an int.
 	ResolveInt(ctx context.Context, key string) (int, error)
 
+	// ResolveIntForTenant resolves a setting as an int for an explicitly
+	// provided tenant — mirrors ResolveBoolForTenant for callers that run
+	// outside the TenantTxMiddleware (e.g. login flow needs to expose the
+	// tenant's trusted-device-days value in the MFA challenge response).
+	ResolveIntForTenant(ctx context.Context, tenantID int64, key string) (int, error)
+
 	// HasTenantOverride checks if a tenant has an explicit DB override for a setting.
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 

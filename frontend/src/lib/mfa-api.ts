@@ -21,6 +21,13 @@ interface MFARequiredLoginResponse {
    * appearing for clients that haven't shipped this field yet.
    */
   trusted_device_enabled?: boolean;
+  /**
+   * Mirrors security.mfa_trusted_device_days for the tenant. The frontend
+   * uses it to render "Auf diesem Gerät N Tage merken" with the exact day
+   * count the backend will issue the cookie for. Omitted by older
+   * backends — treat undefined as the registry default.
+   */
+  trusted_device_days?: number;
 }
 
 type LoginResponse = AuthenticatedLoginResponse | MFARequiredLoginResponse;

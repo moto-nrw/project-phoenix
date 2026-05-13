@@ -29,7 +29,7 @@ const (
 	MFALockoutDuration                = 15 * time.Minute // matches PIN lockout
 	MFAEmailRateLimitWindow           = 15 * time.Minute // count of issued codes within this window
 	MFAEmailRateLimitMaxSent          = 3                // max codes per account per window
-	MFATrustedDeviceCookieDefaultDays = 30
+	MFATrustedDeviceCookieDefaultDays = 90
 )
 
 // Errors surfaced by the MFA service. Generic messages — internal detail
@@ -102,6 +102,12 @@ type MFAService interface {
 	// this to tell the frontend whether to render the "remember this
 	// device" checkbox on the MFA challenge screen.
 	IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool
+	// TrustedDeviceDays resolves the tenant's
+	// security.mfa_trusted_device_days setting. Surfaced in the
+	// mfa_required login response so the frontend can render the exact
+	// day count ("Auf diesem Gerät N Tage merken") instead of hardcoding
+	// it. Falls back to MFATrustedDeviceCookieDefaultDays on errors.
+	TrustedDeviceDays(ctx context.Context, tenantID int64) int
 
 	// Admin override ("Godmode") — defense-in-depth permission check.
 	AdminDisable(ctx context.Context, actorID, targetAccountID int64, reason string, actorPermissions []string) error
@@ -266,7 +272,7 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		return "", fmt.Errorf("persist email challenge: %w", err)
 	}
 
-	s.dispatchChallengeEmail(ctx, account, plainCode, ip)
+	s.dispatchChallengeEmail(ctx, account, tenantID, plainCode, ip)
 	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAEmailSent, true, ip, "", map[string]any{
 		"challenge_id": challenge.ID,
 	})
@@ -540,7 +546,7 @@ func (s *mfaService) IssueTrustedDevice(ctx context.Context, accountID, tenantID
 		// "skip cookie".
 		return "", time.Time{}, nil
 	}
-	days := s.resolveTrustedDeviceDays(ctx)
+	days := s.resolveTrustedDeviceDays(ctx, tenantID)
 	expiresAt := time.Now().Add(time.Duration(days) * 24 * time.Hour)
 
 	rawToken, err := GenerateTrustedDeviceToken()
@@ -670,11 +676,32 @@ func (s *mfaService) parseChallengeToken(tokenString string) (*authjwt.MFAChalle
 	return &claims, nil
 }
 
-func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context) int {
+// TrustedDeviceDays is the exported entry point for callers that need the
+// resolved per-tenant value (login response, cookie issuer). Delegates to
+// the same helper IssueTrustedDevice already uses, so both surfaces always
+// agree on the day count.
+func (s *mfaService) TrustedDeviceDays(ctx context.Context, tenantID int64) int {
+	return s.resolveTrustedDeviceDays(ctx, tenantID)
+}
+
+// resolveTrustedDeviceDays resolves the tenant's
+// security.mfa_trusted_device_days setting outside the
+// TenantTxMiddleware — login + verify both run pre-session, so we plumb
+// the tenant explicitly. Falls back to MFATrustedDeviceCookieDefaultDays
+// on any error / missing override so the cookie still issues with a
+// reasonable lifetime.
+func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context, tenantID int64) int {
 	if s.settings == nil {
 		return MFATrustedDeviceCookieDefaultDays
 	}
-	val, err := s.settings.ResolveInt(ctx, configModel.KeyMFATrustedDeviceDays)
+	if tenantID <= 0 {
+		val, err := s.settings.ResolveInt(ctx, configModel.KeyMFATrustedDeviceDays)
+		if err != nil || val <= 0 {
+			return MFATrustedDeviceCookieDefaultDays
+		}
+		return val
+	}
+	val, err := s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceDays)
 	if err != nil || val <= 0 {
 		return MFATrustedDeviceCookieDefaultDays
 	}
@@ -690,7 +717,7 @@ func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context) int {
 // the user must paste the code into the moto login UI on their own.
 // That kills the most common phishing pattern (a malicious mail with
 // "click here to confirm").
-func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.Account, plainCode string, ip net.IP) {
+func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.Account, tenantID int64, plainCode string, ip net.IP) {
 	if s.dispatcher == nil {
 		s.logger.Warn("email dispatcher unavailable; mfa code not sent",
 			slog.Int64("account_id", account.ID))
@@ -705,7 +732,7 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 		requestIP = ip.String()
 	}
 
-	trustedDeviceEnabled, trustedDeviceDays := s.resolveTrustedDeviceHint(ctx)
+	trustedDeviceEnabled, trustedDeviceDays := s.resolveTrustedDeviceHint(ctx, tenantID)
 
 	message := email.Message{
 		From:     s.defaultFrom,
@@ -735,25 +762,18 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 }
 
 // resolveTrustedDeviceHint returns (enabled, days) for the email template.
-// Resolves directly against the settings service so tenants on the registry
-// default (enabled=true) see the hint even before they set an explicit
-// override. On any error or missing settings service, falls back to (false,
-// 0) so a misconfigured deployment skips the hint instead of advertising a
-// feature that may not actually work.
-func (s *mfaService) resolveTrustedDeviceHint(ctx context.Context) (bool, int) {
+// Uses the tenant-aware resolution so a school admin's override is honoured
+// instead of the registry default. On any error or missing settings service,
+// falls back to (false, 0) so a misconfigured deployment skips the hint
+// instead of advertising a feature that may not actually work.
+func (s *mfaService) resolveTrustedDeviceHint(ctx context.Context, tenantID int64) (bool, int) {
 	if s.settings == nil {
 		return false, 0
 	}
-	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled)
-	if err != nil {
-		s.logger.Warn("trusted_device_enabled resolve failed; hiding hint",
-			slog.String("error", err.Error()))
+	if !s.isTrustedDeviceEnabled(ctx, tenantID) {
 		return false, 0
 	}
-	if !enabled {
-		return false, 0
-	}
-	return true, s.resolveTrustedDeviceDays(ctx)
+	return true, s.resolveTrustedDeviceDays(ctx, tenantID)
 }
 
 // recordAuthEvent writes to audit.auth_events asynchronously, in a tenant-scoped

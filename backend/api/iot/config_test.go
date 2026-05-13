@@ -59,6 +59,9 @@ func (m *configMockSettings) ResolveBoolForTenant(_ context.Context, _ int64, ke
 func (m *configMockSettings) ResolveInt(_ context.Context, _ string) (int, error) {
 	return 0, nil
 }
+func (m *configMockSettings) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
+	return 0, nil
+}
 func (m *configMockSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
 	_, exists := m.stringValues[key]
 	return exists, nil
