@@ -497,6 +497,13 @@ func (s *invitationService) createOrUpdateAccount(ctx context.Context, email, pa
 	if err := s.accountRepo.UpdatePassword(ctx, existingAccount.ID, passwordHash); err != nil {
 		return nil, &AuthError{Op: "update account password", Err: err}
 	}
+	// Reactivate the existing account so the invitee can log in.
+	if !existingAccount.Active {
+		existingAccount.Active = true
+		if err := s.accountRepo.Update(ctx, existingAccount); err != nil {
+			return nil, &AuthError{Op: "reactivate account on invitation", Err: err}
+		}
+	}
 	return existingAccount, nil
 }
 

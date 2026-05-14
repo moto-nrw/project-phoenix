@@ -322,6 +322,20 @@ func (r *stubAccountRepository) UpdatePassword(_ context.Context, id int64, hash
 	return sql.ErrNoRows
 }
 
+func (r *stubAccountRepository) Update(_ context.Context, account *authModel.Account) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if stored, ok := r.byID[account.ID]; ok {
+		stored.Active = account.Active
+		stored.Email = account.Email
+		stored.Username = account.Username
+		stored.PasswordHash = account.PasswordHash
+		stored.Avatar = account.Avatar
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (r *stubAccountRepository) UpdateAvatar(_ context.Context, id int64, avatar string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

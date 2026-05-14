@@ -295,7 +295,8 @@ func (s *guardianService) sendInvitationEmail(ctx context.Context, invitation *a
 	}
 
 	if s.dispatcher != nil {
-		s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+		// WithoutCancel: async delivery must outlive the HTTP request.
+		s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
 			Message:  message,
 			Metadata: meta,
 		})
