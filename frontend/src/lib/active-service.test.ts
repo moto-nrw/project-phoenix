@@ -464,11 +464,50 @@ describe("active-service", () => {
         expect(result?.isActive).toBe(true);
       });
 
+      it("unwraps backend response envelopes returned by the Next proxy", async () => {
+        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                status: "success",
+                data: { ...sampleBackendVisit, active_group_id: 77 },
+                message: "Student current visit retrieved successfully",
+              },
+            }),
+        } as Response);
+
+        const result = await activeService.getStudentCurrentVisit("50");
+
+        expect(result).not.toBeNull();
+        expect(result?.activeGroupId).toBe("77");
+      });
+
       it("returns null when no current visit", async () => {
         const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
         mockFetch.mockResolvedValueOnce({
           ok: true,
           json: () => Promise.resolve({ data: null }),
+        } as Response);
+
+        const result = await activeService.getStudentCurrentVisit("50");
+
+        expect(result).toBeNull();
+      });
+
+      it("returns null for enveloped backend no-current responses", async () => {
+        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                status: "success",
+                data: null,
+                message: "No active visit found",
+              },
+            }),
         } as Response);
 
         const result = await activeService.getStudentCurrentVisit("50");
@@ -498,6 +537,35 @@ describe("active-service", () => {
           }),
         );
         expect(result.id).toBe("100");
+      });
+    });
+
+    describe("updateVisit", () => {
+      it("unwraps backend response envelopes before mapping the updated visit", async () => {
+        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                status: "success",
+                data: { ...sampleBackendVisit, active_group_id: 77 },
+                message: "Visit updated successfully",
+              },
+            }),
+        } as Response);
+
+        const result = await activeService.updateVisit("100", {
+          studentId: "50",
+          activeGroupId: "77",
+          checkInTime: new Date("2024-01-15T08:30:00Z"),
+        });
+
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/active/visits/100",
+          expect.objectContaining({ method: "PUT" }),
+        );
+        expect(result.activeGroupId).toBe("77");
       });
     });
 

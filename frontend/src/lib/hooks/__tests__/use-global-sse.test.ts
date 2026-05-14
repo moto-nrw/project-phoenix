@@ -461,6 +461,7 @@ describe("useGlobalSSE", () => {
       // Matcher must work with tenant-prefixed keys (useSWRAuth adds tenant slug prefix)
       const matcher = ogsStudentCall![0] as (key: string) => boolean;
       expect(matcher("my-tenant:ogs-students-5")).toBe(true);
+      expect(matcher("my-tenant:rooms-list")).toBe(true);
       expect(matcher("my-tenant:tracking-supervisions-1-42,43")).toBe(true);
       expect(matcher("my-tenant:tracking-indicators-search-group1")).toBe(true);
     });

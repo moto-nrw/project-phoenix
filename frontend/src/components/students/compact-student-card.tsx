@@ -29,6 +29,8 @@ interface CompactStudentCardProps {
    */
   readonly photoUrl?: string | null;
   readonly onClick?: () => void;
+  readonly chrome?: "card" | "plain";
+  readonly className?: string;
 }
 
 export function CompactStudentCard({
@@ -39,6 +41,8 @@ export function CompactStudentCard({
   groupName,
   photoUrl,
   onClick,
+  chrome = "card",
+  className = "",
 }: CompactStudentCardProps) {
   // Per-tenant feature flag. When off, the avatar slot is suppressed so
   // opt-out schools see the original pre-feature shape (name + meta only).
@@ -49,6 +53,11 @@ export function CompactStudentCard({
   const meta = [schoolClass, groupName].filter(Boolean).join(" · ");
   const fullName = `${firstName ?? ""} ${lastName ?? ""}`.trim() || "?";
 
+  const chromeClass =
+    chrome === "card"
+      ? "border border-gray-200 bg-white px-4 py-3 hover:border-gray-300 hover:bg-gray-50"
+      : "border border-transparent bg-transparent px-0 py-0 hover:bg-transparent";
+
   return (
     <button
       key={studentId}
@@ -56,7 +65,7 @@ export function CompactStudentCard({
       onClick={onClick}
       aria-label={`${firstName} ${lastName} – Profil öffnen`}
       data-testid={`compact-student-card-${studentId}`}
-      className="group flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition-colors duration-150 hover:border-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none"
+      className={`group flex w-full items-center gap-3 rounded-xl text-left transition-colors duration-150 focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none ${chromeClass} ${className}`}
     >
       {photosEnabled ? (
         <Avatar imageUrl={photoUrl ?? null} name={fullName} size="sm" />
