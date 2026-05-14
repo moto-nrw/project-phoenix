@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { RoomDetailModal } from "./room-detail-modal";
 
 // ----------------------------------------------------------------------------
-// Mocks — every dependency below is stubbed so the test only exercises this
+// Mocks: every dependency below is stubbed so the test only exercises this
 // component's branching (mobile/desktop direction, roomId null, nested-modal
 // guards), not the heavy room-detail body or session/auth machinery.
 // ----------------------------------------------------------------------------
@@ -29,13 +29,22 @@ vi.mock("./room-detail-content", () => ({
   RoomDetailLoader: ({
     roomId,
     headerAction,
+    onSelectionActiveChange,
   }: {
     roomId: string;
     headerAction?: React.ReactNode;
+    onSelectionActiveChange?: (active: boolean) => void;
   }) => (
     <div data-testid="room-detail-loader">
       loader for {roomId}
       {headerAction}
+      <button
+        type="button"
+        onClick={() => onSelectionActiveChange?.(true)}
+        data-testid="activate-selection"
+      >
+        activate selection
+      </button>
     </div>
   ),
 }));
@@ -51,6 +60,7 @@ type DrawerProps = {
   children: React.ReactNode;
 };
 type DrawerContentProps = {
+  id?: string;
   className?: string;
   onInteractOutside?: (event: { preventDefault: () => void }) => void;
   onEscapeKeyDown?: (event: { preventDefault: () => void }) => void;
@@ -58,6 +68,58 @@ type DrawerContentProps = {
 };
 const drawerProps = vi.fn<(props: DrawerProps) => void>();
 const drawerContentProps = vi.fn<(props: DrawerContentProps) => void>();
+
+type SlideOverProps = {
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+  shouldScaleBackground?: boolean;
+  children: React.ReactNode;
+};
+type SlideOverContentProps = DrawerContentProps & {
+  widthClass?: string;
+};
+const slideOverProps = vi.fn<(props: SlideOverProps) => void>();
+const slideOverContentProps = vi.fn<(props: SlideOverContentProps) => void>();
+
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: (props: SlideOverProps) => {
+    slideOverProps(props);
+    return props.open ? (
+      <div data-testid="slide-over-shell" data-direction="right">
+        {props.children}
+      </div>
+    ) : null;
+  },
+  SlideOverContent: (props: SlideOverContentProps) => {
+    slideOverContentProps(props);
+    return <div data-testid="slide-over-content">{props.children}</div>;
+  },
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="slide-over-header">{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="slide-over-title">{children}</div>
+  ),
+  SlideOverClose: ({
+    children,
+    className,
+    "aria-label": ariaLabel,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    "aria-label"?: string;
+  }) => (
+    <button
+      type="button"
+      data-testid="slide-over-close"
+      aria-label={ariaLabel}
+      className={className}
+    >
+      {children}
+    </button>
+  ),
+}));
+
 vi.mock("~/components/ui/drawer", () => ({
   Drawer: (props: DrawerProps) => {
     drawerProps(props);
@@ -77,7 +139,7 @@ vi.mock("~/components/ui/drawer", () => ({
   DrawerTitle: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="drawer-title">{children}</div>
   ),
-  // Vaul's Close primitive — modal renders an X button via this on
+  // Vaul's Close primitive. Modal renders an X button via this on
   // desktop. Mock it as a plain button so the close-button test below
   // can assert presence and click without portals/dialogs.
   DrawerClose: ({
@@ -114,6 +176,8 @@ describe("RoomDetailModal", () => {
     });
     drawerProps.mockReset();
     drawerContentProps.mockReset();
+    slideOverProps.mockReset();
+    slideOverContentProps.mockReset();
   });
 
   describe("desktop branch (right-side slide-over)", () => {
@@ -121,53 +185,48 @@ describe("RoomDetailModal", () => {
       mockUseIsMobile.mockReturnValue(false);
     });
 
-    it("renders the Drawer with direction=right and the loader body when a roomId is provided", () => {
+    it("renders the SlideOver with the loader body when a roomId is provided", () => {
       const onClose = vi.fn();
       render(<RoomDetailModal roomId="42" onClose={onClose} />);
 
-      const shell = screen.getByTestId("drawer-shell");
+      const shell = screen.getByTestId("slide-over-shell");
       expect(shell).toBeInTheDocument();
       expect(shell.getAttribute("data-direction")).toBe("right");
-      // Title is sr-only but must still be present for accessibility.
-      expect(screen.getByTestId("drawer-title").textContent).toBe(
+      expect(screen.getByTestId("slide-over-title").textContent).toBe(
         "Raumdetails",
       );
-      expect(screen.getByTestId("room-detail-loader").textContent).toBe(
+      expect(screen.getByTestId("room-detail-loader").textContent).toContain(
         "loader for 42",
       );
     });
 
-    it("disables shouldScaleBackground on the right-side panel (only applies to bottom sheet)", () => {
+    it("does not opt into background scaling on the right-side panel", () => {
       render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
-      const lastCall = drawerProps.mock.calls.at(-1);
-      expect(lastCall?.[0].shouldScaleBackground).toBe(false);
+      const lastCall = slideOverProps.mock.calls.at(-1);
+      expect(lastCall?.[0].shouldScaleBackground).toBeUndefined();
     });
 
     it("renders no shell when roomId is null (closed deep-link state)", () => {
       render(<RoomDetailModal roomId={null} onClose={vi.fn()} />);
-      expect(screen.queryByTestId("drawer-shell")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("slide-over-shell")).not.toBeInTheDocument();
       expect(
         screen.queryByTestId("room-detail-loader"),
       ).not.toBeInTheDocument();
-      const lastCall = drawerProps.mock.calls.at(-1);
+      const lastCall = slideOverProps.mock.calls.at(-1);
       expect(lastCall?.[0].open).toBe(false);
     });
 
     it("forwards onClose via onOpenChange(false)", () => {
       const onClose = vi.fn();
       render(<RoomDetailModal roomId="42" onClose={onClose} />);
-      const lastCall = drawerProps.mock.calls.at(-1);
+      const lastCall = slideOverProps.mock.calls.at(-1);
       lastCall![0].onOpenChange(false);
       expect(onClose).toHaveBeenCalledTimes(1);
     });
 
     it("renders an explicit X close button with an aria-label on desktop", () => {
-      // Reviewer asked for an X — Esc + outside-click alone aren't
-      // discoverable on desktop, especially for keyboard-aware users.
-      // The button is a Vaul DrawerClose so vaul handles dismissal
-      // automatically (no extra onClick wiring needed).
       render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
-      const close = screen.getByTestId("drawer-close");
+      const close = screen.getByTestId("slide-over-close");
       expect(close).toBeInTheDocument();
       expect(close.getAttribute("aria-label")).toBe("Raumdetails schließen");
     });
@@ -185,7 +244,7 @@ describe("RoomDetailModal", () => {
       const shell = screen.getByTestId("drawer-shell");
       expect(shell).toBeInTheDocument();
       expect(shell.getAttribute("data-direction")).toBe("bottom");
-      expect(screen.getByTestId("room-detail-loader").textContent).toBe(
+      expect(screen.getByTestId("room-detail-loader").textContent).toContain(
         "loader for 7",
       );
       expect(screen.getByTestId("drawer-title").textContent).toBe(
@@ -193,9 +252,12 @@ describe("RoomDetailModal", () => {
       );
     });
 
-    it("hides the X close button on mobile (drag handle / swipe carries the affordance)", () => {
+    it("renders an explicit X close button on mobile too", () => {
       render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
-      expect(screen.queryByTestId("drawer-close")).not.toBeInTheDocument();
+      expect(screen.getByTestId("drawer-close")).toHaveAttribute(
+        "aria-label",
+        "Raumdetails schließen",
+      );
     });
 
     it("keeps shouldScaleBackground on the bottom sheet (iOS-style scale animation)", () => {
@@ -248,7 +310,9 @@ describe("RoomDetailModal", () => {
 
         render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
 
-        const lastContentCall = drawerContentProps.mock.calls.at(-1);
+        const lastContentCall = isMobile
+          ? drawerContentProps.mock.calls.at(-1)
+          : slideOverContentProps.mock.calls.at(-1);
         expect(lastContentCall).toBeDefined();
 
         const outsideEvent = { preventDefault: vi.fn() };
@@ -270,7 +334,7 @@ describe("RoomDetailModal", () => {
 
       render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
 
-      const lastContentCall = drawerContentProps.mock.calls.at(-1);
+      const lastContentCall = slideOverContentProps.mock.calls.at(-1);
       const outsideEvent = { preventDefault: vi.fn() };
       lastContentCall![0].onInteractOutside!(outsideEvent);
       expect(outsideEvent.preventDefault).not.toHaveBeenCalled();
@@ -278,6 +342,20 @@ describe("RoomDetailModal", () => {
       const escapeEvent = { preventDefault: vi.fn() };
       lastContentCall![0].onEscapeKeyDown!(escapeEvent);
       expect(escapeEvent.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it("swallows outside-click and Escape while child selection is active", () => {
+      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      fireEvent.click(screen.getByTestId("activate-selection"));
+
+      const lastContentCall = slideOverContentProps.mock.calls.at(-1);
+      const outsideEvent = { preventDefault: vi.fn() };
+      lastContentCall![0].onInteractOutside!(outsideEvent);
+      expect(outsideEvent.preventDefault).toHaveBeenCalledTimes(1);
+
+      const escapeEvent = { preventDefault: vi.fn() };
+      lastContentCall![0].onEscapeKeyDown!(escapeEvent);
+      expect(escapeEvent.preventDefault).toHaveBeenCalledTimes(1);
     });
   });
 });

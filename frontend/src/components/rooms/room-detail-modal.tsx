@@ -11,6 +11,7 @@
 
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import {
@@ -39,18 +40,27 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
   const isMobile = useIsMobile();
   const { isModalOpen } = useModal();
   const open = roomId !== null;
+  const [hasActiveSelection, setHasActiveSelection] = useState(false);
 
-  // Nested Modals (e.g. a future edit/confirm dialog) portal to
-  // document.body, so Vaul's outside-click / escape handlers would
-  // otherwise dismiss the drawer when the user interacts with the
-  // modal. Block the dismiss while a child modal is open , same guard
-  // MasterDetailLayout uses.
-  const guardOutside = (event: Event) => {
-    if (isModalOpen) event.preventDefault();
-  };
-  const guardEscape = (event: KeyboardEvent) => {
-    if (isModalOpen) event.preventDefault();
-  };
+  useEffect(() => {
+    setHasActiveSelection(false);
+  }, [roomId]);
+
+  const shouldBlockDismiss = isModalOpen || hasActiveSelection;
+  const guardOutside = useCallback(
+    (event: Event) => {
+      if (shouldBlockDismiss) event.preventDefault();
+    },
+    [shouldBlockDismiss],
+  );
+  const guardEscape = useCallback(
+    (event: KeyboardEvent) => {
+      if (shouldBlockDismiss) event.preventDefault();
+    },
+    [shouldBlockDismiss],
+  );
+  const closeButtonClass =
+    "inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300";
 
   if (!isMobile) {
     return (
@@ -61,8 +71,9 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
         }}
       >
         <SlideOverContent
+          id="room-detail-panel"
           widthClass="sm:w-[520px]"
-          className="bg-gray-50"
+          className="overscroll-contain bg-gray-50"
           aria-describedby={undefined}
           onInteractOutside={guardOutside}
           onEscapeKeyDown={guardEscape}
@@ -77,11 +88,12 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
                 headerAction={
                   <SlideOverClose
                     aria-label="Raumdetails schließen"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-gray-300 focus:outline-none"
+                    className={closeButtonClass}
                   >
                     <X className="h-5 w-5" aria-hidden="true" />
                   </SlideOverClose>
                 }
+                onSelectionActiveChange={setHasActiveSelection}
               />
             ) : null}
           </div>
@@ -103,7 +115,8 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
       shouldScaleBackground={isMobile}
     >
       <DrawerContent
-        className={isMobile ? "max-h-[90vh]" : undefined}
+        id="room-detail-panel"
+        className={isMobile ? "max-h-[90vh] overscroll-contain" : undefined}
         aria-describedby={undefined}
         onInteractOutside={guardOutside}
         onEscapeKeyDown={guardEscape}
@@ -119,22 +132,15 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
             {roomId ? (
               <RoomDetailLoader
                 roomId={roomId}
-                // Inline X close button , flows into the room header row
-                // alongside the room name + status badge so the slide-over
-                // header is one balanced line. Desktop only: the bottom
-                // sheet dismisses via its drag handle. The button itself is
-                // a Vaul DrawerClose, so vaul handles dismissal , no manual
-                // onClick wiring needed.
                 headerAction={
-                  !isMobile ? (
-                    <DrawerClose
-                      aria-label="Raumdetails schließen"
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-gray-300 focus:outline-none"
-                    >
-                      <X className="h-5 w-5" aria-hidden="true" />
-                    </DrawerClose>
-                  ) : undefined
+                  <DrawerClose
+                    aria-label="Raumdetails schließen"
+                    className={closeButtonClass}
+                  >
+                    <X className="h-5 w-5" aria-hidden="true" />
+                  </DrawerClose>
                 }
+                onSelectionActiveChange={setHasActiveSelection}
               />
             ) : null}
           </div>

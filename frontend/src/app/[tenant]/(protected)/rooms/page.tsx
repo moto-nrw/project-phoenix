@@ -251,6 +251,17 @@ function RoomsPageContent() {
   // Track whether the click handler just pushed an entry. Used by the
   // effect below to stamp a marker into the resulting history entry.
   const justPushedRef = useRef(false);
+  const roomCardRefs = useRef(new Map<string, HTMLButtonElement>());
+  const pendingFocusRoomIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const roomIdToFocus = pendingFocusRoomIdRef.current;
+    if (selectedRoomId || !roomIdToFocus) return;
+    pendingFocusRoomIdRef.current = null;
+    window.requestAnimationFrame(() => {
+      roomCardRefs.current.get(roomIdToFocus)?.focus();
+    });
+  }, [selectedRoomId]);
 
   // Open the detail modal by pushing ?room={id} as a NEW history entry
   // (not replace), so the browser Back button closes the overlay
@@ -295,6 +306,7 @@ function RoomsPageContent() {
   // got here from the student page's in-app back which pushed a fresh
   // untagged entry).
   const handleCloseDetail = useCallback(() => {
+    pendingFocusRoomIdRef.current = selectedRoomId;
     const state = typeof window !== "undefined" ? window.history.state : null;
     const wasPushedByUs =
       state &&
@@ -306,7 +318,7 @@ function RoomsPageContent() {
     } else {
       updateUrlParams({ room: null });
     }
-  }, [router, updateUrlParams]);
+  }, [router, selectedRoomId, updateUrlParams]);
 
   // Get unique values for filters
   const uniqueBuildings = useMemo(() => {
@@ -480,7 +492,19 @@ function RoomsPageContent() {
               <button
                 type="button"
                 key={room.id}
+                ref={(node) => {
+                  if (node) {
+                    roomCardRefs.current.set(room.id, node);
+                  } else {
+                    roomCardRefs.current.delete(room.id);
+                  }
+                }}
                 onClick={handleClick}
+                aria-haspopup="dialog"
+                aria-expanded={selectedRoomId === room.id}
+                aria-controls={
+                  selectedRoomId === room.id ? "room-detail-panel" : undefined
+                }
                 className="group relative w-full cursor-pointer overflow-hidden rounded-3xl bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
               >
                 <div className="relative p-6 pb-5">

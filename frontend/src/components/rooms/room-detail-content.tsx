@@ -11,6 +11,7 @@
 
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import {
   Building2,
@@ -371,39 +372,56 @@ function IconDetailRow({
 interface RoomDetailContentProps {
   readonly room: Room;
   readonly history: readonly RoomHistoryEntry[];
-  // Optional slot rendered in the header row next to the StatusBadge.
-  // Used by the slide-over to drop its X close button alongside the
-  // room name and badge so they share one clean line. The master-detail
-  // database page leaves it undefined , its container owns close
-  // affordances elsewhere.
   readonly headerAction?: React.ReactNode;
+  readonly onSelectionActiveChange?: (active: boolean) => void;
 }
 
 export function RoomDetailContent({
   room,
   history,
   headerAction,
+  onSelectionActiveChange,
 }: RoomDetailContentProps) {
   const activities = groupHistoryByActivity([...history]);
   const groupedActivities = groupByDate(activities);
+  const hasHistory = groupedActivities.length > 0;
+  const isModalContext = Boolean(headerAction);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (!isModalContext) return;
+    titleRef.current?.focus({ preventScroll: true });
+  }, [isModalContext, room.id]);
 
   return (
     <div>
-      {/* Room Header , name, status badge, and (in the slide-over) the
-          X close button on a single line (#1323 review).
-          Layout choices:
-            • Badge sits tight to the heading (no flex-1 on h1) so the
-              status reads as part of the title, not a far-right tag.
-            • X gets ml-auto, so it always anchors to the far right.
-            • leading-tight on h1 collapses the bold heading's line-box
-              so it visually centers with the smaller badge + icon
-              button instead of floating above them. */}
-      <div className="mb-6 flex items-center gap-2">
-        <h1 className="min-w-0 truncate text-2xl leading-tight font-bold text-gray-900 md:text-3xl">
-          {room.name}
-        </h1>
-        <div className="flex-shrink-0">
-          <StatusBadge isOccupied={room.isOccupied} />
+      <div
+        className={`mb-5 flex items-center gap-2 ${
+          headerAction
+            ? "sticky top-0 z-20 -mx-5 -mt-5 border-b border-gray-200/70 bg-gray-50/95 px-5 pt-5 pb-4 backdrop-blur supports-[backdrop-filter]:bg-gray-50/85 sm:-mx-6 sm:px-6"
+            : ""
+        }`}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1
+              ref={titleRef}
+              tabIndex={isModalContext ? -1 : undefined}
+              className="min-w-0 truncate text-2xl leading-tight font-bold text-gray-900 md:text-3xl"
+            >
+              {room.name}
+            </h1>
+            <div className="flex-shrink-0">
+              <StatusBadge isOccupied={room.isOccupied} />
+            </div>
+          </div>
+          {headerAction && (room.building || room.floor !== undefined) ? (
+            <p className="mt-1 truncate text-xs font-medium text-gray-500">
+              {room.building && room.floor !== undefined
+                ? `${room.building} · ${formatFloor(room.floor)}`
+                : (room.building ?? formatFloor(room.floor ?? 0))}
+            </p>
+          ) : null}
         </div>
         {headerAction && (
           <div className="ml-auto flex-shrink-0">{headerAction}</div>
@@ -485,19 +503,17 @@ export function RoomDetailContent({
           </div>
         </div>
 
-        <StudentsInRoomSection roomId={room.id} roomName={room.name} />
+        <StudentsInRoomSection
+          roomId={room.id}
+          roomName={room.name}
+          onSelectionActiveChange={onSelectionActiveChange}
+        />
 
-        {/* Quiet section header to match the Rauminformationen block
-            above (#1323). */}
-        <div className={DETAIL_CARD_CLASS}>
-          <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-            Belegungshistorie
-          </h2>
-          {groupedActivities.length === 0 ? (
-            <div className="py-8 text-center text-gray-500">
-              Keine Belegungshistorie verfügbar.
-            </div>
-          ) : (
+        {hasHistory ? (
+          <div className={DETAIL_CARD_CLASS}>
+            <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              Belegungshistorie
+            </h2>
             <div className="space-y-6">
               {groupedActivities.map((dateGroup) => (
                 <div key={dateGroup.date}>
@@ -577,8 +593,8 @@ export function RoomDetailContent({
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -704,6 +720,7 @@ interface RoomDetailLoaderProps {
   readonly roomId: string;
   readonly emptyAction?: React.ReactNode;
   readonly headerAction?: React.ReactNode;
+  readonly onSelectionActiveChange?: (active: boolean) => void;
 }
 
 /**
@@ -717,6 +734,7 @@ export function RoomDetailLoader({
   roomId,
   emptyAction,
   headerAction,
+  onSelectionActiveChange,
 }: RoomDetailLoaderProps) {
   const { room, history, loading, error } = useRoomDetail(roomId);
 
@@ -740,6 +758,7 @@ export function RoomDetailLoader({
       room={room}
       history={history}
       headerAction={headerAction}
+      onSelectionActiveChange={onSelectionActiveChange}
     />
   );
 }

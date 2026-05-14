@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { RoomDetailContent, RoomDetailLoader } from "./room-detail-content";
 
 // ----------------------------------------------------------------------------
-// Mocks — keep dependencies cheap so we exercise this file's own logic
+// Mocks: keep dependencies cheap so we exercise this file's own logic
 // (useRoomDetail fetcher branches, mapping helpers, render conditionals,
 // loader states) rather than session/SSE plumbing.
 // ----------------------------------------------------------------------------
@@ -40,7 +40,7 @@ vi.mock("~/lib/swr", async () => {
       const [loading, setLoading] = React.useState(true);
 
       // Hold the fetcher in a ref so the effect can depend only on `key`
-      // without lint complaints — the fetcher closure is recreated on
+      // without lint complaints. The fetcher closure is recreated on
       // every render of useRoomDetail, so re-running the effect on each
       // identity change would loop. This mirrors the dedup behavior the
       // real SWR provides via its own cache.
@@ -80,7 +80,7 @@ vi.mock("~/lib/swr", async () => {
 // Loading widget is no longer used by RoomDetailLoader (replaced with a
 // content-shaped RoomDetailSkeleton in #1323 review). The test below now
 // targets the skeleton's data-testid + role="status" instead of the old
-// "loading" testid — same business assertion (a loading state IS shown
+// "loading" testid. Same business assertion (a loading state IS shown
 // while SWR fetches), new selector that matches the new shape.
 
 vi.mock("~/components/ui/info-card", () => ({
@@ -171,7 +171,7 @@ const notOk = (): FetchResponse => ({
 });
 
 // ----------------------------------------------------------------------------
-// useRoomDetail — exercised through the RoomDetailLoader render path.
+// useRoomDetail, exercised through the RoomDetailLoader render path.
 // ----------------------------------------------------------------------------
 
 describe("useRoomDetail (via RoomDetailLoader)", () => {
@@ -265,7 +265,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
     expect(screen.getByText("Lesen")).toBeInTheDocument();
   });
 
-  it("collapses to empty history when the wrapper carries data:null (#1374 regression guard)", async () => {
+  it("hides history when the wrapper carries data:null (#1374 regression guard)", async () => {
     mockFetch
       .mockResolvedValueOnce(
         okJson({ id: 3003, name: "Kleiner Raum", is_occupied: false }),
@@ -287,9 +287,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Kleiner Raum")[0]).toBeInTheDocument(),
     );
-    expect(
-      screen.getByText("Keine Belegungshistorie verfügbar."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
 
   it("treats a non-OK history response as empty (does not throw)", async () => {
@@ -308,9 +306,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Sporthalle")[0]).toBeInTheDocument(),
     );
-    expect(
-      screen.getByText("Keine Belegungshistorie verfügbar."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
 
   it("renders the error placeholder when the room fetch fails", async () => {
@@ -349,7 +345,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 });
 
 // ----------------------------------------------------------------------------
-// RoomDetailContent — render-state branches the loader-path tests don't reach.
+// RoomDetailContent, render-state branches the loader-path tests don't reach.
 // ----------------------------------------------------------------------------
 
 const baseRoom = {
@@ -366,7 +362,7 @@ describe("RoomDetailContent", () => {
       </Wrapper>,
     );
     // "Frei" renders in the StatusBadge AND in the Rauminformationen
-    // Status row — both must be present to give staff the same signal
+    // Status row, both must be present to give staff the same signal
     // wherever they look.
     expect(screen.getAllByText(/Frei/).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText("Aktuelle Aktivität")).not.toBeInTheDocument();
@@ -420,8 +416,8 @@ describe("RoomDetailContent", () => {
 
   it("hides the supervisor and student-count rows when those fields are missing", () => {
     // Defensive: if the backend doesn't report a supervisor/count yet
-    // (e.g. group is in transition), the detail block must collapse —
-    // empty rows would look like "Aktuelle Aufsicht: —" placeholders
+    // (e.g. group is in transition), the detail block must collapse.
+    // Empty rows would look like "Aktuelle Aufsicht: -" placeholders
     // which is worse UX than just not showing them.
     render(
       <Wrapper>
@@ -437,7 +433,7 @@ describe("RoomDetailContent", () => {
   });
 
   it("renders Gebäude / Etage / Kategorie rows but NOT a separate Raumname row", () => {
-    // Raumname intentionally omitted from the detail block — review
+    // Raumname intentionally omitted from the detail block. Review
     // feedback (#1323): the room name is already the h1 above the
     // detail card, so a "Raumname: …" row was pure redundancy. The
     // remaining static fields must still all render.
@@ -464,7 +460,7 @@ describe("RoomDetailContent", () => {
 
   it("does not render the legacy building · floor · category subline under the header", () => {
     // The "Hauptgebäude · Etage 2" subline that used to sit under the
-    // h1 was removed (#1323) — those values now live exclusively in
+    // h1 was removed (#1323). Those values now live exclusively in
     // the IconDetailRow list, so showing them twice was clutter.
     render(
       <Wrapper>
@@ -503,15 +499,13 @@ describe("RoomDetailContent", () => {
     expect(screen.getAllByText("Etage 3")[0]).toBeInTheDocument();
   });
 
-  it("renders the empty-history placeholder when there are no entries", () => {
+  it("hides the history section when there are no entries", () => {
     render(
       <Wrapper>
         <RoomDetailContent room={{ ...baseRoom }} history={[]} />
       </Wrapper>,
     );
-    expect(
-      screen.getByText("Keine Belegungshistorie verfügbar."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
 
   it("groups entry+exit pairs into a single activity card with the formatted duration", () => {

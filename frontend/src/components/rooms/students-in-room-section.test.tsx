@@ -71,10 +71,14 @@ vi.mock("~/components/ui/button", () => ({
     children,
     isLoading: _isLoading,
     loadingText: _loadingText,
+    variant: _variant,
+    size: _size,
     ...rest
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
     isLoading?: boolean;
     loadingText?: string;
+    variant?: string;
+    size?: string;
   }) => (
     <button onClick={onClick} {...rest}>
       {children}
@@ -192,6 +196,11 @@ beforeEach(() => {
   mockUpdateVisit.mockReset();
   mockGetActiveGroups.mockReset();
   mockToastSuccess.mockReset();
+  mockUseSearchParams.mockReset();
+  mockUseSearchParams.mockReturnValue({
+    get: vi.fn(() => null),
+    toString: vi.fn(() => "room=42"),
+  });
   mockUseTenantMutateMatching.mockReturnValue(vi.fn());
   setSWR({ data: { students: [] } });
   setBulkData();
@@ -509,6 +518,27 @@ describe("StudentsInRoomSection", () => {
       ).toBeChecked();
     });
 
+    it("reports active selection state to the drawer wrapper", async () => {
+      const onSelectionActiveChange = vi.fn();
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+
+      render(
+        <StudentsInRoomSection
+          roomId="42"
+          roomName="OGS-Raum 1"
+          onSelectionActiveChange={onSelectionActiveChange}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+
+      await waitFor(() => {
+        expect(onSelectionActiveChange).toHaveBeenLastCalledWith(true);
+      });
+    });
+
     it("excludes the current room from the target room list", () => {
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
       setBulkData({
@@ -562,7 +592,7 @@ describe("StudentsInRoomSection", () => {
       // must carry the complete current query string, including any
       // grid filters (search, building, status), so the user lands
       // back on their narrowed view, not a reset grid.
-      mockUseSearchParams.mockReturnValueOnce({
+      mockUseSearchParams.mockReturnValue({
         get: vi.fn(() => null),
         toString: vi.fn(
           () => "search=foo&building=Main&status=occupied&room=42",
@@ -587,7 +617,7 @@ describe("StudentsInRoomSection", () => {
     });
 
     it("falls back to /rooms?room={id} when no query string is present", () => {
-      mockUseSearchParams.mockReturnValueOnce({
+      mockUseSearchParams.mockReturnValue({
         get: vi.fn(() => null),
         toString: vi.fn(() => ""),
       });

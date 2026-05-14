@@ -14,7 +14,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -41,11 +41,13 @@ const DETAIL_CARD_CLASS =
 interface StudentsInRoomSectionProps {
   readonly roomId: string;
   readonly roomName: string;
+  readonly onSelectionActiveChange?: (active: boolean) => void;
 }
 
 export function StudentsInRoomSection({
   roomId,
   roomName,
+  onSelectionActiveChange,
 }: StudentsInRoomSectionProps) {
   const router = useTenantRouter();
   const { success: toastSuccess } = useToast();
@@ -128,6 +130,16 @@ export function StudentsInRoomSection({
   // have no affordance to open the missing children.
   const isTruncated = totalCount > students.length;
   const hiddenCount = Math.max(0, totalCount - students.length);
+
+  useEffect(() => {
+    setSelectedStudentIds(new Set());
+    setTargetActiveGroupId("");
+    setBulkMoveState({ type: "idle" });
+  }, [roomId]);
+
+  useEffect(() => {
+    onSelectionActiveChange?.(selectedVisibleCount > 0);
+  }, [onSelectionActiveChange, selectedVisibleCount]);
 
   const openInSearch = () => {
     const qs = new URLSearchParams({
@@ -237,16 +249,18 @@ export function StudentsInRoomSection({
           Kinder im Raum
         </h2>
         {totalCount > 0 && (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={openInSearch}
             aria-label="In Kindersuche öffnen"
             title="In Kindersuche öffnen"
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 transition-colors hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+            className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 py-0 text-xs font-medium shadow-none"
           >
             Kindersuche
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
+          </Button>
         )}
       </div>
       <p className="text-sm text-gray-600">
@@ -367,9 +381,16 @@ function BulkMoveToolbar({
   const canMove =
     selectedCount > 0 && targetActiveGroupId.length > 0 && !isMoving;
   const allSelected = selectedCount === totalCount;
+  const hasSelection = selectedCount > 0;
 
   return (
-    <div className="mb-4 rounded-2xl bg-gray-50/80 p-3">
+    <div
+      className={`mb-4 rounded-2xl border p-3 transition-shadow ${
+        hasSelection
+          ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-[0_12px_40px_rgb(0,0,0,0.12)] backdrop-blur"
+          : "border-transparent bg-gray-50/80 shadow-none"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 text-sm font-semibold text-gray-900">
           <span className="block truncate">
@@ -381,13 +402,15 @@ function BulkMoveToolbar({
             Zielraum wählen und gemeinsam verschieben
           </span>
         </p>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={allSelected ? onClearSelection : onSelectAll}
-          className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 transition-colors hover:bg-gray-50 hover:text-gray-900"
+          className="h-8 shrink-0 rounded-full px-3 py-0 text-xs shadow-none"
         >
           {allSelected ? "Aufheben" : "Alle auswählen"}
-        </button>
+        </Button>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
@@ -595,16 +618,18 @@ function SelectableStudentRow({
           chrome="plain"
         />
       </button>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         onClick={onOpen}
         aria-label={`${fullName} Profil öffnen`}
         title="Profil öffnen"
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 transition-colors hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 py-0 text-xs font-medium shadow-none"
       >
         Profil
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
+      </Button>
     </div>
   );
 }
