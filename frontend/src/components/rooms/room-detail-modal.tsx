@@ -40,6 +40,39 @@ interface RoomDetailModalProps {
   readonly onClose: () => void;
 }
 
+function TransitDetailContent({
+  headerAction,
+}: {
+  readonly headerAction: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-gray-200/70 bg-gray-50/95 px-5 pt-5 pb-4 backdrop-blur supports-[backdrop-filter]:bg-gray-50/85 sm:px-6">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1
+              tabIndex={-1}
+              className="min-w-0 truncate text-2xl leading-tight font-bold text-gray-900 md:text-3xl"
+            >
+              Unterwegs
+            </h1>
+            <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
+              Arbeitsliste
+            </span>
+          </div>
+          <p className="mt-1 truncate text-xs font-medium text-gray-500">
+            Kinder ohne Raumzuweisung
+          </p>
+        </div>
+        <div className="ml-auto flex-shrink-0">{headerAction}</div>
+      </div>
+      <div className="px-5 pt-5 sm:px-6">
+        <TransitStudentsSection />
+      </div>
+    </div>
+  );
+}
+
 export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
   const isMobile = useIsMobile();
   const { isModalOpen } = useModal();
@@ -91,7 +124,18 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
             data-modal-content="true"
             className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-h-0 flex-1 overflow-auto pb-6"
           >
-            {roomId ? (
+            {roomId === TRANSIT_ROOM_ID ? (
+              <TransitDetailContent
+                headerAction={
+                  <SlideOverClose
+                    aria-label="Raumdetails schließen"
+                    className={closeButtonClass}
+                  >
+                    <X className="h-5 w-5" aria-hidden="true" />
+                  </SlideOverClose>
+                }
+              />
+            ) : roomId ? (
               <RoomDetailLoader
                 roomId={roomId}
                 headerAction={
@@ -142,7 +186,16 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
               No-op on desktop , the side panel is already h-full. */}
           <div className="min-h-[60vh]">
             {roomId === TRANSIT_ROOM_ID ? (
-              <TransitStudentsSection />
+              <TransitDetailContent
+                headerAction={
+                  <DrawerClose
+                    aria-label="Raumdetails schließen"
+                    className={closeButtonClass}
+                  >
+                    <X className="h-5 w-5" aria-hidden="true" />
+                  </DrawerClose>
+                }
+              />
             ) : roomId ? (
               <RoomDetailLoader
                 roomId={roomId}

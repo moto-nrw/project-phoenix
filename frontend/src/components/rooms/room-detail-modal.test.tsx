@@ -49,6 +49,12 @@ vi.mock("./room-detail-content", () => ({
   ),
 }));
 
+vi.mock("./transit-students-section", () => ({
+  TransitStudentsSection: () => (
+    <div data-testid="transit-students-section">transit students</div>
+  ),
+}));
+
 // Capture every prop passed to the Drawer primitives so we can drive
 // onOpenChange / onInteractOutside / onEscapeKeyDown without rendering
 // the real vaul implementation (which needs portals and document setup).
@@ -230,6 +236,17 @@ describe("RoomDetailModal", () => {
       expect(close).toBeInTheDocument();
       expect(close.getAttribute("aria-label")).toBe("Raumdetails schließen");
     });
+
+    it("renders transit content on desktop without fetching room details", () => {
+      render(<RoomDetailModal roomId="__transit__" onClose={vi.fn()} />);
+
+      expect(screen.getByRole("heading", { name: "Unterwegs" }))
+        .toBeInTheDocument();
+      expect(screen.getByTestId("transit-students-section"))
+        .toBeInTheDocument();
+      expect(screen.queryByTestId("room-detail-loader"))
+        .not.toBeInTheDocument();
+    });
   });
 
   describe("mobile branch (bottom drawer)", () => {
@@ -258,6 +275,17 @@ describe("RoomDetailModal", () => {
         "aria-label",
         "Raumdetails schließen",
       );
+    });
+
+    it("renders transit content on mobile without fetching room details", () => {
+      render(<RoomDetailModal roomId="__transit__" onClose={vi.fn()} />);
+
+      expect(screen.getByRole("heading", { name: "Unterwegs" }))
+        .toBeInTheDocument();
+      expect(screen.getByTestId("transit-students-section"))
+        .toBeInTheDocument();
+      expect(screen.queryByTestId("room-detail-loader"))
+        .not.toBeInTheDocument();
     });
 
     it("keeps shouldScaleBackground on the bottom sheet (iOS-style scale animation)", () => {
