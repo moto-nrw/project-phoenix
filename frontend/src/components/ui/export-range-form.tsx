@@ -78,7 +78,7 @@ export function ExportRangeForm({
           type="button"
           onClick={() => handleExport("xlsx")}
           disabled={!hasRange}
-          className="flex-1 rounded-lg bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#74b827] disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Excel
         </button>

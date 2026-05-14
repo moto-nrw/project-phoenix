@@ -247,7 +247,7 @@ export function RangeCalendarInline({
           numberOfMonths={2}
           locale={de}
           weekStartsOn={1}
-          showOutsideDays
+          showOutsideDays={false}
           hideNavigation
           disabled={[
             ...(fromMin ? [{ before: fromMin }] : []),
