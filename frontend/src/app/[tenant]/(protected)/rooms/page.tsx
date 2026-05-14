@@ -109,7 +109,7 @@ function RoomsPageContent() {
 
   // Filters are local React state for snappy UI, but their initial
   // value comes from the URL so they SURVIVE a remount when the user
-  // drills /rooms → /students/X → browser back. The student page's
+  // drills through /students/X and returns with browser back. The student page's
   // BackButton pushes back to /rooms with the params we tucked into
   // ?from= (see students-in-room-section.tsx), so on remount the URL
   // re-hydrates the React state.
@@ -138,7 +138,7 @@ function RoomsPageContent() {
   // Mirror local filter state into the URL so the current history entry
   // always reflects the user's view. Without this, typing a filter while
   // the URL is bare /rooms means closing a just-opened room modal pops
-  // back to a URL that never carried those filters — they would survive
+  // back to a URL that never carried those filters. They would survive
   // in React state for now, but a refresh, share, or future remount
   // would silently drop them. router.replace keeps the entry count
   // unchanged, so handleSelectRoom's push and handleCloseDetail's
@@ -275,7 +275,7 @@ function RoomsPageContent() {
 
   // After router.push commits, mark the now-current history entry as
   // "we pushed this". Stored in window.history.state so it survives
-  // page remounts — i.e. when the user drills /rooms → /students/X and
+  // page remounts, for example when the user drills through /students/X and
   // returns via browser back, the marker is still there even though
   // the React component was unmounted in between.
   useEffect(() => {
@@ -437,7 +437,7 @@ function RoomsPageContent() {
         </div>
       )}
 
-      {/* Room Cards Grid — skeleton mirrors the populated grid's column
+      {/* Room Cards Grid, skeleton mirrors the populated grid's column
           breakpoints and per-card shape (rounded-3xl, min-h-[180px],
           header row + meta line + status pill, middle content rows,
           footer hint) so the grid area doesn't visibly resize when real
@@ -481,68 +481,105 @@ function RoomsPageContent() {
                 type="button"
                 key={room.id}
                 onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-[#5080D8]/30 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
               >
-                <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
-                <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-[#5080D8]/40"></div>
+                <div className="relative p-6 pb-5">
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]" />
+                  <div className="pointer-events-none absolute inset-px bg-gradient-to-br from-white/80 to-white/20" />
+                  <div className="pointer-events-none absolute inset-0 ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-blue-200/60" />
 
-                <div className="relative flex min-h-[180px] flex-col p-6">
-                  <div className="mb-3 flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-[#5080D8]">
-                        {room.name}
-                      </h3>
-                      {(room.building !== undefined ||
-                        room.floor !== undefined) && (
-                        <p className="mt-0.5 text-sm text-gray-500">
-                          {room.building &&
-                            room.floor !== undefined &&
-                            `${room.building} · ${formatFloor(room.floor)}`}
-                          {room.building &&
-                            room.floor === undefined &&
-                            room.building}
-                          {!room.building &&
-                            room.floor !== undefined &&
-                            formatFloor(room.floor)}
-                        </p>
-                      )}
+                  <div className="relative flex min-h-[156px] flex-col">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-150 md:group-hover:text-blue-600">
+                            {room.name}
+                          </h3>
+                          <svg
+                            className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-150 md:group-hover:text-blue-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </div>
+                        {(room.building !== undefined ||
+                          room.floor !== undefined) && (
+                          <p className="mt-0.5 overflow-hidden text-sm text-ellipsis whitespace-nowrap text-gray-500 transition-colors duration-150 md:group-hover:text-blue-500">
+                            {room.building &&
+                              room.floor !== undefined &&
+                              `${room.building} · ${formatFloor(room.floor)}`}
+                            {room.building &&
+                              room.floor === undefined &&
+                              room.building}
+                            {!room.building &&
+                              room.floor !== undefined &&
+                              formatFloor(room.floor)}
+                          </p>
+                        )}
+                      </div>
+
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
+                          room.isOccupied
+                            ? "bg-[#FF3130]/15 text-[#FF3130]"
+                            : "bg-[#83CD2D]/15 text-[#4a7a15]"
+                        }`}
+                      >
+                        <span
+                          className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
+                            room.isOccupied
+                              ? "animate-pulse bg-[#FF3130]"
+                              : "bg-[#83CD2D]"
+                          }`}
+                        ></span>
+                        {room.isOccupied ? "Belegt" : "Frei"}
+                      </span>
                     </div>
 
-                    <span
-                      className={`ml-3 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
-                        room.isOccupied
-                          ? "bg-[#FF3130]/15 text-[#FF3130]"
-                          : "bg-[#83CD2D]/15 text-[#4a7a15]"
-                      }`}
-                    >
-                      <span
-                        className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
-                          room.isOccupied
-                            ? "animate-pulse bg-[#FF3130]"
-                            : "bg-[#83CD2D]"
-                        }`}
-                      ></span>
-                      {room.isOccupied ? "Belegt" : "Frei"}
-                    </span>
-                  </div>
-
-                  {/* Middle section: Room details (grows to fill space) */}
-                  <div className="flex-1 space-y-2">
-                    {/* When occupied: Activity + Student count + Supervisor */}
-                    {room.isOccupied && room.groupName && (
-                      <div className="text-sm text-gray-700">
-                        <span className="font-medium">Aktuelle Aktivität:</span>{" "}
-                        {room.groupName}
-                      </div>
-                    )}
-                    {room.isOccupied &&
-                      ((room.studentCount !== undefined &&
-                        room.studentCount > 0) ||
-                        room.supervisorName) && (
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-                          {room.studentCount !== undefined &&
-                            room.studentCount > 0 && (
+                    {/* Middle section: Room details (grows to fill space) */}
+                    <div className="flex-1 space-y-2">
+                      {/* When occupied: Activity + Student count + Supervisor */}
+                      {room.isOccupied && room.groupName && (
+                        <div className="text-sm text-gray-700">
+                          <span className="font-medium">
+                            Aktuelle Aktivität:
+                          </span>{" "}
+                          {room.groupName}
+                        </div>
+                      )}
+                      {room.isOccupied &&
+                        ((room.studentCount !== undefined &&
+                          room.studentCount > 0) ||
+                          room.supervisorName) && (
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+                            {room.studentCount !== undefined &&
+                              room.studentCount > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                    />
+                                  </svg>
+                                  {room.studentCount}{" "}
+                                  {room.studentCount === 1 ? "Kind" : "Kinder"}
+                                </span>
+                              )}
+                            {room.supervisorName && (
                               <span className="flex items-center gap-1">
                                 <svg
                                   className="h-4 w-4"
@@ -554,58 +591,37 @@ function RoomsPageContent() {
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                     strokeWidth={2}
-                                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                    d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
                                   />
                                 </svg>
-                                {room.studentCount}{" "}
-                                {room.studentCount === 1 ? "Kind" : "Kinder"}
+                                {room.supervisorName}
                               </span>
                             )}
-                          {room.supervisorName && (
-                            <span className="flex items-center gap-1">
-                              <svg
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-                                />
-                              </svg>
-                              {room.supervisorName}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                    {/* When free: Placeholder text */}
-                    {!room.isOccupied && (
-                      <>
-                        <div className="text-sm text-gray-600">
-                          Für Aktivitäten buchbar
-                        </div>
-                        {room.capacity !== undefined && room.capacity > 0 && (
-                          <div className="text-sm text-gray-600">
-                            Kapazität: {room.capacity} Plätze
                           </div>
                         )}
-                      </>
-                    )}
+
+                      {/* When free: Placeholder text */}
+                      {!room.isOccupied && (
+                        <>
+                          <div className="text-sm text-gray-600">
+                            Für Aktivitäten buchbar
+                          </div>
+                          {room.capacity !== undefined && room.capacity > 0 && (
+                            <div className="text-sm text-gray-600">
+                              Kapazität: {room.capacity} Plätze
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
+                      Tippen für mehr Infos
+                    </p>
+
+                    <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                   </div>
-
-                  <p className="mt-2 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-[#5080D8]">
-                    Tippen für mehr Infos
-                  </p>
-
-                  <div className="absolute top-4 left-4 h-4 w-4 animate-ping rounded-full bg-white/20"></div>
-                  <div className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full bg-white/30"></div>
                 </div>
-
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-[#5080D8]/15 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
               </button>
             );
           })}
@@ -618,7 +634,7 @@ function RoomsPageContent() {
 }
 
 // Main component with Suspense wrapper + binary-mode 404 guard.
-// Binary-mode tenants don't track room occupancy — the concepts this page
+// Binary-mode tenants don't track room occupancy, so the concepts this page
 // surfaces don't apply. Guard triggers Next.js notFound() for direct URL entry.
 export default function RoomsPage() {
   return (

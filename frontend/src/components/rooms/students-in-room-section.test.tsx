@@ -14,6 +14,7 @@ const {
   mockGetStudentCurrentVisit,
   mockUpdateVisit,
   mockGetActiveGroups,
+  mockToastSuccess,
 } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockUseSearchParams: vi.fn(() => ({
@@ -25,6 +26,7 @@ const {
   mockGetStudentCurrentVisit: vi.fn(),
   mockUpdateVisit: vi.fn(),
   mockGetActiveGroups: vi.fn(),
+  mockToastSuccess: vi.fn(),
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -50,19 +52,30 @@ vi.mock("~/lib/active-service", () => ({
   },
 }));
 
-// Light mocks for visual primitives — we want to assert behaviors (text,
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+  }),
+}));
+
+// Light mocks for visual primitives, we want to assert behaviors (text,
 // button visibility, click handlers), not the exact rendering of every UI
 // atom imported transitively. The "Kinder im Raum" section now renders
 // its own <section aria-label> wrapper instead of going through InfoCard
-// (#1323 review — quiet section headers across the slide-over), so no
+// (#1323 review, quiet section headers across the slide-over), so no
 // info-card mock is needed.
 
 vi.mock("~/components/ui/button", () => ({
   Button: ({
     onClick,
     children,
+    isLoading: _isLoading,
+    loadingText: _loadingText,
     ...rest
-  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    isLoading?: boolean;
+    loadingText?: string;
+  }) => (
     <button onClick={onClick} {...rest}>
       {children}
     </button>
@@ -77,7 +90,7 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Loading widget is no longer used here (replaced with a content-shaped
 // StudentRowSkeleton in #1323 review). Tests below assert the skeleton's
-// data-testid + role="status" instead of the old "loading" testid — same
+// data-testid + role="status" instead of the old "loading" testid, same
 // business assertion (a loading state IS shown while SWR fetches), new
 // selector that matches the new skeleton shape.
 
@@ -88,26 +101,22 @@ vi.mock("~/components/students/compact-student-card", () => ({
     lastName,
     schoolClass,
     groupName,
-    onClick,
   }: {
     studentId: string;
     firstName?: string;
     lastName?: string;
     schoolClass?: string;
     groupName?: string;
-    onClick?: () => void;
   }) => (
-    <button
-      type="button"
+    <div
       data-testid={`compact-student-card-${studentId}`}
       data-school-class={schoolClass}
       data-group-name={groupName}
-      onClick={onClick}
     >
       <span>
         {firstName} {lastName}
       </span>
-    </button>
+    </div>
   ),
 }));
 
@@ -182,6 +191,7 @@ beforeEach(() => {
   mockGetStudentCurrentVisit.mockReset();
   mockUpdateVisit.mockReset();
   mockGetActiveGroups.mockReset();
+  mockToastSuccess.mockReset();
   mockUseTenantMutateMatching.mockReturnValue(vi.fn());
   setSWR({ data: { students: [] } });
   setBulkData();
@@ -241,9 +251,7 @@ describe("StudentsInRoomSection", () => {
 
       const alert = screen.getByRole("alert");
       expect(alert).toHaveTextContent(/Liste der Kinder/);
-      // Error path must not also render the empty-state placeholder —
-      // those two states are mutually exclusive and showing both would
-      // confuse the user about whether a retry would help.
+      // Error and empty states must stay mutually exclusive.
       expect(
         screen.queryByText(/Aktuell keine Kinder/),
       ).not.toBeInTheDocument();
@@ -257,9 +265,7 @@ describe("StudentsInRoomSection", () => {
       expect(
         screen.getByText(/Aktuell keine Kinder im Raum/),
       ).toBeInTheDocument();
-      // "In Kindersuche öffnen" must NOT render when the list is empty —
-      // otherwise the deep-link would land on an empty filtered Kindersuche
-      // with no obvious affordance for the user to recover.
+      // Do not deep-link to an empty filtered Kindersuche.
       expect(
         screen.queryByRole("button", { name: /Kindersuche/ }),
       ).not.toBeInTheDocument();
@@ -286,11 +292,7 @@ describe("StudentsInRoomSection", () => {
     });
 
     it("forwards school_class and group_name to the compact card", () => {
-      // The minimal card shows just identity (name + class + group). The
-      // section must pass those fields through unmodified — earlier
-      // versions used StudentCard with extraContent and arrival/pickup
-      // rows; that complexity is gone, but the identifiers must remain
-      // visible so staff can recognise the child.
+      // The minimal card still needs class and group identifiers.
       setSWR({
         data: {
           students: [
@@ -383,7 +385,7 @@ describe("StudentsInRoomSection", () => {
     it("renders an overflow status when total_records exceeds rendered count", () => {
       // Hard-coded pageSize=200 caps the response. When a room ever
       // exceeds it, the section must surface the gap and point at the
-      // Kindersuche escape hatch — otherwise staff can't see or open
+      // Kindersuche escape hatch, otherwise staff can't see or open
       // the missing children (#1374).
       setSWR({
         data: {
@@ -473,7 +475,7 @@ describe("StudentsInRoomSection", () => {
         expect.objectContaining({ activeGroupId: "900", studentId: "8" }),
       );
       expect(refreshCaches).toHaveBeenCalledTimes(1);
-      expect(screen.getByRole("status")).toHaveTextContent(
+      expect(mockToastSuccess).toHaveBeenCalledWith(
         "2 Kinder nach Raum 6 bewegt.",
       );
     });
@@ -492,6 +494,19 @@ describe("StudentsInRoomSection", () => {
       expect(
         screen.getByRole("button", { name: "In Raum setzen" }),
       ).toBeDisabled();
+    });
+
+    it("selects a child when clicking the row content without opening the profile", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(screen.getByTestId("compact-student-card-7"));
+
+      expect(mockPush).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      ).toBeChecked();
     });
 
     it("excludes the current room from the target room list", () => {
@@ -544,8 +559,8 @@ describe("StudentsInRoomSection", () => {
     it("encodes the full URL as from= in the slide-over context (preserves filters)", () => {
       // The section now only renders inside the slide-over (legacy
       // /rooms/{id} subpage is a server-side redirect). The from= URL
-      // must carry the COMPLETE current query string — including any
-      // grid filters (search, building, status) — so the user lands
+      // must carry the complete current query string, including any
+      // grid filters (search, building, status), so the user lands
       // back on their narrowed view, not a reset grid.
       mockUseSearchParams.mockReturnValueOnce({
         get: vi.fn(() => null),
@@ -557,7 +572,9 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      fireEvent.click(screen.getByTestId("compact-student-card-7"));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Anna Müller Profil öffnen/ }),
+      );
 
       // ? inside from= must be URL-encoded; & inside likewise. Without
       // encoding the outer query parser splits at the inner '?' and
@@ -578,7 +595,9 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      fireEvent.click(screen.getByTestId("compact-student-card-7"));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Anna Müller Profil öffnen/ }),
+      );
 
       expect(mockPush).toHaveBeenCalledWith(
         `/students/7?from=${encodeURIComponent("/rooms?room=42")}`,
@@ -601,7 +620,7 @@ describe("StudentsInRoomSection", () => {
       expect(mockPush).toHaveBeenCalledTimes(1);
       const target = mockPush.mock.calls[0]?.[0] as string;
       expect(target).toMatch(/^\/students\/search\?/);
-      // room_name must be URL-encoded — the seed value "OGS-Raum 1" contains
+      // room_name must be URL-encoded. The seed value "OGS-Raum 1" contains
       // a space and a hyphen and would break a naive concatenation.
       expect(target).toContain("room_id=42");
       expect(target).toContain("room_name=OGS-Raum+1");

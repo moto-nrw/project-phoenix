@@ -2,7 +2,7 @@
 //
 // Responsive wrapper that opens the room-detail view from /rooms without
 // navigating away from the card grid (#1374). Right-side slide-over on
-// desktop, vaul Drawer (bottom) on mobile — keeps the rooms grid
+// desktop, vaul Drawer (bottom) on mobile , keeps the rooms grid
 // visible behind the panel so the user retains context while drilling
 // into a room (review feedback, #1323).
 //
@@ -20,6 +20,13 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "~/components/ui/drawer";
+import {
+  SlideOver,
+  SlideOverClose,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { useModal } from "~/components/dashboard/modal-context";
 import { RoomDetailLoader } from "./room-detail-content";
 
@@ -36,7 +43,7 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
   // Nested Modals (e.g. a future edit/confirm dialog) portal to
   // document.body, so Vaul's outside-click / escape handlers would
   // otherwise dismiss the drawer when the user interacts with the
-  // modal. Block the dismiss while a child modal is open — same guard
+  // modal. Block the dismiss while a child modal is open , same guard
   // MasterDetailLayout uses.
   const guardOutside = (event: Event) => {
     if (isModalOpen) event.preventDefault();
@@ -45,6 +52,44 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
     if (isModalOpen) event.preventDefault();
   };
 
+  if (!isMobile) {
+    return (
+      <SlideOver
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+      >
+        <SlideOverContent
+          widthClass="sm:w-[520px]"
+          className="bg-gray-50"
+          aria-describedby={undefined}
+          onInteractOutside={guardOutside}
+          onEscapeKeyDown={guardEscape}
+        >
+          <SlideOverHeader className="sr-only">
+            <SlideOverTitle>Raumdetails</SlideOverTitle>
+          </SlideOverHeader>
+          <div className="min-h-0 flex-1 overflow-auto px-5 pt-5 pb-6">
+            {roomId ? (
+              <RoomDetailLoader
+                roomId={roomId}
+                headerAction={
+                  <SlideOverClose
+                    aria-label="Raumdetails schließen"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-gray-300 focus:outline-none"
+                  >
+                    <X className="h-5 w-5" aria-hidden="true" />
+                  </SlideOverClose>
+                }
+              />
+            ) : null}
+          </div>
+        </SlideOverContent>
+      </SlideOver>
+    );
+  }
+
   return (
     <Drawer
       open={open}
@@ -52,7 +97,7 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
         if (!next) onClose();
       }}
       direction={isMobile ? "bottom" : "right"}
-      // shouldScaleBackground only makes sense for the bottom sheet —
+      // shouldScaleBackground only makes sense for the bottom sheet ,
       // on a right-side panel the background scaling looks broken
       // because the page slides on the wrong axis.
       shouldScaleBackground={isMobile}
@@ -69,22 +114,22 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
         <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 sm:px-6 sm:pt-6">
           {/* min-h-[60vh] keeps the mobile bottom sheet from collapsing
               when the loader / error fallback returns a tiny payload.
-              No-op on desktop — the side panel is already h-full. */}
+              No-op on desktop , the side panel is already h-full. */}
           <div className="min-h-[60vh]">
             {roomId ? (
               <RoomDetailLoader
                 roomId={roomId}
-                // Inline X close button — flows into the room header row
+                // Inline X close button , flows into the room header row
                 // alongside the room name + status badge so the slide-over
                 // header is one balanced line. Desktop only: the bottom
                 // sheet dismisses via its drag handle. The button itself is
-                // a Vaul DrawerClose, so vaul handles dismissal — no manual
+                // a Vaul DrawerClose, so vaul handles dismissal , no manual
                 // onClick wiring needed.
                 headerAction={
                   !isMobile ? (
                     <DrawerClose
                       aria-label="Raumdetails schließen"
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-gray-300 focus:outline-none"
                     >
                       <X className="h-5 w-5" aria-hidden="true" />
                     </DrawerClose>

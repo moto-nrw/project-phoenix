@@ -4,7 +4,7 @@
 //
 // Uses the same `/api/students?room_id=` data path as Kindersuche, but
 // renders a compact name + class + group row per child (CompactStudentCard)
-// because the side panel doesn't have room — and doesn't need — the full
+// because the side panel doesn't have room, and doesn't need, the full
 // StudentCard. Every row shown is a real, currently checked-in student;
 // the total count is the server's authoritative pagination count.
 //
@@ -15,6 +15,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Check, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
@@ -22,6 +23,7 @@ import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
+import { useToast } from "~/contexts/ToastContext";
 import { roomService, studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import { activeService } from "~/lib/active-service";
@@ -33,6 +35,8 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
+const DETAIL_CARD_CLASS =
+  "rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6";
 
 interface StudentsInRoomSectionProps {
   readonly roomId: string;
@@ -44,6 +48,7 @@ export function StudentsInRoomSection({
   roomName,
 }: StudentsInRoomSectionProps) {
   const router = useTenantRouter();
+  const { success: toastSuccess } = useToast();
   const refreshRoomConsumers = useTenantMutateMatching([
     "room-students-",
     "room-detail-",
@@ -58,7 +63,6 @@ export function StudentsInRoomSection({
   const [bulkMoveState, setBulkMoveState] = useState<
     | { type: "idle" }
     | { type: "loading" }
-    | { type: "success"; movedCount: number; roomName: string }
     | { type: "error"; message: string }
   >({ type: "idle" });
   const sectionSearchParams = useSearchParams();
@@ -74,7 +78,7 @@ export function StudentsInRoomSection({
   // pageSize must comfortably exceed any realistic room occupancy (combined
   // groups in Sporthalle/Aula/Mensa cap well below 100 in normal usage) so
   // every present child shows up. Backend default is only 50, which would
-  // silently truncate larger rooms — see PR #1374 review.
+  // silently truncate larger rooms, see PR #1374 review.
   const { data, error, isLoading } = useSWRAuth<{
     students: Student[];
     pagination?: { total_records: number };
@@ -212,11 +216,10 @@ export function StudentsInRoomSection({
 
     setSelectedStudentIds(new Set());
     setTargetActiveGroupId("");
-    setBulkMoveState({
-      type: "success",
-      movedCount: studentIds.length,
-      roomName: target.roomName,
-    });
+    setBulkMoveState({ type: "idle" });
+    toastSuccess(
+      `${studentIds.length} ${studentIds.length === 1 ? "Kind" : "Kinder"} nach ${target.roomName} bewegt.`,
+    );
     await refreshRoomConsumers();
   };
 
@@ -227,41 +230,29 @@ export function StudentsInRoomSection({
     // / a11y tooling expect from the previous InfoCard wrapper.
     <section
       aria-label="Kinder im Raum"
-      className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6"
+      className={DETAIL_CARD_CLASS}
     >
-      <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-        Kinder im Raum
-      </h2>
-      {/* items-end so the Kindersuche button bottom-aligns with the
-          count text bottom. The shared `<Button>` component has fixed
-          py-3, which would make the row too tall and push the count
-          text down — so this row uses an inline outline-styled button
-          with py-1, matching the count text's line height. The button
-          stays the same visual style as the elsewhere-used Button
-          outline variant, just sized to fit a one-line row.
-          Review feedback (#1323). */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <p className="text-sm text-gray-600">
-          <span className="font-medium text-gray-900">{totalCount}</span>{" "}
-          {totalCount === 1 ? "Kind" : "Kinder"} aktuell anwesend
-        </p>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+          Kinder im Raum
+        </h2>
         {totalCount > 0 && (
-          // Tinted brand-blue ghost button. Uses LOCATION_COLORS.OTHER_ROOM
-          // (#5080D8) — same hue the IconDetailRow icons in
-          // Rauminformationen above are tinted with, so the slide-over
-          // has one accent color across all its sections instead of the
-          // gray-outline button visually getting lost. CLAUDE.md §0 —
-          // brand colors via arbitrary value syntax, never generic
-          // tailwind blues.
           <button
             type="button"
             onClick={openInSearch}
-            className="inline-flex items-center rounded-lg bg-[#5080D8]/10 px-3 py-1 text-sm font-medium text-[#5080D8] transition-colors hover:bg-[#5080D8]/20 focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none"
+            aria-label="In Kindersuche öffnen"
+            title="In Kindersuche öffnen"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 transition-colors hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
           >
-            In Kindersuche öffnen
+            Kindersuche
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         )}
       </div>
+      <p className="text-sm text-gray-600">
+        <span className="font-medium text-gray-900">{totalCount}</span>{" "}
+        {totalCount === 1 ? "Kind" : "Kinder"} aktuell anwesend
+      </p>
 
       {isTruncated && (
         <div
@@ -270,7 +261,7 @@ export function StudentsInRoomSection({
         >
           Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
           {hiddenCount} weitere {hiddenCount === 1 ? "Kind ist" : "Kinder sind"}{" "}
-          aktuell nicht in dieser Übersicht — bitte in der Kindersuche öffnen,
+          aktuell nicht in dieser Übersicht, bitte in der Kindersuche öffnen,
           um alle zu sehen.
         </div>
       )}
@@ -354,7 +345,6 @@ interface BulkMoveToolbarProps {
   readonly state:
     | { type: "idle" }
     | { type: "loading" }
-    | { type: "success"; movedCount: number; roomName: string }
     | { type: "error"; message: string };
   readonly onSelectAll: () => void;
   readonly onClearSelection: () => void;
@@ -379,8 +369,8 @@ function BulkMoveToolbar({
   const allSelected = selectedCount === totalCount;
 
   return (
-    <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
-      <div className="flex items-center justify-between gap-3">
+    <div className="mb-4 rounded-2xl bg-gray-50/80 p-3">
+      <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 text-sm font-semibold text-gray-900">
           <span className="block truncate">
             {selectedCount > 0
@@ -391,15 +381,13 @@ function BulkMoveToolbar({
             Zielraum wählen und gemeinsam verschieben
           </span>
         </p>
-        <Button
+        <button
           type="button"
-          variant="outline"
-          size="sm"
           onClick={allSelected ? onClearSelection : onSelectAll}
-          className="shrink-0 px-3 py-2 text-sm shadow-none"
+          className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 transition-colors hover:bg-gray-50 hover:text-gray-900"
         >
-          {allSelected ? "Aufheben" : "Alle"}
-        </Button>
+          {allSelected ? "Aufheben" : "Alle auswählen"}
+        </button>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
@@ -419,29 +407,23 @@ function BulkMoveToolbar({
             value: option.activeGroupId,
             label: option.roomName,
           }))}
-          focusRingColor="focus:ring-[#5080D8]"
+          focusRingColor="focus:ring-gray-300"
           className="bg-white text-sm md:text-sm"
         />
         <Button
           type="button"
-          variant="success"
+          variant="primary"
           size="sm"
           isLoading={isMoving}
           loadingText="Bewege..."
           onClick={onMoveSelected}
           disabled={!canMove}
-          className="min-h-10 w-full bg-[#83CD2D] px-4 py-2.5 text-sm shadow-sm hover:bg-[#74b827] active:bg-[#669f21] disabled:bg-gray-200 disabled:text-gray-500 sm:w-auto"
+          className="h-9 w-full px-3 py-2 text-xs shadow-sm sm:w-auto"
         >
           In Raum setzen
         </Button>
       </div>
 
-      {state.type === "success" ? (
-        <p role="status" className="mt-2 text-sm text-[#4a7a15]">
-          {state.movedCount} {state.movedCount === 1 ? "Kind" : "Kinder"} nach{" "}
-          {state.roomName} bewegt.
-        </p>
-      ) : null}
       {state.type === "error" ? (
         <p role="alert" className="mt-2 text-sm text-[#FF3130]">
           {state.message}
@@ -575,20 +557,34 @@ function SelectableStudentRow({
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${
+      className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition-colors ${
         isSelected
-          ? "border-[#5080D8]/40 bg-[#5080D8]/10"
-          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+          ? "border-gray-300 bg-gray-50"
+          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
       }`}
     >
-      <input
-        type="checkbox"
-        checked={isSelected}
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={isSelected}
         aria-label={`${fullName} auswählen`}
-        onChange={onToggleSelection}
-        className="h-5 w-5 shrink-0 rounded border-gray-300 text-[#5080D8] accent-[#5080D8] focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none"
-      />
-      <div className="min-w-0 flex-1">
+        onClick={onToggleSelection}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+      >
+        <span
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
+            isSelected
+              ? "border-gray-900 bg-gray-900"
+              : "border-gray-300 bg-white"
+          }`}
+          aria-hidden="true"
+        >
+          <Check
+            className={`h-3.5 w-3.5 text-white transition-opacity ${
+              isSelected ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        </span>
         <CompactStudentCard
           studentId={student.id}
           firstName={student.first_name}
@@ -596,10 +592,19 @@ function SelectableStudentRow({
           schoolClass={student.school_class}
           groupName={student.group_name ?? undefined}
           photoUrl={student.photo_url ?? null}
-          onClick={onOpen}
           chrome="plain"
         />
-      </div>
+      </button>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`${fullName} Profil öffnen`}
+        title="Profil öffnen"
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-white px-2.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 transition-colors hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+      >
+        Profil
+        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
     </div>
   );
 }
