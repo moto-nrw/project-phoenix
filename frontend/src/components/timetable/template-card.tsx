@@ -12,7 +12,7 @@
  * bar that ties the card back to the activity type.
  */
 
-import { Clock, DoorOpen, Users } from "lucide-react";
+import { Archive, Clock, DoorOpen, Users } from "lucide-react";
 
 import {
   getActivityColor,
@@ -24,6 +24,7 @@ interface TemplateCardProps {
   template: TimetableTemplate;
   onEdit: (template: TimetableTemplate) => void;
   onApply: (template: TimetableTemplate) => void;
+  onArchive: (template: TimetableTemplate) => void;
 }
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
@@ -53,7 +54,12 @@ function summarizeTimeRange(template: TimetableTemplate): string | null {
   return allSame ? base : `${base} +`;
 }
 
-export function TemplateCard({ template, onEdit, onApply }: TemplateCardProps) {
+export function TemplateCard({
+  template,
+  onEdit,
+  onApply,
+  onArchive,
+}: TemplateCardProps) {
   const color = getActivityColor(template.type);
   const activeWeekdays = new Set(template.schedules.map((s) => s.weekday));
   const timeRange = summarizeTimeRange(template);
@@ -120,18 +126,28 @@ export function TemplateCard({ template, onEdit, onApply }: TemplateCardProps) {
         </dl>
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-4 py-2.5 pl-5">
-        <button
-          type="button"
-          onClick={() => onEdit(template)}
-          className="text-[12px] font-medium text-slate-600 transition-colors hover:text-slate-900"
-        >
-          Bearbeiten
-        </button>
+      <div className="flex flex-col gap-2 border-t border-slate-100 px-4 py-2.5 pl-5">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => onEdit(template)}
+            className="rounded px-1.5 py-1 text-[12px] font-medium text-slate-600 transition-colors hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:outline-none"
+          >
+            Bearbeiten
+          </button>
+          <button
+            type="button"
+            onClick={() => onArchive(template)}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:outline-none"
+          >
+            <Archive className="h-3.5 w-3.5" aria-hidden />
+            Archivieren
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => onApply(template)}
-          className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
+          className="inline-flex h-8 w-full items-center justify-center rounded-md bg-slate-900 px-2.5 text-[12px] font-medium whitespace-nowrap text-white transition-colors hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           Termine erzeugen
         </button>
