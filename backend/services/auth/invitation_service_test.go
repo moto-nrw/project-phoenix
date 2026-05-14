@@ -688,3 +688,44 @@ func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {
 	require.NotNil(t, updated.PasswordHash)
 	require.NotEqual(t, existingHash, *updated.PasswordHash)
 }
+
+// Acceptance against a previously-deactivated account must reactivate it.
+func TestAcceptInvitationReactivatesInactiveAccount(t *testing.T) {
+	service, invitations, accounts, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	existingHash := "legacy-hash"
+	accounts.storeAccount(&authModel.Account{
+		Model:        baseModel.Model{ID: 42},
+		Email:        "kontakt@example.com",
+		Active:       false,
+		PasswordHash: &existingHash,
+	})
+
+	token := &authModel.InvitationToken{
+		Email:     "kontakt@example.com",
+		Token:     "reactivate-token",
+		RoleID:    1,
+		ExpiresAt: time.Now().Add(10 * time.Hour),
+	}
+	token.SetTenantID(5)
+	require.NoError(t, invitations.Create(ctx, token))
+
+	expectAdminTx(mock)
+	account, err := service.AcceptInvitation(ctx, "reactivate-token", UserRegistrationData{
+		FirstName:       "Re",
+		LastName:        "Activated",
+		Password:        testStrongCredential,
+		ConfirmPassword: testStrongCredential,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.Equal(t, int64(42), account.ID)
+	require.True(t, account.Active, "account must be activated after invitation acceptance")
+
+	stored, findErr := accounts.FindByEmail(ctx, "kontakt@example.com")
+	require.NoError(t, findErr)
+	require.True(t, stored.Active, "stored account must reflect activation")
+	require.NotEqual(t, existingHash, *stored.PasswordHash)
+}
