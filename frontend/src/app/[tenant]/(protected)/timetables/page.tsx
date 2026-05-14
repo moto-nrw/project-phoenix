@@ -13,6 +13,7 @@ import { useSession } from "next-auth/react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { Loading } from "~/components/ui/loading";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { ConflictWarningsBanner } from "~/components/timetable/conflict-warnings-banner";
@@ -199,6 +200,9 @@ function TimetablesContent() {
     useState<EnrichedInstance | null>(null);
   const [editingTemplate, setEditingTemplate] =
     useState<TimetableTemplate | null>(null);
+  const [archivingTemplate, setArchivingTemplate] =
+    useState<TimetableTemplate | null>(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
   const [convertingInstance, setConvertingInstance] =
     useState<EnrichedInstance | null>(null);
   const [periodModalOpen, setPeriodModalOpen] = useState(false);
@@ -1043,6 +1047,44 @@ function TimetablesContent() {
     ],
   );
 
+  const handleArchiveTemplate = useCallback(async () => {
+    if (!archivingTemplate) return;
+
+    setArchiveLoading(true);
+    try {
+      await timetableService.archiveTemplate(archivingTemplate.id);
+      toastSuccess(`Serie "${archivingTemplate.name}" archiviert`);
+      setArchivingTemplate(null);
+      if (templatePeriodID) {
+        await tenantMutate(`timetable-templates-${templatePeriodID}`);
+      }
+      await tenantMutate(swrKey);
+      await tenantMutate(gapsSWRKey);
+      await tenantMutate(exceptionConflictsSWRKey);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Serie konnte nicht archiviert werden";
+      logger.error("template_archive_failed", {
+        template_id: archivingTemplate.id,
+        error: message,
+      });
+      toastError(message);
+    } finally {
+      setArchiveLoading(false);
+    }
+  }, [
+    archivingTemplate,
+    exceptionConflictsSWRKey,
+    gapsSWRKey,
+    swrKey,
+    templatePeriodID,
+    tenantMutate,
+    toastError,
+    toastSuccess,
+  ]);
+
   if (status === "loading") {
     return (
       <div className="p-6">
@@ -1221,6 +1263,7 @@ function TimetablesContent() {
                 setEventModalOpen(true);
               }}
               onApply={(template) => void handleApplyTemplate(template)}
+              onArchive={setArchivingTemplate}
             />
           )}
         </>
@@ -1311,6 +1354,33 @@ function TimetablesContent() {
         }}
         createDefaults={periodCreateDefaults}
       />
+
+      <ConfirmationModal
+        isOpen={archivingTemplate !== null}
+        onClose={() => {
+          if (!archiveLoading) setArchivingTemplate(null);
+        }}
+        onConfirm={() => void handleArchiveTemplate()}
+        title="Serie archivieren?"
+        confirmText="Archivieren"
+        cancelText="Abbrechen"
+        isConfirmLoading={archiveLoading}
+        confirmButtonClass="bg-slate-900 hover:bg-slate-700"
+      >
+        <p className="text-sm leading-relaxed text-slate-600">
+          Die Serie
+          {archivingTemplate ? (
+            <>
+              {" "}
+              <span className="font-semibold text-slate-900">
+                „{archivingTemplate.name}“
+              </span>
+            </>
+          ) : null}{" "}
+          verschwindet aus der Serienliste. Bereits erzeugte konkrete Termine
+          bleiben im Stundenplan erhalten.
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }

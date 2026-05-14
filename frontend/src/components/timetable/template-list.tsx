@@ -10,6 +10,7 @@ interface TemplateListProps {
   onCreate: () => void;
   onEdit: (template: TimetableTemplate) => void;
   onApply: (template: TimetableTemplate) => void;
+  onArchive: (template: TimetableTemplate) => void;
 }
 
 export function TemplateList({
@@ -17,6 +18,7 @@ export function TemplateList({
   onCreate,
   onEdit,
   onApply,
+  onArchive,
 }: TemplateListProps) {
   if (templates.length === 0) {
     return (
@@ -52,6 +54,7 @@ export function TemplateList({
           template={template}
           onEdit={onEdit}
           onApply={onApply}
+          onArchive={onArchive}
         />
       ))}
     </div>
