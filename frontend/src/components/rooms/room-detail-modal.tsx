@@ -81,7 +81,7 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
           <SlideOverHeader className="sr-only">
             <SlideOverTitle>Raumdetails</SlideOverTitle>
           </SlideOverHeader>
-          <div className="min-h-0 flex-1 overflow-auto px-5 pt-5 pb-6">
+          <div className="min-h-0 flex-1 overflow-auto pb-6">
             {roomId ? (
               <RoomDetailLoader
                 roomId={roomId}
@@ -124,7 +124,7 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
         <DrawerHeader className="sr-only">
           <DrawerTitle>Raumdetails</DrawerTitle>
         </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-auto px-4 pt-4 pb-6 sm:px-6 sm:pt-6">
+        <div className="min-h-0 flex-1 overflow-auto pb-6">
           {/* min-h-[60vh] keeps the mobile bottom sheet from collapsing
               when the loader / error fallback returns a tiny payload.
               No-op on desktop , the side panel is already h-full. */}

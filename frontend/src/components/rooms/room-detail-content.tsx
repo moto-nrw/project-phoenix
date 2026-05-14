@@ -396,10 +396,10 @@ export function RoomDetailContent({
   return (
     <div>
       <div
-        className={`mb-5 flex items-center gap-2 ${
+        className={`flex items-center gap-2 ${
           headerAction
-            ? "sticky top-0 z-20 -mx-5 -mt-5 border-b border-gray-200/70 bg-gray-50/95 px-5 pt-5 pb-4 backdrop-blur supports-[backdrop-filter]:bg-gray-50/85 sm:-mx-6 sm:px-6"
-            : ""
+            ? "sticky top-0 z-20 border-b border-gray-200/70 bg-gray-50/95 px-5 pt-5 pb-4 backdrop-blur supports-[backdrop-filter]:bg-gray-50/85 sm:px-6"
+            : "mb-5"
         }`}
       >
         <div className="min-w-0 flex-1">
@@ -428,7 +428,11 @@ export function RoomDetailContent({
         )}
       </div>
 
-      <div className="space-y-4 sm:space-y-6">
+      <div
+        className={`space-y-4 sm:space-y-6 ${
+          headerAction ? "px-5 pt-5 sm:px-6" : ""
+        }`}
+      >
         {/* Compact icon-row block , every field that used to live in the
             old "Rauminformationen" InfoItem stack is here, but each row
             is anchored by a brand-tinted icon so the eye can scan
