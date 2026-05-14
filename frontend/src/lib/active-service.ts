@@ -46,6 +46,18 @@ interface ApiResponse<T> {
   status?: string;
 }
 
+interface TransitAssignSkipped {
+  student_id: number;
+  reason: string;
+}
+
+export interface TransitAssignResult {
+  assigned: number[];
+  skipped: TransitAssignSkipped[];
+  active_group_id: number;
+  room_id: number;
+}
+
 interface BackendResponseEnvelope<T> {
   data: T;
   message?: string;
@@ -1017,6 +1029,22 @@ export const activeService = {
       `/active/visits/student/${studentId}/checkout`,
       {},
       "Checkout student",
+    );
+  },
+
+  assignTransitStudents: async (
+    studentIds: string[],
+    activeGroupId: string,
+  ): Promise<TransitAssignResult> => {
+    return coreFetch<TransitAssignResult>(
+      "POST",
+      "/api/active/visits/transit/assign",
+      "/active/visits/transit/assign",
+      "Assign transit students",
+      {
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+        active_group_id: Number.parseInt(activeGroupId, 10),
+      },
     );
   },
 

@@ -127,6 +127,10 @@ type AttendanceRepository interface {
 	// FindForDate finds all attendance records for a specific date
 	FindForDate(ctx context.Context, date time.Time) ([]*Attendance, error)
 
+	// ListOpenStudentIDsForDate returns unique student IDs with an open
+	// attendance row for the given date.
+	ListOpenStudentIDsForDate(ctx context.Context, date time.Time) ([]int64, error)
+
 	// CountByStaffID counts attendance records where the staff member checked in or checked out students
 	CountByStaffID(ctx context.Context, staffID int64) (int, error)
 }

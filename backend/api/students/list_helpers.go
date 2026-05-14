@@ -16,6 +16,7 @@ type studentListParams struct {
 	firstName           string
 	lastName            string
 	location            string
+	locationState       string
 	groupID             int64
 	roomID              int64
 	search              string
@@ -37,12 +38,13 @@ type studentAccessContext = common.StudentAccessContext
 // parseStudentListParams extracts query parameters from the request
 func parseStudentListParams(r *http.Request) *studentListParams {
 	params := &studentListParams{
-		schoolClass:  r.URL.Query().Get("school_class"),
-		guardianName: r.URL.Query().Get("guardian_name"),
-		firstName:    r.URL.Query().Get("first_name"),
-		lastName:     r.URL.Query().Get("last_name"),
-		location:     r.URL.Query().Get("location"),
-		search:       r.URL.Query().Get("search"),
+		schoolClass:   r.URL.Query().Get("school_class"),
+		guardianName:  r.URL.Query().Get("guardian_name"),
+		firstName:     r.URL.Query().Get("first_name"),
+		lastName:      r.URL.Query().Get("last_name"),
+		location:      r.URL.Query().Get("location"),
+		locationState: r.URL.Query().Get("location_state"),
+		search:        r.URL.Query().Get("search"),
 	}
 
 	// Parse group ID if provided
