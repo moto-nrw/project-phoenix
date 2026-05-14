@@ -538,6 +538,36 @@ describe("active-service", () => {
         );
         expect(result.id).toBe("100");
       });
+
+      it("assigns transit students to an active group", async () => {
+        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                assigned: [50],
+                skipped: [],
+                active_group_id: 1,
+                room_id: 5,
+              },
+            }),
+        } as Response);
+
+        const result = await activeService.assignTransitStudents(["50"], "1");
+
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/active/visits/transit/assign",
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({
+              student_ids: [50],
+              active_group_id: 1,
+            }),
+          }),
+        );
+        expect(result.assigned).toEqual([50]);
+      });
     });
 
     describe("updateVisit", () => {

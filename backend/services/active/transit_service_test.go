@@ -48,6 +48,19 @@ func TestActiveService_ListStudentsInTransit(t *testing.T) {
 	assert.NotContains(t, ids, checkedOutStudent.ID)
 }
 
+func TestActiveService_ListStudentsInTransit_NoOpenAttendance(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	ids, err := service.ListStudentsInTransit(ctx)
+
+	require.NoError(t, err)
+	assert.Empty(t, ids)
+}
+
 func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -94,6 +107,29 @@ func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, currentVisit)
 	assert.Equal(t, targetGroup.ID, currentVisit.ActiveGroupID)
+}
+
+func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	result, err := service.AssignTransitStudentsToActiveGroup(ctx, nil, 42)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "transit-invalid-input")
+	room := testpkg.CreateTestRoom(t, db, "Transit Invalid Input Room")
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID)
+
+	result, err = service.AssignTransitStudentsToActiveGroup(ctx, []int64{-42}, targetGroup.ID)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_EndedTargetFails(t *testing.T) {

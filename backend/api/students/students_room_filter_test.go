@@ -264,3 +264,87 @@ func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testi
 	require.Len(t, resp.Data, 1)
 	assert.Equal(t, matchingTransitStudent.ID, resp.Data[0].ID)
 }
+
+func TestListStudents_LocationStateTransit_InvalidFilters(t *testing.T) {
+	tc := setupTestContext(t)
+	router := setupRouter(tc.resource.ListStudentsHandler(), "")
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{
+			name: "unknown location state",
+			path: "/?location_state=room",
+		},
+		{
+			name: "transit cannot be combined with room",
+			path: "/?location_state=transit&room_id=42",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := testutil.NewRequest("GET", tt.path, nil)
+			rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+			assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
+		})
+	}
+}
+
+func TestListStudents_LocationStateTransit_EmptyReturnsEmpty(t *testing.T) {
+	tc := setupTestContext(t)
+
+	bystander := testpkg.CreateTestStudent(t, tc.db, "TransitEmpty", "Bystander", "TEB1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, bystander.ID)
+
+	router := setupRouter(tc.resource.ListStudentsHandler(), "")
+	req := testutil.NewRequest("GET", "/?location_state=transit", nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp struct {
+		Data []json.RawMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Empty(t, resp.Data)
+}
+
+func TestListStudents_LocationStateTransitWithGroupID_NoIntersectionReturnsEmpty(t *testing.T) {
+	tc := setupTestContext(t)
+	ctx := context.Background()
+
+	staff := testpkg.CreateTestStaff(t, tc.db, "TransitNoMatch", "Staff")
+	device := testpkg.CreateTestDevice(t, tc.db, "transit-no-match-device")
+	studentGroup := testpkg.CreateTestEducationGroup(t, tc.db, "TransitNoMatchStudentGroup")
+	filterGroup := testpkg.CreateTestEducationGroup(t, tc.db, "TransitNoMatchFilterGroup")
+	transitStudent := testpkg.CreateTestStudent(t, tc.db, "TransitNoMatch", "Student", "TNMS1")
+
+	_, err := tc.db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("group_id = ?", studentGroup.ID).
+		Where("id = ?", transitStudent.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	attendance := testpkg.CreateTestAttendance(t, tc.db, transitStudent.ID, staff.ID, device.ID, now.Add(-20*time.Minute), nil)
+
+	defer testpkg.CleanupActivityFixtures(t, tc.db, transitStudent.ID, staff.ID, device.ID)
+	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", attendance.ID)
+	defer testpkg.CleanupTableRecords(t, tc.db, "education.groups", studentGroup.ID, filterGroup.ID)
+
+	router := setupRouter(tc.resource.ListStudentsHandler(), "")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/?location_state=transit&group_id=%d", filterGroup.ID), nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp struct {
+		Data []json.RawMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Empty(t, resp.Data)
+}
