@@ -715,8 +715,37 @@ class StaffAbsenceService {
   }
 }
 
+// Admin counterpart to timeTrackingService.getSessionEdits (which checks
+// ownership against the JWT subject). Routes via /api/staff/{id}/.../edits
+// so an admin can pull the audit trail for any staff member's session in
+// the tenant.
+import {
+  mapWorkSessionEditResponse,
+  type BackendWorkSessionEdit,
+  type WorkSessionEdit,
+} from "./time-tracking-helpers";
+
+class StaffSessionEditsService {
+  async getEdits(
+    staffId: string,
+    sessionId: string,
+  ): Promise<WorkSessionEdit[]> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/sessions/${sessionId}/edits`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch session edits: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: BackendWorkSessionEdit[] | null;
+    };
+    return (json.data ?? []).map(mapWorkSessionEditResponse);
+  }
+}
+
 export const staffService = new StaffService();
 export const staffScheduleService = new StaffScheduleService();
 export const workTimeModelService = new WorkTimeModelService();
 export const staffHistoryService = new StaffHistoryService();
 export const staffAbsenceService = new StaffAbsenceService();
+export const staffSessionEditsService = new StaffSessionEditsService();

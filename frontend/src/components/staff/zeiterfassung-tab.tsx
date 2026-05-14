@@ -132,6 +132,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
         ) : (
           <div className="mt-4">
             <StaffSessionTable
+              staffId={staffId}
               from={visibleFrom}
               to={visibleTo}
               sessions={visibleSessions ?? []}
