@@ -141,7 +141,7 @@ export function RangeCalendarInline({
   const handleDayClick = (day: Date | undefined) => {
     if (!day) return;
     // First click of a new selection (no `from` yet, or already had both bounds).
-    if (!draftFrom || (draftFrom && draftTo)) {
+    if (!draftFrom || draftTo) {
       setDraftFrom(day);
       setDraftTo(undefined);
       return;
