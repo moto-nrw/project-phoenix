@@ -17,6 +17,7 @@ const {
   mockSubstitute,
   mockPatchAttendance,
   mockDeleteCancelled,
+  mockArchiveTemplate,
 } = vi.hoisted(() => ({
   mockSearch: { value: "" },
   mockUseSession: vi.fn(),
@@ -33,6 +34,7 @@ const {
   mockSubstitute: vi.fn(),
   mockPatchAttendance: vi.fn(),
   mockDeleteCancelled: vi.fn(),
+  mockArchiveTemplate: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -82,7 +84,42 @@ vi.mock("~/lib/timetable-api", () => ({
     substitute: mockSubstitute,
     patchAttendance: mockPatchAttendance,
     deleteCancelled: mockDeleteCancelled,
+    archiveTemplate: mockArchiveTemplate,
   },
+}));
+
+vi.mock("~/components/ui/modal", () => ({
+  ConfirmationModal: ({
+    isOpen,
+    onClose,
+    onConfirm,
+    title,
+    children,
+    confirmText = "Bestätigen",
+    cancelText = "Abbrechen",
+    isConfirmLoading = false,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    title: string;
+    children: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    isConfirmLoading?: boolean;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label={title}>
+        <h2>{title}</h2>
+        <div>{children}</div>
+        <button type="button" onClick={onClose}>
+          {cancelText}
+        </button>
+        <button type="button" disabled={isConfirmLoading} onClick={onConfirm}>
+          {isConfirmLoading ? "Wird geladen..." : confirmText}
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock("~/lib/calendar-period-api", () => ({
@@ -318,6 +355,7 @@ vi.mock("~/components/timetable/template-list", () => ({
     onCreate,
     onEdit,
     onApply,
+    onArchive,
   }: {
     templates: Array<{ id: string; name: string }>;
     onCreate: () => void;
@@ -327,6 +365,7 @@ vi.mock("~/components/timetable/template-list", () => ({
       name: string;
       schedules: Array<{ calendarPeriodId?: string }>;
     }) => void;
+    onArchive: (template: { id: string; name: string }) => void;
   }) => (
     <div>
       <button type="button" onClick={onCreate}>
@@ -336,6 +375,9 @@ vi.mock("~/components/timetable/template-list", () => ({
         <>
           <button type="button" onClick={() => onEdit(templates[0]!)}>
             edit-template
+          </button>
+          <button type="button" onClick={() => onArchive(templates[0]!)}>
+            archive-template
           </button>
           <button
             type="button"
@@ -624,6 +666,7 @@ describe("TimetablesPage", () => {
     });
     mockPatchAttendance.mockResolvedValue({});
     mockDeleteCancelled.mockResolvedValue({});
+    mockArchiveTemplate.mockResolvedValue({});
     setupSWR();
     window.history.replaceState(null, "", "/acme/timetables");
   });
@@ -725,6 +768,22 @@ describe("TimetablesPage", () => {
     fireEvent.click(screen.getByText("apply-template"));
     await waitFor(() => expect(mockMaterialize).toHaveBeenCalled());
 
+    fireEvent.click(screen.getByText("archive-template"));
+    expect(
+      screen.getByRole("dialog", { name: "Serie archivieren?" }),
+    ).toHaveTextContent("Serie „Yoga“");
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(mockArchiveTemplate).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("dialog", { name: "Serie archivieren?" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("archive-template"));
+    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
+    await waitFor(() => expect(mockArchiveTemplate).toHaveBeenCalledWith("7"));
+    expect(mockToastSuccess).toHaveBeenCalledWith('Serie "Yoga" archiviert');
+    expect(mockTenantMutate).toHaveBeenCalledWith("timetable-templates-5");
+
     fireEvent.click(screen.getByText("month-view"));
     await waitFor(() => expect(screen.getByText("month-grid")).toBeVisible());
     fireEvent.click(screen.getByText("month-grid"));
@@ -742,6 +801,22 @@ describe("TimetablesPage", () => {
     fireEvent.click(screen.getByText("density"));
     fireEvent.click(screen.getByText("add-instance"));
     expect(screen.getByText("event-save")).toBeInTheDocument();
+  });
+
+  it("keeps archive confirmation open and reports errors", async () => {
+    mockSearch.value = "view=series&period=5";
+    mockArchiveTemplate.mockRejectedValueOnce(new Error("Archivierung kaputt"));
+    render(<TimetablesPage />);
+
+    fireEvent.click(screen.getByText("archive-template"));
+    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith("Archivierung kaputt"),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Serie archivieren?" }),
+    ).toBeInTheDocument();
   });
 
   it("shows loading state while the session loads", () => {

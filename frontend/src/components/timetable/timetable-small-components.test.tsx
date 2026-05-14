@@ -127,6 +127,7 @@ describe("small timetable components", () => {
     const onCreate = vi.fn();
     const onEdit = vi.fn();
     const onApply = vi.fn();
+    const onArchive = vi.fn();
 
     const { rerender } = render(
       <TemplateList
@@ -134,6 +135,7 @@ describe("small timetable components", () => {
         onCreate={onCreate}
         onEdit={onEdit}
         onApply={onApply}
+        onArchive={onArchive}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /serientermin/i }));
@@ -145,20 +147,24 @@ describe("small timetable components", () => {
         onCreate={onCreate}
         onEdit={onEdit}
         onApply={onApply}
+        onArchive={onArchive}
       />,
     );
 
     expect(screen.getByText("Yoga")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
     fireEvent.click(screen.getByRole("button", { name: "Termine erzeugen" }));
 
     expect(onEdit).toHaveBeenCalledWith(template);
+    expect(onArchive).toHaveBeenCalledWith(template);
     expect(onApply).toHaveBeenCalledWith(template);
   });
 
   it("renders a standalone template card with fallback labels", () => {
     const onEdit = vi.fn();
     const onApply = vi.fn();
+    const onArchive = vi.fn();
 
     render(
       <TemplateCard
@@ -171,6 +177,7 @@ describe("small timetable components", () => {
         }}
         onEdit={onEdit}
         onApply={onApply}
+        onArchive={onArchive}
       />,
     );
 
