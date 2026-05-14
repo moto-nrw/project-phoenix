@@ -150,7 +150,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRTimeTrackingRetentionDays,
 		Label:           "Aufbewahrungsdauer Zeiterfassung",
-		Description:     "Wie lange Arbeitszeit-Daten (Sessions, Pausen, Korrekturen, Abwesenheiten) aufbewahrt werden, bevor sie automatisch gelöscht werden. Mindestens 2 Jahre (§16 ArbZG). Empfohlen 6 Jahre (§41 EStG), wenn Daten in die Lohnabrechnung einfließen.",
+		Description:     "Wie lange Arbeitszeit-Daten (Stempelzeiten, Pausen, Korrekturen, Abwesenheiten) aufbewahrt werden, bevor sie automatisch gelöscht werden. Mindestens 2 Jahre.",
 		Type:            config.FieldSelect,
 		Default:         730,
 		ReadPermission:  "config:read",
@@ -160,13 +160,13 @@ func init() {
 		SortOrder:       40,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "2 Jahre (Mindestaufbewahrung §16 ArbZG)", Value: 730},
+				{Label: "2 Jahre", Value: 730},
 				{Label: "3 Jahre", Value: 1095},
 				{Label: "4 Jahre", Value: 1460},
 				{Label: "5 Jahre", Value: 1825},
-				{Label: "6 Jahre (empfohlen bei Lohnbezug, §41 EStG)", Value: 2190},
+				{Label: "6 Jahre", Value: 2190},
 				{Label: "7 Jahre", Value: 2555},
-				{Label: "8 Jahre (Höchstgrenze §147 AO)", Value: 2920},
+				{Label: "8 Jahre", Value: 2920},
 			},
 		},
 		DependsOn: &config.Dependency{

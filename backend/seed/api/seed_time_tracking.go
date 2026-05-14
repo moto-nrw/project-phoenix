@@ -35,7 +35,10 @@ type seedTimeTrackingHistoryStep struct{}
 func (seedTimeTrackingHistoryStep) Name() string { return "Seeding time-tracking history" }
 
 const (
-	timeTrackingDaysBack       = 14
+	// Three months of trailing history so the demo tenant has enough rows
+	// for the cumulative Stundenkonto / Saldo cards to look meaningful.
+	// 14 days was too short — admins couldn't see a real Saldo trend.
+	timeTrackingDaysBack       = 90
 	timeTrackingDailyTargetMin = 480
 )
 
