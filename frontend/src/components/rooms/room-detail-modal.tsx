@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { useScrollLock } from "~/hooks/useScrollLock";
 import {
   Drawer,
   DrawerClose,
@@ -41,6 +42,8 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
   const { isModalOpen } = useModal();
   const open = roomId !== null;
   const [hasActiveSelection, setHasActiveSelection] = useState(false);
+
+  useScrollLock(open);
 
   useEffect(() => {
     setHasActiveSelection(false);
@@ -81,7 +84,10 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
           <SlideOverHeader className="sr-only">
             <SlideOverTitle>Raumdetails</SlideOverTitle>
           </SlideOverHeader>
-          <div className="min-h-0 flex-1 overflow-auto pb-6">
+          <div
+            data-modal-content="true"
+            className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-h-0 flex-1 overflow-auto pb-6"
+          >
             {roomId ? (
               <RoomDetailLoader
                 roomId={roomId}
@@ -124,7 +130,10 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
         <DrawerHeader className="sr-only">
           <DrawerTitle>Raumdetails</DrawerTitle>
         </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-auto pb-6">
+        <div
+          data-modal-content="true"
+          className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-h-0 flex-1 overflow-auto pb-6"
+        >
           {/* min-h-[60vh] keeps the mobile bottom sheet from collapsing
               when the loader / error fallback returns a tiny payload.
               No-op on desktop , the side panel is already h-full. */}
