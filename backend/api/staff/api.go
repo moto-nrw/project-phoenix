@@ -38,6 +38,7 @@ type Resource struct {
 	AuthService         authSvc.AuthService
 	GroupSupervisorRepo active.GroupSupervisorRepository
 	WorkSessionService  activeSvc.WorkSessionService
+	StaffAbsenceService activeSvc.StaffAbsenceService
 	AbsenceRepo         active.StaffAbsenceRepository
 	ScheduleRepo        config.StaffWorkScheduleRepository
 	WorkTimeModelRepo   config.WorkTimeModelRepository
@@ -52,6 +53,7 @@ func NewResource(
 	authService authSvc.AuthService,
 	groupSupervisorRepo active.GroupSupervisorRepository,
 	workSessionService activeSvc.WorkSessionService,
+	staffAbsenceService activeSvc.StaffAbsenceService,
 	absenceRepo active.StaffAbsenceRepository,
 	scheduleRepo config.StaffWorkScheduleRepository,
 	workTimeModelRepo config.WorkTimeModelRepository,
@@ -66,6 +68,7 @@ func NewResource(
 		AuthService:         authService,
 		GroupSupervisorRepo: groupSupervisorRepo,
 		WorkSessionService:  workSessionService,
+		StaffAbsenceService: staffAbsenceService,
 		AbsenceRepo:         absenceRepo,
 		ScheduleRepo:        scheduleRepo,
 		WorkTimeModelRepo:   workTimeModelRepo,
@@ -118,6 +121,11 @@ func (rs *Resource) Router() chi.Router {
 
 		// Time tracking history for a specific staff member (admin read)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
+
+		// Absences for a specific staff member (admin read). The MA-Sicht uses
+		// /api/time-tracking/absences which is scoped to the caller; this route
+		// lets an admin see Krank/Urlaub for any staff in the same tenant.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/absences", rs.getStaffAbsences)
 
 		// PIN management endpoints - staff can manage their own PIN
 		r.With(withTx).Get("/pin", rs.getPINStatus)
@@ -1832,4 +1840,52 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, historyResp, "Staff session history retrieved successfully")
+}
+
+// getStaffAbsences handles GET /api/staff/{id}/absences?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Admin-facing counterpart to /api/time-tracking/absences (which is scoped to
+// the caller). Lets the staff-detail view render Krank/Urlaub badges for any
+// staff in the tenant.
+func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return
+	}
+
+	from, err := time.Parse(common.DateFormatISO, fromStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	to, err := time.Parse(common.DateFormatISO, toStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	absences, err := rs.StaffAbsenceService.GetAbsencesForRange(r.Context(), staffID, from, to)
+	if err != nil {
+		rs.getLogger().Error("failed to get staff absences",
+			"staff_id", staffID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, absences, "Staff absences retrieved successfully")
 }
