@@ -77,6 +77,8 @@ export interface BackendStaffAbsence {
   date_start: string;
   date_end: string;
   half_day: boolean;
+  start_half_day?: boolean;
+  end_half_day?: boolean;
   note: string;
   status: string;
   approved_by: number | null;
@@ -101,6 +103,8 @@ export interface StaffAbsence {
   dateStart: string;
   dateEnd: string;
   halfDay: boolean;
+  startHalfDay: boolean;
+  endHalfDay: boolean;
   note: string;
   status: string;
   approvedBy: string | null;
@@ -139,6 +143,8 @@ export function mapStaffAbsenceResponse(
     dateStart: data.date_start.split("T")[0] ?? data.date_start,
     dateEnd: data.date_end.split("T")[0] ?? data.date_end,
     halfDay: data.half_day,
+    startHalfDay: data.start_half_day ?? data.half_day,
+    endHalfDay: data.end_half_day ?? data.half_day,
     note: data.note ?? "",
     status: data.status,
     approvedBy: data.approved_by?.toString() ?? null,

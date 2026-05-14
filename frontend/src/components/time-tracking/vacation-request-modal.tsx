@@ -5,9 +5,58 @@ import type { DateRange } from "react-day-picker";
 
 import { RangeCalendarInline } from "~/components/ui/date-range-picker";
 import { Modal } from "~/components/ui/modal";
+import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { timeTrackingService } from "~/lib/time-tracking-api";
+
+// Forward-looking presets specific to vacation requests. Covers ~90% of
+// real-world cases (single Brückentag, current/next week, current/next
+// month) so the OGS staff don't have to navigate the calendar for the
+// common scenarios.
+function buildVacationPresets(today: Date) {
+  const startOfWeek = (d: Date) => {
+    const x = new Date(d);
+    const dow = (x.getDay() + 6) % 7; // Mon = 0
+    x.setDate(x.getDate() - dow);
+    x.setHours(0, 0, 0, 0);
+    return x;
+  };
+  const endOfFridayOfWeek = (mondayDate: Date) => {
+    const x = new Date(mondayDate);
+    x.setDate(x.getDate() + 4);
+    return x;
+  };
+  const thisWeekMon = startOfWeek(today);
+  const nextWeekMon = new Date(thisWeekMon);
+  nextWeekMon.setDate(nextWeekMon.getDate() + 7);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+
+  return [
+    { label: "Heute", range: () => ({ from: today, to: today }) },
+    { label: "Morgen", range: () => ({ from: tomorrow, to: tomorrow }) },
+    {
+      label: "Diese Woche",
+      range: () => ({ from: thisWeekMon, to: endOfFridayOfWeek(thisWeekMon) }),
+    },
+    {
+      label: "Nächste Woche",
+      range: () => ({ from: nextWeekMon, to: endOfFridayOfWeek(nextWeekMon) }),
+    },
+    {
+      label: "Diesen Monat",
+      range: () => ({ from: today, to: monthEnd }),
+    },
+    {
+      label: "Nächsten Monat",
+      range: () => ({ from: nextMonthStart, to: nextMonthEnd }),
+    },
+  ];
+}
 
 const logger = createLogger({ component: "VacationRequestModal" });
 
@@ -18,9 +67,14 @@ function toIsoDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-// Count Mon-Fri days between two dates inclusive — mirrors the backend
-// countWorkingDays() helper so the live preview matches what gets stored.
-function countWorkingDays(from: Date, to: Date, halfDay: boolean): number {
+// Mirrors backend countWorkingDays: full Mon-Fri count minus 0.5 per
+// boundary half-day flag. Single-day range collapses both flags to one.
+function countWorkingDays(
+  from: Date,
+  to: Date,
+  startHalf: boolean,
+  endHalf: boolean,
+): number {
   if (to.getTime() < from.getTime()) return 0;
   let count = 0;
   const cursor = new Date(from);
@@ -29,7 +83,15 @@ function countWorkingDays(from: Date, to: Date, halfDay: boolean): number {
     if (dow !== 0 && dow !== 6) count += 1;
     cursor.setDate(cursor.getDate() + 1);
   }
-  return halfDay ? count * 0.5 : count;
+  let result = count;
+  const isSingleDay = from.getTime() === to.getTime();
+  if (isSingleDay) {
+    if (startHalf || endHalf) result -= 0.5;
+    return result;
+  }
+  if (startHalf) result -= 0.5;
+  if (endHalf) result -= 0.5;
+  return result;
 }
 
 export function VacationRequestModal({
@@ -44,16 +106,26 @@ export function VacationRequestModal({
   readonly remainingDays: number;
 }) {
   const today = useMemo(() => new Date(), []);
+  const vacationPresets = useMemo(() => buildVacationPresets(today), [today]);
   const [range, setRange] = useState<DateRange | undefined>(undefined);
-  const [halfDay, setHalfDay] = useState(false);
+  const [startHalf, setStartHalf] = useState(false);
+  const [endHalf, setEndHalf] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
 
+  const isSingleDay = useMemo(
+    () =>
+      Boolean(
+        range?.from && range?.to && range.from.getTime() === range.to.getTime(),
+      ),
+    [range],
+  );
+
   const workingDays = useMemo(() => {
     if (!range?.from || !range.to) return 0;
-    return countWorkingDays(range.from, range.to, halfDay);
-  }, [range, halfDay]);
+    return countWorkingDays(range.from, range.to, startHalf, endHalf);
+  }, [range, startHalf, endHalf]);
 
   const exceedsBalance = workingDays > remainingDays;
 
@@ -71,7 +143,8 @@ export function VacationRequestModal({
       await timeTrackingService.requestVacation({
         date_start: toIsoDate(range.from),
         date_end: toIsoDate(range.to),
-        half_day: halfDay,
+        start_half_day: startHalf,
+        end_half_day: endHalf,
         note: note.trim() || undefined,
       });
       toast.success("Urlaubsantrag gesendet.");
@@ -94,7 +167,8 @@ export function VacationRequestModal({
 
   const handleReset = () => {
     setRange(undefined);
-    setHalfDay(false);
+    setStartHalf(false);
+    setEndHalf(false);
     setNote("");
   };
 
@@ -164,33 +238,58 @@ export function VacationRequestModal({
               value={range}
               onChange={setRange}
               fromMin={today}
+              presets={vacationPresets}
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-gray-800">Halber Tag</p>
-            <p className="text-xs text-gray-500">
-              Aktivieren, wenn nur ein halber Arbeitstag beansprucht wird.
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={halfDay}
-            onClick={() => setHalfDay((v) => !v)}
-            className={`relative h-6 w-11 rounded-full transition-colors ${
-              halfDay ? "bg-[#83CD2D]" : "bg-gray-300"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                halfDay ? "translate-x-5" : "translate-x-0.5"
-              }`}
-            />
-          </button>
-        </div>
+        {range?.from &&
+          range?.to &&
+          (isSingleDay ? (
+            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-gray-800">Halber Tag</p>
+                <p className="text-xs text-gray-500">
+                  Aktivieren, wenn nur ein halber Arbeitstag beansprucht wird.
+                </p>
+              </div>
+              <BooleanField
+                value={startHalf || endHalf}
+                onChange={(v) => {
+                  setStartHalf(v);
+                  setEndHalf(v);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                Halbe Tage an den Rändern
+              </p>
+              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">
+                    Erster Tag halbtags
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Nur Vor- oder Nachmittag am Startdatum.
+                  </p>
+                </div>
+                <BooleanField value={startHalf} onChange={setStartHalf} />
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">
+                    Letzter Tag halbtags
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Nur Vor- oder Nachmittag am Enddatum.
+                  </p>
+                </div>
+                <BooleanField value={endHalf} onChange={setEndHalf} />
+              </div>
+            </div>
+          ))}
 
         <div>
           <label

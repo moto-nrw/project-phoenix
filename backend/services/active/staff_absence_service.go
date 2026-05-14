@@ -37,11 +37,14 @@ type StaffAbsenceResponse struct {
 	DurationDays int `json:"duration_days"`
 }
 
-// RequestVacationRequest is what the MA submits via "Urlaub beantragen"
+// RequestVacationRequest is what the MA submits via "Urlaub beantragen".
+// StartHalfDay/EndHalfDay are Personio-style boundary half-days: 0.5 day
+// off the first / last day of the range, full days for everything between.
 type RequestVacationRequest struct {
 	DateStart         string `json:"date_start"`
 	DateEnd           string `json:"date_end"`
-	HalfDay           bool   `json:"half_day"`
+	StartHalfDay      bool   `json:"start_half_day"`
+	EndHalfDay        bool   `json:"end_half_day"`
 	Note              string `json:"note"`
 	SubstituteStaffID *int64 `json:"substitute_staff_id,omitempty"`
 }
@@ -388,9 +391,11 @@ func toAbsenceResponse(a *activeModels.StaffAbsence) *StaffAbsenceResponse {
 
 // ─── Vacation workflow (Tranche 4) ───────────────────────────────────────────
 
-// countWorkingDays returns Mon-Fri count between two dates inclusive.
-// Feiertage are NOT excluded yet — that lives in Tranche 3 (Issue #1231).
-func countWorkingDays(from, to time.Time, halfDay bool) float64 {
+// countWorkingDays returns Mon-Fri count between two dates inclusive,
+// minus 0.5 for each boundary half-day. Personio-style: first day half
+// and last day half are independent flags. Feiertage are NOT excluded
+// yet — that lives in Tranche 3 (Issue #1231).
+func countWorkingDays(from, to time.Time, startHalf, endHalf bool) float64 {
 	if to.Before(from) {
 		return 0
 	}
@@ -401,10 +406,22 @@ func countWorkingDays(from, to time.Time, halfDay bool) float64 {
 			count++
 		}
 	}
-	if halfDay {
-		return float64(count) * 0.5
+	result := float64(count)
+	// Single-day range: only one boundary exists, so a single half flag
+	// halves it. Treat startHalf and endHalf identically in that case.
+	if from.Equal(to) {
+		if startHalf || endHalf {
+			result -= 0.5
+		}
+		return result
 	}
-	return float64(count)
+	if startHalf {
+		result -= 0.5
+	}
+	if endHalf {
+		result -= 0.5
+	}
+	return result
 }
 
 func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64, req RequestVacationRequest) (*StaffAbsenceResponse, error) {
@@ -424,18 +441,22 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 		return nil, fmt.Errorf("dates overlap with an existing absence")
 	}
 
-	workingDays := countWorkingDays(dateStart, dateEnd, req.HalfDay)
+	workingDays := countWorkingDays(dateStart, dateEnd, req.StartHalfDay, req.EndHalfDay)
 	if workingDays == 0 {
 		return nil, fmt.Errorf("vacation range contains no working days")
 	}
 
 	now := time.Now()
+	// HalfDay legacy flag stays in sync: true iff either boundary is half.
+	halfDay := req.StartHalfDay || req.EndHalfDay
 	absence := &activeModels.StaffAbsence{
 		StaffID:           staffID,
 		AbsenceType:       activeModels.AbsenceTypeVacation,
 		DateStart:         dateStart,
 		DateEnd:           dateEnd,
-		HalfDay:           req.HalfDay,
+		HalfDay:           halfDay,
+		StartHalfDay:      req.StartHalfDay,
+		EndHalfDay:        req.EndHalfDay,
 		Note:              req.Note,
 		Status:            activeModels.AbsenceStatusRequested,
 		CreatedBy:         staffID,
@@ -552,7 +573,9 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 		if a.WorkingDays != nil {
 			days = *a.WorkingDays
 		} else {
-			days = countWorkingDays(a.DateStart, a.DateEnd, a.HalfDay)
+			// Legacy rows pre-1.15.59 only had HalfDay; treat that flag as
+			// "both ends halfed" to mirror the migration backfill.
+			days = countWorkingDays(a.DateStart, a.DateEnd, a.HalfDay || a.StartHalfDay, a.HalfDay || a.EndHalfDay)
 		}
 		switch a.Status {
 		case activeModels.AbsenceStatusApproved, activeModels.AbsenceStatusReported:

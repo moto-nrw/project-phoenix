@@ -64,6 +64,8 @@ type StaffAbsence struct {
 	DateStart         time.Time  `bun:"date_start,notnull,type:date" json:"date_start"`
 	DateEnd           time.Time  `bun:"date_end,notnull,type:date" json:"date_end"`
 	HalfDay           bool       `bun:"half_day,notnull,default:false" json:"half_day"`
+	StartHalfDay      bool       `bun:"start_half_day,notnull,default:false" json:"start_half_day"`
+	EndHalfDay        bool       `bun:"end_half_day,notnull,default:false" json:"end_half_day"`
 	Note              string     `bun:"note" json:"note,omitempty"`
 	Status            string     `bun:"status,notnull,default:'reported'" json:"status"`
 	ApprovedBy        *int64     `bun:"approved_by" json:"approved_by,omitempty"`

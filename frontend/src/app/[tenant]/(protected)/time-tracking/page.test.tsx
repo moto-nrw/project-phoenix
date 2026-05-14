@@ -246,6 +246,8 @@ const mockAbsence: StaffAbsence = {
   dateStart: weekdayISO,
   dateEnd: todayISO,
   halfDay: false,
+  startHalfDay: false,
+  endHalfDay: false,
   note: "",
   status: "pending",
   approvedBy: null,
@@ -254,6 +256,10 @@ const mockAbsence: StaffAbsence = {
   createdAt: `${todayISO}T07:00:00Z`,
   updatedAt: `${todayISO}T07:00:00Z`,
   durationDays: 1,
+  workingDays: 1,
+  decisionNote: "",
+  requestedAt: `${todayISO}T07:00:00Z`,
+  substituteStaffId: null,
 };
 
 const mockVacationAbsence: StaffAbsence = {
