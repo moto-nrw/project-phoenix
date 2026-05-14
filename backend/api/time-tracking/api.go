@@ -79,6 +79,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/absences/{id}", rs.updateAbsence)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Delete("/absences/{id}", rs.deleteAbsence)
 
+		// Vacation workflow (Tranche 4) — MA-side
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/vacation/request", rs.requestVacation)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/cancel", rs.cancelAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/vacation/quota", rs.getOwnVacationQuota)
+
 		// Presence map - for internal use by staff page
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/presence-map", rs.getPresenceMap)
 	})
@@ -563,6 +568,92 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.RespondNoContent(w, r)
+}
+
+// requestVacation handles POST /api/time-tracking/vacation/request
+func (rs *Resource) requestVacation(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	var req activeSvc.RequestVacationRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	var resp *activeSvc.StaffAbsenceResponse
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		resp, txErr = rs.StaffAbsenceService.RequestVacation(ctx, staffID, req)
+		return txErr
+	})
+	if err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, resp, "Vacation request created")
+}
+
+// cancelAbsence handles POST /api/time-tracking/absences/{id}/cancel
+func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	idStr := chi.URLParam(r, "id")
+	absenceID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
+		return
+	}
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.StaffAbsenceService.CancelAbsence(ctx, staffID, absenceID)
+	}); err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+	common.RespondNoContent(w, r)
+}
+
+// getOwnVacationQuota handles GET /api/time-tracking/vacation/quota?year=YYYY
+func (rs *Resource) getOwnVacationQuota(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	year, err := parseYearParam(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	summary, err := rs.StaffAbsenceService.GetVacationQuotaSummary(r.Context(), staffID, year)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summary, "Vacation quota retrieved")
+}
+
+func parseYearParam(r *http.Request) (int, error) {
+	yearStr := r.URL.Query().Get("year")
+	if yearStr == "" {
+		return time.Now().Year(), nil
+	}
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 || year > 2100 {
+		return 0, errors.New("invalid year parameter, expected 2000-2100")
+	}
+	return year, nil
 }
 
 // getPresenceMap handles GET /api/time-tracking/presence-map

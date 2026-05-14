@@ -96,16 +96,17 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup      activeModels.GroupRepository
-	ActiveVisit      activeModels.VisitRepository
-	GroupSupervisor  activeModels.GroupSupervisorRepository
-	CombinedGroup    activeModels.CombinedGroupRepository
-	GroupMapping     activeModels.GroupMappingRepository
-	Attendance       activeModels.AttendanceRepository
-	StudentStatusDay activeModels.StudentStatusDayRepository
-	WorkSession      activeModels.WorkSessionRepository
-	WorkSessionBreak activeModels.WorkSessionBreakRepository
-	StaffAbsence     activeModels.StaffAbsenceRepository
+	ActiveGroup        activeModels.GroupRepository
+	ActiveVisit        activeModels.VisitRepository
+	GroupSupervisor    activeModels.GroupSupervisorRepository
+	CombinedGroup      activeModels.CombinedGroupRepository
+	GroupMapping       activeModels.GroupMappingRepository
+	Attendance         activeModels.AttendanceRepository
+	StudentStatusDay   activeModels.StudentStatusDayRepository
+	WorkSession        activeModels.WorkSessionRepository
+	WorkSessionBreak   activeModels.WorkSessionBreakRepository
+	StaffAbsence       activeModels.StaffAbsenceRepository
+	StaffVacationQuota activeModels.StaffVacationQuotaRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -210,16 +211,17 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:      active.NewGroupRepository(db),
-		ActiveVisit:      active.NewVisitRepository(db),
-		GroupSupervisor:  active.NewGroupSupervisorRepository(db),
-		CombinedGroup:    active.NewCombinedGroupRepository(db),
-		GroupMapping:     active.NewGroupMappingRepository(db),
-		Attendance:       active.NewAttendanceRepository(db),
-		StudentStatusDay: active.NewStudentStatusDayRepository(db),
-		WorkSession:      active.NewWorkSessionRepository(db),
-		WorkSessionBreak: active.NewWorkSessionBreakRepository(db),
-		StaffAbsence:     active.NewStaffAbsenceRepository(db),
+		ActiveGroup:        active.NewGroupRepository(db),
+		ActiveVisit:        active.NewVisitRepository(db),
+		GroupSupervisor:    active.NewGroupSupervisorRepository(db),
+		CombinedGroup:      active.NewCombinedGroupRepository(db),
+		GroupMapping:       active.NewGroupMappingRepository(db),
+		Attendance:         active.NewAttendanceRepository(db),
+		StudentStatusDay:   active.NewStudentStatusDayRepository(db),
+		WorkSession:        active.NewWorkSessionRepository(db),
+		WorkSessionBreak:   active.NewWorkSessionBreakRepository(db),
+		StaffAbsence:       active.NewStaffAbsenceRepository(db),
+		StaffVacationQuota: active.NewStaffVacationQuotaRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),

@@ -168,6 +168,45 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 	return result, nil
 }
 
+// ListByStatus returns all absences for the current tenant with the given status
+func (r *StaffAbsenceRepository) ListByStatus(ctx context.Context, status string) ([]*active.StaffAbsence, error) {
+	var absences []*active.StaffAbsence
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&absences).
+		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
+		Where(`"staff_absence".status = ?`, status).
+		OrderExpr(`"staff_absence".requested_at ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list absences by status", Err: err}
+	}
+	return absences, nil
+}
+
+// ListByStaffAndStatuses returns absences for one staff member filtered by status set
+func (r *StaffAbsenceRepository) ListByStaffAndStatuses(ctx context.Context, staffID int64, statuses []string) ([]*active.StaffAbsence, error) {
+	var absences []*active.StaffAbsence
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&absences).
+		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
+		Where(`"staff_absence".staff_id = ?`, staffID).
+		Where(`"staff_absence".status IN (?)`, bun.In(statuses)).
+		OrderExpr(`"staff_absence".date_start DESC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list absences by staff+statuses", Err: err}
+	}
+	return absences, nil
+}
+
 // GetByDateRange returns all absences overlapping the given date range
 func (r *StaffAbsenceRepository) GetByDateRange(ctx context.Context, from, to time.Time) ([]*active.StaffAbsence, error) {
 	var absences []*active.StaffAbsence

@@ -123,6 +123,13 @@ func (rs *Resource) Router() chi.Router {
 		// Time tracking history for a specific staff member (admin read)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
+
+		// Vacation workflow admin-side (Tranche 4)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/approve", rs.approveAbsence)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/vacation/quota", rs.getStaffVacationQuota)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/vacation/quota", rs.setStaffVacationQuota)
 		// Audit trail of a single work session, admin-facing. The MA-side
 		// /api/time-tracking/{id}/edits enforces session-staff ownership
 		// against the JWT subject; here the route guarantees the session
@@ -1910,6 +1917,140 @@ func (rs *Resource) exportStaffSessions(w http.ResponseWriter, r *http.Request) 
 	if _, err := w.Write(fileBytes); err != nil {
 		rs.getLogger().Error("failed to write export response", "error", err.Error())
 	}
+}
+
+// listPendingAbsenceRequests handles GET /api/staff/absences/pending
+func (rs *Resource) listPendingAbsenceRequests(w http.ResponseWriter, r *http.Request) {
+	resp, err := rs.StaffAbsenceService.ListPendingRequests(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Pending absence requests retrieved")
+}
+
+// approveAbsence handles POST /api/staff/absences/{absenceId}/approve
+func (rs *Resource) approveAbsence(w http.ResponseWriter, r *http.Request) {
+	absenceID, err := parseInt64Param(r, "absenceId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	decidedBy, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	var req activeSvc.VacationDecisionRequest
+	if r.ContentLength > 0 {
+		if err := render.DecodeJSON(r.Body, &req); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+	}
+	resp, err := rs.StaffAbsenceService.ApproveAbsence(r.Context(), absenceID, decidedBy, req.DecisionNote)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Absence approved")
+}
+
+// denyAbsence handles POST /api/staff/absences/{absenceId}/deny
+func (rs *Resource) denyAbsence(w http.ResponseWriter, r *http.Request) {
+	absenceID, err := parseInt64Param(r, "absenceId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	decidedBy, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	var req activeSvc.VacationDecisionRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	resp, err := rs.StaffAbsenceService.DenyAbsence(r.Context(), absenceID, decidedBy, req.DecisionNote)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Absence declined")
+}
+
+// getStaffVacationQuota handles GET /api/staff/{id}/vacation/quota?year=YYYY
+func (rs *Resource) getStaffVacationQuota(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	year, err := parseYearQuery(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	summary, err := rs.StaffAbsenceService.GetVacationQuotaSummary(r.Context(), staffID, year)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summary, "Vacation quota retrieved")
+}
+
+// setStaffVacationQuota handles PUT /api/staff/{id}/vacation/quota
+func (rs *Resource) setStaffVacationQuota(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	var body struct {
+		Year          int     `json:"year"`
+		EntitledDays  float64 `json:"entitled_days"`
+		CarryoverDays float64 `json:"carryover_days"`
+	}
+	if err := render.DecodeJSON(r.Body, &body); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if body.Year == 0 {
+		body.Year = time.Now().Year()
+	}
+	if err := rs.StaffAbsenceService.UpsertVacationQuota(r.Context(), staffID, body.Year, body.EntitledDays, body.CarryoverDays); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	summary, err := rs.StaffAbsenceService.GetVacationQuotaSummary(r.Context(), staffID, body.Year)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summary, "Vacation quota saved")
+}
+
+func parseInt64Param(r *http.Request, name string) (int64, error) {
+	str := chi.URLParam(r, name)
+	v, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return 0, errors.New("invalid " + name + " parameter")
+	}
+	return v, nil
+}
+
+func parseYearQuery(r *http.Request) (int, error) {
+	yearStr := r.URL.Query().Get("year")
+	if yearStr == "" {
+		return time.Now().Year(), nil
+	}
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 || year > 2100 {
+		return 0, errors.New("invalid year parameter")
+	}
+	return year, nil
 }
 
 // resolveEditorStaffID maps the JWT account id to a staff id — the staff

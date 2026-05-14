@@ -37,6 +37,31 @@ type StaffAbsenceResponse struct {
 	DurationDays int `json:"duration_days"`
 }
 
+// RequestVacationRequest is what the MA submits via "Urlaub beantragen"
+type RequestVacationRequest struct {
+	DateStart         string `json:"date_start"`
+	DateEnd           string `json:"date_end"`
+	HalfDay           bool   `json:"half_day"`
+	Note              string `json:"note"`
+	SubstituteStaffID *int64 `json:"substitute_staff_id,omitempty"`
+}
+
+// VacationDecisionRequest is the admin's approve/deny payload
+type VacationDecisionRequest struct {
+	DecisionNote string `json:"decision_note"`
+}
+
+// VacationQuotaSummary aggregates entitled/taken/reserved for a staff/year
+type VacationQuotaSummary struct {
+	StaffID       int64   `json:"staff_id"`
+	Year          int     `json:"year"`
+	EntitledDays  float64 `json:"entitled_days"`
+	CarryoverDays float64 `json:"carryover_days"`
+	TakenDays     float64 `json:"taken_days"`
+	ReservedDays  float64 `json:"reserved_days"`
+	RemainingDays float64 `json:"remaining_days"`
+}
+
 // StaffAbsenceService defines operations for staff absence management
 type StaffAbsenceService interface {
 	CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
@@ -44,21 +69,41 @@ type StaffAbsenceService interface {
 	DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error
 	GetAbsencesForRange(ctx context.Context, staffID int64, from, to time.Time) ([]*StaffAbsenceResponse, error)
 	HasAbsenceOnDate(ctx context.Context, staffID int64, date time.Time) (bool, *activeModels.StaffAbsence, error)
+
+	// Vacation workflow (Tranche 4)
+	RequestVacation(ctx context.Context, staffID int64, req RequestVacationRequest) (*StaffAbsenceResponse, error)
+	ApproveAbsence(ctx context.Context, absenceID int64, decidedBy int64, note string) (*StaffAbsenceResponse, error)
+	DenyAbsence(ctx context.Context, absenceID int64, decidedBy int64, reason string) (*StaffAbsenceResponse, error)
+	CancelAbsence(ctx context.Context, staffID int64, absenceID int64) error
+	GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
+	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
+	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)
 }
 
 // staffAbsenceService implements StaffAbsenceService
 type staffAbsenceService struct {
 	absenceRepo     activeModels.StaffAbsenceRepository
 	workSessionRepo activeModels.WorkSessionRepository
+	quotaRepo       activeModels.StaffVacationQuotaRepository
 }
 
 // NewStaffAbsenceService creates a new staff absence service
-func NewStaffAbsenceService(absenceRepo activeModels.StaffAbsenceRepository, workSessionRepo activeModels.WorkSessionRepository) StaffAbsenceService {
+func NewStaffAbsenceService(
+	absenceRepo activeModels.StaffAbsenceRepository,
+	workSessionRepo activeModels.WorkSessionRepository,
+	quotaRepo activeModels.StaffVacationQuotaRepository,
+) StaffAbsenceService {
 	return &staffAbsenceService{
 		absenceRepo:     absenceRepo,
 		workSessionRepo: workSessionRepo,
+		quotaRepo:       quotaRepo,
 	}
 }
+
+// defaultEntitledDays is the fallback when no per-staff quota row exists.
+// 30 working days = TVöD-Allgemein standard. Pro-Tenant override via settings
+// will come in a follow-up, see Issue #1375 Tranche 4a.
+const defaultEntitledDays = 30.0
 
 // CreateAbsence creates a new absence record
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
@@ -339,4 +384,217 @@ func toAbsenceResponse(a *activeModels.StaffAbsence) *StaffAbsenceResponse {
 		StaffAbsence: a,
 		DurationDays: a.DurationDays(),
 	}
+}
+
+// ─── Vacation workflow (Tranche 4) ───────────────────────────────────────────
+
+// countWorkingDays returns Mon-Fri count between two dates inclusive.
+// Feiertage are NOT excluded yet — that lives in Tranche 3 (Issue #1231).
+func countWorkingDays(from, to time.Time, halfDay bool) float64 {
+	if to.Before(from) {
+		return 0
+	}
+	count := 0
+	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
+		w := d.Weekday()
+		if w != time.Saturday && w != time.Sunday {
+			count++
+		}
+	}
+	if halfDay {
+		return float64(count) * 0.5
+	}
+	return float64(count)
+}
+
+func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64, req RequestVacationRequest) (*StaffAbsenceResponse, error) {
+	dateStart, dateEnd, err := parseDateRange(req.DateStart, req.DateEnd)
+	if err != nil {
+		return nil, err
+	}
+	if dateStart.Before(time.Now().Truncate(24 * time.Hour)) {
+		return nil, fmt.Errorf("vacation request must start today or in the future")
+	}
+
+	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing absences: %w", err)
+	}
+	if len(existing) > 0 {
+		return nil, fmt.Errorf("dates overlap with an existing absence")
+	}
+
+	workingDays := countWorkingDays(dateStart, dateEnd, req.HalfDay)
+	if workingDays == 0 {
+		return nil, fmt.Errorf("vacation range contains no working days")
+	}
+
+	now := time.Now()
+	absence := &activeModels.StaffAbsence{
+		StaffID:           staffID,
+		AbsenceType:       activeModels.AbsenceTypeVacation,
+		DateStart:         dateStart,
+		DateEnd:           dateEnd,
+		HalfDay:           req.HalfDay,
+		Note:              req.Note,
+		Status:            activeModels.AbsenceStatusRequested,
+		CreatedBy:         staffID,
+		WorkingDays:       &workingDays,
+		RequestedAt:       now,
+		SubstituteStaffID: req.SubstituteStaffID,
+	}
+	absence.CreatedAt = now
+	absence.UpdatedAt = now
+	absence.SetTenantID(tenant.FromContext(ctx))
+
+	if err := s.absenceRepo.Create(ctx, absence); err != nil {
+		return nil, fmt.Errorf("failed to create vacation request: %w", err)
+	}
+	return toAbsenceResponse(absence), nil
+}
+
+func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int64, decidedBy int64, note string) (*StaffAbsenceResponse, error) {
+	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
+	if absence.Status != activeModels.AbsenceStatusRequested {
+		return nil, fmt.Errorf("only requested absences can be approved")
+	}
+	now := time.Now()
+	absence.Status = activeModels.AbsenceStatusApproved
+	absence.ApprovedBy = &decidedBy
+	absence.ApprovedAt = &now
+	absence.DecisionNote = note
+	absence.UpdatedAt = now
+
+	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+		return nil, fmt.Errorf("failed to approve absence: %w", err)
+	}
+	return toAbsenceResponse(absence), nil
+}
+
+func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, decidedBy int64, reason string) (*StaffAbsenceResponse, error) {
+	if reason == "" {
+		return nil, fmt.Errorf("decline reason is required")
+	}
+	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
+	if absence.Status != activeModels.AbsenceStatusRequested {
+		return nil, fmt.Errorf("only requested absences can be declined")
+	}
+	now := time.Now()
+	absence.Status = activeModels.AbsenceStatusDeclined
+	absence.ApprovedBy = &decidedBy
+	absence.ApprovedAt = &now
+	absence.DecisionNote = reason
+	absence.UpdatedAt = now
+
+	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+		return nil, fmt.Errorf("failed to decline absence: %w", err)
+	}
+	return toAbsenceResponse(absence), nil
+}
+
+func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, absenceID int64) error {
+	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return fmt.Errorf("absence not found")
+	}
+	if absence.StaffID != staffID {
+		return fmt.Errorf("can only cancel own absences")
+	}
+	// MA can cancel requested or approved future vacation. Past approved
+	// absences become historical record and are not cancelable from the UI.
+	if absence.Status != activeModels.AbsenceStatusRequested &&
+		absence.Status != activeModels.AbsenceStatusApproved {
+		return fmt.Errorf("only pending or approved absences can be canceled")
+	}
+	if absence.Status == activeModels.AbsenceStatusApproved &&
+		absence.DateStart.Before(time.Now().Truncate(24*time.Hour)) {
+		return fmt.Errorf("past absences cannot be canceled")
+	}
+	absence.Status = activeModels.AbsenceStatusCanceled
+	absence.UpdatedAt = time.Now()
+	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+		return fmt.Errorf("failed to cancel absence: %w", err)
+	}
+	return nil
+}
+
+func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error) {
+	quota, err := s.quotaRepo.GetByStaffAndYear(ctx, staffID, year)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch quota: %w", err)
+	}
+	entitled := defaultEntitledDays
+	carryover := 0.0
+	if quota != nil {
+		entitled = quota.EntitledDays
+		carryover = quota.CarryoverDays
+	}
+
+	yearStart := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	yearEnd := time.Date(year, 12, 31, 0, 0, 0, 0, time.UTC)
+	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, yearStart, yearEnd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch year absences: %w", err)
+	}
+
+	taken, reserved := 0.0, 0.0
+	for _, a := range absences {
+		if a.AbsenceType != activeModels.AbsenceTypeVacation {
+			continue
+		}
+		days := 0.0
+		if a.WorkingDays != nil {
+			days = *a.WorkingDays
+		} else {
+			days = countWorkingDays(a.DateStart, a.DateEnd, a.HalfDay)
+		}
+		switch a.Status {
+		case activeModels.AbsenceStatusApproved, activeModels.AbsenceStatusReported:
+			taken += days
+		case activeModels.AbsenceStatusRequested:
+			reserved += days
+		}
+	}
+
+	return &VacationQuotaSummary{
+		StaffID:       staffID,
+		Year:          year,
+		EntitledDays:  entitled,
+		CarryoverDays: carryover,
+		TakenDays:     taken,
+		ReservedDays:  reserved,
+		RemainingDays: entitled + carryover - taken - reserved,
+	}, nil
+}
+
+func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error {
+	now := time.Now()
+	quota := &activeModels.StaffVacationQuota{
+		StaffID:       staffID,
+		Year:          year,
+		EntitledDays:  entitled,
+		CarryoverDays: carryover,
+	}
+	quota.CreatedAt = now
+	quota.UpdatedAt = now
+	quota.SetTenantID(tenant.FromContext(ctx))
+	return s.quotaRepo.Upsert(ctx, quota)
+}
+
+func (s *staffAbsenceService) ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error) {
+	rows, err := s.absenceRepo.ListByStatus(ctx, activeModels.AbsenceStatusRequested)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pending requests: %w", err)
+	}
+	responses := make([]*StaffAbsenceResponse, len(rows))
+	for i, r := range rows {
+		responses[i] = toAbsenceResponse(r)
+	}
+	return responses, nil
 }

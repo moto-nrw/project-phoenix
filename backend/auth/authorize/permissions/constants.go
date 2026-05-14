@@ -160,6 +160,13 @@ const (
 	TimeTrackingManage = ResourceTimeTracking + ":manage" // Read + write any staff's sessions (admin)
 )
 
+// Vacation permissions
+const (
+	ResourceVacation = "vacation"
+
+	VacationApprove = ResourceVacation + ":approve" // Approve or deny vacation requests (admin)
+)
+
 // Grade Transition permissions (admin only)
 const (
 	GradeTransitionsRead   = "grade_transitions:read"
