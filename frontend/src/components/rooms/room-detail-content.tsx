@@ -234,13 +234,18 @@ function groupByDate(activities: Activity[]): DateGroup[] {
   const groups: Record<string, Activity[]> = {};
 
   activities.forEach((activity) => {
-    const date = new Date(activity.entryTimestamp).toLocaleDateString("de-DE");
+    const timestamp = new Date(activity.entryTimestamp);
+    const date = [
+      timestamp.getFullYear(),
+      String(timestamp.getMonth() + 1).padStart(2, "0"),
+      String(timestamp.getDate()).padStart(2, "0"),
+    ].join("-");
     groups[date] ??= [];
     groups[date].push(activity);
   });
 
   return Object.keys(groups)
-    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+    .sort((a, b) => b.localeCompare(a))
     .map((date) => ({
       date,
       entries: (groups[date] ?? []).sort(

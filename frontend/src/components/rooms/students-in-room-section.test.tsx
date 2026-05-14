@@ -505,6 +505,94 @@ describe("StudentsInRoomSection", () => {
       ).toBeDisabled();
     });
 
+    it("treats a child already in the target room as a successful no-op", async () => {
+      const refreshCaches = vi.fn().mockResolvedValue(undefined);
+      mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      mockGetStudentCurrentVisit.mockResolvedValue({
+        id: "visit-7",
+        studentId: "7",
+        activeGroupId: "900",
+        checkInTime: new Date("2026-05-14T08:00:00.000Z"),
+        isActive: true,
+        createdAt: new Date("2026-05-14T08:00:00.000Z"),
+        updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.change(screen.getByLabelText("Zielraum"), {
+        target: { value: "900" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("7");
+      });
+      expect(mockUpdateVisit).not.toHaveBeenCalled();
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "1 Kind nach Raum 6 bewegt.",
+      );
+      expect(refreshCaches).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports a partial failure when a selected child has no active visit", async () => {
+      const refreshCaches = vi.fn().mockResolvedValue(undefined);
+      mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
+      setSWR({
+        data: {
+          students: [
+            makeStudent({ id: "7", first_name: "Anna" }),
+            makeStudent({ id: "8", first_name: "Ben", second_name: "Schulz" }),
+          ],
+        },
+      });
+      mockGetStudentCurrentVisit.mockImplementation((studentId: string) => {
+        if (studentId === "7") {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve({
+          id: "visit-8",
+          studentId: "8",
+          activeGroupId: "current-group",
+          checkInTime: new Date("2026-05-14T08:00:00.000Z"),
+          isActive: true,
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+        });
+      });
+      mockUpdateVisit.mockResolvedValue({});
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Ben Schulz auswählen/ }),
+      );
+      fireEvent.change(screen.getByLabelText("Zielraum"), {
+        target: { value: "900" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent(
+          "1 von 2 Kindern konnten nicht bewegt werden.",
+        );
+      });
+      expect(mockUpdateVisit).toHaveBeenCalledTimes(1);
+      expect(mockUpdateVisit).toHaveBeenCalledWith(
+        "visit-8",
+        expect.objectContaining({ activeGroupId: "900", studentId: "8" }),
+      );
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+      expect(refreshCaches).toHaveBeenCalledTimes(1);
+    });
+
     it("selects a child when clicking the row content without opening the profile", () => {
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
 

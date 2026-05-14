@@ -563,6 +563,60 @@ describe("RoomDetailContent", () => {
     );
     expect(screen.getByText("Laufend")).toBeInTheDocument();
   });
+
+  it("focuses the room title when rendered as drawer content", async () => {
+    render(
+      <Wrapper>
+        <RoomDetailContent
+          room={{ ...baseRoom }}
+          history={[]}
+          headerAction={<button type="button">Schließen</button>}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Testraum" })).toHaveFocus();
+    });
+  });
+
+  it("sorts history days newest first and entries within a day by start time", () => {
+    render(
+      <Wrapper>
+        <RoomDetailContent
+          room={{ ...baseRoom }}
+          history={[
+            {
+              id: "a",
+              timestamp: "2026-04-29T09:30:00Z",
+              entry_type: "entry",
+              groupName: "A",
+              activityName: "Früher",
+            },
+            {
+              id: "b",
+              timestamp: "2026-04-30T08:00:00Z",
+              entry_type: "entry",
+              groupName: "B",
+              activityName: "Neuer Tag",
+            },
+            {
+              id: "c",
+              timestamp: "2026-04-29T08:00:00Z",
+              entry_type: "entry",
+              groupName: "C",
+              activityName: "Noch früher",
+            },
+          ]}
+        />
+      </Wrapper>,
+    );
+
+    const activityNames = screen
+      .getAllByRole("heading", { level: 4 })
+      .map((heading) => heading.textContent);
+    expect(activityNames).toEqual(["Neuer Tag", "Noch früher", "Früher"]);
+  });
 });
 
 // ----------------------------------------------------------------------------
