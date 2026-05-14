@@ -26,6 +26,7 @@ import { useCallback, useRef } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
 
@@ -127,7 +128,11 @@ export function useGlobalSSE(): SSEHookState {
             // groupName, studentCount, isOccupied. Without this, the
             // "Aktuell anwesend: X" InfoItem stays stale while the
             // section above it refreshes (#1374).
-            key.includes("room-detail-")),
+            key.includes("room-detail-") ||
+            // Room overview cards on /rooms use their own direct rooms
+            // list cache. A room move changes studentCount there even
+            // though the Room entity itself did not change.
+            ROOM_LIST_CACHE_KEYS.some((cacheKey) => key.includes(cacheKey))),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),

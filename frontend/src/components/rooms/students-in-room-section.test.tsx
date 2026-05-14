@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentsInRoomSection } from "./students-in-room-section";
 
@@ -6,22 +6,48 @@ import { StudentsInRoomSection } from "./students-in-room-section";
 // Mocks
 // ----------------------------------------------------------------------------
 
-const mockPush = vi.fn();
+const {
+  mockPush,
+  mockUseSearchParams,
+  mockUseSWRAuth,
+  mockUseTenantMutateMatching,
+  mockGetStudentCurrentVisit,
+  mockUpdateVisit,
+  mockGetActiveGroups,
+} = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockUseSearchParams: vi.fn(() => ({
+    get: vi.fn(() => null),
+    toString: vi.fn(() => "room=42"),
+  })),
+  mockUseSWRAuth: vi.fn(),
+  mockUseTenantMutateMatching: vi.fn(),
+  mockGetStudentCurrentVisit: vi.fn(),
+  mockUpdateVisit: vi.fn(),
+  mockGetActiveGroups: vi.fn(),
+}));
+
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockPush }),
 }));
 
-const mockUseSearchParams = vi.fn(() => ({
-  get: vi.fn(() => null),
-  toString: vi.fn(() => "room=42"),
-}));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => mockUseSearchParams(),
 }));
 
-const mockUseSWRAuth = vi.fn();
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (...args: unknown[]) => mockUseSWRAuth(...args),
+  useTenantMutateMatching: (...args: unknown[]) =>
+    mockUseTenantMutateMatching(...args),
+}));
+
+vi.mock("~/lib/active-service", () => ({
+  activeService: {
+    getActiveGroups: (...args: unknown[]) => mockGetActiveGroups(...args),
+    getStudentCurrentVisit: (...args: unknown[]) =>
+      mockGetStudentCurrentVisit(...args),
+    updateVisit: (...args: unknown[]) => mockUpdateVisit(...args),
+  },
 }));
 
 // Light mocks for visual primitives — we want to assert behaviors (text,
@@ -97,6 +123,17 @@ interface MockStudent {
   group_name?: string;
 }
 
+interface MockActiveGroup {
+  id: string;
+  roomId: string;
+  isActive: boolean;
+}
+
+interface MockRoom {
+  id: string;
+  name: string;
+}
+
 const makeStudent = (overrides: Partial<MockStudent> = {}): MockStudent => ({
   id: "1",
   first_name: "Anna",
@@ -106,24 +143,72 @@ const makeStudent = (overrides: Partial<MockStudent> = {}): MockStudent => ({
   ...overrides,
 });
 
-const setSWR = (state: {
+let roomStudentsState: {
   data?: {
     students: MockStudent[];
     pagination?: { total_records: number };
   };
   error?: unknown;
   isLoading?: boolean;
-}) => {
-  mockUseSWRAuth.mockReturnValue({
-    data: state.data,
-    error: state.error ?? null,
-    isLoading: state.isLoading ?? false,
-  });
+};
+let activeGroupsState: { data: MockActiveGroup[] };
+let roomsState: { data: MockRoom[] };
+
+const setSWR = (state: typeof roomStudentsState) => {
+  roomStudentsState = state;
+};
+
+const setBulkData = ({
+  activeGroups = [
+    { id: "900", roomId: "9000", isActive: true },
+    { id: "901", roomId: "9001", isActive: true },
+  ],
+  rooms = [
+    { id: "9000", name: "Raum 6" },
+    { id: "9001", name: "Atelier" },
+  ],
+}: {
+  activeGroups?: MockActiveGroup[];
+  rooms?: MockRoom[];
+} = {}) => {
+  activeGroupsState = { data: activeGroups };
+  roomsState = { data: rooms };
 };
 
 beforeEach(() => {
   mockPush.mockReset();
   mockUseSWRAuth.mockReset();
+  mockUseTenantMutateMatching.mockReset();
+  mockGetStudentCurrentVisit.mockReset();
+  mockUpdateVisit.mockReset();
+  mockGetActiveGroups.mockReset();
+  mockUseTenantMutateMatching.mockReturnValue(vi.fn());
+  setSWR({ data: { students: [] } });
+  setBulkData();
+  mockUseSWRAuth.mockImplementation((key: string) => {
+    if (key.startsWith("room-students-")) {
+      return {
+        data: roomStudentsState.data,
+        error: roomStudentsState.error ?? null,
+        isLoading: roomStudentsState.isLoading ?? false,
+      };
+    }
+    if (key === "room-bulk-active-groups") {
+      return {
+        data: activeGroupsState.data,
+        error: null,
+        isLoading: false,
+      };
+    }
+    if (key === "room-bulk-rooms") {
+      return {
+        data: roomsState.data,
+        error: null,
+        isLoading: false,
+      };
+    }
+    return { data: undefined, error: null, isLoading: false };
+  });
 });
 
 // ----------------------------------------------------------------------------
@@ -330,6 +415,128 @@ describe("StudentsInRoomSection", () => {
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("bulk room move", () => {
+    it("selects multiple children and moves their current visits to the selected room", async () => {
+      const refreshCaches = vi.fn().mockResolvedValue(undefined);
+      mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
+      setSWR({
+        data: {
+          students: [
+            makeStudent({ id: "7", first_name: "Anna" }),
+            makeStudent({ id: "8", first_name: "Ben", second_name: "Schulz" }),
+          ],
+        },
+      });
+      mockGetStudentCurrentVisit.mockImplementation((studentId: string) =>
+        Promise.resolve({
+          id: `visit-${studentId}`,
+          studentId,
+          activeGroupId: "current-group",
+          checkInTime: new Date("2026-05-14T08:00:00.000Z"),
+          isActive: true,
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+        }),
+      );
+      mockUpdateVisit.mockResolvedValue({});
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(mockUseTenantMutateMatching).toHaveBeenCalledWith(
+        expect.arrayContaining(["rooms-list"]),
+      );
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Ben Schulz auswählen/ }),
+      );
+      fireEvent.change(screen.getByLabelText("Zielraum"), {
+        target: { value: "900" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(mockUpdateVisit).toHaveBeenCalledTimes(2);
+      });
+      expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("7");
+      expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("8");
+      expect(mockUpdateVisit).toHaveBeenCalledWith(
+        "visit-7",
+        expect.objectContaining({ activeGroupId: "900", studentId: "7" }),
+      );
+      expect(mockUpdateVisit).toHaveBeenCalledWith(
+        "visit-8",
+        expect.objectContaining({ activeGroupId: "900", studentId: "8" }),
+      );
+      expect(refreshCaches).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "2 Kinder nach Raum 6 bewegt.",
+      );
+    });
+
+    it("keeps the move action disabled when no target room is selected", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+
+      expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
+      expect(mockUpdateVisit).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("button", { name: "In Raum setzen" }),
+      ).toBeDisabled();
+    });
+
+    it("excludes the current room from the target room list", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "current", roomId: "42", isActive: true },
+          { id: "target", roomId: "9000", isActive: true },
+        ],
+        rooms: [
+          { id: "42", name: "OGS-Raum 1" },
+          { id: "9000", name: "Raum 6" },
+        ],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(screen.queryByRole("option", { name: "OGS-Raum 1" })).toBeNull();
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+
+    it("excludes rooms with multiple active sessions from the target room list", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "first", roomId: "9000", isActive: true },
+          { id: "second", roomId: "9000", isActive: true },
+          { id: "single", roomId: "9001", isActive: true },
+        ],
+        rooms: [
+          { id: "9000", name: "Raum mit Konflikt" },
+          { id: "9001", name: "Raum 6" },
+        ],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(
+        screen.queryByRole("option", { name: "Raum mit Konflikt" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
     });
   });
 

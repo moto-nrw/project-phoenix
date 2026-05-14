@@ -595,8 +595,40 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrInvalidData}
 	}
 
+	existing, err := s.visitRepo.FindByID(ctx, visit.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrVisitNotFound}
+		}
+		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+	if existing == nil {
+		return &ActiveError{Op: "UpdateVisit", Err: ErrVisitNotFound}
+	}
+
+	isActiveGroupMove := existing.ExitTime == nil && existing.ActiveGroupID != visit.ActiveGroupID
+	if isActiveGroupMove {
+		targetGroup, err := s.groupRepo.FindByID(ctx, visit.ActiveGroupID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+			}
+			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
+		if targetGroup == nil {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+		}
+		if !targetGroup.IsActive() {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+		}
+	}
+
 	if s.visitRepo.Update(ctx, visit) != nil {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+
+	if isActiveGroupMove {
+		s.broadcastVisitMoved(ctx, existing, visit)
 	}
 
 	return nil
@@ -735,6 +767,24 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	// Notify all clients so dashboard counts refresh
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
+}
+
+// broadcastVisitMoved mirrors a room/session transfer as a checkout from the
+// source active group and a checkin into the target active group. Attendance is
+// not mutated here; the snapshot only enriches SSE payloads for clients that
+// display timetable attendance state alongside visit rows.
+func (s *service) broadcastVisitMoved(ctx context.Context, previousVisit, movedVisit *active.Visit) {
+	if s.broadcaster == nil || previousVisit == nil || movedVisit == nil {
+		return
+	}
+
+	var snapshot *AttendanceSnapshot
+	if s.attendanceSyncer != nil {
+		snapshot = s.attendanceSyncer.LoadAttendanceForVisit(ctx, movedVisit)
+	}
+
+	s.broadcastVisitCheckout(ctx, previousVisit, snapshot)
+	s.broadcastVisitCreated(ctx, movedVisit, snapshot)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic

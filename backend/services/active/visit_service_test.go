@@ -231,6 +231,26 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("preserves database errors while preloading visit", func(t *testing.T) {
+		// ARRANGE
+		failingDB := testpkg.SetupTestDB(t)
+		serviceWithClosedDB := setupActiveService(t, failingDB)
+		require.NoError(t, failingDB.Close())
+		visit := &activeModels.Visit{
+			StudentID:     99999998,
+			ActiveGroupID: 99999997,
+			EntryTime:     time.Now(),
+		}
+		visit.ID = 99999999
+
+		// ACT
+		err := serviceWithClosedDB.UpdateVisit(ctx, visit)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, active.ErrDatabaseOperation), "expected ErrDatabaseOperation")
+	})
 }
 
 // =============================================================================

@@ -46,6 +46,13 @@ interface ApiResponse<T> {
   status?: string;
 }
 
+interface BackendResponseEnvelope<T> {
+  data: T;
+  message?: string;
+  status?: string;
+  success?: boolean;
+}
+
 // Helper to extract array from potentially paginated response
 function extractArrayFromResponse<T>(response: unknown): T[] {
   if (!response || typeof response !== "object") {
@@ -68,6 +75,35 @@ function extractArrayFromResponse<T>(response: unknown): T[] {
   }
 
   return [];
+}
+
+function unwrapBackendEnvelope<T>(payload: T | BackendResponseEnvelope<T>): T {
+  if (!payload || typeof payload !== "object") {
+    return payload as T;
+  }
+
+  const obj = payload as Record<string, unknown>;
+  if (
+    "data" in obj &&
+    ("status" in obj || "message" in obj || "success" in obj)
+  ) {
+    return obj.data as T;
+  }
+
+  return payload as T;
+}
+
+function mapVisitPayload(
+  payload: BackendVisit | BackendResponseEnvelope<BackendVisit>,
+): Visit {
+  return mapVisitResponse(unwrapBackendEnvelope(payload));
+}
+
+function mapNullableVisitPayload(
+  payload: BackendVisit | BackendResponseEnvelope<BackendVisit | null>,
+): Visit | null {
+  const visit = unwrapBackendEnvelope(payload);
+  return visit ? mapVisitResponse(visit) : null;
 }
 
 // ============================================================================
@@ -504,10 +540,13 @@ export const activeService = {
   },
 
   getVisit: async (id: string): Promise<Visit> => {
-    return proxyGet<BackendVisit, Visit>(
+    return proxyGet<
+      BackendVisit | BackendResponseEnvelope<BackendVisit>,
+      Visit
+    >(
       `/api/active/visits/${id}`,
       `/active/visits/${id}`,
-      mapVisitResponse,
+      mapVisitPayload,
       "Get visit",
     );
   },
@@ -522,10 +561,13 @@ export const activeService = {
   },
 
   getStudentCurrentVisit: async (studentId: string): Promise<Visit | null> => {
-    return proxyGetNullable<BackendVisit, Visit>(
+    return proxyGetNullable<
+      BackendVisit | BackendResponseEnvelope<BackendVisit | null>,
+      Visit | null
+    >(
       `/api/active/visits/student/${studentId}/current`,
       `/active/visits/student/${studentId}/current`,
-      mapVisitResponse,
+      mapNullableVisitPayload,
       "Get student current visit",
     );
   },
@@ -541,22 +583,28 @@ export const activeService = {
 
   createVisit: async (visit: CreateVisitInput): Promise<Visit> => {
     const backendData = prepareVisitForBackend(visit);
-    return proxyPost<BackendVisit, Visit>(
+    return proxyPost<
+      BackendVisit | BackendResponseEnvelope<BackendVisit>,
+      Visit
+    >(
       "/api/active/visits",
       "/active/visits",
       backendData,
-      mapVisitResponse,
+      mapVisitPayload,
       "Create visit",
     );
   },
 
   updateVisit: async (id: string, visit: Partial<Visit>): Promise<Visit> => {
     const backendData = prepareVisitForBackend(visit);
-    return proxyPut<BackendVisit, Visit>(
+    return proxyPut<
+      BackendVisit | BackendResponseEnvelope<BackendVisit>,
+      Visit
+    >(
       `/api/active/visits/${id}`,
       `/active/visits/${id}`,
       backendData,
-      mapVisitResponse,
+      mapVisitPayload,
       "Update visit",
     );
   },
@@ -570,10 +618,13 @@ export const activeService = {
   },
 
   endVisit: async (id: string): Promise<Visit> => {
-    return proxyPostNoBody<BackendVisit, Visit>(
+    return proxyPostNoBody<
+      BackendVisit | BackendResponseEnvelope<BackendVisit>,
+      Visit
+    >(
       `/api/active/visits/${id}/end`,
       `/active/visits/${id}/end`,
-      mapVisitResponse,
+      mapVisitPayload,
       "End visit",
     );
   },

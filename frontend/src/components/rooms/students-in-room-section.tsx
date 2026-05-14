@@ -14,17 +14,25 @@
 
 "use client";
 
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import { Alert } from "~/components/ui/alert";
-import { studentService } from "~/lib/api";
+import { Button } from "~/components/ui/button";
+import { DatabaseSelect } from "~/components/ui/database/database-select";
+import { roomService, studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
+import { activeService } from "~/lib/active-service";
+import type { ActiveGroup } from "~/lib/active-helpers";
+import type { Room } from "~/lib/room-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
+const EMPTY_STUDENTS: Student[] = [];
 
 interface StudentsInRoomSectionProps {
   readonly roomId: string;
@@ -36,6 +44,23 @@ export function StudentsInRoomSection({
   roomName,
 }: StudentsInRoomSectionProps) {
   const router = useTenantRouter();
+  const refreshRoomConsumers = useTenantMutateMatching([
+    "room-students-",
+    "room-detail-",
+    ...ROOM_LIST_CACHE_KEYS,
+    "search-students-",
+    "database-students-list",
+  ]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [targetActiveGroupId, setTargetActiveGroupId] = useState("");
+  const [bulkMoveState, setBulkMoveState] = useState<
+    | { type: "idle" }
+    | { type: "loading" }
+    | { type: "success"; movedCount: number; roomName: string }
+    | { type: "error"; message: string }
+  >({ type: "idle" });
   const sectionSearchParams = useSearchParams();
   // Drilling into a child must return to the same /rooms grid state the
   // user came from. Preserve the full query string (room=… AND any
@@ -59,6 +84,13 @@ export function StudentsInRoomSection({
       pageSize: 200,
     }),
   );
+  const { data: activeGroups = [] } = useSWRAuth<ActiveGroup[]>(
+    "room-bulk-active-groups",
+    () => activeService.getActiveGroups({ active: true }),
+  );
+  const { data: rooms = [] } = useSWRAuth<Room[]>("room-bulk-rooms", () =>
+    roomService.getRooms(),
+  );
 
   if (error) {
     logger.warn("students_in_room_load_failed", {
@@ -67,7 +99,21 @@ export function StudentsInRoomSection({
     });
   }
 
-  const students = data?.students ?? [];
+  const students = data?.students ?? EMPTY_STUDENTS;
+  const visibleStudentIds = useMemo(
+    () => new Set(students.map((student) => String(student.id))),
+    [students],
+  );
+  const selectedVisibleCount = [...selectedStudentIds].filter((studentId) =>
+    visibleStudentIds.has(studentId),
+  ).length;
+  const targetOptions = useMemo(
+    () => buildTargetRoomOptions(activeGroups, rooms, roomId),
+    [activeGroups, rooms, roomId],
+  );
+  const selectedTarget = targetOptions.find(
+    (option) => option.activeGroupId === targetActiveGroupId,
+  );
   // Prefer the server's authoritative count so the badge stays honest even
   // if pagination ever truncates the response. Fall back to length only
   // when pagination metadata is missing.
@@ -85,6 +131,93 @@ export function StudentsInRoomSection({
       room_name: roomName,
     }).toString();
     router.push(`/students/search?${qs}`);
+  };
+
+  const clearSelection = () => {
+    setSelectedStudentIds(new Set());
+    setBulkMoveState({ type: "idle" });
+  };
+
+  const toggleStudentSelection = (studentId: string) => {
+    setSelectedStudentIds((current) => {
+      const next = new Set(current);
+      if (next.has(studentId)) {
+        next.delete(studentId);
+      } else {
+        next.add(studentId);
+      }
+      return next;
+    });
+    setBulkMoveState({ type: "idle" });
+  };
+
+  const selectAllVisible = () => {
+    setSelectedStudentIds(
+      new Set(students.map((student) => String(student.id))),
+    );
+    setBulkMoveState({ type: "idle" });
+  };
+
+  const moveSelectedStudents = async () => {
+    const target = selectedTarget;
+    if (!target) {
+      setBulkMoveState({
+        type: "error",
+        message: "Bitte wähle zuerst einen Zielraum aus.",
+      });
+      return;
+    }
+
+    const studentIds = [...selectedStudentIds].filter((studentId) =>
+      visibleStudentIds.has(studentId),
+    );
+    if (studentIds.length === 0) {
+      setBulkMoveState({
+        type: "error",
+        message: "Bitte wähle mindestens ein Kind aus.",
+      });
+      return;
+    }
+
+    setBulkMoveState({ type: "loading" });
+    const results = await Promise.allSettled(
+      studentIds.map(async (studentId) => {
+        const visit = await activeService.getStudentCurrentVisit(studentId);
+        if (!visit) {
+          throw new Error(`Kind ${studentId} hat keinen aktiven Besuch.`);
+        }
+        if (visit.activeGroupId === target.activeGroupId) {
+          return;
+        }
+        await activeService.updateVisit(visit.id, {
+          ...visit,
+          activeGroupId: target.activeGroupId,
+        });
+      }),
+    );
+    const failures = results.filter((result) => result.status === "rejected");
+    if (failures.length > 0) {
+      logger.warn("room_bulk_move_partial_failure", {
+        selected_count: studentIds.length,
+        failed_count: failures.length,
+        target_active_group_id: target.activeGroupId,
+      });
+      setBulkMoveState({
+        type: "error",
+        message: `${failures.length} von ${studentIds.length} Kindern konnten nicht bewegt werden.`,
+      });
+      await refreshRoomConsumers();
+      return;
+    }
+
+    setSelectedStudentIds(new Set());
+    setTargetActiveGroupId("");
+    setBulkMoveState({
+      type: "success",
+      movedCount: studentIds.length,
+      roomName: target.roomName,
+    });
+    await refreshRoomConsumers();
   };
 
   return (
@@ -146,15 +279,175 @@ export function StudentsInRoomSection({
           the first student card. Without it the button bottom edge sits
           flush with the first card border. Review feedback (#1323). */}
       <div className="mt-4">
+        {students.length > 0 ? (
+          <BulkMoveToolbar
+            selectedCount={selectedVisibleCount}
+            totalCount={students.length}
+            targetActiveGroupId={targetActiveGroupId}
+            targetOptions={targetOptions}
+            state={bulkMoveState}
+            onSelectAll={selectAllVisible}
+            onClearSelection={clearSelection}
+            onTargetChange={(value) => {
+              setTargetActiveGroupId(value);
+              setBulkMoveState({ type: "idle" });
+            }}
+            onMoveSelected={moveSelectedStudents}
+          />
+        ) : null}
         <StudentsInRoomBody
           fromReferrer={fromReferrer}
           loading={isLoading}
           hasError={!!error}
           students={students}
+          selectedStudentIds={selectedStudentIds}
+          onToggleStudentSelection={toggleStudentSelection}
           router={router}
         />
       </div>
     </section>
+  );
+}
+
+interface TargetRoomOption {
+  readonly activeGroupId: string;
+  readonly roomId: string;
+  readonly roomName: string;
+}
+
+function buildTargetRoomOptions(
+  activeGroups: readonly ActiveGroup[],
+  rooms: readonly Room[],
+  currentRoomId: string,
+): TargetRoomOption[] {
+  const roomsById = new Map(rooms.map((room) => [room.id, room]));
+  const groupsByRoomId = new Map<string, ActiveGroup[]>();
+
+  activeGroups.forEach((group) => {
+    if (!group.isActive || group.roomId === currentRoomId) return;
+    const groupsInRoom = groupsByRoomId.get(group.roomId) ?? [];
+    groupsInRoom.push(group);
+    groupsByRoomId.set(group.roomId, groupsInRoom);
+  });
+
+  return [...groupsByRoomId.entries()]
+    .flatMap(([targetRoomId, groups]) => {
+      const activeGroup = groups.length === 1 ? groups[0] : undefined;
+      if (!activeGroup) return [];
+      const room = roomsById.get(targetRoomId);
+      return [
+        {
+          activeGroupId: activeGroup.id,
+          roomId: targetRoomId,
+          roomName: room?.name ?? `Raum ${targetRoomId}`,
+        },
+      ];
+    })
+    .sort((a, b) => a.roomName.localeCompare(b.roomName, "de"));
+}
+
+interface BulkMoveToolbarProps {
+  readonly selectedCount: number;
+  readonly totalCount: number;
+  readonly targetActiveGroupId: string;
+  readonly targetOptions: readonly TargetRoomOption[];
+  readonly state:
+    | { type: "idle" }
+    | { type: "loading" }
+    | { type: "success"; movedCount: number; roomName: string }
+    | { type: "error"; message: string };
+  readonly onSelectAll: () => void;
+  readonly onClearSelection: () => void;
+  readonly onTargetChange: (value: string) => void;
+  readonly onMoveSelected: () => void;
+}
+
+function BulkMoveToolbar({
+  selectedCount,
+  totalCount,
+  targetActiveGroupId,
+  targetOptions,
+  state,
+  onSelectAll,
+  onClearSelection,
+  onTargetChange,
+  onMoveSelected,
+}: BulkMoveToolbarProps) {
+  const isMoving = state.type === "loading";
+  const canMove =
+    selectedCount > 0 && targetActiveGroupId.length > 0 && !isMoving;
+  const allSelected = selectedCount === totalCount;
+
+  return (
+    <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 text-sm font-semibold text-gray-900">
+          <span className="block truncate">
+            {selectedCount > 0
+              ? `${selectedCount} von ${totalCount} ausgewählt`
+              : "Kinder auswählen"}
+          </span>
+          <span className="block text-xs font-medium text-gray-500">
+            Zielraum wählen und gemeinsam verschieben
+          </span>
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={allSelected ? onClearSelection : onSelectAll}
+          className="shrink-0 px-3 py-2 text-sm shadow-none"
+        >
+          {allSelected ? "Aufheben" : "Alle"}
+        </Button>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <DatabaseSelect
+          id="room-bulk-target"
+          name="room-bulk-target"
+          label="Zielraum"
+          value={targetActiveGroupId}
+          onChange={onTargetChange}
+          disabled={targetOptions.length === 0 || isMoving}
+          placeholder={
+            targetOptions.length === 0
+              ? "Kein aktiver Zielraum verfügbar"
+              : "Zielraum wählen"
+          }
+          options={targetOptions.map((option) => ({
+            value: option.activeGroupId,
+            label: option.roomName,
+          }))}
+          focusRingColor="focus:ring-[#5080D8]"
+          className="bg-white text-sm md:text-sm"
+        />
+        <Button
+          type="button"
+          variant="success"
+          size="sm"
+          isLoading={isMoving}
+          loadingText="Bewege..."
+          onClick={onMoveSelected}
+          disabled={!canMove}
+          className="min-h-10 w-full bg-[#83CD2D] px-4 py-2.5 text-sm shadow-sm hover:bg-[#74b827] active:bg-[#669f21] disabled:bg-gray-200 disabled:text-gray-500 sm:w-auto"
+        >
+          In Raum setzen
+        </Button>
+      </div>
+
+      {state.type === "success" ? (
+        <p role="status" className="mt-2 text-sm text-[#4a7a15]">
+          {state.movedCount} {state.movedCount === 1 ? "Kind" : "Kinder"} nach{" "}
+          {state.roomName} bewegt.
+        </p>
+      ) : null}
+      {state.type === "error" ? (
+        <p role="alert" className="mt-2 text-sm text-[#FF3130]">
+          {state.message}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -163,6 +456,8 @@ interface StudentsInRoomBodyProps {
   readonly loading: boolean;
   readonly hasError: boolean;
   readonly students: readonly Student[];
+  readonly selectedStudentIds: ReadonlySet<string>;
+  readonly onToggleStudentSelection: (studentId: string) => void;
   readonly router: ReturnType<typeof useTenantRouter>;
 }
 
@@ -193,6 +488,8 @@ function StudentsInRoomBody({
   loading,
   hasError,
   students,
+  selectedStudentIds,
+  onToggleStudentSelection,
   router,
 }: StudentsInRoomBodyProps) {
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
@@ -246,21 +543,63 @@ function StudentsInRoomBody({
     // below useful tap-target size on touch.
     <div className="flex flex-col gap-2">
       {students.map((student) => (
-        <CompactStudentCard
+        <SelectableStudentRow
           key={student.id}
-          studentId={student.id}
-          firstName={student.first_name}
-          lastName={student.second_name}
-          schoolClass={student.school_class}
-          groupName={student.group_name ?? undefined}
-          photoUrl={student.photo_url ?? null}
-          onClick={() =>
+          student={student}
+          isSelected={selectedStudentIds.has(String(student.id))}
+          onToggleSelection={() => onToggleStudentSelection(String(student.id))}
+          onOpen={() =>
             router.push(
               `/students/${student.id}?from=${encodeURIComponent(fromReferrer)}`,
             )
           }
         />
       ))}
+    </div>
+  );
+}
+
+function SelectableStudentRow({
+  student,
+  isSelected,
+  onToggleSelection,
+  onOpen,
+}: {
+  readonly student: Student;
+  readonly isSelected: boolean;
+  readonly onToggleSelection: () => void;
+  readonly onOpen: () => void;
+}) {
+  const fullName =
+    `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() || "Kind";
+
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${
+        isSelected
+          ? "border-[#5080D8]/40 bg-[#5080D8]/10"
+          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={isSelected}
+        aria-label={`${fullName} auswählen`}
+        onChange={onToggleSelection}
+        className="h-5 w-5 shrink-0 rounded border-gray-300 text-[#5080D8] accent-[#5080D8] focus:ring-2 focus:ring-[#5080D8]/40 focus:outline-none"
+      />
+      <div className="min-w-0 flex-1">
+        <CompactStudentCard
+          studentId={student.id}
+          firstName={student.first_name}
+          lastName={student.second_name}
+          schoolClass={student.school_class}
+          groupName={student.group_name ?? undefined}
+          photoUrl={student.photo_url ?? null}
+          onClick={onOpen}
+          chrome="plain"
+        />
+      </div>
     </div>
   );
 }
