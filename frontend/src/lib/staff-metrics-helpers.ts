@@ -10,6 +10,8 @@ import type {
   StaffSchedule,
 } from "./staff-api";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Convert a JavaScript Date to our ISO dayOfWeek (0=Mon, 6=Sun).
  */
@@ -127,33 +129,74 @@ function computeAbsenceCreditForRange(
   const fromKey = toDateKey(from);
   const toKey = toDateKey(to);
   const validFrom = parseSessionDate(schedule.validFrom);
-  // Expand each absence to its covered dates within the range.
   let credit = 0;
   const seen = new Set<string>();
   for (const absence of absences) {
-    if (!isEffectiveAbsenceStatus(absence.status)) continue;
-    const startKey = absence.date_start.slice(0, 10);
-    const endKey = absence.date_end.slice(0, 10);
-    const start = parseSessionDate(startKey);
-    const end = parseSessionDate(endKey);
-    if (!start || !end) continue;
-    const dayMs = 24 * 60 * 60 * 1000;
-    const totalDays = Math.floor((end.getTime() - start.getTime()) / dayMs) + 1;
-    for (let i = 0; i < totalDays; i++) {
-      const day = new Date(start);
+    const range = parseEffectiveAbsenceRange(absence);
+    if (!range) continue;
+    for (let i = 0; i < range.totalDays; i++) {
+      const day = new Date(range.start);
       day.setDate(day.getDate() + i);
       const key = toDateKey(day);
-      if (key < fromKey || key > toKey) continue;
-      if (seen.has(key)) continue; // de-dupe overlapping absences
-      if (validFrom && day < validFrom) continue;
+      if (!shouldCreditAbsenceDay(key, day, fromKey, toKey, validFrom, seen)) {
+        continue;
+      }
       seen.add(key);
-      const target = resolveTargetForDate(schedule, day);
-      credit += isHalfAbsenceBoundary(absence, key, startKey, endKey)
-        ? Math.floor(target / 2)
-        : target;
+      credit += absenceCreditForDay(schedule, absence, day, key, range);
     }
   }
   return credit;
+}
+
+interface EffectiveAbsenceRange {
+  readonly startKey: string;
+  readonly endKey: string;
+  readonly start: Date;
+  readonly totalDays: number;
+}
+
+function parseEffectiveAbsenceRange(
+  absence: StaffAbsenceRow,
+): EffectiveAbsenceRange | null {
+  if (!isEffectiveAbsenceStatus(absence.status)) return null;
+  const startKey = absence.date_start.slice(0, 10);
+  const endKey = absence.date_end.slice(0, 10);
+  const start = parseSessionDate(startKey);
+  const end = parseSessionDate(endKey);
+  if (!start || !end) return null;
+
+  return {
+    startKey,
+    endKey,
+    start,
+    totalDays: Math.floor((end.getTime() - start.getTime()) / DAY_MS) + 1,
+  };
+}
+
+function shouldCreditAbsenceDay(
+  key: string,
+  day: Date,
+  fromKey: string,
+  toKey: string,
+  validFrom: Date | null,
+  seen: ReadonlySet<string>,
+): boolean {
+  if (key < fromKey || key > toKey) return false;
+  if (seen.has(key)) return false;
+  return !(validFrom && day < validFrom);
+}
+
+function absenceCreditForDay(
+  schedule: StaffSchedule,
+  absence: StaffAbsenceRow,
+  day: Date,
+  key: string,
+  range: EffectiveAbsenceRange,
+): number {
+  const target = resolveTargetForDate(schedule, day);
+  return isHalfAbsenceBoundary(absence, key, range.startKey, range.endKey)
+    ? Math.floor(target / 2)
+    : target;
 }
 
 function isEffectiveAbsenceStatus(status: string): boolean {

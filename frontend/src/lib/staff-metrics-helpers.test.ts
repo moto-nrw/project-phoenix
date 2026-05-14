@@ -65,4 +65,36 @@ describe("computeStaffMetrics absence credit", () => {
     expect(metrics.weekIst).toBe(0);
     expect(metrics.weekDelta).toBe(-2400);
   });
+
+  it("credits overlapping absences only once per day", () => {
+    const metrics = computeStaffMetrics(
+      schedule,
+      [],
+      [
+        absence({ date_start: "2026-06-01", date_end: "2026-06-03" }),
+        absence({
+          absence_type: "sick",
+          date_start: "2026-06-02",
+          date_end: "2026-06-04",
+        }),
+      ],
+      new Date(2026, 5, 5),
+    );
+
+    expect(metrics.weekIst).toBe(1920);
+    expect(metrics.weekDelta).toBe(-480);
+  });
+
+  it("does not credit absences before the schedule validFrom date", () => {
+    const metrics = computeStaffMetrics(
+      { ...schedule, validFrom: "2026-06-03" },
+      [],
+      [absence({ date_start: "2026-06-01", date_end: "2026-06-05" })],
+      new Date(2026, 5, 5),
+    );
+
+    expect(metrics.weekSoll).toBe(1440);
+    expect(metrics.weekIst).toBe(1440);
+    expect(metrics.weekDelta).toBe(0);
+  });
 });
