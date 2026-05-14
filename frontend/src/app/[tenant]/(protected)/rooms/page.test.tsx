@@ -384,6 +384,31 @@ describe("RoomsPage", () => {
     expect(screen.queryByText("Keine Räume gefunden")).not.toBeInTheDocument();
   });
 
+  it("hides the transit assignment entry when no children are unterwegs", () => {
+    vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
+      if (key === "dashboard-analytics") {
+        return {
+          data: { studentsInTransit: 0 },
+          isLoading: false,
+          error: null,
+        } as never;
+      }
+
+      return {
+        data: [],
+        isLoading: false,
+        error: null,
+      } as never;
+    });
+
+    render(<RoomsPage />);
+
+    expect(
+      screen.queryByRole("heading", { name: "Unterwegs" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Keine Räume gefunden")).toBeInTheDocument();
+  });
+
   it("opens the transit assignment drawer from the work list", () => {
     vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
       if (key === "dashboard-analytics") {

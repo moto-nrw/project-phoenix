@@ -10,6 +10,23 @@ import {
 } from "~/lib/swr";
 import { TransitStudentsSection } from "./transit-students-section";
 
+const { mockPush, mockSearchParamsToString } = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockSearchParamsToString: vi.fn(() => "room=__transit__"),
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => ({
+    toString: mockSearchParamsToString,
+  }),
+}));
+
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({
+    push: mockPush,
+  }),
+}));
+
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(),
@@ -126,6 +143,7 @@ function mockTransitData({
 describe("TransitStudentsSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchParamsToString.mockReturnValue("room=__transit__");
     mutateStudents.mockResolvedValue(undefined);
     mutateKey.mockResolvedValue(undefined);
     mutateMatching.mockResolvedValue(undefined);
@@ -175,6 +193,34 @@ describe("TransitStudentsSection", () => {
     expect(mutateStudents).toHaveBeenCalledTimes(1);
     expect(mutateKey).toHaveBeenCalledWith("rooms-list");
     expect(mutateMatching).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a transit child profile from the dedicated profile button", () => {
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mila Sommer Profil öffnen" }),
+    );
+
+    expect(mockPush).toHaveBeenCalledWith(
+      `/students/11?from=${encodeURIComponent("/rooms?room=__transit__")}`,
+    );
+  });
+
+  it("reports active selection state to the drawer wrapper", async () => {
+    const onSelectionActiveChange = vi.fn();
+
+    render(
+      <TransitStudentsSection
+        onSelectionActiveChange={onSelectionActiveChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Mila Sommer auswählen"));
+
+    await waitFor(() => {
+      expect(onSelectionActiveChange).toHaveBeenLastCalledWith(true);
+    });
   });
 
   it("shows empty and error states", () => {

@@ -42,8 +42,10 @@ interface RoomDetailModalProps {
 
 function TransitDetailContent({
   headerAction,
+  onSelectionActiveChange,
 }: {
   readonly headerAction: React.ReactNode;
+  readonly onSelectionActiveChange?: (active: boolean) => void;
 }) {
   return (
     <div>
@@ -62,7 +64,9 @@ function TransitDetailContent({
         <div className="ml-auto flex-shrink-0">{headerAction}</div>
       </div>
       <div className="px-5 pt-5 sm:px-6">
-        <TransitStudentsSection />
+        <TransitStudentsSection
+          onSelectionActiveChange={onSelectionActiveChange}
+        />
       </div>
     </div>
   );
@@ -121,6 +125,7 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
           >
             {roomId === TRANSIT_ROOM_ID ? (
               <TransitDetailContent
+                onSelectionActiveChange={setHasActiveSelection}
                 headerAction={
                   <SlideOverClose
                     aria-label="Raumdetails schließen"
@@ -182,6 +187,7 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
           <div className="min-h-[60vh]">
             {roomId === TRANSIT_ROOM_ID ? (
               <TransitDetailContent
+                onSelectionActiveChange={setHasActiveSelection}
                 headerAction={
                   <DrawerClose
                     aria-label="Raumdetails schließen"

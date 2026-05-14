@@ -470,8 +470,11 @@ function RoomsPageContent() {
   }, [searchTerm, buildingFilter, occupiedFilter]);
 
   const transitCount = dashboardData?.studentsInTransit ?? 0;
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
   const showTransitAssignment =
-    transitCount > 0 || "unterwegs".includes(searchTerm.toLowerCase());
+    transitCount > 0 ||
+    (normalizedSearchTerm.length > 0 &&
+      "unterwegs".includes(normalizedSearchTerm));
 
   // Auth-loading: nothing to render until NextAuth resolves the session
   // (the `useSession({ required: true })` callback redirects on

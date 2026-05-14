@@ -50,8 +50,21 @@ vi.mock("./room-detail-content", () => ({
 }));
 
 vi.mock("./transit-students-section", () => ({
-  TransitStudentsSection: () => (
-    <div data-testid="transit-students-section">transit students</div>
+  TransitStudentsSection: ({
+    onSelectionActiveChange,
+  }: {
+    onSelectionActiveChange?: (active: boolean) => void;
+  }) => (
+    <div data-testid="transit-students-section">
+      transit students
+      <button
+        type="button"
+        onClick={() => onSelectionActiveChange?.(true)}
+        data-testid="activate-transit-selection"
+      >
+        activate transit selection
+      </button>
+    </div>
   ),
 }));
 
@@ -375,6 +388,20 @@ describe("RoomDetailModal", () => {
     it("swallows outside-click and Escape while child selection is active", () => {
       render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
       fireEvent.click(screen.getByTestId("activate-selection"));
+
+      const lastContentCall = slideOverContentProps.mock.calls.at(-1);
+      const outsideEvent = { preventDefault: vi.fn() };
+      lastContentCall![0].onInteractOutside!(outsideEvent);
+      expect(outsideEvent.preventDefault).toHaveBeenCalledTimes(1);
+
+      const escapeEvent = { preventDefault: vi.fn() };
+      lastContentCall![0].onEscapeKeyDown!(escapeEvent);
+      expect(escapeEvent.preventDefault).toHaveBeenCalledTimes(1);
+    });
+
+    it("swallows outside-click and Escape while transit selection is active", () => {
+      render(<RoomDetailModal roomId="__transit__" onClose={vi.fn()} />);
+      fireEvent.click(screen.getByTestId("activate-transit-selection"));
 
       const lastContentCall = slideOverContentProps.mock.calls.at(-1);
       const outsideEvent = { preventDefault: vi.fn() };

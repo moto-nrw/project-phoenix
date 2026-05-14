@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, ExternalLink } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import {
   useSWRAuth,
   useTenantMutate,
@@ -16,9 +17,11 @@ import type { ActiveGroup } from "~/lib/active-helpers";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
+import { useTenantRouter } from "~/lib/tenant-router";
 
 const DETAIL_CARD_CLASS =
   "rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6";
+const EMPTY_STUDENTS: Student[] = [];
 
 function buildSessionLabel(group: ActiveGroup): string {
   const roomName = group.room?.name ?? `Raum ${group.roomId}`;
@@ -26,7 +29,15 @@ function buildSessionLabel(group: ActiveGroup): string {
   return activityName ? `${roomName} · ${activityName}` : roomName;
 }
 
-export function TransitStudentsSection() {
+interface TransitStudentsSectionProps {
+  readonly onSelectionActiveChange?: (active: boolean) => void;
+}
+
+export function TransitStudentsSection({
+  onSelectionActiveChange,
+}: TransitStudentsSectionProps) {
+  const router = useTenantRouter();
+  const sectionSearchParams = useSearchParams();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [targetGroupId, setTargetGroupId] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -70,9 +81,25 @@ export function TransitStudentsSection() {
     [activeGroups],
   );
 
-  const students = studentsData?.students ?? [];
+  const students = studentsData?.students ?? EMPTY_STUDENTS;
+  const visibleStudentIds = useMemo(
+    () => new Set(students.map((student) => String(student.id))),
+    [students],
+  );
+  const selectedVisibleCount = [...selectedIds].filter((studentId) =>
+    visibleStudentIds.has(studentId),
+  ).length;
   const totalCount = studentsData?.pagination?.total_records ?? students.length;
-  const allSelected = students.length > 0 && selectedIds.size === students.length;
+  const allSelected =
+    students.length > 0 && selectedVisibleCount === students.length;
+  const fromReferrer = (() => {
+    const qs = sectionSearchParams?.toString() ?? "";
+    return qs ? `/rooms?${qs}` : "/rooms?room=__transit__";
+  })();
+
+  useEffect(() => {
+    onSelectionActiveChange?.(selectedVisibleCount > 0);
+  }, [onSelectionActiveChange, selectedVisibleCount]);
 
   const toggleSelected = (studentId: string) => {
     setSelectedIds((current) => {
@@ -95,12 +122,15 @@ export function TransitStudentsSection() {
   };
 
   const assignSelected = async () => {
-    if (!targetGroupId || selectedIds.size === 0) return;
+    const studentIds = [...selectedIds].filter((studentId) =>
+      visibleStudentIds.has(studentId),
+    );
+    if (!targetGroupId || studentIds.length === 0) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
       const result = await activeService.assignTransitStudents(
-        Array.from(selectedIds),
+        studentIds,
         targetGroupId,
       );
       setSelectedIds(new Set());
@@ -155,7 +185,7 @@ export function TransitStudentsSection() {
 
       <div
         className={`mt-4 mb-4 rounded-2xl border p-3 transition-shadow ${
-          selectedIds.size > 0
+          selectedVisibleCount > 0
             ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-[0_12px_40px_rgb(0,0,0,0.12)] backdrop-blur"
             : "border-transparent bg-gray-50/80 shadow-none"
         }`}
@@ -163,8 +193,8 @@ export function TransitStudentsSection() {
         <div className="flex items-start justify-between gap-3">
           <p className="min-w-0 text-sm font-semibold text-gray-900">
             <span className="block truncate">
-              {selectedIds.size > 0
-                ? `${selectedIds.size} von ${students.length} ausgewählt`
+              {selectedVisibleCount > 0
+                ? `${selectedVisibleCount} von ${students.length} ausgewählt`
                 : "Kinder auswählen"}
             </span>
             <span className="block text-xs font-medium text-gray-500">
@@ -216,7 +246,7 @@ export function TransitStudentsSection() {
             isLoading={submitting}
             loadingText="Weise zu..."
             onClick={() => void assignSelected()}
-            disabled={!targetGroupId || selectedIds.size === 0 || submitting}
+            disabled={!targetGroupId || selectedVisibleCount === 0 || submitting}
             className="h-9 w-full px-3 py-2 text-xs shadow-sm sm:w-auto"
           >
             In Raum setzen
@@ -237,6 +267,9 @@ export function TransitStudentsSection() {
           students.map((student) => {
             const studentId = student.id.toString();
             const checked = selectedIds.has(studentId);
+            const fullName =
+              `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+              "Kind";
             return (
               <div
                 key={student.id}
@@ -250,7 +283,7 @@ export function TransitStudentsSection() {
                   type="button"
                   role="checkbox"
                   aria-checked={checked}
-                  aria-label={`${student.first_name} ${student.second_name} auswählen`}
+                  aria-label={`${fullName} auswählen`}
                   onClick={() => toggleSelected(studentId)}
                   className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
                 >
@@ -278,6 +311,24 @@ export function TransitStudentsSection() {
                     chrome="plain"
                   />
                 </button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    router.push(
+                      `/students/${student.id}?from=${encodeURIComponent(
+                        fromReferrer,
+                      )}`,
+                    )
+                  }
+                  aria-label={`${fullName} Profil öffnen`}
+                  title="Profil öffnen"
+                  className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 py-0 text-xs font-medium shadow-none"
+                >
+                  Profil
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
               </div>
             );
           })
