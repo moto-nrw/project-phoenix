@@ -314,6 +314,45 @@ function EditArbeitszeitmodellModal({
   const handleSave = async () => {
     setSaving(true);
     try {
+      if (mode === "template" && !selectedModelId) {
+        toast.error("Bitte eine Vorlage auswählen.");
+        setSaving(false);
+        return;
+      }
+
+      if (mode === "custom") {
+        // Reject empty schedules: a rotation with zero target minutes
+        // across all weeks would silently save and then look broken in
+        // the read view. Catching this client-side beats waiting for a
+        // 400 from the backend.
+        const totalMinutes = customEntries.reduce(
+          (sum, e) => sum + e.targetMinutes,
+          0,
+        );
+        if (totalMinutes === 0) {
+          toast.error(
+            "Das Modell hat kein Wochensoll. Bitte mindestens einen Tag eintragen.",
+          );
+          setSaving(false);
+          return;
+        }
+        // Each week of the rotation should itself be non-empty —
+        // otherwise the rotation has a "blank" week that produces
+        // surprising Saldo gaps every Nth week.
+        for (let w = 0; w < rotationLength; w++) {
+          const weekTotal = customEntries
+            .filter((e) => e.weekIndex === w)
+            .reduce((sum, e) => sum + e.targetMinutes, 0);
+          if (weekTotal === 0) {
+            toast.error(
+              `Woche ${WEEK_BADGE_LETTERS[w] ?? w + 1} hat kein Wochensoll. Bitte mindestens einen Tag eintragen.`,
+            );
+            setSaving(false);
+            return;
+          }
+        }
+      }
+
       const payload: UpdateScheduleRequest =
         mode === "template"
           ? { mode: "template", modelId: selectedModelId }
@@ -325,12 +364,6 @@ function EditArbeitszeitmodellModal({
                 ? { saveAsTemplate: saveAsTemplateName.trim() }
                 : {}),
             };
-
-      if (mode === "template" && !selectedModelId) {
-        toast.error("Bitte eine Vorlage auswählen.");
-        setSaving(false);
-        return;
-      }
 
       await staffScheduleService.updateSchedule(staffId, payload);
       toast.success("Arbeitszeitmodell gespeichert");
@@ -456,8 +489,9 @@ function ModeRadioGroup({
         <div>
           <p className="text-sm font-medium text-gray-800">Vorlage zuweisen</p>
           <p className="mt-1 text-xs text-gray-500">
-            Tenant-Modell aus der Liste verwenden. Änderungen am Modell wirken
-            zukünftig auf alle Mitarbeitenden mit dieser Zuordnung.
+            Schulweite Vorlage aus der Liste auswählen. Änderungen an der
+            Vorlage wirken zukünftig auf alle Mitarbeitenden mit dieser
+            Zuordnung.
           </p>
         </div>
       </div>
@@ -486,8 +520,8 @@ function ModeRadioGroup({
         <div>
           <p className="text-sm font-medium text-gray-800">Eigenes Modell</p>
           <p className="mt-1 text-xs text-gray-500">
-            Individuelles Pattern für diesen Mitarbeiter, optional als neue
-            Vorlage speichern.
+            Individuelles Arbeitszeitmodell für diesen Mitarbeiter, optional als
+            neue Vorlage speichern.
           </p>
         </div>
       </div>
@@ -678,13 +712,26 @@ function CustomEditor({
                 type="number"
                 min={0}
                 max={12}
-                value={hours}
+                // Display empty instead of "0" so the user can backspace the
+                // existing value and type a new one without the field
+                // snapping back to "0" after every keystroke. The state still
+                // tracks 0 — only the rendered value is hidden.
+                value={hours === 0 ? "" : hours}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => {
-                  const h = Math.max(
-                    0,
-                    Math.min(12, parseInt(e.target.value, 10) || 0),
-                  );
-                  onEntryChange(activeWeekTab, d, h * 60 + mins);
+                  const raw = e.target.value;
+                  // Empty input is parsed as 0 so the parent state is always
+                  // a real number; the value={} ternary above keeps the box
+                  // visually empty in that case.
+                  const h =
+                    raw === ""
+                      ? 0
+                      : Math.max(0, Math.min(12, parseInt(raw, 10) || 0));
+                  // Backend caps target_minutes at 720 (12h). When the user
+                  // hits 12h via the hours field, force minutes to 0 so we
+                  // never produce 12h 30min — that would 400 on save.
+                  const nextMins = h >= 12 ? 0 : mins;
+                  onEntryChange(activeWeekTab, d, h * 60 + nextMins);
                 }}
                 className="w-14 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none"
               />
@@ -696,7 +743,8 @@ function CustomEditor({
                     const m = parseInt(e.target.value, 10) || 0;
                     onEntryChange(activeWeekTab, d, hours * 60 + m);
                   }}
-                  className="w-16 appearance-none rounded-lg border border-gray-200 py-1.5 pr-6 pl-2 text-left text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none"
+                  disabled={hours >= 12}
+                  className="w-16 appearance-none rounded-lg border border-gray-200 py-1.5 pr-6 pl-2 text-left text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                 >
                   <option value={0}>00</option>
                   <option value={15}>15</option>
@@ -739,7 +787,7 @@ function CustomEditor({
           className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
         />
         <p className="mt-1 text-[11px] text-gray-400">
-          Leer lassen, um nur dieses Mitarbeiter-Profil zu ändern.
+          Leer lassen, um nur das Modell dieses Mitarbeiters zu ändern.
         </p>
       </div>
     </div>
