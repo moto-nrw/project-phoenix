@@ -131,7 +131,7 @@ export function LeaveRequestsCard() {
   }, [year]);
 
   useEffect(() => {
-    void loadAll();
+    loadAll();
   }, [loadAll]);
 
   const counts = useMemo(() => {
@@ -301,14 +301,18 @@ export function LeaveRequestsCard() {
       <VacationRequestModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSubmitted={() => void loadAll()}
+        onSubmitted={() => {
+          loadAll();
+        }}
         remainingDays={remainingDays}
       />
 
       <ConfirmationModal
         isOpen={cancelTarget !== null}
         onClose={() => !cancelSubmitting && setCancelTarget(null)}
-        onConfirm={() => void confirmCancel()}
+        onConfirm={() => {
+          confirmCancel();
+        }}
         title="Antrag stornieren"
         confirmText="Stornieren"
         cancelText="Behalten"

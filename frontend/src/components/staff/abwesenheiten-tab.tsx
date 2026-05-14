@@ -162,7 +162,7 @@ export function AbwesenheitenTab({
       // denials and stornos. useSWRAuth prefixes every key with the tenant
       // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
       // never matches, we use includes for the cache hit.
-      void swrMutate(
+      swrMutate(
         (key) =>
           typeof key === "string" && key.includes("staff-pending-absences-"),
       );
@@ -178,7 +178,7 @@ export function AbwesenheitenTab({
   }, [staffId, year, swrMutate, toast]);
 
   useEffect(() => {
-    void reload();
+    reload();
   }, [reload]);
 
   const pending = useMemo(
@@ -359,7 +359,9 @@ export function AbwesenheitenTab({
                         </button>
                         <button
                           type="button"
-                          onClick={() => void handleApprove(row)}
+                          onClick={() => {
+                            handleApprove(row);
+                          }}
                           disabled={isBusy}
                           className="rounded-lg bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#74b827] disabled:opacity-50"
                         >
@@ -652,8 +654,8 @@ function EditQuotaModal({
   const toast = useToast();
 
   const handleSubmit = async () => {
-    const e = parseFloat(entitled);
-    const c = parseFloat(carryover);
+    const e = Number.parseFloat(entitled);
+    const c = Number.parseFloat(carryover);
     if (Number.isNaN(e) || e < 0 || e > 366) {
       toast.error("Anspruch ungültig (0-366).");
       return;

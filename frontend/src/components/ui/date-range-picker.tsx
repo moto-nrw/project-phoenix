@@ -101,9 +101,9 @@ function formatRangeLabel(range: DateRange | undefined): string {
   }
   const sameYear = range.from.getFullYear() === range.to.getFullYear();
   if (sameYear) {
-    return `${format(range.from, "d. MMM", { locale: de })} – ${format(range.to, "d. MMM yyyy", { locale: de })}`;
+    return `${format(range.from, "d. MMM", { locale: de })} - ${format(range.to, "d. MMM yyyy", { locale: de })}`;
   }
-  return `${format(range.from, "d. MMM yyyy", { locale: de })} – ${format(range.to, "d. MMM yyyy", { locale: de })}`;
+  return `${format(range.from, "d. MMM yyyy", { locale: de })} - ${format(range.to, "d. MMM yyyy", { locale: de })}`;
 }
 
 function RangeCalendar(props: RangeCalendarProps) {
@@ -112,6 +112,19 @@ function RangeCalendar(props: RangeCalendarProps) {
       <RangeCalendarInline {...props} />
     </div>
   );
+}
+
+function formatDraftRangeLabel(
+  draftFrom: Date | undefined,
+  draftTo: Date | undefined,
+): string {
+  if (!draftFrom) return "Klicke ein Startdatum";
+  if (!draftTo) return "Klicke ein Enddatum";
+  return `${format(draftFrom, "d. MMM yyyy", { locale: de })} - ${format(
+    draftTo,
+    "d. MMM yyyy",
+    { locale: de },
+  )}`;
 }
 
 interface RangeCalendarProps {
@@ -131,7 +144,7 @@ export function RangeCalendarInline({
 }: RangeCalendarProps) {
   const [month, setMonth] = useState(value?.from ?? new Date());
   // Manual draft state. We use `mode="single"` on the underlying DayPicker
-  // and manage the two-click range logic ourselves — react-day-picker v10's
+  // and manage the two-click range logic ourselves, react-day-picker v10's
   // mode="range" calls onSelect with surprising payloads (sometimes a complete
   // {from, to} pair on first click), which would cause the picker to close
   // prematurely. With manual control we know exactly what happens per click.
@@ -163,9 +176,8 @@ export function RangeCalendarInline({
     onChange(range);
   };
 
-  const isPickingTo = Boolean(draftFrom && !draftTo);
-
   const hasPresets = presets && presets.length > 0;
+  const draftLabel = formatDraftRangeLabel(draftFrom, draftTo);
 
   return (
     <div className={`flex ${hasPresets ? "" : "justify-center"}`}>
@@ -185,13 +197,7 @@ export function RangeCalendarInline({
       )}
       <div className="p-3">
         <div className="mb-2 px-1 text-center text-xs text-gray-500">
-          {isPickingTo
-            ? "Klicke ein Enddatum"
-            : draftFrom && draftTo
-              ? format(draftFrom, "d. MMM yyyy", { locale: de }) +
-                " – " +
-                format(draftTo, "d. MMM yyyy", { locale: de })
-              : "Klicke ein Startdatum"}
+          {draftLabel}
         </div>
         <div className="mb-3 flex items-center justify-between">
           <button
@@ -216,7 +222,7 @@ export function RangeCalendarInline({
           </button>
           <span className="text-sm font-medium text-gray-900">
             {format(month, "MMMM yyyy", { locale: de })}
-            {" – "}
+            {" - "}
             {format(addMonths(month, 1), "MMMM yyyy", { locale: de })}
           </span>
           <button
