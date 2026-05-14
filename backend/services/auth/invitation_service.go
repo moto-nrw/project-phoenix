@@ -497,12 +497,14 @@ func (s *invitationService) createOrUpdateAccount(ctx context.Context, email, pa
 	if err := s.accountRepo.UpdatePassword(ctx, existingAccount.ID, passwordHash); err != nil {
 		return nil, &AuthError{Op: "update account password", Err: err}
 	}
-	// Reactivate the existing account so the invitee can log in.
+	// Reactivate the existing account so the invitee can log in. Targeted
+	// SetActive so the stale in-memory PasswordHash doesn't overwrite the
+	// just-written hash from UpdatePassword above.
 	if !existingAccount.Active {
-		existingAccount.Active = true
-		if err := s.accountRepo.Update(ctx, existingAccount); err != nil {
+		if err := s.accountRepo.SetActive(ctx, existingAccount.ID, true); err != nil {
 			return nil, &AuthError{Op: "reactivate account on invitation", Err: err}
 		}
+		existingAccount.Active = true
 	}
 	return existingAccount, nil
 }

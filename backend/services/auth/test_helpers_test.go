@@ -226,6 +226,10 @@ func (noopAccountRepository) UpdatePassword(context.Context, int64, string) erro
 	panic("UpdatePassword not implemented")
 }
 
+func (noopAccountRepository) SetActive(context.Context, int64, bool) error {
+	panic("SetActive not implemented")
+}
+
 func (noopAccountRepository) UpdateAvatar(context.Context, int64, string) error {
 	panic("UpdateAvatar not implemented")
 }
@@ -292,11 +296,15 @@ func (r *stubAccountRepository) Create(_ context.Context, account *authModel.Acc
 	return nil
 }
 
+// FindByEmail returns a copy. Real DB repo loads a fresh struct per call;
+// returning the stored pointer here would let callers see in-memory mutations
+// (e.g. UpdatePassword) that production code can never observe.
 func (r *stubAccountRepository) FindByEmail(_ context.Context, email string) (*authModel.Account, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if acc, ok := r.accounts[strings.ToLower(email)]; ok {
-		return acc, nil
+		clone := *acc
+		return &clone, nil
 	}
 	return nil, sql.ErrNoRows
 }
@@ -306,7 +314,8 @@ func (r *stubAccountRepository) FindByID(_ context.Context, id interface{}) (*au
 	defer r.mu.Unlock()
 	if v, ok := id.(int64); ok {
 		if acc, exists := r.byID[v]; exists {
-			return acc, nil
+			clone := *acc
+			return &clone, nil
 		}
 	}
 	return nil, sql.ErrNoRows
@@ -341,6 +350,16 @@ func (r *stubAccountRepository) UpdateAvatar(_ context.Context, id int64, avatar
 	defer r.mu.Unlock()
 	if acc, ok := r.byID[id]; ok {
 		acc.Avatar = avatar
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (r *stubAccountRepository) SetActive(_ context.Context, id int64, active bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if acc, ok := r.byID[id]; ok {
+		acc.Active = active
 		return nil
 	}
 	return sql.ErrNoRows
