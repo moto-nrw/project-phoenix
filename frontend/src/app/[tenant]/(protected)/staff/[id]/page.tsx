@@ -17,9 +17,11 @@ import { useSWRAuth } from "~/lib/swr";
 import { isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Loading } from "~/components/ui/loading";
+import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
+import { staffAbsenceService } from "~/lib/staff-api";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
 
@@ -231,6 +233,22 @@ function StaffDetailContent() {
     staffService.getStaffById(staffId),
   );
 
+  // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
+  // The /staff dashboard inbox (Tranche 4c) will count across all staff.
+  const { data: pendingForStaff } = useSWRAuth<number>(
+    `staff-pending-absences-${staffId}`,
+    async () => {
+      const year = new Date().getFullYear();
+      const rows = await staffAbsenceService.getAbsences(
+        staffId,
+        `${year}-01-01`,
+        `${year}-12-31`,
+      );
+      return rows.filter((r) => r.status === "requested").length;
+    },
+  );
+  const pendingCount = pendingForStaff ?? 0;
+
   // Breadcrumb: Mitarbeiter / <Name>
   useSetBreadcrumb({
     staffName: staff ? `${staff.firstName} ${staff.lastName}` : undefined,
@@ -325,8 +343,15 @@ function StaffDetailContent() {
           <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
           <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
           <TabsTrigger value="arbeitszeitmodell">Arbeitszeitmodell</TabsTrigger>
-          <TabsTrigger value="abwesenheiten" disabled>
-            Abwesenheiten
+          <TabsTrigger value="abwesenheiten">
+            <span className="inline-flex items-center gap-1.5">
+              Abwesenheiten
+              {pendingCount > 0 && (
+                <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {pendingCount > 99 ? "99+" : pendingCount}
+                </span>
+              )}
+            </span>
           </TabsTrigger>
           <TabsTrigger value="stammdaten" disabled>
             Stammdaten
@@ -349,7 +374,7 @@ function StaffDetailContent() {
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="abwesenheiten">
-          <PlaceholderTab title="Abwesenheiten" />
+          <AbwesenheitenTab staffId={staffId} canEdit={canEdit} />
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="stammdaten">

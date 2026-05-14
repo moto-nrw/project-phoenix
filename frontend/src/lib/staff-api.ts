@@ -693,6 +693,22 @@ export interface StaffAbsenceRow {
   half_day: boolean;
   note: string;
   status: string;
+  approved_by?: number | null;
+  approved_at?: string | null;
+  decision_note?: string;
+  working_days?: number | null;
+  requested_at?: string;
+  duration_days?: number;
+}
+
+export interface StaffVacationQuotaSummary {
+  staff_id: number;
+  year: number;
+  entitled_days: number;
+  carryover_days: number;
+  taken_days: number;
+  reserved_days: number;
+  remaining_days: number;
 }
 
 class StaffAbsenceService {
@@ -712,6 +728,78 @@ class StaffAbsenceService {
       data: StaffAbsenceRow[] | null;
     };
     return json.data ?? [];
+  }
+
+  async getVacationQuota(
+    staffId: string,
+    year?: number,
+  ): Promise<StaffVacationQuotaSummary> {
+    const qs = year ? `?year=${year}` : "";
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/vacation/quota${qs}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch quota: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: StaffVacationQuotaSummary;
+    };
+    return json.data;
+  }
+
+  async setVacationQuota(
+    staffId: string,
+    payload: {
+      year: number;
+      entitled_days: number;
+      carryover_days: number;
+    },
+  ): Promise<StaffVacationQuotaSummary> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/vacation/quota`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to save quota: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: StaffVacationQuotaSummary;
+    };
+    return json.data;
+  }
+
+  async approve(absenceId: number, decisionNote?: string): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/absences/${absenceId}/approve`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision_note: decisionNote ?? "" }),
+      },
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || "Genehmigung fehlgeschlagen");
+    }
+  }
+
+  async deny(absenceId: number, decisionNote: string): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/absences/${absenceId}/deny`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision_note: decisionNote }),
+      },
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || "Ablehnung fehlgeschlagen");
+    }
   }
 }
 
