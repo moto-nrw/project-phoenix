@@ -245,6 +245,7 @@ type TenantResolveResponse struct {
 	Subdomain        string          `json:"subdomain"`
 	OrganizationID   int64           `json:"organization_id"`
 	OrganizationName string          `json:"organization_name"`
+	Hidden           bool            `json:"hidden"`
 	Settings         json.RawMessage `json:"settings"`
 	// PresenceMode is the tenant's resolved operations.presence_mode setting
 	// ("detailed" | "binary"). Included so the frontend can render the right
@@ -319,6 +320,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		Subdomain:            school.Subdomain,
 		OrganizationID:       school.OrganizationID,
 		OrganizationName:     orgName,
+		Hidden:               school.Hidden,
 		Settings:             settings,
 		PresenceMode:         presenceMode,
 		StudentPhotosEnabled: studentPhotosEnabled,

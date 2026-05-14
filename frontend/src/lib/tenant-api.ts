@@ -38,6 +38,7 @@ export interface TenantInfo {
   subdomain: string;
   organizationId: number;
   organizationName: string;
+  hidden?: boolean;
   settings: TenantSettings;
   presenceMode: PresenceMode;
   /**
@@ -56,6 +57,7 @@ interface TenantResolveResponse {
   subdomain: string;
   organization_id: number;
   organization_name: string;
+  hidden?: boolean;
   settings: TenantSettings;
   presence_mode?: string;
   student_photos_enabled?: boolean;
@@ -96,6 +98,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       subdomain: data.subdomain,
       organizationId: data.organization_id,
       organizationName: data.organization_name,
+      hidden: data.hidden === true,
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),
       studentPhotosEnabled: data.student_photos_enabled === true,
@@ -156,6 +159,7 @@ export async function listAllTenants(
           subdomain: t.subdomain,
           organizationId: 0,
           organizationName: t.organization_name,
+          hidden: false,
           settings: {},
           // list endpoints don't carry per-tenant presence mode; consumers
           // that need it call resolveTenant() on the selected slug.

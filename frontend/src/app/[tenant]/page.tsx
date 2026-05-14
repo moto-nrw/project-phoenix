@@ -184,34 +184,36 @@ function LoginForm() {
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-10 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl">
         {/* Top Bar: Tenant Selector (left) + Help (right) */}
-        <div className="absolute top-4 right-4 left-4 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => {
-              const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
-              const portSuffix = window.location.port
-                ? `:${window.location.port}`
-                : "";
-              window.location.href = `${window.location.protocol}//${tenantDomain}${portSuffix}/`;
-            }}
-            className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        {tenant?.hidden !== true && (
+          <div className="absolute top-4 right-4 left-4 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
+                const portSuffix = window.location.port
+                  ? `:${window.location.port}`
+                  : "";
+                window.location.href = `${window.location.protocol}//${tenantDomain}${portSuffix}/`;
+              }}
+              className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            Einrichtung wechseln
-          </button>
-        </div>
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              Einrichtung wechseln
+            </button>
+          </div>
+        )}
 
         {/* Logo Section */}
         <div className="mb-8 flex justify-center">
