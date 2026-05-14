@@ -194,7 +194,7 @@ func (r *StaffAbsenceRepository) ListByStaffAndStatuses(ctx context.Context, sta
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		Where(`"staff_absence".staff_id = ?`, staffID).
-		Where(`"staff_absence".status IN (?)`, bun.In(statuses)).
+		Where(`"staff_absence".status IN (?)`, bun.List(statuses)).
 		OrderExpr(`"staff_absence".date_start DESC`)
 
 	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
