@@ -11,7 +11,6 @@ import { activeService } from "~/lib/active-service";
 import type { ActiveGroup } from "~/lib/active-helpers";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 
 function buildSessionLabel(group: ActiveGroup): string {
   const roomName = group.room?.name ?? `Raum ${group.roomId}`;
@@ -121,15 +120,6 @@ export function TransitStudentsSection() {
           <span className="font-medium text-gray-900">{totalCount}</span>{" "}
           {totalCount === 1 ? "Kind" : "Kinder"} ohne Raum
         </p>
-        <span
-          className="rounded-full px-2.5 py-1 text-xs font-medium"
-          style={{
-            backgroundColor: `${LOCATION_COLORS.TRANSIT}1A`,
-            color: LOCATION_COLORS.TRANSIT,
-          }}
-        >
-          Sonderbereich
-        </span>
       </div>
 
       {studentsError || groupsError ? (

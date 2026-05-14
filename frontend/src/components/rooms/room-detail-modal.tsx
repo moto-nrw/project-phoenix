@@ -24,7 +24,7 @@ import { useModal } from "~/components/dashboard/modal-context";
 import { RoomDetailLoader } from "./room-detail-content";
 import { TransitStudentsSection } from "./transit-students-section";
 
-const TRANSIT_ROOM_ID = "__transit__";
+export const TRANSIT_ROOM_ID = "__transit__";
 
 interface RoomDetailModalProps {
   readonly roomId: string | null;
