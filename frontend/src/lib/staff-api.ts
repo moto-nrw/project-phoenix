@@ -481,6 +481,9 @@ export interface StaffSchedule {
   rotationAnchorDate: string;
   entries: ScheduleEntry[];
   weeklyTotals: number[];
+  // Earliest date on which any version of this schedule was in effect.
+  // Anchored as YYYY-MM-DD. Empty string when no schedule rows exist.
+  validFrom: string;
 }
 
 interface BackendScheduleEntry {
@@ -503,6 +506,7 @@ interface BackendScheduleResponse {
   rotation_anchor_date: string;
   entries: BackendScheduleEntry[];
   weekly_totals: number[];
+  valid_from?: string;
 }
 
 function mapScheduleResponse(data: BackendScheduleResponse): StaffSchedule {
@@ -524,6 +528,7 @@ function mapScheduleResponse(data: BackendScheduleResponse): StaffSchedule {
       targetMinutes: e.target_minutes,
     })),
     weeklyTotals: data.weekly_totals ?? [],
+    validFrom: (data.valid_from ?? "").slice(0, 10),
   };
 }
 
@@ -677,7 +682,41 @@ class StaffHistoryService {
   }
 }
 
+// Admin counterpart to /api/time-tracking/absences (which is self-scoped).
+// Backend response shape matches BackendStaffAbsence in time-tracking-helpers.ts.
+export interface StaffAbsenceRow {
+  id: number;
+  staff_id: number;
+  absence_type: string;
+  date_start: string;
+  date_end: string;
+  half_day: boolean;
+  note: string;
+  status: string;
+}
+
+class StaffAbsenceService {
+  async getAbsences(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<StaffAbsenceRow[]> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/absences?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch staff absences: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: StaffAbsenceRow[] | null;
+    };
+    return json.data ?? [];
+  }
+}
+
 export const staffService = new StaffService();
 export const staffScheduleService = new StaffScheduleService();
 export const workTimeModelService = new WorkTimeModelService();
 export const staffHistoryService = new StaffHistoryService();
+export const staffAbsenceService = new StaffAbsenceService();

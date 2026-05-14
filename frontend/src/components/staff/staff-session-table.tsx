@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 
 import { Modal } from "~/components/ui/modal";
-import type { StaffHistorySession, StaffSchedule } from "~/lib/staff-api";
+import type {
+  StaffAbsenceRow,
+  StaffHistorySession,
+  StaffSchedule,
+} from "~/lib/staff-api";
 import {
   resolveTargetForDate,
   toIsoDayOfWeek,
@@ -30,6 +34,7 @@ export function StaffSessionTable({
   from,
   to,
   sessions,
+  absences,
   schedule,
   today,
   isAdminView,
@@ -37,6 +42,7 @@ export function StaffSessionTable({
   readonly from: Date;
   readonly to: Date;
   readonly sessions: readonly StaffHistorySession[];
+  readonly absences?: readonly StaffAbsenceRow[];
   readonly schedule: StaffSchedule | null;
   readonly today: Date;
   readonly isAdminView: boolean;
@@ -51,6 +57,32 @@ export function StaffSessionTable({
     return map;
   }, [sessions]);
 
+  // Absences arrive as date ranges; expand to a per-day lookup so each row in
+  // the table can ask "is this date covered by Krank/Urlaub/etc?". Mirrors the
+  // MA-side logic in time-tracking/page.tsx (absenceMap).
+  const absencesByDate = useMemo(() => {
+    const map = new Map<string, StaffAbsenceRow>();
+    if (!absences) return map;
+    for (const absence of absences) {
+      const start = absence.date_start.slice(0, 10);
+      const end = absence.date_end.slice(0, 10);
+      const startDate = new Date(`${start}T00:00:00`);
+      const endDate = new Date(`${end}T00:00:00`);
+      const dayCount =
+        Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+      for (let offset = 0; offset < dayCount; offset++) {
+        const cursor = new Date(startDate);
+        cursor.setDate(cursor.getDate() + offset);
+        const key = toDateKey(cursor);
+        // Existing entries win — the first absence for a day owns the badge.
+        if (!map.has(key)) {
+          map.set(key, absence);
+        }
+      }
+    }
+    return map;
+  }, [absences]);
+
   const days = useMemo(() => {
     const result: Date[] = [];
     const start = new Date(from);
@@ -59,6 +91,7 @@ export function StaffSessionTable({
     for (let i = 0; i < dayCount; i++) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
+      if (toIsoDayOfWeek(d) >= 5) continue;
       result.push(d);
     }
     return result;
@@ -67,6 +100,7 @@ export function StaffSessionTable({
   const [selected, setSelected] = useState<{
     day: Date;
     session: StaffHistorySession | undefined;
+    absence: StaffAbsenceRow | undefined;
     target: number;
   } | null>(null);
 
@@ -78,14 +112,15 @@ export function StaffSessionTable({
             <tr>
               <th className="px-4 py-3">Datum</th>
               <th className="px-4 py-3">Tag</th>
-              <th className="px-4 py-3 text-right tabular-nums">Soll</th>
               <th className="px-4 py-3 tabular-nums">Check-in</th>
               <th className="px-4 py-3 tabular-nums">Check-out</th>
               <th className="px-4 py-3 text-right tabular-nums">Pause</th>
+              <th className="px-4 py-3 text-right tabular-nums">Soll</th>
               <th className="px-4 py-3 text-right tabular-nums">Ist</th>
-              <th className="px-4 py-3 text-right tabular-nums">Δ</th>
+              <th className="px-4 py-3 text-right tabular-nums">Saldo</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Quelle</th>
+              <th className="px-4 py-3">Hinweis</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -93,46 +128,52 @@ export function StaffSessionTable({
               const key = toDateKey(day);
               const dow = toIsoDayOfWeek(day);
               const session = sessionsByDate.get(key);
+              const absence = absencesByDate.get(key);
               const target = schedule ? resolveTargetForDate(schedule, day) : 0;
-              const isWeekend = dow >= 5;
               const isFuture = day > today;
               const isToday = sameDay(day, today);
               const ist = session?.net_minutes ?? 0;
               const delta = session && target > 0 ? ist - target : 0;
-              const status = computeRowStatus(session, target, isFuture);
+              const status = computeRowStatus(
+                session,
+                absence,
+                target,
+                isFuture,
+              );
               return (
                 <tr
                   key={key}
-                  onClick={() => setSelected({ day, session, target })}
+                  onClick={() => setSelected({ day, session, absence, target })}
                   className={`cursor-pointer transition-colors hover:bg-gray-50 ${
-                    isToday
-                      ? "bg-amber-50/40"
-                      : isWeekend
-                        ? "bg-gray-50/40"
-                        : ""
+                    isToday ? "bg-amber-50/40" : ""
                   } ${isFuture ? "opacity-40" : ""}`}
                 >
                   <td className="px-4 py-3 text-gray-700 tabular-nums">
                     {formatShortDate(day)}
                   </td>
                   <td className="px-4 py-3 text-gray-500">{dayLabels[dow]}</td>
-                  <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
-                    {target > 0 ? formatDuration(target) : "–"}
-                  </td>
                   <td className="px-4 py-3 text-gray-700 tabular-nums">
                     {session?.check_in_time
                       ? formatTimeOnly(session.check_in_time)
                       : "–"}
                   </td>
                   <td className="px-4 py-3 text-gray-700 tabular-nums">
-                    {session?.check_out_time
-                      ? formatTimeOnly(session.check_out_time)
-                      : session
-                        ? "offen"
-                        : "–"}
+                    {session?.check_out_time ? (
+                      formatTimeOnly(session.check_out_time)
+                    ) : session ? (
+                      <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
+                        <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-[#83CD2D]" />
+                        eingestempelt
+                      </span>
+                    ) : (
+                      "–"
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
                     {session ? formatDuration(session.break_minutes) : "–"}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                    {target > 0 ? formatDuration(target) : "–"}
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-gray-700 tabular-nums">
                     {session ? formatDuration(ist) : "–"}
@@ -152,6 +193,9 @@ export function StaffSessionTable({
                   <td className="px-4 py-3">
                     <SourceBadge session={session} />
                   </td>
+                  <td className="px-4 py-3">
+                    <HintBadges session={session} />
+                  </td>
                 </tr>
               );
             })}
@@ -169,30 +213,60 @@ export function StaffSessionTable({
 }
 
 // Row-Status drückt den Arbeitsmodus oder ein Fehlen aus. Vor Ort vs.
-// Homeoffice ist Mitarbeiter-Intent. "Nicht erfasst" markiert Werktage ohne
-// Session (sichtbar als Lücke im Audit-Trail). Auto-Close- und Edit-Hinweise
-// gehören NICHT hier rein — die fließen in die Quelle-Spalte (Issue #1368).
+// Homeoffice ist Mitarbeiter-Intent. Krank/Urlaub/Fortbildung kommen aus
+// active.staff_absences und überschreiben "Nicht erfasst", wenn der Tag durch
+// eine Abwesenheit abgedeckt ist. "Nicht erfasst" bleibt für Werktage ohne
+// Session UND ohne Absence (echte Lücke im Audit-Trail). Auto-Close- und
+// Edit-Hinweise gehören NICHT hier rein — die fließen in die Quelle-Spalte
+// (Issue #1368).
 type RowStatus =
   | { kind: "present" }
   | { kind: "home-office" }
+  | { kind: "absence"; absenceType: string }
   | { kind: "missing" };
 
 function computeRowStatus(
   session: StaffHistorySession | undefined,
+  absence: StaffAbsenceRow | undefined,
   target: number,
   isFuture: boolean,
 ): RowStatus | null {
-  if (!session) {
-    if (target > 0 && !isFuture) {
-      return { kind: "missing" };
+  if (session) {
+    if (session.status === "home_office") {
+      return { kind: "home-office" };
     }
-    return null;
+    return { kind: "present" };
   }
-  if (session.status === "home_office") {
-    return { kind: "home-office" };
+  // Absence wins over "missing" so an admin sees Krank/Urlaub instead of a
+  // misleading "Nicht erfasst" badge (the MA-side already does this).
+  if (absence) {
+    return { kind: "absence", absenceType: absence.absence_type };
   }
-  return { kind: "present" };
+  if (target > 0 && !isFuture) {
+    return { kind: "missing" };
+  }
+  return null;
 }
+
+// German labels for the absence_type enum. Mirrors absenceTypeLabels in
+// time-tracking-helpers.ts so the admin staff detail view shows the same
+// wording as the MA-Sicht.
+const absenceTypeLabel: Record<string, string> = {
+  sick: "Krank",
+  vacation: "Urlaub",
+  training: "Fortbildung",
+  other: "Abwesend",
+};
+
+// Tailwind classes per absence_type. Sick = red, vacation = blue,
+// training = green, other = purple (matches absenceTypeColors in
+// time-tracking-helpers.ts).
+const absenceTypeBadge: Record<string, string> = {
+  sick: "bg-red-100 text-red-800",
+  vacation: "bg-blue-100 text-blue-800",
+  training: "bg-green-100 text-green-800",
+  other: "bg-purple-100 text-purple-800",
+};
 
 function StatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "home-office") {
@@ -205,7 +279,20 @@ function StatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "present") {
     return (
       <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
-        Vor Ort
+        OGS
+      </span>
+    );
+  }
+  if (status.kind === "absence") {
+    const label =
+      absenceTypeLabel[status.absenceType] ?? absenceTypeLabel.other!;
+    const classes =
+      absenceTypeBadge[status.absenceType] ?? absenceTypeBadge.other!;
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}
+      >
+        {label}
       </span>
     );
   }
@@ -216,14 +303,10 @@ function StatusBadge({ status }: { readonly status: RowStatus }) {
   );
 }
 
-// Quelle-Badge spiegelt den Original-Kanal der Session, mit Overlays für
-// auditrelevante System-Ereignisse. Last-write-wins-Präzedenz aus Tristans
-// Export (Issue #1368):
-//   1. EditCount > 0          → "Manuell korrigiert" (Audit-Edit existiert)
-//   2. auto_checked_out=true  → "Auto-Checkout" (Scheduler hat geschlossen)
-//   3. source = 'nfc'         → "NFC" (Kiosk)
-//   4. source = 'unknown'     → "—" (Legacy-Row pre-Migration)
-//   5. source = 'app' / def.  → "App" (Web/App-Selbststempel)
+// Quelle-Badge ist der reine Origin der Session: über welchen Kanal sie
+// entstanden ist (mutually exclusive). Korrekturen und Auto-Checkouts sind
+// orthogonal und landen in der Hinweis-Spalte (HintBadges), damit z.B. eine
+// NFC-Session mit nachträglicher Korrektur weiterhin als "NFC" erkennbar bleibt.
 function SourceBadge({
   session,
 }: {
@@ -231,20 +314,6 @@ function SourceBadge({
 }) {
   if (!session) {
     return <span className="text-xs text-gray-300">–</span>;
-  }
-  if ((session.edit_count ?? 0) > 0) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-        Manuell korrigiert
-      </span>
-    );
-  }
-  if (session.auto_checked_out) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-        Auto-Checkout
-      </span>
-    );
   }
   if (session.source === "nfc") {
     return (
@@ -254,12 +323,48 @@ function SourceBadge({
     );
   }
   if (session.source === "unknown") {
+    // Pre-Migration Legacy-Row (Tristan PR #1398).
     return <span className="text-xs text-gray-400">–</span>;
   }
   return (
     <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
       App
     </span>
+  );
+}
+
+// Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
+// Pills können gleichzeitig sichtbar sein (z.B. NFC-Session mit Auto-Checkout
+// UND nachträglicher Korrektur).
+function HintBadges({
+  session,
+}: {
+  readonly session: StaffHistorySession | undefined;
+}) {
+  if (!session) {
+    return <span className="text-xs text-gray-300">–</span>;
+  }
+  const pills: { key: string; label: string }[] = [];
+  if ((session.edit_count ?? 0) > 0) {
+    pills.push({ key: "edited", label: "Manuell korrigiert" });
+  }
+  if (session.auto_checked_out) {
+    pills.push({ key: "auto-checkout", label: "Auto-Checkout" });
+  }
+  if (pills.length === 0) {
+    return <span className="text-xs text-gray-300">–</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {pills.map((pill) => (
+        <span
+          key={pill.key}
+          className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+        >
+          {pill.label}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -271,22 +376,30 @@ function SessionDetailDialog({
   readonly selected: {
     day: Date;
     session: StaffHistorySession | undefined;
+    absence: StaffAbsenceRow | undefined;
     target: number;
   } | null;
   readonly onClose: () => void;
   readonly isAdminView: boolean;
 }) {
   if (!selected) return null;
-  const { day, session, target } = selected;
+  const { day, session, absence, target } = selected;
   const ist = session?.net_minutes ?? 0;
   const delta = session && target > 0 ? ist - target : 0;
   return (
     <Modal isOpen onClose={onClose} title={formatLongDate(day)}>
       <div className="space-y-3 text-sm">
-        <DetailRow
-          label="Soll"
-          value={target > 0 ? formatDuration(target) : "–"}
-        />
+        {absence && !session && (
+          <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700">
+            <span className="font-semibold">
+              {absenceTypeLabel[absence.absence_type] ??
+                absenceTypeLabel.other!}
+            </span>
+            {absence.note && (
+              <span className="ml-2 text-gray-500">— {absence.note}</span>
+            )}
+          </div>
+        )}
         <DetailRow
           label="Check-in"
           value={
@@ -308,16 +421,32 @@ function SessionDetailDialog({
           value={session ? formatDuration(session.break_minutes) : "–"}
         />
         <DetailRow
+          label="Soll"
+          value={target > 0 ? formatDuration(target) : "–"}
+        />
+        <DetailRow
           label="Ist"
           value={session ? formatDuration(ist) : "–"}
           emphasize
         />
         <DetailRow
-          label="Δ zur Soll"
+          label="Saldo"
           value={session && target > 0 ? formatSignedDuration(delta) : "–"}
         />
+        {session && (
+          <DetailRow
+            label="Quelle"
+            value={
+              session.source === "nfc"
+                ? "NFC (Kiosk)"
+                : session.source === "unknown"
+                  ? "—"
+                  : "App / Web"
+            }
+          />
+        )}
         {session?.status === "home_office" && (
-          <DetailRow label="Quelle" value="Homeoffice" />
+          <DetailRow label="Modus" value="Homeoffice" />
         )}
         {session?.auto_checked_out && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">

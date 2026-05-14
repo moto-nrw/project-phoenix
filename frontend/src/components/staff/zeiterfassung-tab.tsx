@@ -3,8 +3,12 @@
 import { useMemo, useState } from "react";
 
 import { Loading } from "~/components/ui/loading";
-import { staffHistoryService, staffScheduleService } from "~/lib/staff-api";
-import type { StaffHistorySession } from "~/lib/staff-api";
+import {
+  staffAbsenceService,
+  staffHistoryService,
+  staffScheduleService,
+} from "~/lib/staff-api";
+import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
 import {
   endOfMonth,
   endOfWeek,
@@ -12,6 +16,7 @@ import {
   startOfWeek,
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
+import { getWeekNumber } from "~/lib/time-tracking-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
 import { StaffSessionTable } from "./staff-session-table";
@@ -55,6 +60,13 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     StaffHistorySession[]
   >(`staff-history-visible-${staffId}-${visibleFromKey}-${visibleToKey}`, () =>
     staffHistoryService.getHistory(staffId, visibleFromKey, visibleToKey),
+  );
+  // Absences are loaded in parallel with sessions so the table can show Krank/
+  // Urlaub badges next to "Vor Ort"/"Homeoffice" (matches the MA-Sicht).
+  const { data: visibleAbsences } = useSWRAuth<StaffAbsenceRow[]>(
+    `staff-absences-visible-${staffId}-${visibleFromKey}-${visibleToKey}`,
+    () =>
+      staffAbsenceService.getAbsences(staffId, visibleFromKey, visibleToKey),
   );
 
   if (scheduleLoading) {
@@ -123,6 +135,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               from={visibleFrom}
               to={visibleTo}
               sessions={visibleSessions ?? []}
+              absences={visibleAbsences ?? []}
               schedule={schedule ?? null}
               today={today}
               isAdminView
@@ -225,8 +238,13 @@ function formatRangeLabel(
   const endDay = sunday.getDate();
   const startMonth = monday.toLocaleString("de-DE", { month: "short" });
   const endMonth = sunday.toLocaleString("de-DE", { month: "short" });
-  if (monday.getMonth() === sunday.getMonth()) {
-    return `${startDay}. – ${endDay}. ${endMonth} ${sunday.getFullYear()}`;
-  }
-  return `${startDay}. ${startMonth} – ${endDay}. ${endMonth} ${sunday.getFullYear()}`;
+  // ISO-Wochennummer voranstellen, damit auf den ersten Blick klar ist,
+  // welche KW gezeigt wird. Ohne diese Information bleibt nur das Datum,
+  // was bei Schichtplänen / Wochen-Soll eher umständlich zu interpretieren ist.
+  const weekNumber = getWeekNumber(monday);
+  const dateRange =
+    monday.getMonth() === sunday.getMonth()
+      ? `${startDay}. – ${endDay}. ${endMonth} ${sunday.getFullYear()}`
+      : `${startDay}. ${startMonth} – ${endDay}. ${endMonth} ${sunday.getFullYear()}`;
+  return `KW ${weekNumber} · ${dateRange}`;
 }

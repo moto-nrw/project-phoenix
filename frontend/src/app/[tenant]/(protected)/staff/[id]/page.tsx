@@ -36,11 +36,13 @@ function StaffHeader({
   onOpenMenu,
   menuOpen,
   menuButtonRef,
+  menu,
 }: {
   readonly staff: Staff;
   readonly onOpenMenu: () => void;
   readonly menuOpen: boolean;
   readonly menuButtonRef: React.RefObject<HTMLButtonElement | null>;
+  readonly menu: React.ReactNode;
 }) {
   const locationStatus = getStaffLocationStatus(staff);
   const displayType = getStaffDisplayType(staff);
@@ -97,29 +99,32 @@ function StaffHeader({
           <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80" />
           {locationStatus.label}
         </span>
-        <button
-          ref={menuButtonRef}
-          type="button"
-          onClick={onOpenMenu}
-          aria-label="Weitere Aktionen"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          className="flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <div className="relative">
+          <button
+            ref={menuButtonRef}
+            type="button"
+            onClick={onOpenMenu}
+            aria-label="Weitere Aktionen"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-            />
-          </svg>
-        </button>
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+              />
+            </svg>
+          </button>
+          {menu}
+        </div>
       </div>
     </div>
   );
@@ -300,19 +305,19 @@ function StaffDetailContent() {
   return (
     <div className="-mt-1.5 w-full">
       {/* Rich Header with kebab trigger */}
-      <div className="relative">
-        <StaffHeader
-          staff={staff}
-          onOpenMenu={() => setMenuOpen((v) => !v)}
-          menuOpen={menuOpen}
-          menuButtonRef={menuButtonRef}
-        />
-        <OverflowMenu
-          isOpen={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          items={menuItems}
-        />
-      </div>
+      <StaffHeader
+        staff={staff}
+        onOpenMenu={() => setMenuOpen((v) => !v)}
+        menuOpen={menuOpen}
+        menuButtonRef={menuButtonRef}
+        menu={
+          <OverflowMenu
+            isOpen={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            items={menuItems}
+          />
+        }
+      />
 
       {/* Tabs */}
       <Tabs defaultValue="uebersicht" className="w-full">

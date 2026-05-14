@@ -6,6 +6,7 @@
 
 import type {
   ScheduleEntry,
+  StaffAbsenceRow,
   StaffHistorySession,
   StaffSchedule,
 } from "./staff-api";
@@ -99,6 +100,11 @@ export function resolveTargetForDate(
 /**
  * Sum the schedule target minutes for all calendar days in [from, to]
  * (inclusive). Honours multi-week rotations via the schedule's anchor.
+ *
+ * Tage VOR schedule.validFrom werden ignoriert. Ohne diese Klammer würde der
+ * Saldo Soll-Stunden aus einer Zeit anrechnen, in der noch gar kein
+ * Dienstplan galt (führt zu künstlich riesigen Minus-Salden, sobald eine
+ * Schule mitten im Jahr live geht).
  */
 export function computeSollForRange(
   schedule: StaffSchedule,
@@ -110,13 +116,60 @@ export function computeSollForRange(
   const dayMs = 24 * 60 * 60 * 1000;
   const totalDays = Math.floor((end.getTime() - start.getTime()) / dayMs) + 1;
   if (totalDays <= 0) return 0;
+  const validFrom = parseSessionDate(schedule.validFrom);
   let sum = 0;
   for (let i = 0; i < totalDays; i++) {
     const day = new Date(start);
     day.setDate(day.getDate() + i);
+    if (validFrom && day < validFrom) continue;
     sum += resolveTargetForDate(schedule, day);
   }
   return sum;
+}
+
+/**
+ * Sum the Soll-Minutes that count as "erfüllt durch Abwesenheit" in
+ * [from, to] (inclusive). Krank/Urlaub/Fortbildung sind bezahlte Ausfallzeit
+ * (ArbZG §3, BUrlG) und füllen das Soll-Konto auf, damit der Saldo am
+ * Monatsende nicht durch eine Erkrankung ins Minus rutscht.
+ *
+ * Half-day absences zählen mit dem halben Tagessoll. Tage vor validFrom
+ * werden ignoriert (analog zu computeSollForRange).
+ */
+export function computeAbsenceCreditForRange(
+  schedule: StaffSchedule,
+  absences: readonly StaffAbsenceRow[] | undefined,
+  from: Date,
+  to: Date,
+): number {
+  if (!absences || absences.length === 0) return 0;
+  const fromKey = toDateKey(from);
+  const toKey = toDateKey(to);
+  const validFrom = parseSessionDate(schedule.validFrom);
+  // Expand each absence to its covered dates within the range.
+  let credit = 0;
+  const seen = new Set<string>();
+  for (const absence of absences) {
+    const startKey = absence.date_start.slice(0, 10);
+    const endKey = absence.date_end.slice(0, 10);
+    const start = parseSessionDate(startKey);
+    const end = parseSessionDate(endKey);
+    if (!start || !end) continue;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const totalDays = Math.floor((end.getTime() - start.getTime()) / dayMs) + 1;
+    for (let i = 0; i < totalDays; i++) {
+      const day = new Date(start);
+      day.setDate(day.getDate() + i);
+      const key = toDateKey(day);
+      if (key < fromKey || key > toKey) continue;
+      if (seen.has(key)) continue; // de-dupe overlapping absences
+      if (validFrom && day < validFrom) continue;
+      seen.add(key);
+      const target = resolveTargetForDate(schedule, day);
+      credit += absence.half_day ? Math.floor(target / 2) : target;
+    }
+  }
+  return credit;
 }
 
 /**
@@ -225,22 +278,30 @@ export interface StaffMetrics {
   monthSoll: number;
   monthIst: number;
   monthDelta: number;
-  // Year-to-date
-  ytdSoll: number;
-  ytdIst: number;
-  ytdBalance: number; // total overtime/undertime since Jan 1
+  // Cumulative balance since the schedule's validFrom (or today's year as fallback).
+  // accountStart is the anchor date used for the cumulative cards.
+  accountStart: Date;
+  accountSoll: number;
+  accountIst: number;
+  accountBalance: number;
 }
 
 /**
  * Compute all KPI metrics for a staff member given their schedule, the
- * sessions covering the year-to-date range, and a reference "now" date.
+ * sessions covering the relevant range, the absences covering the same
+ * range, and a reference "now" date.
  *
  * Future days (after `now`) are excluded from Soll so the balance only
  * counts days that have already happened.
+ *
+ * Krank/Urlaub/Fortbildung zählen als Soll-erfüllt (Ansatz B): Ist erhält
+ * für jeden Absence-Tag das tagesbezogene Soll als Credit. Damit fällt der
+ * Saldo nicht ins Minus, nur weil jemand legitim ausfällt.
  */
 export function computeStaffMetrics(
   schedule: StaffSchedule,
   sessions: StaffHistorySession[],
+  absences: readonly StaffAbsenceRow[] | undefined,
   now: Date,
 ): StaffMetrics {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -250,20 +311,45 @@ export function computeStaffMetrics(
   // Soll for week stops at today (no future credit)
   const weekSollEnd = today < weekEnd ? today : weekEnd;
   const weekSoll = computeSollForRange(schedule, weekStart, weekSollEnd);
-  const weekIst = computeIstForRange(sessions, weekStart, weekEnd);
+  const weekIstSessions = computeIstForRange(sessions, weekStart, weekEnd);
+  const weekIstAbsence = computeAbsenceCreditForRange(
+    schedule,
+    absences,
+    weekStart,
+    weekSollEnd,
+  );
+  const weekIst = weekIstSessions + weekIstAbsence;
   const weekDelta = weekIst - weekSoll;
 
   const monthStart = startOfMonth(today);
   const monthEnd = endOfMonth(today);
   const monthSollEnd = today < monthEnd ? today : monthEnd;
   const monthSoll = computeSollForRange(schedule, monthStart, monthSollEnd);
-  const monthIst = computeIstForRange(sessions, monthStart, monthEnd);
+  const monthIstSessions = computeIstForRange(sessions, monthStart, monthEnd);
+  const monthIstAbsence = computeAbsenceCreditForRange(
+    schedule,
+    absences,
+    monthStart,
+    monthSollEnd,
+  );
+  const monthIst = monthIstSessions + monthIstAbsence;
   const monthDelta = monthIst - monthSoll;
 
-  const yearStart = startOfYear(today);
-  const ytdSoll = computeSollForRange(schedule, yearStart, today);
-  const ytdIst = computeIstForRange(sessions, yearStart, today);
-  const ytdBalance = ytdIst - ytdSoll;
+  // Stundenkonto: starts at the schedule's validFrom (or Jan 1 of the current
+  // year as fallback when no schedule exists yet). Anything before that date
+  // doesn't count — see computeSollForRange for the per-day guard.
+  const accountStart =
+    parseSessionDate(schedule.validFrom) ?? startOfYear(today);
+  const accountSoll = computeSollForRange(schedule, accountStart, today);
+  const accountIstSessions = computeIstForRange(sessions, accountStart, today);
+  const accountIstAbsence = computeAbsenceCreditForRange(
+    schedule,
+    absences,
+    accountStart,
+    today,
+  );
+  const accountIst = accountIstSessions + accountIstAbsence;
+  const accountBalance = accountIst - accountSoll;
 
   return {
     weekSoll,
@@ -272,9 +358,10 @@ export function computeStaffMetrics(
     monthSoll,
     monthIst,
     monthDelta,
-    ytdSoll,
-    ytdIst,
-    ytdBalance,
+    accountStart,
+    accountSoll,
+    accountIst,
+    accountBalance,
   };
 }
 

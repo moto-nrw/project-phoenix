@@ -3,8 +3,16 @@
 import { useMemo } from "react";
 
 import { Loading } from "~/components/ui/loading";
-import { staffHistoryService, staffScheduleService } from "~/lib/staff-api";
-import type { StaffHistorySession, StaffSchedule } from "~/lib/staff-api";
+import {
+  staffAbsenceService,
+  staffHistoryService,
+  staffScheduleService,
+} from "~/lib/staff-api";
+import type {
+  StaffAbsenceRow,
+  StaffHistorySession,
+  StaffSchedule,
+} from "~/lib/staff-api";
 import {
   computeStaffMetrics,
   startOfYear,
@@ -21,6 +29,7 @@ const EMPTY_SCHEDULE: StaffSchedule = {
   rotationAnchorDate: "",
   entries: [],
   weeklyTotals: [],
+  validFrom: "",
 };
 
 // Quick-look summary tab for the staff detail page. Reads the schedule and
@@ -35,21 +44,44 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     () => staffScheduleService.getSchedule(staffId),
   );
 
-  const ytdFrom = toDateKey(startOfYear(today));
-  const ytdTo = toDateKey(today);
-  const { data: ytdSessions, isLoading: ytdLoading } = useSWRAuth<
+  // Anchor the cumulative balance at the schedule's validFrom when available,
+  // otherwise fall back to Jan 1 of the current year. This keeps the
+  // Stundenkonto-card honest: it never claims Soll for time periods in which
+  // no schedule was in effect.
+  const accountAnchor = useMemo(() => {
+    const vf = schedule?.validFrom ?? "";
+    if (vf.length >= 10) {
+      const [y, m, d] = vf.slice(0, 10).split("-").map(Number);
+      if (y && m && d) return new Date(y, m - 1, d);
+    }
+    return startOfYear(today);
+  }, [schedule?.validFrom, today]);
+
+  const accountFrom = toDateKey(accountAnchor);
+  const accountTo = toDateKey(today);
+  const { data: accountSessions, isLoading: sessionsLoading } = useSWRAuth<
     StaffHistorySession[]
-  >(`staff-history-ytd-${staffId}-${ytdFrom}-${ytdTo}`, () =>
-    staffHistoryService.getHistory(staffId, ytdFrom, ytdTo),
+  >(`staff-history-account-${staffId}-${accountFrom}-${accountTo}`, () =>
+    staffHistoryService.getHistory(staffId, accountFrom, accountTo),
+  );
+  const { data: accountAbsences, isLoading: absencesLoading } = useSWRAuth<
+    StaffAbsenceRow[]
+  >(`staff-absences-account-${staffId}-${accountFrom}-${accountTo}`, () =>
+    staffAbsenceService.getAbsences(staffId, accountFrom, accountTo),
   );
 
   const metrics = useMemo(
     () =>
-      computeStaffMetrics(schedule ?? EMPTY_SCHEDULE, ytdSessions ?? [], today),
-    [schedule, ytdSessions, today],
+      computeStaffMetrics(
+        schedule ?? EMPTY_SCHEDULE,
+        accountSessions ?? [],
+        accountAbsences ?? [],
+        today,
+      ),
+    [schedule, accountSessions, accountAbsences, today],
   );
 
-  if (scheduleLoading || ytdLoading) {
+  if (scheduleLoading || sessionsLoading || absencesLoading) {
     return <Loading fullPage={false} />;
   }
 

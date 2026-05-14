@@ -84,12 +84,22 @@ export function KpiCards({
     metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
 
   const monthDeltaColor = getDeltaStatus(metrics.monthDelta, metrics.monthSoll);
-  const ytdColor: "green" | "amber" | "gray" =
-    metrics.ytdBalance > 0
+  const accountColor: "green" | "amber" | "gray" =
+    metrics.accountBalance > 0
       ? "amber"
-      : metrics.ytdBalance < -60
+      : metrics.accountBalance < -60
         ? "gray"
         : "green";
+
+  // Localized "seit 13. Mai 2026" hint under the Stundenkonto card so users
+  // see *which* anchor the cumulative balance is based on. Without it the
+  // card silently shifts meaning as schedules get updated, which is exactly
+  // the source-of-truth problem we want to surface.
+  const accountStartLabel = metrics.accountStart.toLocaleDateString("de-DE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -120,10 +130,10 @@ export function KpiCards({
         color={monthDeltaColor}
       />
       <KpiCard
-        label="Saldo seit 1. Januar"
-        primary={formatSignedDuration(metrics.ytdBalance)}
-        secondary="Arbeitszeitkonto"
-        color={ytdColor}
+        label="Stundenkonto"
+        primary={formatSignedDuration(metrics.accountBalance)}
+        secondary={`seit ${accountStartLabel}`}
+        color={accountColor}
       />
     </div>
   );
