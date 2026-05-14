@@ -142,6 +142,8 @@ func (m *mockGroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64)
 // mockVisitRepository is a minimal mock implementation of active.VisitRepository
 type mockVisitRepository struct {
 	findByActiveGroupIDFunc           func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
+	findByIDFunc                      func(ctx context.Context, id interface{}) (*active.Visit, error)
+	updateFunc                        func(ctx context.Context, entity *active.Visit) error
 	endVisitFunc                      func(ctx context.Context, id int64) error
 	getCurrentByStudentIDFunc         func(ctx context.Context, studentID int64) (*active.Visit, error)
 	getCurrentByStudentIDWithRoomFunc func(ctx context.Context, studentID int64) (*active.Visit, error)
@@ -156,10 +158,16 @@ func (m *mockVisitRepository) Create(ctx context.Context, entity *active.Visit) 
 }
 
 func (m *mockVisitRepository) FindByID(ctx context.Context, id interface{}) (*active.Visit, error) {
+	if m.findByIDFunc != nil {
+		return m.findByIDFunc(ctx, id)
+	}
 	return nil, nil
 }
 
 func (m *mockVisitRepository) Update(ctx context.Context, entity *active.Visit) error {
+	if m.updateFunc != nil {
+		return m.updateFunc(ctx, entity)
+	}
 	return nil
 }
 
