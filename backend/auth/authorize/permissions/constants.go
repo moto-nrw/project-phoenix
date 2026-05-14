@@ -156,7 +156,8 @@ const (
 const (
 	ResourceTimeTracking = "time_tracking"
 
-	TimeTrackingOwn = ResourceTimeTracking + ":own" // Read + write own sessions
+	TimeTrackingOwn    = ResourceTimeTracking + ":own"    // Read + write own sessions
+	TimeTrackingManage = ResourceTimeTracking + ":manage" // Read + write any staff's sessions (admin)
 )
 
 // Grade Transition permissions (admin only)
