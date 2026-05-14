@@ -62,6 +62,11 @@ export interface BackendWorkSessionEdit {
   new_value: string | null;
   notes: string | null;
   created_at: string;
+  // Decorated by the service layer (WorkSessionEditView). Older clients of
+  // the audit endpoint may still see absent fields; we tolerate missing
+  // values for backwards compatibility.
+  editor_name?: string;
+  is_self_edit?: boolean;
 }
 
 // Backend absence response type (snake_case)
@@ -192,6 +197,12 @@ export interface WorkSessionEdit {
   newValue: string | null;
   notes: string | null;
   createdAt: string;
+  // Decorated server-side (WorkSessionEditView). Both fields are optional so
+  // existing test fixtures and older API responses keep type-checking; the
+  // mapper fills them in from the backend response and falls back to a
+  // self-edit when the backend didn't decorate.
+  editorName?: string;
+  isSelfEdit?: boolean;
 }
 
 /**
@@ -296,6 +307,10 @@ export function mapWorkSessionEditResponse(
     newValue: data.new_value ?? null,
     notes: data.notes ?? null,
     createdAt: data.created_at,
+    editorName: data.editor_name ?? "",
+    // Older responses without is_self_edit are treated as self-edits to keep
+    // legacy audit rows from being mislabeled as "vom Admin geändert".
+    isSelfEdit: data.is_self_edit ?? data.edited_by === data.staff_id,
   };
 }
 

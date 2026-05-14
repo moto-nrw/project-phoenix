@@ -83,19 +83,33 @@ export function EditHistoryAccordion({
     const dateStr = `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}.${date.getFullYear()}, ${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
     const fieldEdits = group.filter((e) => e.fieldName !== "notes");
     const notes = group[0]?.notes;
-    return { timestamp, dateStr, fieldEdits, notes };
+    // All edits in a group share the same author — they came from one save
+    // action — so we read editor info from the first.
+    const isSelfEdit = group[0]?.isSelfEdit ?? true;
+    const editorName = group[0]?.editorName ?? "";
+    const editorLabel = isSelfEdit
+      ? editorName
+        ? `${editorName} (selbst)`
+        : "Selbst"
+      : editorName
+        ? `${editorName} (Admin)`
+        : "Admin";
+    return { timestamp, dateStr, fieldEdits, notes, editorLabel };
   });
 
   return (
     <div>
       {/* Mobile: Compact card layout */}
       <div className="space-y-2 md:hidden">
-        {rows.map(({ timestamp, dateStr, fieldEdits, notes }) => (
+        {rows.map(({ timestamp, dateStr, fieldEdits, notes, editorLabel }) => (
           <div
             key={timestamp}
             className="rounded-lg border border-gray-100 bg-white p-2.5"
           >
-            <div className="mb-1.5 text-[10px] text-gray-400">{dateStr}</div>
+            <div className="mb-1.5 flex items-center justify-between text-[10px] text-gray-400">
+              <span>{dateStr}</span>
+              <span className="font-medium">{editorLabel}</span>
+            </div>
             <div className="space-y-1">
               {fieldEdits.map((edit) => (
                 <div key={edit.id} className="flex items-center gap-2 text-xs">
@@ -126,6 +140,7 @@ export function EditHistoryAccordion({
         <thead>
           <tr className="border-b border-gray-100 text-left text-[10px] font-medium tracking-wide text-gray-400 uppercase">
             <th className="pr-4 pb-2">Datum</th>
+            <th className="pr-4 pb-2">Von</th>
             <th className="pr-4 pb-2">Feld</th>
             <th className="pr-4 pb-2">Vorher</th>
             <th className="pr-4 pb-2" />
@@ -134,7 +149,7 @@ export function EditHistoryAccordion({
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ dateStr, fieldEdits, notes }) =>
+          {rows.map(({ dateStr, fieldEdits, notes, editorLabel }) =>
             fieldEdits.map((edit, idx) => (
               <tr
                 key={edit.id}
@@ -142,6 +157,9 @@ export function EditHistoryAccordion({
               >
                 <td className="py-1.5 pr-4 whitespace-nowrap text-gray-500">
                   {idx === 0 ? dateStr : ""}
+                </td>
+                <td className="py-1.5 pr-4 whitespace-nowrap text-gray-600">
+                  {idx === 0 ? editorLabel : ""}
                 </td>
                 <td className="py-1.5 pr-4 whitespace-nowrap text-gray-600">
                   {FIELD_LABELS[edit.fieldName] ?? edit.fieldName}

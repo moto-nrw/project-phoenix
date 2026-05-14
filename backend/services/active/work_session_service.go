@@ -89,6 +89,17 @@ type HistoryResponse struct {
 	WeeklySummaries []WeeklySummary    `json:"weekly_summaries"`
 }
 
+// WorkSessionEditView decorates an audit row with the editor's display name
+// and a "selbst geändert" flag. We compute IsSelfEdit on the server because
+// audit.work_session_edits.edited_by stores a staff_id, not a role — the
+// frontend would otherwise need to fetch the session separately to learn
+// whether edited_by == session.staff_id.
+type WorkSessionEditView struct {
+	*auditModels.WorkSessionEdit
+	EditorName string `json:"editor_name"`
+	IsSelfEdit bool   `json:"is_self_edit"`
+}
+
 // ReopenStatusConflictError is returned by CheckIn when the staff member
 // already has a checked-out session for today and the requested status
 // differs from the existing one. Reopening would silently change the status
@@ -140,14 +151,14 @@ type WorkSessionService interface {
 	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*HistoryResponse, error)
-	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// GetSessionEditsForStaff returns the audit trail of a session for a
 	// specific staff id. The caller is expected to have an admin-level
 	// permission (users:read or time_tracking:manage) — no ownership check
 	// against the JWT subject. We still verify that the session actually
 	// belongs to the target staff so the URL can't be used to leak edits
 	// across staff members in the same tenant.
-	GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
 	// EnsureCheckedIn opens today's session if the staff member has no active
@@ -953,7 +964,7 @@ func (s *workSessionService) getWeeklyTargetFromSchedule(ctx context.Context, st
 }
 
 // GetSessionEdits returns the audit trail for a work session
-func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
 	// Verify ownership: session must belong to requesting staff
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
@@ -963,18 +974,14 @@ func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessi
 		return nil, fmt.Errorf("session does not belong to requesting staff")
 	}
 
-	edits, err := s.auditRepo.GetBySessionID(ctx, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get session edits: %w", err)
-	}
-	return edits, nil
+	return s.loadSessionEditsView(ctx, session, sessionID)
 }
 
 // GetSessionEditsForStaff is the admin-facing counterpart. The session must
 // belong to the staff member named in the URL — without that check an admin
 // could load any session's edits by guessing IDs (within the tenant, RLS
 // still applies). Permission gating happens at the route level.
-func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
@@ -983,11 +990,57 @@ func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffI
 		return nil, fmt.Errorf("session does not belong to staff %d", staffID)
 	}
 
+	return s.loadSessionEditsView(ctx, session, sessionID)
+}
+
+// loadSessionEditsView is the shared body that loads edits and decorates
+// them with editor display names. Names are resolved through a single batch
+// staff+person query so we never N+1 the audit log.
+func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *activeModels.WorkSession, sessionID int64) ([]*WorkSessionEditView, error) {
 	edits, err := s.auditRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session edits: %w", err)
 	}
-	return edits, nil
+	if len(edits) == 0 {
+		return []*WorkSessionEditView{}, nil
+	}
+
+	// Collect editor staff IDs and resolve them to names in one shot.
+	editorIDSet := make(map[int64]struct{}, len(edits))
+	for _, e := range edits {
+		editorIDSet[e.EditedBy] = struct{}{}
+	}
+	editorIDs := make([]int64, 0, len(editorIDSet))
+	for id := range editorIDSet {
+		editorIDs = append(editorIDs, id)
+	}
+
+	staffMap, err := s.staffRepo.FindWithPersonByIDs(ctx, editorIDs)
+	if err != nil {
+		// Don't fail the request just because one display name is missing —
+		// the audit data itself is still useful. Log and fall back to empty
+		// names; the frontend will render "Unbekannt" in that case.
+		if s.logger != nil {
+			s.logger.Warn("failed to resolve editor names for audit view",
+				slog.String("error", err.Error()),
+			)
+		}
+		staffMap = map[int64]*userModels.Staff{}
+	}
+
+	views := make([]*WorkSessionEditView, len(edits))
+	for i, e := range edits {
+		name := ""
+		if staff, ok := staffMap[e.EditedBy]; ok && staff != nil && staff.Person != nil {
+			name = strings.TrimSpace(staff.Person.FirstName + " " + staff.Person.LastName)
+		}
+		views[i] = &WorkSessionEditView{
+			WorkSessionEdit: e,
+			EditorName:      name,
+			IsSelfEdit:      e.EditedBy == session.StaffID,
+		}
+	}
+	return views, nil
 }
 
 // GetTodayPresenceMap returns a map of staff IDs to their work status for today
