@@ -687,6 +687,8 @@ export interface StaffAbsenceRow {
   date_start: string;
   date_end: string;
   half_day: boolean;
+  start_half_day?: boolean;
+  end_half_day?: boolean;
   note: string;
   status: string;
   approved_by?: number | null;
@@ -811,7 +813,7 @@ import {
 
 // Payload shape for admin edits and nachgetragene sessions. The backend
 // keys (date / check_in_time / ...) match SessionUpdateRequest and
-// AdminCreateSessionRequest one-to-one — the route handler decides which
+// AdminCreateSessionRequest one-to-one. The route handler decides which
 // it is via the HTTP verb (PUT vs POST). Notes is required for both flows.
 interface AdminSessionPayload {
   date: string; // YYYY-MM-DD
@@ -841,7 +843,7 @@ class StaffSessionEditsService {
 }
 
 class StaffSessionService {
-  // PUT — corrects an existing session on behalf of the named staff member.
+  // PUT corrects an existing session on behalf of the named staff member.
   // Backend route: /api/staff/{staffId}/time-tracking/sessions/{sessionId}
   async updateSession(
     staffId: string,
@@ -864,7 +866,7 @@ class StaffSessionService {
     }
   }
 
-  // POST — admin "nachträgt" a session for a staff member who forgot to
+  // POST admin "nachträgt" a session for a staff member who forgot to
   // stamp. Backend route: /api/staff/{staffId}/time-tracking/sessions
   async createSession(
     staffId: string,

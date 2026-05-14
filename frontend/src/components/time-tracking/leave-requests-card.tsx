@@ -25,7 +25,7 @@ function formatDate(iso: string): string {
 function formatRange(start: string, end: string): string {
   return start === end
     ? formatDate(start)
-    : `${formatDate(start)} – ${formatDate(end)}`;
+    : `${formatDate(start)} - ${formatDate(end)}`;
 }
 
 // Mon-Fri inclusive (Feiertage kommen in Tranche 3). Fallback when the row
@@ -55,7 +55,22 @@ function formatDayCount(days: number): string {
 function dayCountFor(a: StaffAbsence): number {
   if (a.workingDays != null) return a.workingDays;
   const base = countWorkdaysInclusive(a.dateStart, a.dateEnd);
-  return a.halfDay && base > 0 ? base - 0.5 : base;
+  if (base <= 0) return base;
+  const start = new Date(`${a.dateStart}T00:00:00`);
+  const end = new Date(`${a.dateEnd}T00:00:00`);
+  const sameDay = a.dateStart === a.dateEnd;
+  let days = base;
+  if (a.startHalfDay && isWorkday(start)) days -= 0.5;
+  if (a.endHalfDay && !sameDay && isWorkday(end)) days -= 0.5;
+  if (a.endHalfDay && sameDay && !a.startHalfDay && isWorkday(end)) {
+    days -= 0.5;
+  }
+  return days;
+}
+
+function isWorkday(date: Date): boolean {
+  const dow = date.getDay();
+  return dow !== 0 && dow !== 6;
 }
 
 interface StatusMeta {
@@ -171,7 +186,7 @@ export function LeaveRequestsCard() {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Tile
             label="Resturlaub"
-            value={loading ? "–" : `${remainingDays} Tage`}
+            value={loading ? "-" : `${remainingDays} Tage`}
             hint={
               quota
                 ? `${quota.entitled_days + quota.carryover_days} Anspruch`
@@ -181,19 +196,19 @@ export function LeaveRequestsCard() {
           />
           <Tile
             label="Beantragt"
-            value={loading ? "–" : String(counts.reserved)}
+            value={loading ? "-" : String(counts.reserved)}
             hint="wartet auf Antwort"
             tone={counts.reserved > 0 ? "amber" : "muted"}
           />
           <Tile
             label="Genehmigt"
-            value={loading ? "–" : String(counts.approved)}
+            value={loading ? "-" : String(counts.approved)}
             hint="kommende Tage"
             tone={counts.approved > 0 ? "success" : "muted"}
           />
           <Tile
             label="Abgelehnt"
-            value={loading ? "–" : String(counts.declined)}
+            value={loading ? "-" : String(counts.declined)}
             hint="dieses Jahr"
             tone="muted"
           />

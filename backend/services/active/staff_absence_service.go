@@ -115,14 +115,17 @@ func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, 
 		return nil, err
 	}
 
-	// Check for overlapping absences — merge if same type, reject if different type
+	// Check for overlapping absences, merge if same type, reject if different type.
 	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing absences: %w", err)
 	}
 
 	if len(existing) > 0 {
-		return s.mergeOverlappingAbsences(ctx, existing, dateStart, dateEnd, req)
+		blocking := filterBlockingAbsences(existing)
+		if len(blocking) > 0 {
+			return s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, req)
+		}
 	}
 
 	s.warnIfWorkSessionsExist(ctx, staffID, dateStart, dateEnd)
@@ -327,7 +330,7 @@ func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, sta
 		return fmt.Errorf("failed to check existing absences: %w", err)
 	}
 	for _, e := range existing {
-		if e.ID != absenceID {
+		if e.ID != absenceID && blocksAbsenceRange(e.Status) {
 			return fmt.Errorf("updated dates overlap with existing absence from %s to %s",
 				e.DateStart.Format(dateFormatISO),
 				e.DateEnd.Format(dateFormatISO))
@@ -379,6 +382,9 @@ func (s *staffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int6
 	if absence == nil {
 		return false, nil, nil
 	}
+	if !isEffectiveAbsenceStatus(absence.Status) {
+		return false, nil, nil
+	}
 	return true, absence, nil
 }
 
@@ -389,36 +395,67 @@ func toAbsenceResponse(a *activeModels.StaffAbsence) *StaffAbsenceResponse {
 	}
 }
 
-// ─── Vacation workflow (Tranche 4) ───────────────────────────────────────────
+func isEffectiveAbsenceStatus(status string) bool {
+	return status == activeModels.AbsenceStatusReported ||
+		status == activeModels.AbsenceStatusApproved
+}
+
+func blocksAbsenceRange(status string) bool {
+	return status == activeModels.AbsenceStatusReported ||
+		status == activeModels.AbsenceStatusRequested ||
+		status == activeModels.AbsenceStatusApproved
+}
+
+func filterBlockingAbsences(rows []*activeModels.StaffAbsence) []*activeModels.StaffAbsence {
+	filtered := make([]*activeModels.StaffAbsence, 0, len(rows))
+	for _, row := range rows {
+		if blocksAbsenceRange(row.Status) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+func effectiveBoundaryHalfDays(a *activeModels.StaffAbsence) (bool, bool) {
+	if a.HalfDay && !a.StartHalfDay && !a.EndHalfDay {
+		return true, true
+	}
+	return a.StartHalfDay, a.EndHalfDay
+}
+
+func isWorkingDay(d time.Time) bool {
+	w := d.Weekday()
+	return w != time.Saturday && w != time.Sunday
+}
+
+// Vacation workflow (Tranche 4)
 
 // countWorkingDays returns Mon-Fri count between two dates inclusive,
 // minus 0.5 for each boundary half-day. Personio-style: first day half
 // and last day half are independent flags. Feiertage are NOT excluded
-// yet — that lives in Tranche 3 (Issue #1231).
+// yet. That lives in Tranche 3 (Issue #1231).
 func countWorkingDays(from, to time.Time, startHalf, endHalf bool) float64 {
 	if to.Before(from) {
 		return 0
 	}
 	count := 0
 	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
-		w := d.Weekday()
-		if w != time.Saturday && w != time.Sunday {
+		if isWorkingDay(d) {
 			count++
 		}
 	}
 	result := float64(count)
-	// Single-day range: only one boundary exists, so a single half flag
-	// halves it. Treat startHalf and endHalf identically in that case.
+	// Single-day range: only one boundary exists, so a single half flag halves it.
 	if from.Equal(to) {
-		if startHalf || endHalf {
+		if isWorkingDay(from) && (startHalf || endHalf) {
 			result -= 0.5
 		}
 		return result
 	}
-	if startHalf {
+	if startHalf && isWorkingDay(from) {
 		result -= 0.5
 	}
-	if endHalf {
+	if endHalf && isWorkingDay(to) {
 		result -= 0.5
 	}
 	return result
@@ -437,19 +474,17 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing absences: %w", err)
 	}
-	// Declined and canceled rows do not block the time slot — the staff
+	// Declined and canceled rows do not block the time slot, the staff
 	// member is free to request the same dates again. Only requested,
 	// approved and reported absences hold the range.
 	for _, e := range existing {
-		if e.Status == activeModels.AbsenceStatusDeclined ||
-			e.Status == activeModels.AbsenceStatusCanceled {
-			continue
+		if blocksAbsenceRange(e.Status) {
+			return nil, fmt.Errorf("dates overlap with an existing absence")
 		}
-		return nil, fmt.Errorf("dates overlap with an existing absence")
 	}
 
 	workingDays := countWorkingDays(dateStart, dateEnd, req.StartHalfDay, req.EndHalfDay)
-	if workingDays == 0 {
+	if workingDays <= 0 {
 		return nil, fmt.Errorf("vacation range contains no working days")
 	}
 
@@ -576,13 +611,9 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 		if a.AbsenceType != activeModels.AbsenceTypeVacation {
 			continue
 		}
-		days := 0.0
-		if a.WorkingDays != nil {
+		days := vacationDaysInYear(a, yearStart, yearEnd)
+		if a.WorkingDays != nil && dateWithinRange(a.DateStart, yearStart, yearEnd) && dateWithinRange(a.DateEnd, yearStart, yearEnd) {
 			days = *a.WorkingDays
-		} else {
-			// Legacy rows pre-1.15.59 only had HalfDay; treat that flag as
-			// "both ends halfed" to mirror the migration backfill.
-			days = countWorkingDays(a.DateStart, a.DateEnd, a.HalfDay || a.StartHalfDay, a.HalfDay || a.EndHalfDay)
 		}
 		switch a.Status {
 		case activeModels.AbsenceStatusApproved, activeModels.AbsenceStatusReported:
@@ -601,6 +632,37 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 		ReservedDays:  reserved,
 		RemainingDays: entitled + carryover - taken - reserved,
 	}, nil
+}
+
+func dateWithinRange(d, from, to time.Time) bool {
+	return !d.Before(from) && !d.After(to)
+}
+
+func vacationDaysInYear(a *activeModels.StaffAbsence, yearStart, yearEnd time.Time) float64 {
+	from := a.DateStart
+	if from.Before(yearStart) {
+		from = yearStart
+	}
+	to := a.DateEnd
+	if to.After(yearEnd) {
+		to = yearEnd
+	}
+	if to.Before(from) {
+		return 0
+	}
+
+	startHalf, endHalf := effectiveBoundaryHalfDays(a)
+	if !sameDate(from, a.DateStart) {
+		startHalf = false
+	}
+	if !sameDate(to, a.DateEnd) {
+		endHalf = false
+	}
+	return countWorkingDays(from, to, startHalf, endHalf)
+}
+
+func sameDate(a, b time.Time) bool {
+	return a.Year() == b.Year() && a.Month() == b.Month() && a.Day() == b.Day()
 }
 
 func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error {

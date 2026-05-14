@@ -17,6 +17,11 @@ const (
 	tableExprActiveStaffAbsencesAsStaffAbsence = `active.staff_absences AS "staff_absence"`
 )
 
+var effectiveStaffAbsenceStatuses = []string{
+	active.AbsenceStatusReported,
+	active.AbsenceStatusApproved,
+}
+
 // StaffAbsenceRepository implements active.StaffAbsenceRepository
 type StaffAbsenceRepository struct {
 	*base.Repository[*active.StaffAbsence]
@@ -107,6 +112,7 @@ func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID 
 		Where(`"staff_absence".staff_id = ?`, staffID).
 		Where(`"staff_absence".date_start <= ?`, date).
 		Where(`"staff_absence".date_end >= ?`, date).
+		Where(`"staff_absence".status IN (?)`, bun.List(effectiveStaffAbsenceStatuses)).
 		Limit(1)
 
 	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
@@ -135,7 +141,8 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		Where(`"staff_absence".date_start <= CURRENT_DATE`).
-		Where(`"staff_absence".date_end >= CURRENT_DATE`)
+		Where(`"staff_absence".date_end >= CURRENT_DATE`).
+		Where(`"staff_absence".status IN (?)`, bun.List(effectiveStaffAbsenceStatuses))
 
 	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
 		query = query.Where(where, val)

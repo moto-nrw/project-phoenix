@@ -102,6 +102,45 @@ func (m *absStaffAbsenceRepoMock) ListByStatus(_ context.Context, _ string) ([]*
 	return nil, nil
 }
 
+type absVacationQuotaRepoMock struct {
+	getByStaffAndYearFunc func(ctx context.Context, staffID int64, year int) (*activeModels.StaffVacationQuota, error)
+	upsertFunc            func(ctx context.Context, quota *activeModels.StaffVacationQuota) error
+}
+
+func (m *absVacationQuotaRepoMock) Create(context.Context, *activeModels.StaffVacationQuota) error {
+	return nil
+}
+
+func (m *absVacationQuotaRepoMock) FindByID(context.Context, any) (*activeModels.StaffVacationQuota, error) {
+	return nil, errors.New("not found")
+}
+
+func (m *absVacationQuotaRepoMock) Update(context.Context, *activeModels.StaffVacationQuota) error {
+	return nil
+}
+
+func (m *absVacationQuotaRepoMock) Delete(context.Context, any) error {
+	return nil
+}
+
+func (m *absVacationQuotaRepoMock) List(context.Context, *base.QueryOptions) ([]*activeModels.StaffVacationQuota, error) {
+	return nil, nil
+}
+
+func (m *absVacationQuotaRepoMock) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*activeModels.StaffVacationQuota, error) {
+	if m.getByStaffAndYearFunc != nil {
+		return m.getByStaffAndYearFunc(ctx, staffID, year)
+	}
+	return nil, nil
+}
+
+func (m *absVacationQuotaRepoMock) Upsert(ctx context.Context, quota *activeModels.StaffVacationQuota) error {
+	if m.upsertFunc != nil {
+		return m.upsertFunc(ctx, quota)
+	}
+	return nil
+}
+
 // ============================================================================
 // Mock for WorkSessionRepository (prefixed with abs)
 // ============================================================================
@@ -212,9 +251,11 @@ func (m *absWorkSessionRepoMock) UpdateBreakMinutes(ctx context.Context, id int6
 func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWorkSessionRepoMock) {
 	absRepo := &absStaffAbsenceRepoMock{}
 	workRepo := &absWorkSessionRepoMock{}
+	quotaRepo := &absVacationQuotaRepoMock{}
 	svc := &staffAbsenceService{
 		absenceRepo:     absRepo,
 		workSessionRepo: workRepo,
+		quotaRepo:       quotaRepo,
 	}
 	return svc, absRepo, workRepo
 }
@@ -299,6 +340,7 @@ func TestAbsCreateAbsence_OverlapDifferentType(t *testing.T) {
 				AbsenceType: activeModels.AbsenceTypeVacation,
 				DateStart:   time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
 				DateEnd:     time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusApproved,
 			},
 		}, nil
 	}
@@ -366,6 +408,7 @@ func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
 				AbsenceType: activeModels.AbsenceTypeSick,
 				DateStart:   time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
 				DateEnd:     time.Date(2026, 2, 8, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusReported,
 			},
 			{
 				Model:       base.Model{ID: 61},
@@ -373,6 +416,7 @@ func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
 				AbsenceType: activeModels.AbsenceTypeSick,
 				DateStart:   time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
 				DateEnd:     time.Date(2026, 2, 14, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusReported,
 			},
 		}, nil
 	}
@@ -575,6 +619,7 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 		AbsenceType: activeModels.AbsenceTypeSick,
 		DateStart:   time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
 		DateEnd:     time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+		Status:      activeModels.AbsenceStatusReported,
 	}
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -589,6 +634,7 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 				StaffID:   staffID,
 				DateStart: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
 				DateEnd:   time.Date(2026, 2, 17, 0, 0, 0, 0, time.UTC),
+				Status:    activeModels.AbsenceStatusReported,
 			},
 		}, nil
 	}
@@ -754,6 +800,7 @@ func TestAbsHasAbsenceOnDate_Found(t *testing.T) {
 			Model:       base.Model{ID: 100},
 			StaffID:     staffID,
 			AbsenceType: activeModels.AbsenceTypeSick,
+			Status:      activeModels.AbsenceStatusReported,
 		}, nil
 	}
 
@@ -789,4 +836,133 @@ func TestAbsHasAbsenceOnDate_RepoError(t *testing.T) {
 	assert.False(t, has)
 	assert.Nil(t, absence)
 	assert.Contains(t, err.Error(), "failed to check absence")
+}
+
+func TestAbsHasAbsenceOnDate_IgnoresPendingAndCanceled(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+	date := time.Date(2026, 2, 11, 0, 0, 0, 0, time.UTC)
+
+	for _, status := range []string{
+		activeModels.AbsenceStatusRequested,
+		activeModels.AbsenceStatusDeclined,
+		activeModels.AbsenceStatusCanceled,
+	} {
+		t.Run(status, func(t *testing.T) {
+			absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.StaffAbsence, error) {
+				return &activeModels.StaffAbsence{
+					Model:       base.Model{ID: 100},
+					StaffID:     staffID,
+					AbsenceType: activeModels.AbsenceTypeVacation,
+					Status:      status,
+				}, nil
+			}
+
+			has, absence, err := svc.HasAbsenceOnDate(context.Background(), staffID, date)
+			require.NoError(t, err)
+			assert.False(t, has)
+			assert.Nil(t, absence)
+		})
+	}
+}
+
+func TestAbsCountWorkingDays_HalfDayOnWeekendDoesNotGoNegative(t *testing.T) {
+	saturday := time.Date(2027, 2, 13, 0, 0, 0, 0, time.UTC)
+	sunday := time.Date(2027, 2, 14, 0, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, 0.0, countWorkingDays(saturday, sunday, true, true))
+}
+
+func TestAbsRequestVacation_RejectsWeekendOnlyHalfDayRange(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+
+	result, err := svc.RequestVacation(context.Background(), staffID, RequestVacationRequest{
+		DateStart:    "2027-02-13",
+		DateEnd:      "2027-02-14",
+		StartHalfDay: true,
+		EndHalfDay:   true,
+		Note:         "weekend",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "no working days")
+}
+
+func TestAbsRequestVacation_IgnoresDeclinedOverlap(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{
+			{
+				Model:       base.Model{ID: 100},
+				StaffID:     staffID,
+				AbsenceType: activeModels.AbsenceTypeVacation,
+				DateStart:   time.Date(2027, 2, 15, 0, 0, 0, 0, time.UTC),
+				DateEnd:     time.Date(2027, 2, 16, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusDeclined,
+			},
+		}, nil
+	}
+	absRepo.createFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		require.NotNil(t, entity.WorkingDays)
+		assert.Equal(t, 2.0, *entity.WorkingDays)
+		entity.ID = 101
+		return nil
+	}
+
+	result, err := svc.RequestVacation(context.Background(), staffID, RequestVacationRequest{
+		DateStart: "2027-02-15",
+		DateEnd:   "2027-02-16",
+		Note:      "retry",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(101), result.ID)
+}
+
+func TestAbsGetVacationQuotaSummary_SplitsCrossYearVacation(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	quotaRepo := &absVacationQuotaRepoMock{}
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		quotaRepo:   quotaRepo,
+	}
+	staffID := int64(100)
+	workingDays := 5.0
+
+	quotaRepo.getByStaffAndYearFunc = func(_ context.Context, _ int64, _ int) (*activeModels.StaffVacationQuota, error) {
+		return &activeModels.StaffVacationQuota{
+			StaffID:       staffID,
+			Year:          2026,
+			EntitledDays:  30,
+			CarryoverDays: 0,
+		}, nil
+	}
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{
+			{
+				Model:       base.Model{ID: 100},
+				StaffID:     staffID,
+				AbsenceType: activeModels.AbsenceTypeVacation,
+				DateStart:   time.Date(2025, 12, 29, 0, 0, 0, 0, time.UTC),
+				DateEnd:     time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusApproved,
+				WorkingDays: &workingDays,
+			},
+		}, nil
+	}
+
+	summary, err := svc.GetVacationQuotaSummary(context.Background(), staffID, 2026)
+	require.NoError(t, err)
+	require.NotNil(t, summary)
+	assert.Equal(t, 2.0, summary.TakenDays)
+	assert.Equal(t, 28.0, summary.RemainingDays)
 }

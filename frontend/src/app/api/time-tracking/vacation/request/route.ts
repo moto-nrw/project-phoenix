@@ -5,7 +5,8 @@ import { createPostHandler } from "~/lib/route-wrapper";
 interface VacationRequestBody {
   date_start: string;
   date_end: string;
-  half_day?: boolean;
+  start_half_day?: boolean;
+  end_half_day?: boolean;
   note?: string;
   substitute_staff_id?: number;
 }

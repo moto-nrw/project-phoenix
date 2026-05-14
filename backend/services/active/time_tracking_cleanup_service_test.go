@@ -138,7 +138,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	// Other tests in this package can leave behind stale rows for other
 	// staff inside the same tenant. The "noop" assertion only holds when
 	// the tenant has zero rows older than the cutoff, so we clear them
-	// first. We don't truncate — that would also kill any newly inserted
+	// first. We don't truncate, that would also kill any newly inserted
 	// rows from concurrent staff.
 	purgeOldRowsInTenant(t, db, 1)
 
@@ -158,7 +158,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 }
 
 func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
-	// Service must refuse to delete when no audit repo is configured —
+	// Service must refuse to delete when no audit repo is configured,
 	// otherwise we'd lose the compliance trail silently.
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -174,6 +174,35 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	assert.Contains(t, err.Error(), "audit repo not configured")
 }
 
+func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "BusinessDate")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	freshBusinessSessionID := insertSessionWithBusinessDate(t, db, staff.ID, daysAgo(900), daysAgo(10))
+	oldBusinessSessionID := insertSessionWithBusinessDate(t, db, staff.ID, daysAgo(10), daysAgo(900))
+	freshBusinessAbsenceID := insertAbsenceWithBusinessDates(t, db, staff.ID, daysAgo(900), daysAgo(10), daysAgo(10))
+	oldBusinessAbsenceID := insertAbsenceWithBusinessDates(t, db, staff.ID, daysAgo(10), daysAgo(900), daysAgo(900))
+
+	repos := repoFactory.NewFactory(db)
+	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+
+	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.SessionsDeleted)
+	assert.Equal(t, 1, result.AbsencesDeleted)
+
+	assert.True(t, sessionExists(t, db, freshBusinessSessionID), "fresh business session must remain")
+	assert.False(t, sessionExists(t, db, oldBusinessSessionID), "old business session must be deleted")
+	assert.True(t, absenceExists(t, db, freshBusinessAbsenceID), "fresh business absence must remain")
+	assert.False(t, absenceExists(t, db, oldBusinessAbsenceID), "old business absence must be deleted")
+
+	cleanupDeletionRows(t, db, staff.ID)
+}
+
 // --- Helpers ---------------------------------------------------------------
 
 func daysAgo(days int) time.Time {
@@ -182,10 +211,15 @@ func daysAgo(days int) time.Time {
 
 func insertSession(t *testing.T, db *bun.DB, staffID int64, createdAt time.Time) int64 {
 	t.Helper()
+	return insertSessionWithBusinessDate(t, db, staffID, createdAt, createdAt)
+}
+
+func insertSessionWithBusinessDate(t *testing.T, db *bun.DB, staffID int64, createdAt, businessDate time.Time) int64 {
+	t.Helper()
 	checkOut := createdAt.Add(8 * time.Hour)
 	s := &activeModels.WorkSession{
 		StaffID:      staffID,
-		Date:         createdAt,
+		Date:         businessDate,
 		Status:       activeModels.WorkSessionStatusPresent,
 		Source:       activeModels.WorkSessionSourceApp,
 		CheckInTime:  createdAt,
@@ -196,7 +230,7 @@ func insertSession(t *testing.T, db *bun.DB, staffID int64, createdAt time.Time)
 	s.SetTenantID(1)
 	_, err := db.NewInsert().Model(s).Exec(context.Background())
 	require.NoError(t, err)
-	// Override created_at after the fact — BUN's BeforeAppendModel hook
+	// Override created_at after the fact. BUN's BeforeAppendModel hook
 	// stamps NOW() on insert, which is fine for fresh rows but useless for
 	// the cleanup test which needs to control "age".
 	_, err = db.NewUpdate().
@@ -247,11 +281,16 @@ func insertEdit(t *testing.T, db *bun.DB, sessionID, staffID int64, createdAt ti
 func insertAbsence(t *testing.T, db *bun.DB, staffID int64, createdAt time.Time) int64 {
 	t.Helper()
 	day := createdAt.Truncate(24 * time.Hour)
+	return insertAbsenceWithBusinessDates(t, db, staffID, createdAt, day, day)
+}
+
+func insertAbsenceWithBusinessDates(t *testing.T, db *bun.DB, staffID int64, createdAt, dateStart, dateEnd time.Time) int64 {
+	t.Helper()
 	a := &activeModels.StaffAbsence{
 		StaffID:     staffID,
 		AbsenceType: activeModels.AbsenceTypeSick,
-		DateStart:   day,
-		DateEnd:     day,
+		DateStart:   dateStart.Truncate(24 * time.Hour),
+		DateEnd:     dateEnd.Truncate(24 * time.Hour),
 		Status:      activeModels.AbsenceStatusApproved,
 		CreatedBy:   staffID,
 	}
@@ -307,9 +346,9 @@ func findStaffDeletionRows(t *testing.T, db *bun.DB, staffID int64) []*audit.Dat
 	return rows
 }
 
-// purgeOldRowsInTenant deletes work_sessions and staff_absences with a
-// created_at older than 730 days for the given tenant. Used by tests that
-// assert "nothing happens" — they need the tenant slice to be empty of
+// purgeOldRowsInTenant deletes work_sessions and staff_absences with business
+// dates older than 730 days for the given tenant. Used by tests that
+// assert "nothing happens". They need the tenant slice to be empty of
 // expired rows before they begin.
 func purgeOldRowsInTenant(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
@@ -317,13 +356,13 @@ func purgeOldRowsInTenant(t *testing.T, db *bun.DB, tenantID int64) {
 	_, err := db.NewDelete().
 		Table("active.work_sessions").
 		Where("tenant_id = ?", tenantID).
-		Where("created_at < ?", cutoff).
+		Where("date < ?", cutoff).
 		Exec(context.Background())
 	require.NoError(t, err)
 	_, err = db.NewDelete().
 		Table("active.staff_absences").
 		Where("tenant_id = ?", tenantID).
-		Where("created_at < ?", cutoff).
+		Where("date_end < ?", cutoff).
 		Exec(context.Background())
 	require.NoError(t, err)
 }

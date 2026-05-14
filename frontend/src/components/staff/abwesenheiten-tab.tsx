@@ -40,7 +40,7 @@ function formatDate(iso: string): string {
 function formatRange(start: string, end: string): string {
   return start === end
     ? formatDate(start)
-    : `${formatDate(start)} – ${formatDate(end)}`;
+    : `${formatDate(start)} - ${formatDate(end)}`;
 }
 
 // Mon-Fri working days inclusive (Feiertage kommen in Tranche 3). Used as
@@ -71,7 +71,35 @@ function formatDayCount(days: number): string {
 function dayCountFor(row: StaffAbsenceRow): number {
   if (row.working_days != null) return row.working_days;
   const base = countWorkdaysInclusive(row.date_start, row.date_end);
-  return row.half_day && base > 0 ? base - 0.5 : base;
+  if (base <= 0) return base;
+  const hasBoundaryFields =
+    row.start_half_day !== undefined || row.end_half_day !== undefined;
+  if (!hasBoundaryFields) return row.half_day ? base - 0.5 : base;
+  const start = new Date(`${row.date_start.slice(0, 10)}T00:00:00`);
+  const end = new Date(`${row.date_end.slice(0, 10)}T00:00:00`);
+  let days = base;
+  if (row.start_half_day && isWorkday(start)) days -= 0.5;
+  if (
+    row.end_half_day &&
+    row.date_end.slice(0, 10) !== row.date_start.slice(0, 10) &&
+    isWorkday(end)
+  ) {
+    days -= 0.5;
+  }
+  if (
+    row.end_half_day &&
+    row.date_end.slice(0, 10) === row.date_start.slice(0, 10) &&
+    !row.start_half_day &&
+    isWorkday(end)
+  ) {
+    days -= 0.5;
+  }
+  return days;
+}
+
+function isWorkday(date: Date): boolean {
+  const dow = date.getDay();
+  return dow !== 0 && dow !== 6;
 }
 
 interface StatusMeta {
@@ -133,7 +161,7 @@ export function AbwesenheitenTab({
       // outside this component and otherwise stays stale after approvals,
       // denials and stornos. useSWRAuth prefixes every key with the tenant
       // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
-      // never matches — we use includes for the cache hit.
+      // never matches, we use includes for the cache hit.
       void swrMutate(
         (key) =>
           typeof key === "string" && key.includes("staff-pending-absences-"),
@@ -239,7 +267,7 @@ export function AbwesenheitenTab({
         </span>
       </div>
 
-      {/* Pending requests — Inbox-Zero pattern: always shows the slot. With
+      {/* Pending requests, Inbox-Zero pattern: always shows the slot. With
           items it surfaces as an amber action card; empty it collapses to a
           subtle "alles bearbeitet" confirmation so the layout anchor stays. */}
       {pending.length === 0 ? (
@@ -465,7 +493,7 @@ function QuotaTile({
   );
 }
 
-// Generic notes that duplicate the type badge get suppressed — admins seeded
+// Generic notes that duplicate the type badge get suppressed, admins seeded
 // "Urlaub" or "Krankmeldung" as boilerplate, and rendering them next to the
 // already-visible type badge is just noise.
 const REDUNDANT_NOTES: Record<string, ReadonlyArray<string>> = {
@@ -627,11 +655,11 @@ function EditQuotaModal({
     const e = parseFloat(entitled);
     const c = parseFloat(carryover);
     if (Number.isNaN(e) || e < 0 || e > 366) {
-      toast.error("Anspruch ungültig (0–366).");
+      toast.error("Anspruch ungültig (0-366).");
       return;
     }
     if (Number.isNaN(c) || c < 0 || c > 366) {
-      toast.error("Übertrag ungültig (0–366).");
+      toast.error("Übertrag ungültig (0-366).");
       return;
     }
     setSubmitting(true);

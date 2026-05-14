@@ -1,31 +1,31 @@
-// Package active — time-tracking cleanup service (Tranche 0b).
+// Package active contains the time-tracking cleanup service (Tranche 0b).
 //
 // GDPR retention cleanup for the time-tracking tables. Deletes rows older
 // than the tenant-configured retention window. Built to satisfy:
 //   - §16 Abs. 2 ArbZG (2-year minimum for Arbeitszeit-Nachweise)
-//   - DSGVO Art. 5 lit. e (Speicherbegrenzung — no longer than needed)
-//   - §41 EStG / §147 AO (when payroll-relevant — admins raise retention)
+//   - DSGVO Art. 5 lit. e (Speicherbegrenzung, no longer than needed)
+//   - §41 EStG / §147 AO (when payroll-relevant, admins raise retention)
 //
 // Design notes:
 //
 //   - Two DELETE statements per tenant run:
-//     1. active.work_sessions WHERE created_at < cutoff
-//     → CASCADE removes active.work_session_breaks and
+//     1. active.work_sessions WHERE date < cutoff
+//     CASCADE removes active.work_session_breaks and
 //     audit.work_session_edits via existing FK constraints.
-//     2. active.staff_absences WHERE created_at < cutoff
-//     → no children, independent table.
+//     2. active.staff_absences WHERE date_end < cutoff
+//     No children, independent table.
 //
 //   - The caller establishes tenant context (WithTenantTx). RLS is the
 //     primary tenant boundary; explicit tenant_id = ? predicates are
-//     defense-in-depth.
+//     defense in depth.
 //
 //   - Per-staff audit rows in audit.data_deletions, one row per affected
 //     staff member (not per deleted row). Uses the staff_id subject
 //     column added in migration 1.15.58. Audit rows are written BEFORE
-//     the deletes inside the caller's transaction — if either the audit
+//     the deletes inside the caller's transaction. If either the audit
 //     write or the delete fails, everything rolls back.
 //
-//   - Retention resolution: tenant DB override → registry default →
+//   - Retention resolution: tenant DB override, registry default,
 //     last-resort constant. The constant is only reached in tests where
 //     the settings service isn't wired.
 package active
@@ -67,7 +67,7 @@ type TimeTrackingCleanupResult struct {
 	DurationMS      int64
 }
 
-// TimeTrackingCleanupPreview is what PreviewExpiredTimeTrackingData returns —
+// TimeTrackingCleanupPreview is what PreviewExpiredTimeTrackingData returns,
 // the same numbers as a Result, but nothing was actually deleted.
 type TimeTrackingCleanupPreview struct {
 	SessionsToDelete int
@@ -190,7 +190,7 @@ func (s *timeTrackingCleanupService) CleanupExpiredTimeTrackingData(ctx context.
 }
 
 // PreviewExpiredTimeTrackingData runs the same queries CleanupExpired would,
-// but only counts — nothing is deleted. Used by the CLI --dry-run flag.
+// but only counts. Nothing is deleted. Used by the CLI --dry-run flag.
 func (s *timeTrackingCleanupService) PreviewExpiredTimeTrackingData(ctx context.Context) (*TimeTrackingCleanupPreview, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID == 0 {
@@ -291,7 +291,7 @@ func (s *timeTrackingCleanupService) GetStats(ctx context.Context) (*TimeTrackin
 // --- Internal helpers ---
 
 // resolveRetentionDays picks the tenant's retention days: tenant DB override
-// → registry default. The literal fallback is only reached when the
+// or registry default. The literal fallback is only reached when the
 // settings service is not wired (tests).
 func (s *timeTrackingCleanupService) resolveRetentionDays(ctx context.Context) int {
 	if s.settings == nil {
@@ -310,18 +310,18 @@ func (s *timeTrackingCleanupService) resolveRetentionDays(ctx context.Context) i
 }
 
 // cutoffForDays returns the UTC start-of-day cutoff: anything older than
-// today − retentionDays will be deleted.
+// today minus retentionDays will be deleted.
 func cutoffForDays(retentionDays int) time.Time {
 	now := time.Now().UTC()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	return today.AddDate(0, 0, -retentionDays)
 }
 
-// perStaffCounts maps staff_id → number of rows older than cutoff (sessions
+// perStaffCounts maps staff_id to the number of rows older than cutoff (sessions
 // + absences combined). Used for one audit row per affected staff member.
 type perStaffCounts map[int64]int
 
-// perStaffSamples maps staff_id → bounded sample of session/absence IDs for
+// perStaffSamples maps staff_id to a bounded sample of session/absence IDs for
 // audit metadata. Lets compliance back-trace specific rows after the fact
 // without bloating the JSONB column.
 type perStaffSamples map[int64]perStaffSampleIDs
@@ -354,7 +354,7 @@ func (s *timeTrackingCleanupService) collectStaffImpact(
 		ColumnExpr("w.staff_id AS staff_id").
 		ColumnExpr("w.id AS id").
 		Where("w.tenant_id = ?", tenantID).
-		Where("w.created_at < ?", cutoff).
+		Where("w.date < ?", cutoff).
 		Order("w.staff_id", "w.id").
 		Scan(ctx, &sessionRows); err != nil {
 		return nil, nil, fmt.Errorf("scan work_sessions: %w", err)
@@ -378,7 +378,7 @@ func (s *timeTrackingCleanupService) collectStaffImpact(
 		ColumnExpr("a.staff_id AS staff_id").
 		ColumnExpr("a.id AS id").
 		Where("a.tenant_id = ?", tenantID).
-		Where("a.created_at < ?", cutoff).
+		Where("a.date_end < ?", cutoff).
 		Order("a.staff_id", "a.id").
 		Scan(ctx, &absenceRows); err != nil {
 		return nil, nil, fmt.Errorf("scan staff_absences: %w", err)
@@ -438,7 +438,7 @@ func deleteOldWorkSessions(ctx context.Context, db bun.IDB, tenantID int64, cuto
 	res, err := db.NewDelete().
 		Table("active.work_sessions").
 		Where("tenant_id = ?", tenantID).
-		Where("created_at < ?", cutoff).
+		Where("date < ?", cutoff).
 		Exec(ctx)
 	if err != nil {
 		return 0, err
@@ -454,7 +454,7 @@ func deleteOldStaffAbsences(ctx context.Context, db bun.IDB, tenantID int64, cut
 	res, err := db.NewDelete().
 		Table("active.staff_absences").
 		Where("tenant_id = ?", tenantID).
-		Where("created_at < ?", cutoff).
+		Where("date_end < ?", cutoff).
 		Exec(ctx)
 	if err != nil {
 		return 0, err
@@ -475,7 +475,7 @@ func countOldWorkSessions(ctx context.Context, db bun.IDB, tenantID int64, cutof
 		TableExpr("active.work_sessions").
 		ColumnExpr("COUNT(*) AS cnt").
 		Where("tenant_id = ?", tenantID).
-		Where("created_at < ?", cutoff).
+		Where("date < ?", cutoff).
 		Scan(ctx, &r)
 	return r.Cnt, err
 }
@@ -489,39 +489,39 @@ func countOldStaffAbsences(ctx context.Context, db bun.IDB, tenantID int64, cuto
 		TableExpr("active.staff_absences").
 		ColumnExpr("COUNT(*) AS cnt").
 		Where("tenant_id = ?", tenantID).
-		Where("created_at < ?", cutoff).
+		Where("date_end < ?", cutoff).
 		Scan(ctx, &r)
 	return r.Cnt, err
 }
 
 func oldestWorkSession(ctx context.Context, db bun.IDB, tenantID int64, _ time.Time) (*time.Time, error) {
 	type row struct {
-		CreatedAt *time.Time `bun:"created_at"`
+		Date *time.Time `bun:"date"`
 	}
 	var r row
 	err := db.NewSelect().
 		TableExpr("active.work_sessions").
-		ColumnExpr("MIN(created_at) AS created_at").
+		ColumnExpr("MIN(date) AS date").
 		Where("tenant_id = ?", tenantID).
 		Scan(ctx, &r)
 	if err != nil {
 		return nil, err
 	}
-	return r.CreatedAt, nil
+	return r.Date, nil
 }
 
 func oldestStaffAbsence(ctx context.Context, db bun.IDB, tenantID int64, _ time.Time) (*time.Time, error) {
 	type row struct {
-		CreatedAt *time.Time `bun:"created_at"`
+		DateEnd *time.Time `bun:"date_end"`
 	}
 	var r row
 	err := db.NewSelect().
 		TableExpr("active.staff_absences").
-		ColumnExpr("MIN(created_at) AS created_at").
+		ColumnExpr("MIN(date_end) AS date_end").
 		Where("tenant_id = ?", tenantID).
 		Scan(ctx, &r)
 	if err != nil {
 		return nil, err
 	}
-	return r.CreatedAt, nil
+	return r.DateEnd, nil
 }

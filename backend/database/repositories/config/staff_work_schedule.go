@@ -53,7 +53,7 @@ func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, s
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id = ?", staffID).
 		Where("valid_from <= ?", date).
-		Where("valid_until IS NULL OR valid_until >= ?", date).
+		Where("valid_until IS NULL OR valid_until > ?", date).
 		OrderExpr("day_of_week ASC")
 
 	tenantID := tenant.FromContext(ctx)
@@ -76,7 +76,7 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
-	// Close existing current entries by setting valid_until to today
+	// Close existing current entries at today, using an exclusive valid_until.
 	updateQuery := db.NewUpdate().
 		TableExpr(tableStaffWorkSchedules).
 		Set("valid_until = ?", today).

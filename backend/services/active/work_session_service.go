@@ -49,7 +49,7 @@ type SessionUpdateRequest struct {
 
 // AdminCreateSessionRequest is the body for the admin nachtragen flow:
 // POST /api/staff/{id}/time-tracking/sessions. The admin sets the wall-
-// clock times directly — no Anwesenheit, no kiosk involvement. Status and
+// clock times directly, no Anwesenheit, no kiosk involvement. Status and
 // Notes are mandatory; everything else is optional with sensible defaults
 // (break_minutes defaults to 0).
 type AdminCreateSessionRequest struct {
@@ -91,7 +91,7 @@ type HistoryResponse struct {
 
 // WorkSessionEditView decorates an audit row with the editor's display name
 // and a "selbst geändert" flag. We compute IsSelfEdit on the server because
-// audit.work_session_edits.edited_by stores a staff_id, not a role — the
+// audit.work_session_edits.edited_by stores a staff_id, not a role. The
 // frontend would otherwise need to fetch the session separately to learn
 // whether edited_by == session.staff_id.
 type WorkSessionEditView struct {
@@ -141,12 +141,12 @@ type WorkSessionService interface {
 	// UpdateSessionAsAdmin is the admin-facing counterpart. editorStaffID is
 	// the staff record of the admin performing the edit (lands in
 	// audit.work_session_edits.edited_by). targetStaffID is the owner of the
-	// session — we verify session.StaffID == targetStaffID so the route can't
+	// session. We verify session.StaffID == targetStaffID so the route can't
 	// be used to leak edits across staff in the same tenant. Notes are always
 	// required (BAG "Verlässlichkeit" for foreign edits).
 	UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
 	// CreateSessionAsAdmin records a session an admin nachträgt for another
-	// staff member — typically because that staff member forgot to stamp.
+	// staff member, typically because that staff member forgot to stamp.
 	// Notes are required to preserve the audit trail's "Verlässlichkeit".
 	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
@@ -154,7 +154,7 @@ type WorkSessionService interface {
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// GetSessionEditsForStaff returns the audit trail of a session for a
 	// specific staff id. The caller is expected to have an admin-level
-	// permission (users:read or time_tracking:manage) — no ownership check
+	// permission (users:read or time_tracking:manage), no ownership check
 	// against the JWT subject. We still verify that the session actually
 	// belongs to the target staff so the URL can't be used to leak edits
 	// across staff members in the same tenant.
@@ -198,7 +198,7 @@ func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo ac
 }
 
 // CheckIn creates a new work session for the staff member.
-// Status must be explicitly chosen — empty values are rejected so the caller
+// Status must be explicitly chosen. Empty values are rejected so the caller
 // (HTTP handler or internal worker) cannot accidentally fall back to "present".
 func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
@@ -268,7 +268,7 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 // audit-relevant facts, and overwriting either on reopen would silently
 // drop the signal with no audit edit. CheckIn rejects the call with
 // ReopenStatusConflictError before this point if the requested status
-// differs from the existing one — the caller is expected to follow up
+// differs from the existing one. The caller is expected to follow up
 // with UpdateSession (which gates on a notes reason).
 func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64) (*activeModels.WorkSession, error) {
 	session.CheckOutTime = nil
@@ -539,7 +539,7 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	}
 
 	// A status change (Vor Ort ↔ Homeoffice) carries audit weight and must be
-	// justified — otherwise the audit trail loses meaning. Requires the caller
+	// justified. Otherwise the audit trail loses meaning. Requires the caller
 	// to send the reason in `notes` on the same request.
 	if updates.Status != nil && *updates.Status != session.Status {
 		if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
@@ -552,7 +552,7 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 
 // UpdateSessionAsAdmin applies an admin correction. editorStaffID is the
 // admin doing the edit (goes into edited_by). targetStaffID is the owner of
-// the session we expect to mutate — verified against session.StaffID so the
+// the session we expect to mutate, verified against session.StaffID so the
 // route can't be used to leak edits across staff in the same tenant.
 //
 // Notes are unconditionally required: BAG demands "Verlässlichkeit" of the
@@ -978,7 +978,7 @@ func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessi
 }
 
 // GetSessionEditsForStaff is the admin-facing counterpart. The session must
-// belong to the staff member named in the URL — without that check an admin
+// belong to the staff member named in the URL. Without that check an admin
 // could load any session's edits by guessing IDs (within the tenant, RLS
 // still applies). Permission gating happens at the route level.
 func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
@@ -1190,6 +1190,10 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 
 	// Add absence rows (one row per day in the absence range)
 	for _, absence := range absences {
+		if absence.Status != activeModels.AbsenceStatusReported &&
+			absence.Status != activeModels.AbsenceStatusApproved {
+			continue
+		}
 		label := germanAbsenceTypeLabels[absence.AbsenceType]
 		if label == "" {
 			label = absence.AbsenceType
@@ -1202,9 +1206,9 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 			// Column layout must match the export header (9 cells):
 			// Datum, Wochentag, Start, Ende, Pause, Netto, Status, Quelle, Bemerkungen.
 			// Absences have no Quelle (the staff member did not stamp at all),
-			// so that cell stays empty rather than borrowing the "—" sentinel
+			// so that cell stays empty rather than borrowing the "-" sentinel
 			// already used by quelleLabel for legacy work_sessions of unknown
-			// channel — those are two different facts and must read distinctly.
+			// channel. Those are two different facts and must read distinctly.
 			rows = append(rows, exportRow{
 				Date: d,
 				Row:  []string{datum, wochentag, "--", "--", "--", "--", label, "", absence.Note},
@@ -1322,7 +1326,7 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	netto := fmt.Sprintf("%dh %02dmin", h, m)
 
 	// Status carries the underlying work mode and is never overwritten by
-	// system events — the OGS-Leitung must always be able to see whether
+	// system events. The OGS-Leitung must always be able to see whether
 	// the row was Vor Ort or Homeoffice, even if the session was later
 	// auto-closed or manually corrected.
 	status := "Vor Ort"
@@ -1347,8 +1351,8 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 }
 
 // quelleLabel renders the export "Quelle" cell from the persisted source.
-// 'unknown' marks rows that pre-date migration 1.15.54 — no channel was ever
-// recorded, so we render "—" rather than guess. Anything else falls through
+// 'unknown' marks rows that pre-date migration 1.15.54. No channel was ever
+// recorded, so we render "-" rather than guess. Anything else falls through
 // to App, matching the DB column default for in-flight rows that may exist
 // briefly between migration and new-server boot.
 func quelleLabel(source string) string {
@@ -1356,7 +1360,7 @@ func quelleLabel(source string) string {
 	case activeModels.WorkSessionSourceNFC:
 		return "NFC"
 	case activeModels.WorkSessionSourceUnknown:
-		return "—"
+		return "-"
 	default:
 		return "App"
 	}

@@ -238,7 +238,7 @@ func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 
 	require.Len(t, rows, 3) // 3 days: Jan 2, 3, 4
 	assert.Equal(t, dateStart, rows[0].Date)
-	// Header is 9 cells after the Status/Quelle split — pin the length so a
+	// Header is 9 cells after the Status/Quelle split, pin the length so a
 	// future regression that drops a cell (and silently shifts Note into the
 	// Quelle column) fails here instead of on the user's CSV.
 	require.Len(t, rows[0].Row, 9, "absence rows must match the 9-column export header")
@@ -391,7 +391,7 @@ func TestWSSessionToRow_NFC(t *testing.T) {
 }
 
 // TestWSSessionToRow_LegacyUnknownSource verifies that pre-migration rows
-// (source = 'unknown') render Quelle as "—" rather than guessing App or NFC.
+// (source = 'unknown') render Quelle as "-" rather than guessing App or NFC.
 // Issue #1368: the audit trail must distinguish "we know it was App" from
 // "we never recorded the channel".
 func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
@@ -413,7 +413,7 @@ func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
 
 	row := svc.sessionToRow(sr)
 	assert.Equal(t, "Vor Ort", row[6])
-	assert.Equal(t, "—", row[7], "legacy 'unknown' source must render as em-dash, not guessed App/NFC")
+	assert.Equal(t, "-", row[7], "legacy 'unknown' source must render as hyphen, not guessed App/NFC")
 }
 
 func TestWSSessionToRow_NoCheckOut(t *testing.T) {
@@ -465,7 +465,7 @@ func TestWSSessionToRow_HomeOffice(t *testing.T) {
 func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
 	// Issue #1368: Auto-Checkout overlays the Quelle cell so the
 	// OGS-Leitung sees the session was closed by the scheduler. Status
-	// remains the underlying work mode — Vor Ort is preserved here even
+	// remains the underlying work mode. Vor Ort is preserved here even
 	// though Quelle is "Auto-Checkout".
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
@@ -493,7 +493,7 @@ func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
 
 func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
 	// Issue #1368: a manual correction overlays Quelle, but Status still
-	// shows the underlying work mode (Homeoffice) — so the OGS-Leitung can
+	// shows the underlying work mode (Homeoffice), so the OGS-Leitung can
 	// see both the corrected-state signal AND what the staff actually did.
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
@@ -694,7 +694,7 @@ func TestWSExportXLSX_WithData(t *testing.T) {
 // ============================================================================
 
 func TestWSUpdateSession_StatusChange(t *testing.T) {
-	// Issue #1368: status changes require a non-empty reason in notes — the
+	// Issue #1368: status changes require a non-empty reason in notes. The
 	// happy path now sends notes alongside the new status.
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
@@ -791,7 +791,7 @@ func TestWSUpdateSession_StatusChangeRequiresNotes(t *testing.T) {
 }
 
 func TestWSUpdateSession_NotesOnlyDoesNotRequireReason(t *testing.T) {
-	// Issue #1368: the gate is specifically for status changes — editing only
+	// Issue #1368: the gate is specifically for status changes. Editing only
 	// notes (e.g., adding a comment) must still work without a reason field.
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)

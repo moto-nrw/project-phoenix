@@ -2,7 +2,7 @@
 //
 // All minutes are integers. "dayOfWeek" uses ISO convention: 0=Mon, 6=Sun.
 // Sat/Sun are intentionally excluded from the Soll when they are 0 in the
-// schedule — the typical Mon–Fri use case.
+// schedule, the typical Mon-Fri use case.
 
 import type {
   StaffAbsenceRow,
@@ -131,6 +131,7 @@ function computeAbsenceCreditForRange(
   let credit = 0;
   const seen = new Set<string>();
   for (const absence of absences) {
+    if (!isEffectiveAbsenceStatus(absence.status)) continue;
     const startKey = absence.date_start.slice(0, 10);
     const endKey = absence.date_end.slice(0, 10);
     const start = parseSessionDate(startKey);
@@ -147,10 +148,36 @@ function computeAbsenceCreditForRange(
       if (validFrom && day < validFrom) continue;
       seen.add(key);
       const target = resolveTargetForDate(schedule, day);
-      credit += absence.half_day ? Math.floor(target / 2) : target;
+      credit += isHalfAbsenceBoundary(absence, key, startKey, endKey)
+        ? Math.floor(target / 2)
+        : target;
     }
   }
   return credit;
+}
+
+function isEffectiveAbsenceStatus(status: string): boolean {
+  return status === "reported" || status === "approved";
+}
+
+function isHalfAbsenceBoundary(
+  absence: StaffAbsenceRow,
+  key: string,
+  startKey: string,
+  endKey: string,
+): boolean {
+  const hasBoundaryFields =
+    absence.start_half_day !== undefined || absence.end_half_day !== undefined;
+  const startHalf = hasBoundaryFields
+    ? Boolean(absence.start_half_day)
+    : absence.half_day;
+  const endHalf = hasBoundaryFields
+    ? Boolean(absence.end_half_day)
+    : absence.half_day;
+  if (startKey === endKey) {
+    return key === startKey && (startHalf || endHalf);
+  }
+  return (key === startKey && startHalf) || (key === endKey && endHalf);
 }
 
 /**
@@ -305,7 +332,7 @@ export function computeStaffMetrics(
 
   // Stundenkonto: starts at the schedule's validFrom (or Jan 1 of the current
   // year as fallback when no schedule exists yet). Anything before that date
-  // doesn't count — see computeSollForRange for the per-day guard.
+  // doesn't count, see computeSollForRange for the per-day guard.
   const accountStart =
     parseSessionDate(schedule.validFrom) ?? startOfYear(today);
   const accountSoll = computeSollForRange(schedule, accountStart, today);

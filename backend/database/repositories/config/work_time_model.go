@@ -154,8 +154,16 @@ func (r *WorkTimeModelRepository) Update(ctx context.Context, model *config.Work
 	if tenantID > 0 {
 		updateQuery = updateQuery.Where("tenant_id = ?", tenantID)
 	}
-	if _, err := updateQuery.Exec(ctx); err != nil {
+	res, err := updateQuery.Exec(ctx)
+	if err != nil {
 		return fmt.Errorf("update model: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update model rows affected: %w", err)
+	}
+	if rows != 1 {
+		return sql.ErrNoRows
 	}
 
 	if _, err := db.NewDelete().
