@@ -171,6 +171,12 @@ func (m *trackingMockActiveService) CountActiveVisitsByActiveGroupID(ctx context
 func (m *trackingMockActiveService) ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error) {
 	return nil, nil
 }
+func (m *trackingMockActiveService) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (m *trackingMockActiveService) AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) GetGroupSupervisor(ctx context.Context, id int64) (*activeModel.GroupSupervisor, error) {
 	return nil, nil
 }

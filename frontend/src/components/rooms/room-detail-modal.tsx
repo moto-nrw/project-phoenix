@@ -22,6 +22,9 @@ import {
 } from "~/components/ui/drawer";
 import { useModal } from "~/components/dashboard/modal-context";
 import { RoomDetailLoader } from "./room-detail-content";
+import { TransitStudentsSection } from "./transit-students-section";
+
+export const TRANSIT_ROOM_ID = "__transit__";
 
 interface RoomDetailModalProps {
   readonly roomId: string | null;
@@ -71,7 +74,9 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
               when the loader / error fallback returns a tiny payload.
               No-op on desktop — the side panel is already h-full. */}
           <div className="min-h-[60vh]">
-            {roomId ? (
+            {roomId === TRANSIT_ROOM_ID ? (
+              <TransitStudentsSection />
+            ) : roomId ? (
               <RoomDetailLoader
                 roomId={roomId}
                 // Inline X close button — flows into the room header row
