@@ -2,18 +2,18 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-const (
-	tableStaffVacationQuota          = "active.staff_vacation_quota"
-	tableExprStaffVacationQuotaAlias = `active.staff_vacation_quota AS "quota"`
-)
+const tableStaffVacationQuota = "active.staff_vacation_quota"
 
 type StaffVacationQuotaRepository struct {
 	*base.Repository[*active.StaffVacationQuota]
@@ -26,16 +26,17 @@ func NewStaffVacationQuotaRepository(db *bun.DB) active.StaffVacationQuotaReposi
 	return &StaffVacationQuotaRepository{Repository: repo, db: db}
 }
 
-// List overrides base.List to use the QueryOptions signature the project's
-// interface expects (vs the map[string]any default of generic Repository).
+// List uses unaliased table reference + plain column WHERE clauses. The
+// previous version used `AS "quota"` but Bun's SELECT column expansion
+// for Model(&rows) does not honour custom aliases and emits the bun-tag
+// table name in the column list, leading to "missing FROM-clause entry"
+// errors against Postgres.
 func (r *StaffVacationQuotaRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffVacationQuota, error) {
 	var rows []*active.StaffVacationQuota
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(tableExprStaffVacationQuotaAlias)
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&rows)
 
-	if where, val, ok := base.TenantWhere(ctx, "quota"); ok {
-		query = query.Where(where, val)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
 	}
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -51,19 +52,23 @@ func (r *StaffVacationQuotaRepository) GetByStaffAndYear(ctx context.Context, st
 	quota := &active.StaffVacationQuota{}
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(quota).
-		ModelTableExpr(tableExprStaffVacationQuotaAlias).
-		Where(`"quota".staff_id = ?`, staffID).
-		Where(`"quota".year = ?`, year).
+		Where("staff_id = ?", staffID).
+		Where("year = ?", year).
 		Limit(1)
 
-	if where, val, ok := base.TenantWhere(ctx, "quota"); ok {
-		query = query.Where(where, val)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
 	}
 
 	err := query.Scan(ctx)
 	if err != nil {
 		// Surface "no row" as nil, nil so the service can fall back to the
 		// tenant default rather than a 404.
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		// String fallback for drivers that wrap the error: some bun configs
+		// don't surface sql.ErrNoRows directly.
 		if err.Error() == "sql: no rows in result set" {
 			return nil, nil
 		}
@@ -82,7 +87,6 @@ func (r *StaffVacationQuotaRepository) Upsert(ctx context.Context, quota *active
 
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(quota).
-		ModelTableExpr(tableStaffVacationQuota).
 		On("CONFLICT (staff_id, year) DO UPDATE").
 		Set("entitled_days = EXCLUDED.entitled_days").
 		Set("carryover_days = EXCLUDED.carryover_days").
