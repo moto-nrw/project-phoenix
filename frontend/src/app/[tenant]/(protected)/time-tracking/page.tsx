@@ -24,7 +24,7 @@ import {
 } from "~/components/ui/chart";
 import { ExportRangeForm } from "~/components/ui/export-range-form";
 import { Modal } from "~/components/ui/modal";
-import { KpiCards } from "~/components/staff/staff-time-views";
+import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
@@ -178,12 +178,6 @@ function extractTimeFromISO(isoString: string): string {
 }
 
 // ─── ClockInCard ──────────────────────────────────────────────────────────────
-
-function formatHMM(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h}:${m.toString().padStart(2, "0")}`;
-}
 
 function formatTimeFromDate(date: Date): string {
   return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
@@ -433,7 +427,7 @@ function renderTimerContent(
   return (
     <>
       <span className="text-4xl font-light text-gray-900 tabular-nums">
-        {formatHMM(displayMinutes)}
+        {formatDuration(displayMinutes)}
       </span>
       {breakWarning && (
         <span className="mt-0.5 text-xs font-medium text-amber-600">
@@ -453,6 +447,7 @@ function ClockInCard({
   onEndBreak,
   weeklyMinutes,
   onAddAbsence,
+  metrics,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -462,6 +457,7 @@ function ClockInCard({
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
+  readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -485,12 +481,15 @@ function ClockInCard({
   const activeBreak = breaks.find((b) => !b.endedAt) ?? null;
   const isOnBreak = activeBreak !== null;
 
-  // Tick every second during break (for countdown), every 30s otherwise
+  // Tick every second during break (for the seconds countdown) and every
+  // 15s otherwise. 15s is fast enough that the "5h 29min" timer flips to
+  // "5h 30min" within seconds of the actual minute change, but slow enough
+  // to avoid pointless re-renders.
   useEffect(() => {
     if (!isCheckedIn) return;
     const interval = setInterval(
       () => setTick((t) => t + 1),
-      isOnBreak ? 1000 : 30000,
+      isOnBreak ? 1000 : 15000,
     );
     return () => clearInterval(interval);
   }, [isCheckedIn, isOnBreak]);
@@ -859,27 +858,126 @@ function ClockInCard({
           </div>
         )}
 
-        {/* Today/Week footer */}
-        <div className="mt-4 flex flex-col gap-y-1 text-xs text-gray-400 sm:flex-row sm:flex-wrap sm:gap-x-6">
-          <span>
-            Heute:{" "}
-            <span className="font-medium text-gray-600">
-              {getTodayDisplayValue(
-                isCheckedIn,
-                isCheckedOut,
-                netMinutes,
-                checkedOutNet,
-              )}
+        {/* Stats footer — three compact inline stats (Diese Woche / Monat /
+            Saldo). Falls metrics fehlt, fallback auf die alte Heute/Woche-Zeile
+            damit die Card defensiv lesbar bleibt. */}
+        {metrics ? (
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            <ClockInStatsStrip metrics={metrics} />
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-col gap-y-1 text-xs text-gray-400 sm:flex-row sm:flex-wrap sm:gap-x-6">
+            <span>
+              Heute:{" "}
+              <span className="font-medium text-gray-600">
+                {getTodayDisplayValue(
+                  isCheckedIn,
+                  isCheckedOut,
+                  netMinutes,
+                  checkedOutNet,
+                )}
+              </span>
             </span>
-          </span>
-          <span>
-            Woche:{" "}
-            <span className="font-medium text-gray-600">
-              {formatDuration(weeklyMinutes + (isCheckedIn ? netMinutes : 0))}
+            <span>
+              Woche:{" "}
+              <span className="font-medium text-gray-600">
+                {formatDuration(weeklyMinutes + (isCheckedIn ? netMinutes : 0))}
+              </span>
             </span>
-          </span>
-        </div>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function ClockInStatsStrip({
+  metrics,
+}: {
+  readonly metrics: ReturnType<typeof computeStaffMetrics>;
+}) {
+  const weekPct =
+    metrics.weekSoll > 0 ? (metrics.weekIst / metrics.weekSoll) * 100 : 0;
+  const monthPct =
+    metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
+
+  const accountTone: StatusTone =
+    metrics.accountBalance > 0
+      ? "amber"
+      : metrics.accountBalance < -60
+        ? "gray"
+        : "green";
+
+  return (
+    <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <InlineStat
+        label="Diese Woche"
+        primary={formatDuration(metrics.weekIst)}
+        secondary={`von ${formatDuration(metrics.weekSoll)}`}
+        progressPct={weekPct}
+        tone="green"
+      />
+      <InlineStat
+        label="Dieser Monat"
+        primary={formatDuration(metrics.monthIst)}
+        secondary={`von ${formatDuration(metrics.monthSoll)}`}
+        progressPct={monthPct}
+        tone="green"
+      />
+      <InlineStat
+        label="Stundenkonto"
+        primary={formatSignedDuration(metrics.accountBalance)}
+        secondary={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
+          day: "numeric",
+          month: "short",
+        })}`}
+        tone={accountTone}
+      />
+    </div>
+  );
+}
+
+function InlineStat({
+  label,
+  primary,
+  secondary,
+  progressPct,
+  tone,
+}: {
+  readonly label: string;
+  readonly primary: string;
+  readonly secondary?: string;
+  readonly progressPct?: number;
+  readonly tone: StatusTone;
+}) {
+  return (
+    <div className="text-center">
+      <div className="flex items-baseline justify-center gap-2">
+        <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase sm:text-[11px]">
+          {label}
+        </span>
+        {progressPct !== undefined && (
+          <span className="text-[10px] text-gray-400">
+            {Math.round(progressPct)}%
+          </span>
+        )}
+      </div>
+      <p className={`mt-1 text-base font-bold sm:text-lg ${STATUS_TEXT[tone]}`}>
+        {primary}
+      </p>
+      {secondary && (
+        <p className="mt-0.5 text-[10px] text-gray-500 sm:text-[11px]">
+          {secondary}
+        </p>
+      )}
+      {progressPct !== undefined && (
+        <div className="mx-auto mt-1.5 h-1 max-w-[180px] overflow-hidden rounded-full bg-gray-100">
+          <div
+            className={`h-full rounded-full transition-all ${STATUS_BAR[tone]}`}
+            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1093,6 +1191,82 @@ function BreakActivityLog({
   );
 }
 
+// ─── StaffStatusPanel ────────────────────────────────────────────────────────
+// Kompakte Status-Sidebar neben der Stempeluhr. Eine Card mit drei Zeilen
+// statt drei einzelner Karten: Diese Woche / Dieser Monat / Stundenkonto.
+
+type StatusTone = "green" | "amber" | "gray";
+
+const STATUS_TEXT: Record<StatusTone, string> = {
+  green: "text-[#83CD2D]",
+  amber: "text-amber-600",
+  gray: "text-gray-700",
+};
+
+const STATUS_BAR: Record<StatusTone, string> = {
+  green: "bg-[#83CD2D]",
+  amber: "bg-amber-500",
+  gray: "bg-gray-400",
+};
+
+// LeaveRequestsPlaceholder — Stub für den Urlaubs-Workflow (Resturlaub +
+// ausgehende/genehmigte/rückfrage-pending Anfragen). Wird in Tranche 4
+// (eigener Chat) durch echte Daten und Aktionen ersetzt.
+function LeaveRequestsPlaceholder() {
+  return (
+    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6 md:p-8">
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-base font-bold text-gray-900 sm:text-lg">Urlaub</h2>
+        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-medium text-gray-500">
+          Bald verfügbar
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <PlaceholderTile label="Resturlaub" value="– Tage" hint="dieses Jahr" />
+        <PlaceholderTile
+          label="Beantragt"
+          value="–"
+          hint="wartet auf Antwort"
+        />
+        <PlaceholderTile label="Genehmigt" value="–" hint="kommende Tage" />
+        <PlaceholderTile label="Rückfragen" value="–" hint="von Leitung" />
+      </div>
+      <div className="mt-5 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-gray-500">
+          Urlaubsanträge stellen, Status verfolgen und Rückfragen beantworten.
+        </p>
+        <button
+          type="button"
+          disabled
+          className="cursor-not-allowed rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-400"
+        >
+          Urlaub beantragen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PlaceholderTile({
+  label,
+  value,
+  hint,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly hint: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 p-4">
+      <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-bold text-gray-400 sm:text-xl">{value}</p>
+      <p className="mt-0.5 text-[11px] text-gray-400">{hint}</p>
+    </div>
+  );
+}
+
 // ─── WeekChart ───────────────────────────────────────────────────────────────
 
 const weekChartConfig = {
@@ -1215,7 +1389,7 @@ function WeekChart({
   );
 
   return (
-    <div className="relative flex min-h-[280px] flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] md:h-full md:min-h-0">
+    <div className="relative flex h-full min-h-[320px] flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6 md:p-8">
         <div className="mb-3 flex items-baseline justify-between sm:mb-4">
           <h2 className="text-base font-bold text-gray-900 sm:text-lg">
@@ -3703,17 +3877,9 @@ function TimeTrackingContent() {
         Zeiterfassung
       </h1>
 
-      {/* Saldo overview — same KpiCards as the admin staff-detail view. The
-          MA sees their own Soll/Ist/Saldo at a glance before anything else
-          on the page. Hidden until the schedule has loaded so we don't
-          render zeros that flash to real numbers a moment later. */}
-      {ownMetrics && (
-        <div className="mb-4 md:mb-6">
-          <KpiCards metrics={ownMetrics} />
-        </div>
-      )}
-
-      {/* Clock-in card + Week chart */}
+      {/* Action zone — Stempeluhr (mit integrierten Stats) und Wochenübersicht
+          50/50 nebeneinander. Drunter eine Placeholder-Section für den
+          Urlaubs-Workflow (kommt in eigenem Chat). */}
       <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
         <ClockInCard
           currentSession={currentSession ?? null}
@@ -3724,12 +3890,19 @@ function TimeTrackingContent() {
           onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
           onAddAbsence={() => setAbsenceModalOpen(true)}
+          metrics={ownMetrics ?? null}
         />
         <WeekChart
           history={history}
           currentSession={currentSession ?? null}
           weekOffset={weekOffset}
         />
+      </div>
+
+      {/* Urlaubs-Workflow Placeholder — Resturlaub + Anfragen-Liste. Wird in
+          Tranche 4 (eigener Chat) gefüllt. */}
+      <div className="mb-4 md:mb-6">
+        <LeaveRequestsPlaceholder />
       </div>
 
       {/* Week table */}
