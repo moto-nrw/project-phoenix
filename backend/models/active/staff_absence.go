@@ -20,11 +20,15 @@ const (
 	AbsenceTypeOther    = "other"
 )
 
-// AbsenceStatus constants
+// AbsenceStatus constants. `reported` = admin-direct entry (skips approval),
+// `requested` = vacation request pending approval, `approved`/`declined` =
+// post-decision terminal states, `canceled` = MA withdrew before decision.
 const (
-	AbsenceStatusReported = "reported"
-	AbsenceStatusApproved = "approved"
-	AbsenceStatusDeclined = "declined"
+	AbsenceStatusReported  = "reported"
+	AbsenceStatusRequested = "requested"
+	AbsenceStatusApproved  = "approved"
+	AbsenceStatusDeclined  = "declined"
+	AbsenceStatusCanceled  = "canceled"
 )
 
 // ValidAbsenceTypes lists all valid absence types
@@ -38,24 +42,37 @@ var ValidAbsenceTypes = []string{
 // ValidAbsenceStatuses lists all valid absence statuses
 var ValidAbsenceStatuses = []string{
 	AbsenceStatusReported,
+	AbsenceStatusRequested,
 	AbsenceStatusApproved,
 	AbsenceStatusDeclined,
+	AbsenceStatusCanceled,
+}
+
+// StatusCountsAsAbsent returns true if the status should be visible in the
+// staff calendar / counted towards saldo. Requested/declined/canceled rows
+// are bookkeeping only — they must not credit the soll.
+func StatusCountsAsAbsent(status string) bool {
+	return status == AbsenceStatusReported || status == AbsenceStatusApproved
 }
 
 // StaffAbsence represents a staff absence record (sick, vacation, etc.)
 type StaffAbsence struct {
 	base.Model `bun:"schema:active,table:staff_absences"`
 	base.TenantModel
-	StaffID     int64      `bun:"staff_id,notnull" json:"staff_id"`
-	AbsenceType string     `bun:"absence_type,notnull" json:"absence_type"`
-	DateStart   time.Time  `bun:"date_start,notnull,type:date" json:"date_start"`
-	DateEnd     time.Time  `bun:"date_end,notnull,type:date" json:"date_end"`
-	HalfDay     bool       `bun:"half_day,notnull,default:false" json:"half_day"`
-	Note        string     `bun:"note" json:"note,omitempty"`
-	Status      string     `bun:"status,notnull,default:'reported'" json:"status"`
-	ApprovedBy  *int64     `bun:"approved_by" json:"approved_by,omitempty"`
-	ApprovedAt  *time.Time `bun:"approved_at" json:"approved_at,omitempty"`
-	CreatedBy   int64      `bun:"created_by,notnull" json:"created_by"`
+	StaffID           int64      `bun:"staff_id,notnull" json:"staff_id"`
+	AbsenceType       string     `bun:"absence_type,notnull" json:"absence_type"`
+	DateStart         time.Time  `bun:"date_start,notnull,type:date" json:"date_start"`
+	DateEnd           time.Time  `bun:"date_end,notnull,type:date" json:"date_end"`
+	HalfDay           bool       `bun:"half_day,notnull,default:false" json:"half_day"`
+	Note              string     `bun:"note" json:"note,omitempty"`
+	Status            string     `bun:"status,notnull,default:'reported'" json:"status"`
+	ApprovedBy        *int64     `bun:"approved_by" json:"approved_by,omitempty"`
+	ApprovedAt        *time.Time `bun:"approved_at" json:"approved_at,omitempty"`
+	CreatedBy         int64      `bun:"created_by,notnull" json:"created_by"`
+	WorkingDays       *float64   `bun:"working_days" json:"working_days,omitempty"`
+	DecisionNote      string     `bun:"decision_note" json:"decision_note,omitempty"`
+	RequestedAt       time.Time  `bun:"requested_at,notnull,default:current_timestamp" json:"requested_at"`
+	SubstituteStaffID *int64     `bun:"substitute_staff_id" json:"substitute_staff_id,omitempty"`
 
 	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 }
