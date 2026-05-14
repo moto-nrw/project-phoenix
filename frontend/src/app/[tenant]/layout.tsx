@@ -13,6 +13,7 @@ interface TenantResolveResponse {
   subdomain: string;
   organization_id: number;
   organization_name: string;
+  hidden?: boolean;
   settings: TenantSettings;
   presence_mode?: string;
   student_photos_enabled?: boolean;
@@ -44,6 +45,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       subdomain: data.subdomain,
       organizationId: data.organization_id,
       organizationName: data.organization_name,
+      hidden: data.hidden === true,
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),
       studentPhotosEnabled: data.student_photos_enabled === true,

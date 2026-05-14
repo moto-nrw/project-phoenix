@@ -174,6 +174,7 @@ function buildStudentQueryParams(filters?: {
   inHouse?: boolean;
   groupId?: string;
   roomId?: string;
+  locationState?: "transit";
   page?: number;
   pageSize?: number;
   includePickupTimes?: boolean;
@@ -188,6 +189,8 @@ function buildStudentQueryParams(filters?: {
   // active group taking place in this room (#1323). Backend joins via
   // active.visits → active.groups; see api/students/list_helpers.go.
   if (filters?.roomId) params.append("room_id", filters.roomId);
+  if (filters?.locationState)
+    params.append("location_state", filters.locationState);
   if (filters?.page) params.append("page", filters.page.toString());
   if (filters?.pageSize)
     params.append("page_size", filters.pageSize.toString());
@@ -767,6 +770,7 @@ export const studentService = {
     inHouse?: boolean;
     groupId?: string;
     roomId?: string;
+    locationState?: "transit";
     page?: number;
     pageSize?: number;
     includePickupTimes?: boolean;

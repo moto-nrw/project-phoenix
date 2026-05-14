@@ -119,6 +119,9 @@ func (rs *Resource) Router() chi.Router {
 
 			// Immediate check-in for students (from home)
 			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx).Post("/student/{studentId}/checkin", rs.checkinStudent)
+
+			// Bulk assign checked-in students without a room visit to an active room session.
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx).Post("/transit/assign", rs.assignTransitStudents)
 		})
 
 		// Supervisors

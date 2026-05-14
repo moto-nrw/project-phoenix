@@ -25,6 +25,10 @@ import { useSWRAuth } from "~/lib/swr";
 import { Loading } from "~/components/ui/loading";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { RoomDetailModal } from "~/components/rooms";
+import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
+import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
+import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -209,6 +213,12 @@ function RoomsPageContent() {
     },
   );
 
+  const { data: dashboardData } = useSWRAuth<DashboardAnalytics>(
+    "dashboard-analytics",
+    fetchDashboardAnalyticsClient,
+    { refreshInterval: 5 * 60 * 1000 },
+  );
+
   const error = roomsError
     ? "Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut."
     : null;
@@ -283,6 +293,19 @@ function RoomsPageContent() {
     },
     [router, searchParams, searchTerm, buildingFilter, occupiedFilter],
   );
+
+  const handleSelectTransitRoom = useCallback(() => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (searchTerm) next.set("search", searchTerm);
+    else next.delete("search");
+    if (buildingFilter !== "all") next.set("building", buildingFilter);
+    else next.delete("building");
+    if (occupiedFilter !== "all") next.set("status", occupiedFilter);
+    else next.delete("status");
+    next.set("room", TRANSIT_ROOM_ID);
+    justPushedRef.current = true;
+    router.push(`/rooms?${next.toString()}`);
+  }, [router, searchParams, searchTerm, buildingFilter, occupiedFilter]);
 
   // After router.push commits, mark the now-current history entry as
   // "we pushed this". Stored in window.history.state so it survives
@@ -398,6 +421,10 @@ function RoomsPageContent() {
     return filters;
   }, [searchTerm, buildingFilter, occupiedFilter]);
 
+  const showTransitRoom =
+    !searchTerm || "unterwegs".includes(searchTerm.toLowerCase());
+  const transitCount = dashboardData?.studentsInTransit ?? 0;
+
   // Auth-loading: nothing to render until NextAuth resolves the session
   // (the `useSession({ required: true })` callback redirects on
   // unauthenticated). Keep the existing loader for this branch.
@@ -458,7 +485,7 @@ function RoomsPageContent() {
           jumped open when rooms loaded. */}
       {loading ? (
         <RoomsGridSkeleton />
-      ) : filteredRooms.length === 0 ? (
+      ) : filteredRooms.length === 0 && !showTransitRoom ? (
         <div className="py-12 text-center">
           <div className="flex flex-col items-center gap-4">
             <svg
@@ -486,6 +513,42 @@ function RoomsPageContent() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {showTransitRoom && (
+            <button
+              type="button"
+              onClick={handleSelectTransitRoom}
+              className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-[#D946EF]/30 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+            >
+              <div
+                className="absolute inset-0 rounded-3xl opacity-[0.04]"
+                style={{ backgroundColor: LOCATION_COLORS.TRANSIT }}
+              ></div>
+              <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+              <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-[#D946EF]/30"></div>
+
+              <div className="relative flex min-h-[180px] flex-col p-6">
+                <div className="mb-3 min-w-0">
+                  <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-[#D946EF]">
+                    Unterwegs
+                  </h3>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    Kinder ohne Raum
+                  </p>
+                </div>
+
+                <div className="flex-1 text-sm text-gray-700">
+                  <span className="font-medium">{transitCount}</span>{" "}
+                  {transitCount === 1 ? "Kind" : "Kinder"} aktuell unterwegs
+                </div>
+
+                <p className="mt-2 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-[#D946EF]">
+                  Tippen zum Zuweisen
+                </p>
+              </div>
+
+              <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-[#D946EF]/10 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+            </button>
+          )}
           {filteredRooms.map((room) => {
             const handleClick = () => handleSelectRoom(room);
             return (

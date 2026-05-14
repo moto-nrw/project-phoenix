@@ -105,6 +105,7 @@ describe("tenant-api", () => {
           subdomain: "demo",
           organization_id: 10,
           organization_name: "Org A",
+          hidden: false,
           settings: { primaryColor: "#ff0000" },
         },
       };
@@ -128,6 +129,7 @@ describe("tenant-api", () => {
         subdomain: "demo",
         organizationId: 10,
         organizationName: "Org A",
+        hidden: false,
         settings: { primaryColor: "#ff0000" },
         // Missing presence_mode on a backend response defaults to "detailed"
         // — matches backend's own safe fallback.
@@ -176,6 +178,32 @@ describe("tenant-api", () => {
       );
       const result = await resolveTenant("binary-school");
       expect(result?.presenceMode).toBe("binary");
+    });
+
+    it("maps hidden tenants from resolve response", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 3,
+          slug: "demo-ogs",
+          name: "Demo-OGS",
+          subdomain: "demo-ogs",
+          organization_id: 12,
+          organization_name: "Org C",
+          hidden: true,
+          settings: {},
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const result = await resolveTenant("demo-ogs");
+
+      expect(result?.hidden).toBe(true);
     });
 
     it("defaults unknown presence_mode values to detailed", async () => {
@@ -272,6 +300,7 @@ describe("tenant-api", () => {
         subdomain: "school-a",
         organizationId: 0,
         organizationName: "Org Alpha",
+        hidden: false,
         settings: {},
         // List endpoints don't carry per-tenant presence mode; consumers
         // call resolveTenant() once the user picks a tenant.

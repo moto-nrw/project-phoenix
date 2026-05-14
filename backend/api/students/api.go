@@ -346,6 +346,10 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Fetch students based on parameters
 	students, totalCount, err := rs.fetchStudentsForList(r, params)
 	if err != nil {
+		if errors.Is(err, ErrInvalidRequest) {
+			renderError(w, r, ErrorInvalidRequest(err))
+			return
+		}
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -404,6 +408,32 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListParams) ([]*users.Student, int, error) {
 	ctx := r.Context()
 
+	if params.locationState != "" {
+		if params.locationState != "transit" {
+			return nil, 0, ErrInvalidRequest
+		}
+		if params.roomID > 0 {
+			return nil, 0, ErrInvalidRequest
+		}
+		ids, err := rs.ActiveService.ListStudentsInTransit(ctx)
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(ids) == 0 {
+			return []*users.Student{}, 0, nil
+		}
+		if params.groupID > 0 {
+			ids, err = rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+			if err != nil {
+				return nil, 0, err
+			}
+			if len(ids) == 0 {
+				return []*users.Student{}, 0, nil
+			}
+		}
+		params.studentIDs = ids
+	}
+
 	// room_id pre-filter (#1323) — resolve students currently checked-in to
 	// any active group in the room, then push the IDs through the standard
 	// query path so school_class / guardian_name / pagination still apply.
@@ -422,17 +452,9 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		// active-group chip in the search UI. group_id lives on the Student
 		// row, so a single bulk lookup is enough.
 		if params.groupID > 0 {
-			studentMap, err := rs.StudentRepo.FindByIDs(ctx, ids)
+			filtered, err := rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
 			if err != nil {
 				return nil, 0, err
-			}
-			filtered := make([]int64, 0, len(studentMap))
-			for _, sid := range ids {
-				s, ok := studentMap[sid]
-				if !ok || s.GroupID == nil || *s.GroupID != params.groupID {
-					continue
-				}
-				filtered = append(filtered, sid)
 			}
 			if len(filtered) == 0 {
 				return []*users.Student{}, 0, nil
@@ -444,7 +466,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		// intentionally NOT cleared here even though buildBaseFilter ignores it
 		// — the room∩group intersection has already been computed via FindByIDs
 		// above, so re-applying group_id downstream would be redundant.
-	} else if params.groupID > 0 {
+	} else if params.groupID > 0 && params.locationState == "" {
 		// group-only branch keeps existing behavior
 		students, err := rs.StudentRepo.FindByGroupIDs(ctx, []int64{params.groupID})
 		if err != nil {
@@ -470,6 +492,22 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 	}
 
 	return students, totalCount, nil
+}
+
+func (rs *Resource) filterStudentIDsByGroup(ctx context.Context, studentIDs []int64, groupID int64) ([]int64, error) {
+	studentMap, err := rs.StudentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]int64, 0, len(studentMap))
+	for _, sid := range studentIDs {
+		student, ok := studentMap[sid]
+		if !ok || student.GroupID == nil || *student.GroupID != groupID {
+			continue
+		}
+		filtered = append(filtered, sid)
+	}
+	return filtered, nil
 }
 
 // buildStudentResponses builds filtered student responses

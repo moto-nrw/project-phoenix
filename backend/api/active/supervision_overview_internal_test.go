@@ -149,6 +149,12 @@ func (s *stubActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ 
 func (s *stubActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*activeModel.Visit, error) {
 	return nil, nil
 }
+func (s *stubActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (s *stubActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
+	return nil, nil
+}
 func (s *stubActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
