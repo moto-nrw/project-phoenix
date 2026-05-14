@@ -267,6 +267,52 @@ class TimeTrackingService {
       "Failed to delete absence",
     );
   }
+
+  async requestVacation(req: VacationRequestPayload): Promise<StaffAbsence> {
+    const result = await this.request<StaffAbsence>(
+      "/vacation/request",
+      "POST",
+      "Urlaubsantrag konnte nicht erstellt werden",
+      req,
+    );
+    return mapStaffAbsenceResponse(result.data as never);
+  }
+
+  async cancelAbsence(id: string): Promise<void> {
+    await this.requestVoid(
+      `/absences/${id}/cancel`,
+      "POST",
+      "Antrag konnte nicht storniert werden",
+    );
+  }
+
+  async getVacationQuota(year?: number): Promise<VacationQuotaSummary> {
+    const params = year ? `?year=${year}` : "";
+    const result = await this.request<VacationQuotaSummary>(
+      `/vacation/quota${params}`,
+      "GET",
+      "Urlaubskontingent konnte nicht geladen werden",
+    );
+    return result.data;
+  }
+}
+
+export interface VacationRequestPayload {
+  date_start: string;
+  date_end: string;
+  half_day: boolean;
+  note?: string;
+  substitute_staff_id?: number;
+}
+
+export interface VacationQuotaSummary {
+  staff_id: number;
+  year: number;
+  entitled_days: number;
+  carryover_days: number;
+  taken_days: number;
+  reserved_days: number;
+  remaining_days: number;
 }
 
 export const timeTrackingService = new TimeTrackingService();

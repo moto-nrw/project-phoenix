@@ -85,6 +85,10 @@ export interface BackendStaffAbsence {
   created_at: string;
   updated_at: string;
   duration_days: number;
+  working_days?: number | null;
+  decision_note?: string;
+  requested_at?: string;
+  substitute_staff_id?: number | null;
 }
 
 // Frontend absence type
@@ -105,6 +109,10 @@ export interface StaffAbsence {
   createdAt: string;
   updatedAt: string;
   durationDays: number;
+  workingDays: number | null;
+  decisionNote: string;
+  requestedAt: string;
+  substituteStaffId: string | null;
 }
 
 export const absenceTypeLabels: Record<AbsenceType, string> = {
@@ -139,6 +147,10 @@ export function mapStaffAbsenceResponse(
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     durationDays: data.duration_days,
+    workingDays: data.working_days ?? null,
+    decisionNote: data.decision_note ?? "",
+    requestedAt: data.requested_at ?? data.created_at,
+    substituteStaffId: data.substitute_staff_id?.toString() ?? null,
   };
 }
 
