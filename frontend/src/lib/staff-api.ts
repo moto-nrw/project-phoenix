@@ -725,6 +725,19 @@ import {
   type WorkSessionEdit,
 } from "./time-tracking-helpers";
 
+// Payload shape for admin edits and nachgetragene sessions. The backend
+// keys (date / check_in_time / ...) match SessionUpdateRequest and
+// AdminCreateSessionRequest one-to-one — the route handler decides which
+// it is via the HTTP verb (PUT vs POST). Notes is required for both flows.
+export interface AdminSessionPayload {
+  date: string; // YYYY-MM-DD
+  check_in_time: string; // ISO 8601
+  check_out_time: string; // ISO 8601
+  break_minutes: number;
+  status: "present" | "home_office";
+  notes: string;
+}
+
 class StaffSessionEditsService {
   async getEdits(
     staffId: string,
@@ -743,9 +756,57 @@ class StaffSessionEditsService {
   }
 }
 
+class StaffSessionService {
+  // PUT — corrects an existing session on behalf of the named staff member.
+  // Backend route: /api/staff/{staffId}/time-tracking/sessions/{sessionId}
+  async updateSession(
+    staffId: string,
+    sessionId: string,
+    payload: AdminSessionPayload,
+  ): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/sessions/${sessionId}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        body || `Failed to update session: ${response.statusText}`,
+      );
+    }
+  }
+
+  // POST — admin "nachträgt" a session for a staff member who forgot to
+  // stamp. Backend route: /api/staff/{staffId}/time-tracking/sessions
+  async createSession(
+    staffId: string,
+    payload: AdminSessionPayload,
+  ): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/sessions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        body || `Failed to create session: ${response.statusText}`,
+      );
+    }
+  }
+}
+
 export const staffService = new StaffService();
 export const staffScheduleService = new StaffScheduleService();
 export const workTimeModelService = new WorkTimeModelService();
 export const staffHistoryService = new StaffHistoryService();
 export const staffAbsenceService = new StaffAbsenceService();
 export const staffSessionEditsService = new StaffSessionEditsService();
+export const staffSessionService = new StaffSessionService();

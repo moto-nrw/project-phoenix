@@ -2,6 +2,7 @@
 
 import { ChevronRight, SquarePen } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { useSWRConfig } from "swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { createLogger } from "~/lib/logger";
@@ -18,6 +19,10 @@ import {
 import type { WorkSessionEdit } from "~/lib/time-tracking-helpers";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 
+import {
+  AdminSessionEditModal,
+  type AdminEditMode,
+} from "./admin-session-edit-modal";
 import { formatSignedDuration } from "./staff-time-views";
 
 const logger = createLogger({ component: "StaffSessionTable" });
@@ -116,6 +121,27 @@ export function StaffSessionTable({
   // a modal here — all per-day numbers (Soll, Ist, Saldo, …) are already
   // visible in the row, so a modal would only duplicate them.
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+  // Edit/nachtragen modal state. Lifted into the table because both the
+  // SquarePen action button and the "Weitere Änderung vornehmen" button
+  // inside the expanded audit accordion open the same modal.
+  const [editModal, setEditModal] = useState<{
+    mode: AdminEditMode;
+    date: Date;
+    session: StaffHistorySession | null;
+  } | null>(null);
+
+  // SWR mutate — used after a successful save to refresh both the visible
+  // window (week/month table) and the cumulative range (KpiCards). A loose
+  // prefix match avoids forcing callers to thread mutate keys through props.
+  const { mutate } = useSWRConfig();
+  const handleSaved = () => {
+    void mutate(
+      (key) =>
+        typeof key === "string" &&
+        (key.startsWith("staff-history-") || key.startsWith("staff-absences-")),
+    );
+  };
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-100">
@@ -236,12 +262,10 @@ export function StaffSessionTable({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Admin edit / nachtragen flow ships in Tranche 1b.
-                            logger.info("admin_edit_action_clicked", {
-                              staff_id: staffId,
-                              session_id: session?.id ?? null,
+                            setEditModal({
                               mode: session == null ? "nachtragen" : "edit",
-                              date: key,
+                              date: day,
+                              session: session ?? null,
                             });
                           }}
                           aria-label={
@@ -270,18 +294,12 @@ export function StaffSessionTable({
                         sessionId={session.id}
                         onEdit={
                           isAdminView
-                            ? () => {
-                                // Admin edit flow ships in Tranche 1b. The
-                                // button is wired up here so the audit-log
-                                // UX matches the MA-side without empty
-                                // placeholder slots; clicking will surface
-                                // a "kommt in Kürze" toast until the modal
-                                // lands.
-                                logger.info("admin_edit_clicked", {
-                                  staff_id: staffId,
-                                  session_id: session.id,
-                                });
-                              }
+                            ? () =>
+                                setEditModal({
+                                  mode: "edit",
+                                  date: day,
+                                  session,
+                                })
                             : undefined
                         }
                       />
@@ -297,6 +315,17 @@ export function StaffSessionTable({
         <p className="border-t border-gray-100 bg-gray-50 px-4 py-2 text-xs text-gray-500">
           Eigene Sessions können in der Zeiterfassung-Seite editiert werden.
         </p>
+      )}
+      {editModal && (
+        <AdminSessionEditModal
+          isOpen
+          mode={editModal.mode}
+          staffId={staffId}
+          date={editModal.date}
+          session={editModal.session}
+          onClose={() => setEditModal(null)}
+          onSaved={handleSaved}
+        />
       )}
     </div>
   );
