@@ -83,13 +83,8 @@ export function KpiCards({
   const monthPct =
     metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
 
-  const monthDeltaColor = getDeltaStatus(metrics.monthDelta, metrics.monthSoll);
-  const accountColor: "green" | "amber" | "gray" =
-    metrics.accountBalance > 0
-      ? "amber"
-      : metrics.accountBalance < -60
-        ? "gray"
-        : "green";
+  const monthDeltaColor = getDeltaStatus(metrics.monthDelta);
+  const accountColor = getDeltaStatus(metrics.accountBalance);
 
   // Localized "seit 13. Mai 2026" hint under the Stundenkonto card so users
   // see *which* anchor the cumulative balance is based on. Without it the
@@ -108,7 +103,7 @@ export function KpiCards({
         primary={formatDuration(metrics.weekIst)}
         secondary={`von ${formatDuration(metrics.weekSoll)} Soll`}
         progressPct={weekPct}
-        color={getDeltaStatus(metrics.weekDelta, metrics.weekSoll)}
+        color={getDeltaStatus(metrics.weekDelta)}
       />
       <KpiCard
         label="Dieser Monat"

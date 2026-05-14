@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { ChevronLeft, ChevronRight, Download, SquarePen } from "lucide-react";
+import { ChevronRight, Download, SquarePen } from "lucide-react";
 import { Loading } from "~/components/ui/loading";
 import {
   type ChartConfig,
@@ -22,6 +22,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
+import { ExportRangeForm } from "~/components/ui/export-range-form";
 import { Modal } from "~/components/ui/modal";
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { useToast } from "~/contexts/ToastContext";
@@ -1283,24 +1284,17 @@ function WeekChart({
 
 function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
   const monday = weekDays[0];
-  const sunday = weekDays[6];
-  const [rangeFrom, setRangeFrom] = useState<Date | null>(null);
-  const [rangeTo, setRangeTo] = useState<Date | null>(null);
   const [open, setOpen] = useState(false);
-  const [viewMonth, setViewMonth] = useState(() => new Date());
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Pre-fill with current week when dropdown opens
-  useEffect(() => {
-    if (open && monday && sunday) {
-      setRangeFrom(monday);
-      setRangeTo(sunday);
-      setViewMonth(new Date(monday));
-    }
-  }, [open, monday, sunday]);
+  // Anchor for the "Gesamt" preset — staff member's first tracked week.
+  // Falls back to start of the current year when no Monday is loaded yet.
+  const anchor = useMemo(() => {
+    if (monday) return monday;
+    return new Date(new Date().getFullYear(), 0, 1);
+  }, [monday]);
 
-  // Close on outside click or scroll
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
@@ -1323,40 +1317,13 @@ function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
     };
   }, [open]);
 
-  const handleExport = (format: "csv" | "xlsx") => {
-    if (!rangeFrom || !rangeTo) return;
-    const from = toISODate(rangeFrom);
-    const to = toISODate(rangeTo);
-    globalThis.location.href = `/api/time-tracking/export?from=${from}&to=${to}&format=${format}`;
-    setOpen(false);
-  };
-
-  const handleDayClick = (day: Date) => {
-    if (!rangeFrom || (rangeFrom && rangeTo)) {
-      // Start a new range
-      setRangeFrom(day);
-      setRangeTo(null);
-    } else if (isBeforeDay(day, rangeFrom)) {
-      // Complete the range (selected day is before start)
-      setRangeTo(rangeFrom);
-      setRangeFrom(day);
-    } else {
-      // Complete the range (selected day is after start)
-      setRangeTo(day);
-    }
-  };
-
-  const hasRange = rangeFrom && rangeTo;
-
-  // Position the portal panel below the trigger button
-  // Using position: fixed, so coordinates are relative to viewport (no scrollY/scrollX needed)
   const [pos, setPos] = useState({ top: 0, right: 0 });
   useEffect(() => {
     if (!open || !triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     setPos({
-      top: rect.top,
-      right: globalThis.window.innerWidth - rect.left + 8,
+      top: rect.top + rect.height + 8,
+      right: globalThis.window.innerWidth - rect.right,
     });
   }, [open]);
 
@@ -1375,210 +1342,17 @@ function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
           <div
             ref={panelRef}
             style={{ top: pos.top, right: pos.right }}
-            className="fixed z-50 w-[320px] rounded-xl border border-gray-200 bg-white shadow-lg"
+            className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
           >
-            <div className="p-4 pb-2">
-              <p className="text-sm font-medium text-gray-700">
-                Zeitraum exportieren
-              </p>
-              {(() => {
-                if (hasRange) {
-                  return (
-                    <p className="mt-1 text-xs text-gray-500">
-                      {formatDateGerman(rangeFrom)} –{" "}
-                      {formatDateGerman(rangeTo)}
-                    </p>
-                  );
-                }
-                if (rangeFrom) {
-                  return (
-                    <p className="mt-1 text-xs text-gray-500">
-                      {formatDateGerman(rangeFrom)} – …
-                    </p>
-                  );
-                }
-                return null;
-              })()}
-            </div>
-            <MiniCalendar
-              viewMonth={viewMonth}
-              onViewMonthChange={setViewMonth}
-              rangeFrom={rangeFrom}
-              rangeTo={rangeTo}
-              onDayClick={handleDayClick}
+            <ExportRangeForm
+              exportUrl="/api/time-tracking/export"
+              anchor={anchor}
+              onDone={() => setOpen(false)}
             />
-            <div className="flex gap-2 border-t border-gray-100 p-4 pt-3">
-              <button
-                onClick={() => handleExport("csv")}
-                disabled={!hasRange}
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-              >
-                CSV
-              </button>
-              <button
-                onClick={() => handleExport("xlsx")}
-                disabled={!hasRange}
-                className="flex-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-              >
-                Excel
-              </button>
-            </div>
           </div>,
           document.body,
         )}
     </>
-  );
-}
-
-// ─── MiniCalendar ─────────────────────────────────────────────────────────────
-
-const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const MONTH_NAMES = [
-  "Januar",
-  "Februar",
-  "März",
-  "April",
-  "Mai",
-  "Juni",
-  "Juli",
-  "August",
-  "September",
-  "Oktober",
-  "November",
-  "Dezember",
-];
-
-function getDaysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-/** Monday-based day-of-week (0=Mon … 6=Sun) */
-function mondayIndex(date: Date): number {
-  return (date.getDay() + 6) % 7;
-}
-
-function MiniCalendar({
-  viewMonth,
-  onViewMonthChange,
-  rangeFrom,
-  rangeTo,
-  onDayClick,
-}: {
-  readonly viewMonth: Date;
-  readonly onViewMonthChange: (d: Date) => void;
-  readonly rangeFrom: Date | null;
-  readonly rangeTo: Date | null;
-  readonly onDayClick: (d: Date) => void;
-}) {
-  const today = new Date();
-  const year = viewMonth.getFullYear();
-  const month = viewMonth.getMonth();
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDayOffset = mondayIndex(new Date(year, month, 1));
-
-  const prevMonth = () => onViewMonthChange(new Date(year, month - 1, 1));
-  const nextMonth = () => onViewMonthChange(new Date(year, month + 1, 1));
-
-  // Build grid cells: leading blanks + day numbers
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDayOffset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  const isInRange = (day: Date) => {
-    if (!rangeFrom) return false;
-    if (!rangeTo) return isSameDay(day, rangeFrom);
-    return (
-      (isSameDay(day, rangeFrom) || isBeforeDay(rangeFrom, day)) &&
-      (isSameDay(day, rangeTo) || isBeforeDay(day, rangeTo))
-    );
-  };
-
-  const isRangeStart = (day: Date) => rangeFrom && isSameDay(day, rangeFrom);
-  const isRangeEnd = (day: Date) => rangeTo && isSameDay(day, rangeTo);
-  const isFuture = (day: Date) => isBeforeDay(today, day);
-
-  return (
-    <div className="px-4 pb-2">
-      {/* Month navigation */}
-      <div className="mb-2 flex items-center justify-between">
-        <button
-          onClick={prevMonth}
-          className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-          aria-label="Vorheriger Monat"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-medium text-gray-800">
-          {MONTH_NAMES[month]} {year}
-        </span>
-        <button
-          onClick={nextMonth}
-          className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-          aria-label="Nächster Monat"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Weekday header */}
-      <div className="grid grid-cols-7">
-        {WEEKDAY_LABELS.map((label) => (
-          <div
-            key={label}
-            className="flex h-9 items-center justify-center text-xs font-medium text-gray-400"
-          >
-            {label}
-          </div>
-        ))}
-
-        {/* Day cells */}
-        {cells.map((dayNum, idx) => {
-          if (dayNum === null) {
-            return <div key={`blank-${String(idx)}`} className="h-9" />;
-          }
-
-          const date = new Date(year, month, dayNum);
-          const disabled = isFuture(date);
-          const inRange = isInRange(date);
-          const isStart = isRangeStart(date);
-          const isEnd = isRangeEnd(date);
-          const isToday = isSameDay(date, today);
-
-          let cellBg = "";
-          if (isStart || isEnd) {
-            cellBg = "bg-gray-900 text-white";
-          } else if (inRange) {
-            cellBg = "bg-gray-100 text-gray-800";
-          }
-
-          // Rounding for range edges
-          let rounding = "rounded-md";
-          if (isStart && !isEnd) rounding = "rounded-l-md";
-          else if (isEnd && !isStart) rounding = "rounded-r-md";
-          else if (inRange && !isStart && !isEnd) rounding = "rounded-none";
-
-          // Determine text/hover styles
-          let interactionClass = "";
-          if (disabled) {
-            interactionClass = "cursor-not-allowed text-gray-300";
-          } else if (!inRange) {
-            interactionClass = "text-gray-700 hover:bg-gray-100";
-          }
-
-          return (
-            <button
-              key={dayNum}
-              type="button"
-              disabled={disabled}
-              onClick={() => onDayClick(date)}
-              className={`flex h-9 items-center justify-center text-sm transition-colors ${rounding} ${cellBg} ${interactionClass} ${isToday && !isStart && !isEnd ? "font-bold" : ""}`}
-            >
-              {dayNum}
-            </button>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -3902,7 +3676,7 @@ function TimeTrackingContent() {
       <Modal
         isOpen={pendingManualEditCheckIn !== null}
         onClose={handleClosePendingManualEditCheckIn}
-        title="Session manuell bearbeitet"
+        title="Arbeitszeit manuell bearbeitet"
         footer={
           <div className="flex w-full gap-3">
             <button
@@ -3947,8 +3721,9 @@ function TimeTrackingContent() {
             </svg>
           </div>
           <p className="mt-2 text-gray-600">
-            Du hast diese Session manuell bearbeitet. Beim erneuten Einstempeln
-            wird die Ausstempelzeit zurückgesetzt. Trotzdem einstempeln?
+            Du hast diese Arbeitszeit manuell bearbeitet. Beim erneuten
+            Einstempeln wird die Ausstempelzeit zurückgesetzt. Trotzdem
+            einstempeln?
           </p>
         </div>
       </Modal>

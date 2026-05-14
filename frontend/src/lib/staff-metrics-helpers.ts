@@ -308,9 +308,16 @@ export function computeStaffMetrics(
 
   const weekStart = startOfWeek(today);
   const weekEnd = endOfWeek(today);
-  // Soll for week stops at today (no future credit)
+  // weekSoll = full contracted week (filtered by validFrom). weekSollProrated
+  // = only days up to today, used for the delta so a Tuesday afternoon does
+  // not read "−30h Minusstunden" just because Wed-Fri have not happened yet.
   const weekSollEnd = today < weekEnd ? today : weekEnd;
-  const weekSoll = computeSollForRange(schedule, weekStart, weekSollEnd);
+  const weekSoll = computeSollForRange(schedule, weekStart, weekEnd);
+  const weekSollProrated = computeSollForRange(
+    schedule,
+    weekStart,
+    weekSollEnd,
+  );
   const weekIstSessions = computeIstForRange(sessions, weekStart, weekEnd);
   const weekIstAbsence = computeAbsenceCreditForRange(
     schedule,
@@ -319,12 +326,17 @@ export function computeStaffMetrics(
     weekSollEnd,
   );
   const weekIst = weekIstSessions + weekIstAbsence;
-  const weekDelta = weekIst - weekSoll;
+  const weekDelta = weekIst - weekSollProrated;
 
   const monthStart = startOfMonth(today);
   const monthEnd = endOfMonth(today);
   const monthSollEnd = today < monthEnd ? today : monthEnd;
-  const monthSoll = computeSollForRange(schedule, monthStart, monthSollEnd);
+  const monthSoll = computeSollForRange(schedule, monthStart, monthEnd);
+  const monthSollProrated = computeSollForRange(
+    schedule,
+    monthStart,
+    monthSollEnd,
+  );
   const monthIstSessions = computeIstForRange(sessions, monthStart, monthEnd);
   const monthIstAbsence = computeAbsenceCreditForRange(
     schedule,
@@ -333,7 +345,7 @@ export function computeStaffMetrics(
     monthSollEnd,
   );
   const monthIst = monthIstSessions + monthIstAbsence;
-  const monthDelta = monthIst - monthSoll;
+  const monthDelta = monthIst - monthSollProrated;
 
   // Stundenkonto: starts at the schedule's validFrom (or Jan 1 of the current
   // year as fallback when no schedule exists yet). Anything before that date
@@ -365,16 +377,12 @@ export function computeStaffMetrics(
   };
 }
 
-/**
- * Ampel color for a delta. Green if within ±5% of target (or target 0),
- * amber if positive (overtime), gray if negative (undertime).
- */
+// Ampel color for a delta. Fixed 15-min tolerance, target-agnostic.
 export function getDeltaStatus(
   delta: number,
-  target: number,
+  _target?: number,
 ): "green" | "amber" | "gray" {
-  if (target === 0) return delta > 0 ? "amber" : "gray";
-  const threshold = Math.max(15, target * 0.05); // at least 15min tolerance
+  const threshold = 15;
   if (Math.abs(delta) <= threshold) return "green";
   if (delta > 0) return "amber";
   return "gray";

@@ -122,6 +122,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Time tracking history for a specific staff member (admin read)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
 		// Audit trail of a single work session, admin-facing. The MA-side
 		// /api/time-tracking/{id}/edits enforces session-staff ownership
 		// against the JWT subject; here the route guarantees the session
@@ -1852,6 +1853,63 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, historyResp, "Staff session history retrieved successfully")
+}
+
+// exportStaffSessions handles GET /api/staff/{id}/time-tracking/export?from=...&to=...&format=csv|xlsx
+func (rs *Resource) exportStaffSessions(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return
+	}
+	from, err := time.Parse(common.DateFormatISO, fromStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return
+	}
+	to, err := time.Parse(common.DateFormatISO, toStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	format := r.URL.Query().Get("format")
+	if format != "csv" && format != "xlsx" {
+		format = "csv"
+	}
+
+	fileBytes, filename, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
+	if err != nil {
+		rs.getLogger().Error("failed to export staff sessions",
+			"staff_id", staffID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	switch format {
+	case "xlsx":
+		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	default:
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	w.Header().Set("Content-Length", strconv.Itoa(len(fileBytes)))
+	if _, err := w.Write(fileBytes); err != nil {
+		rs.getLogger().Error("failed to write export response", "error", err.Error())
+	}
 }
 
 // resolveEditorStaffID maps the JWT account id to a staff id — the staff

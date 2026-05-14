@@ -10,17 +10,20 @@ import {
 } from "~/lib/staff-api";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
 import {
+  computeStaffMetrics,
   endOfMonth,
   endOfWeek,
   startOfMonth,
   startOfWeek,
+  startOfYear,
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
+import { StaffExportButton } from "./staff-export-button";
 import { StaffSessionTable } from "./staff-session-table";
-import { ViewToggle, type ViewMode } from "./staff-time-views";
+import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
 
 // Zeiterfassung tab. Day-row table comparing Soll vs Ist for each day in
 // the visible window (week or month). Click on a row opens a read-only
@@ -39,6 +42,41 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   const { data: schedule, isLoading: scheduleLoading } = useSWRAuth(
     `staff-schedule-${staffId}`,
     () => staffScheduleService.getSchedule(staffId),
+  );
+
+  // KPI cards run on the cumulative range (schedule.validFrom or Jan 1 → today),
+  // independent of which week/month the table is showing. Anchored here so the
+  // numbers stay stable as the admin scrolls through past weeks below.
+  const accountAnchor = useMemo(() => {
+    const vf = schedule?.validFrom ?? "";
+    if (vf.length >= 10) {
+      const [y, m, d] = vf.slice(0, 10).split("-").map(Number);
+      if (y && m && d) return new Date(y, m - 1, d);
+    }
+    return startOfYear(today);
+  }, [schedule?.validFrom, today]);
+  const accountFromKey = toDateKey(accountAnchor);
+  const accountToKey = toDateKey(today);
+  const { data: accountSessions } = useSWRAuth<StaffHistorySession[]>(
+    `staff-history-account-${staffId}-${accountFromKey}-${accountToKey}`,
+    () => staffHistoryService.getHistory(staffId, accountFromKey, accountToKey),
+  );
+  const { data: accountAbsences } = useSWRAuth<StaffAbsenceRow[]>(
+    `staff-absences-account-${staffId}-${accountFromKey}-${accountToKey}`,
+    () =>
+      staffAbsenceService.getAbsences(staffId, accountFromKey, accountToKey),
+  );
+  const metrics = useMemo(
+    () =>
+      schedule
+        ? computeStaffMetrics(
+            schedule,
+            accountSessions ?? [],
+            accountAbsences ?? [],
+            today,
+          )
+        : null,
+    [schedule, accountSessions, accountAbsences, today],
   );
 
   const visibleFrom = useMemo(
@@ -109,12 +147,20 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
 
   return (
     <div className="space-y-5">
+      {metrics && <KpiCards metrics={metrics} />}
+
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
             Zeiterfassung
           </h3>
-          <ViewToggle value={viewMode} onChange={setViewMode} />
+          <div className="flex items-center gap-2">
+            <ViewToggle value={viewMode} onChange={setViewMode} />
+            <StaffExportButton
+              staffId={staffId}
+              yearStart={startOfYear(today)}
+            />
+          </div>
         </div>
 
         <RangeNav
