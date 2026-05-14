@@ -118,6 +118,9 @@ func TestAnnouncementTargeting_GetUnreadForUser_GlobalVisibleToAll(t *testing.T)
 
 	operator := createTestOperator(t, db, "targeting-global@example.com", "Global Test")
 	accountID := createTestAccount(t, db, "user-global@example.com")
+	orgID := createTestOrganization(t, db, "Org Global Targeting")
+	schoolID := createTestSchool(t, db, "School Global Targeting", orgID)
+	createTestAccountTenant(t, db, accountID, schoolID)
 
 	// Create a global announcement (empty targeting)
 	announcement := &platformModels.Announcement{
@@ -138,12 +141,12 @@ func TestAnnouncementTargeting_GetUnreadForUser_GlobalVisibleToAll(t *testing.T)
 	defer cleanupTargetingTestData(t, db,
 		[]int64{announcement.ID},
 		[]int64{accountID},
-		nil, nil,
+		[]int64{schoolID}, []int64{orgID},
 	)
 	defer cleanupTestOperator(t, db, operator.ID)
 
-	// Any user should see this regardless of tenant/org
-	unread, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{}, 999, 999)
+	// Global announcements are visible in a valid tenant context.
+	unread, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{}, schoolID, orgID)
 	require.NoError(t, err)
 	assert.Len(t, unread, 1)
 	assert.Equal(t, announcement.ID, unread[0].ID)
