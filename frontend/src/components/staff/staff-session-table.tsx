@@ -314,7 +314,8 @@ export function StaffSessionTable({
       </table>
       {!isAdminView && (
         <p className="border-t border-gray-100 bg-gray-50 px-4 py-2 text-xs text-gray-500">
-          Eigene Sessions können in der Zeiterfassung-Seite editiert werden.
+          Eigene Arbeitszeiten können in der Zeiterfassung-Seite bearbeitet
+          werden.
         </p>
       )}
       {editModal && (
