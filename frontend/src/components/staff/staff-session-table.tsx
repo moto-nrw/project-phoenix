@@ -132,14 +132,15 @@ export function StaffSessionTable({
   } | null>(null);
 
   // SWR mutate — used after a successful save to refresh both the visible
-  // window (week/month table) and the cumulative range (KpiCards). A loose
-  // prefix match avoids forcing callers to thread mutate keys through props.
+  // window (week/month table) and the cumulative range (KpiCards). useSWRAuth
+  // prefixes keys with the tenant slug ("phoenix:staff-history-…"), so a
+  // plain startsWith match would never fire — we use includes instead.
   const { mutate } = useSWRConfig();
   const handleSaved = () => {
     void mutate(
       (key) =>
         typeof key === "string" &&
-        (key.startsWith("staff-history-") || key.startsWith("staff-absences-")),
+        (key.includes("staff-history-") || key.includes("staff-absences-")),
     );
   };
 

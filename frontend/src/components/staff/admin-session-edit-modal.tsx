@@ -39,8 +39,6 @@ export function AdminSessionEditModal({
   onClose,
   onSaved,
 }: AdminSessionEditModalProps) {
-  const dateKey = toDateKey(date);
-
   // Initial values come from the session in edit mode, sensible defaults in
   // nachtragen mode (08:00–16:00, 30min Pause, vor Ort).
   const initial = useMemo(() => {
@@ -62,7 +60,13 @@ export function AdminSessionEditModal({
 
   const [checkIn, setCheckIn] = useState(initial.checkIn);
   const [checkOut, setCheckOut] = useState(initial.checkOut);
-  const [breakMinutes, setBreakMinutes] = useState(initial.breakMinutes);
+  // Pause is kept as a raw string so the user can clear the field while
+  // typing ("30" → "" → "45"). A typed `number` state would snap empty
+  // input back to 0 because Number("") === 0, blocking the natural delete-
+  // then-retype flow. We parse on submit.
+  const [breakMinutesStr, setBreakMinutesStr] = useState(
+    String(initial.breakMinutes),
+  );
   const [status, setStatus] = useState<"present" | "home_office">(
     initial.status,
   );
@@ -77,7 +81,7 @@ export function AdminSessionEditModal({
     if (!isOpen) return;
     setCheckIn(initial.checkIn);
     setCheckOut(initial.checkOut);
-    setBreakMinutes(initial.breakMinutes);
+    setBreakMinutesStr(String(initial.breakMinutes));
     setStatus(initial.status);
     setNotes("");
     setError(null);
@@ -85,6 +89,8 @@ export function AdminSessionEditModal({
 
   const notesValid = notes.trim().length > 0;
   const timesValid = checkIn < checkOut;
+  const breakMinutes = parseBreakMinutes(breakMinutesStr);
+  const breakValid = breakMinutes !== null;
 
   const handleSubmit = async () => {
     setError(null);
@@ -96,14 +102,25 @@ export function AdminSessionEditModal({
       setError("Check-out muss nach Check-in liegen.");
       return;
     }
+    if (!breakValid || breakMinutes === null) {
+      setError("Pause muss eine ganze Zahl ≥ 0 sein.");
+      return;
+    }
 
     setIsSaving(true);
     try {
+      // The backend decodes all three time fields with the same time.Time
+      // unmarshaller (RFC3339). For `date` we MUST send UTC midnight rather
+      // than local midnight — otherwise Berlin→UTC shifts a day earlier
+      // (14.05 00:00 Berlin = 13.05 22:00 UTC) and the DATE column ends up
+      // on the wrong calendar day. Check-in/out are TIMESTAMPTZ so the
+      // local-time conversion is fine for those.
+      const dateISO = toUTCDateISO(date);
       const checkInISO = combineDateAndTime(date, checkIn);
       const checkOutISO = combineDateAndTime(date, checkOut);
       if (mode === "edit" && session?.id != null) {
         await staffSessionService.updateSession(staffId, String(session.id), {
-          date: dateKey,
+          date: dateISO,
           check_in_time: checkInISO,
           check_out_time: checkOutISO,
           break_minutes: breakMinutes,
@@ -112,7 +129,7 @@ export function AdminSessionEditModal({
         });
       } else {
         await staffSessionService.createSession(staffId, {
-          date: dateKey,
+          date: dateISO,
           check_in_time: checkInISO,
           check_out_time: checkOutISO,
           break_minutes: breakMinutes,
@@ -154,7 +171,7 @@ export function AdminSessionEditModal({
       <button
         type="button"
         onClick={handleSubmit}
-        disabled={isSaving || !notesValid || !timesValid}
+        disabled={isSaving || !notesValid || !timesValid || !breakValid}
         className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#70b525] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving
@@ -193,22 +210,42 @@ export function AdminSessionEditModal({
               type="number"
               min={0}
               max={300}
-              value={breakMinutes}
-              onChange={(e) => setBreakMinutes(Number(e.target.value || 0))}
+              inputMode="numeric"
+              value={breakMinutesStr}
+              onChange={(e) => setBreakMinutesStr(e.target.value)}
               className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
             />
           </Field>
           <Field label="Status">
-            <select
-              value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as "present" | "home_office")
-              }
-              className="w-full rounded-md border border-gray-200 px-3 py-2 focus:border-[#83CD2D] focus:outline-none"
-            >
-              <option value="present">Vor Ort</option>
-              <option value="home_office">Homeoffice</option>
-            </select>
+            <div className="relative">
+              <select
+                value={status}
+                onChange={(e) =>
+                  setStatus(e.target.value as "present" | "home_office")
+                }
+                className="w-full appearance-none rounded-md border border-gray-200 px-3 py-2 pr-10 focus:border-[#83CD2D] focus:outline-none"
+              >
+                <option value="present">Vor Ort</option>
+                <option value="home_office">Homeoffice</option>
+              </select>
+              {/* Custom chevron — the native select arrow renders far to the
+                  right on macOS/Webkit, especially on wide controls. We hide
+                  it via appearance-none and draw our own at a sane offset.
+                  Matches the pattern in components/ui/database/database-form. */}
+              <svg
+                className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
           </Field>
         </div>
         <Field label="Begründung *">
@@ -227,7 +264,7 @@ export function AdminSessionEditModal({
         )}
         <p className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
           Diese Änderung wird im Audit-Log mit deinem Namen und der Begründung
-          festgehalten (BAG-Anforderung Verlässlichkeit).
+          festgehalten.
         </p>
       </div>
     </Modal>
@@ -251,13 +288,6 @@ function Field({
   );
 }
 
-function toDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 function formatLongDate(date: Date): string {
   return date.toLocaleDateString("de-DE", {
     weekday: "long",
@@ -272,6 +302,30 @@ function extractTime(iso: string | null): string | null {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+// Empty string is intentionally rejected (the field is required); a string
+// that doesn't parse as a non-negative integer is also rejected. Returning
+// null lets the caller surface a friendly inline error instead of letting
+// NaN silently leak into the request body.
+function parseBreakMinutes(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 300) {
+    return null;
+  }
+  return n;
+}
+
+// Returns "YYYY-MM-DDT00:00:00.000Z" for the given calendar day. Uses the
+// date's local Y/M/D components so a Date created in Berlin still serialises
+// to the same Y/M/D — we don't want the rendered day to drift across UTC.
+function toUTCDateISO(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}T00:00:00.000Z`;
 }
 
 // Build an RFC3339 timestamp for the given calendar day + HH:MM (local time).
