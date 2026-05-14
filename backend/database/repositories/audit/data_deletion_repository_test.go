@@ -42,8 +42,9 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates manual deletion record", func(t *testing.T) {
+		studentID := student.ID
 		deletion := &audit.DataDeletion{
-			StudentID:      student.ID,
+			StudentID:      &studentID,
 			DeletionType:   audit.DeletionTypeManual,
 			RecordsDeleted: 5,
 			DeletionReason: "Parent requested data deletion",
@@ -106,7 +107,8 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 		found, err := repo.FindByID(ctx, deletion.ID)
 		require.NoError(t, err)
 		assert.Equal(t, deletion.ID, found.ID)
-		assert.Equal(t, student.ID, found.StudentID)
+		require.NotNil(t, found.StudentID)
+		assert.Equal(t, student.ID, *found.StudentID)
 	})
 
 	t.Run("returns error for non-existent deletion", func(t *testing.T) {
@@ -148,7 +150,8 @@ func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 		assert.Len(t, deletions, 2)
 
 		for _, d := range deletions {
-			assert.Equal(t, student1.ID, d.StudentID)
+			require.NotNil(t, d.StudentID)
+			assert.Equal(t, student1.ID, *d.StudentID)
 		}
 	})
 }

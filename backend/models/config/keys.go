@@ -13,6 +13,11 @@ const (
 	KeyDataCleanupEnabled        = "gdpr.data_cleanup_enabled"
 	KeyDataCleanupTime           = "gdpr.data_cleanup_time"
 	KeyDataCleanupTimeoutMinutes = "gdpr.data_cleanup_timeout_minutes"
+	// Retention window for active.work_sessions + work_session_breaks +
+	// audit.work_session_edits + active.staff_absences. §16 Abs. 2 ArbZG
+	// fixes the floor at 2 years; §147 AO / §257 HGB cap the legally
+	// defensible ceiling at 8 years.
+	KeyGDPRTimeTrackingRetentionDays = "gdpr.time_tracking_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.

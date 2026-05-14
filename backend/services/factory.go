@@ -61,6 +61,7 @@ type Factory struct {
 	CalendarPeriod           schedule.CalendarPeriodService
 	Materialization          schedule.MaterializationService
 	TimetableCleanup         schedule.TimetableCleanupService
+	TimeTrackingCleanup      active.TimeTrackingCleanupService
 	Instance                 schedule.InstanceService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
@@ -378,6 +379,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "timetable-cleanup"),
 	)
 
+	// Initialize time-tracking GDPR cleanup service (Tranche 0b). Deletes
+	// active.work_sessions (CASCADE → work_session_breaks +
+	// audit.work_session_edits) and active.staff_absences older than the
+	// tenant's retention window. Per-staff audit rows via DataDeletion
+	// (staff_id subject, added in migration 1.15.58).
+	timeTrackingCleanupService := active.NewTimeTrackingCleanupService(
+		db,
+		repos.DataDeletion,
+		settingsService,
+		logger.With("service", "time-tracking-cleanup"),
+	)
+
 	// Initialize instance lifecycle service (WP-B9). Drives the state machine
 	// on schedule.activity_instances and its bridge to active.groups. Takes
 	// the active service as a dependency (for EndActivitySession) — when the
@@ -652,6 +665,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
 		TimetableCleanup:         timetableCleanupService,
+		TimeTrackingCleanup:      timeTrackingCleanupService,
 		Instance:                 instanceService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
