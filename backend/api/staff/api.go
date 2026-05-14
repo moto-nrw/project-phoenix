@@ -128,6 +128,12 @@ func (rs *Resource) Router() chi.Router {
 		// belongs to the staff named in the URL instead.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/sessions/{sessionId}/edits", rs.getStaffSessionEdits)
 
+		// Admin cross-staff corrections. time_tracking:manage is the gate —
+		// Betreuer with only time_tracking:own get 403 here even though they
+		// can edit their own session via /api/time-tracking/{id}.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/time-tracking/sessions/{sessionId}", rs.adminUpdateStaffSession)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/sessions", rs.adminCreateStaffSession)
+
 		// Absences for a specific staff member (admin read). The MA-Sicht uses
 		// /api/time-tracking/absences which is scoped to the caller; this route
 		// lets an admin see Krank/Urlaub for any staff in the same tenant.
@@ -1846,6 +1852,125 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, historyResp, "Staff session history retrieved successfully")
+}
+
+// resolveEditorStaffID maps the JWT account id to a staff id — the staff
+// record of the admin currently making the request. Lands in
+// audit.work_session_edits.edited_by so the audit trail can name a real
+// person, not an opaque account.
+func (rs *Resource) resolveEditorStaffID(ctx context.Context) (int64, error) {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if claims.ID == 0 {
+		return 0, errors.New("invalid token")
+	}
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(claims.ID))
+	if err != nil {
+		return 0, fmt.Errorf("person not found for account: %w", err)
+	}
+	staff, err := rs.StaffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		return 0, fmt.Errorf("staff not found for editor account: %w", err)
+	}
+	return staff.ID, nil
+}
+
+// adminUpdateStaffSession handles PUT /api/staff/{id}/time-tracking/sessions/{sessionId}
+// Admin counterpart to /api/time-tracking/{id} — gated on
+// time_tracking:manage at the router level, so a Betreuer with only
+// time_tracking:own gets 403 before reaching the handler.
+func (rs *Resource) adminUpdateStaffSession(w http.ResponseWriter, r *http.Request) {
+	targetStaffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	editorStaffID, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	sessionIDStr := chi.URLParam(r, "sessionId")
+	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
+		return
+	}
+
+	var updates activeSvc.SessionUpdateRequest
+	if err := render.DecodeJSON(r.Body, &updates); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	session, err := rs.WorkSessionService.UpdateSessionAsAdmin(r.Context(), editorStaffID, targetStaffID, sessionID, updates)
+	if err != nil {
+		rs.getLogger().Error("admin session update failed",
+			"target_staff_id", targetStaffID,
+			"editor_staff_id", editorStaffID,
+			"session_id", sessionID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, classifyAdminEditError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, session, "Session updated")
+}
+
+// adminCreateStaffSession handles POST /api/staff/{id}/time-tracking/sessions
+// — the "nachtragen" flow when an MA forgot to stamp.
+func (rs *Resource) adminCreateStaffSession(w http.ResponseWriter, r *http.Request) {
+	targetStaffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	editorStaffID, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	var req activeSvc.AdminCreateSessionRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	session, err := rs.WorkSessionService.CreateSessionAsAdmin(r.Context(), editorStaffID, targetStaffID, req)
+	if err != nil {
+		rs.getLogger().Error("admin session create failed",
+			"target_staff_id", targetStaffID,
+			"editor_staff_id", editorStaffID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, classifyAdminEditError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, session, "Session created")
+}
+
+// classifyAdminEditError maps service errors to HTTP responses. Validation
+// problems (notes missing, range invalid) land as 400; ownership mismatches
+// and "not found" as 404 to avoid leaking session existence.
+func classifyAdminEditError(err error) render.Renderer {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "notes required"),
+		strings.Contains(msg, "must be"),
+		strings.Contains(msg, "must not"),
+		strings.Contains(msg, "is required"):
+		return common.ErrorInvalidRequest(err)
+	case strings.Contains(msg, "session not found"),
+		strings.Contains(msg, "does not belong"):
+		return common.ErrorNotFound(err)
+	default:
+		return common.ErrorInternalServer(err)
+	}
 }
 
 // getStaffSessionEdits handles GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits

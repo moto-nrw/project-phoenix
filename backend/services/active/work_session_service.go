@@ -47,6 +47,20 @@ type SessionUpdateRequest struct {
 	Breaks       []BreakDurationUpdate `json:"breaks"`
 }
 
+// AdminCreateSessionRequest is the body for the admin nachtragen flow:
+// POST /api/staff/{id}/time-tracking/sessions. The admin sets the wall-
+// clock times directly — no Anwesenheit, no kiosk involvement. Status and
+// Notes are mandatory; everything else is optional with sensible defaults
+// (break_minutes defaults to 0).
+type AdminCreateSessionRequest struct {
+	Date         time.Time `json:"date"`
+	CheckInTime  time.Time `json:"check_in_time"`
+	CheckOutTime time.Time `json:"check_out_time"`
+	BreakMinutes int       `json:"break_minutes"`
+	Status       string    `json:"status"`
+	Notes        string    `json:"notes"`
+}
+
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
 	*activeModels.WorkSession
@@ -113,6 +127,17 @@ type WorkSessionService interface {
 	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
+	// UpdateSessionAsAdmin is the admin-facing counterpart. editorStaffID is
+	// the staff record of the admin performing the edit (lands in
+	// audit.work_session_edits.edited_by). targetStaffID is the owner of the
+	// session — we verify session.StaffID == targetStaffID so the route can't
+	// be used to leak edits across staff in the same tenant. Notes are always
+	// required (BAG "Verlässlichkeit" for foreign edits).
+	UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
+	// CreateSessionAsAdmin records a session an admin nachträgt for another
+	// staff member — typically because that staff member forgot to stamp.
+	// Notes are required to preserve the audit trail's "Verlässlichkeit".
+	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
@@ -489,7 +514,9 @@ func (uc *sessionUpdateContext) addAuditEdit(field string, oldVal, newVal *strin
 	})
 }
 
-// UpdateSession updates a work session with the provided fields and creates audit entries
+// UpdateSession updates a work session with the provided fields and creates
+// audit entries. Self-edit path: the requesting staff must own the session.
+// Notes are only required when changing status (Vor Ort ↔ Homeoffice).
 func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
@@ -509,26 +536,56 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 		}
 	}
 
+	return s.applySessionUpdate(ctx, staffID, session, updates)
+}
+
+// UpdateSessionAsAdmin applies an admin correction. editorStaffID is the
+// admin doing the edit (goes into edited_by). targetStaffID is the owner of
+// the session we expect to mutate — verified against session.StaffID so the
+// route can't be used to leak edits across staff in the same tenant.
+//
+// Notes are unconditionally required: BAG demands "Verlässlichkeit" of the
+// audit trail, and any foreign edit needs a reason. We're stricter than
+// self-edit on purpose.
+func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
+	session, err := s.repo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, s.handleSessionNotFoundError(err)
+	}
+
+	if session.StaffID != targetStaffID {
+		return nil, fmt.Errorf("session does not belong to staff %d", targetStaffID)
+	}
+
+	if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
+		return nil, fmt.Errorf("notes required for admin edits")
+	}
+
+	return s.applySessionUpdate(ctx, editorStaffID, session, updates)
+}
+
+// applySessionUpdate is the shared body used by both self-edit and admin
+// edit. editorStaffID lands in audit.work_session_edits.edited_by so the
+// MA-side can distinguish "ich selbst" from "Florian (Admin)" without an
+// extra column.
+func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaffID int64, session *activeModels.WorkSession, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
 	uc := &sessionUpdateContext{
 		session:   session,
-		sessionID: sessionID,
-		staffID:   staffID,
+		sessionID: session.ID,
+		staffID:   editorStaffID,
 		now:       time.Now(),
 		notes:     updates.Notes,
 	}
 
-	// Apply time field updates
 	s.applyTimeFieldUpdates(uc, updates)
 
-	// Apply break updates (either individual breaks or break_minutes)
 	if err := s.applyBreakUpdates(ctx, uc, updates); err != nil {
 		return nil, err
 	}
 
-	// Apply simple field updates
 	s.applySimpleFieldUpdates(uc, updates)
 
-	session.UpdatedBy = &staffID
+	session.UpdatedBy = &editorStaffID
 	session.UpdatedAt = uc.now
 
 	if err := session.Validate(); err != nil {
@@ -546,6 +603,89 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 		if err := s.auditRepo.CreateBatch(ctx, uc.auditEdits); err != nil {
 			return nil, fmt.Errorf("failed to create audit entries: %w", err)
 		}
+	}
+
+	return session, nil
+}
+
+// CreateSessionAsAdmin records a "nachgetragene" session for another staff
+// member. Each field that ends up on the new row is also captured as an
+// audit edit (old_value = NULL, new_value = field) so the MA-side audit log
+// shows the create as a series of explicit "field war leer → field ist jetzt
+// X" entries. Notes are stored both on the session and on every audit row
+// (consistent with edit semantics).
+func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error) {
+	if targetStaffID <= 0 {
+		return nil, fmt.Errorf("target staff id is required")
+	}
+	if strings.TrimSpace(req.Notes) == "" {
+		return nil, fmt.Errorf("notes required for admin-created sessions")
+	}
+	if req.CheckInTime.IsZero() || req.CheckOutTime.IsZero() {
+		return nil, fmt.Errorf("check-in and check-out are required")
+	}
+	if !req.CheckOutTime.After(req.CheckInTime) {
+		return nil, fmt.Errorf("check_out_time must be after check_in_time")
+	}
+	if req.Status == "" {
+		req.Status = activeModels.WorkSessionStatusPresent
+	}
+	if req.BreakMinutes < 0 {
+		return nil, fmt.Errorf("break_minutes must not be negative")
+	}
+
+	checkOut := req.CheckOutTime
+	session := &activeModels.WorkSession{
+		StaffID:      targetStaffID,
+		Date:         req.Date,
+		Status:       req.Status,
+		Source:       activeModels.WorkSessionSourceApp,
+		CheckInTime:  req.CheckInTime,
+		CheckOutTime: &checkOut,
+		BreakMinutes: req.BreakMinutes,
+		Notes:        req.Notes,
+		CreatedBy:    editorStaffID,
+		UpdatedBy:    &editorStaffID,
+	}
+	session.SetTenantID(tenant.FromContext(ctx))
+
+	if err := session.Validate(); err != nil {
+		return nil, fmt.Errorf(errInvalidSessionData, err)
+	}
+
+	if err := s.repo.Create(ctx, session); err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Audit trail: one entry per field so the EditHistoryAccordion can render
+	// the create as a normal change list with empty "Vorher" values.
+	now := time.Now()
+	notesPtr := req.Notes
+	strPtr := func(s string) *string { return &s }
+	tenantID := tenant.FromContext(ctx)
+	baseEdit := func(field string, newVal string) *auditModels.WorkSessionEdit {
+		e := &auditModels.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   targetStaffID,
+			EditedBy:  editorStaffID,
+			FieldName: field,
+			OldValue:  nil,
+			NewValue:  strPtr(newVal),
+			Notes:     &notesPtr,
+			CreatedAt: now,
+		}
+		e.SetTenantID(tenantID)
+		return e
+	}
+	edits := []*auditModels.WorkSessionEdit{
+		baseEdit(auditModels.FieldDate, req.Date.Format("2006-01-02")),
+		baseEdit(auditModels.FieldCheckInTime, req.CheckInTime.Format(time.RFC3339)),
+		baseEdit(auditModels.FieldCheckOutTime, req.CheckOutTime.Format(time.RFC3339)),
+		baseEdit(auditModels.FieldBreakMinutes, fmt.Sprintf("%d", req.BreakMinutes)),
+		baseEdit(auditModels.FieldStatus, req.Status),
+	}
+	if err := s.auditRepo.CreateBatch(ctx, edits); err != nil {
+		return nil, fmt.Errorf("failed to create audit entries: %w", err)
 	}
 
 	return session, nil
