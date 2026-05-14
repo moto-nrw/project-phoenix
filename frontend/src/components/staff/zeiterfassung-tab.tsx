@@ -150,11 +150,11 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
       {metrics && <KpiCards metrics={metrics} />}
 
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
             Zeiterfassung
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ViewToggle value={viewMode} onChange={setViewMode} />
             <StaffExportButton
               staffId={staffId}
@@ -208,9 +208,9 @@ function RangeNav({
   readonly todayLabel: string;
 }) {
   return (
-    <div className="grid grid-cols-3 items-center">
-      <div />
-      <div className="flex items-center justify-center gap-2">
+    <div className="flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
+      <div className="hidden sm:block" />
+      <div className="flex min-w-0 items-center justify-center gap-2">
         <button
           type="button"
           onClick={onPrev}
@@ -231,7 +231,7 @@ function RangeNav({
             />
           </svg>
         </button>
-        <h3 className="min-w-[14rem] text-center text-sm font-semibold text-gray-800">
+        <h3 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
           {label}
         </h3>
         <button
@@ -255,7 +255,7 @@ function RangeNav({
           </svg>
         </button>
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-center sm:justify-end">
         <button
           type="button"
           onClick={onToday}

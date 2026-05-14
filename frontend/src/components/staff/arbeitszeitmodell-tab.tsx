@@ -404,7 +404,7 @@ function EditArbeitszeitmodellModal({
       .reduce((sum, e) => sum + e.targetMinutes, 0);
 
   const footer = (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
       <button
         type="button"
         onClick={onClose}
@@ -580,11 +580,14 @@ function TemplatePreviewBlock({ model }: { readonly model: WorkTimeModel }) {
             .filter((e) => e.weekIndex === w)
             .reduce((s, e) => s + e.targetMinutes, 0);
           return (
-            <div key={w} className="flex items-center justify-between text-xs">
+            <div
+              key={w}
+              className="flex flex-wrap items-center justify-between gap-2 text-xs"
+            >
               <span className="font-medium text-gray-700">
                 Woche {WEEK_BADGE_LETTERS[w] ?? w + 1}
               </span>
-              <div className="flex flex-1 justify-center gap-3 text-gray-500">
+              <div className="flex min-w-full flex-wrap gap-3 text-gray-500 sm:min-w-0 sm:flex-1 sm:justify-center">
                 {WORK_DAYS.map((d) => {
                   const entry = model.entries.find(
                     (e) => e.weekIndex === w && e.dayOfWeek === d,
@@ -668,13 +671,13 @@ function CustomEditor({
       </div>
 
       {rotationLength > 1 && (
-        <div className="flex gap-1 rounded-full border border-gray-200 bg-white p-1">
+        <div className="flex gap-1 overflow-x-auto rounded-full border border-gray-200 bg-white p-1">
           {Array.from({ length: rotationLength }, (_, w) => (
             <button
               key={w}
               type="button"
               onClick={() => onActiveWeekTabChange(w)}
-              className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex-1 shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                 activeWeekTab === w
                   ? "bg-gray-900 text-white"
                   : "text-gray-500 hover:text-gray-700"
@@ -695,7 +698,10 @@ function CustomEditor({
           const hours = Math.floor(minutes / 60);
           const mins = minutes % 60;
           return (
-            <div key={d} className="flex items-center gap-3 py-1">
+            <div
+              key={d}
+              className="flex flex-wrap items-center gap-2 py-1 sm:gap-3"
+            >
               <span className="w-10 shrink-0 text-sm font-medium text-gray-600">
                 {dayLabels[d]}
               </span>

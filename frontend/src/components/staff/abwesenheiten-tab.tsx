@@ -348,7 +348,7 @@ export function AbwesenheitenTab({
                       )}
                     </div>
                     {canEdit && (
-                      <div className="flex gap-2">
+                      <div className="flex w-full flex-col gap-2 min-[420px]:w-auto min-[420px]:flex-row">
                         <button
                           type="button"
                           onClick={() => setDenyModal(row)}
@@ -589,7 +589,7 @@ function DenyAbsenceModal({
       onClose={() => !submitting && onClose()}
       title="Antrag ablehnen"
       footer={
-        <div className="flex justify-end gap-2">
+        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}
@@ -688,7 +688,7 @@ function EditQuotaModal({
       onClose={() => !submitting && onClose()}
       title={`Urlaubsanspruch ${year} bearbeiten`}
       footer={
-        <div className="flex justify-end gap-2">
+        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}

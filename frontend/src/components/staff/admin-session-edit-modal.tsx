@@ -159,7 +159,7 @@ export function AdminSessionEditModal({
       : `Eintrag nachtragen · ${formatLongDate(date)}`;
 
   const footer = (
-    <div className="flex w-full justify-end gap-2">
+    <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <button
         type="button"
         onClick={onClose}
@@ -186,7 +186,7 @@ export function AdminSessionEditModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} footer={footer}>
       <div className="space-y-4 text-sm">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Check-in">
             <input
               type="time"
@@ -204,7 +204,7 @@ export function AdminSessionEditModal({
             />
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Pause (Minuten)">
             <input
               type="number"

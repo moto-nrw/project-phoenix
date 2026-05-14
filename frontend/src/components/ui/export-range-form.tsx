@@ -52,7 +52,7 @@ export function ExportRangeForm({
   const hasRange = Boolean(range?.from && range?.to);
 
   return (
-    <div className="w-fit">
+    <div className="w-full sm:w-fit">
       <p className="mb-3 px-4 pt-4 text-sm font-semibold text-gray-800">
         Zeitraum exportieren
       </p>

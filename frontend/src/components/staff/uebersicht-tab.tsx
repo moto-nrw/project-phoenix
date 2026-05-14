@@ -227,8 +227,8 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
       {/* B — Zwei Charts side-by-side */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {/* B1 — Tagesvergleich Ist/Soll */}
-        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
               Tagesvergleich Ist / Soll
             </h3>
@@ -313,8 +313,8 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
         </div>
 
         {/* B2 — Saldo-Verlauf kumulativ */}
-        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
               Saldo-Verlauf
             </h3>
@@ -401,8 +401,8 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
       </div>
 
       {/* C — Zeitverteilung (shadcn Donut + vollständige Legende rechts) */}
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
             Zeitverteilung
           </h3>

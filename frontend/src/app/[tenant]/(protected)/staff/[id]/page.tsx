@@ -61,7 +61,7 @@ function StaffHeader({
   ].filter(Boolean);
 
   return (
-    <div className="mb-6 flex items-start justify-between gap-4">
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 flex-1 items-start gap-4">
         {/* Avatar - solid neutral gray, status is shown in badge */}
         <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-base font-semibold text-gray-600 sm:h-16 sm:w-16 sm:text-lg">
@@ -339,7 +339,10 @@ function StaffDetailContent() {
 
       {/* Tabs */}
       <Tabs defaultValue="uebersicht" className="w-full">
-        <TabsList variant="line" className="mb-6 justify-start">
+        <TabsList
+          variant="line"
+          className="mb-6 w-full [scrollbar-width:none] justify-start overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden"
+        >
           <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
           <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
           <TabsTrigger value="arbeitszeitmodell">Arbeitszeitmodell</TabsTrigger>

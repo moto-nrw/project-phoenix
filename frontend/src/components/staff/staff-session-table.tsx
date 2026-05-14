@@ -155,8 +155,8 @@ export function StaffSessionTable({
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-100">
-      <table className="w-full text-left text-sm">
+    <div className="max-w-full overflow-x-auto rounded-2xl border border-gray-100">
+      <table className="w-full min-w-[960px] text-left text-sm">
         <thead className="bg-gray-50 text-xs font-semibold tracking-wider text-gray-500 uppercase">
           <tr>
             <th className="px-4 py-3">Datum</th>

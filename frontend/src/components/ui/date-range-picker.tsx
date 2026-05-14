@@ -108,10 +108,24 @@ function formatRangeLabel(range: DateRange | undefined): string {
 
 function RangeCalendar(props: RangeCalendarProps) {
   return (
-    <div className="absolute top-full right-0 z-[10001] mt-2 rounded-xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className="fixed inset-x-4 top-20 z-[10001] max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:max-h-none sm:overflow-visible">
       <RangeCalendarInline {...props} />
     </div>
   );
+}
+
+function useIsSingleMonthCalendar(): boolean {
+  const [isSingleMonth, setIsSingleMonth] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsSingleMonth(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return isSingleMonth;
 }
 
 function formatDraftRangeLabel(
@@ -143,6 +157,7 @@ export function RangeCalendarInline({
   toMax,
 }: RangeCalendarProps) {
   const [month, setMonth] = useState(value?.from ?? new Date());
+  const isSingleMonth = useIsSingleMonthCalendar();
   // Manual draft state. We use `mode="single"` on the underlying DayPicker
   // and manage the two-click range logic ourselves, react-day-picker v10's
   // mode="range" calls onSelect with surprising payloads (sometimes a complete
@@ -180,15 +195,17 @@ export function RangeCalendarInline({
   const draftLabel = formatDraftRangeLabel(draftFrom, draftTo);
 
   return (
-    <div className={`flex ${hasPresets ? "" : "justify-center"}`}>
+    <div
+      className={`flex flex-col sm:flex-row ${hasPresets ? "" : "justify-center"}`}
+    >
       {hasPresets && (
-        <div className="flex flex-col gap-1 border-r border-gray-100 p-3 text-xs">
+        <div className="flex max-w-[calc(100vw-2rem)] gap-1 overflow-x-auto border-b border-gray-100 p-3 text-xs sm:max-w-none sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0">
           {presets.map((preset) => (
             <button
               key={preset.label}
               type="button"
               onClick={() => handlePreset(preset)}
-              className="rounded-md px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100"
+              className="shrink-0 rounded-md px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100"
             >
               {preset.label}
             </button>
@@ -252,7 +269,7 @@ export function RangeCalendarInline({
           onDayClick={handleDayClick}
           month={month}
           onMonthChange={setMonth}
-          numberOfMonths={2}
+          numberOfMonths={isSingleMonth ? 1 : 2}
           locale={de}
           weekStartsOn={1}
           showOutsideDays={false}
@@ -296,7 +313,7 @@ export function RangeCalendarInline({
           }}
           classNames={{
             root: "text-sm",
-            months: "flex gap-4",
+            months: "flex flex-col gap-4 sm:flex-row",
             month: "",
             month_caption: "hidden",
             month_grid: "border-collapse",

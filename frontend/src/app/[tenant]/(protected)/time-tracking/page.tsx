@@ -623,7 +623,7 @@ function ClockInCard({
         {!isCheckedIn && !isCheckedOut && (
           <div className="flex flex-col items-center gap-5">
             {/* Mode toggle */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <button
                 onClick={() => setMode("present")}
                 className={getModeToggleClassName("present", mode)}
@@ -896,7 +896,7 @@ function ClockInStatsStrip({
         : "green";
 
   return (
-    <div className="grid grid-cols-3 gap-3 sm:gap-4">
+    <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:gap-4">
       <InlineStat
         label="Diese Woche"
         primary={formatDuration(metrics.weekIst)}
@@ -1389,11 +1389,11 @@ function OwnZeiterfassungSection({
 
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6 md:p-8">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h2 className="text-base font-bold text-gray-900 sm:text-lg">
           Zeiterfassung
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ViewToggle value={viewMode} onChange={setViewMode} />
           {ownStaffId && (
             <StaffExportButton
@@ -1403,9 +1403,9 @@ function OwnZeiterfassungSection({
           )}
         </div>
       </div>
-      <div className="mb-4 grid grid-cols-3 items-center">
-        <div />
-        <div className="flex items-center justify-center gap-2">
+      <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
+        <div className="hidden sm:block" />
+        <div className="flex min-w-0 items-center justify-center gap-2">
           <button
             type="button"
             onClick={handlePrev}
@@ -1428,7 +1428,7 @@ function OwnZeiterfassungSection({
               />
             </svg>
           </button>
-          <h3 className="min-w-[14rem] text-center text-sm font-semibold text-gray-800">
+          <h3 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
             {labelRange}
           </h3>
           <button
@@ -1454,7 +1454,7 @@ function OwnZeiterfassungSection({
             </svg>
           </button>
         </div>
-        <div className="flex justify-end">
+        <div className="flex justify-center sm:justify-end">
           <button
             type="button"
             onClick={handleToday}
@@ -1986,7 +1986,7 @@ function EditSessionModal({
 
   // Footer: tab-aware for dual-section, standard for single-section
   const sessionFooter = (
-    <div className="flex w-full gap-3">
+    <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -2004,7 +2004,7 @@ function EditSessionModal({
   );
 
   const absenceFooter = (
-    <div className="flex w-full gap-3">
+    <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -2067,7 +2067,7 @@ function EditSessionModal({
         {/* ── Session section ──────────────────────────────────────────── */}
         {hasSession && (!hasBoth || activeTab === "session") && (
           <>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label
                   htmlFor="edit-start"
@@ -2100,7 +2100,7 @@ function EditSessionModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Break section */}
               <div>
                 {hasIndividualBreaks ? (
@@ -2325,7 +2325,7 @@ function EditSessionModal({
             </div>
 
             {/* Date range */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label
                   htmlFor="edit-abs-start"
@@ -2491,7 +2491,7 @@ function CreateAbsenceModal({
       onClose={onClose}
       title="Abwesenheit melden"
       footer={
-        <div className="flex w-full gap-3">
+        <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
           <button
             onClick={onClose}
             className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -2547,7 +2547,7 @@ function CreateAbsenceModal({
         </div>
 
         {/* Date range */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label
               htmlFor="absence-start"
@@ -3271,7 +3271,7 @@ function TimeTrackingContent() {
         onClose={handleClosePendingManualEditCheckIn}
         title="Arbeitszeit manuell bearbeitet"
         footer={
-          <div className="flex w-full gap-3">
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
               onClick={() => setPendingManualEditCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
@@ -3327,7 +3327,7 @@ function TimeTrackingContent() {
         onClose={handleClosePendingCheckIn}
         title="Abwesenheit eingetragen"
         footer={
-          <div className="flex w-full gap-3">
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
               onClick={() => setPendingCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
@@ -3380,7 +3380,7 @@ function TimeTrackingContent() {
         onClose={handleClosePendingReopenStatusChange}
         title="Status für heute ändern"
         footer={
-          <div className="flex w-full gap-3">
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
               onClick={handleClosePendingReopenStatusChange}
               disabled={reopenStatusChangeSubmitting}

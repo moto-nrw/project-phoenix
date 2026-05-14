@@ -184,7 +184,7 @@ export function VacationRequestModal({
       title="Urlaub beantragen"
       widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
       footer={
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-xs text-gray-500">
             {range?.from && range?.to ? (
               <>
@@ -202,7 +202,7 @@ export function VacationRequestModal({
               <span>Wähle einen Zeitraum</span>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <button
               type="button"
               onClick={() => {
@@ -233,7 +233,7 @@ export function VacationRequestModal({
           <p className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
             Zeitraum
           </p>
-          <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
             <RangeCalendarInline
               value={range}
               onChange={setRange}
