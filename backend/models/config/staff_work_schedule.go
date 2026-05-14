@@ -108,13 +108,3 @@ func WeeklyTargetFromSchedule(entries []*StaffWorkSchedule) *int {
 	}
 	return &total
 }
-
-// DailyTargetFromSchedule returns target minutes for a specific day of week
-func DailyTargetFromSchedule(entries []*StaffWorkSchedule, dayOfWeek int) *int {
-	for _, e := range entries {
-		if e.DayOfWeek == dayOfWeek {
-			return &e.TargetMinutes
-		}
-	}
-	return nil
-}

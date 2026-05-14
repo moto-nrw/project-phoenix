@@ -1382,7 +1382,7 @@ function OwnZeiterfassungSection({
       month: "short",
       year: "numeric",
     });
-    return `KW ${weekNum} · ${start} – ${end}`;
+    return `KW ${weekNum}: ${start} bis ${end}`;
   }, [viewMode, monthAnchor, visibleFrom, visibleTo]);
 
   const todayLabel = viewMode === "month" ? "Diesen Monat" : "Diese Woche";
@@ -1409,7 +1409,9 @@ function OwnZeiterfassungSection({
           <button
             type="button"
             onClick={handlePrev}
-            aria-label="Zurück"
+            aria-label={
+              viewMode === "month" ? "Vorheriger Monat" : "Vorherige Woche"
+            }
             className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
           >
             <svg
@@ -1432,7 +1434,9 @@ function OwnZeiterfassungSection({
           <button
             type="button"
             onClick={handleNext}
-            aria-label="Vor"
+            aria-label={
+              viewMode === "month" ? "Nächster Monat" : "Nächste Woche"
+            }
             className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
           >
             <svg
@@ -1462,7 +1466,7 @@ function OwnZeiterfassungSection({
         </div>
       </div>
       {tableLoading && tableHistory.length === 0 ? (
-        <div className="py-10 text-center text-sm text-gray-400">Lädt…</div>
+        <div className="py-10 text-center text-sm text-gray-400">...</div>
       ) : (
         <StaffSessionTable
           staffId={ownStaffId ?? ""}

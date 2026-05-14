@@ -48,13 +48,6 @@ var ValidAbsenceStatuses = []string{
 	AbsenceStatusCanceled,
 }
 
-// StatusCountsAsAbsent returns true if the status should be visible in the
-// staff calendar / counted towards saldo. Requested/declined/canceled rows
-// are bookkeeping only — they must not credit the soll.
-func StatusCountsAsAbsent(status string) bool {
-	return status == AbsenceStatusReported || status == AbsenceStatusApproved
-}
-
 // StaffAbsence represents a staff absence record (sick, vacation, etc.)
 type StaffAbsence struct {
 	base.Model `bun:"schema:active,table:staff_absences"`

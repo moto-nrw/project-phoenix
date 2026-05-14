@@ -5,7 +5,6 @@
 // schedule — the typical Mon–Fri use case.
 
 import type {
-  ScheduleEntry,
   StaffAbsenceRow,
   StaffHistorySession,
   StaffSchedule,
@@ -24,7 +23,7 @@ export function toIsoDayOfWeek(date: Date): number {
  * a local Date at 00:00. Used for grouping sessions by day without timezone
  * drift.
  */
-export function parseSessionDate(input: string): Date | null {
+function parseSessionDate(input: string): Date | null {
   const datePart = input.slice(0, 10);
   const [y, m, d] = datePart.split("-").map(Number);
   if (
@@ -38,24 +37,6 @@ export function parseSessionDate(input: string): Date | null {
     return null;
   }
   return new Date(y, m - 1, d);
-}
-
-/**
- * Build a single-week map from dayOfWeek (0-6) to target minutes for a
- * specific rotation week. Useful for the simple-week display path; for the
- * full pattern with rotation use {@link resolveTargetForDate}.
- */
-export function buildTargetMap(
-  entries: ScheduleEntry[],
-  weekIndex = 0,
-): Map<number, number> {
-  const map = new Map<number, number>();
-  for (const entry of entries) {
-    if (entry.weekIndex === weekIndex) {
-      map.set(entry.dayOfWeek, entry.targetMinutes);
-    }
-  }
-  return map;
 }
 
 /**
@@ -106,7 +87,7 @@ export function resolveTargetForDate(
  * Dienstplan galt (führt zu künstlich riesigen Minus-Salden, sobald eine
  * Schule mitten im Jahr live geht).
  */
-export function computeSollForRange(
+function computeSollForRange(
   schedule: StaffSchedule,
   from: Date,
   to: Date,
@@ -136,7 +117,7 @@ export function computeSollForRange(
  * Half-day absences zählen mit dem halben Tagessoll. Tage vor validFrom
  * werden ignoriert (analog zu computeSollForRange).
  */
-export function computeAbsenceCreditForRange(
+function computeAbsenceCreditForRange(
   schedule: StaffSchedule,
   absences: readonly StaffAbsenceRow[] | undefined,
   from: Date,
@@ -176,7 +157,7 @@ export function computeAbsenceCreditForRange(
  * Sum the actual net minutes of all sessions falling into [from, to]
  * (inclusive).
  */
-export function computeIstForRange(
+function computeIstForRange(
   sessions: StaffHistorySession[],
   from: Date,
   to: Date,
@@ -191,20 +172,6 @@ export function computeIstForRange(
     }
   }
   return sum;
-}
-
-/**
- * Group sessions by local date key (YYYY-MM-DD) with summed net minutes.
- */
-export function groupSessionsByDay(
-  sessions: StaffHistorySession[],
-): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const session of sessions) {
-    const key = session.date.slice(0, 10);
-    map.set(key, (map.get(key) ?? 0) + (session.net_minutes ?? 0));
-  }
-  return map;
 }
 
 /**
@@ -256,17 +223,6 @@ export function endOfMonth(date: Date): Date {
  */
 export function startOfYear(date: Date): Date {
   return new Date(date.getFullYear(), 0, 1);
-}
-
-/**
- * Returns true when two dates fall on the same local calendar day.
- */
-export function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
 }
 
 export interface StaffMetrics {
@@ -386,54 +342,4 @@ export function getDeltaStatus(
   if (Math.abs(delta) <= threshold) return "green";
   if (delta > 0) return "amber";
   return "gray";
-}
-
-/**
- * Build a 6-row x 7-col grid (Mon-Sun) for a given month. Each cell has
- * the Date and a flag for "out of month". The grid always starts on the
- * Monday on or before the 1st and ends on the Sunday on or after the last.
- */
-export interface CalendarCell {
-  date: Date;
-  inMonth: boolean;
-}
-
-export function buildMonthGrid(monthAnchor: Date): CalendarCell[][] {
-  const first = startOfMonth(monthAnchor);
-  const gridStart = startOfWeek(first);
-  const rows: CalendarCell[][] = [];
-  const cursor = new Date(gridStart);
-  for (let r = 0; r < 6; r++) {
-    const row: CalendarCell[] = [];
-    for (let c = 0; c < 7; c++) {
-      row.push({
-        date: new Date(cursor),
-        inMonth: cursor.getMonth() === first.getMonth(),
-      });
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    rows.push(row);
-  }
-  return rows;
-}
-
-/**
- * Format month header like "April 2026"
- */
-export function formatMonthHeader(date: Date): string {
-  const months = [
-    "Januar",
-    "Februar",
-    "Maerz",
-    "April",
-    "Mai",
-    "Juni",
-    "Juli",
-    "August",
-    "September",
-    "Oktober",
-    "November",
-    "Dezember",
-  ];
-  return `${months[date.getMonth()]} ${date.getFullYear()}`;
 }

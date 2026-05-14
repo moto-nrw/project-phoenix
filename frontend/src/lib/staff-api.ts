@@ -461,13 +461,13 @@ class StaffService {
 }
 
 // Work Schedule types and service
-export interface ScheduleEntry {
+interface ScheduleEntry {
   weekIndex: number;
   dayOfWeek: number;
   targetMinutes: number;
 }
 
-export interface ScheduleModelInfo {
+interface ScheduleModelInfo {
   id: string;
   name: string;
   rotationLength: number;
@@ -532,7 +532,7 @@ function mapScheduleResponse(data: BackendScheduleResponse): StaffSchedule {
   };
 }
 
-export interface UpdateScheduleCustomRequest {
+interface UpdateScheduleCustomRequest {
   mode: "custom";
   rotationLength: number;
   rotationAnchorDate?: string;
@@ -544,7 +544,7 @@ export interface UpdateScheduleCustomRequest {
   saveAsTemplate?: string;
 }
 
-export interface UpdateScheduleTemplateRequest {
+interface UpdateScheduleTemplateRequest {
   mode: "template";
   modelId: string;
 }
@@ -553,7 +553,7 @@ export type UpdateScheduleRequest =
   | UpdateScheduleCustomRequest
   | UpdateScheduleTemplateRequest;
 
-export class StaffScheduleService {
+class StaffScheduleService {
   async getSchedule(staffId: string): Promise<StaffSchedule> {
     const response = await sessionFetch(`/api/staff/${staffId}/schedule`);
     const json = (await response.json()) as {
@@ -593,7 +593,7 @@ export class StaffScheduleService {
 }
 
 // Work Time Models (tenant templates)
-export interface WorkTimeModelEntry {
+interface WorkTimeModelEntry {
   weekIndex: number;
   dayOfWeek: number;
   targetMinutes: number;
@@ -632,7 +632,7 @@ function mapWorkTimeModel(m: BackendWorkTimeModel): WorkTimeModel {
   };
 }
 
-export class WorkTimeModelService {
+class WorkTimeModelService {
   async list(): Promise<WorkTimeModel[]> {
     const response = await sessionFetch(`/api/work-time-models`);
     const json = (await response.json()) as { data: BackendWorkTimeModel[] };
@@ -656,10 +656,6 @@ export interface StaffHistorySession {
   auto_checked_out?: boolean;
   notes?: string;
   edit_count?: number;
-}
-
-export interface StaffHistoryResponse {
-  sessions: StaffHistorySession[];
 }
 
 class StaffHistoryService {
@@ -817,7 +813,7 @@ import {
 // keys (date / check_in_time / ...) match SessionUpdateRequest and
 // AdminCreateSessionRequest one-to-one — the route handler decides which
 // it is via the HTTP verb (PUT vs POST). Notes is required for both flows.
-export interface AdminSessionPayload {
+interface AdminSessionPayload {
   date: string; // YYYY-MM-DD
   check_in_time: string; // ISO 8601
   check_out_time: string; // ISO 8601

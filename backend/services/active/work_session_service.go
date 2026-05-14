@@ -1015,16 +1015,20 @@ func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *
 		editorIDs = append(editorIDs, id)
 	}
 
-	staffMap, err := s.staffRepo.FindWithPersonByIDs(ctx, editorIDs)
-	if err != nil {
-		// Don't fail the request just because one display name is missing —
-		// the audit data itself is still useful. Log and fall back to empty
-		// names; the frontend will render "Unbekannt" in that case.
-		if s.logger != nil {
-			s.logger.Warn("failed to resolve editor names for audit view",
-				slog.String("error", err.Error()),
-			)
+	staffMap := map[int64]*userModels.Staff{}
+	if s.staffRepo != nil {
+		var err error
+		staffMap, err = s.staffRepo.FindWithPersonByIDs(ctx, editorIDs)
+		if err != nil {
+			if s.logger != nil {
+				s.logger.Warn("failed to resolve editor names for audit view",
+					slog.String("error", err.Error()),
+				)
+			}
+			staffMap = map[int64]*userModels.Staff{}
 		}
+	}
+	if staffMap == nil {
 		staffMap = map[int64]*userModels.Staff{}
 	}
 

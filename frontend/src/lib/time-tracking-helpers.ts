@@ -37,7 +37,7 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   edit_count: number;
 }
 
-export interface BackendWeeklySummary {
+interface BackendWeeklySummary {
   week_number: number;
   year: number;
   total_net_minutes: number;
@@ -124,13 +124,6 @@ export const absenceTypeLabels: Record<AbsenceType, string> = {
   vacation: "Urlaub",
   training: "Fortbildung",
   other: "Sonstige",
-};
-
-export const absenceTypeColors: Record<AbsenceType, string> = {
-  sick: "bg-red-100 text-red-800",
-  vacation: "bg-blue-100 text-blue-800",
-  training: "bg-green-100 text-green-800",
-  other: "bg-purple-100 text-purple-800",
 };
 
 export function mapStaffAbsenceResponse(
@@ -280,9 +273,7 @@ export function mapWorkSessionHistoryResponse(
 /**
  * Maps backend weekly summary to frontend type
  */
-export function mapWeeklySummaryResponse(
-  data: BackendWeeklySummary,
-): WeeklySummary {
+function mapWeeklySummaryResponse(data: BackendWeeklySummary): WeeklySummary {
   return {
     weekNumber: data.week_number,
     year: data.year,

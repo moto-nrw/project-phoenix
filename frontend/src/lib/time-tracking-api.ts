@@ -297,7 +297,7 @@ class TimeTrackingService {
   }
 }
 
-export interface VacationRequestPayload {
+interface VacationRequestPayload {
   date_start: string;
   date_end: string;
   start_half_day: boolean;

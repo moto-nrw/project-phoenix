@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,16 +19,16 @@ func TestRepairPickupScheduleTenantIDs(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
-	dropPickupCompositeFKs(t, db)
-	t.Cleanup(func() { restorePickupCompositeFKs(t, db) })
-
 	staffID := createTenantStaff(t, db, tenantID)
 	studentID := createTenantStudent(t, db, tenantID)
 	defer cleanupPickupTenantRepairRows(t, db, staffID, studentID)
 
-	scheduleID := insertPickupScheduleWithTenant(t, db, 1, studentID, staffID)
-	exceptionID := insertPickupExceptionWithTenant(t, db, 1, studentID, staffID)
-	noteID := insertPickupNoteWithTenant(t, db, 1, studentID, staffID)
+	var scheduleID, exceptionID, noteID int64
+	withPickupTenantRepairConstraintsDisabled(t, db, func(ctx context.Context, tx bun.Tx) {
+		scheduleID = insertPickupScheduleWithTenant(t, ctx, tx, 1, studentID, staffID)
+		exceptionID = insertPickupExceptionWithTenant(t, ctx, tx, 1, studentID, staffID)
+		noteID = insertPickupNoteWithTenant(t, ctx, tx, 1, studentID, staffID)
+	})
 
 	require.NoError(t, repairPickupScheduleTenantIDs(ctx, db))
 	require.NoError(t, repairPickupScheduleTenantIDs(ctx, db), "repair migration must be idempotent")
@@ -47,15 +46,14 @@ func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
-	dropPickupCompositeFKs(t, db)
-	t.Cleanup(func() { restorePickupCompositeFKs(t, db) })
-
 	studentID := createTenantStudent(t, db, tenantID)
 	staff := testpkg.CreateTestStaff(t, db, "PickupRepair", "WrongTenant")
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 	defer cleanupPickupTenantRepairRows(t, db, 0, studentID)
 
-	insertPickupScheduleWithTenant(t, db, 1, studentID, staff.ID)
+	withPickupTenantRepairConstraintsDisabled(t, db, func(ctx context.Context, tx bun.Tx) {
+		insertPickupScheduleWithTenant(t, ctx, tx, 1, studentID, staff.ID)
+	})
 
 	err := repairPickupScheduleTenantIDs(ctx, db)
 	require.Error(t, err)
@@ -70,57 +68,32 @@ func TestRepairPickupScheduleTenantIDsRejectsUniqueConflicts(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
-	dropPickupCompositeFKs(t, db)
-	t.Cleanup(func() { restorePickupCompositeFKs(t, db) })
-
 	staffID := createTenantStaff(t, db, tenantID)
 	studentID := createTenantStudent(t, db, tenantID)
 	defer cleanupPickupTenantRepairRows(t, db, staffID, studentID)
 
-	insertPickupScheduleWithTenant(t, db, tenantID, studentID, staffID)
-	insertPickupScheduleWithTenant(t, db, 1, studentID, staffID)
+	withPickupTenantRepairConstraintsDisabled(t, db, func(ctx context.Context, tx bun.Tx) {
+		insertPickupScheduleWithTenant(t, ctx, tx, tenantID, studentID, staffID)
+		insertPickupScheduleWithTenant(t, ctx, tx, 1, studentID, staffID)
+	})
 
 	err := repairPickupScheduleTenantIDs(ctx, db)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "would conflict")
 }
 
-func dropPickupCompositeFKs(t *testing.T, db *bun.DB) {
+func withPickupTenantRepairConstraintsDisabled(t *testing.T, db *bun.DB, fn func(context.Context, bun.Tx)) {
 	t.Helper()
 
-	statements := []string{
-		`ALTER TABLE schedule.student_pickup_schedules DROP CONSTRAINT IF EXISTS fk_pickup_schedules_created_by_tenant`,
-		`ALTER TABLE schedule.student_pickup_schedules DROP CONSTRAINT IF EXISTS fk_pickup_schedules_student_tenant`,
-		`ALTER TABLE schedule.student_pickup_exceptions DROP CONSTRAINT IF EXISTS fk_pickup_exceptions_created_by_tenant`,
-		`ALTER TABLE schedule.student_pickup_exceptions DROP CONSTRAINT IF EXISTS fk_pickup_exceptions_student_tenant`,
-		`ALTER TABLE schedule.student_pickup_notes DROP CONSTRAINT IF EXISTS fk_pickup_notes_created_by_tenant`,
-		`ALTER TABLE schedule.student_pickup_notes DROP CONSTRAINT IF EXISTS fk_pickup_notes_student_tenant`,
-	}
-
-	for _, stmt := range statements {
-		_, err := db.ExecContext(context.Background(), stmt)
-		require.NoError(t, err)
-	}
-}
-
-func restorePickupCompositeFKs(t *testing.T, db *bun.DB) {
-	t.Helper()
-
-	statements := []string{
-		`ALTER TABLE schedule.student_pickup_schedules ADD CONSTRAINT fk_pickup_schedules_created_by_tenant FOREIGN KEY (tenant_id, created_by) REFERENCES users.staff(tenant_id, id)`,
-		`ALTER TABLE schedule.student_pickup_schedules ADD CONSTRAINT fk_pickup_schedules_student_tenant FOREIGN KEY (tenant_id, student_id) REFERENCES users.students(tenant_id, id) ON DELETE CASCADE`,
-		`ALTER TABLE schedule.student_pickup_exceptions ADD CONSTRAINT fk_pickup_exceptions_created_by_tenant FOREIGN KEY (tenant_id, created_by) REFERENCES users.staff(tenant_id, id)`,
-		`ALTER TABLE schedule.student_pickup_exceptions ADD CONSTRAINT fk_pickup_exceptions_student_tenant FOREIGN KEY (tenant_id, student_id) REFERENCES users.students(tenant_id, id) ON DELETE CASCADE`,
-		`ALTER TABLE schedule.student_pickup_notes ADD CONSTRAINT fk_pickup_notes_created_by_tenant FOREIGN KEY (tenant_id, created_by) REFERENCES users.staff(tenant_id, id)`,
-		`ALTER TABLE schedule.student_pickup_notes ADD CONSTRAINT fk_pickup_notes_student_tenant FOREIGN KEY (tenant_id, student_id) REFERENCES users.students(tenant_id, id) ON DELETE CASCADE`,
-	}
-
-	for _, stmt := range statements {
-		_, err := db.ExecContext(context.Background(), stmt)
-		if err != nil && !strings.Contains(err.Error(), "already exists") {
-			require.NoError(t, err)
+	ctx := context.Background()
+	err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL session_replication_role = 'replica'`); err != nil {
+			return err
 		}
-	}
+		fn(ctx, tx)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func createTenantStaff(t *testing.T, db *bun.DB, tenantID int64) int64 {
@@ -153,46 +126,46 @@ func createTenantStudent(t *testing.T, db *bun.DB, tenantID int64) int64 {
 	return studentID
 }
 
-func insertPickupScheduleWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
+func insertPickupScheduleWithTenant(t *testing.T, ctx context.Context, db bun.IDB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
-	err := db.QueryRowContext(context.Background(), `
+	err := db.NewRaw(`
 		INSERT INTO schedule.student_pickup_schedules
 			(tenant_id, student_id, weekday, pickup_time, created_by, created_at, updated_at)
 		VALUES (?, ?, 1, ?, ?, NOW(), NOW())
 		RETURNING id
-	`, tenantID, studentID, time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC), staffID).Scan(&id)
+	`, tenantID, studentID, time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC), staffID).Scan(ctx, &id)
 	require.NoError(t, err)
 
 	return id
 }
 
-func insertPickupExceptionWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
+func insertPickupExceptionWithTenant(t *testing.T, ctx context.Context, db bun.IDB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
-	err := db.QueryRowContext(context.Background(), `
+	err := db.NewRaw(`
 		INSERT INTO schedule.student_pickup_exceptions
 			(tenant_id, student_id, exception_date, pickup_time, reason, created_by, created_at, updated_at)
 		VALUES (?, ?, CURRENT_DATE, ?, 'Repair test', ?, NOW(), NOW())
 		RETURNING id
-	`, tenantID, studentID, time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC), staffID).Scan(&id)
+	`, tenantID, studentID, time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC), staffID).Scan(ctx, &id)
 	require.NoError(t, err)
 
 	return id
 }
 
-func insertPickupNoteWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
+func insertPickupNoteWithTenant(t *testing.T, ctx context.Context, db bun.IDB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
-	err := db.QueryRowContext(context.Background(), `
+	err := db.NewRaw(`
 		INSERT INTO schedule.student_pickup_notes
 			(tenant_id, student_id, note_date, content, created_by, created_at, updated_at)
 		VALUES (?, ?, CURRENT_DATE, 'Repair note', ?, NOW(), NOW())
 		RETURNING id
-	`, tenantID, studentID, staffID).Scan(&id)
+	`, tenantID, studentID, staffID).Scan(ctx, &id)
 	require.NoError(t, err)
 
 	return id
