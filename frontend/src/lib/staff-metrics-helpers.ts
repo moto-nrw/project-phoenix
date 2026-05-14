@@ -201,6 +201,33 @@ function computeIstForRange(
   return sum;
 }
 
+interface RangeMetrics {
+  readonly fullSoll: number;
+  readonly ist: number;
+  readonly delta: number;
+}
+
+function computeRangeMetrics(
+  schedule: StaffSchedule,
+  sessions: StaffHistorySession[],
+  absences: readonly StaffAbsenceRow[] | undefined,
+  start: Date,
+  fullEnd: Date,
+  effectiveEnd: Date,
+): RangeMetrics {
+  const fullSoll = computeSollForRange(schedule, start, fullEnd);
+  const effectiveSoll = computeSollForRange(schedule, start, effectiveEnd);
+  const ist =
+    computeIstForRange(sessions, start, fullEnd) +
+    computeAbsenceCreditForRange(schedule, absences, start, effectiveEnd);
+
+  return {
+    fullSoll,
+    ist,
+    delta: ist - effectiveSoll,
+  };
+}
+
 /**
  * Format a date as YYYY-MM-DD in local time (no timezone shift).
  */
@@ -293,42 +320,28 @@ export function computeStaffMetrics(
   const weekEnd = endOfWeek(today);
   // weekSoll = full contracted week (filtered by validFrom). weekSollProrated
   // = only days up to today, used for the delta so a Tuesday afternoon does
-  // not read "−30h Minusstunden" just because Wed-Fri have not happened yet.
+  // not read "-30h Minusstunden" just because Wed-Fri have not happened yet.
   const weekSollEnd = today < weekEnd ? today : weekEnd;
-  const weekSoll = computeSollForRange(schedule, weekStart, weekEnd);
-  const weekSollProrated = computeSollForRange(
+  const weekMetrics = computeRangeMetrics(
     schedule,
-    weekStart,
-    weekSollEnd,
-  );
-  const weekIstSessions = computeIstForRange(sessions, weekStart, weekEnd);
-  const weekIstAbsence = computeAbsenceCreditForRange(
-    schedule,
+    sessions,
     absences,
     weekStart,
+    weekEnd,
     weekSollEnd,
   );
-  const weekIst = weekIstSessions + weekIstAbsence;
-  const weekDelta = weekIst - weekSollProrated;
 
   const monthStart = startOfMonth(today);
   const monthEnd = endOfMonth(today);
   const monthSollEnd = today < monthEnd ? today : monthEnd;
-  const monthSoll = computeSollForRange(schedule, monthStart, monthEnd);
-  const monthSollProrated = computeSollForRange(
+  const monthMetrics = computeRangeMetrics(
     schedule,
-    monthStart,
-    monthSollEnd,
-  );
-  const monthIstSessions = computeIstForRange(sessions, monthStart, monthEnd);
-  const monthIstAbsence = computeAbsenceCreditForRange(
-    schedule,
+    sessions,
     absences,
     monthStart,
+    monthEnd,
     monthSollEnd,
   );
-  const monthIst = monthIstSessions + monthIstAbsence;
-  const monthDelta = monthIst - monthSollProrated;
 
   // Stundenkonto: starts at the schedule's validFrom (or Jan 1 of the current
   // year as fallback when no schedule exists yet). Anything before that date
@@ -347,12 +360,12 @@ export function computeStaffMetrics(
   const accountBalance = accountIst - accountSoll;
 
   return {
-    weekSoll,
-    weekIst,
-    weekDelta,
-    monthSoll,
-    monthIst,
-    monthDelta,
+    weekSoll: weekMetrics.fullSoll,
+    weekIst: weekMetrics.ist,
+    weekDelta: weekMetrics.delta,
+    monthSoll: monthMetrics.fullSoll,
+    monthIst: monthMetrics.ist,
+    monthDelta: monthMetrics.delta,
     accountStart,
     accountSoll,
     accountIst,

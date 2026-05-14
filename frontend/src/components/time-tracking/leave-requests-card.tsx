@@ -131,7 +131,11 @@ export function LeaveRequestsCard() {
   }, [year]);
 
   useEffect(() => {
-    void loadAll();
+    loadAll().catch((err) => {
+      logger.error("load_effect_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
   }, [loadAll]);
 
   const counts = useMemo(() => {
@@ -301,14 +305,26 @@ export function LeaveRequestsCard() {
       <VacationRequestModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSubmitted={() => void loadAll()}
+        onSubmitted={() => {
+          loadAll().catch((err) => {
+            logger.error("reload_after_submit_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        }}
         remainingDays={remainingDays}
       />
 
       <ConfirmationModal
         isOpen={cancelTarget !== null}
         onClose={() => !cancelSubmitting && setCancelTarget(null)}
-        onConfirm={() => void confirmCancel()}
+        onConfirm={() => {
+          confirmCancel().catch((err) => {
+            logger.error("confirm_cancel_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        }}
         title="Antrag stornieren"
         confirmText="Stornieren"
         cancelText="Behalten"

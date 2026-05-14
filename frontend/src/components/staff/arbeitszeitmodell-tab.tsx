@@ -69,6 +69,14 @@ export function ArbeitszeitmodellTab({
       : "1 Woche";
   const averagePerWeek =
     schedule.rotationLength > 0 ? weeklyTotal / schedule.rotationLength : 0;
+  const handleScheduleSaved = () => {
+    mutateSchedule().catch((err) => {
+      logger.error("schedule_refresh_failed", {
+        staff_id: staffId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -102,7 +110,7 @@ export function ArbeitszeitmodellTab({
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {schedule.weeklyTotals.map((total, idx) => (
             <div
-              key={idx}
+              key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}
               className="rounded-2xl border border-gray-100 bg-white p-4"
             >
               <div className="flex items-center justify-between">
@@ -131,7 +139,7 @@ export function ArbeitszeitmodellTab({
                             : "text-gray-300"
                         }`}
                       >
-                        {minutes > 0 ? formatDuration(minutes) : "–"}
+                        {minutes > 0 ? formatDuration(minutes) : "-"}
                       </div>
                     </div>
                   );
@@ -149,7 +157,7 @@ export function ArbeitszeitmodellTab({
         onClose={() => setEditorOpen(false)}
         staffId={staffId}
         schedule={schedule}
-        onSaved={() => void mutateSchedule()}
+        onSaved={handleScheduleSaved}
       />
     </div>
   );
@@ -226,7 +234,7 @@ function FourWeekPreview({
                   >
                     {dayLabels[(d.date.getDay() + 6) % 7]}{" "}
                     <span className="tabular-nums">
-                      {d.target > 0 ? formatDuration(d.target) : "–"}
+                      {d.target > 0 ? formatDuration(d.target) : "-"}
                     </span>
                   </span>
                 ))}
@@ -336,7 +344,7 @@ function EditArbeitszeitmodellModal({
           setSaving(false);
           return;
         }
-        // Each week of the rotation should itself be non-empty —
+        // Each week of the rotation should itself be non-empty,
         // otherwise the rotation has a "blank" week that produces
         // surprising Saldo gaps every Nth week.
         for (let w = 0; w < rotationLength; w++) {
@@ -412,7 +420,14 @@ function EditArbeitszeitmodellModal({
       </button>
       <button
         type="button"
-        onClick={() => void handleSave()}
+        onClick={() => {
+          handleSave().catch((err) => {
+            logger.error("save_click_failed", {
+              staff_id: staffId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        }}
         disabled={saving}
         className="rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
       >
@@ -464,16 +479,8 @@ function ModeRadioGroup({
 }) {
   return (
     <div className="space-y-2">
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => onChange("template")}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onChange("template");
-          }
-        }}
+      <label
+        htmlFor="mode-template"
         className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 ${
           mode === "template" ? "border-gray-900 bg-gray-50" : "border-gray-200"
         }`}
@@ -494,17 +501,9 @@ function ModeRadioGroup({
             Zuordnung.
           </p>
         </div>
-      </div>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => onChange("custom")}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onChange("custom");
-          }
-        }}
+      </label>
+      <label
+        htmlFor="mode-custom"
         className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 ${
           mode === "custom" ? "border-gray-900 bg-gray-50" : "border-gray-200"
         }`}
@@ -524,7 +523,7 @@ function ModeRadioGroup({
             neue Vorlage speichern.
           </p>
         </div>
-      </div>
+      </label>
     </div>
   );
 }
@@ -605,7 +604,7 @@ function TemplatePreviewBlock({ model }: { readonly model: WorkTimeModel }) {
                       {dayLabels[d]}{" "}
                       {entry && entry.targetMinutes > 0
                         ? formatDuration(entry.targetMinutes)
-                        : "–"}
+                        : "-"}
                     </span>
                   );
                 })}
@@ -663,7 +662,9 @@ function CustomEditor({
           <select
             id="arbeitszeitmodell-rotation-select"
             value={rotationLength}
-            onChange={(e) => onRotationChange(parseInt(e.target.value, 10))}
+            onChange={(e) =>
+              onRotationChange(Number.parseInt(e.target.value, 10))
+            }
             className="w-full appearance-none rounded-lg border border-gray-200 py-2 pr-10 pl-3 text-sm focus:border-gray-400 focus:outline-none"
           >
             {ROTATION_OPTIONS.map((opt) => (
@@ -715,7 +716,7 @@ function CustomEditor({
                 // Display empty instead of "0" so the user can backspace the
                 // existing value and type a new one without the field
                 // snapping back to "0" after every keystroke. The state still
-                // tracks 0 — only the rendered value is hidden.
+                // tracks 0, only the rendered value is hidden.
                 value={hours === 0 ? "" : hours}
                 onFocus={(e) => e.target.select()}
                 onChange={(e) => {
@@ -726,10 +727,13 @@ function CustomEditor({
                   const h =
                     raw === ""
                       ? 0
-                      : Math.max(0, Math.min(12, parseInt(raw, 10) || 0));
+                      : Math.max(
+                          0,
+                          Math.min(12, Number.parseInt(raw, 10) || 0),
+                        );
                   // Backend caps target_minutes at 720 (12h). When the user
                   // hits 12h via the hours field, force minutes to 0 so we
-                  // never produce 12h 30min — that would 400 on save.
+                  // never produce 12h 30min, that would 400 on save.
                   const nextMins = h >= 12 ? 0 : mins;
                   onEntryChange(activeWeekTab, d, h * 60 + nextMins);
                 }}
@@ -740,7 +744,7 @@ function CustomEditor({
                 <select
                   value={mins}
                   onChange={(e) => {
-                    const m = parseInt(e.target.value, 10) || 0;
+                    const m = Number.parseInt(e.target.value, 10) || 0;
                     onEntryChange(activeWeekTab, d, hours * 60 + m);
                   }}
                   disabled={hours >= 12}
