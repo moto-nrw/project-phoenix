@@ -358,20 +358,57 @@ describe("RoomsPage", () => {
     });
   });
 
-  it("shows transit fake room when rooms data is empty", () => {
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: [],
-      isLoading: false,
-      error: null,
-    } as never);
+  it("shows the transit assignment entry as a separate work list", () => {
+    vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
+      if (key === "dashboard-analytics") {
+        return {
+          data: { studentsInTransit: 2 },
+          isLoading: false,
+          error: null,
+        } as never;
+      }
+
+      return {
+        data: [],
+        isLoading: false,
+        error: null,
+      } as never;
+    });
 
     render(<RoomsPage />);
 
     expect(
       screen.getByRole("heading", { name: "Unterwegs" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Kinder ohne Raum")).toBeInTheDocument();
+    expect(screen.getByText("Arbeitsliste")).toBeInTheDocument();
+    expect(screen.getByText(/Kinder ohne Raumzuweisung/)).toBeInTheDocument();
     expect(screen.queryByText("Keine Räume gefunden")).not.toBeInTheDocument();
+  });
+
+  it("opens the transit assignment drawer from the work list", () => {
+    vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
+      if (key === "dashboard-analytics") {
+        return {
+          data: { studentsInTransit: 2 },
+          isLoading: false,
+          error: null,
+        } as never;
+      }
+
+      return {
+        data: mockRooms,
+        isLoading: false,
+        error: null,
+      } as never;
+    });
+
+    render(<RoomsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Unterwegs/i }));
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/test-tenant/rooms?room=__transit__",
+    );
   });
 
   it("displays occupied room with group name", () => {
