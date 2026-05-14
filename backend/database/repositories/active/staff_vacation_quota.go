@@ -33,7 +33,9 @@ func NewStaffVacationQuotaRepository(db *bun.DB) active.StaffVacationQuotaReposi
 // errors against Postgres.
 func (r *StaffVacationQuotaRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffVacationQuota, error) {
 	var rows []*active.StaffVacationQuota
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&rows)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableStaffVacationQuota)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
@@ -52,6 +54,7 @@ func (r *StaffVacationQuotaRepository) GetByStaffAndYear(ctx context.Context, st
 	quota := &active.StaffVacationQuota{}
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(quota).
+		ModelTableExpr(tableStaffVacationQuota).
 		Where("staff_id = ?", staffID).
 		Where("year = ?", year).
 		Limit(1)
@@ -87,6 +90,7 @@ func (r *StaffVacationQuotaRepository) Upsert(ctx context.Context, quota *active
 
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(quota).
+		ModelTableExpr(tableStaffVacationQuota).
 		On("CONFLICT (staff_id, year) DO UPDATE").
 		Set("entitled_days = EXCLUDED.entitled_days").
 		Set("carryover_days = EXCLUDED.carryover_days").
