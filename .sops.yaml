@@ -18,6 +18,6 @@ creation_rules:
   - path_regex: environments/staging\.sops\.env$
     age: "age1r5cffurwgs70ntsg3q7njv40xdfk8ejlfz8vud9fg8wej370sqxqxj5esd,age1qmh8rfsxle4jpmw07yzy9qts8eq8txapmlk6h63nn6lv9unr9qasvymvcd"
 
-  # Production stays restricted to the deploy key.
+  # Production can be decrypted by the deploy key and selected team members.
   - path_regex: environments/production\.sops\.env$
-    age: "age1r5cffurwgs70ntsg3q7njv40xdfk8ejlfz8vud9fg8wej370sqxqxj5esd"
+    age: "age1r5cffurwgs70ntsg3q7njv40xdfk8ejlfz8vud9fg8wej370sqxqxj5esd,age1qmh8rfsxle4jpmw07yzy9qts8eq8txapmlk6h63nn6lv9unr9qasvymvcd"
