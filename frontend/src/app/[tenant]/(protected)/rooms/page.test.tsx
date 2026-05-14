@@ -347,7 +347,7 @@ describe("RoomsPage", () => {
     });
   });
 
-  it("shows empty state when rooms data is empty", () => {
+  it("shows transit fake room when rooms data is empty", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: [],
       isLoading: false,
@@ -356,7 +356,11 @@ describe("RoomsPage", () => {
 
     render(<RoomsPage />);
 
-    expect(screen.getByText("Keine Räume gefunden")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Unterwegs" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Kinder ohne Raum")).toBeInTheDocument();
+    expect(screen.queryByText("Keine Räume gefunden")).not.toBeInTheDocument();
   });
 
   it("displays occupied room with group name", () => {
