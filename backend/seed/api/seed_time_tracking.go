@@ -84,7 +84,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 				vacationDays[toDateKey(start.AddDate(0, 0, offset))] = struct{}{}
 			}
 			if err := postAbsence(rt, start, start.AddDate(0, 0, 2),
-				activeModels.AbsenceTypeVacation, "Demo vacation block",
+				activeModels.AbsenceTypeVacation, "Urlaub",
 			); err != nil {
 				return fmt.Errorf("seed vacation for staff %d: %w", staffID, err)
 			}
@@ -96,7 +96,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			day := mostRecentWeekday(today.AddDate(0, 0, -rng.IntN(timeTrackingDaysBack)), time.Wednesday)
 			if _, blocked := vacationDays[toDateKey(day)]; !blocked {
 				sickDay = &day
-				if err := postAbsence(rt, day, day, activeModels.AbsenceTypeSick, "Demo sick day"); err != nil {
+				if err := postAbsence(rt, day, day, activeModels.AbsenceTypeSick, "Krankmeldung"); err != nil {
 					return fmt.Errorf("seed sick day for staff %d: %w", staffID, err)
 				}
 				absenceCount++

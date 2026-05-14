@@ -55,6 +55,7 @@ export function StaffSessionTable({
   schedule,
   today,
   isAdminView,
+  onEditDay,
 }: {
   readonly staffId: string;
   readonly from: Date;
@@ -64,6 +65,15 @@ export function StaffSessionTable({
   readonly schedule: StaffSchedule | null;
   readonly today: Date;
   readonly isAdminView: boolean;
+  // Optional external edit handler. When provided, the SquarePen click
+  // delegates to the caller instead of opening the bundled
+  // AdminSessionEditModal. Used by /time-tracking where the MA-side modal
+  // also handles absences (which the admin modal does not).
+  readonly onEditDay?: (
+    date: Date,
+    session: StaffHistorySession | null,
+    absence: StaffAbsenceRow | null,
+  ) => void;
 }) {
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, StaffHistorySession>();
@@ -263,11 +273,15 @@ export function StaffSessionTable({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setEditModal({
-                              mode: session == null ? "nachtragen" : "edit",
-                              date: day,
-                              session: session ?? null,
-                            });
+                            if (onEditDay) {
+                              onEditDay(day, session ?? null, absence ?? null);
+                            } else {
+                              setEditModal({
+                                mode: session == null ? "nachtragen" : "edit",
+                                date: day,
+                                session: session ?? null,
+                              });
+                            }
                           }}
                           aria-label={
                             session == null
@@ -295,12 +309,17 @@ export function StaffSessionTable({
                         sessionId={session.id}
                         onEdit={
                           isAdminView
-                            ? () =>
-                                setEditModal({
-                                  mode: "edit",
-                                  date: day,
-                                  session,
-                                })
+                            ? () => {
+                                if (onEditDay) {
+                                  onEditDay(day, session, absence ?? null);
+                                } else {
+                                  setEditModal({
+                                    mode: "edit",
+                                    date: day,
+                                    session,
+                                  });
+                                }
+                              }
                             : undefined
                         }
                       />
@@ -318,7 +337,7 @@ export function StaffSessionTable({
           werden.
         </p>
       )}
-      {editModal && (
+      {!onEditDay && editModal && (
         <AdminSessionEditModal
           isOpen
           mode={editModal.mode}

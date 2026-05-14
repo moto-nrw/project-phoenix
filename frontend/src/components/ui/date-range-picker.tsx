@@ -165,9 +165,11 @@ export function RangeCalendarInline({
 
   const isPickingTo = Boolean(draftFrom && !draftTo);
 
+  const hasPresets = presets && presets.length > 0;
+
   return (
-    <div className="flex">
-      {presets && presets.length > 0 && (
+    <div className={`flex ${hasPresets ? "" : "justify-center"}`}>
+      {hasPresets && (
         <div className="flex flex-col gap-1 border-r border-gray-100 p-3 text-xs">
           {presets.map((preset) => (
             <button
@@ -182,7 +184,7 @@ export function RangeCalendarInline({
         </div>
       )}
       <div className="p-3">
-        <div className="mb-2 px-1 text-xs text-gray-500">
+        <div className="mb-2 px-1 text-center text-xs text-gray-500">
           {isPickingTo
             ? "Klicke ein Enddatum"
             : draftFrom && draftTo
@@ -214,7 +216,7 @@ export function RangeCalendarInline({
           </button>
           <span className="text-sm font-medium text-gray-900">
             {format(month, "MMMM yyyy", { locale: de })}
-            {" — "}
+            {" – "}
             {format(addMonths(month, 1), "MMMM yyyy", { locale: de })}
           </span>
           <button

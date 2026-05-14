@@ -43,13 +43,13 @@ export function KpiCard({
   readonly color?: "green" | "amber" | "gray" | "red";
 }) {
   const primaryColor = {
-    green: "text-green-600",
+    green: "text-[#70b525]",
     amber: "text-amber-600",
     gray: "text-gray-700",
     red: "text-red-600",
   }[color ?? "gray"];
   const barColor = {
-    green: "bg-green-500",
+    green: "bg-[#83CD2D]",
     amber: "bg-amber-500",
     gray: "bg-gray-400",
     red: "bg-red-500",
@@ -281,7 +281,7 @@ export function MonthCalendar({
             actual === undefined
               ? "text-gray-300"
               : status === "green"
-                ? "text-green-600"
+                ? "text-[#70b525]"
                 : status === "amber"
                   ? "text-amber-600"
                   : "text-gray-500";
@@ -454,7 +454,7 @@ export function WeekView({
                       actual === undefined
                         ? "text-gray-300"
                         : status === "green"
-                          ? "text-green-600"
+                          ? "text-[#70b525]"
                           : status === "amber"
                             ? "text-amber-600"
                             : "text-gray-500"
@@ -469,7 +469,7 @@ export function WeekView({
                     <span
                       className={`font-semibold tabular-nums ${
                         status === "green"
-                          ? "text-green-600"
+                          ? "text-[#70b525]"
                           : status === "amber"
                             ? "text-amber-600"
                             : "text-gray-500"

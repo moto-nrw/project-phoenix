@@ -437,7 +437,14 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing absences: %w", err)
 	}
-	if len(existing) > 0 {
+	// Declined and canceled rows do not block the time slot — the staff
+	// member is free to request the same dates again. Only requested,
+	// approved and reported absences hold the range.
+	for _, e := range existing {
+		if e.Status == activeModels.AbsenceStatusDeclined ||
+			e.Status == activeModels.AbsenceStatusCanceled {
+			continue
+		}
 		return nil, fmt.Errorf("dates overlap with an existing absence")
 	}
 

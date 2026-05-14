@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
@@ -25,6 +26,36 @@ function formatRange(start: string, end: string): string {
   return start === end
     ? formatDate(start)
     : `${formatDate(start)} – ${formatDate(end)}`;
+}
+
+// Mon-Fri inclusive (Feiertage kommen in Tranche 3). Fallback when the row
+// predates the backend-computed workingDays field.
+function countWorkdaysInclusive(startISO: string, endISO: string): number {
+  const start = new Date(`${startISO}T00:00:00`);
+  const end = new Date(`${endISO}T00:00:00`);
+  if (end.getTime() < start.getTime()) return 0;
+  let n = 0;
+  const cur = new Date(start);
+  while (cur.getTime() <= end.getTime()) {
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) n += 1;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return n;
+}
+
+function formatDayCount(days: number): string {
+  const rounded = Math.round(days * 10) / 10;
+  const display = Number.isInteger(rounded)
+    ? rounded.toString()
+    : rounded.toFixed(1).replace(".", ",");
+  return `${display} ${rounded === 1 ? "Tag" : "Tage"}`;
+}
+
+function dayCountFor(a: StaffAbsence): number {
+  if (a.workingDays != null) return a.workingDays;
+  const base = countWorkdaysInclusive(a.dateStart, a.dateEnd);
+  return a.halfDay && base > 0 ? base - 0.5 : base;
 }
 
 interface StatusMeta {
@@ -99,11 +130,20 @@ export function LeaveRequestsCard() {
     return { reserved, approved, declined };
   }, [vacations]);
 
-  const handleCancel = async (id: string) => {
-    if (!globalThis.window.confirm("Antrag wirklich stornieren?")) return;
+  const [cancelTarget, setCancelTarget] = useState<StaffAbsence | null>(null);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+
+  const handleCancel = (absence: StaffAbsence) => {
+    setCancelTarget(absence);
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelSubmitting(true);
     try {
-      await timeTrackingService.cancelAbsence(id);
+      await timeTrackingService.cancelAbsence(cancelTarget.id);
       toast.success("Antrag storniert.");
+      setCancelTarget(null);
       await loadAll();
     } catch (err) {
       toast.error(
@@ -111,6 +151,8 @@ export function LeaveRequestsCard() {
           ? err.message
           : "Antrag konnte nicht storniert werden.",
       );
+    } finally {
+      setCancelSubmitting(false);
     }
   };
 
@@ -199,11 +241,9 @@ export function LeaveRequestsCard() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-800">
                           {formatRange(v.dateStart, v.dateEnd)}
-                          {v.halfDay && (
-                            <span className="ml-2 text-xs text-gray-500">
-                              (halber Tag)
-                            </span>
-                          )}
+                          <span className="ml-2 text-xs text-gray-500">
+                            · {formatDayCount(dayCountFor(v))}
+                          </span>
                         </p>
                         {v.note && (
                           <p className="mt-0.5 truncate text-xs text-gray-500">
@@ -228,7 +268,7 @@ export function LeaveRequestsCard() {
                         {cancelable && (
                           <button
                             type="button"
-                            onClick={() => handleCancel(v.id)}
+                            onClick={() => handleCancel(v)}
                             className="text-xs font-medium text-red-600 hover:text-red-700"
                           >
                             Stornieren
@@ -249,6 +289,27 @@ export function LeaveRequestsCard() {
         onSubmitted={() => void loadAll()}
         remainingDays={remainingDays}
       />
+
+      <ConfirmationModal
+        isOpen={cancelTarget !== null}
+        onClose={() => !cancelSubmitting && setCancelTarget(null)}
+        onConfirm={() => void confirmCancel()}
+        title="Antrag stornieren"
+        confirmText="Stornieren"
+        cancelText="Behalten"
+        isConfirmLoading={cancelSubmitting}
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+      >
+        {cancelTarget && (
+          <div className="space-y-2 text-sm text-gray-700">
+            <p>Möchtest du diesen Urlaubsantrag wirklich stornieren?</p>
+            <p className="text-xs text-gray-500">
+              {formatRange(cancelTarget.dateStart, cancelTarget.dateEnd)}
+              {cancelTarget.status === "approved" && " (bereits genehmigt)"}
+            </p>
+          </div>
+        )}
+      </ConfirmationModal>
     </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSWRConfig } from "swr";
 
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
@@ -40,6 +41,37 @@ function formatRange(start: string, end: string): string {
   return start === end
     ? formatDate(start)
     : `${formatDate(start)} – ${formatDate(end)}`;
+}
+
+// Mon-Fri working days inclusive (Feiertage kommen in Tranche 3). Used as
+// a fallback when the row predates the backend-computed working_days field.
+function countWorkdaysInclusive(startISO: string, endISO: string): number {
+  const start = new Date(`${startISO}T00:00:00`);
+  const end = new Date(`${endISO}T00:00:00`);
+  if (end.getTime() < start.getTime()) return 0;
+  let n = 0;
+  const cur = new Date(start);
+  while (cur.getTime() <= end.getTime()) {
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) n += 1;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return n;
+}
+
+function formatDayCount(days: number): string {
+  // German decimal comma, drop trailing ",0" so "5" prints as "5 Tage".
+  const rounded = Math.round(days * 10) / 10;
+  const display = Number.isInteger(rounded)
+    ? rounded.toString()
+    : rounded.toFixed(1).replace(".", ",");
+  return `${display} ${rounded === 1 ? "Tag" : "Tage"}`;
+}
+
+function dayCountFor(row: StaffAbsenceRow): number {
+  if (row.working_days != null) return row.working_days;
+  const base = countWorkdaysInclusive(row.date_start, row.date_end);
+  return row.half_day && base > 0 ? base - 0.5 : base;
 }
 
 interface StatusMeta {
@@ -82,6 +114,7 @@ export function AbwesenheitenTab({
   const [pendingActionId, setPendingActionId] = useState<number | null>(null);
   const [denyModal, setDenyModal] = useState<StaffAbsenceRow | null>(null);
   const [quotaModal, setQuotaModal] = useState(false);
+  const { mutate: swrMutate } = useSWRConfig();
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -96,6 +129,15 @@ export function AbwesenheitenTab({
       ]);
       setQuota(q);
       setAbsences(abs);
+      // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
+      // outside this component and otherwise stays stale after approvals,
+      // denials and stornos. useSWRAuth prefixes every key with the tenant
+      // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
+      // never matches — we use includes for the cache hit.
+      void swrMutate(
+        (key) =>
+          typeof key === "string" && key.includes("staff-pending-absences-"),
+      );
     } catch (err) {
       logger.error("load_failed", {
         staff_id: staffId,
@@ -105,7 +147,7 @@ export function AbwesenheitenTab({
     } finally {
       setLoading(false);
     }
-  }, [staffId, year, toast]);
+  }, [staffId, year, swrMutate, toast]);
 
   useEffect(() => {
     void reload();
@@ -169,8 +211,13 @@ export function AbwesenheitenTab({
         <QuotaTile
           label="Anspruch"
           value={`${(quota?.entitled_days ?? 0) + (quota?.carryover_days ?? 0)}`}
-          hint={`${quota?.entitled_days ?? 0} + ${quota?.carryover_days ?? 0} Übertrag`}
-          tone="muted"
+          hint={
+            (quota?.carryover_days ?? 0) > 0
+              ? `${quota?.entitled_days ?? 0} + ${quota?.carryover_days ?? 0} Übertrag`
+              : "Tage"
+          }
+          tone="primary"
+          onEdit={canEdit ? () => setQuotaModal(true) : undefined}
         />
         <QuotaTile
           label="Genommen"
@@ -179,28 +226,47 @@ export function AbwesenheitenTab({
           tone="success"
         />
         <QuotaTile
-          label="Reserviert"
+          label="Beantragt"
           value={`${quota?.reserved_days ?? 0}`}
           hint="offene Anträge"
-          tone={(quota?.reserved_days ?? 0) > 0 ? "amber" : "muted"}
+          tone={(quota?.reserved_days ?? 0) > 0 ? "amber" : "primary"}
         />
       </div>
 
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-400">Jahr {year}</span>
-        {canEdit && (
-          <button
-            type="button"
-            onClick={() => setQuotaModal(true)}
-            className="text-xs font-medium text-gray-600 hover:text-gray-900"
-          >
-            Urlaubsanspruch bearbeiten
-          </button>
-        )}
+      <div className="flex items-center justify-end">
+        <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
+          Jahr {year}
+        </span>
       </div>
 
-      {/* Pending requests */}
-      {pending.length > 0 && (
+      {/* Pending requests — Inbox-Zero pattern: always shows the slot. With
+          items it surfaces as an amber action card; empty it collapses to a
+          subtle "alles bearbeitet" confirmation so the layout anchor stays. */}
+      {pending.length === 0 ? (
+        <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </span>
+          <div>
+            <p className="text-sm font-medium text-gray-700">
+              Keine offenen Anfragen
+            </p>
+            <p className="text-xs text-gray-400">Alles bearbeitet.</p>
+          </div>
+        </div>
+      ) : (
         <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
           <div className="mb-3 flex items-center gap-2">
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
@@ -349,11 +415,13 @@ function QuotaTile({
   value,
   hint,
   tone,
+  onEdit,
 }: {
   readonly label: string;
   readonly value: string;
   readonly hint: string;
   readonly tone: "primary" | "success" | "amber" | "muted";
+  readonly onEdit?: () => void;
 }) {
   const valueClass = {
     primary: "text-gray-900",
@@ -362,7 +430,7 @@ function QuotaTile({
     muted: "text-gray-400",
   }[tone];
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+    <div className="relative rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
       <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
         {label}
       </p>
@@ -370,12 +438,54 @@ function QuotaTile({
         {value}
       </p>
       <p className="mt-0.5 text-xs text-gray-400">{hint}</p>
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label="Urlaubsanspruch bearbeiten"
+          title="Urlaubsanspruch bearbeiten"
+          className="absolute top-2 right-2 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+        >
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+            />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
 
+// Generic notes that duplicate the type badge get suppressed — admins seeded
+// "Urlaub" or "Krankmeldung" as boilerplate, and rendering them next to the
+// already-visible type badge is just noise.
+const REDUNDANT_NOTES: Record<string, ReadonlyArray<string>> = {
+  sick: ["krank", "krankheit", "krankmeldung", "au", "au-bescheinigung"],
+  vacation: ["urlaub", "erholungsurlaub"],
+  training: ["fortbildung", "schulung"],
+  other: ["abwesend", "sonstige", "sonstiges"],
+};
+
+function isRedundantNote(absenceType: string, note: string): boolean {
+  const normalized = note.trim().toLowerCase();
+  if (!normalized) return true;
+  const typeLabel = (ABSENCE_TYPE_LABEL[absenceType] ?? "").toLowerCase();
+  if (normalized === typeLabel) return true;
+  return (REDUNDANT_NOTES[absenceType] ?? []).includes(normalized);
+}
+
 function AbsenceRow({ row }: { readonly row: StaffAbsenceRow }) {
   const meta = statusMeta(row.status);
+  const showNote = row.note && !isRedundantNote(row.absence_type, row.note);
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -387,12 +497,12 @@ function AbsenceRow({ row }: { readonly row: StaffAbsenceRow }) {
           </span>
           <p className="text-sm font-medium text-gray-800">
             {formatRange(row.date_start, row.date_end)}
-            {row.half_day && (
-              <span className="ml-2 text-xs text-gray-500">(halber Tag)</span>
-            )}
+            <span className="ml-2 text-xs text-gray-500">
+              · {formatDayCount(dayCountFor(row))}
+            </span>
           </p>
         </div>
-        {row.note && (
+        {showNote && (
           <p className="mt-0.5 truncate text-xs text-gray-500">{row.note}</p>
         )}
         {row.decision_note && (
@@ -586,9 +696,6 @@ function EditQuotaModal({
             onChange={(e) => setEntitled(e.target.value)}
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
           />
-          <p className="mt-1 text-xs text-gray-400">
-            TVöD-Allgemein Default: 30 Tage. Bei Teilzeit anteilig.
-          </p>
         </div>
         <div>
           <label
