@@ -116,6 +116,13 @@ type WorkSessionService interface {
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	// GetSessionEditsForStaff returns the audit trail of a session for a
+	// specific staff id. The caller is expected to have an admin-level
+	// permission (users:read or time_tracking:manage) — no ownership check
+	// against the JWT subject. We still verify that the session actually
+	// belongs to the target staff so the URL can't be used to leak edits
+	// across staff members in the same tenant.
+	GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
 	// EnsureCheckedIn opens today's session if the staff member has no active
@@ -814,6 +821,26 @@ func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessi
 	}
 	if session.StaffID != staffID {
 		return nil, fmt.Errorf("session does not belong to requesting staff")
+	}
+
+	edits, err := s.auditRepo.GetBySessionID(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session edits: %w", err)
+	}
+	return edits, nil
+}
+
+// GetSessionEditsForStaff is the admin-facing counterpart. The session must
+// belong to the staff member named in the URL — without that check an admin
+// could load any session's edits by guessing IDs (within the tenant, RLS
+// still applies). Permission gating happens at the route level.
+func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+	session, err := s.repo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, s.handleSessionNotFoundError(err)
+	}
+	if session.StaffID != staffID {
+		return nil, fmt.Errorf("session does not belong to staff %d", staffID)
 	}
 
 	edits, err := s.auditRepo.GetBySessionID(ctx, sessionID)

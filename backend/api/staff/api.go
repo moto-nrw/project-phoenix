@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -121,6 +122,11 @@ func (rs *Resource) Router() chi.Router {
 
 		// Time tracking history for a specific staff member (admin read)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
+		// Audit trail of a single work session, admin-facing. The MA-side
+		// /api/time-tracking/{id}/edits enforces session-staff ownership
+		// against the JWT subject; here the route guarantees the session
+		// belongs to the staff named in the URL instead.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/sessions/{sessionId}/edits", rs.getStaffSessionEdits)
 
 		// Absences for a specific staff member (admin read). The MA-Sicht uses
 		// /api/time-tracking/absences which is scoped to the caller; this route
@@ -1840,6 +1846,43 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, historyResp, "Staff session history retrieved successfully")
+}
+
+// getStaffSessionEdits handles GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
+// Admin-facing counterpart to /api/time-tracking/{id}/edits. The MA endpoint
+// verifies the session belongs to the JWT subject; here we verify it belongs
+// to the staff named in the URL (RLS still scopes the tenant).
+func (rs *Resource) getStaffSessionEdits(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	sessionIDStr := chi.URLParam(r, "sessionId")
+	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
+		return
+	}
+
+	edits, err := rs.WorkSessionService.GetSessionEditsForStaff(r.Context(), staffID, sessionID)
+	if err != nil {
+		rs.getLogger().Error("failed to get staff session edits",
+			"staff_id", staffID,
+			"session_id", sessionID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, edits, "Session edits retrieved successfully")
 }
 
 // getStaffAbsences handles GET /api/staff/{id}/absences?from=YYYY-MM-DD&to=YYYY-MM-DD
