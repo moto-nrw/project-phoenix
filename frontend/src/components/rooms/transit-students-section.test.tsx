@@ -29,6 +29,13 @@ vi.mock("~/lib/api", () => ({
   },
 }));
 
+const mockToastSuccess = vi.fn();
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+  }),
+}));
+
 const mockStudents: Student[] = [
   {
     id: "11",
@@ -122,6 +129,7 @@ describe("TransitStudentsSection", () => {
     mutateStudents.mockResolvedValue(undefined);
     mutateKey.mockResolvedValue(undefined);
     mutateMatching.mockResolvedValue(undefined);
+    mockToastSuccess.mockReset();
     vi.mocked(useTenantMutate).mockReturnValue(mutateKey as never);
     vi.mocked(useTenantMutateMatching).mockReturnValue(mutateMatching as never);
     vi.mocked(activeService.assignTransitStudents).mockResolvedValue({
@@ -152,10 +160,10 @@ describe("TransitStudentsSection", () => {
     render(<TransitStudentsSection />);
 
     fireEvent.click(screen.getByLabelText("Mila Sommer auswählen"));
-    fireEvent.change(screen.getByRole("combobox"), {
+    fireEvent.change(screen.getByLabelText("Zielraum"), {
       target: { value: "101" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "1 Kind zuweisen" }));
+    fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
     await waitFor(() => {
       expect(activeService.assignTransitStudents).toHaveBeenCalledWith(
@@ -163,9 +171,7 @@ describe("TransitStudentsSection", () => {
         "101",
       );
     });
-    await waitFor(() => {
-      expect(screen.getByText("1 Kind zugewiesen.")).toBeInTheDocument();
-    });
+    expect(mockToastSuccess).toHaveBeenCalledWith("1 Kind zugewiesen.");
     expect(mutateStudents).toHaveBeenCalledTimes(1);
     expect(mutateKey).toHaveBeenCalledWith("rooms-list");
     expect(mutateMatching).toHaveBeenCalledTimes(1);

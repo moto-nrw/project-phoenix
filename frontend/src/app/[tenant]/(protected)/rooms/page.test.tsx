@@ -380,7 +380,6 @@ describe("RoomsPage", () => {
     expect(
       screen.getByRole("heading", { name: "Unterwegs" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Arbeitsliste")).toBeInTheDocument();
     expect(screen.getByText(/Kinder ohne Raumzuweisung/)).toBeInTheDocument();
     expect(screen.queryByText("Keine Räume gefunden")).not.toBeInTheDocument();
   });

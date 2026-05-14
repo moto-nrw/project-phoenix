@@ -21,7 +21,7 @@ import {
 } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Footprints } from "lucide-react";
 
 import { Loading } from "~/components/ui/loading";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
@@ -121,20 +121,15 @@ function TransitAssignmentCard({
           style={{ backgroundColor: `${LOCATION_COLORS.TRANSIT}14` }}
           aria-hidden="true"
         >
-          <span
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: LOCATION_COLORS.TRANSIT }}
+          <Footprints
+            className="h-5 w-5"
+            style={{ color: LOCATION_COLORS.TRANSIT }}
           />
         </span>
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-              Unterwegs
-            </h2>
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-              Arbeitsliste
-            </span>
-          </div>
+          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+            Unterwegs
+          </h2>
           <p className="mt-0.5 text-sm text-gray-500">
             <span className="font-medium text-gray-900">{count}</span>{" "}
             {count === 1 ? "Kind" : "Kinder"} ohne Raumzuweisung

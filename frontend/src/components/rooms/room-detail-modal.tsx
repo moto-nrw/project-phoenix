@@ -49,17 +49,12 @@ function TransitDetailContent({
     <div>
       <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-gray-200/70 bg-gray-50/95 px-5 pt-5 pb-4 backdrop-blur supports-[backdrop-filter]:bg-gray-50/85 sm:px-6">
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h1
-              tabIndex={-1}
-              className="min-w-0 truncate text-2xl leading-tight font-bold text-gray-900 md:text-3xl"
-            >
-              Unterwegs
-            </h1>
-            <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
-              Arbeitsliste
-            </span>
-          </div>
+          <h1
+            tabIndex={-1}
+            className="min-w-0 truncate text-2xl leading-tight font-bold text-gray-900 md:text-3xl"
+          >
+            Unterwegs
+          </h1>
           <p className="mt-1 truncate text-xs font-medium text-gray-500">
             Kinder ohne Raumzuweisung
           </p>
