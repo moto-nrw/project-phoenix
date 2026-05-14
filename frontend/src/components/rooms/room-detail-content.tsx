@@ -1,6 +1,6 @@
 // components/rooms/room-detail-content.tsx
 //
-// Body of the room detail view — used by both the full subpage
+// Body of the room detail view , used by both the full subpage
 // (/rooms/[id]/page.tsx, kept for deep links) and the responsive modal
 // rendered from /rooms (#1374).
 //
@@ -11,6 +11,7 @@
 
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import {
   Building2,
@@ -34,6 +35,8 @@ import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled"
 import { StudentsInRoomSection } from "./students-in-room-section";
 
 const logger = createLogger({ component: "RoomDetailContent" });
+const DETAIL_CARD_CLASS =
+  "rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6";
 
 interface Room {
   id: string;
@@ -231,13 +234,18 @@ function groupByDate(activities: Activity[]): DateGroup[] {
   const groups: Record<string, Activity[]> = {};
 
   activities.forEach((activity) => {
-    const date = new Date(activity.entryTimestamp).toLocaleDateString("de-DE");
+    const timestamp = new Date(activity.entryTimestamp);
+    const date = [
+      timestamp.getFullYear(),
+      String(timestamp.getMonth() + 1).padStart(2, "0"),
+      String(timestamp.getDate()).padStart(2, "0"),
+    ].join("-");
     groups[date] ??= [];
     groups[date].push(activity);
   });
 
   return Object.keys(groups)
-    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+    .sort((a, b) => b.localeCompare(a))
     .map((date) => ({
       date,
       entries: (groups[date] ?? []).sort(
@@ -260,7 +268,7 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
   const token = session?.user?.token;
 
   // SWR-cached so the global SSE handler can invalidate the header on
-  // checkin/checkout/activity events — see use-global-sse.ts. The cache
+  // checkin/checkout/activity events , see use-global-sse.ts. The cache
   // key shape is "room-detail-{id}" (the slug-prefix is added by
   // useSWRAuth); SSE matches via key.includes("room-detail-").
   const { data, error, isLoading } = useSWRAuth<{
@@ -333,8 +341,8 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
 }
 
 // Icon-row layout for the room-detail card (#1323 review).
-// Each row: a brand-tinted icon on the left, then a stacked
-// label (small, muted) + value (regular, bold) — same shape as the
+// Each row: a muted icon on the left, then a stacked
+// label (small, muted) + value (regular, bold), same shape as the
 // reference screenshot's DETAILS section. Keeps every field the old
 // InfoItem layout had, just denser and with a clearer visual anchor
 // per row so staff can scan vertically by icon.
@@ -353,7 +361,7 @@ function IconDetailRow({
     // tried to align the icon with the small label, which left it
     // visually too high relative to the bold value below.
     <div className="flex items-center gap-3 py-1">
-      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-[#5080D8]/10 text-[#5080D8]">
+      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-500">
         {icon}
       </div>
       <div className="min-w-0 flex-1">
@@ -369,47 +377,68 @@ function IconDetailRow({
 interface RoomDetailContentProps {
   readonly room: Room;
   readonly history: readonly RoomHistoryEntry[];
-  // Optional slot rendered in the header row next to the StatusBadge.
-  // Used by the slide-over to drop its X close button alongside the
-  // room name and badge so they share one clean line. The master-detail
-  // database page leaves it undefined — its container owns close
-  // affordances elsewhere.
   readonly headerAction?: React.ReactNode;
+  readonly onSelectionActiveChange?: (active: boolean) => void;
 }
 
 export function RoomDetailContent({
   room,
   history,
   headerAction,
+  onSelectionActiveChange,
 }: RoomDetailContentProps) {
   const activities = groupHistoryByActivity([...history]);
   const groupedActivities = groupByDate(activities);
+  const hasHistory = groupedActivities.length > 0;
+  const isModalContext = Boolean(headerAction);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (!isModalContext) return;
+    titleRef.current?.focus({ preventScroll: true });
+  }, [isModalContext, room.id]);
 
   return (
     <div>
-      {/* Room Header — name, status badge, and (in the slide-over) the
-          X close button on a single line (#1323 review).
-          Layout choices:
-            • Badge sits tight to the heading (no flex-1 on h1) so the
-              status reads as part of the title, not a far-right tag.
-            • X gets ml-auto, so it always anchors to the far right.
-            • leading-tight on h1 collapses the bold heading's line-box
-              so it visually centers with the smaller badge + icon
-              button instead of floating above them. */}
-      <div className="mb-6 flex items-center gap-2">
-        <h1 className="min-w-0 truncate text-2xl leading-tight font-bold text-gray-900 md:text-3xl">
-          {room.name}
-        </h1>
-        <div className="flex-shrink-0">
-          <StatusBadge isOccupied={room.isOccupied} />
+      <div
+        className={`flex items-center gap-2 ${
+          headerAction
+            ? "sticky top-0 z-20 border-b border-gray-200/70 bg-gray-50/95 px-5 pt-5 pb-4 backdrop-blur supports-[backdrop-filter]:bg-gray-50/85 sm:px-6"
+            : "mb-5"
+        }`}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1
+              ref={titleRef}
+              tabIndex={isModalContext ? -1 : undefined}
+              className="min-w-0 truncate text-2xl leading-tight font-bold text-gray-900 md:text-3xl"
+            >
+              {room.name}
+            </h1>
+            <div className="flex-shrink-0">
+              <StatusBadge isOccupied={room.isOccupied} />
+            </div>
+          </div>
+          {headerAction && (room.building || room.floor !== undefined) ? (
+            <p className="mt-1 truncate text-xs font-medium text-gray-500">
+              {room.building && room.floor !== undefined
+                ? `${room.building} · ${formatFloor(room.floor)}`
+                : (room.building ?? formatFloor(room.floor ?? 0))}
+            </p>
+          ) : null}
         </div>
         {headerAction && (
           <div className="ml-auto flex-shrink-0">{headerAction}</div>
         )}
       </div>
 
-      <div className="space-y-4 sm:space-y-6">
-        {/* Compact icon-row block — every field that used to live in the
+      <div
+        className={`space-y-4 sm:space-y-6 ${
+          headerAction ? "px-5 pt-5 sm:px-6" : ""
+        }`}
+      >
+        {/* Compact icon-row block , every field that used to live in the
             old "Rauminformationen" InfoItem stack is here, but each row
             is anchored by a brand-tinted icon so the eye can scan
             vertically without re-reading labels. Review feedback
@@ -418,16 +447,16 @@ export function RoomDetailContent({
         {/* Quiet section header (option A from #1323 review): small
             uppercase label instead of the bold h2 + tinted icon box.
             Inverts the previous size hierarchy where the heading
-            outweighed the data underneath — now the heading is a quiet
+            outweighed the data underneath , now the heading is a quiet
             anchor and the IconDetailRow values carry the visual weight.
             Card outline / padding stay so the section is still
             visually grouped. */}
-        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+        <div className={DETAIL_CARD_CLASS}>
           <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
             Rauminformationen
           </h2>
           <div className="space-y-1">
-            {/* Raumname intentionally omitted — already in the h1
+            {/* Raumname intentionally omitted , already in the h1
                 header above; review feedback (#1323): redundant. */}
             {room.building && (
               <IconDetailRow
@@ -483,19 +512,17 @@ export function RoomDetailContent({
           </div>
         </div>
 
-        <StudentsInRoomSection roomId={room.id} roomName={room.name} />
+        <StudentsInRoomSection
+          roomId={room.id}
+          roomName={room.name}
+          onSelectionActiveChange={onSelectionActiveChange}
+        />
 
-        {/* Quiet section header to match the Rauminformationen block
-            above (#1323). */}
-        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-          <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-            Belegungshistorie
-          </h2>
-          {groupedActivities.length === 0 ? (
-            <div className="py-8 text-center text-gray-500">
-              Keine Belegungshistorie verfügbar.
-            </div>
-          ) : (
+        {hasHistory ? (
+          <div className={DETAIL_CARD_CLASS}>
+            <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              Belegungshistorie
+            </h2>
             <div className="space-y-6">
               {groupedActivities.map((dateGroup) => (
                 <div key={dateGroup.date}>
@@ -520,7 +547,7 @@ export function RoomDetailContent({
                       return (
                         <div
                           key={activity.id}
-                          className="rounded-lg border border-gray-100 bg-white p-4 transition-shadow hover:shadow-md"
+                          className="rounded-2xl border border-gray-100 bg-white p-4 transition-shadow hover:shadow-md"
                         >
                           <div
                             className="-mx-4 -mt-4 mb-3 h-1 rounded-full"
@@ -563,7 +590,7 @@ export function RoomDetailContent({
                                 Ende: {formatTime(activity.exitTimestamp)}
                               </span>
                             ) : (
-                              <span className="font-medium text-[#5080D8]">
+                              <span className="font-medium text-gray-700">
                                 Laufend
                               </span>
                             )}
@@ -575,8 +602,8 @@ export function RoomDetailContent({
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -585,7 +612,7 @@ export function RoomDetailContent({
 // Content-shaped skeleton for the loading state. Mirrors the three card
 // shells of the loaded layout (Rauminformationen / Kinder im Raum /
 // Belegungshistorie) so the slide-over body doesn't visibly resize when
-// real data arrives — review feedback #1323. Pulse-animated placeholders
+// real data arrives , review feedback #1323. Pulse-animated placeholders
 // for header text, badge, icon-rows, and child rows. Keeps role="status"
 // + aria-label so the previous business assertion ("loading state is
 // announced to AT") is preserved.
@@ -598,7 +625,7 @@ function SkeletonCardShell({
   children,
 }: Readonly<{ heading: string; children: React.ReactNode }>) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className={DETAIL_CARD_CLASS}>
       <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
         {heading}
       </h2>
@@ -624,7 +651,7 @@ function SkeletonStudentRow({ withAvatar }: { withAvatar: boolean }) {
   // Mirrors CompactStudentCard: full-width pill with name + meta line.
   // When the per-tenant photo feature is on, also reserve the avatar
   // slot (sm = 32px) so the populated row's content origin lines up
-  // with the skeleton — avoids a horizontal jump when data arrives.
+  // with the skeleton , avoids a horizontal jump when data arrives.
   return (
     <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
       {withAvatar ? (
@@ -650,7 +677,7 @@ function RoomDetailSkeleton() {
       data-testid="room-detail-skeleton"
       className="block"
     >
-      {/* Header row — name + status pill, same line as the loaded view. */}
+      {/* Header row , name + status pill, same line as the loaded view. */}
       <div className="mb-6 flex items-center gap-2">
         <SkeletonLine className="h-7 w-48 md:h-8 md:w-64" />
         <SkeletonLine className="h-6 w-16 rounded-full" />
@@ -702,6 +729,7 @@ interface RoomDetailLoaderProps {
   readonly roomId: string;
   readonly emptyAction?: React.ReactNode;
   readonly headerAction?: React.ReactNode;
+  readonly onSelectionActiveChange?: (active: boolean) => void;
 }
 
 /**
@@ -715,6 +743,7 @@ export function RoomDetailLoader({
   roomId,
   emptyAction,
   headerAction,
+  onSelectionActiveChange,
 }: RoomDetailLoaderProps) {
   const { room, history, loading, error } = useRoomDetail(roomId);
 
@@ -738,6 +767,7 @@ export function RoomDetailLoader({
       room={room}
       history={history}
       headerAction={headerAction}
+      onSelectionActiveChange={onSelectionActiveChange}
     />
   );
 }

@@ -80,10 +80,12 @@ vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,
+    activeFilters,
     onClearAllFilters,
   }: {
     search: { value: string; onChange: (v: string) => void };
     filters?: Array<{ onChange: (v: string | string[]) => void }>;
+    activeFilters?: Array<{ id: string; label: string; onRemove: () => void }>;
     onClearAllFilters: () => void;
   }) => (
     <div data-testid="page-header">
@@ -107,6 +109,15 @@ vi.mock("~/components/ui/page-header", () => ({
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
         Clear
       </button>
+      {activeFilters?.map((filter) => (
+        <button
+          key={filter.id}
+          data-testid={`remove-filter-${filter.id}`}
+          onClick={filter.onRemove}
+        >
+          {filter.label}
+        </button>
+      ))}
     </div>
   ),
 }));
@@ -232,7 +243,7 @@ describe("RoomsPage", () => {
     // that useTenantRouter wraps.
     expect(mockPush).toHaveBeenCalledWith("/test-tenant/rooms?room=1");
     // updateUrlParams (which uses replace internally) must NOT be called
-    // for opening — only for closing.
+    // for opening, only for closing.
     expect(mockUpdateUrlParams).not.toHaveBeenCalledWith({ room: "1" });
   });
 
@@ -256,7 +267,7 @@ describe("RoomsPage", () => {
 
     // After open-then-close, history must collapse to a single /rooms
     // entry. Replace would leave [/rooms, /rooms] and Back would appear
-    // to do nothing — the close path has to pop the modal entry.
+    // to do nothing, the close path has to pop the modal entry.
     expect(mockBack).toHaveBeenCalledTimes(1);
     expect(mockUpdateUrlParams).not.toHaveBeenCalledWith({ room: null });
   });
@@ -266,7 +277,7 @@ describe("RoomsPage", () => {
     // window.history.state, not in component state. Otherwise drilling
     // into a child and pressing browser Back would remount /rooms with
     // a fresh ref, and the close path would silently fall back to
-    // replace — leaving the duplicate-/rooms history bug intact.
+    // replace, leaving the duplicate-/rooms history bug intact.
     vi.mocked(useSWRAuth).mockReturnValue({
       data: mockRooms,
       isLoading: false,
@@ -347,20 +358,81 @@ describe("RoomsPage", () => {
     });
   });
 
-  it("shows transit fake room when rooms data is empty", () => {
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: [],
-      isLoading: false,
-      error: null,
-    } as never);
+  it("shows the transit assignment entry as a separate work list", () => {
+    vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
+      if (key === "dashboard-analytics") {
+        return {
+          data: { studentsInTransit: 2 },
+          isLoading: false,
+          error: null,
+        } as never;
+      }
+
+      return {
+        data: [],
+        isLoading: false,
+        error: null,
+      } as never;
+    });
 
     render(<RoomsPage />);
 
     expect(
       screen.getByRole("heading", { name: "Unterwegs" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Kinder ohne Raum")).toBeInTheDocument();
+    expect(screen.getByText(/Kinder ohne Raumzuweisung/)).toBeInTheDocument();
     expect(screen.queryByText("Keine Räume gefunden")).not.toBeInTheDocument();
+  });
+
+  it("hides the transit assignment entry when no children are unterwegs", () => {
+    vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
+      if (key === "dashboard-analytics") {
+        return {
+          data: { studentsInTransit: 0 },
+          isLoading: false,
+          error: null,
+        } as never;
+      }
+
+      return {
+        data: [],
+        isLoading: false,
+        error: null,
+      } as never;
+    });
+
+    render(<RoomsPage />);
+
+    expect(
+      screen.queryByRole("heading", { name: "Unterwegs" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Keine Räume gefunden")).toBeInTheDocument();
+  });
+
+  it("opens the transit assignment drawer from the work list", () => {
+    vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
+      if (key === "dashboard-analytics") {
+        return {
+          data: { studentsInTransit: 2 },
+          isLoading: false,
+          error: null,
+        } as never;
+      }
+
+      return {
+        data: mockRooms,
+        isLoading: false,
+        error: null,
+      } as never;
+    });
+
+    render(<RoomsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Unterwegs/i }));
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/test-tenant/rooms?room=__transit__",
+    );
   });
 
   it("displays occupied room with group name", () => {
@@ -462,7 +534,7 @@ describe("RoomsPage", () => {
     render(<RoomsPage />);
 
     // The data-loading state is now a content-shaped skeleton grid in
-    // place of the generic <Loading> spinner — the page header still
+    // place of the generic <Loading> spinner, the page header still
     // renders, only the card grid is replaced with skeleton cards
     // (review feedback #1323). Same business assertion ("a loading
     // state is announced while data is fetched"), new selector
@@ -498,6 +570,47 @@ describe("RoomsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Raum 101")).toBeInTheDocument();
       expect(screen.queryByText("Freier Raum")).not.toBeInTheDocument();
+    });
+  });
+
+  it("removes active search, building, and status filters from the header chips", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Raum" },
+    });
+    fireEvent.click(screen.getByTestId("filter-building"));
+    fireEvent.click(screen.getByTestId("filter-occupied"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("remove-filter-search")).toBeInTheDocument();
+      expect(screen.getByTestId("remove-filter-building")).toBeInTheDocument();
+      expect(screen.getByTestId("remove-filter-occupied")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("remove-filter-search"));
+    await waitFor(() => {
+      expect(screen.getByTestId("search-input")).toHaveValue("");
+    });
+
+    fireEvent.click(screen.getByTestId("remove-filter-building"));
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("remove-filter-building"),
+      ).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("remove-filter-occupied"));
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("remove-filter-occupied"),
+      ).not.toBeInTheDocument();
     });
   });
 });

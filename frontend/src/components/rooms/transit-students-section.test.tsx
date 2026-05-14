@@ -10,6 +10,23 @@ import {
 } from "~/lib/swr";
 import { TransitStudentsSection } from "./transit-students-section";
 
+const { mockPush, mockSearchParamsToString } = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockSearchParamsToString: vi.fn(() => "room=__transit__"),
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => ({
+    toString: mockSearchParamsToString,
+  }),
+}));
+
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({
+    push: mockPush,
+  }),
+}));
+
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(),
@@ -27,6 +44,13 @@ vi.mock("~/lib/api", () => ({
   studentService: {
     getStudents: vi.fn(),
   },
+}));
+
+const mockToastSuccess = vi.fn();
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+  }),
 }));
 
 const mockStudents: Student[] = [
@@ -119,9 +143,11 @@ function mockTransitData({
 describe("TransitStudentsSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchParamsToString.mockReturnValue("room=__transit__");
     mutateStudents.mockResolvedValue(undefined);
     mutateKey.mockResolvedValue(undefined);
     mutateMatching.mockResolvedValue(undefined);
+    mockToastSuccess.mockReset();
     vi.mocked(useTenantMutate).mockReturnValue(mutateKey as never);
     vi.mocked(useTenantMutateMatching).mockReturnValue(mutateMatching as never);
     vi.mocked(activeService.assignTransitStudents).mockResolvedValue({
@@ -152,10 +178,10 @@ describe("TransitStudentsSection", () => {
     render(<TransitStudentsSection />);
 
     fireEvent.click(screen.getByLabelText("Mila Sommer auswählen"));
-    fireEvent.change(screen.getByRole("combobox"), {
+    fireEvent.change(screen.getByLabelText("Zielraum"), {
       target: { value: "101" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "1 Kind zuweisen" }));
+    fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
     await waitFor(() => {
       expect(activeService.assignTransitStudents).toHaveBeenCalledWith(
@@ -163,12 +189,38 @@ describe("TransitStudentsSection", () => {
         "101",
       );
     });
-    await waitFor(() => {
-      expect(screen.getByText("1 Kind zugewiesen.")).toBeInTheDocument();
-    });
+    expect(mockToastSuccess).toHaveBeenCalledWith("1 Kind zugewiesen.");
     expect(mutateStudents).toHaveBeenCalledTimes(1);
     expect(mutateKey).toHaveBeenCalledWith("rooms-list");
     expect(mutateMatching).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a transit child profile from the dedicated profile button", () => {
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mila Sommer Profil öffnen" }),
+    );
+
+    expect(mockPush).toHaveBeenCalledWith(
+      `/students/11?from=${encodeURIComponent("/rooms?room=__transit__")}`,
+    );
+  });
+
+  it("reports active selection state to the drawer wrapper", async () => {
+    const onSelectionActiveChange = vi.fn();
+
+    render(
+      <TransitStudentsSection
+        onSelectionActiveChange={onSelectionActiveChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Mila Sommer auswählen"));
+
+    await waitFor(() => {
+      expect(onSelectionActiveChange).toHaveBeenLastCalledWith(true);
+    });
   });
 
   it("shows empty and error states", () => {
