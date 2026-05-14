@@ -24,13 +24,25 @@ import {
 } from "~/components/ui/chart";
 import { ExportRangeForm } from "~/components/ui/export-range-form";
 import { Modal } from "~/components/ui/modal";
+import { KpiCards } from "~/components/staff/staff-time-views";
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
 import {
+  staffAbsenceService,
+  staffHistoryService,
+  staffScheduleService,
+} from "~/lib/staff-api";
+import {
+  computeStaffMetrics,
+  startOfYear,
+  toDateKey,
+} from "~/lib/staff-metrics-helpers";
+import {
   REOPEN_STATUS_CONFLICT_CODE,
   timeTrackingService,
 } from "~/lib/time-tracking-api";
+import { userContextService } from "~/lib/usercontext-api";
 import type { ApiError } from "~/lib/auth-api";
 import {
   type AbsenceType,
@@ -3218,6 +3230,82 @@ function TimeTrackingContent() {
     (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
   );
 
+  // --- MA-Saldo-Widget (Tranche 1.5) ----------------------------------------
+  //
+  // The user's own staff id comes from the user-context endpoint; we then
+  // fetch the staff-scoped schedule/history/absence endpoints over the
+  // cumulative range (validFrom → today) and feed them into
+  // computeStaffMetrics, the same helper the admin staff-detail view uses.
+  // KpiCards then renders Diese Woche / Dieser Monat / Überstunden / Stundenkonto.
+  //
+  // Note: history is already fetched up there for the chart, but only over
+  // 2 weeks — the Stundenkonto card needs the full validFrom→today range.
+  // So we issue a parallel, wider fetch keyed by the cumulative range; SWR
+  // dedupes anything that overlaps.
+  const todayMidnight = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const { data: ownStaff } = useSWRAuth(
+    "time-tracking-own-staff",
+    () => userContextService.getCurrentStaff(),
+    { revalidateOnFocus: false },
+  );
+  const ownStaffId = ownStaff?.id ?? null;
+
+  const { data: ownSchedule } = useSWRAuth(
+    ownStaffId ? `time-tracking-own-schedule-${ownStaffId}` : null,
+    () => staffScheduleService.getSchedule(ownStaffId as string),
+    { revalidateOnFocus: false },
+  );
+
+  const accountAnchor = useMemo(() => {
+    const vf = ownSchedule?.validFrom ?? "";
+    if (vf.length >= 10) {
+      const [y, m, d] = vf.slice(0, 10).split("-").map(Number);
+      if (y && m && d) return new Date(y, m - 1, d);
+    }
+    return startOfYear(todayMidnight);
+  }, [ownSchedule?.validFrom, todayMidnight]);
+  const accountFrom = toDateKey(accountAnchor);
+  const accountTo = toDateKey(todayMidnight);
+  const { data: accountSessions } = useSWRAuth(
+    ownStaffId
+      ? `time-tracking-own-history-${ownStaffId}-${accountFrom}-${accountTo}`
+      : null,
+    () =>
+      staffHistoryService.getHistory(
+        ownStaffId as string,
+        accountFrom,
+        accountTo,
+      ),
+    { revalidateOnFocus: false },
+  );
+  const { data: accountAbsences } = useSWRAuth(
+    ownStaffId
+      ? `time-tracking-own-absences-${ownStaffId}-${accountFrom}-${accountTo}`
+      : null,
+    () =>
+      staffAbsenceService.getAbsences(
+        ownStaffId as string,
+        accountFrom,
+        accountTo,
+      ),
+    { revalidateOnFocus: false },
+  );
+
+  const ownMetrics = useMemo(() => {
+    if (!ownSchedule) return null;
+    return computeStaffMetrics(
+      ownSchedule,
+      accountSessions ?? [],
+      accountAbsences ?? [],
+      todayMidnight,
+    );
+  }, [ownSchedule, accountSessions, accountAbsences, todayMidnight]);
+
   // Fetch breaks for current session
   const fetchBreaks = useCallback(async () => {
     if (!currentSession?.id || currentSession.checkOutTime) {
@@ -3614,6 +3702,16 @@ function TimeTrackingContent() {
       <h1 className="mb-6 text-2xl font-bold text-gray-900 md:hidden">
         Zeiterfassung
       </h1>
+
+      {/* Saldo overview — same KpiCards as the admin staff-detail view. The
+          MA sees their own Soll/Ist/Saldo at a glance before anything else
+          on the page. Hidden until the schedule has loaded so we don't
+          render zeros that flash to real numbers a moment later. */}
+      {ownMetrics && (
+        <div className="mb-4 md:mb-6">
+          <KpiCards metrics={ownMetrics} />
+        </div>
+      )}
 
       {/* Clock-in card + Week chart */}
       <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
