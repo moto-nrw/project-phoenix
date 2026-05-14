@@ -75,7 +75,8 @@ func (m *trackingMockSettingsService) ClearLoginImageURL(ctx context.Context, te
 // --- Mock ActiveService (stub all methods, only GetTrackingIndicators functional) ---
 
 type trackingMockActiveService struct {
-	getTrackingIndicatorsFunc func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
+	getTrackingIndicatorsFunc              func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
+	assignTransitStudentsToActiveGroupFunc func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error)
 }
 
 // The only method used by the tracking handler:
@@ -175,6 +176,9 @@ func (m *trackingMockActiveService) ListStudentsInTransit(ctx context.Context) (
 	return nil, nil
 }
 func (m *trackingMockActiveService) AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error) {
+	if m.assignTransitStudentsToActiveGroupFunc != nil {
+		return m.assignTransitStudentsToActiveGroupFunc(ctx, studentIDs, activeGroupID)
+	}
 	return nil, nil
 }
 func (m *trackingMockActiveService) GetGroupSupervisor(ctx context.Context, id int64) (*activeModel.GroupSupervisor, error) {

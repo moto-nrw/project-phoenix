@@ -187,6 +187,8 @@ describe("TransitStudentsSection", () => {
       screen.getByText("Aktuell keine Kinder unterwegs."),
     ).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toBeDisabled();
-    expect(screen.getByRole("option", { name: "Keine aktiven Räume" }));
+    expect(
+      screen.getByRole("option", { name: "Keine aktiven Räume" }),
+    ).toBeInTheDocument();
   });
 });
