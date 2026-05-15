@@ -67,6 +67,8 @@ func TestMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 		{"resend", rs.mfaResend, MFAResendRequest{ChallengeToken: "x"}},
 		{"enroll-start", rs.mfaEnrollStart, nil},
 		{"enroll-confirm", rs.mfaEnrollConfirm, MFAEnrollConfirmRequest{Code: "123456"}},
+		{"trusted-devices-list", rs.mfaListTrustedDevices, nil},
+		{"trusted-devices-revoke", rs.mfaRevokeTrustedDevice, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -101,6 +103,7 @@ func TestMapMFAError_StatusCodes(t *testing.T) {
 		{authService.ErrMFANotEnrolled, http.StatusForbidden},
 		{authService.ErrMFAAlreadyEnrolled, http.StatusConflict},
 		{authService.ErrMFAPermissionDenied, http.StatusForbidden},
+		{authService.ErrMFAInvalidOverride, http.StatusBadRequest},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {

@@ -73,6 +73,8 @@ func TestOperatorMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 		{"resend", rs.Resend, MFAResendRequest{ChallengeToken: "x"}},
 		{"enroll-start", rs.EnrollStart, nil},
 		{"enroll-confirm", rs.EnrollConfirm, MFAEnrollConfirmRequest{Code: "123456"}},
+		{"trusted-devices-list", rs.ListTrustedDevices, nil},
+		{"trusted-devices-revoke", rs.RevokeTrustedDevice, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

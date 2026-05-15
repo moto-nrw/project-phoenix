@@ -36,16 +36,24 @@ func TestMFAAdminHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 	rs := &Resource{}
 
 	cases := []struct {
-		name string
-		fn   func(http.ResponseWriter, *http.Request)
+		name   string
+		method string
+		body   []byte
+		fn     func(http.ResponseWriter, *http.Request)
 	}{
-		{"admin-disable", rs.mfaAdminDisable},
+		{"admin-disable", http.MethodDelete, mustJSON(MFAAdminOverrideRequest{Reason: "lost mailbox"}), rs.mfaAdminDisable},
+		{"admin-get-state", http.MethodGet, nil, rs.mfaAdminGetState},
+		{"admin-set-override", http.MethodPut, mustJSON(MFAAdminOverrideSetRequest{Override: "none", Reason: "test"}), rs.mfaAdminSetOverride},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			body, err := json.Marshal(MFAAdminOverrideRequest{Reason: "lost mailbox"})
-			require.NoError(t, err)
-			req := withAdminAccountIDParam(httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body)), "42")
+			var bodyReader *bytes.Reader
+			if tc.body != nil {
+				bodyReader = bytes.NewReader(tc.body)
+			} else {
+				bodyReader = bytes.NewReader(nil)
+			}
+			req := withAdminAccountIDParam(httptest.NewRequest(tc.method, "/", bodyReader), "42")
 			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
@@ -54,6 +62,46 @@ func TestMFAAdminHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 			assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
 		})
 	}
+}
+
+// TestMFAAdminOverrideSetRequest_Bind validates the new tri-state override
+// request. The DB has a CHECK constraint, but rejecting at the API layer
+// gives the user a clear error instead of a generic 500.
+func TestMFAAdminOverrideSetRequest_Bind(t *testing.T) {
+	t.Run("rejects unknown override value", func(t *testing.T) {
+		req := MFAAdminOverrideSetRequest{Override: "yes-please", Reason: "test"}
+		assert.Error(t, req.Bind(nil))
+	})
+	t.Run("rejects empty reason", func(t *testing.T) {
+		req := MFAAdminOverrideSetRequest{Override: "force_off", Reason: ""}
+		assert.Error(t, req.Bind(nil))
+	})
+	t.Run("rejects short reason", func(t *testing.T) {
+		req := MFAAdminOverrideSetRequest{Override: "force_off", Reason: "ab"}
+		assert.Error(t, req.Bind(nil))
+	})
+	t.Run("accepts force_off + trimmed reason", func(t *testing.T) {
+		req := MFAAdminOverrideSetRequest{Override: " force_off ", Reason: "  user lost mailbox  "}
+		require.NoError(t, req.Bind(nil))
+		assert.Equal(t, "force_off", req.Override)
+		assert.Equal(t, "user lost mailbox", req.Reason)
+	})
+	t.Run("accepts force_on", func(t *testing.T) {
+		req := MFAAdminOverrideSetRequest{Override: "force_on", Reason: "must always 2FA"}
+		require.NoError(t, req.Bind(nil))
+	})
+	t.Run("accepts none (clear override)", func(t *testing.T) {
+		req := MFAAdminOverrideSetRequest{Override: "none", Reason: "user got mailbox back"}
+		require.NoError(t, req.Bind(nil))
+	})
+}
+
+func mustJSON(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 // withAdminAccountIDParam injects the {accountId} URL param into the chi
