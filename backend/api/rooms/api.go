@@ -436,6 +436,13 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 
 	// 1. Feature gate
 	if !configService.ResolveBoolOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, logger) {
+		// The "feature_disabled" literal is part of the cross-boundary
+		// contract with the room drawer: the Next.js proxy at
+		// /api/rooms/[id]/history matches this exact string against the
+		// 403 body and translates it into a non-error signal so the
+		// drawer hides the Belegungshistorie section deliberately.
+		// Mirror in frontend: ROOM_HISTORY_STATUS_FEATURE_DISABLED in
+		// frontend/src/lib/room-helpers.ts — keep in sync.
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 		return
 	}
@@ -473,7 +480,7 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 
 	// 4. Parse range and clamp
 	today := timezone.Today()
-	endOfToday := today.Add(24 * time.Hour).Add(-time.Second)
+	endOfToday := timezone.EndOfDay(today)
 	defaultStart := today.AddDate(0, 0, -(roomCap - 1))
 
 	startTime := defaultStart
