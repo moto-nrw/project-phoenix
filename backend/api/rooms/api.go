@@ -46,8 +46,27 @@ type ResourceConfig struct {
 	DB                 *bun.DB
 }
 
-// NewResource creates a new rooms resource.
+// NewResource creates a new rooms resource. Required collaborators are
+// nil-checked at construction so a wiring typo in initializeAPIResources
+// surfaces at boot, not as a silent 403 for every tenant (nil
+// SettingsService would otherwise fall through to the registry defaults
+// and short-circuit the room-history endpoint to feature_disabled) or as a
+// per-request panic (nil FacilityService / UserContextService). Logger is
+// optional — handler paths fall back to slog.Default() via
+// roomHistoryLogger.
 func NewResource(cfg ResourceConfig) *Resource {
+	if cfg.FacilityService == nil {
+		panic("rooms.NewResource: FacilityService is required")
+	}
+	if cfg.SettingsService == nil {
+		panic("rooms.NewResource: SettingsService is required")
+	}
+	if cfg.UserContextService == nil {
+		panic("rooms.NewResource: UserContextService is required")
+	}
+	if cfg.DB == nil {
+		panic("rooms.NewResource: DB is required")
+	}
 	return &Resource{
 		FacilityService:    cfg.FacilityService,
 		SettingsService:    cfg.SettingsService,
@@ -458,8 +477,28 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	var supervisorStaffID *int64
 	if !isAdmin && scope != configModel.AttendanceLogScopeAllStaff {
 		staff, staffErr := rs.UserContextService.GetCurrentStaff(ctx)
-		if staffErr != nil || staff == nil {
+		// Distinguish "caller is not staff" (legitimate 403) from any other
+		// failure (transient DB error, etc.). Without this split a flaky
+		// users.staff lookup would silently mask itself as a forbidden
+		// response and never get logged.
+		switch {
+		case errors.Is(staffErr, userContextService.ErrUserNotLinkedToStaff):
 			common.RenderError(w, r, common.ErrorForbidden(errors.New("not_group_supervisor")))
+			return
+		case staffErr != nil:
+			logger.Warn("get current staff failed for room history",
+				"room_id", id,
+				"error", staffErr.Error(),
+			)
+			common.RenderError(w, r, common.ErrorInternalServer(staffErr))
+			return
+		case staff == nil:
+			// Defensive: service contract is (non-nil, nil) or (nil, err);
+			// this branch only triggers if that contract gets broken.
+			logger.Warn("get current staff returned nil staff with nil error",
+				"room_id", id,
+			)
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("unexpected nil staff")))
 			return
 		}
 		staffID := staff.ID
