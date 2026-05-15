@@ -26,6 +26,14 @@ type Account struct {
 	PINLockedUntil *time.Time `bun:"pin_locked_until" json:"-"`
 	MFAAttempts    int        `bun:"mfa_attempts,default:0" json:"-"`
 	MFALockedUntil *time.Time `bun:"mfa_locked_until" json:"-"`
+	// MFAAdminOverride is an admin-controlled per-account toggle that
+	// overrides the tenant-level mfa_mode setting:
+	//   - "none"      → fall back to tenant + role rules
+	//   - "force_off" → 2FA disabled for this user (e.g. lost mailbox access)
+	//   - "force_on"  → 2FA required regardless of tenant mode
+	// Writes flow through MFAService.SetMFAOverride so audit + trusted-device
+	// revocation stay in one place.
+	MFAAdminOverride string `bun:"mfa_admin_override,notnull,default:'none'" json:"mfa_admin_override"`
 
 	// Relations not stored in the database
 	Roles       []*Role       `bun:"-" json:"roles,omitempty"`

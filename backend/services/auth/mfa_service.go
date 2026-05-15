@@ -32,6 +32,28 @@ const (
 	MFATrustedDeviceCookieDefaultDays = 90
 )
 
+// MFA admin-override values. Stored as text in auth.accounts.mfa_admin_override
+// (see migration 1.15.59). Used by IsRequired to short-circuit the tenant-mode
+// decision for individual accounts when an admin has explicitly opted them in
+// or out — typically because a user lost mailbox access.
+const (
+	MFAAdminOverrideNone     = "none"
+	MFAAdminOverrideForceOff = "force_off"
+	MFAAdminOverrideForceOn  = "force_on"
+)
+
+// IsValidMFAAdminOverride is the allow-list guard used by handlers + service
+// before writing the override column. Anything else MUST be rejected with
+// ErrMFAInvalidOverride so the DB CHECK constraint isn't the last line of
+// defence.
+func IsValidMFAAdminOverride(v string) bool {
+	switch v {
+	case MFAAdminOverrideNone, MFAAdminOverrideForceOff, MFAAdminOverrideForceOn:
+		return true
+	}
+	return false
+}
+
 // Errors surfaced by the MFA service. Generic messages — internal detail
 // stays in slog at Debug level.
 var (
@@ -42,6 +64,7 @@ var (
 	ErrMFANotEnrolled           = errors.New("mfa not enrolled for this account")
 	ErrMFAAlreadyEnrolled       = errors.New("mfa already enrolled for this account")
 	ErrMFAPermissionDenied      = errors.New("permission denied")
+	ErrMFAInvalidOverride       = errors.New("invalid mfa override value")
 	ErrMFAUnsupportedScope      = errors.New("operator-scope MFA is wired up in a separate phase")
 )
 
@@ -93,6 +116,14 @@ type MFAService interface {
 	// flipping the setting off immediately invalidates any cookies
 	// already issued, instead of waiting for natural expiry.
 	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error)
+	// ListTrustedDevices returns all active (non-revoked, non-expired)
+	// trusted-device rows for the given account. Used by the self-service
+	// "Meine vertrauten Geräte" section in the admin Sicherheit tab.
+	ListTrustedDevices(ctx context.Context, accountID int64) ([]*auth.MFATrustedDevice, error)
+	// RevokeTrustedDevice marks a single trusted-device row revoked. The
+	// service verifies the device belongs to the calling account so an
+	// IDOR can't revoke someone else's device.
+	RevokeTrustedDevice(ctx context.Context, accountID, deviceID int64) error
 	// IsTrustedDeviceEnabled reports whether the tenant has the
 	// security.mfa_trusted_device_enabled setting on. The login flow uses
 	// this to tell the frontend whether to render the "remember this
@@ -107,6 +138,25 @@ type MFAService interface {
 
 	// Admin override ("Godmode") — defense-in-depth permission check.
 	AdminDisable(ctx context.Context, actorID, targetAccountID int64, reason string, actorPermissions []string) error
+	// SetMFAOverride writes the per-account admin override
+	// (force_off / force_on / none). Audit row + trusted-device revocation
+	// (for force_off) are part of the same call so callers don't forget
+	// the security hygiene step.
+	SetMFAOverride(ctx context.Context, actorID, targetAccountID int64, override, reason string, actorPermissions []string) error
+	// GetMFAOverride returns the current per-account override value.
+	// Read-side helper used by admin/operator surfaces to drive the
+	// settings modal — returns "none" when no row is present.
+	GetMFAOverride(ctx context.Context, accountID int64) (string, error)
+	// OperatorAdminDisable is the operator-side variant of AdminDisable.
+	// Skips the users:manage check because operator routes are already
+	// gated at the platform JWT layer, and writes audit metadata with
+	// actor_type=operator so the audit log can distinguish operator vs.
+	// tenant-admin actions on the same account.
+	OperatorAdminDisable(ctx context.Context, operatorID, targetAccountID int64, reason string) error
+	// OperatorSetMFAOverride is the operator-side variant of
+	// SetMFAOverride. Same permission/audit treatment as
+	// OperatorAdminDisable.
+	OperatorSetMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error
 }
 
 // MFAServiceConfig groups dependencies for NewMFAService. Fields without zero
@@ -180,6 +230,15 @@ func NewMFAService(cfg MFAServiceConfig) (MFAService, error) {
 func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error) {
 	if account == nil {
 		return false, errors.New("account is required")
+	}
+	// Per-account admin override wins over the tenant-mode decision. This
+	// is the "user lost mailbox access" escape hatch and the inverse
+	// "this admin must always 2FA even if the school is off" hardening.
+	switch account.MFAAdminOverride {
+	case MFAAdminOverrideForceOff:
+		return false, nil
+	case MFAAdminOverrideForceOn:
+		return true, nil
 	}
 	mode := configModel.MFAModeOff
 	if s.settings != nil {
@@ -506,6 +565,11 @@ func (s *mfaService) IssueTrustedDevice(ctx context.Context, accountID, tenantID
 	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFATrustedDeviceAdded, true, ip, "", map[string]any{
 		"device_id": device.ID,
 	})
+	// Fire-and-forget security notification — the user gets a mail so
+	// "remember this device" never happens silently. If the mail dispatch
+	// fails the trusted device is still issued (the security signal is
+	// nice-to-have, the login flow must not break).
+	s.dispatchTrustedDeviceAddedEmail(ctx, accountID, userAgent, ip, days)
 	return signed, expiresAt, nil
 }
 
@@ -528,12 +592,62 @@ func (s *mfaService) VerifyTrustedDevice(ctx context.Context, accountID, tenantI
 	return true, nil
 }
 
+func (s *mfaService) ListTrustedDevices(ctx context.Context, accountID int64) ([]*auth.MFATrustedDevice, error) {
+	return s.repos.MFATrustedDevice.ListActiveByAccountID(ctx, accountID)
+}
+
+func (s *mfaService) RevokeTrustedDevice(ctx context.Context, accountID, deviceID int64) error {
+	// Validate ownership before revoke — a device row can only be revoked by
+	// its own account so an attacker with a stolen access token for account A
+	// can't revoke account B's devices via id-guessing.
+	devices, err := s.repos.MFATrustedDevice.ListActiveByAccountID(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	owned := false
+	for _, d := range devices {
+		if d.ID == deviceID {
+			owned = true
+			break
+		}
+	}
+	if !owned {
+		return ErrMFAPermissionDenied
+	}
+	return s.repos.MFATrustedDevice.Revoke(ctx, deviceID, time.Now())
+}
+
 // ===== Admin override ("Godmode") =====
 
 func (s *mfaService) AdminDisable(ctx context.Context, actorID, targetAccountID int64, reason string, actorPermissions []string) error {
 	if err := s.requireAdminPermission(actorPermissions); err != nil {
 		return err
 	}
+	return s.adminDisableCore(ctx, "account", actorID, targetAccountID, reason)
+}
+
+// OperatorAdminDisable mirrors AdminDisable but skips the users:manage
+// check (operator routes carry their own platform-level gate) and tags
+// the audit metadata with actor_type=operator.
+func (s *mfaService) OperatorAdminDisable(ctx context.Context, operatorID, targetAccountID int64, reason string) error {
+	return s.adminDisableCore(ctx, "operator", operatorID, targetAccountID, reason)
+}
+
+func (s *mfaService) GetMFAOverride(ctx context.Context, accountID int64) (string, error) {
+	account, err := s.repos.Account.FindByID(ctx, accountID)
+	if err != nil || account == nil {
+		return "", fmt.Errorf("load account: %w", err)
+	}
+	if account.MFAAdminOverride == "" {
+		return MFAAdminOverrideNone, nil
+	}
+	return account.MFAAdminOverride, nil
+}
+
+// adminDisableCore is the shared cascade used by both tenant-admin and
+// operator paths. actorType becomes audit metadata so the audit log can
+// tell which surface initiated the disable.
+func (s *mfaService) adminDisableCore(ctx context.Context, actorType string, actorID, targetAccountID int64, reason string) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
 		return errors.New("reason is required for admin override")
@@ -542,9 +656,64 @@ func (s *mfaService) AdminDisable(ctx context.Context, actorID, targetAccountID 
 		return err
 	}
 	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
+		"actor_type":       actorType,
 		"actor_account_id": actorID,
 		"action":           "disable",
 		"reason":           reason,
+	})
+	return nil
+}
+
+func (s *mfaService) SetMFAOverride(ctx context.Context, actorID, targetAccountID int64, override, reason string, actorPermissions []string) error {
+	if err := s.requireAdminPermission(actorPermissions); err != nil {
+		return err
+	}
+	return s.setMFAOverrideCore(ctx, "account", actorID, targetAccountID, override, reason)
+}
+
+// OperatorSetMFAOverride mirrors SetMFAOverride for the operator path.
+// Skips the users:manage check (route layer guards this) and writes
+// audit metadata tagged actor_type=operator.
+func (s *mfaService) OperatorSetMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error {
+	return s.setMFAOverrideCore(ctx, "operator", operatorID, targetAccountID, override, reason)
+}
+
+// setMFAOverrideCore is the shared write + trusted-device-revoke +
+// audit-record pipeline used by both tenant-admin and operator flows.
+func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, actorID, targetAccountID int64, override, reason string) error {
+	if !IsValidMFAAdminOverride(override) {
+		return ErrMFAInvalidOverride
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return errors.New("reason is required for admin override")
+	}
+	account, err := s.repos.Account.FindByID(ctx, targetAccountID)
+	if err != nil || account == nil {
+		return fmt.Errorf("load target account: %w", err)
+	}
+	previous := account.MFAAdminOverride
+	if previous == "" {
+		previous = MFAAdminOverrideNone
+	}
+	account.MFAAdminOverride = override
+	if err := s.repos.Account.Update(ctx, account); err != nil {
+		return fmt.Errorf("persist mfa override: %w", err)
+	}
+	if override == MFAAdminOverrideForceOff {
+		if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(ctx, targetAccountID, time.Now()); err != nil {
+			s.logger.Warn("failed to revoke trusted devices after force_off",
+				slog.Int64("account_id", targetAccountID),
+				slog.String("error", err.Error()))
+		}
+	}
+	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
+		"actor_type":        actorType,
+		"actor_account_id":  actorID,
+		"action":            "set_override",
+		"override":          override,
+		"previous_override": previous,
+		"reason":            reason,
 	})
 	return nil
 }
@@ -675,6 +844,105 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 		BackoffPolicy: passwordResetEmailBackoff,
 		MaxAttempts:   3,
 	})
+}
+
+// dispatchTrustedDeviceAddedEmail notifies the account holder by mail when a
+// new trusted-device cookie has been issued. The user gets an actionable
+// security signal: "this device was just added — wasn't you? remove it in
+// settings." Fires asynchronously and never blocks the login flow.
+func (s *mfaService) dispatchTrustedDeviceAddedEmail(ctx context.Context, accountID int64, userAgent string, ip net.IP, days int) {
+	if s.dispatcher == nil {
+		s.logger.Warn("email dispatcher unavailable; trusted-device-added mail skipped",
+			slog.Int64("account_id", accountID))
+		return
+	}
+
+	account, err := s.repos.Account.FindByID(ctx, accountID)
+	if err != nil || account == nil || strings.TrimSpace(account.Email) == "" {
+		s.logger.Warn("could not load account for trusted-device-added mail",
+			slog.Int64("account_id", accountID),
+			slog.Any("error", err))
+		return
+	}
+
+	frontendURL := strings.TrimRight(s.frontendURL, "/")
+	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	securityURL := fmt.Sprintf("%s/settings?tab=settings-security", frontendURL)
+
+	requestIP := ""
+	if ip != nil && !ip.IsUnspecified() {
+		requestIP = ip.String()
+	}
+	deviceLabel := ShortenUserAgent(userAgent)
+	addedAt := time.Now().Format("02.01.2006 15:04")
+
+	message := email.Message{
+		From:     s.defaultFrom,
+		To:       email.NewEmail("", account.Email),
+		Subject:  "Neues vertrautes Gerät zu Ihrem moto-Konto hinzugefügt",
+		Template: "trusted-device-added.html",
+		Content: map[string]any{
+			"LogoURL":     logoURL,
+			"SecurityURL": securityURL,
+			"DeviceLabel": deviceLabel,
+			"IPAddress":   requestIP,
+			"AddedAt":     addedAt,
+			"TrustedDays": days,
+		},
+	}
+	meta := email.DeliveryMetadata{
+		Type:        "mfa_trusted_device_added",
+		ReferenceID: accountID,
+		Recipient:   account.Email,
+	}
+	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+		Message:       message,
+		Metadata:      meta,
+		BackoffPolicy: passwordResetEmailBackoff,
+		MaxAttempts:   3,
+	})
+}
+
+// ShortenUserAgent collapses a full User-Agent string to a friendly
+// "Browser auf OS" label. Mirrors the frontend helper so the mail and the
+// "Meine vertrauten Geräte" list show the same identity for one device.
+// Exported so the operator MFA service can reuse it for its notification
+// mail without duplicating the parser.
+func ShortenUserAgent(ua string) string {
+	if strings.TrimSpace(ua) == "" {
+		return "Unbekanntes Gerät"
+	}
+	lower := strings.ToLower(ua)
+	browser := "Browser"
+	switch {
+	case strings.Contains(lower, "edg/"):
+		browser = "Edge"
+	case strings.Contains(lower, "firefox"):
+		browser = "Firefox"
+	case strings.Contains(lower, "chrome") && !strings.Contains(lower, "edg/"):
+		browser = "Chrome"
+	case strings.Contains(lower, "safari") && !strings.Contains(lower, "chrome"):
+		browser = "Safari"
+	}
+	osName := ""
+	switch {
+	case strings.Contains(lower, "iphone"):
+		osName = "iPhone"
+	case strings.Contains(lower, "ipad"):
+		osName = "iPad"
+	case strings.Contains(lower, "android"):
+		osName = "Android"
+	case strings.Contains(lower, "mac os"):
+		osName = "macOS"
+	case strings.Contains(lower, "windows"):
+		osName = "Windows"
+	case strings.Contains(lower, "linux"):
+		osName = "Linux"
+	}
+	if osName == "" {
+		return browser
+	}
+	return browser + " auf " + osName
 }
 
 // resolveTrustedDeviceHint returns (enabled, days) for the email template.

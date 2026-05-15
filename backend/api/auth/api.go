@@ -151,6 +151,12 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/mfa", func(r chi.Router) {
 			r.Post("/enroll/start", rs.mfaEnrollStart)
 			r.Post("/enroll/confirm", rs.mfaEnrollConfirm)
+			// Self-service trusted-device management — every authenticated
+			// account can see and revoke its own remembered devices from
+			// the admin Sicherheit tab. Ownership is enforced in the
+			// service so this stays a plain authenticated route.
+			r.Get("/trusted-devices", rs.mfaListTrustedDevices)
+			r.Delete("/trusted-devices/{deviceId}", rs.mfaRevokeTrustedDevice)
 		})
 
 		// Admin routes - require admin role or specific permissions
@@ -230,7 +236,9 @@ func (rs *Resource) Router() chi.Router {
 					// users:manage at the route layer; the service does its own
 					// defense-in-depth permission re-check.
 					r.Route("/mfa", func(r chi.Router) {
+						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.mfaAdminGetState)
 						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.mfaAdminDisable)
+						r.With(authorize.RequiresPermission(permUsersManage)).Put("/override", rs.mfaAdminSetOverride)
 					})
 				})
 			})

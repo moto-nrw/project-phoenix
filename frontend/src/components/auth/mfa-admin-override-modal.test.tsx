@@ -75,7 +75,16 @@ describe("MFAAdminOverrideModal", () => {
     await waitFor(() => {
       expect(screen.getByText(/mindestens 3 Zeichen/)).toBeInTheDocument();
     });
-    expect(global.fetch).not.toHaveBeenCalled();
+    // The modal fetches the current MFA admin state on open (GET /mfa) so
+    // it can display "currently force_off / force_on / standard" in the
+    // header. A validation failure on the reset form must NOT trigger the
+    // destructive DELETE — assert that specifically.
+    const deleteCalls = (
+      global.fetch as ReturnType<typeof vi.fn>
+    ).mock.calls.filter(
+      ([, init]) => (init as RequestInit | undefined)?.method === "DELETE",
+    );
+    expect(deleteCalls).toHaveLength(0);
   });
 
   it("calls DELETE /auth/accounts/{id}/mfa with the reason and shows the confirmation step", async () => {

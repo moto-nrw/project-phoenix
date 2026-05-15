@@ -60,7 +60,7 @@ function mfaUrl(scope: LoginScope, suffix: string): string {
 interface PostJsonOptions {
   readonly bearerToken?: string;
   readonly allowEmptyBody?: boolean;
-  readonly method?: "GET" | "POST" | "DELETE";
+  readonly method?: "GET" | "POST" | "PUT" | "DELETE";
 }
 
 async function postJson<T>(
@@ -235,7 +235,62 @@ export async function enrollConfirm(
   );
 }
 
+// ----- Self-service trusted devices (Tenant-only) -----
+
+export interface TrustedDeviceDTO {
+  id: number;
+  user_agent?: string;
+  ip_address?: string;
+  created_at: string;
+  expires_at: string;
+  last_used_at?: string;
+}
+
+function trustedDevicesUrl(scope: LoginScope, suffix = ""): string {
+  return isOperator(scope)
+    ? `/api/operator/auth/mfa/trusted-devices${suffix}`
+    : `/api/auth/mfa/trusted-devices${suffix}`;
+}
+
+export async function listTrustedDevices(
+  scope: LoginScope,
+  bearerToken: string,
+): Promise<TrustedDeviceDTO[]> {
+  const url = trustedDevicesUrl(scope);
+  if (isOperator(scope)) {
+    const envelope = await postJson<OperatorEnvelope<TrustedDeviceDTO[]>>(
+      url,
+      undefined,
+      { bearerToken, method: "GET" },
+    );
+    return envelope.data;
+  }
+  return postJson<TrustedDeviceDTO[]>(url, undefined, {
+    bearerToken,
+    method: "GET",
+  });
+}
+
+export async function revokeTrustedDevice(
+  scope: LoginScope,
+  bearerToken: string,
+  deviceId: number,
+): Promise<void> {
+  await postJson<unknown>(trustedDevicesUrl(scope, `/${deviceId}`), undefined, {
+    bearerToken,
+    method: "DELETE",
+    allowEmptyBody: true,
+  });
+}
+
 // ----- Admin-Override (Tenant-only; requires users:manage) -----
+
+export type MFAAdminOverride = "none" | "force_off" | "force_on";
+
+export interface MFAAdminState {
+  enrolled: boolean;
+  override: MFAAdminOverride;
+}
 
 function adminMFAUrl(accountId: string, suffix: string): string {
   return `/api/auth/accounts/${encodeURIComponent(accountId)}/mfa${suffix}`;
@@ -250,6 +305,79 @@ export async function adminResetMFA(
     adminMFAUrl(accountId, ""),
     { reason },
     { bearerToken, method: "DELETE", allowEmptyBody: true },
+  );
+}
+
+export async function adminGetMFAState(
+  bearerToken: string,
+  accountId: string,
+): Promise<MFAAdminState> {
+  return postJson<MFAAdminState>(adminMFAUrl(accountId, ""), undefined, {
+    bearerToken,
+    method: "GET",
+  });
+}
+
+export async function adminSetMFAOverride(
+  bearerToken: string,
+  accountId: string,
+  override: MFAAdminOverride,
+  reason: string,
+): Promise<void> {
+  await postJson<unknown>(
+    adminMFAUrl(accountId, "/override"),
+    { override, reason },
+    { bearerToken, method: "PUT", allowEmptyBody: true },
+  );
+}
+
+// ----- Operator-side admin (Operator dashboard; same modal, different URLs) -----
+
+function operatorAdminMFAUrl(
+  schoolId: string,
+  accountId: string,
+  suffix: string,
+): string {
+  return `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/accounts/${encodeURIComponent(accountId)}/mfa${suffix}`;
+}
+
+export async function operatorAdminGetMFAState(
+  bearerToken: string,
+  schoolId: string,
+  accountId: string,
+): Promise<MFAAdminState> {
+  const envelope = await postJson<OperatorEnvelope<MFAAdminState>>(
+    operatorAdminMFAUrl(schoolId, accountId, ""),
+    undefined,
+    { bearerToken, method: "GET" },
+  );
+  return envelope.data;
+}
+
+export async function operatorAdminResetMFA(
+  bearerToken: string,
+  schoolId: string,
+  accountId: string,
+  reason: string,
+): Promise<void> {
+  await postJson<unknown>(
+    operatorAdminMFAUrl(schoolId, accountId, ""),
+    { reason },
+    { bearerToken, method: "DELETE", allowEmptyBody: true },
+  );
+}
+
+export async function operatorAdminSetMFAOverride(
+  bearerToken: string,
+  schoolId: string,
+  accountId: string,
+  override: MFAAdminOverride,
+  reason: string,
+): Promise<void> {
+  await postJson<unknown>(
+    operatorAdminMFAUrl(schoolId, accountId, "/override"),
+    { override, reason },
+    { bearerToken, method: "PUT", allowEmptyBody: true },
   );
 }
 

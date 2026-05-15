@@ -332,7 +332,7 @@ function StaffStammdatenTab({
               onClick={onManageMFA}
               className="rounded-lg border border-[#5080D8]/30 px-3 py-2 text-xs font-medium text-[#5080D8] transition-all duration-200 hover:bg-[#5080D8]/10 md:text-sm"
             >
-              2FA verwalten
+              Zwei-Faktor-Authentifizierung verwalten
             </button>
           ) : null}
           {onManageCaregiver ? (

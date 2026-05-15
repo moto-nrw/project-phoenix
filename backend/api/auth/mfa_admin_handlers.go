@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // MFAAdminOverrideRequest is the body for the admin-override endpoint —
@@ -72,6 +73,102 @@ func (rs *Resource) resolveAdminOverrideContext(w http.ResponseWriter, r *http.R
 		actorPermissions: claims.Permissions,
 		reason:           req.Reason,
 	}
+}
+
+// MFAAdminOverrideSetRequest is the body for PUT /auth/accounts/{id}/mfa/override.
+// The override allow-list mirrors authService.IsValidMFAAdminOverride.
+type MFAAdminOverrideSetRequest struct {
+	Override string `json:"override"`
+	Reason   string `json:"reason"`
+}
+
+// Bind enforces a known override value + non-empty reason. Length floor on
+// reason matches MFAAdminOverrideRequest (3 chars) so the UI textarea
+// validation message stays consistent across both admin paths.
+func (req *MFAAdminOverrideSetRequest) Bind(_ *http.Request) error {
+	req.Override = strings.TrimSpace(req.Override)
+	req.Reason = strings.TrimSpace(req.Reason)
+	if !authService.IsValidMFAAdminOverride(req.Override) {
+		return errors.New("override must be one of: none, force_off, force_on")
+	}
+	return validation.ValidateStruct(req,
+		validation.Field(&req.Reason, validation.Required, validation.Length(3, 0)),
+	)
+}
+
+// MFAAdminStateResponse is the read-side payload the modal uses to decide
+// which buttons to render. enrolled tells the modal whether a Reset is
+// even meaningful; override is the current per-account flag.
+type MFAAdminStateResponse struct {
+	Enrolled bool   `json:"enrolled"`
+	Override string `json:"override"`
+}
+
+// mfaAdminGetState returns the current MFA admin-facing snapshot for an
+// account so the modal can render the right action set without inferring
+// state from /accounts list views.
+func (rs *Resource) mfaAdminGetState(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFA(w, r) {
+		return
+	}
+	idStr := chi.URLParam(r, "accountId")
+	targetID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || targetID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+		return
+	}
+	enrolled, err := rs.MFAService.HasEnrollment(r.Context(), targetID)
+	if err != nil {
+		mapMFAError(w, r, err)
+		return
+	}
+	override := authService.MFAAdminOverrideNone
+	if acc, accErr := rs.AuthService.GetAccountByID(r.Context(), int(targetID)); accErr == nil && acc != nil {
+		if acc.MFAAdminOverride != "" {
+			override = acc.MFAAdminOverride
+		}
+	}
+	render.JSON(w, r, MFAAdminStateResponse{
+		Enrolled: enrolled,
+		Override: override,
+	})
+}
+
+// mfaAdminSetOverride flips the per-account override (force_off / force_on /
+// none). MFAService.SetMFAOverride handles trusted-device revocation and
+// audit logging.
+func (rs *Resource) mfaAdminSetOverride(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFA(w, r) {
+		return
+	}
+	idStr := chi.URLParam(r, "accountId")
+	targetID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || targetID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	req := &MFAAdminOverrideSetRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if err := rs.MFAService.SetMFAOverride(
+		r.Context(),
+		int64(claims.ID),
+		targetID,
+		req.Override,
+		req.Reason,
+		claims.Permissions,
+	); err != nil {
+		mapMFAError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // mfaAdminDisable wipes the target's MFA enrollment and trusted devices.

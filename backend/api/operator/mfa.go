@@ -5,9 +5,11 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/spf13/viper"
@@ -84,6 +86,8 @@ func mapOperatorMFAError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, ErrForbidden("MFA is not enrolled for this operator"))
 	case errors.Is(err, authService.ErrMFAAlreadyEnrolled):
 		common.RenderError(w, r, ErrConflict("MFA is already enrolled"))
+	case errors.Is(err, authService.ErrMFAPermissionDenied):
+		common.RenderError(w, r, ErrForbidden("Permission denied"))
 	default:
 		common.RenderError(w, r, ErrInternal("MFA operation failed"))
 	}
@@ -229,6 +233,81 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 			mapOperatorMFAError(w, r, err)
 			return
 		}
+	}
+	common.RespondNoContent(w, r)
+}
+
+// ----- /auth/mfa/trusted-devices -----
+
+// OperatorTrustedDeviceDTO mirrors the tenant-side DTO. Keeps the token
+// hash server-side; surfaces id, agent, ip and the three timestamps the
+// list UI needs.
+type OperatorTrustedDeviceDTO struct {
+	ID         int64   `json:"id"`
+	UserAgent  *string `json:"user_agent,omitempty"`
+	IPAddress  string  `json:"ip_address,omitempty"`
+	CreatedAt  string  `json:"created_at"`
+	ExpiresAt  string  `json:"expires_at"`
+	LastUsedAt *string `json:"last_used_at,omitempty"`
+}
+
+// ListTrustedDevices returns the operator's active trusted devices so
+// they can be displayed + revoked from the operator settings page.
+func (rs *MFAResource) ListTrustedDevices(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFA(w, r) {
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, ErrUnauthorized())
+		return
+	}
+	devices, err := rs.mfaService.ListTrustedDevices(r.Context(), int64(claims.ID))
+	if err != nil {
+		mapOperatorMFAError(w, r, err)
+		return
+	}
+	out := make([]OperatorTrustedDeviceDTO, 0, len(devices))
+	for _, d := range devices {
+		dto := OperatorTrustedDeviceDTO{
+			ID:        d.ID,
+			UserAgent: d.UserAgent,
+			CreatedAt: d.CreatedAt.UTC().Format(time.RFC3339),
+			ExpiresAt: d.ExpiresAt.UTC().Format(time.RFC3339),
+		}
+		if d.IPAddress != nil {
+			dto.IPAddress = d.IPAddress.String()
+		}
+		if d.LastUsedAt != nil {
+			s := d.LastUsedAt.UTC().Format(time.RFC3339)
+			dto.LastUsedAt = &s
+		}
+		out = append(out, dto)
+	}
+	common.Respond(w, r, http.StatusOK, out, "trusted devices")
+}
+
+// RevokeTrustedDevice removes a single device the operator no longer
+// wants to trust. The service double-checks ownership so an attacker
+// with a stolen access token can't revoke another operator's devices.
+func (rs *MFAResource) RevokeTrustedDevice(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFA(w, r) {
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, ErrUnauthorized())
+		return
+	}
+	idStr := chi.URLParam(r, "deviceId")
+	deviceID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || deviceID <= 0 {
+		common.RenderError(w, r, ErrInvalidRequest(errors.New("invalid device id")))
+		return
+	}
+	if err := rs.mfaService.RevokeTrustedDevice(r.Context(), int64(claims.ID), deviceID); err != nil {
+		mapOperatorMFAError(w, r, err)
+		return
 	}
 	common.RespondNoContent(w, r)
 }

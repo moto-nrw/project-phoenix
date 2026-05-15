@@ -7,8 +7,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -49,8 +51,14 @@ type ResourceConfig struct {
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
 	SchoolRepo platformModels.SchoolRepository
-	TokenAuth  *jwt.TokenAuth
-	DB         *bun.DB
+	// TenantMFAService is the tenant-side MFA service (auth package).
+	// The operator dashboard reuses it to read + write per-account MFA
+	// state on behalf of school staff. Distinct from MFAService above,
+	// which is the operator's own MFA service (operator login flow).
+	TenantMFAService        authSvc.MFAService
+	AccountTenantRepository authModels.AccountTenantRepository
+	TokenAuth               *jwt.TokenAuth
+	DB                      *bun.DB
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
@@ -110,6 +118,8 @@ func NewResource(cfg ResourceConfig) *Resource {
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB
+	resource.provisioningResource.TenantMFAService = cfg.TenantMFAService
+	resource.provisioningResource.AccountTenantRepository = cfg.AccountTenantRepository
 	return resource
 }
 
@@ -210,6 +220,14 @@ func (rs *Resource) Router() chi.Router {
 				r.Post("/", rs.provisioningResource.EnableSchoolAccountCaregiverCapability)
 				r.Delete("/", rs.provisioningResource.DisableSchoolAccountCaregiverCapability)
 			})
+			// MFA admin actions for school staff. Operator-side mirror of the
+			// tenant-admin MFA endpoints — same write semantics, separate
+			// audit metadata (actor_type=operator).
+			r.Route("/{id}/accounts/{accountId}/mfa", func(r chi.Router) {
+				r.Get("/", rs.provisioningResource.GetSchoolAccountMFAState)
+				r.Delete("/", rs.provisioningResource.ResetSchoolAccountMFA)
+				r.Put("/override", rs.provisioningResource.SetSchoolAccountMFAOverride)
+			})
 			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 			r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
 			if rs.settingsResource != nil {
@@ -257,6 +275,11 @@ func (rs *Resource) Router() chi.Router {
 		// on that prefix here shadows them.
 		r.Post("/auth/mfa/enroll/start", rs.mfaResource.EnrollStart)
 		r.Post("/auth/mfa/enroll/confirm", rs.mfaResource.EnrollConfirm)
+		// Self-service trusted-device management (operator-side mirror of
+		// the tenant section). Ownership is enforced in the service so
+		// these stay plain authenticated routes.
+		r.Get("/auth/mfa/trusted-devices", rs.mfaResource.ListTrustedDevices)
+		r.Delete("/auth/mfa/trusted-devices/{deviceId}", rs.mfaResource.RevokeTrustedDevice)
 
 		// Operator invitations
 		r.Route("/invitations", func(r chi.Router) {

@@ -27,7 +27,7 @@ const (
 	OperatorMFALockoutDuration       = 15 * time.Minute
 	OperatorMFARateLimitWindow       = 15 * time.Minute
 	OperatorMFARateLimitMaxSent      = 3
-	OperatorMFATrustedDeviceDuration = 30 * 24 * time.Hour
+	OperatorMFATrustedDeviceDuration = 90 * 24 * time.Hour
 )
 
 // Errors mirror the auth-side surface so callers can switch on error
@@ -40,6 +40,7 @@ var (
 	ErrOperatorMFARateLimited           = authService.ErrMFARateLimited
 	ErrOperatorMFANotEnrolled           = authService.ErrMFANotEnrolled
 	ErrOperatorMFAAlreadyEnrolled       = authService.ErrMFAAlreadyEnrolled
+	ErrOperatorMFAPermissionDenied      = authService.ErrMFAPermissionDenied
 )
 
 // OperatorVerifiedChallenge mirrors authService.VerifiedChallenge for the
@@ -64,6 +65,14 @@ type OperatorMFAService interface {
 
 	IssueTrustedDevice(ctx context.Context, operatorID int64, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
 	VerifyTrustedDevice(ctx context.Context, operatorID int64, signedCookie string) (bool, error)
+	// ListTrustedDevices returns all active (non-revoked, non-expired)
+	// trusted-device rows for the given operator. Used by the self-service
+	// "Meine vertrauten Geräte" section in the operator settings page.
+	ListTrustedDevices(ctx context.Context, operatorID int64) ([]*platform.OperatorMFATrustedDevice, error)
+	// RevokeTrustedDevice marks a single trusted-device row revoked. The
+	// service verifies the device belongs to the calling operator so an
+	// IDOR can't revoke someone else's device.
+	RevokeTrustedDevice(ctx context.Context, operatorID, deviceID int64) error
 }
 
 // OperatorMFAServiceConfig groups dependencies for NewOperatorMFAService.
@@ -339,6 +348,9 @@ func (s *operatorMFAService) IssueTrustedDevice(ctx context.Context, operatorID 
 	}
 	signed := authService.SignTrustedDeviceToken(rawToken, s.mfaSecret)
 	s.recordAudit(ctx, operatorID, platform.ActionMFATrustedDeviceAdded, ip, &device.ID, nil)
+	// Fire-and-forget notification mail — mirrors the tenant flow so an
+	// operator gets the same "new device added" signal that tenant users do.
+	s.dispatchTrustedDeviceAddedEmail(ctx, operatorID, userAgent, ip, int(OperatorMFATrustedDeviceDuration.Hours()/24))
 	return signed, expiresAt, nil
 }
 
@@ -354,6 +366,30 @@ func (s *operatorMFAService) VerifyTrustedDevice(ctx context.Context, operatorID
 	}
 	_ = s.repos.OperatorMFATrustedDevice.UpdateLastUsedAt(ctx, device.ID, time.Now())
 	return true, nil
+}
+
+func (s *operatorMFAService) ListTrustedDevices(ctx context.Context, operatorID int64) ([]*platform.OperatorMFATrustedDevice, error) {
+	return s.repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
+}
+
+func (s *operatorMFAService) RevokeTrustedDevice(ctx context.Context, operatorID, deviceID int64) error {
+	// Validate ownership before revoke — a device row can only be revoked
+	// by its own operator account.
+	devices, err := s.repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
+	if err != nil {
+		return err
+	}
+	owned := false
+	for _, d := range devices {
+		if d.ID == deviceID {
+			owned = true
+			break
+		}
+	}
+	if !owned {
+		return ErrOperatorMFAPermissionDenied
+	}
+	return s.repos.OperatorMFATrustedDevice.Revoke(ctx, deviceID, time.Now())
 }
 
 // ===== Internal helpers =====
@@ -411,6 +447,64 @@ func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *pla
 	meta := email.DeliveryMetadata{
 		Type:        "operator_mfa_email_code",
 		ReferenceID: op.ID,
+		Recipient:   op.Email,
+	}
+	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+		Message:       message,
+		Metadata:      meta,
+		BackoffPolicy: []time.Duration{time.Second, 5 * time.Second, 15 * time.Second},
+		MaxAttempts:   3,
+	})
+}
+
+// dispatchTrustedDeviceAddedEmail mirrors the tenant-side notification so
+// an operator sees the same "new device was just added" mail after the
+// remember-device cookie is issued. Fire-and-forget.
+func (s *operatorMFAService) dispatchTrustedDeviceAddedEmail(ctx context.Context, operatorID int64, userAgent string, ip net.IP, days int) {
+	if s.dispatcher == nil {
+		s.logger.Warn("email dispatcher unavailable; operator trusted-device-added mail skipped",
+			slog.Int64("operator_id", operatorID))
+		return
+	}
+	op, err := s.repos.Operator.FindByID(ctx, operatorID)
+	if err != nil || op == nil || strings.TrimSpace(op.Email) == "" {
+		s.logger.Warn("could not load operator for trusted-device-added mail",
+			slog.Int64("operator_id", operatorID),
+			slog.Any("error", err))
+		return
+	}
+
+	frontendURL := strings.TrimRight(s.frontendURL, "/")
+	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	// Operator security tab is the same page identifier the tenant uses
+	// (settings UI path is set up to honour the tab query). Wrong path is
+	// not catastrophic — the mail still works as a notification.
+	securityURL := fmt.Sprintf("%s/operator/settings?tab=settings-security", frontendURL)
+
+	requestIP := ""
+	if ip != nil && !ip.IsUnspecified() {
+		requestIP = ip.String()
+	}
+	deviceLabel := authService.ShortenUserAgent(userAgent)
+	addedAt := time.Now().Format("02.01.2006 15:04")
+
+	message := email.Message{
+		From:     s.defaultFrom,
+		To:       email.NewEmail(op.DisplayName, op.Email),
+		Subject:  "Neues vertrautes Gerät zu Ihrem moto-Konto hinzugefügt",
+		Template: "trusted-device-added.html",
+		Content: map[string]any{
+			"LogoURL":     logoURL,
+			"SecurityURL": securityURL,
+			"DeviceLabel": deviceLabel,
+			"IPAddress":   requestIP,
+			"AddedAt":     addedAt,
+			"TrustedDays": days,
+		},
+	}
+	meta := email.DeliveryMetadata{
+		Type:        "operator_mfa_trusted_device_added",
+		ReferenceID: operatorID,
 		Recipient:   op.Email,
 	}
 	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{

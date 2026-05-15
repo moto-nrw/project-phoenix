@@ -379,6 +379,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:            api.Services.Settings,
 		Broadcaster:                api.Services.RealtimeHub,
 		SchoolRepo:                 repoFactory.School,
+		TenantMFAService:           api.Services.MFA,
+		AccountTenantRepository:    repoFactory.AccountTenant,
 		TokenAuth:                  nil, // Created internally by operator API
 		DB:                         db,
 	})
