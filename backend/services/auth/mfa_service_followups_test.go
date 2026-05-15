@@ -188,6 +188,89 @@ func TestMFAService_IsRequired_HonorsOverride(t *testing.T) {
 	assert.False(t, required, "force_off must skip MFA")
 }
 
+// TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite is a regression
+// test for the atomic-write fix: an invalid override must NOT have flipped
+// the account row or revoked any trusted devices before returning. (We
+// can't easily inject a mid-transaction failure here, but we can verify
+// the validation rejection path keeps DB state untouched.)
+func TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite(t *testing.T) {
+	ctx := context.Background()
+	svc, _, db := newTestMFAService(t)
+
+	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-override-noPartial")
+	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
+
+	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, 0, "UA", net.ParseIP("203.0.113.55"))
+	require.NoError(t, err)
+
+	// Bogus override value — service must reject before touching state.
+	err = svc.SetMFAOverride(ctx, 0, acc.ID, "force_maybe", "test", []string{"users:manage"})
+	assert.ErrorIs(t, err, auth.ErrMFAInvalidOverride)
+
+	override, err := svc.GetMFAOverride(ctx, acc.ID)
+	require.NoError(t, err)
+	assert.Equal(t, auth.MFAAdminOverrideNone, override, "override must stay none after rejected write")
+
+	devices, err := svc.ListTrustedDevices(ctx, acc.ID)
+	require.NoError(t, err)
+	assert.Len(t, devices, 1, "trusted device must survive a rejected override attempt")
+}
+
+// --- Operator-side admin: defense-in-depth membership check ---
+
+func TestMFAService_OperatorSetMFAOverride_RejectsZeroSchoolID(t *testing.T) {
+	ctx := context.Background()
+	svc, _, db := newTestMFAService(t)
+
+	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-op-zero-school")
+	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
+
+	// schoolID=0 is the sentinel that means "no school context" — even
+	// if the HTTP route layer was somehow bypassed, the service must
+	// refuse to act cross-tenant.
+	err := svc.OperatorSetMFAOverride(ctx, 1, 0, acc.ID, auth.MFAAdminOverrideForceOff, "test")
+	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
+}
+
+func TestMFAService_OperatorSetMFAOverride_RejectsCrossSchool(t *testing.T) {
+	ctx := context.Background()
+	svc, _, db := newTestMFAService(t)
+
+	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-op-cross-school")
+	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
+
+	// Account has no AccountTenant rows for school_id=999 — the
+	// membership check must reject the override attempt rather than
+	// silently writing the column. The DB row would otherwise reveal
+	// that an operator can flip force_off on any account ID they can
+	// guess.
+	err := svc.OperatorSetMFAOverride(ctx, 1, 999, acc.ID, auth.MFAAdminOverrideForceOn, "test")
+	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
+
+	override, err := svc.GetMFAOverride(ctx, acc.ID)
+	require.NoError(t, err)
+	assert.Equal(t, auth.MFAAdminOverrideNone, override, "override must remain unset after rejected cross-school write")
+}
+
+func TestMFAService_OperatorAdminDisable_RejectsCrossSchool(t *testing.T) {
+	ctx := context.Background()
+	svc, _, db := newTestMFAService(t)
+
+	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-op-disable-cross")
+	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
+
+	require.NoError(t, svc.Enroll(ctx, acc.ID))
+
+	err := svc.OperatorAdminDisable(ctx, 1, 999, acc.ID, "test")
+	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
+
+	// Enrollment must survive the rejected disable attempt.
+	enrolled, err := svc.HasEnrollment(ctx, acc.ID)
+	require.NoError(t, err)
+	assert.True(t, enrolled, "enrollment must persist when operator disable is rejected")
+}
+
 // --- Edge cases (Design-Doc §11) ---
 
 func TestMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {

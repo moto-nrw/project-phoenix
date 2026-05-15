@@ -151,12 +151,14 @@ type MFAService interface {
 	// Skips the users:manage check because operator routes are already
 	// gated at the platform JWT layer, and writes audit metadata with
 	// actor_type=operator so the audit log can distinguish operator vs.
-	// tenant-admin actions on the same account.
-	OperatorAdminDisable(ctx context.Context, operatorID, targetAccountID int64, reason string) error
+	// tenant-admin actions on the same account. The service verifies the
+	// target account belongs to the given school as defense-in-depth so
+	// any future direct caller (CLI, scheduler) can't act cross-tenant.
+	OperatorAdminDisable(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error
 	// OperatorSetMFAOverride is the operator-side variant of
-	// SetMFAOverride. Same permission/audit treatment as
+	// SetMFAOverride. Same permission/audit/membership treatment as
 	// OperatorAdminDisable.
-	OperatorSetMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error
+	OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error
 }
 
 // MFAServiceConfig groups dependencies for NewMFAService. Fields without zero
@@ -477,18 +479,29 @@ func (s *mfaService) Enroll(ctx context.Context, accountID int64) error {
 	return nil
 }
 
-// Disable cascades: credential -> trusted devices revoked.
-// Account-level lockout fields are reset so a future re-enrollment starts clean.
+// Disable cascades: credential -> trusted devices revoked. Account-level
+// lockout fields are reset so a future re-enrollment starts clean. The
+// three writes happen in a single tx so partial-failure can't leave the
+// account in a half-disabled state (e.g. credential gone but devices
+// still trusted).
 func (s *mfaService) Disable(ctx context.Context, accountID int64) error {
-	if err := s.repos.MFACredential.DeleteByAccountID(ctx, accountID); err != nil {
-		return fmt.Errorf("delete credential: %w", err)
-	}
-	if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(ctx, accountID, time.Now()); err != nil {
-		return fmt.Errorf("revoke trusted devices: %w", err)
-	}
-	if account, err := s.repos.Account.FindByID(ctx, accountID); err == nil && account != nil {
-		account.ResetMFAAttempts()
-		_ = s.repos.Account.Update(ctx, account)
+	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.repos.MFACredential.DeleteByAccountID(txCtx, accountID); err != nil {
+			return fmt.Errorf("delete credential: %w", err)
+		}
+		if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(txCtx, accountID, time.Now()); err != nil {
+			return fmt.Errorf("revoke trusted devices: %w", err)
+		}
+		if account, err := s.repos.Account.FindByID(txCtx, accountID); err == nil && account != nil {
+			account.ResetMFAAttempts()
+			if err := s.repos.Account.Update(txCtx, account); err != nil {
+				return fmt.Errorf("reset mfa attempts: %w", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFADisabled, true, nil, "", nil)
 	return nil
@@ -628,8 +641,13 @@ func (s *mfaService) AdminDisable(ctx context.Context, actorID, targetAccountID 
 
 // OperatorAdminDisable mirrors AdminDisable but skips the users:manage
 // check (operator routes carry their own platform-level gate) and tags
-// the audit metadata with actor_type=operator.
-func (s *mfaService) OperatorAdminDisable(ctx context.Context, operatorID, targetAccountID int64, reason string) error {
+// the audit metadata with actor_type=operator. Verifies the target
+// account belongs to the given school so direct service callers (CLI,
+// scheduler) cannot reach across tenants.
+func (s *mfaService) OperatorAdminDisable(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {
+	if err := s.requireSchoolMembership(ctx, "operator", operatorID, schoolID, targetAccountID, "disable"); err != nil {
+		return err
+	}
 	return s.adminDisableCore(ctx, "operator", operatorID, targetAccountID, reason)
 }
 
@@ -646,13 +664,17 @@ func (s *mfaService) GetMFAOverride(ctx context.Context, accountID int64) (strin
 
 // adminDisableCore is the shared cascade used by both tenant-admin and
 // operator paths. actorType becomes audit metadata so the audit log can
-// tell which surface initiated the disable.
+// tell which surface initiated the disable. Both rejected attempts and
+// successful disables produce an audit row so brute-force / scanning
+// behaviour is forensically visible.
 func (s *mfaService) adminDisableCore(ctx context.Context, actorType string, actorID, targetAccountID int64, reason string) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
+		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "disable", "", "", "reason is required")
 		return errors.New("reason is required for admin override")
 	}
 	if err := s.Disable(ctx, targetAccountID); err != nil {
+		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "disable", "", reason, err.Error())
 		return err
 	}
 	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
@@ -666,6 +688,9 @@ func (s *mfaService) adminDisableCore(ctx context.Context, actorType string, act
 
 func (s *mfaService) SetMFAOverride(ctx context.Context, actorID, targetAccountID int64, override, reason string, actorPermissions []string) error {
 	if err := s.requireAdminPermission(actorPermissions); err != nil {
+		// Audit denied attempts too so abuse / misconfigured roles
+		// surface in the same stream as successful overrides.
+		s.recordAdminOverrideFailure(ctx, "account", actorID, targetAccountID, "set_override", override, reason, "permission denied")
 		return err
 	}
 	return s.setMFAOverrideCore(ctx, "account", actorID, targetAccountID, override, reason)
@@ -673,40 +698,62 @@ func (s *mfaService) SetMFAOverride(ctx context.Context, actorID, targetAccountI
 
 // OperatorSetMFAOverride mirrors SetMFAOverride for the operator path.
 // Skips the users:manage check (route layer guards this) and writes
-// audit metadata tagged actor_type=operator.
-func (s *mfaService) OperatorSetMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error {
+// audit metadata tagged actor_type=operator. Verifies the target account
+// belongs to the given school as defense-in-depth.
+func (s *mfaService) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {
+	if err := s.requireSchoolMembership(ctx, "operator", operatorID, schoolID, targetAccountID, "set_override"); err != nil {
+		return err
+	}
 	return s.setMFAOverrideCore(ctx, "operator", operatorID, targetAccountID, override, reason)
 }
 
 // setMFAOverrideCore is the shared write + trusted-device-revoke +
 // audit-record pipeline used by both tenant-admin and operator flows.
+// The account update and trusted-device revoke run in a single tx so a
+// failed revoke rolls back the override flip — otherwise a force_off
+// could leave the account flagged "no MFA" while stale trusted-device
+// cookies remain valid. Rejected attempts (bad value, empty reason,
+// missing target) produce a failure audit row so abuse is observable.
 func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, actorID, targetAccountID int64, override, reason string) error {
 	if !IsValidMFAAdminOverride(override) {
+		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "set_override", override, reason, ErrMFAInvalidOverride.Error())
 		return ErrMFAInvalidOverride
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
+		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "set_override", override, "", "reason is required")
 		return errors.New("reason is required for admin override")
 	}
-	account, err := s.repos.Account.FindByID(ctx, targetAccountID)
-	if err != nil || account == nil {
-		return fmt.Errorf("load target account: %w", err)
-	}
-	previous := account.MFAAdminOverride
-	if previous == "" {
-		previous = MFAAdminOverrideNone
-	}
-	account.MFAAdminOverride = override
-	if err := s.repos.Account.Update(ctx, account); err != nil {
-		return fmt.Errorf("persist mfa override: %w", err)
-	}
-	if override == MFAAdminOverrideForceOff {
-		if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(ctx, targetAccountID, time.Now()); err != nil {
-			s.logger.Warn("failed to revoke trusted devices after force_off",
-				slog.Int64("account_id", targetAccountID),
-				slog.String("error", err.Error()))
+
+	var previous string
+	txErr := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		account, err := s.repos.Account.FindByID(txCtx, targetAccountID)
+		if err != nil || account == nil {
+			return fmt.Errorf("load target account: %w", err)
 		}
+		previous = account.MFAAdminOverride
+		if previous == "" {
+			previous = MFAAdminOverrideNone
+		}
+		account.MFAAdminOverride = override
+		if err := s.repos.Account.Update(txCtx, account); err != nil {
+			return fmt.Errorf("persist mfa override: %w", err)
+		}
+		// Force-off must revoke every existing trusted-device cookie in
+		// the same tx — a partial success (override flipped but devices
+		// kept) is a security regression, not a transient warning.
+		if override == MFAAdminOverrideForceOff {
+			if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(txCtx, targetAccountID, time.Now()); err != nil {
+				return fmt.Errorf("revoke trusted devices: %w", err)
+			}
+		}
+		return nil
+	})
+	if txErr != nil {
+		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "set_override", override, reason, txErr.Error())
+		return txErr
 	}
+
 	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
 		"actor_type":        actorType,
 		"actor_account_id":  actorID,
@@ -716,6 +763,48 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 		"reason":            reason,
 	})
 	return nil
+}
+
+// requireSchoolMembership is the defense-in-depth membership check on
+// the operator admin paths. The HTTP handler already verifies this at
+// the route level, but mirroring it in the service means any future
+// non-HTTP caller (CLI, scheduler, internal batch job) cannot reach
+// across tenants. A failure produces a permission-denied error and
+// emits a failure audit row.
+func (s *mfaService) requireSchoolMembership(ctx context.Context, actorType string, actorID, schoolID, targetAccountID int64, action string) error {
+	if schoolID == 0 {
+		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, action, "", "", "missing school_id")
+		return ErrMFAPermissionDenied
+	}
+	exists, err := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, targetAccountID, schoolID)
+	if err != nil {
+		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, action, "", "", "membership lookup failed: "+err.Error())
+		return fmt.Errorf("verify account membership: %w", err)
+	}
+	if !exists {
+		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, action, "", "", "account is not a member of school")
+		return ErrMFAPermissionDenied
+	}
+	return nil
+}
+
+// recordAdminOverrideFailure emits an audit row for a rejected admin
+// override attempt. Success rows go through recordAuthEvent directly;
+// this helper centralizes the failure shape so every rejection path
+// produces consistent metadata.
+func (s *mfaService) recordAdminOverrideFailure(ctx context.Context, actorType string, actorID, targetAccountID int64, action, override, reason, errMsg string) {
+	metadata := map[string]any{
+		"actor_type":       actorType,
+		"actor_account_id": actorID,
+		"action":           action,
+	}
+	if override != "" {
+		metadata["override"] = override
+	}
+	if reason != "" {
+		metadata["reason"] = reason
+	}
+	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, false, nil, errMsg, metadata)
 }
 
 func (s *mfaService) requireAdminPermission(actorPermissions []string) error {

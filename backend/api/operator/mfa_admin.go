@@ -148,7 +148,11 @@ func (rs *ProvisioningResource) ResetSchoolAccountMFA(w http.ResponseWriter, r *
 		return
 	}
 	ctx := withTenantContext(r, schoolID).Context()
-	if err := rs.TenantMFAService.OperatorAdminDisable(ctx, operatorID, accountID, req.Reason); err != nil {
+	if err := rs.TenantMFAService.OperatorAdminDisable(ctx, operatorID, schoolID, accountID, req.Reason); err != nil {
+		if errors.Is(err, authSvc.ErrMFAPermissionDenied) {
+			common.RenderError(w, r, ErrForbidden("Permission denied"))
+			return
+		}
 		common.RenderError(w, r, ErrInternal("MFA admin disable failed"))
 		return
 	}
@@ -177,9 +181,13 @@ func (rs *ProvisioningResource) SetSchoolAccountMFAOverride(w http.ResponseWrite
 		return
 	}
 	ctx := withTenantContext(r, schoolID).Context()
-	if err := rs.TenantMFAService.OperatorSetMFAOverride(ctx, operatorID, accountID, req.Override, req.Reason); err != nil {
+	if err := rs.TenantMFAService.OperatorSetMFAOverride(ctx, operatorID, schoolID, accountID, req.Override, req.Reason); err != nil {
 		if errors.Is(err, authSvc.ErrMFAInvalidOverride) {
 			common.RenderError(w, r, ErrInvalidRequest(err))
+			return
+		}
+		if errors.Is(err, authSvc.ErrMFAPermissionDenied) {
+			common.RenderError(w, r, ErrForbidden("Permission denied"))
 			return
 		}
 		common.RenderError(w, r, ErrInternal("MFA override failed"))
