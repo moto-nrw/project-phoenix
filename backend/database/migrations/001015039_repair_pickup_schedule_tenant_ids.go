@@ -2,9 +2,7 @@ package migrations
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -73,59 +71,15 @@ var pickupTenantRepairSpecs = []pickupTenantRepairSpec{
 	},
 }
 
-var pickupCompositeFKStatements = []struct {
-	name string
-	add  string
-}{
-	{
-		name: "fk_pickup_schedules_created_by_tenant",
-		add:  `ALTER TABLE schedule.student_pickup_schedules ADD CONSTRAINT fk_pickup_schedules_created_by_tenant FOREIGN KEY (tenant_id, created_by) REFERENCES users.staff(tenant_id, id)`,
-	},
-	{
-		name: "fk_pickup_schedules_student_tenant",
-		add:  `ALTER TABLE schedule.student_pickup_schedules ADD CONSTRAINT fk_pickup_schedules_student_tenant FOREIGN KEY (tenant_id, student_id) REFERENCES users.students(tenant_id, id) ON DELETE CASCADE`,
-	},
-	{
-		name: "fk_pickup_exceptions_created_by_tenant",
-		add:  `ALTER TABLE schedule.student_pickup_exceptions ADD CONSTRAINT fk_pickup_exceptions_created_by_tenant FOREIGN KEY (tenant_id, created_by) REFERENCES users.staff(tenant_id, id)`,
-	},
-	{
-		name: "fk_pickup_exceptions_student_tenant",
-		add:  `ALTER TABLE schedule.student_pickup_exceptions ADD CONSTRAINT fk_pickup_exceptions_student_tenant FOREIGN KEY (tenant_id, student_id) REFERENCES users.students(tenant_id, id) ON DELETE CASCADE`,
-	},
-	{
-		name: "fk_pickup_notes_created_by_tenant",
-		add:  `ALTER TABLE schedule.student_pickup_notes ADD CONSTRAINT fk_pickup_notes_created_by_tenant FOREIGN KEY (tenant_id, created_by) REFERENCES users.staff(tenant_id, id)`,
-	},
-	{
-		name: "fk_pickup_notes_student_tenant",
-		add:  `ALTER TABLE schedule.student_pickup_notes ADD CONSTRAINT fk_pickup_notes_student_tenant FOREIGN KEY (tenant_id, student_id) REFERENCES users.students(tenant_id, id) ON DELETE CASCADE`,
-	},
-}
-
 func repairPickupScheduleTenantIDs(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.39: Repairing pickup schedule tenant IDs...")
 
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
-		}
-	}()
-
-	if err := dropPickupCompositeFKsForRepair(ctx, tx); err != nil {
-		return err
-	}
-
 	for _, spec := range pickupTenantRepairSpecs {
-		if err := ensurePickupTenantRepairIsSafe(ctx, tx, spec); err != nil {
+		if err := ensurePickupTenantRepairIsSafe(ctx, db, spec); err != nil {
 			return err
 		}
 
-		result, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		result, err := db.ExecContext(ctx, fmt.Sprintf(`
 			UPDATE %s p
 			SET tenant_id = s.tenant_id
 			FROM users.students s
@@ -140,17 +94,13 @@ func repairPickupScheduleTenantIDs(ctx context.Context, db *bun.DB) error {
 		fmt.Printf("Migration 1.15.39: repaired %d row(s) in %s\n", rowsAffected, spec.table)
 	}
 
-	if err := restorePickupCompositeFKsAfterRepair(ctx, tx); err != nil {
-		return err
-	}
-
 	fmt.Println("Migration 1.15.39: Pickup schedule tenant ID repair complete")
-	return tx.Commit()
+	return nil
 }
 
-func ensurePickupTenantRepairIsSafe(ctx context.Context, tx bun.Tx, spec pickupTenantRepairSpec) error {
+func ensurePickupTenantRepairIsSafe(ctx context.Context, db bun.IDB, spec pickupTenantRepairSpec) error {
 	var missingCreatedBy int64
-	err := tx.QueryRowContext(ctx, fmt.Sprintf(`
+	err := db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT COUNT(*)
 		FROM %s p
 		JOIN users.students s ON s.id = p.student_id
@@ -170,7 +120,7 @@ func ensurePickupTenantRepairIsSafe(ctx context.Context, tx bun.Tx, spec pickupT
 	}
 
 	var badCreatedBy int64
-	err = tx.QueryRowContext(ctx, fmt.Sprintf(`
+	err = db.QueryRowContext(ctx, fmt.Sprintf(`
 		SELECT COUNT(*)
 		FROM %s p
 		JOIN users.students s ON s.id = p.student_id
@@ -194,7 +144,7 @@ func ensurePickupTenantRepairIsSafe(ctx context.Context, tx bun.Tx, spec pickupT
 	}
 
 	var conflicts int64
-	if err := tx.QueryRowContext(ctx, spec.uniqueConflict).Scan(&conflicts); err != nil {
+	if err := db.QueryRowContext(ctx, spec.uniqueConflict).Scan(&conflicts); err != nil {
 		return fmt.Errorf("check unique conflicts on %s: %w", spec.table, err)
 	}
 	if conflicts > 0 {
@@ -207,35 +157,4 @@ func ensurePickupTenantRepairIsSafe(ctx context.Context, tx bun.Tx, spec pickupT
 	}
 
 	return nil
-}
-
-func dropPickupCompositeFKsForRepair(ctx context.Context, tx bun.Tx) error {
-	for _, fk := range pickupCompositeFKStatements {
-		if _, err := tx.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s", pickupFKTable(fk.name), fk.name)); err != nil {
-			return fmt.Errorf("drop pickup composite FK %s: %w", fk.name, err)
-		}
-	}
-	return nil
-}
-
-func restorePickupCompositeFKsAfterRepair(ctx context.Context, tx bun.Tx) error {
-	for _, fk := range pickupCompositeFKStatements {
-		if _, err := tx.ExecContext(ctx, fk.add); err != nil {
-			return fmt.Errorf("restore pickup composite FK %s: %w", fk.name, err)
-		}
-	}
-	return nil
-}
-
-func pickupFKTable(fkName string) string {
-	switch fkName {
-	case "fk_pickup_schedules_created_by_tenant", "fk_pickup_schedules_student_tenant":
-		return "schedule.student_pickup_schedules"
-	case "fk_pickup_exceptions_created_by_tenant", "fk_pickup_exceptions_student_tenant":
-		return "schedule.student_pickup_exceptions"
-	case "fk_pickup_notes_created_by_tenant", "fk_pickup_notes_student_tenant":
-		return "schedule.student_pickup_notes"
-	default:
-		panic(fmt.Sprintf("unknown pickup FK %s", fkName))
-	}
 }
