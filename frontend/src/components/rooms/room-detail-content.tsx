@@ -29,7 +29,11 @@ import {
   calculateDuration,
   formatDuration,
 } from "~/lib/date-helpers";
-import { formatFloor, getRoomCategoryColor } from "~/lib/room-helpers";
+import {
+  formatFloor,
+  getRoomCategoryColor,
+  ROOM_HISTORY_STATUS_FEATURE_DISABLED,
+} from "~/lib/room-helpers";
 import { createLogger } from "~/lib/logger";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { StudentsInRoomSection } from "./students-in-room-section";
@@ -184,6 +188,12 @@ interface UseRoomDetailResult {
   history: RoomHistoryEntry[];
   loading: boolean;
   error: string | null;
+  // True when the tenant has gdpr.attendance_log_enabled = false. The proxy
+  // route (`/api/rooms/[id]/history`) translates the backend's 403 into
+  // `status: "feature_disabled"` so the drawer can hide the
+  // "Belegungshistorie" section deliberately (issue #1425) rather than
+  // letting it collapse incidentally on an empty history array.
+  historyDisabled: boolean;
 }
 
 function useRoomDetail(roomId: string): UseRoomDetailResult {
@@ -203,6 +213,7 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
   const { data, error, isLoading } = useSWRAuth<{
     room: Room;
     history: RoomHistoryEntry[];
+    historyDisabled: boolean;
   }>(`room-detail-${roomId}`, async () => {
     const authHeaders = token
       ? { Authorization: `Bearer ${token}` }
@@ -222,6 +233,7 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
     const room = mapBackendToFrontendRoom(roomData);
 
     let history: RoomHistoryEntry[] = [];
+    let historyDisabled = false;
     const historyResponse = await fetch(`/api/rooms/${roomId}/history`, {
       credentials: "include",
       headers: { "Content-Type": "application/json", ...authHeaders },
@@ -229,14 +241,28 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
     if (historyResponse.ok) {
       const historyResponseData = (await historyResponse.json()) as
         | BackendRoomHistoryEntry[]
-        | { data?: BackendRoomHistoryEntry[] | null }
+        | { status?: string; data?: BackendRoomHistoryEntry[] | null }
         | null;
-      // Three observed response shapes:
+      // Four observed response shapes:
       //   - bare array (legacy)
       //   - { data: [...] } wrapped
       //   - { status: "success", data: null, message: "..." } when no history
+      //   - { status: "feature_disabled", data: [] } when the tenant has
+      //     gdpr.attendance_log_enabled = false (issue #1425). In that
+      //     case set historyDisabled so the drawer hides the section
+      //     deliberately — distinguishing "off" from "no data" matters for
+      //     debugging and for surviving any future UX change that would
+      //     otherwise render a placeholder for empty history.
       // Anything that isn't a real array must collapse to []; otherwise
       // .map on the next line throws (#1374 regression).
+      if (
+        historyResponseData &&
+        typeof historyResponseData === "object" &&
+        !Array.isArray(historyResponseData) &&
+        historyResponseData.status === ROOM_HISTORY_STATUS_FEATURE_DISABLED
+      ) {
+        historyDisabled = true;
+      }
       const backendHistoryEntries: BackendRoomHistoryEntry[] = (() => {
         if (Array.isArray(historyResponseData)) return historyResponseData;
         if (
@@ -252,7 +278,7 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
       history = backendHistoryEntries.map(mapBackendToFrontendHistoryEntry);
     }
 
-    return { room, history };
+    return { room, history, historyDisabled };
   });
 
   if (error) {
@@ -266,6 +292,7 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
     history: data?.history ?? [],
     loading: isLoading,
     error: error ? "Fehler beim Laden der Raumdaten." : null,
+    historyDisabled: data?.historyDisabled ?? false,
   };
 }
 
@@ -308,6 +335,13 @@ interface RoomDetailContentProps {
   readonly history: readonly RoomHistoryEntry[];
   readonly headerAction?: React.ReactNode;
   readonly onSelectionActiveChange?: (active: boolean) => void;
+  // When true, the tenant has gdpr.attendance_log_enabled = false and the
+  // "Belegungshistorie" section must be hidden deliberately (issue #1425).
+  // Without this flag the section already collapses when `history` is
+  // empty, but that's incidental — the explicit flag prevents a future
+  // empty-state placeholder from accidentally surfacing the section on a
+  // tenant that has opted out.
+  readonly historyDisabled?: boolean;
 }
 
 export function RoomDetailContent({
@@ -315,9 +349,10 @@ export function RoomDetailContent({
   history,
   headerAction,
   onSelectionActiveChange,
+  historyDisabled = false,
 }: RoomDetailContentProps) {
   const groupedSessions = groupByDate(history);
-  const hasHistory = groupedSessions.length > 0;
+  const hasHistory = !historyDisabled && groupedSessions.length > 0;
   const isModalContext = Boolean(headerAction);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
@@ -659,7 +694,8 @@ export function RoomDetailLoader({
   headerAction,
   onSelectionActiveChange,
 }: RoomDetailLoaderProps) {
-  const { room, history, loading, error } = useRoomDetail(roomId);
+  const { room, history, loading, error, historyDisabled } =
+    useRoomDetail(roomId);
 
   if (loading) {
     return <RoomDetailSkeleton />;
@@ -680,6 +716,7 @@ export function RoomDetailLoader({
     <RoomDetailContent
       room={room}
       history={history}
+      historyDisabled={historyDisabled}
       headerAction={headerAction}
       onSelectionActiveChange={onSelectionActiveChange}
     />

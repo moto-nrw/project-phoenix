@@ -127,14 +127,18 @@ vi.mock("~/lib/date-helpers", () => ({
   formatDuration: (m: number) => `${m}m`,
 }));
 
-vi.mock("~/lib/room-helpers", () => ({
-  formatFloor: (n: number) => `Etage ${n}`,
-  // RoomDetailContent reads category accents through this helper after
-  // the categoryColors map was lifted into room-helpers.ts. Keep the stub
-  // deterministic so the timeline cards render without hitting the real
-  // module's imports.
-  getRoomCategoryColor: () => "#6B7280",
-}));
+// Pull ROOM_HISTORY_STATUS_FEATURE_DISABLED (and any other future exports)
+// from the real module so a backend/frontend constant rename can't silently
+// desync the test. Only the formatting helpers need stubbing — keep them
+// deterministic so timeline cards render without hitting transitive imports.
+vi.mock("~/lib/room-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/room-helpers")>();
+  return {
+    ...actual,
+    formatFloor: (n: number) => `Etage ${n}`,
+    getRoomCategoryColor: () => "#6B7280",
+  };
+});
 
 // ----------------------------------------------------------------------------
 // Helpers
@@ -278,6 +282,35 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 
     await waitFor(() =>
       expect(screen.getAllByText("Kleiner Raum")[0]).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
+  });
+
+  it("hides history deliberately when the tenant has gdpr.attendance_log_enabled = false", async () => {
+    // Issue #1425 follow-up: the proxy route translates the backend's 403
+    // into { status: "feature_disabled", data: [] }. The hook must surface
+    // historyDisabled so the section is hidden EXPLICITLY (not just
+    // because `data` happens to be empty). A future placeholder for the
+    // empty-history case must not accidentally render here.
+    mockFetch
+      .mockResolvedValueOnce(
+        okJson({ id: 5005, name: "GDPR-Off Raum", is_occupied: false }),
+      )
+      .mockResolvedValueOnce(
+        okJson({
+          status: "feature_disabled",
+          data: [],
+        }),
+      );
+
+    render(
+      <Wrapper>
+        <RoomDetailLoader roomId="feature-disabled" />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getAllByText("GDPR-Off Raum")[0]).toBeInTheDocument(),
     );
     expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });

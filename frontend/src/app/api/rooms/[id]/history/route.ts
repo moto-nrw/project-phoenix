@@ -1,9 +1,10 @@
 // app/api/rooms/[id]/history/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
+import { apiGet, ApiResponseError } from "~/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { createLogger } from "~/lib/logger";
+import { ROOM_HISTORY_STATUS_FEATURE_DISABLED } from "~/lib/room-helpers";
 
 const logger = createLogger({ component: "RoomHistoryRoute" });
 
@@ -29,6 +30,19 @@ interface BackendResponseEnvelope {
   status: string;
   data: BackendRoomHistoryEntry[] | null;
   message?: string;
+}
+
+// True iff the backend rejected the request because the tenant has
+// gdpr.attendance_log_enabled = false (issue #1425). The backend signals
+// that with HTTP 403 + a JSON body of `{ "error": "feature_disabled" }`.
+// A generic 403 (e.g. RBAC failure) intentionally does NOT match here so
+// it surfaces as a real error to the user — only the GDPR feature-gate
+// path is translated to the "section hidden" signal.
+function isFeatureDisabledError(error: unknown): boolean {
+  if (!(error instanceof ApiResponseError)) return false;
+  if (error.status !== 403) return false;
+  const body = error.body<{ error?: string }>();
+  return body?.error === ROOM_HISTORY_STATUS_FEATURE_DISABLED;
 }
 
 /**
@@ -86,6 +100,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // 404 means no history exists - return empty array
     if (apiError instanceof Error && apiError.message.includes("404")) {
       return NextResponse.json({ status: "success", data: [] });
+    }
+
+    // gdpr.attendance_log_enabled is off for this tenant — translate the
+    // backend's 403 into an explicit, non-error signal so the drawer can
+    // hide the section deliberately. Returning 200 here is correct: from
+    // the client's perspective the request succeeded and the answer is
+    // "the feature is off", not "the request failed".
+    if (isFeatureDisabledError(apiError)) {
+      return NextResponse.json({
+        status: ROOM_HISTORY_STATUS_FEATURE_DISABLED,
+        data: [],
+      });
     }
 
     logger.error("room history fetch failed", {

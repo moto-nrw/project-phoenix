@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
+import { ApiResponseError } from "~/lib/api-helpers";
 
 // ============================================================================
 // Types
@@ -24,22 +25,29 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+// Re-export the real ApiResponseError so route's `instanceof` check matches
+// the same class the test throws. Keep apiGet etc. mocked so the route
+// never hits the network.
+vi.mock("~/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/api-helpers")>();
+  return {
+    ApiResponseError: actual.ApiResponseError,
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn((error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : "Internal Server Error";
+      const status = message.includes("(401)")
+        ? 401
+        : message.includes("(404)")
+          ? 404
+          : 500;
+      return new Response(JSON.stringify({ error: message }), { status });
+    }),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -201,6 +209,46 @@ describe("GET /api/rooms/[id]/history", () => {
     const json = await parseJsonResponse<ApiResponse<unknown[]>>(response);
     expect(json.status).toBe("success");
     expect(json.data).toEqual([]);
+  });
+
+  it("translates a 403 feature_disabled error into a 200 + status:feature_disabled signal", async () => {
+    // Issue #1425 follow-up: when gdpr.attendance_log_enabled is off the
+    // backend returns 403 with body { status: "error", error:
+    // "feature_disabled" }. The proxy must NOT treat that as a server
+    // error — instead it returns a structured "the feature is off" signal
+    // (HTTP 200) so the drawer can hide the section deliberately. A plain
+    // 403 without the feature_disabled marker still falls through to the
+    // generic error path (covered by "handles backend errors" below).
+    mockApiGet.mockRejectedValueOnce(
+      new ApiResponseError(
+        403,
+        '{"status":"error","error":"feature_disabled"}',
+      ),
+    );
+
+    const request = createMockRequest("/api/rooms/123/history");
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<{
+      status: string;
+      data: unknown[];
+    }>(response);
+    expect(json.status).toBe("feature_disabled");
+    expect(json.data).toEqual([]);
+  });
+
+  it("does NOT translate a generic 403 (no feature_disabled marker) into the disabled signal", async () => {
+    // A plain RBAC failure must still surface as a 500 so it gets logged.
+    // Otherwise we'd silently mask permission bugs as "feature off".
+    mockApiGet.mockRejectedValueOnce(
+      new ApiResponseError(403, '{"status":"error","error":"forbidden"}'),
+    );
+
+    const request = createMockRequest("/api/rooms/123/history");
+    const response = await GET(request);
+
+    expect(response.status).toBe(500);
   });
 
   it("returns 400 when room ID is missing", async () => {
