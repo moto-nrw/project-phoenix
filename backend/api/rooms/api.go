@@ -466,43 +466,12 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Scope check — admin sees everything; otherwise the default is the
-	// restrictive group_supervisors_only filter. Inverting the condition
-	// (scope != all_staff) means an unknown / typo'd setting value falls
-	// through to the safe path instead of silently disabling the filter.
-	permissionsList := jwt.PermissionsFromCtx(ctx)
-	isAdmin := common.HasAdminPermissions(permissionsList)
-	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
-
-	var supervisorStaffID *int64
-	if !isAdmin && scope != configModel.AttendanceLogScopeAllStaff {
-		staff, staffErr := rs.UserContextService.GetCurrentStaff(ctx)
-		// Distinguish "caller is not staff" (legitimate 403) from any other
-		// failure (transient DB error, etc.). Without this split a flaky
-		// users.staff lookup would silently mask itself as a forbidden
-		// response and never get logged.
-		switch {
-		case errors.Is(staffErr, userContextService.ErrUserNotLinkedToStaff):
-			common.RenderError(w, r, common.ErrorForbidden(errors.New("not_group_supervisor")))
-			return
-		case staffErr != nil:
-			logger.Warn("get current staff failed for room history",
-				"room_id", id,
-				"error", staffErr.Error(),
-			)
-			common.RenderError(w, r, common.ErrorInternalServer(staffErr))
-			return
-		case staff == nil:
-			// Defensive: service contract is (non-nil, nil) or (nil, err);
-			// this branch only triggers if that contract gets broken.
-			logger.Warn("get current staff returned nil staff with nil error",
-				"room_id", id,
-			)
-			common.RenderError(w, r, common.ErrorInternalServer(errors.New("unexpected nil staff")))
-			return
-		}
-		staffID := staff.ID
-		supervisorStaffID = &staffID
+	// 2. Scope check — see resolveRoomHistorySupervisorFilter. If handled
+	// is true the helper already wrote the response (403 / 500) and we
+	// must stop.
+	supervisorStaffID, handled := rs.resolveRoomHistorySupervisorFilter(w, r, id, logger)
+	if handled {
+		return
 	}
 
 	// 3. Resolve range cap. The setting registry already constrains the
@@ -574,6 +543,62 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	common.Respond(w, r, http.StatusOK, history, "Room history retrieved successfully")
+}
+
+// resolveRoomHistorySupervisorFilter applies the gdpr.attendance_log_scope
+// rule. Admin callers and tenants on the all_staff scope see every session
+// (returns nil filter). Everyone else must be staff and is filtered to
+// sessions they supervise. The "scope != all_staff" condition is inverted
+// on purpose: an unknown / typo'd setting value falls through to the safe
+// supervisor-only path instead of silently disabling the filter.
+//
+// Return contract:
+//
+//	(filter, false) — caller continues; filter may be nil (admin/all_staff)
+//	(nil,    true)  — helper already wrote a 403/500 response; caller MUST return
+//
+// Distinguishing ErrUserNotLinkedToStaff (legitimate 403) from any other
+// error is deliberate: a flaky users.staff lookup would otherwise silently
+// surface as "forbidden" with no log entry.
+func (rs *Resource) resolveRoomHistorySupervisorFilter(
+	w http.ResponseWriter,
+	r *http.Request,
+	roomID int64,
+	logger *slog.Logger,
+) (*int64, bool) {
+	ctx := r.Context()
+	if common.HasAdminPermissions(jwt.PermissionsFromCtx(ctx)) {
+		return nil, false
+	}
+
+	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
+	if scope == configModel.AttendanceLogScopeAllStaff {
+		return nil, false
+	}
+
+	staff, err := rs.UserContextService.GetCurrentStaff(ctx)
+	switch {
+	case errors.Is(err, userContextService.ErrUserNotLinkedToStaff):
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("not_group_supervisor")))
+		return nil, true
+	case err != nil:
+		logger.Warn("get current staff failed for room history",
+			"room_id", roomID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return nil, true
+	case staff == nil:
+		// Defensive: service contract is (non-nil, nil) or (nil, err);
+		// this branch only triggers if that contract gets broken.
+		logger.Warn("get current staff returned nil staff with nil error",
+			"room_id", roomID,
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("unexpected nil staff")))
+		return nil, true
+	}
+	staffID := staff.ID
+	return &staffID, false
 }
 
 // roomHistoryLogger returns a scoped logger, falling back to slog.Default

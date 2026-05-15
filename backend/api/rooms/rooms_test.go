@@ -513,6 +513,15 @@ func TestGetRoomHistory(t *testing.T) {
 // kill switch for the room history feature. Default is false, so we only need
 // to NOT enable it: the handler must return 403 with a "feature_disabled"
 // code regardless of the caller's permissions.
+//
+// The response shape is part of a cross-boundary contract: the Next.js
+// proxy (frontend/src/app/api/rooms/[id]/history/route.ts) parses the body
+// as { error: string } and matches `error === "feature_disabled"` to
+// translate the 403 into a non-error signal for the drawer. If the body
+// field name or the literal value drifts, the drawer falls back to a
+// generic error toast instead of hiding the section deliberately. The
+// JSON-decode assertion below locks the shape in so a refactor of
+// common.ErrorForbidden can't silently break it.
 func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 	tc := setupTestContext(t)
 
@@ -523,8 +532,13 @@ func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
 	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-	assert.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 when feature is disabled. Body: %s", rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "feature_disabled")
+	require.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 when feature is disabled. Body: %s", rr.Body.String())
+
+	var body struct {
+		Error string `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body), "response body must be JSON-decodable: %s", rr.Body.String())
+	assert.Equal(t, "feature_disabled", body.Error, "the `error` field must literally equal `feature_disabled` — the frontend proxy matches this exact string to translate the 403 into a UI-hides-section signal")
 }
 
 // TestGetRoomHistory_ScopeGroupSupervisorsOnly — exercises the per-staff

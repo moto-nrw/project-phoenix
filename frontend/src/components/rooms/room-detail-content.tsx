@@ -238,7 +238,19 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
       credentials: "include",
       headers: { "Content-Type": "application/json", ...authHeaders },
     });
-    if (historyResponse.ok) {
+    if (!historyResponse.ok) {
+      // A non-OK response is NOT the same as "no history". The proxy
+      // maps the GDPR feature-disabled path to 200 + status:"feature_disabled"
+      // (handled in the OK branch below), so anything reaching here is a
+      // genuine failure — proxy crash, backend 500, network timeout. Log
+      // it so the empty drawer section isn't indistinguishable from a real
+      // outage. We deliberately leave historyDisabled=false: hiding the
+      // section on real errors would mask the failure further.
+      logger.warn("room_history_fetch_failed", {
+        room_id: roomId,
+        status: historyResponse.status,
+      });
+    } else {
       const historyResponseData = (await historyResponse.json()) as
         | BackendRoomHistoryEntry[]
         | { status?: string; data?: BackendRoomHistoryEntry[] | null }
