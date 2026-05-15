@@ -77,7 +77,6 @@ func (a *TokenAuth) CreateMFAChallengeJWT(c MFAChallengeClaims, ttl time.Duratio
 	now := time.Now()
 	c.IssuedAt = now.Unix()
 	c.ExpiresAt = now.Add(ttl).Unix()
-	c.MFAPending = true // always
 
 	claims := map[string]any{
 		"account_id":  c.AccountID,
