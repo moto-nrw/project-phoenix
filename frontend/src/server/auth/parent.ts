@@ -12,12 +12,9 @@ import { cache } from "react";
 
 import { parentAuthConfig } from "./parent-config";
 
-const {
-  auth: uncachedParentAuth,
-  handlers: parentHandlers,
-  signIn: parentSignIn,
-} = NextAuth(parentAuthConfig);
+const { auth: uncachedParentAuth, handlers: parentHandlers } =
+  NextAuth(parentAuthConfig);
 
 const parentAuth = cache(uncachedParentAuth);
 
-export { parentAuth, uncachedParentAuth, parentHandlers, parentSignIn };
+export { parentAuth, uncachedParentAuth, parentHandlers };

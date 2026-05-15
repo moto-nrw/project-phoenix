@@ -26,11 +26,6 @@ type SubmissionRateLimit struct {
 	WindowStart time.Time `bun:"window_start,notnull,default:current_timestamp" json:"window_start"`
 }
 
-// TableName returns the schema-qualified table name.
-func (s *SubmissionRateLimit) TableName() string {
-	return "enrollment.submission_rate_limits"
-}
-
 // SubmissionRateLimitState is the post-increment view the service uses
 // to decide whether to admit a submission.
 type SubmissionRateLimitState struct {

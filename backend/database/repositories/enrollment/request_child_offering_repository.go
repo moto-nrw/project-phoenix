@@ -63,7 +63,7 @@ func (r *RequestChildOfferingRepository) CountActiveByCareOffering(ctx context.C
 		TableExpr(requestChildOfferingTableExpr).
 		Join(`INNER JOIN enrollment.request_children AS "child" ON "child".id = "request_child_offering".request_child_id`).
 		Where(`"request_child_offering".care_offering_id = ?`, careOfferingID).
-		Where(`"child".status NOT IN (?)`, bun.In([]string{
+		Where(`"child".status NOT IN (?)`, bun.List([]string{
 			enrollment.ChildStatusRejected,
 			enrollment.ChildStatusWithdrawn,
 		})).

@@ -196,5 +196,3 @@ export function createParentPostHandler<T, B = unknown>(
 ) {
   return createParentWithBodyHandler(handler);
 }
-
-export { isStringParam } from "../route-wrapper-utils";

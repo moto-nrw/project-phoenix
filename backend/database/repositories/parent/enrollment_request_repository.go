@@ -107,7 +107,7 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		WHERE rc.request_id IN (?)
 		ORDER BY rc.request_id, rc.sort_order, rc.id
 	`
-	if err := base.GetDB(ctx, r.db).NewRaw(childQuery, bun.In(requestIDs)).Scan(ctx, &children); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(childQuery, bun.List(requestIDs)).Scan(ctx, &children); err != nil {
 		return nil, fmt.Errorf("parent: list enrollment request children: %w", err)
 	}
 

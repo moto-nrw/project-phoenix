@@ -76,11 +76,6 @@ func IsOrgScope(ctx context.Context) bool {
 	return ScopeFromContext(ctx) == ScopeOrg
 }
 
-// IsParentScope returns true if the context scope is "parent".
-func IsParentScope(ctx context.Context) bool {
-	return ScopeFromContext(ctx) == ScopeParent
-}
-
 // NewContext returns a context pre-populated with tenant ID and org ID.
 // Use this when spawning goroutines that need tenant context from a parent request.
 func NewContext(ctx context.Context, tenantID, orgID int64) context.Context {

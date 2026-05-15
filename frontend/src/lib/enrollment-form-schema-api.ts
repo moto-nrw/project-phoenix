@@ -11,12 +11,12 @@ export type FormFieldType =
   | "date"
   | "select";
 
-export interface FormFieldOption {
+interface FormFieldOption {
   label: string;
   value: string;
 }
 
-export interface FormFieldValidation {
+interface FormFieldValidation {
   min?: number | null;
   max?: number | null;
   pattern?: string | null;

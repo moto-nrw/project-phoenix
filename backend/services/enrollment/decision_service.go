@@ -651,6 +651,10 @@ func (s *decisionService) enqueueDecisionEmail(
 
 	logoURL := s.parentsURL + "/images/moto_transparent.png"
 	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.parentsURL, request.StatusToken)
+	phaseName := ""
+	if phase != nil {
+		phaseName = phase.Name
+	}
 
 	payload := map[string]any{
 		EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
@@ -660,7 +664,7 @@ func (s *decisionService) enqueueDecisionEmail(
 		EnrollmentPayloadLogoURL:           logoURL,
 		EnrollmentPayloadChildNames:        []string{child.FirstName + " " + child.LastName},
 		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
-		"phase_name":                       phase.Name,
+		"phase_name":                       phaseName,
 	}
 	if phase != nil && phase.ShowStatusReasonToParent && reason != nil && *reason != "" {
 		payload["status_reason"] = *reason

@@ -11,7 +11,7 @@
 // Cache the result — window.location.host and the env var never change at runtime
 let _isParents: boolean | undefined;
 
-export function isParentsSubdomain(): boolean {
+function isParentsSubdomain(): boolean {
   if (typeof window === "undefined") return false;
   if (_isParents !== undefined) return _isParents;
 
