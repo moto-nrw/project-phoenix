@@ -476,10 +476,6 @@ func (s *operatorMFAService) dispatchTrustedDeviceAddedEmail(ctx context.Context
 
 	frontendURL := strings.TrimRight(s.frontendURL, "/")
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
-	// Operator security tab is the same page identifier the tenant uses
-	// (settings UI path is set up to honour the tab query). Wrong path is
-	// not catastrophic — the mail still works as a notification.
-	securityURL := fmt.Sprintf("%s/operator/settings?tab=settings-security", frontendURL)
 
 	requestIP := ""
 	if ip != nil && !ip.IsUnspecified() {
@@ -488,6 +484,9 @@ func (s *operatorMFAService) dispatchTrustedDeviceAddedEmail(ctx context.Context
 	deviceLabel := authService.ShortenUserAgent(userAgent)
 	addedAt := time.Now().Format("02.01.2006 15:04")
 
+	// Operators see the Sicherheit section by default — the template
+	// text still works for them. We don't pass a deep-link any more
+	// (tenant-side decision, mirrored here for template parity).
 	message := email.Message{
 		From:     s.defaultFrom,
 		To:       email.NewEmail(op.DisplayName, op.Email),
@@ -495,7 +494,6 @@ func (s *operatorMFAService) dispatchTrustedDeviceAddedEmail(ctx context.Context
 		Template: "trusted-device-added.html",
 		Content: map[string]any{
 			"LogoURL":     logoURL,
-			"SecurityURL": securityURL,
 			"DeviceLabel": deviceLabel,
 			"IPAddress":   requestIP,
 			"AddedAt":     addedAt,

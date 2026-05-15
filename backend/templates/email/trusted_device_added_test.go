@@ -47,9 +47,12 @@ func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
 				"90",
 				// "Was that you?" guidance
 				"Waren Sie das nicht",
+				// Non-admin path: contact administration
+				"Administration",
+				// Admin path: self-service section still mentioned
 				"Meine vertrauten Geräte",
-				// Call-to-action link
-				"https://demo.moto-app.de/settings?tab=settings-security",
+				// Password change is the universal first step
+				"Passwort",
 				// Branding chrome
 				"moto Logo",
 				"Ganztag. Digital.",

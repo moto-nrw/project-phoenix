@@ -956,7 +956,6 @@ func (s *mfaService) dispatchTrustedDeviceAddedEmail(ctx context.Context, accoun
 
 	frontendURL := strings.TrimRight(s.frontendURL, "/")
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
-	securityURL := fmt.Sprintf("%s/settings?tab=settings-security", frontendURL)
 
 	requestIP := ""
 	if ip != nil && !ip.IsUnspecified() {
@@ -965,6 +964,9 @@ func (s *mfaService) dispatchTrustedDeviceAddedEmail(ctx context.Context, accoun
 	deviceLabel := ShortenUserAgent(userAgent)
 	addedAt := time.Now().Format("02.01.2006 15:04")
 
+	// No deep-link to the self-service section: only admins can see it.
+	// The mail now points users without that access to contact their
+	// school's administration instead.
 	message := email.Message{
 		From:     s.defaultFrom,
 		To:       email.NewEmail("", account.Email),
@@ -972,7 +974,6 @@ func (s *mfaService) dispatchTrustedDeviceAddedEmail(ctx context.Context, accoun
 		Template: "trusted-device-added.html",
 		Content: map[string]any{
 			"LogoURL":     logoURL,
-			"SecurityURL": securityURL,
 			"DeviceLabel": deviceLabel,
 			"IPAddress":   requestIP,
 			"AddedAt":     addedAt,
