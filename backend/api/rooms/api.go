@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,24 +15,45 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	facilityService "github.com/moto-nrw/project-phoenix/services/facilities"
+	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 // Resource defines the rooms API resource
 type Resource struct {
-	FacilityService facilityService.Service
-	db              *bun.DB
+	FacilityService    facilityService.Service
+	SettingsService    configService.SettingsService
+	UserContextService userContextService.UserContextService
+	Logger             *slog.Logger
+	db                 *bun.DB
+}
+
+// ResourceConfig wires the rooms resource's collaborators. Kept as a struct
+// so future additions don't churn every call site (the resource needs
+// settings + user context for the GDPR-gated room history endpoint).
+type ResourceConfig struct {
+	FacilityService    facilityService.Service
+	SettingsService    configService.SettingsService
+	UserContextService userContextService.UserContextService
+	Logger             *slog.Logger
+	DB                 *bun.DB
 }
 
 // NewResource creates a new rooms resource.
-func NewResource(facilityService facilityService.Service, db *bun.DB) *Resource {
+func NewResource(cfg ResourceConfig) *Resource {
 	return &Resource{
-		FacilityService: facilityService,
-		db:              db,
+		FacilityService:    cfg.FacilityService,
+		SettingsService:    cfg.SettingsService,
+		UserContextService: cfg.UserContextService,
+		Logger:             cfg.Logger,
+		db:                 cfg.DB,
 	}
 }
 
@@ -54,7 +76,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/", rs.listRooms)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}", rs.getRoom)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/by-category", rs.getRoomsByCategory)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.getRoomHistory)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.GetRoomHistory)
 
 		// Write operations require specific permissions
 		r.With(authorize.RequiresPermission(permissions.RoomsCreate), withTx).Post("/", rs.createRoom)
@@ -392,45 +414,113 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, roomResponses, "Available rooms retrieved successfully")
 }
 
-// getRoomHistory handles getting the visit history for a room
-func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
+// GetRoomHistory returns the aggregated session timeline for a room.
+// Exported because the rooms_test package binds it directly into a test
+// router (see Rule 5 in backend-conventions.md — no separate
+// `GetRoomHistoryHandler()` wrapper).
+//
+// Privacy: this endpoint is gated by gdpr.attendance_log_enabled, scoped by
+// gdpr.attendance_log_scope (admin / supervisor-only / all_staff), and the
+// requested time range is capped by gdpr.room_detail_visible_days. No
+// per-student IDs or names leave the backend — per-child movement detail
+// lives behind /students/{id}/attendance-history under its own gates.
+func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := rs.roomHistoryLogger()
+
 	id, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
-	// Get time range from query parameters
-	startTime := time.Now().AddDate(0, 0, -7) // Default to last 7 days
-	endTime := time.Now()
+	// 1. Feature gate
+	if !configService.ResolveBoolOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, logger) {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+		return
+	}
+
+	// 2. Scope check — admin sees everything; otherwise the default is the
+	// restrictive group_supervisors_only filter. Inverting the condition
+	// (scope != all_staff) means an unknown / typo'd setting value falls
+	// through to the safe path instead of silently disabling the filter.
+	permissionsList := jwt.PermissionsFromCtx(ctx)
+	isAdmin := common.HasAdminPermissions(permissionsList)
+	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
+
+	var supervisorStaffID *int64
+	if !isAdmin && scope != configModel.AttendanceLogScopeAllStaff {
+		staff, staffErr := rs.UserContextService.GetCurrentStaff(ctx)
+		if staffErr != nil || staff == nil {
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("not_group_supervisor")))
+			return
+		}
+		staffID := staff.ID
+		supervisorStaffID = &staffID
+	}
+
+	// 3. Resolve range cap. The setting registry already constrains the
+	// value (Min=1, Max=365), but a defensive clamp here protects against
+	// hand-edited DB rows that bypassed the registry validator.
+	const roomCapHardMax = 365
+	roomCap := configService.ResolveIntOrDefault(ctx, rs.SettingsService, configModel.KeyRoomDetailVisibleDays, 7, logger)
+	if roomCap < 1 {
+		roomCap = 1
+	}
+	if roomCap > roomCapHardMax {
+		roomCap = roomCapHardMax
+	}
+
+	// 4. Parse range and clamp
+	today := timezone.Today()
+	endOfToday := today.Add(24 * time.Hour).Add(-time.Second)
+	defaultStart := today.AddDate(0, 0, -(roomCap - 1))
+
+	startTime := defaultStart
+	endTime := endOfToday
 
 	if startStr := r.URL.Query().Get("start"); startStr != "" {
-		parsedStart, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start date format")))
+		parsedStart, parseErr := time.Parse(time.RFC3339, startStr)
+		if parseErr != nil {
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start parameter, expected RFC3339")))
 			return
 		}
 		startTime = parsedStart
 	}
 
 	if endStr := r.URL.Query().Get("end"); endStr != "" {
-		parsedEnd, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end date format")))
+		parsedEnd, parseErr := time.Parse(time.RFC3339, endStr)
+		if parseErr != nil {
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end parameter, expected RFC3339")))
 			return
 		}
 		endTime = parsedEnd
 	}
 
-	// Validate date range
 	if startTime.After(endTime) {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start date must be before end date")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start must be before end")))
 		return
 	}
 
-	// Get room history from service
-	history, err := rs.FacilityService.GetRoomHistory(r.Context(), id, startTime, endTime)
+	// Silently narrow the window when the caller asks for more than the
+	// tenant's room_detail_visible_days cap allows. The clamp is
+	// intentional — the cap is a GDPR retention boundary, not a hint — but
+	// log it at Info so anyone debugging an "empty results" report has a
+	// breadcrumb without needing to repro.
+	maxDuration := time.Duration(roomCap) * 24 * time.Hour
+	if endTime.Sub(startTime) > maxDuration {
+		requestedStart := startTime
+		startTime = endTime.Add(-maxDuration)
+		logger.Info("room history window clamped to retention cap",
+			"room_id", id,
+			"requested_start", requestedStart.Format(time.RFC3339),
+			"clamped_start", startTime.Format(time.RFC3339),
+			"end", endTime.Format(time.RFC3339),
+			"cap_days", roomCap,
+		)
+	}
+
+	history, err := rs.FacilityService.GetRoomHistory(ctx, id, startTime, endTime, supervisorStaffID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -438,6 +528,18 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	common.Respond(w, r, http.StatusOK, history, "Room history retrieved successfully")
+}
+
+// roomHistoryLogger returns a scoped logger, falling back to slog.Default
+// so missing wiring never crashes the handler. Uses a distinct "endpoint"
+// key for the inner scope; the resource logger already binds
+// handler=rooms, so reusing "handler" here would emit two values for the
+// same key.
+func (rs *Resource) roomHistoryLogger() *slog.Logger {
+	if rs.Logger != nil {
+		return rs.Logger.With("endpoint", "room_history")
+	}
+	return slog.Default().With("endpoint", "room_history")
 }
 
 // =============================================================================
@@ -473,5 +575,8 @@ func (rs *Resource) GetCategoryListHandler() http.HandlerFunc { return rs.getCat
 // GetAvailableRoomsHandler returns the handler for getting available rooms.
 func (rs *Resource) GetAvailableRoomsHandler() http.HandlerFunc { return rs.getAvailableRooms }
 
-// GetRoomHistoryHandler returns the handler for getting room history.
-func (rs *Resource) GetRoomHistoryHandler() http.HandlerFunc { return rs.getRoomHistory }
+// Note: room history doesn't need a *Handler() wrapper because the method
+// is already exported (GetRoomHistory). Tests bind it into a router via
+// `setupRouter(tc.resource.GetRoomHistory, "id")` directly. See Rule 5 in
+// .claude/rules/backend-conventions.md — new endpoints should follow this
+// pattern; the wrappers above are legacy and pending cleanup.

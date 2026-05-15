@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -42,7 +43,13 @@ func setupTestContext(t *testing.T) *testContext {
 	svc, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
-	resource := roomsAPI.NewResource(svc.Facilities, db)
+	resource := roomsAPI.NewResource(roomsAPI.ResourceConfig{
+		FacilityService:    svc.Facilities,
+		SettingsService:    svc.Settings,
+		UserContextService: svc.UserContext,
+		Logger:             slog.Default(),
+		DB:                 db,
+	})
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -441,12 +448,22 @@ func TestGetAvailableRooms(t *testing.T) {
 func TestGetRoomHistory(t *testing.T) {
 	tc := setupTestContext(t)
 
+	// Room history is gated by gdpr.attendance_log_enabled — opt-in per
+	// tenant. Enable it so the smoke checks below exercise the happy path
+	// instead of the feature-disabled branch (which has its own coverage
+	// in TestGetRoomHistory_FeatureDisabled).
+	ctx := tenant.WithTenantID(context.Background(), 1)
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	t.Cleanup(func() {
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+	})
+
 	// Create test room
 	room := testpkg.CreateTestRoom(t, tc.db, "History Room Test")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	t.Run("success_gets_room_history", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetRoomHistoryHandler(), "id")
+		router := setupRouter(tc.resource.GetRoomHistory, "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -455,7 +472,7 @@ func TestGetRoomHistory(t *testing.T) {
 	})
 
 	t.Run("success_with_date_range", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetRoomHistoryHandler(), "id")
+		router := setupRouter(tc.resource.GetRoomHistory, "id")
 		// Use URL-safe format (no colons in time portion) - RFC3339 is supported but needs encoding
 		start := time.Now().AddDate(0, 0, -7).UTC().Format(time.RFC3339)
 		end := time.Now().UTC().Format(time.RFC3339)
@@ -472,7 +489,7 @@ func TestGetRoomHistory(t *testing.T) {
 	})
 
 	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetRoomHistoryHandler(), "id")
+		router := setupRouter(tc.resource.GetRoomHistory, "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d?start=invalid", room.ID), nil)
 
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -481,7 +498,7 @@ func TestGetRoomHistory(t *testing.T) {
 	})
 
 	t.Run("bad_request_start_after_end", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetRoomHistoryHandler(), "id")
+		router := setupRouter(tc.resource.GetRoomHistory, "id")
 		start := time.Now().Format(time.RFC3339)
 		end := time.Now().AddDate(0, 0, -7).Format(time.RFC3339)
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d?start=%s&end=%s", room.ID, start, end), nil)
@@ -490,4 +507,317 @@ func TestGetRoomHistory(t *testing.T) {
 
 		testutil.AssertBadRequest(t, rr)
 	})
+}
+
+// TestGetRoomHistory_FeatureDisabled — gdpr.attendance_log_enabled is the
+// kill switch for the room history feature. Default is false, so we only need
+// to NOT enable it: the handler must return 403 with a "feature_disabled"
+// code regardless of the caller's permissions.
+func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
+	tc := setupTestContext(t)
+
+	room := testpkg.CreateTestRoom(t, tc.db, "FeatureDisabled Room")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	router := setupRouter(tc.resource.GetRoomHistory, "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 when feature is disabled. Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "feature_disabled")
+}
+
+// TestGetRoomHistory_ScopeGroupSupervisorsOnly — exercises the per-staff
+// filter that the default scope (`group_supervisors_only`) enables. Four
+// cases on the same session:
+//   - admin caller bypasses the filter and sees the session
+//   - a teacher who supervises the session sees it
+//   - a teacher who does NOT supervise the session sees an empty list
+//   - a caller with rooms:read but no staff record gets 403
+//     (`not_group_supervisor`) — the failure mode for a caregiver or other
+//     non-staff role that happens to hold the read permission.
+func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
+	tc := setupTestContext(t)
+
+	ctx := tenant.WithTenantID(context.Background(), 1)
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	t.Cleanup(func() {
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+	})
+	// Default scope is `group_supervisors_only` — no override needed.
+
+	room := testpkg.CreateTestRoom(t, tc.db, "ScopeRoom")
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ScopeActivity")
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+
+	supervisor, supervisorAcc := testpkg.CreateTestStaffWithAccount(t, tc.db, "Scope", "Supervisor")
+	bystander, bystanderAcc := testpkg.CreateTestStaffWithAccount(t, tc.db, "Scope", "Bystander")
+
+	_ = testpkg.CreateTestGroupSupervisor(t, tc.db, supervisor.ID, activeGroup.ID, "lead")
+
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, supervisor.ID, bystander.ID)
+
+	type historyResp struct {
+		Data []map[string]any `json:"data"`
+	}
+
+	decodeData := func(t *testing.T, rr *httptest.ResponseRecorder) []map[string]any {
+		t.Helper()
+		var body historyResp
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+		return body.Data
+	}
+
+	// staffPermissions is the read permission the handler accepts. It
+	// must NOT include any admin wildcard or common.HasAdminPermissions
+	// returns true and the scope filter is bypassed.
+	staffPermissions := []string{"rooms:read"}
+
+	teacherClaims := func(accountID int64) jwt.AppClaims {
+		return jwt.AppClaims{
+			ID:          int(accountID),
+			Sub:         "teacher@example.com",
+			Username:    "teacher",
+			Roles:       []string{"user"},
+			Permissions: staffPermissions,
+			TenantID:    1,
+		}
+	}
+
+	t.Run("supervisor_sees_own_session", func(t *testing.T) {
+		router := setupRouter(tc.resource.GetRoomHistory, "id")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+
+		rr := executeWithAuth(router, req, teacherClaims(supervisorAcc.ID), staffPermissions)
+
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		data := decodeData(t, rr)
+		require.Len(t, data, 1, "supervisor should see exactly the one session they supervise")
+		assert.Equal(t, float64(activeGroup.ID), data[0]["session_id"], "session id should match the active group")
+	})
+
+	t.Run("bystander_sees_empty", func(t *testing.T) {
+		router := setupRouter(tc.resource.GetRoomHistory, "id")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+
+		rr := executeWithAuth(router, req, teacherClaims(bystanderAcc.ID), staffPermissions)
+
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		data := decodeData(t, rr)
+		assert.Empty(t, data, "non-supervisor staff must NOT see sessions they don't supervise")
+	})
+
+	t.Run("admin_bypasses_scope_filter", func(t *testing.T) {
+		router := setupRouter(tc.resource.GetRoomHistory, "id")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		data := decodeData(t, rr)
+		require.Len(t, data, 1, "admin should see the session even without a supervisor row")
+		assert.Equal(t, float64(activeGroup.ID), data[0]["session_id"])
+	})
+
+	t.Run("caller_without_staff_record_returns_forbidden", func(t *testing.T) {
+		// Account + Person exist but no `users.staff` row is wired up —
+		// GetCurrentStaff resolves the person successfully and then
+		// returns ErrUserNotLinkedToStaff from FindByPersonID, which the
+		// handler maps to 403 not_group_supervisor. Important: this is
+		// distinct from the bystander branch above (which is staff but
+		// not a supervisor) — that returns 200 with an empty list. The
+		// non-staff caller never even gets the chance to be filtered.
+		nonStaffPerson, nonStaffAcc := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonStaff", "Caregiver")
+		t.Cleanup(func() {
+			// Person first, then the auth account (CleanupAccount only
+			// removes auth-side rows — a leftover person would leak
+			// across hermetic runs).
+			testpkg.CleanupPerson(t, tc.db, nonStaffPerson.ID)
+			testpkg.CleanupAccount(t, tc.db, nonStaffAcc.ID)
+		})
+
+		router := setupRouter(tc.resource.GetRoomHistory, "id")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+
+		rr := executeWithAuth(router, req, teacherClaims(nonStaffAcc.ID), staffPermissions)
+
+		assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "not_group_supervisor")
+	})
+}
+
+// TestGetRoomHistory_ScopeAllStaff — when gdpr.attendance_log_scope is set
+// to all_staff, the supervisor filter is bypassed even for non-admin
+// callers. Locks in the inverted-condition guard in the handler
+// (`scope != AttendanceLogScopeAllStaff`): if someone typos the constant,
+// the safe default reasserts itself and this test fails, surfacing the
+// bug instead of silently disabling the filter.
+func TestGetRoomHistory_ScopeAllStaff(t *testing.T) {
+	tc := setupTestContext(t)
+
+	ctx := tenant.WithTenantID(context.Background(), 1)
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeAllStaff, nil, nil))
+	t.Cleanup(func() {
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogScope, nil, nil)
+	})
+
+	room := testpkg.CreateTestRoom(t, tc.db, "AllStaffRoom")
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "AllStaffActivity")
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+
+	// The supervisor row exists only to attach SOMEONE to the session — the
+	// caller below is intentionally NOT this person. Under
+	// group_supervisors_only this caller would see an empty list; under
+	// all_staff they must see the session.
+	supervisor, _ := testpkg.CreateTestStaffWithAccount(t, tc.db, "AllStaff", "Supervisor")
+	bystander, bystanderAcc := testpkg.CreateTestStaffWithAccount(t, tc.db, "AllStaff", "Bystander")
+	_ = testpkg.CreateTestGroupSupervisor(t, tc.db, supervisor.ID, activeGroup.ID, "lead")
+
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, supervisor.ID, bystander.ID)
+
+	staffPermissions := []string{"rooms:read"}
+	bystanderClaims := jwt.AppClaims{
+		ID:          int(bystanderAcc.ID),
+		Sub:         "bystander@example.com",
+		Username:    "bystander",
+		Roles:       []string{"user"},
+		Permissions: staffPermissions,
+		TenantID:    1,
+	}
+
+	router := setupRouter(tc.resource.GetRoomHistory, "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+	rr := executeWithAuth(router, req, bystanderClaims, staffPermissions)
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var body struct {
+		Data []map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+
+	require.Len(t, body.Data, 1, "all_staff scope must surface the session to a non-supervisor staff caller")
+	assert.Equal(t, float64(activeGroup.ID), body.Data[0]["session_id"])
+}
+
+// TestGetRoomHistory_RangeCapClamped — gdpr.room_detail_visible_days is the
+// hard window cap. When the caller asks for a wider range than the setting
+// allows, the handler must silently clamp start to (end - cap) and exclude
+// sessions that were not active inside the clamped window. We arrange two
+// sessions (one started inside the 1-day cap, one started AND ended five
+// days before the window), ask for a 30-day window, and assert that only
+// the recent session comes back.
+//
+// Note: the filter is "session active in window", not "session started in
+// window" — a session that started before the window but is still running
+// would correctly be included. The old session here is explicitly closed
+// before the window so this case truly tests the cap, not the activeness
+// branch.
+func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
+	tc := setupTestContext(t)
+
+	ctx := tenant.WithTenantID(context.Background(), 1)
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyRoomDetailVisibleDays, 1, nil, nil))
+	t.Cleanup(func() {
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyRoomDetailVisibleDays, nil, nil)
+	})
+
+	room := testpkg.CreateTestRoom(t, tc.db, "ClampRoom")
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ClampActivity")
+	recent := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+	old := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+
+	// CreateTestActiveGroup stamps start_time = now and leaves end_time
+	// NULL. Backdate the second session AND close it before the 1-day cap,
+	// so the active-in-window filter cannot pull it in via end_time IS
+	// NULL. Direct UPDATE is unavoidable — there's no fixture knob for
+	// start_time / end_time today.
+	_, err := tc.db.NewUpdate().
+		Table("active.groups").
+		Set("start_time = ?", time.Now().Add(-5*24*time.Hour)).
+		Set("end_time = ?", time.Now().Add(-4*24*time.Hour)).
+		Where("id = ?", old.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID)
+
+	router := setupRouter(tc.resource.GetRoomHistory, "id")
+	start := time.Now().AddDate(0, 0, -30).Format(time.RFC3339)
+	end := time.Now().Add(time.Hour).Format(time.RFC3339)
+	req := httptest.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+	q := req.URL.Query()
+	q.Set("start", start)
+	q.Set("end", end)
+	req.URL.RawQuery = q.Encode()
+
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var body struct {
+		Data []map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+
+	require.Len(t, body.Data, 1, "30d request must be clamped to 1d window (cap=1); only the recent session survives")
+	assert.Equal(t, float64(recent.ID), body.Data[0]["session_id"], "the returned session should be the one inside the cap")
+}
+
+// TestGetRoomHistory_DurationMinutesPopulated — covers the duration_minutes
+// SELECT branch which all other tests miss because they only create
+// open-ended sessions (end_time IS NULL). Backdate start_time by 90 minutes
+// and set end_time = now, then assert the response carries
+// duration_minutes ≈ 90. Also asserts ended_at is non-null (the other
+// branch in the JSON envelope for closed sessions).
+func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
+	tc := setupTestContext(t)
+
+	ctx := tenant.WithTenantID(context.Background(), 1)
+	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	t.Cleanup(func() {
+		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+	})
+
+	room := testpkg.CreateTestRoom(t, tc.db, "DurationRoom")
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "DurationActivity")
+	session := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID)
+
+	// Backdate the fixture and close it 90 minutes later. Direct UPDATE
+	// because there's no fixture knob for end_time today (same pattern as
+	// TestGetRoomHistory_RangeCapClamped).
+	startedAt := time.Now().Add(-90 * time.Minute)
+	endedAt := time.Now()
+	_, err := tc.db.NewUpdate().
+		Table("active.groups").
+		Set("start_time = ?", startedAt).
+		Set("end_time = ?", endedAt).
+		Where("id = ?", session.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	router := setupRouter(tc.resource.GetRoomHistory, "id")
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var body struct {
+		Data []map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+
+	require.Len(t, body.Data, 1, "closed session must still appear in history")
+	entry := body.Data[0]
+	require.NotNil(t, entry["ended_at"], "ended_at must be set for a closed session")
+
+	duration, ok := entry["duration_minutes"].(float64)
+	require.True(t, ok, "duration_minutes must be a number, got %T (%v)", entry["duration_minutes"], entry["duration_minutes"])
+	// EXTRACT(EPOCH)/60 is integer-cast; allow ±1 minute for clock drift
+	// between fixture creation, the UPDATE, and the handler call.
+	assert.InDelta(t, 90.0, duration, 1.0, "duration_minutes should be ~90 for a 90-minute session")
 }

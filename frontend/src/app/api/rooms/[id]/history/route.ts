@@ -7,16 +7,28 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RoomHistoryRoute" });
 
-// Backend interface for room history entries
+// Backend contract for room history entries — one aggregated session per row.
+// Mirrors services/facilities/interface.go::RoomSessionEntry. No per-student
+// IDs or names by design (issue #1425). Per-child detail lives behind
+// /students/{id}/attendance-history.
 export interface BackendRoomHistoryEntry {
-  id: number;
-  room_id: number;
-  date: string; // ISO string date
-  group_name: string;
-  activity_name?: string;
-  supervisor_name?: string;
+  session_id: number;
+  started_at: string; // RFC3339
+  ended_at?: string | null; // RFC3339, null while session is open
+  duration_minutes?: number | null; // null while session is open
+  activity_name: string;
+  supervisor_name: string;
   student_count: number;
-  duration: number; // in minutes
+}
+
+// Shape the Go server emits via common.Respond — { status, data, message }.
+// apiGet returns the raw body, so we pass it through verbatim instead of
+// wrapping it a second time (which would nest `data` inside another `data`
+// and silently empty out the drawer).
+interface BackendResponseEnvelope {
+  status: string;
+  data: BackendRoomHistoryEntry[] | null;
+  message?: string;
 }
 
 /**
@@ -42,24 +54,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Build query parameters for the API call
+  // Backend expects RFC3339 start/end (not start_date/end_date — that was a
+  // long-standing mismatch fixed alongside issue #1425). Accept both query
+  // param names from the client for a release of overlap; forward only the
+  // backend-canonical names.
   const queryParams = new URLSearchParams();
-  const start_date = request.nextUrl.searchParams.get("start_date");
-  const end_date = request.nextUrl.searchParams.get("end_date");
+  const start =
+    request.nextUrl.searchParams.get("start") ??
+    request.nextUrl.searchParams.get("start_date");
+  const end =
+    request.nextUrl.searchParams.get("end") ??
+    request.nextUrl.searchParams.get("end_date");
 
-  if (start_date) queryParams.append("start_date", start_date);
-  if (end_date) queryParams.append("end_date", end_date);
+  if (start) queryParams.append("start", start);
+  if (end) queryParams.append("end", end);
 
   const queryString = queryParams.toString();
   const querySuffix = queryString ? "?" + queryString : "";
   const endpoint = `/api/rooms/${roomId}/history${querySuffix}`;
 
   try {
-    const data = await apiGet<BackendRoomHistoryEntry[]>(
+    const backendResponse = await apiGet<BackendResponseEnvelope>(
       endpoint,
       session.user.token,
     );
-    return NextResponse.json({ status: "success", data });
+    return NextResponse.json({
+      status: "success",
+      data: backendResponse?.data ?? [],
+    });
   } catch (apiError) {
     // 404 means no history exists - return empty array
     if (apiError instanceof Error && apiError.message.includes("404")) {

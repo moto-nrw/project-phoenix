@@ -271,7 +271,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
-	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
+	api.Rooms = roomsAPI.NewResource(roomsAPI.ResourceConfig{
+		FacilityService:    api.Services.Facilities,
+		SettingsService:    api.Services.Settings,
+		UserContextService: api.Services.UserContext,
+		Logger:             logger.With("handler", "rooms"),
+		DB:                 db,
+	})
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
 		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker")),
 		StudentRepo: repoFactory.Student,

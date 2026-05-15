@@ -84,29 +84,38 @@ describe("GET /api/rooms/[id]/history", () => {
     expect(mockApiGet).not.toHaveBeenCalled();
   });
 
-  it("fetches room history from backend", async () => {
+  it("unwraps the backend envelope and passes the session array to the client", async () => {
+    // Issue #1425: backend now returns one aggregated session per row —
+    // no per-student fields. Mirrors RoomSessionEntry on the Go side.
+    // common.Respond wraps the array in { status, data, message }; the
+    // route unwraps that envelope so the drawer can consume `.data` as an
+    // array (it used to be nested two levels deep and rendered empty).
     const mockHistory = [
       {
-        id: 1,
-        room_id: 123,
-        date: "2024-01-15",
-        group_name: "OGS A",
+        session_id: 1,
+        started_at: "2024-01-15T08:00:00Z",
+        ended_at: "2024-01-15T10:00:00Z",
+        duration_minutes: 120,
+        activity_name: "OGS A",
+        supervisor_name: "Ms. Smith",
         student_count: 15,
-        duration: 120,
       },
       {
-        id: 2,
-        room_id: 123,
-        date: "2024-01-14",
-        group_name: "OGS B",
+        session_id: 2,
+        started_at: "2024-01-14T13:00:00Z",
+        ended_at: "2024-01-14T14:30:00Z",
+        duration_minutes: 90,
         activity_name: "Art Class",
-        supervisor_name: "Ms. Smith",
+        supervisor_name: "Mr. Jones",
         student_count: 12,
-        duration: 90,
       },
     ];
 
-    mockApiGet.mockResolvedValueOnce(mockHistory);
+    mockApiGet.mockResolvedValueOnce({
+      status: "success",
+      data: mockHistory,
+      message: "Room history retrieved successfully",
+    });
 
     const request = createMockRequest("/api/rooms/123/history");
     const response = await GET(request);
@@ -123,30 +132,61 @@ describe("GET /api/rooms/[id]/history", () => {
     expect(json.data).toEqual(mockHistory);
   });
 
-  it("supports date range query parameters", async () => {
-    mockApiGet.mockResolvedValueOnce([]);
+  it("returns an empty array when the backend envelope carries data:null", async () => {
+    // common.Respond can emit { status: "success", data: null } when the
+    // service returns nil. Don't let that leak through as `null` to the
+    // drawer (which would crash on .map).
+    mockApiGet.mockResolvedValueOnce({ status: "success", data: null });
+
+    const request = createMockRequest("/api/rooms/123/history");
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<ApiResponse<unknown[]>>(response);
+    expect(json.data).toEqual([]);
+  });
+
+  it("forwards RFC3339 start/end query params", async () => {
+    mockApiGet.mockResolvedValueOnce({ status: "success", data: [] });
 
     const request = createMockRequest(
-      "/api/rooms/123/history?start_date=2024-01-01&end_date=2024-01-31",
+      "/api/rooms/123/history?start=2024-01-01T00:00:00Z&end=2024-01-31T23:59:59Z",
     );
     await GET(request);
 
     expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/rooms/123/history?start_date=2024-01-01&end_date=2024-01-31",
+      "/api/rooms/123/history?start=2024-01-01T00%3A00%3A00Z&end=2024-01-31T23%3A59%3A59Z",
+      "test-token",
+    );
+  });
+
+  it("translates legacy start_date/end_date params into backend-canonical start/end", async () => {
+    // Issue #1425 fix: backend expects `start`/`end`, the old route forwarded
+    // `start_date`/`end_date` verbatim — silently broken. The proxy now
+    // rewrites the legacy names so existing callers keep working.
+    mockApiGet.mockResolvedValueOnce({ status: "success", data: [] });
+
+    const request = createMockRequest(
+      "/api/rooms/123/history?start_date=2024-01-01T00:00:00Z&end_date=2024-01-31T23:59:59Z",
+    );
+    await GET(request);
+
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/rooms/123/history?start=2024-01-01T00%3A00%3A00Z&end=2024-01-31T23%3A59%3A59Z",
       "test-token",
     );
   });
 
   it("supports partial date parameters", async () => {
-    mockApiGet.mockResolvedValueOnce([]);
+    mockApiGet.mockResolvedValueOnce({ status: "success", data: [] });
 
     const request = createMockRequest(
-      "/api/rooms/123/history?start_date=2024-01-01",
+      "/api/rooms/123/history?start=2024-01-01T00:00:00Z",
     );
     await GET(request);
 
     expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/rooms/123/history?start_date=2024-01-01",
+      "/api/rooms/123/history?start=2024-01-01T00%3A00%3A00Z",
       "test-token",
     );
   });
@@ -196,7 +236,7 @@ describe("GET /api/rooms/[id]/history", () => {
   });
 
   it("extracts room ID from URL path correctly", async () => {
-    mockApiGet.mockResolvedValueOnce([]);
+    mockApiGet.mockResolvedValueOnce({ status: "success", data: [] });
 
     const request = createMockRequest("/api/rooms/456/history");
     await GET(request);
