@@ -3,6 +3,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
@@ -17,9 +18,14 @@ import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
+import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
+import {
+  SETTINGS_SCHEMA_SWR_KEY,
+  fetchSettingsSchema,
+} from "~/lib/settings-api";
 
 // Type für Navigation Items
 interface NavItem {
@@ -76,6 +82,13 @@ const NAV_ITEMS: NavItem[] = [
     label: "Vertretungen",
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     activeColor: "text-pink-500",
+    requiresAdmin: true,
+  },
+  {
+    href: "/timetables",
+    label: "Stundenplan",
+    icon: navigationIcons.calendar,
+    activeColor: "text-[#5080D8]",
     requiresAdmin: true,
   },
   {
@@ -337,6 +350,28 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const userIsCaregiver = isCaregiver(session);
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
+  const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
+  const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
+  const { data: settingsSchema } = useSWR(
+    userIsAdmin ? SETTINGS_SCHEMA_SWR_KEY : null,
+    fetchSettingsSchema,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    },
+  );
+
+  const timetableEnabled =
+    settingsSchema?.tabs
+      .flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .find((item) => item.key === "timetable.enabled")?.value === true;
+
+  const formatGroupAttendanceCount = (groupId: string | number) => {
+    if (!canShowGroupAttendanceCounts) return undefined;
+    const count = groupAttendanceCounts[groupId.toString()];
+    return count ? `${count.present}/${count.total}` : undefined;
+  };
 
   // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
   // concepts with no operational meaning when the tenant only tracks
@@ -348,6 +383,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const filteredNavItems = NAV_ITEMS.filter((item) => {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
+    if (item.href === "/timetables" && !timetableEnabled) {
+      return false;
+    }
     if (item.alwaysShow) return true;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
@@ -358,8 +396,37 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!from) return "/students/search";
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
+    // Drill-in from a room ("Kinder im Raum") — both the legacy subpage
+    // /rooms/{id} and the modal URL /rooms?room={id} count, so the
+    // sidebar reflects the actual entry path in either flow.
+    if (from.startsWith("/rooms/") || from.startsWith("/rooms?"))
+      return "/rooms";
     if (from.startsWith("/students/search")) return "/students/search";
     return "/students/search";
+  };
+
+  // Operator drill-in highlight: hierarchy-based, not tab-based.
+  // The sidebar reflects WHERE in the tree the user is, not which tab they
+  // happen to have open. Tabs scope a view; they don't change the section.
+  //
+  // - Anywhere under /organizations or /organizations/{slug}      → Träger
+  // - Anywhere under /organizations/{slug}/schools/{schoolSlug}   → Schulen
+  //
+  // Pathname may include or omit the /operator prefix depending on host
+  // (operator subdomain strips it via operatorPath; tenant subdomains keep
+  // it). Both forms are matched.
+  const ORG_AREA_RE = /^(?:\/operator)?\/organizations(\/|$)/;
+  const SCHOOL_DRILLIN_RE =
+    /^(?:\/operator)?\/organizations\/[^/]+\/schools\/[^/]+/;
+
+  const getOperatorDrillInActiveHref = (): string | null => {
+    if (SCHOOL_DRILLIN_RE.test(pathname)) {
+      return operatorPath("/operator/schools");
+    }
+    if (ORG_AREA_RE.test(pathname)) {
+      return operatorPath("/operator/organizations");
+    }
+    return null;
   };
 
   // Check if a navigation link should be highlighted as active
@@ -369,6 +436,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (isStudentDetailPage) {
       const from = searchParams.get("from");
       return getStudentDetailActiveHref(from) === href;
+    }
+    const operatorDrillInHref = getOperatorDrillInActiveHref();
+    if (operatorDrillInHref) {
+      return href === operatorDrillInHref;
     }
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
@@ -763,7 +834,16 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {showStaffAccordions && (
             <SidebarAccordionSection
               icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-              label={groups.length > 1 ? "Meine Gruppen" : "Meine Gruppe"}
+              label={
+                groups.length > 1
+                  ? "Meine Gruppen"
+                  : [
+                      "Meine Gruppe",
+                      formatGroupAttendanceCount(groups[0]?.id ?? ""),
+                    ]
+                      .filter(Boolean)
+                      .join(" ")
+              }
               activeColor="text-[#83CD2D]"
               isExpanded={expanded === "groups"}
               onToggle={handleGroupsToggle}
@@ -785,6 +865,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   key={group.id}
                   href={`/ogs-groups?group=${group.id}`}
                   label={group.name}
+                  count={formatGroupAttendanceCount(group.id)}
                   isActive={isGroupSubItemActive(
                     childGroupId,
                     group.id.toString(),
@@ -826,7 +907,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
             >
               {supervisedRooms.map((room, index) => (
                 <SidebarSubItem
-                  key={room.id}
+                  key={`${room.id}-${room.groupId ?? index}`}
                   href={
                     room.isSchulhof
                       ? `/active-supervisions?room=schulhof`

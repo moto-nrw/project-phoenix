@@ -4,49 +4,57 @@ import { useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { formatCount } from "~/lib/format-utils";
+import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
+import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
+import type { DataTableColumn } from "~/components/ui/data-table";
 import {
-  operatorProvisioningService,
-  revalidateTenantCache,
-} from "~/lib/operator/provisioning-api";
-import type { Organization } from "~/lib/operator/provisioning-helpers";
-import { getRelativeTime } from "~/lib/format-utils";
-import { createLogger } from "~/lib/logger";
-import {
-  StatusBadge,
   EmptyState,
   PlusIcon,
   CardSkeletons,
 } from "../provisioning/provisioning-shared";
 import { CreateOrganizationModal } from "../provisioning/create-organization-modal";
-import { EditOrganizationModal } from "../provisioning/edit-organization-modal";
 import {
   useSoftDeletable,
   DeletedEntityCard,
-  SoftDeleteConfirmationModal,
-  RestoreConfirmationModal,
 } from "../provisioning/soft-delete-shared";
+import {
+  OrgRestoreModal,
+  OrgSoftDeleteModal,
+} from "../provisioning/operator-entity-modals";
 
-const logger = createLogger({ component: "OperatorOrganizationsPage" });
+function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+      <div className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+        {label}
+      </div>
+      <div className="mt-1 text-3xl font-bold text-gray-900">
+        {formatCount(value)}
+      </div>
+    </div>
+  );
+}
 
 export default function OperatorOrganizationsPage() {
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
   useSetBreadcrumb({ pageTitle: "Träger" });
+  const router = useRouter();
 
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
-  const [editOrgOpen, setEditOrgOpen] = useState(false);
-  const [editOrgTarget, setEditOrgTarget] = useState<Organization | null>(null);
-  const [orgToggleError, setOrgToggleError] = useState("");
 
   const {
     data: organizations,
     isLoading: orgsLoading,
     mutate: mutateOrgs,
   } = useSWR(
-    isAuthenticated ? "operator-organizations" : null,
-    () => operatorProvisioningService.listOrganizations(),
+    isAuthenticated ? "operator-organization-summaries" : null,
+    () => operatorProvisioningService.listOrganizationSummaries(),
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
@@ -54,12 +62,9 @@ export default function OperatorOrganizationsPage() {
     },
   );
 
-  // Schools are needed to cascade tenant cache revalidation when toggling
-  // an organization's active state, and to block deletion when an org still
-  // owns active schools.
-  const { data: schools, mutate: mutateSchools } = useSWR(
-    isAuthenticated ? "operator-schools" : null,
-    () => operatorProvisioningService.listSchools(),
+  const { data: stats, mutate: mutateStats } = useSWR(
+    isAuthenticated ? "operator-provisioning-stats" : null,
+    () => operatorProvisioningService.getStats(),
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
@@ -67,36 +72,9 @@ export default function OperatorOrganizationsPage() {
     },
   );
 
-  const openEditOrg = useCallback((org: Organization) => {
-    setEditOrgTarget(org);
-    setEditOrgOpen(true);
-  }, []);
-
-  const handleToggleOrgActive = useCallback(
-    async (org: Organization) => {
-      setOrgToggleError("");
-      try {
-        await operatorProvisioningService.updateOrganization(org.id, {
-          name: org.name,
-          slug: org.slug,
-          active: !org.active,
-        });
-        await mutateOrgs();
-        const orgSchoolSlugs = (schools ?? [])
-          .filter((s) => s.organizationId === org.id)
-          .map((s) => s.subdomain);
-        await revalidateTenantCache(orgSchoolSlugs);
-      } catch (error) {
-        setOrgToggleError(
-          "Fehler beim Ändern des Status. Bitte versuchen Sie es erneut.",
-        );
-        logger.error("organization_toggle_active_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    },
-    [mutateOrgs, schools],
-  );
+  const refreshAll = useCallback(async () => {
+    await Promise.all([mutateOrgs(), mutateStats()]);
+  }, [mutateOrgs, mutateStats]);
 
   const activeOrganizations = useMemo(
     () => organizations?.filter((o) => o.deletedAt == null) ?? [],
@@ -108,12 +86,7 @@ export default function OperatorOrganizationsPage() {
     [organizations],
   );
 
-  const activeSchools = useMemo(
-    () => schools?.filter((s) => s.deletedAt == null) ?? [],
-    [schools],
-  );
-
-  const orgDelete = useSoftDeletable<Organization>({
+  const orgDelete = useSoftDeletable<OrganizationSummary>({
     softDeleteFn: operatorProvisioningService.softDeleteOrganization,
     restoreFn: operatorProvisioningService.restoreOrganization,
     mutateList: mutateOrgs,
@@ -127,10 +100,10 @@ export default function OperatorOrganizationsPage() {
   });
 
   const orgDeleteTargetHasSchools = useMemo(() => {
-    const orgId = orgDelete.deleteTarget?.id;
-    if (!orgId) return false;
-    return activeSchools.some((s) => s.organizationId === orgId);
-  }, [orgDelete.deleteTarget, activeSchools]);
+    const target = orgDelete.deleteTarget;
+    if (!target) return false;
+    return target.schulenCount > 0;
+  }, [orgDelete.deleteTarget]);
 
   const tabs = useMemo(
     () => ({
@@ -168,6 +141,64 @@ export default function OperatorOrganizationsPage() {
     </button>
   );
 
+  const columns: DataTableColumn<OrganizationSummary>[] = useMemo(
+    () => [
+      {
+        key: "name",
+        header: "Träger",
+        render: (row) => (
+          <div>
+            <div className="font-semibold text-gray-900">{row.name}</div>
+            <div className="font-mono text-xs text-gray-500">{row.slug}</div>
+          </div>
+        ),
+        sortValue: (row) => row.name.toLowerCase(),
+      },
+      {
+        key: "schulen",
+        header: "Schulen",
+        align: "right",
+        render: (row) => formatCount(row.schulenCount),
+        sortValue: (row) => row.schulenCount,
+      },
+      {
+        key: "konten",
+        header: "Konten",
+        align: "right",
+        render: (row) => formatCount(row.kontenCount),
+        sortValue: (row) => row.kontenCount,
+      },
+      {
+        key: "geraete",
+        header: "Geräte",
+        align: "right",
+        render: (row) => formatCount(row.geraeteCount),
+        sortValue: (row) => row.geraeteCount,
+      },
+      {
+        key: "personen",
+        header: "Personen",
+        align: "right",
+        render: (row) => formatCount(row.personenCount),
+        sortValue: (row) => row.personenCount,
+      },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => <DataTableStatusBadge active={row.active} />,
+        sortValue: (row) => (row.active ? 0 : 1),
+      },
+    ],
+    [],
+  );
+
+  const handleRowClick = useCallback(
+    (row: OrganizationSummary) => {
+      router.push(`/operator/organizations/${encodeURIComponent(row.slug)}`);
+    },
+    [router],
+  );
+
   return (
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
@@ -177,10 +208,19 @@ export default function OperatorOrganizationsPage() {
         mobileActionButton={mobileActionButton}
       />
 
+      {stats ? (
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <KpiCard label="Träger" value={stats.traegerCount} />
+          <KpiCard label="Schulen" value={stats.schulenCount} />
+          <KpiCard label="Konten" value={stats.kontenCount} />
+          <KpiCard label="Geräte" value={stats.geraeteCount} />
+        </div>
+      ) : null}
+
       {orgsLoading && <CardSkeletons />}
 
       {!orgsLoading && (
-        <>
+        <div className="mt-6">
           {deletedOrganizations.length > 0 && (
             <div className="mb-4 flex justify-end">
               <button
@@ -188,7 +228,7 @@ export default function OperatorOrganizationsPage() {
                 onClick={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                   orgDelete.showTrash
-                    ? "bg-red-100 text-red-700 hover:bg-red-200"
+                    ? "bg-[#FF3130]/15 text-[#CC2626] hover:bg-[#FF3130]/20"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
@@ -209,48 +249,28 @@ export default function OperatorOrganizationsPage() {
                 />
               ))}
             </div>
+          ) : activeOrganizations.length === 0 ? (
+            <EmptyState
+              title="Keine Träger"
+              description="Erstellen Sie einen neuen Träger, um Schulen zu verwalten."
+              buttonLabel="Neuer Träger"
+              onAction={() => setCreateOrgOpen(true)}
+            />
           ) : (
-            <>
-              {activeOrganizations.length === 0 && (
-                <EmptyState
-                  title="Keine Träger"
-                  description="Erstellen Sie einen neuen Träger, um Schulen zu verwalten."
-                  buttonLabel="Neuer Träger"
-                  onAction={() => setCreateOrgOpen(true)}
-                />
-              )}
-              {activeOrganizations.length > 0 && (
-                <div className="mt-4 space-y-4">
-                  {activeOrganizations.map((org) => (
-                    <OrganizationCard
-                      key={org.id}
-                      organization={org}
-                      onEdit={openEditOrg}
-                      onToggleActive={handleToggleOrgActive}
-                      onDelete={orgDelete.setDeleteTarget}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
+            <DataTable
+              columns={columns}
+              rows={activeOrganizations}
+              getRowKey={(row) => row.id}
+              onRowClick={handleRowClick}
+              defaultSortKey="name"
+            />
           )}
-          {orgToggleError && (
-            <p className="mt-2 text-sm text-red-600">{orgToggleError}</p>
-          )}
-        </>
+        </div>
       )}
 
       {orgDelete.deleteTarget && (
-        <SoftDeleteConfirmationModal
+        <OrgSoftDeleteModal
           target={orgDelete.deleteTarget}
-          entityLabel="Träger"
-          entityArticleAccusative="den Träger"
-          nameLabel="Geben Sie den Trägernamen ein:"
-          warningTitle="Hinweis:"
-          warningBullets={[
-            "Alle Schulen des Trägers müssen vorher gelöscht werden",
-            "Der Träger kann später wiederhergestellt werden",
-          ]}
           inputId="delete-org-confirm"
           confirmInput={orgDelete.deleteConfirmInput}
           onConfirmInputChange={orgDelete.setDeleteConfirmInput}
@@ -263,13 +283,9 @@ export default function OperatorOrganizationsPage() {
         />
       )}
 
-      <RestoreConfirmationModal
+      <OrgRestoreModal
         target={orgDelete.restoreTarget}
         setTarget={orgDelete.setRestoreTarget}
-        entityLabel="Träger"
-        entityArticleAccusative="den Träger"
-        entityPronounNominative="Der Träger"
-        entityPossessiveAccusative="seinen"
         extraMessage="Gelöschte Schulen dieses Trägers müssen separat wiederhergestellt werden."
         onConfirm={() => void orgDelete.handleRestore()}
         isProcessing={orgDelete.isProcessing}
@@ -279,76 +295,8 @@ export default function OperatorOrganizationsPage() {
       <CreateOrganizationModal
         isOpen={createOrgOpen}
         onClose={() => setCreateOrgOpen(false)}
-        onCreated={() => mutateOrgs().then(() => undefined)}
+        onCreated={() => refreshAll().then(() => undefined)}
       />
-      <EditOrganizationModal
-        isOpen={editOrgOpen}
-        onClose={() => {
-          setEditOrgOpen(false);
-          setEditOrgTarget(null);
-        }}
-        organization={editOrgTarget}
-        onUpdated={async () => {
-          await Promise.all([mutateOrgs(), mutateSchools()]);
-        }}
-      />
-    </div>
-  );
-}
-
-function OrganizationCard({
-  organization,
-  onEdit,
-  onToggleActive,
-  onDelete,
-}: {
-  readonly organization: Organization;
-  readonly onEdit: (org: Organization) => void;
-  readonly onToggleActive: (org: Organization) => Promise<void>;
-  readonly onDelete: (org: Organization) => void;
-}) {
-  return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-base font-semibold text-gray-900">
-            {organization.name}
-          </h3>
-          <p className="mt-0.5 font-mono text-sm text-gray-500">
-            {organization.slug}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void onToggleActive(organization)}
-          className="cursor-pointer"
-          title={organization.active ? "Deaktivieren" : "Aktivieren"}
-          aria-label={organization.active ? "Deaktivieren" : "Aktivieren"}
-        >
-          <StatusBadge active={organization.active} />
-        </button>
-      </div>
-      <div className="mt-3 flex items-center justify-between">
-        <p className="text-xs text-gray-400">
-          Erstellt {getRelativeTime(organization.createdAt)}
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => onEdit(organization)}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-          >
-            Bearbeiten
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(organization)}
-            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
-          >
-            Löschen
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

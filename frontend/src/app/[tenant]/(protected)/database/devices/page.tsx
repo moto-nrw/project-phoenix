@@ -65,14 +65,12 @@ export default function DevicesPage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [savingDevice, setSavingDevice] = useState(false);
   // The list response never carries `api_key` (it's a one-time create-only
   // secret). We snapshot the freshly-created device here so the detail panel
   // can render the key until the user navigates away — same dismiss semantics
   // as the pre-master-detail modal had when it closed.
   const [createdDevice, setCreatedDevice] = useState<Device | null>(null);
-  const [savingDevice, setSavingDevice] = useState(false);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
@@ -209,7 +207,6 @@ export default function DevicesPage() {
 
   const handleCloseCreateModal = useCallback(() => {
     setShowCreateModal(false);
-    setCreateError(null);
   }, []);
 
   const handleEditClick = useCallback(() => setShowEditModal(true), []);
@@ -218,8 +215,6 @@ export default function DevicesPage() {
   const handleCreateDevice = useCallback(
     async (data: Partial<Device>) => {
       try {
-        setCreateLoading(true);
-        setCreateError(null);
         const payload = devicesConfig.form.transformBeforeSubmit
           ? devicesConfig.form.transformBeforeSubmit(data)
           : data;
@@ -237,21 +232,20 @@ export default function DevicesPage() {
         await tenantMutate("database-devices-list");
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error("device_create_failed", { error: errorMessage });
         if (
-          errorMessage.includes("duplicate device ID") ||
+          errorMessage.includes("ist bereits vergeben") ||
           errorMessage.includes("409")
         ) {
-          setCreateError(
+          throw new Error(
             `Die Geräte-ID "${data.device_id ?? ""}" ist bereits vergeben. Bitte wählen Sie eine andere ID.`,
-          );
-        } else {
-          setCreateError(
-            "Fehler beim Erstellen des Geräts. Bitte versuchen Sie es erneut.",
+            { cause: err },
           );
         }
-        logger.error("device_create_failed", { error: errorMessage });
-      } finally {
-        setCreateLoading(false);
+        throw new Error(
+          "Fehler beim Erstellen des Geräts. Bitte versuchen Sie es erneut.",
+          { cause: err },
+        );
       }
     },
     [service, handleSelectDevice, tenantMutate, toastSuccess],
@@ -279,10 +273,20 @@ export default function DevicesPage() {
         );
         await tenantMutate("database-devices-list");
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
         logger.error("failed to update device", {
           device_id: selectedDevice.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: errorMessage,
         });
+        if (
+          errorMessage.includes("ist bereits vergeben") ||
+          errorMessage.includes("409")
+        ) {
+          throw new Error(
+            `Die Geräte-ID "${data.device_id ?? ""}" ist bereits vergeben. Bitte wählen Sie eine andere ID.`,
+            { cause: err },
+          );
+        }
         throw err;
       } finally {
         setSavingDevice(false);
@@ -404,8 +408,6 @@ export default function DevicesPage() {
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
         onCreate={handleCreateDevice}
-        loading={createLoading}
-        error={createError}
       />
 
       {selectedDevice && (

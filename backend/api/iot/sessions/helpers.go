@@ -7,11 +7,16 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // startSession starts an activity session with proper validation and logging
@@ -163,4 +168,171 @@ func countActiveStudents(visits []*active.Visit) int {
 		}
 	}
 	return count
+}
+
+func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *active.Group, supervisorIDs []int64) {
+	if activeGroup == nil || rs.InstanceRepo == nil || rs.InstanceStaffRepo == nil {
+		return
+	}
+	if existing, err := rs.InstanceRepo.FindByActiveGroupID(ctx, activeGroup.ID); err == nil && existing != nil {
+		return
+	} else if err != nil {
+		slog.Default().WarnContext(ctx, "failed to check mirrored timetable instance",
+			slog.Int64("active_group_id", activeGroup.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	startedAt := activeGroup.StartTime
+	inBerlin := startedAt.In(timezone.Berlin)
+	startMinutes := inBerlin.Hour()*60 + inBerlin.Minute()
+	if startMinutes > 23*60+30 {
+		startMinutes = 23*60 + 30
+	}
+	endMinutes := startMinutes + 60
+	if endMinutes > 23*60+59 {
+		endMinutes = 23*60 + 59
+	}
+
+	startedBy := firstPositiveID(supervisorIDs)
+	inst := &scheduleModel.ActivityInstance{
+		Date:            timezone.DateOfUTC(startedAt),
+		ActivityGroupID: activeGroup.GroupID,
+		Title:           rs.timetableTitleForActivity(ctx, activeGroup.GroupID),
+		StartTime:       clockFromMinutes(startMinutes),
+		EndTime:         clockFromMinutes(endMinutes),
+		RoomID:          activeGroup.RoomID,
+		Status:          scheduleModel.InstanceStatusActive,
+		ActiveGroupID:   &activeGroup.ID,
+		IsSpontaneous:   true,
+		CreatedBy:       startedBy,
+		StartedBy:       startedBy,
+		StartedAt:       &startedAt,
+	}
+	inst.SetTenantID(tenant.FromContext(ctx))
+	if err := rs.InstanceRepo.Create(ctx, inst); err != nil {
+		slog.Default().WarnContext(ctx, "failed to mirror IoT session to timetable",
+			slog.Int64("active_group_id", activeGroup.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	for _, staffID := range uniquePositiveIDs(supervisorIDs) {
+		row := &scheduleModel.InstanceStaff{
+			InstanceID: inst.ID,
+			StaffID:    staffID,
+		}
+		row.SetTenantID(tenant.FromContext(ctx))
+		if err := rs.InstanceStaffRepo.Create(ctx, row); err != nil {
+			slog.Default().WarnContext(ctx, "failed to mirror IoT session staff to timetable",
+				slog.Int64("instance_id", inst.ID),
+				slog.Int64("staff_id", staffID),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+	rs.broadcastMirroredInstance(ctx, realtime.EventInstanceStarted, inst, activeGroup)
+}
+
+func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activeGroupID int64) {
+	if activeGroupID <= 0 || rs.InstanceRepo == nil {
+		return
+	}
+	inst, err := rs.InstanceRepo.FindByActiveGroupID(ctx, activeGroupID)
+	if err != nil || inst == nil {
+		if err != nil {
+			slog.Default().WarnContext(ctx, "failed to find mirrored timetable instance for completion",
+				slog.Int64("active_group_id", activeGroupID),
+				slog.String("error", err.Error()),
+			)
+		}
+		return
+	}
+	now := time.Now()
+	inst.Status = scheduleModel.InstanceStatusCompleted
+	inst.CompletedAt = &now
+	if err := rs.InstanceRepo.MarkCompleted(ctx, inst.ID, now); err != nil {
+		slog.Default().WarnContext(ctx, "failed to complete mirrored timetable instance",
+			slog.Int64("instance_id", inst.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	rs.broadcastMirroredInstance(ctx, realtime.EventInstanceCompleted, inst, &active.Group{RoomID: inst.RoomID})
+}
+
+func (rs *Resource) timetableTitleForActivity(ctx context.Context, activityGroupID *int64) string {
+	if activityGroupID == nil || rs.ActivitiesService == nil {
+		return "RFID-Aktivität"
+	}
+	group, err := rs.ActivitiesService.GetGroup(ctx, *activityGroupID)
+	if err != nil || group == nil || group.Name == "" {
+		return "RFID-Aktivität"
+	}
+	return group.Name
+}
+
+func (rs *Resource) broadcastMirroredInstance(ctx context.Context, eventType realtime.EventType, inst *scheduleModel.ActivityInstance, activeGroup *active.Group) {
+	if rs.Broadcaster == nil || inst == nil {
+		return
+	}
+	instanceID := fmt.Sprintf("%d", inst.ID)
+	instanceDate := inst.Date.Format("2006-01-02")
+	instanceStart := inst.StartTime.Format("15:04:05")
+	activeGroupID := ""
+	if inst.ActiveGroupID != nil {
+		activeGroupID = fmt.Sprintf("%d", *inst.ActiveGroupID)
+	}
+	data := realtime.EventData{
+		InstanceID:        &instanceID,
+		InstanceDate:      &instanceDate,
+		InstanceStartTime: &instanceStart,
+	}
+	if activeGroup != nil && activeGroup.RoomID > 0 {
+		roomID := fmt.Sprintf("%d", activeGroup.RoomID)
+		data.RoomID = &roomID
+	}
+	event := realtime.NewEvent(eventType, activeGroupID, data)
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			slog.Default().WarnContext(ctx, "failed to broadcast mirrored timetable instance",
+				slog.String("event_type", string(eventType)),
+				slog.Int64("instance_id", inst.ID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
+}
+
+func clockFromMinutes(minutes int) time.Time {
+	return time.Date(2000, 1, 1, minutes/60, minutes%60, 0, 0, time.UTC)
+}
+
+func firstPositiveID(ids []int64) *int64 {
+	for _, id := range ids {
+		if id > 0 {
+			value := id
+			return &value
+		}
+	}
+	return nil
+}
+
+func uniquePositiveIDs(ids []int64) []int64 {
+	seen := make(map[int64]struct{}, len(ids))
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
 }

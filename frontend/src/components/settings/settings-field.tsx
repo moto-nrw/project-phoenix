@@ -20,6 +20,22 @@ const CONFIRM_ON_ENABLE: Record<string, { title: string; body: string }> = {
   },
 };
 
+/**
+ * Settings keys that require a confirmation dialog before disabling.
+ * Triggered when a destructive side effect on the backend is gated on
+ * the toggle (e.g. clearing already-stored student photos).
+ */
+const CONFIRM_ON_DISABLE: Record<
+  string,
+  { title: string; body: string; confirmText?: string }
+> = {
+  "operations.student_photos_enabled": {
+    title: "Kinderfotos deaktivieren?",
+    body: "Beim Ausschalten werden ALLE bereits hochgeladenen Kinderfotos sofort und unwiderruflich gelöscht. Die elterliche Einwilligung bleibt dokumentiert. Diese Aktion kann nicht rückgängig gemacht werden.",
+    confirmText: "Deaktivieren und Fotos löschen",
+  },
+};
+
 function toStr(v: unknown): string {
   if (v == null) return "";
   if (typeof v === "string") return v;
@@ -124,20 +140,34 @@ export function SettingsField({
   );
 
   // Immediate save — for booleans and selects.
-  // If the setting requires confirmation before enabling, show the modal first.
-  const confirmConfig = CONFIRM_ON_ENABLE[setting.key];
+  // If the setting requires confirmation on enable OR disable (some
+  // toggles trigger destructive backend side effects), show the modal
+  // first and only persist the new value once the user confirms.
+  const enableConfig = CONFIRM_ON_ENABLE[setting.key];
+  const disableConfig = CONFIRM_ON_DISABLE[setting.key];
   const pendingValueRef = useRef<unknown>(null);
+  const activeConfirmConfig =
+    enableConfig && pendingValueRef.current === true
+      ? enableConfig
+      : disableConfig && pendingValueRef.current === false
+        ? disableConfig
+        : null;
 
   const handleImmediateSave = useCallback(
     async (value: unknown) => {
-      if (confirmConfig && value === true) {
+      if (enableConfig && value === true) {
+        pendingValueRef.current = value;
+        setConfirmOpen(true);
+        return;
+      }
+      if (disableConfig && value === false) {
         pendingValueRef.current = value;
         setConfirmOpen(true);
         return;
       }
       await doSave(value);
     },
-    [doSave, confirmConfig],
+    [doSave, enableConfig, disableConfig],
   );
 
   const handleConfirm = useCallback(async () => {
@@ -265,7 +295,7 @@ export function SettingsField({
           )}
       </div>
 
-      {confirmConfig && (
+      {activeConfirmConfig && (
         <ConfirmationModal
           isOpen={confirmOpen}
           onClose={() => {
@@ -273,12 +303,20 @@ export function SettingsField({
             pendingValueRef.current = null;
           }}
           onConfirm={handleConfirm}
-          title={confirmConfig.title}
-          confirmText="Aktivieren"
+          title={activeConfirmConfig.title}
+          confirmText={
+            pendingValueRef.current === false
+              ? (disableConfig?.confirmText ?? "Deaktivieren")
+              : "Aktivieren"
+          }
           cancelText="Abbrechen"
-          confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+          confirmButtonClass={
+            pendingValueRef.current === false
+              ? "bg-[#FF3130] hover:bg-[#CC2626]"
+              : "bg-gray-900 hover:bg-gray-700"
+          }
         >
-          <p className="text-sm text-gray-600">{confirmConfig.body}</p>
+          <p className="text-sm text-gray-600">{activeConfirmConfig.body}</p>
         </ConfirmationModal>
       )}
     </div>

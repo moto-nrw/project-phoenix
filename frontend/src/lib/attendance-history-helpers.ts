@@ -14,6 +14,7 @@ export interface BackendAttendanceHistoryResponse {
 interface BackendAttendanceHistoryDay {
   date: string;
   attendance: BackendAttendanceRecord | null;
+  status_entries?: BackendAttendanceStatusEntry[] | null;
   room_detail_available: boolean;
   visits: BackendAttendanceVisit[] | null;
 }
@@ -35,6 +36,13 @@ interface BackendAttendanceVisit {
   duration_minutes?: number | null;
 }
 
+interface BackendAttendanceStatusEntry {
+  status: string;
+  label: string;
+  reported_at: string;
+  cleared_at?: string | null;
+}
+
 // --- UI-friendly shapes ---
 
 export interface AttendanceHistory {
@@ -48,6 +56,7 @@ export interface AttendanceHistory {
 export interface AttendanceHistoryDay {
   date: string; // YYYY-MM-DD
   attendance: AttendanceRecord | null;
+  statusEntries: AttendanceStatusEntry[];
   roomDetailAvailable: boolean;
   visits: AttendanceVisit[];
 }
@@ -67,6 +76,13 @@ interface AttendanceVisit {
   entryTime: Date;
   exitTime: Date | null;
   durationMinutes: number | null;
+}
+
+interface AttendanceStatusEntry {
+  status: string;
+  label: string;
+  reportedAt: Date;
+  clearedAt: Date | null;
 }
 
 export function mapAttendanceHistoryResponse(
@@ -93,6 +109,7 @@ function mapAttendanceHistoryDay(
   return {
     date: day.date,
     attendance: day.attendance ? mapAttendanceRecord(day.attendance) : null,
+    statusEntries: (day.status_entries ?? []).map(mapAttendanceStatusEntry),
     roomDetailAvailable: day.room_detail_available,
     visits: (day.visits ?? []).map(mapAttendanceVisit),
   };
@@ -116,6 +133,17 @@ function mapAttendanceVisit(v: BackendAttendanceVisit): AttendanceVisit {
     entryTime: new Date(v.entry_time),
     exitTime: v.exit_time ? new Date(v.exit_time) : null,
     durationMinutes: v.duration_minutes ?? null,
+  };
+}
+
+function mapAttendanceStatusEntry(
+  entry: BackendAttendanceStatusEntry,
+): AttendanceStatusEntry {
+  return {
+    status: entry.status,
+    label: entry.label,
+    reportedAt: new Date(entry.reported_at),
+    clearedAt: entry.cleared_at ? new Date(entry.cleared_at) : null,
   };
 }
 

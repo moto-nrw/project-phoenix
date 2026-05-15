@@ -364,6 +364,71 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_WithRoom(t *te
 	assert.Equal(t, "Anwesend - Room 101", location)
 }
 
+// TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor confirms the
+// snapshot resolver populates StudentLocationInfo.RoomColor when the active
+// group's room has a color configured. Frontend depends on this to render
+// per-room badge colors instead of every "Anwesend - <Room>" being blue.
+func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) {
+	checkinTime := time.Now().Add(-30 * time.Minute)
+	entryTime := time.Now().Add(-10 * time.Minute)
+	startTime := time.Now().Add(-1 * time.Hour)
+	roomColor := "#A3D977"
+
+	t.Run("populates RoomColor when room has color set", func(t *testing.T) {
+		snapshot := &common.StudentLocationSnapshot{
+			Mode: common.PresenceModeDetailed,
+			Attendances: map[int64]*activeService.AttendanceStatus{
+				123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
+			},
+			Visits: map[int64]*activeModels.Visit{
+				123: {StudentID: 123, ActiveGroupID: 456, EntryTime: entryTime},
+			},
+			Groups: map[int64]*activeModels.Group{
+				456: {
+					GroupID:   base.Int64Ptr(789),
+					RoomID:    1,
+					StartTime: startTime,
+					Room: &facilities.Room{
+						Name:     "Bibliothek",
+						Building: "Main Building",
+						Color:    &roomColor,
+					},
+				},
+			},
+		}
+
+		info := snapshot.ResolveStudentLocationWithTime(123, true)
+		assert.Equal(t, "Anwesend - Bibliothek", info.Location)
+		require.NotNil(t, info.RoomColor)
+		assert.Equal(t, "#A3D977", *info.RoomColor)
+	})
+
+	t.Run("RoomColor is nil when room has no color (fallback to blue)", func(t *testing.T) {
+		snapshot := &common.StudentLocationSnapshot{
+			Mode: common.PresenceModeDetailed,
+			Attendances: map[int64]*activeService.AttendanceStatus{
+				123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
+			},
+			Visits: map[int64]*activeModels.Visit{
+				123: {StudentID: 123, ActiveGroupID: 456, EntryTime: entryTime},
+			},
+			Groups: map[int64]*activeModels.Group{
+				456: {
+					GroupID:   base.Int64Ptr(789),
+					RoomID:    1,
+					StartTime: startTime,
+					Room:      &facilities.Room{Name: "Sportraum"},
+				},
+			},
+		}
+
+		info := snapshot.ResolveStudentLocationWithTime(123, true)
+		assert.Equal(t, "Anwesend - Sportraum", info.Location)
+		assert.Nil(t, info.RoomColor,
+			"a room without color must propagate nil so the frontend falls back to OTHER_ROOM blue")
+	})
+}
+
 // =============================================================================
 // ResolveStudentLocationWithTime Tests
 // =============================================================================

@@ -468,16 +468,8 @@ func toConflictInstance(inst *scheduleModel.ActivityInstance) scheduleSvc.Substi
 	}
 }
 
-// broadcastSubstituteEvents fires one activity_update per affected active
-// group. Fire-and-forget: errors are logged, never bubble up. Consistent
-// with WP-B9's broadcastInstanceEvent pattern (inside the tenant tx).
-//
-// Timing caveat (same as B9): the broadcast happens BEFORE TenantTxMiddleware
-// commits. In the narrow window where a late middleware panic or render
-// failure aborts the response after broadcast, subscribers would see an
-// activity_update for DB state that was never committed. We accept that
-// trade-off because plumbing a post-commit hook through the middleware stack
-// is disproportionate for a fire-and-forget UI notification.
+// broadcastSubstituteEvents queues one activity_update per affected active
+// group after the surrounding tenant transaction commits.
 func (rs *Resource) broadcastSubstituteEvents(
 	ctx context.Context,
 	touched map[int64]*scheduleModel.ActivityInstance,
@@ -497,11 +489,13 @@ func (rs *Resource) broadcastSubstituteEvents(
 			InstanceStartTime: &instanceStart,
 		}
 		event := realtime.NewEvent(realtime.EventActivityUpdate, activeGroupIDStr, data)
-		if err := rs.broadcaster.BroadcastToGroup(tenantID, activeGroupIDStr, event); err != nil {
-			rs.getLogger().Warn("SSE substitute broadcast failed",
-				slog.String("active_group_id", activeGroupIDStr),
-				slog.String("error", err.Error()),
-			)
-		}
+		tenant.RegisterAfterCommit(ctx, func() {
+			if err := rs.broadcaster.BroadcastToGroup(tenantID, activeGroupIDStr, event); err != nil {
+				rs.getLogger().Warn("SSE substitute broadcast failed",
+					slog.String("active_group_id", activeGroupIDStr),
+					slog.String("error", err.Error()),
+				)
+			}
+		})
 	}
 }

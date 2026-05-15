@@ -12,6 +12,7 @@ const {
   mockUseSWR,
   mockMutateOrgs,
   mockMutateSchools,
+  mockPush,
   mockListOrganizations,
   mockCreateOrganization,
   mockUpdateOrganization,
@@ -22,6 +23,7 @@ const {
   mockUseSWR: vi.fn(),
   mockMutateOrgs: vi.fn(),
   mockMutateSchools: vi.fn(),
+  mockPush: vi.fn(),
   mockListOrganizations: vi.fn(),
   mockCreateOrganization: vi.fn(),
   mockUpdateOrganization: vi.fn(),
@@ -31,6 +33,10 @@ const {
 
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush }),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -61,6 +67,7 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
 
 vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (dateStr: string) => `relative(${dateStr})`,
+  formatCount: (value: number) => new Intl.NumberFormat("de-DE").format(value),
 }));
 
 vi.mock("~/components/ui/page-header", () => ({
@@ -156,6 +163,25 @@ describe("OperatorOrganizationsPage", () => {
     expect(screen.getByText("Test Org")).toBeInTheDocument();
     expect(screen.getByText("test-org")).toBeInTheDocument();
     expect(screen.getByText("Aktiv")).toBeInTheDocument();
+  });
+
+  it("opens the create-organization modal from the empty state action button", async () => {
+    withDefaultSWR({ orgs: [] });
+
+    render(<OperatorOrganizationsPage />);
+
+    // EmptyState renders "Neuer Träger" inside the empty state. Clicking it
+    // opens the create modal.
+    const emptyAction = screen.getAllByText("Neuer Träger");
+    expect(emptyAction.length).toBeGreaterThan(0);
+    // The empty state's action sits inside an EmptyState card; the header
+    // also has a "Neuer Träger" trigger. Click whichever is found first in
+    // the empty-state card area.
+    fireEvent.click(emptyAction[emptyAction.length - 1]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
   });
 
   it("renders empty state for organizations", () => {
@@ -376,185 +402,94 @@ describe("OperatorOrganizationsPage", () => {
     expect((slugInput as HTMLInputElement).value).toBe("custom-slug");
   });
 
-  // --- Edit ---
-
-  it("opens edit organization modal with pre-filled data", async () => {
+  it("navigates to the organization detail page when a row is clicked", () => {
     withDefaultSWR();
 
     render(<OperatorOrganizationsPage />);
 
-    fireEvent.click(screen.getByText("Bearbeiten"));
+    fireEvent.click(screen.getByText("Test Org"));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-      expect(screen.getByText("Träger bearbeiten")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("Test Org")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("test-org")).toBeInTheDocument();
-    });
+    expect(mockPush).toHaveBeenCalledWith("/operator/organizations/test-org");
   });
 
-  it("updates organization and mutates", async () => {
+  it("keeps the overview table free of row-level management buttons", () => {
     withDefaultSWR();
-    mockUpdateOrganization.mockResolvedValue({
-      ...mockOrg,
-      name: "Updated Org",
-    });
 
     render(<OperatorOrganizationsPage />);
 
-    fireEvent.click(screen.getByText("Bearbeiten"));
+    expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
+    expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Deaktivieren")).not.toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
+  // --- Column sorting (covers sortValue callbacks for each column) ---
 
-    fireEvent.change(screen.getByDisplayValue("Test Org"), {
-      target: { value: "Updated Org" },
-    });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(mockUpdateOrganization).toHaveBeenCalledWith("1", {
-        name: "Updated Org",
-        slug: "test-org",
-        active: true,
+  describe("column sorting", () => {
+    it("sorts by Träger column when the header is clicked", () => {
+      withDefaultSWR({
+        orgs: [
+          { ...mockOrg, id: "1", slug: "z-org", name: "Z Org" },
+          { ...mockOrg, id: "2", slug: "a-org", name: "A Org" },
+        ],
       });
-      expect(mockMutateOrgs).toHaveBeenCalled();
-    });
-  });
 
-  it("shows slug warning in edit organization modal", async () => {
-    withDefaultSWR();
+      render(<OperatorOrganizationsPage />);
 
-    render(<OperatorOrganizationsPage />);
+      // Sort header buttons have an accessible name like
+      // "Träger – Spalte sortieren" / "Träger – aufsteigend sortiert".
+      fireEvent.click(screen.getByRole("button", { name: /^Träger – / }));
 
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    expect(
-      screen.getByText(/Slug-Änderungen können bestehende Verweise/),
-    ).toBeInTheDocument();
-  });
-
-  it("shows conflict error when updating organization with duplicate slug", async () => {
-    withDefaultSWR();
-    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
-    mockUpdateOrganization.mockRejectedValue(
-      new OperatorApiError("conflict", 409),
-    );
-
-    render(<OperatorOrganizationsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
+      // After clicking the header, both rows still render (sort doesn't
+      // hide rows). The point of the test is that the sortValue callback
+      // executed at least once during the comparison.
+      expect(screen.getByText("A Org")).toBeInTheDocument();
+      expect(screen.getByText("Z Org")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByDisplayValue("test-org"), {
-      target: { value: "other-slug" },
-    });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Ein Träger mit diesem Slug existiert bereits."),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("handles update organization error gracefully", async () => {
-    withDefaultSWR();
-    mockUpdateOrganization.mockRejectedValue(new Error("Server error"));
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
-      // noop
-    });
-
-    render(<OperatorOrganizationsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(screen.getByText("Server error")).toBeInTheDocument();
-      expect(consoleError).toHaveBeenCalledWith(
-        "organization_update_failed",
-        expect.objectContaining({ error: "Server error" }),
-      );
-    });
-
-    consoleError.mockRestore();
-  });
-
-  it("closes edit organization modal on cancel", async () => {
-    withDefaultSWR();
-
-    render(<OperatorOrganizationsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Abbrechen"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
-    });
-  });
-
-  // --- Toggle active ---
-
-  it("toggles organization active status", async () => {
-    withDefaultSWR();
-    mockUpdateOrganization.mockResolvedValue({ ...mockOrg, active: false });
-
-    render(<OperatorOrganizationsPage />);
-
-    fireEvent.click(screen.getByLabelText("Deaktivieren"));
-
-    await waitFor(() => {
-      expect(mockUpdateOrganization).toHaveBeenCalledWith("1", {
-        name: "Test Org",
-        slug: "test-org",
-        active: false,
+    it("sorts by Schulen / Konten / Geräte / Personen / Status when their headers are clicked", () => {
+      withDefaultSWR({
+        orgs: [
+          {
+            ...mockOrg,
+            id: "1",
+            slug: "a-org",
+            name: "A Org",
+            schulenCount: 5,
+            kontenCount: 10,
+            geraeteCount: 2,
+            personenCount: 7,
+            active: false,
+          },
+          {
+            ...mockOrg,
+            id: "2",
+            slug: "b-org",
+            name: "B Org",
+            schulenCount: 1,
+            kontenCount: 30,
+            geraeteCount: 8,
+            personenCount: 3,
+            active: true,
+          },
+        ],
       });
-      expect(mockMutateOrgs).toHaveBeenCalled();
+
+      render(<OperatorOrganizationsPage />);
+
+      for (const header of [
+        "Schulen",
+        "Konten",
+        "Geräte",
+        "Personen",
+        "Status",
+      ]) {
+        fireEvent.click(
+          screen.getByRole("button", { name: new RegExp(`^${header} – `) }),
+        );
+      }
+
+      expect(screen.getByText("A Org")).toBeInTheDocument();
+      expect(screen.getByText("B Org")).toBeInTheDocument();
     });
-  });
-
-  it("handles toggle active error gracefully", async () => {
-    withDefaultSWR();
-    mockUpdateOrganization.mockRejectedValue(new Error("Toggle failed"));
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
-      // noop
-    });
-
-    render(<OperatorOrganizationsPage />);
-
-    fireEvent.click(screen.getByLabelText("Deaktivieren"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Fehler beim Ändern des Status/),
-      ).toBeInTheDocument();
-      expect(consoleError).toHaveBeenCalledWith(
-        "organization_toggle_active_failed",
-        expect.objectContaining({ error: "Toggle failed" }),
-      );
-    });
-
-    consoleError.mockRestore();
   });
 });

@@ -4,12 +4,12 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { getInitials } from "~/lib/format-utils";
+import { Avatar } from "~/components/ui/avatar";
 
-/**
- * User avatar with initials fallback
- */
+// UserAvatar is a thin compatibility wrapper around the shared <Avatar>.
+// Keeping the prop names (avatarUrl, userName) avoids touching every call
+// site below; the body delegates so user-avatar pixels match student/staff
+// avatars 1:1.
 interface UserAvatarProps {
   readonly avatarUrl?: string | null;
   readonly userName: string;
@@ -17,32 +17,7 @@ interface UserAvatarProps {
 }
 
 function UserAvatar({ avatarUrl, userName, size = "sm" }: UserAvatarProps) {
-  const sizeClasses = size === "sm" ? "w-8 h-8 text-sm" : "w-11 h-11 text-base";
-  const initials = getInitials(userName);
-
-  return (
-    <div
-      className={`relative ${sizeClasses} flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white ${size === "sm" ? "shadow-sm ring-2 ring-white" : "shadow-md"}`}
-      style={{
-        background: avatarUrl
-          ? "transparent"
-          : "linear-gradient(135deg, #5080d8, #83cd2d)",
-      }}
-    >
-      {avatarUrl ? (
-        <Image
-          src={avatarUrl}
-          alt={userName}
-          fill
-          className="object-cover"
-          sizes="44px"
-          unoptimized
-        />
-      ) : (
-        initials
-      )}
-    </div>
-  );
+  return <Avatar imageUrl={avatarUrl} name={userName} size={size} />;
 }
 
 /**

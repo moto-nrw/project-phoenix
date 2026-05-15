@@ -11,7 +11,7 @@ import (
 // Payload keys used by the enrollment outbox rows. Every field needed
 // by the email template is captured at enqueue time so the renderer is
 // pure (no DB lookups). Keeping the keys named here keeps the
-// service-side enqueue and the renderer-side read in lockstep —
+// service-side enqueue and the renderer-side read in lockstep -
 // renaming a key requires editing both files in the same diff.
 const (
 	EnrollmentPayloadGuardianFirstName = "guardian_first_name"
@@ -54,7 +54,7 @@ func NewEnrollmentSubmittedRenderer(cfg EmailRendererConfig) func(context.Contex
 
 		subject := "Anmeldung eingegangen"
 		if schoolName != "" {
-			subject = fmt.Sprintf("Anmeldung eingegangen – %s", schoolName)
+			subject = fmt.Sprintf("Anmeldung eingegangen - %s", schoolName)
 		}
 
 		return &email.Message{
@@ -99,7 +99,7 @@ func NewEnrollmentAdminNotificationRenderer(cfg EmailRendererConfig) func(contex
 
 		subject := "Neue Anmeldung eingegangen"
 		if schoolName != "" {
-			subject = fmt.Sprintf("Neue Anmeldung – %s", schoolName)
+			subject = fmt.Sprintf("Neue Anmeldung - %s", schoolName)
 		}
 
 		return &email.Message{

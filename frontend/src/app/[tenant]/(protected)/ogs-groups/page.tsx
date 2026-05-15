@@ -26,6 +26,8 @@ import {
   parseLocation,
 } from "~/lib/location-helper";
 import {
+  countCheckedInStudents,
+  formatGroupLabelWithAttendance,
   isStudentInGroupRoom,
   matchesSearchFilter,
   matchesAttendanceFilter,
@@ -39,6 +41,7 @@ import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
+import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
 import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
@@ -56,6 +59,7 @@ import {
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { activeService } from "~/lib/active-api";
@@ -91,6 +95,7 @@ interface BackendStudentFromBFF {
   name?: string;
   school_class?: string;
   current_location?: string;
+  current_room_color?: string | null;
   sick?: boolean;
   sick_since?: string;
   sick_until?: string;
@@ -104,6 +109,9 @@ interface BackendStudentFromBFF {
   arrival_notes?: string;
   actual_arrival_time?: string;
   actual_pickup_time?: string;
+  // Authenticated photo URL (already rewritten by the backend response
+  // mapper from the raw /uploads path to /api/students/{id}/photo/...).
+  photo_url?: string;
 }
 
 // BFF response type for dashboard data
@@ -145,6 +153,39 @@ interface OGSDashboardBFFResponse {
   firstGroupId: string | null;
 }
 
+function mapStudentForOgsPage(
+  student: Student | BackendStudentFromBFF,
+): Student {
+  if ("last_name" in student) {
+    return {
+      id: student.id.toString(),
+      name: `${student.first_name} ${student.last_name}`.trim(),
+      first_name: student.first_name,
+      second_name: student.last_name,
+      school_class: student.school_class ?? "",
+      current_location: student.current_location ?? "",
+      current_room_color: student.current_room_color ?? null,
+      sick: student.sick ?? false,
+      sick_since: student.sick_since,
+      excused: student.excused ?? false,
+      excused_since: student.excused_since,
+      location_since: student.location_since,
+      group_id: student.group_id?.toString(),
+      group_name: student.group_name,
+      arrival_time: student.arrival_time,
+      arrival_is_exception: student.arrival_is_exception,
+      arrival_notes: student.arrival_notes,
+      actual_arrival_time: student.actual_arrival_time,
+      actual_pickup_time: student.actual_pickup_time,
+      // Photo URL is forwarded as-is. Backend has already rewritten it
+      // to the authenticated /api/students/{id}/photo/{filename} proxy.
+      photo_url: student.photo_url,
+    };
+  }
+
+  return student;
+}
+
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -157,6 +198,7 @@ function OGSGroupPageContent() {
 
   const { success: showSuccessToast } = useToast();
   const { userContext } = useUserContext();
+  const { setGroupAttendanceCount } = useGroupAttendanceCounts();
 
   // Only binary-mode tenants expose the web check-in toggle; in detailed
   // mode the kiosk owns check-in/out and a parallel web button would
@@ -165,6 +207,19 @@ function OGSGroupPageContent() {
   // it did before this feature landed.
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
+
+  // Photo feature flag — only the OGS-groups view has compact StudentCards
+  // (no Klasse / Gruppe rows in extraContent because the user is already
+  // inside a specific group). When the photo feature is on AND tracking
+  // indicators are configured, the right column (locationBadge +
+  // indicators) becomes taller than the left column (name + lastname +
+  // arrival + pickup), so the absolute Avatar at bottom-3 right-3 in
+  // StudentCard would visually overlap the indicator stack. We patch this
+  // ONLY here — Kindersuche and Aktuelle Aufsicht render Klasse + Gruppe
+  // rows that already provide enough natural left-column height. The patch
+  // is a hidden in-flow spacer added to extraContent below; StudentCard
+  // itself stays untouched.
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
 
   // Page-level school check-in/out mode. Toggle lives in the header; when
   // isActive, clicking a card toggles that student's attendance instead of
@@ -296,6 +351,11 @@ function OGSGroupPageContent() {
     // Update student count on the first sorted group (BFF pre-loads data for it)
     if (ogsGroups[0]) {
       ogsGroups[0].student_count = studentsData.length;
+      ogsGroups[0].present_count = countCheckedInStudents(studentsData);
+      setGroupAttendanceCount(ogsGroups[0].id, {
+        present: ogsGroups[0].present_count,
+        total: ogsGroups[0].student_count,
+      });
     }
 
     setAllGroups(ogsGroups);
@@ -321,26 +381,7 @@ function OGSGroupPageContent() {
       }
 
       // Map backend students to frontend format (last_name → second_name)
-      const mappedStudents: Student[] = studentsData.map((s) => ({
-        id: s.id.toString(),
-        name: `${s.first_name} ${s.last_name}`.trim(),
-        first_name: s.first_name,
-        second_name: s.last_name, // Backend uses last_name
-        school_class: s.school_class ?? "",
-        current_location: s.current_location ?? "",
-        sick: s.sick ?? false,
-        sick_since: s.sick_since,
-        excused: s.excused ?? false,
-        excused_since: s.excused_since,
-        location_since: s.location_since,
-        group_id: s.group_id?.toString(),
-        group_name: s.group_name,
-        arrival_time: s.arrival_time,
-        arrival_is_exception: s.arrival_is_exception,
-        arrival_notes: s.arrival_notes,
-        actual_arrival_time: s.actual_arrival_time,
-        actual_pickup_time: s.actual_pickup_time,
-      }));
+      const mappedStudents = studentsData.map(mapStudentForOgsPage);
       setStudents(mappedStudents);
 
       // Set pickup times from BFF response (prevents loading flash)
@@ -385,7 +426,7 @@ function OGSGroupPageContent() {
     setActiveTransfers(transfers);
     setError(null);
     setIsLoading(false);
-  }, [dashboardData, selectedGroupId]);
+  }, [dashboardData, selectedGroupId, setGroupAttendanceCount]);
 
   // Sync selected group with URL param.
   // The sidebar navigates with the correct ?group= param at click-time,
@@ -464,6 +505,7 @@ function OGSGroupPageContent() {
   // Only fetches when hasAccess is confirmed and we have a group ID.
   // Includes room status and pickup times to prevent "loading flash" on student cards.
   const { data: swrStudentsData } = useSWRAuth<{
+    groupId: string;
     students: Student[];
     roomStatus?: Record<
       string,
@@ -540,6 +582,7 @@ function OGSGroupPageContent() {
       }
 
       return {
+        groupId: currentGroupId!,
         students,
         roomStatus: roomStatusResponse ?? undefined,
         pickupTimes: pickupTimesMap,
@@ -555,8 +598,31 @@ function OGSGroupPageContent() {
   // Sync SWR student data with local state
   // Also syncs room status and pickup times to keep UI in sync and prevent loading flash
   useEffect(() => {
+    if (swrStudentsData?.groupId !== currentGroupId) {
+      return;
+    }
+
     if (swrStudentsData?.students) {
-      setStudents(swrStudentsData.students);
+      const mappedStudents = swrStudentsData.students.map(mapStudentForOgsPage);
+      setStudents(mappedStudents);
+      if (currentGroupId) {
+        const presentCount = countCheckedInStudents(mappedStudents);
+        setGroupAttendanceCount(currentGroupId, {
+          present: presentCount,
+          total: mappedStudents.length,
+        });
+        setAllGroups((prev) =>
+          prev.map((group) =>
+            group.id === currentGroupId
+              ? {
+                  ...group,
+                  student_count: mappedStudents.length,
+                  present_count: presentCount,
+                }
+              : group,
+          ),
+        );
+      }
     }
     if (swrStudentsData?.roomStatus) {
       setRoomStatus(swrStudentsData.roomStatus);
@@ -566,7 +632,7 @@ function OGSGroupPageContent() {
     if (swrStudentsData?.pickupTimes instanceof Map) {
       setPickupTimes(swrStudentsData.pickupTimes);
     }
-  }, [swrStudentsData]);
+  }, [swrStudentsData, currentGroupId, setGroupAttendanceCount]);
 
   // Ref to track current group without triggering unnecessary re-renders
   const currentGroupRef = useRef<OGSGroup | null>(null);
@@ -773,14 +839,23 @@ function OGSGroupPageContent() {
         token: session?.user?.token,
       });
       const studentsData = studentsResponse.students || [];
+      const presentCount = countCheckedInStudents(studentsData);
 
       setStudents(studentsData);
+      setGroupAttendanceCount(groupId, {
+        present: presentCount,
+        total: studentsData.length,
+      });
 
       // Update group with actual student count
       setAllGroups((prev) =>
         prev.map((group) =>
           group.id === groupId
-            ? { ...group, student_count: studentsData.length }
+            ? {
+                ...group,
+                student_count: studentsData.length,
+                present_count: presentCount,
+              }
             : group,
         ),
       );
@@ -1175,17 +1250,20 @@ function OGSGroupPageContent() {
 
               const checkinState = deriveCheckinState(student.current_location);
               const studentIdStr = student.id.toString();
+              const isGroupCardCheckinMode =
+                isBinaryMode && schoolCheckin.isActive;
               return (
                 <StudentCard
                   key={student.id}
                   studentId={student.id}
                   firstName={student.first_name}
                   lastName={student.second_name}
+                  photoUrl={student.photo_url ?? null}
                   gradient={cardGradient}
                   onClick={() =>
                     router.push(`/students/${student.id}?from=/ogs-groups`)
                   }
-                  checkinMode={isBinaryMode && schoolCheckin.isActive}
+                  checkinMode={isGroupCardCheckinMode}
                   checkinState={checkinState}
                   isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
                   onCheckinClick={() =>
@@ -1233,6 +1311,19 @@ function OGSGroupPageContent() {
                         }
                         now={now}
                       />
+                      {/* Check-in-only avatar-clearance spacer — in navigation
+                          mode this surface now opts into an in-flow bottom row
+                          (hint + avatar), so the card grows naturally. The
+                          spacer remains necessary only for check-in mode,
+                          where the hint disappears and the avatar still sits
+                          as an absolute overlay. aria-hidden keeps screen
+                          readers from announcing the empty box. */}
+                      {isGroupCardCheckinMode &&
+                      photosEnabled &&
+                      (swrStudentsData?.trackingIndicators?.labels.length ??
+                        0) > 0 ? (
+                        <div aria-hidden className="h-9" />
+                      ) : null}
                     </>
                   }
                   trackingIndicators={
@@ -1273,7 +1364,9 @@ function OGSGroupPageContent() {
           <PageHeaderWithSearch
             title={
               isMobile && allGroups.length === 1
-                ? (currentGroup?.name ?? "Meine Gruppe")
+                ? currentGroup
+                  ? formatGroupLabelWithAttendance(currentGroup)
+                  : "Meine Gruppe"
                 : "" // No title when multiple groups (tabs show group names) or on desktop
             }
             actionButton={renderSubstitutionBadge("desktop")}
@@ -1296,8 +1389,7 @@ function OGSGroupPageContent() {
                 ? {
                     items: allGroups.map((group) => ({
                       id: group.id,
-                      label: group.name,
-                      count: group.student_count,
+                      label: formatGroupLabelWithAttendance(group),
                     })),
                     activeTab: currentGroup?.id ?? "",
                     onTabChange: (tabId) => {

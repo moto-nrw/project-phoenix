@@ -15,7 +15,7 @@ import (
 //   - holiday       → "Ferienbetreuung"
 //   - custom        → "Sonstiges"
 //
-// Mirrored in the column CHECK constraint from migration 1.15.56.
+// Mirrored in the column CHECK constraint from migration 1.15.67.
 const (
 	PhaseKindSchoolYear = "school_year"
 	PhaseKindHoliday    = "holiday"
@@ -45,15 +45,15 @@ var validPhaseCareOverflowModes = map[string]bool{
 	PhaseCareOverflowAllow:    true,
 }
 
-// Phase is one row in enrollment.phases — a discrete, admin-managed
+// Phase is one row in enrollment.phases - a discrete, admin-managed
 // enrollment window with its own service period, open/close window,
 // optional form schema, and per-phase behaviour flags. Every parent
 // submission, every care offering, and every status decision lives
 // inside exactly one phase.
 //
 // Phases replaced the tenant-wide enrollment.open_window_* settings
-// and the per-offering application_window_* columns shipped in PR 6 —
-// see migration 1.15.57 for the cleanup. Behaviour parity:
+// and the per-offering application_window_* columns shipped in PR 6 -
+// see migration 1.15.68 for the cleanup. Behaviour parity:
 //   - the old tenant-wide setting `enrollment.show_status_reason_to_parent`
 //     now lives on phases.show_status_reason_to_parent
 //   - the old tenant-wide setting `enrollment.care_overflow_mode` now
@@ -72,7 +72,7 @@ type Phase struct {
 	// directive. With `default:`, bun skips zero values on INSERT,
 	// which means setting IsActive=false in Go would silently roundtrip
 	// as IsActive=true (DB default wins). Same gotcha we hit on
-	// care_offering's bool fields in PR 6 — see the migration's DEFAULT
+	// care_offering's bool fields in PR 6 - see the migration's DEFAULT
 	// for the implicit init value.
 	ShowStatusReasonToParent bool   `bun:"show_status_reason_to_parent,notnull" json:"show_status_reason_to_parent"`
 	CareOverflowMode         string `bun:"care_overflow_mode,notnull" json:"care_overflow_mode"`
@@ -86,7 +86,7 @@ func (p *Phase) TableName() string {
 
 // Validate runs the column-level checks in app code so the service can
 // fail fast before round-tripping. Mirrors the CHECK clauses from
-// migration 1.15.56 plus a couple of sanity rules (name non-empty,
+// migration 1.15.67 plus a couple of sanity rules (name non-empty,
 // kind in known set).
 func (p *Phase) Validate() error {
 	p.Name = strings.TrimSpace(p.Name)
@@ -156,7 +156,7 @@ type PhaseRepository interface {
 	// uses this for the "select phase" picker.
 	ListPublicOpen(ctx context.Context, now time.Time) ([]*Phase, error)
 
-	// ExistsByFormSchemaID is the safety check for schema deletion —
+	// ExistsByFormSchemaID is the safety check for schema deletion -
 	// phases owning the schema must be repointed first.
 	ExistsByFormSchemaID(ctx context.Context, schemaID int64) (bool, error)
 }

@@ -39,7 +39,7 @@ func setupSettingsTest(t *testing.T) *settingsTestContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := configAPI.NewSettingsResource(svc.Settings, db)
+	resource := configAPI.NewSettingsResource(svc.Settings, db, nil)
 
 	return &settingsTestContext{
 		db:       db,
@@ -415,11 +415,11 @@ func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
 	var callbackKey string
 	var callbackValue any
 	var callbackTenantID int64
-	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) error {
+	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
 		callbackTenantID = tenantID
 		callbackKey = key
 		callbackValue = value
-		return nil
+		return nil, nil
 	})
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -445,8 +445,8 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
-		return errors.New("hook failed")
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+		return nil, errors.New("hook failed")
 	})
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -478,9 +478,9 @@ func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	callbackInvoked := false
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) error {
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		callbackInvoked = true
-		return nil
+		return nil, nil
 	})
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -498,6 +498,67 @@ func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
 
 	assert.False(t, callbackInvoked, "callback should not be invoked on validation error")
+}
+
+// TestSettingsSetValue_PostCommitRunsOnSuccess locks in the contract that
+// the post-commit closure returned by the OnValueSet callback runs after a
+// successful tx. Photo-purge file unlinks rely on this — running them in
+// the tx would mean a commit failure leaves files deleted but the photo_path
+// rows untouched.
+func TestSettingsSetValue_PostCommitRunsOnSuccess(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	postCommitRan := false
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+		return func() {
+			postCommitRan = true
+		}, nil
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
+		map[string]interface{}{"value": true},
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	assert.True(t, postCommitRan, "post-commit closure must run after a successful PUT")
+}
+
+// TestSettingsSetValue_PostCommitSkippedOnHookError ensures the post-commit
+// closure does NOT run when the in-tx hook returns an error. If it did, a
+// photo-purge file unlink would still happen for a tx that rolled back —
+// the exact bug the two-phase contract was introduced to prevent.
+func TestSettingsSetValue_PostCommitSkippedOnHookError(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	postCommitRan := false
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+		// Return BOTH a closure and an error — the handler must not run
+		// the closure because the tx rolled back. Returning the closure
+		// alongside the error proves the handler honours the contract by
+		// gating on err, not on cb-presence.
+		return func() {
+			postCommitRan = true
+		}, errors.New("hook failed")
+	})
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
+		map[string]interface{}{"value": true},
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+
+	assert.False(t, postCommitRan, "post-commit closure must not run when the tx rolled back")
 }
 
 func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
@@ -518,6 +579,114 @@ func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// TestSettingsResetValue_OnValueSetCallbackInvoked guarantees the side-effect
+// hook fires on reset (DELETE /values/{key}) for student_photos_enabled.
+// Reset puts the setting back on its registry default, so the callback
+// receives that default — otherwise resetting student_photos_enabled would
+// leave already-stored photos on disk because the purge callback never runs.
+func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+	router.Delete("/values/{key}", ctx.resource.ResetValue())
+
+	seed := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled", map[string]interface{}{
+		"value": true,
+	}, testutil.WithClaims(adminClaimsWithConfigPerms()))
+	rr := testutil.ExecuteRequest(router, seed)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Now register the callback and reset.
+	var callbackKey string
+	var callbackValue any
+	var callbackTenantID int64
+	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
+		callbackTenantID = tenantID
+		callbackKey = key
+		callbackValue = value
+		return nil, nil
+	})
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.student_photos_enabled", nil,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+	rr = testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
+
+	assert.Equal(t, "operations.student_photos_enabled", callbackKey)
+	assert.Equal(t, false, callbackValue)
+	assert.Greater(t, callbackTenantID, int64(0), "callback should receive a valid tenant_id")
+}
+
+func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+	router.Delete("/values/{key}", ctx.resource.ResetValue())
+
+	seed := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", map[string]interface{}{
+		"value": true,
+	}, testutil.WithClaims(adminClaimsWithConfigPerms()))
+	rr := testutil.ExecuteRequest(router, seed)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	var called bool
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+		called = true
+		return nil, nil
+	})
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/checkout.schulhof_enabled", nil,
+		testutil.WithClaims(adminClaimsWithConfigPerms()),
+	)
+	rr = testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
+
+	assert.False(t, called, "non-photo reset must not fire OnValueSet")
+}
+
+// TestSettingsResetValue_OnValueSetCallbackErrorRollsBack ensures the reset
+// path participates in the same tx contract as PUT for the photo flag — a
+// hook error must roll back the override deletion.
+func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
+	ctx := setupSettingsTest(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Put("/values/{key}", ctx.resource.SetValue())
+	router.Delete("/values/{key}", ctx.resource.ResetValue())
+
+	claims := adminClaimsWithConfigPerms()
+	seed := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled", map[string]interface{}{
+		"value": true,
+	}, testutil.WithClaims(claims))
+	rr := testutil.ExecuteRequest(router, seed)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+		return nil, errors.New("hook failed")
+	})
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.student_photos_enabled", nil,
+		testutil.WithClaims(claims),
+	)
+	rr = testutil.ExecuteRequest(router, req)
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+
+	// Override should still exist — the failed hook rolled back the delete.
+	count, err := ctx.db.NewSelect().
+		TableExpr("config.setting_values").
+		Where("tenant_id = ?", claims.TenantID).
+		Where("setting_key = ?", "operations.student_photos_enabled").
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "failed hook on reset must roll back the override deletion")
 }
 
 func TestSettingsDeleteLoginImage_NoTenantContext(t *testing.T) {

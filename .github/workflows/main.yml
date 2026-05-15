@@ -23,12 +23,15 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     outputs:
-      # On push to main/development: always run everything (full coverage for SonarCloud)
-      # On PRs: only run what changed (path filtering saves CI minutes)
-      run-backend: ${{ github.event_name == 'push' || steps.filter.outputs.backend == 'true' || steps.filter.outputs.ci == 'true' }}
-      run-frontend: ${{ github.event_name == 'push' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
+      # On PRs: only run what changed.
+      # On protected branch pushes: run both suites for full SonarCloud coverage,
+      # but still skip docs-only churn.
+      run-backend: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && steps.filter.outputs.frontend == 'true') }}
+      run-frontend: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && steps.filter.outputs.backend == 'true') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
@@ -40,6 +43,9 @@ jobs:
             ci:
               - '.github/**'
               - 'sonar-project.properties'
+              - 'environments/**'
+              - '.env.example'
+              - 'package.json'
 
   lint:
     permissions:
@@ -59,6 +65,8 @@ jobs:
     with:
       run-backend: ${{ needs.detect-changes.outputs.run-backend == 'true' }}
       run-frontend: ${{ needs.detect-changes.outputs.run-frontend == 'true' }}
+      is-pr: ${{ github.event_name == 'pull_request' }}
+      base_ref: ${{ github.base_ref }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 

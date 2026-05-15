@@ -147,6 +147,34 @@ type StudentRepository interface {
 	// enrolled_until <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick to flip rows to 'inactive'.
 	FindActiveDueForDeactivation(ctx context.Context, asOf time.Time) ([]*Student, error)
+
+	// PurgeAllPhotos clears photo_path on every student row visible in the
+	// current tenant context (RLS scopes it) and returns the list of stored
+	// URLs that were cleared. Caller is responsible for unlinking the
+	// underlying files.
+	//
+	// Used when an admin disables operations.student_photos_enabled - the
+	// reviewer flagged that without this, existing photos remain accessible
+	// after the toggle. The DB clear runs inside whatever transaction the
+	// caller provides via context, so it is atomic with the setting write;
+	// file unlinks are best-effort and happen after commit. Acquires the
+	// per-tenant photo-feature advisory lock so it serializes against
+	// concurrent upload tx's that hold the same lock.
+	PurgeAllPhotos(ctx context.Context) ([]string, error)
+
+	// LockPhotoFeature acquires the per-tenant advisory lock that
+	// serializes operations affecting the student-photo feature (uploads
+	// vs. feature disable). Must be called inside a tenant tx; lock
+	// releases on commit/rollback. See implementation for the full race
+	// rationale.
+	LockPhotoFeature(ctx context.Context) error
+
+	// FindByIDForUpdate retrieves a student by id with SELECT … FOR
+	// UPDATE so the caller can re-validate state under the same row
+	// lock the next UPDATE on the row will use. Used by the photo
+	// upload flow to close a lost-update race against concurrent
+	// consent withdrawals from another tab.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Student, error)
 }
 
 // StaffRepository defines operations for managing staff members

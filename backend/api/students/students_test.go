@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -51,7 +52,7 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 		StudentID:  studentWithSchedule.ID,
 		Weekday:    todayWeekday,
 		PickupTime: pickupTime,
-		CreatedBy:  1,
+		CreatedBy:  createStudentsAPITestStaffID(t, tc),
 	}
 	schedule.SetTenantID(1)
 	_, err := tc.db.NewInsert().Model(schedule).
@@ -699,6 +700,16 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, clearRR.Code, "Should clear sick status")
 		assert.Contains(t, clearRR.Body.String(), `"sick":false`)
+
+		var history activeModel.StudentStatusDay
+		err := tc.db.NewSelect().
+			Model(&history).
+			ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+			Where(`"student_status_day".student_id = ?`, student.ID).
+			Where(`"student_status_day".status = ?`, activeModel.StudentStatusDaySick).
+			Scan(context.Background())
+		require.NoError(t, err)
+		assert.NotNil(t, history.ClearedAt)
 	})
 }
 
@@ -740,6 +751,16 @@ func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, clearRR.Code)
 		assert.Contains(t, clearRR.Body.String(), `"excused":false`)
+
+		var history activeModel.StudentStatusDay
+		err := tc.db.NewSelect().
+			Model(&history).
+			ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+			Where(`"student_status_day".student_id = ?`, student.ID).
+			Where(`"student_status_day".status = ?`, activeModel.StudentStatusDayExcused).
+			Scan(context.Background())
+		require.NoError(t, err)
+		assert.NotNil(t, history.ClearedAt)
 	})
 }
 

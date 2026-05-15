@@ -20,17 +20,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Hermetic: every instance/exception row is created per-subtest with a unique
-// suffix and cleaned up via registerCleanup. No hardcoded entity IDs.
-// tenant_id=1 is whitelisted by the hermetic linter.
-
-const testTenantID int64 = 1
+// Hermetic: every instance/exception row is created per-subtest under a unique
+// tenant and cleaned up via registerCleanup. No hardcoded entity IDs.
 
 // instFixture holds the DB rows a test created so runCleanup can remove them
 // in child-first order.
 type instFixture struct {
 	db               *bun.DB
 	ctx              context.Context
+	tenantID         int64
 	instanceIDs      []int64
 	exceptionIDs     []int64
 	instanceStaffIDs []int64
@@ -85,7 +83,7 @@ func (f *instFixture) cleanup(t *testing.T) {
 	// where we prevent the DELETE (mock rollback) remain.
 	for _, sid := range f.studentIDs {
 		_, _ = f.db.NewDelete().Table("audit.data_deletions").
-			Where("student_id = ? AND deletion_type = ?", sid, auditModels.DeletionTypeTimetableRetention).
+			Where("tenant_id = ? AND student_id = ? AND deletion_type = ?", f.tenantID, sid, auditModels.DeletionTypeTimetableRetention).
 			Exec(f.ctx)
 	}
 }
@@ -104,7 +102,7 @@ func (f *instFixture) newInstance(t *testing.T, date time.Time, status string, r
 		Status:          status,
 		ActivityGroupID: templateID,
 	}
-	inst.SetTenantID(testTenantID)
+	inst.SetTenantID(f.tenantID)
 	_, err := f.db.NewInsert().Model(inst).
 		ModelTableExpr(`schedule.activity_instances`).
 		Exec(f.ctx)
@@ -121,7 +119,7 @@ func (f *instFixture) newException(t *testing.T, activityGroupID int64, date tim
 		ExceptionDate:   date,
 		ExceptionType:   exceptionType,
 	}
-	exc.SetTenantID(testTenantID)
+	exc.SetTenantID(f.tenantID)
 	_, err := f.db.NewInsert().Model(exc).
 		ModelTableExpr(`schedule.activity_exceptions`).
 		Exec(f.ctx)
@@ -139,7 +137,7 @@ func (f *instFixture) attachStudent(t *testing.T, instanceID, studentID int64, n
 		StudentID:  studentID,
 		Note:       note,
 	}
-	row.SetTenantID(testTenantID)
+	row.SetTenantID(f.tenantID)
 	_, err := f.db.NewInsert().Model(row).
 		ModelTableExpr(`schedule.instance_students`).
 		Exec(f.ctx)
@@ -155,7 +153,7 @@ func (f *instFixture) attachStaff(t *testing.T, instanceID, staffID int64) int64
 		InstanceID: instanceID,
 		StaffID:    staffID,
 	}
-	row.SetTenantID(testTenantID)
+	row.SetTenantID(f.tenantID)
 	_, err := f.db.NewInsert().Model(row).
 		ModelTableExpr(`schedule.instance_staff`).
 		Exec(f.ctx)
@@ -168,10 +166,12 @@ func (f *instFixture) attachStaff(t *testing.T, instanceID, staffID int64) int64
 func setupFixture(t *testing.T) (*instFixture, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(testTenantID)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
 	suffix := time.Now().UnixNano()
-	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%d", suffix))
-	f := &instFixture{db: db, ctx: ctx, roomIDs: []int64{room.ID}}
+	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Room-%d", suffix))
+	f := &instFixture{db: db, ctx: ctx, tenantID: tenantID, roomIDs: []int64{room.ID}}
 	t.Cleanup(func() { f.cleanup(t) })
 	return f, room.ID
 }
@@ -204,7 +204,7 @@ func TestCleanup_HappyPath_DeletesOldRowsKeepsFreshRows(t *testing.T) {
 	recentID := f.newInstance(t, recent, scheduleModels.InstanceStatusPlanned, roomID, nil)
 
 	// 2 exceptions: 1 old (delete), 1 recent (survive). Needs a template parent.
-	cat := testpkg.CreateTestActivityCategory(t, f.db, fmt.Sprintf("Cat-%d", time.Now().UnixNano()))
+	cat := testpkg.CreateTestActivityCategoryForTenant(t, f.db, f.tenantID, fmt.Sprintf("Cat-%d", time.Now().UnixNano()))
 	f.categoryIDs = append(f.categoryIDs, cat.ID)
 	template := createTemplate(t, f, roomID, cat.ID)
 	oldExcID := f.newException(t, template.ID, old, scheduleModels.ActivityExceptionCancelled)
@@ -240,7 +240,7 @@ func TestCleanup_EmptyTenant_WritesNoAuditRowsForStudents(t *testing.T) {
 	// policy means nothing gets logged when nothing was about a student.
 	count, err := f.db.NewSelect().
 		Table("audit.data_deletions").
-		Where("tenant_id = ? AND deletion_type = ?", testTenantID, auditModels.DeletionTypeTimetableRetention).
+		Where("tenant_id = ? AND deletion_type = ?", f.tenantID, auditModels.DeletionTypeTimetableRetention).
 		Count(f.ctx)
 	require.NoError(t, err)
 	// The "zero rows" assertion is indirect: an empty-tenant run should add
@@ -251,7 +251,7 @@ func TestCleanup_EmptyTenant_WritesNoAuditRowsForStudents(t *testing.T) {
 	assert.Equal(t, 0, result2.StudentsAffected)
 	count2, err := f.db.NewSelect().
 		Table("audit.data_deletions").
-		Where("tenant_id = ? AND deletion_type = ?", testTenantID, auditModels.DeletionTypeTimetableRetention).
+		Where("tenant_id = ? AND deletion_type = ?", f.tenantID, auditModels.DeletionTypeTimetableRetention).
 		Count(f.ctx)
 	require.NoError(t, err)
 	assert.Equal(t, count, count2, "empty-tenant cleanup adds no audit rows")
@@ -281,8 +281,8 @@ func TestCleanup_CASCADE_DeletesInstanceChildren(t *testing.T) {
 	old := time.Now().UTC().AddDate(0, 0, -400)
 	instID := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
-	staff := testpkg.CreateTestStaff(t, f.db, "Cascade", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
-	student := testpkg.CreateTestStudent(t, f.db, "Cascade", fmt.Sprintf("Stud-%d", time.Now().UnixNano()), "3a")
+	staff := testpkg.CreateTestStaffForTenant(t, f.db, f.tenantID, "Cascade", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
+	student := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Cascade", fmt.Sprintf("Stud-%d", time.Now().UnixNano()), "3a")
 	f.staffIDs = append(f.staffIDs, staff.ID)
 	f.studentIDs = append(f.studentIDs, student.ID)
 
@@ -353,7 +353,7 @@ func TestCleanup_TemplatesUntouched_OnlyInstancesAndExceptionsDeleted(t *testing
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
-	cat := testpkg.CreateTestActivityCategory(t, f.db, fmt.Sprintf("Cat-%d", time.Now().UnixNano()))
+	cat := testpkg.CreateTestActivityCategoryForTenant(t, f.db, f.tenantID, fmt.Sprintf("Cat-%d", time.Now().UnixNano()))
 	f.categoryIDs = append(f.categoryIDs, cat.ID)
 	template := createTemplate(t, f, roomID, cat.ID)
 
@@ -383,8 +383,8 @@ func TestCleanup_PerStudentAuditRows_OneRowPerAffectedStudent(t *testing.T) {
 	inst1 := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 	inst2 := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
-	s1 := testpkg.CreateTestStudent(t, f.db, "Audit", fmt.Sprintf("One-%d", time.Now().UnixNano()), "3a")
-	s2 := testpkg.CreateTestStudent(t, f.db, "Audit", fmt.Sprintf("Two-%d", time.Now().UnixNano()), "3a")
+	s1 := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Audit", fmt.Sprintf("One-%d", time.Now().UnixNano()), "3a")
+	s2 := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Audit", fmt.Sprintf("Two-%d", time.Now().UnixNano()), "3a")
 	f.studentIDs = append(f.studentIDs, s1.ID, s2.ID)
 
 	// s1 attends both instances (2 rows), s2 attends one (1 row).
@@ -402,7 +402,7 @@ func TestCleanup_PerStudentAuditRows_OneRowPerAffectedStudent(t *testing.T) {
 	var auditCount int
 	auditCount, err = f.db.NewSelect().
 		Table("audit.data_deletions").
-		Where("tenant_id = ? AND deletion_type = ?", testTenantID, auditModels.DeletionTypeTimetableRetention).
+		Where("tenant_id = ? AND deletion_type = ?", f.tenantID, auditModels.DeletionTypeTimetableRetention).
 		Where("student_id IN (?, ?)", s1.ID, s2.ID).
 		Count(f.ctx)
 	require.NoError(t, err)
@@ -412,7 +412,7 @@ func TestCleanup_PerStudentAuditRows_OneRowPerAffectedStudent(t *testing.T) {
 	var s1Row auditModels.DataDeletion
 	err = f.db.NewSelect().Model(&s1Row).
 		Where("tenant_id = ? AND student_id = ? AND deletion_type = ?",
-			testTenantID, s1.ID, auditModels.DeletionTypeTimetableRetention).
+			f.tenantID, s1.ID, auditModels.DeletionTypeTimetableRetention).
 		Scan(f.ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 2, s1Row.RecordsDeleted, "s1 had 2 instance_students rows")
@@ -434,7 +434,7 @@ func TestCleanup_DeletesGDPRSensitiveNotesViaCascade(t *testing.T) {
 	old := time.Now().UTC().AddDate(0, 0, -400)
 	instID := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
-	student := testpkg.CreateTestStudent(t, f.db, "Sensitive", fmt.Sprintf("Note-%d", time.Now().UnixNano()), "3a")
+	student := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Sensitive", fmt.Sprintf("Note-%d", time.Now().UnixNano()), "3a")
 	f.studentIDs = append(f.studentIDs, student.ID)
 	sensitiveNote := "contains GDPR-sensitive free text about this student's behavior"
 	studRowID := f.attachStudent(t, instID, student.ID, &sensitiveNote)
@@ -465,24 +465,16 @@ func TestCleanup_TenantIsolation_OtherTenantDataUntouched(t *testing.T) {
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
-	// Tenant A (testTenantID=1) has one old instance.
+	// Tenant A has one old instance.
 	old := time.Now().UTC().AddDate(0, 0, -400)
 	f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
-	// Insert a row for a different tenant_id (2) directly to bypass the
+	// Insert a row for a different tenant_id directly to bypass the
 	// fixture helper. Track manually so we can assert presence then clean up.
-	otherTenantID := int64(2)
-	// Ensure tenant 2 exists (platform.schools). testpkg doesn't create tenants;
-	// insert a minimal school so the FK is satisfied.
-	otherSchoolID := ensureOtherSchool(t, f.db, f.ctx, otherTenantID)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, f.db, otherTenantID)
 
-	otherRoom := testpkg.CreateTestRoom(t, f.db, fmt.Sprintf("Other-Room-%d", time.Now().UnixNano()))
-	// Hack: the test room is created under tenant 1; move it to tenant 2 for this test.
-	_, err := f.db.NewUpdate().Table("facilities.rooms").
-		Set("tenant_id = ?", otherTenantID).
-		Where("id = ?", otherRoom.ID).
-		Exec(f.ctx)
-	require.NoError(t, err)
+	otherRoom := testpkg.CreateTestRoomForTenant(t, f.db, otherTenantID, fmt.Sprintf("Other-Room-%d", time.Now().UnixNano()))
 
 	otherInst := &scheduleModels.ActivityInstance{
 		Date:      old,
@@ -493,12 +485,12 @@ func TestCleanup_TenantIsolation_OtherTenantDataUntouched(t *testing.T) {
 		Status:    scheduleModels.InstanceStatusCompleted,
 	}
 	otherInst.SetTenantID(otherTenantID)
-	_, err = f.db.NewInsert().Model(otherInst).
+	_, err := f.db.NewInsert().Model(otherInst).
 		ModelTableExpr(`schedule.activity_instances`).
 		Exec(f.ctx)
 	require.NoError(t, err)
 
-	// Run cleanup under tenant 1.
+	// Run cleanup under tenant A.
 	_, err = svc.CleanupExpiredTimetableData(f.ctx)
 	require.NoError(t, err)
 
@@ -508,10 +500,6 @@ func TestCleanup_TenantIsolation_OtherTenantDataUntouched(t *testing.T) {
 	// Manual cleanup of the "other" tenant's fixture rows.
 	_, _ = f.db.NewDelete().Table("schedule.activity_instances").Where("id = ?", otherInst.ID).Exec(f.ctx)
 	_, _ = f.db.NewDelete().Table("facilities.rooms").Where("id = ?", otherRoom.ID).Exec(f.ctx)
-	// Only delete the school if we created it (ensureOtherSchool returns 0 when pre-existing).
-	if otherSchoolID != 0 {
-		_, _ = f.db.NewDelete().Table("platform.schools").Where("id = ?", otherSchoolID).Exec(f.ctx)
-	}
 }
 
 // --- Audit rollback test (mock repo) ---
@@ -554,7 +542,7 @@ func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 	old := time.Now().UTC().AddDate(0, 0, -400)
 	instID := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
-	student := testpkg.CreateTestStudent(t, f.db, "AuditFail", fmt.Sprintf("Stud-%d", time.Now().UnixNano()), "3a")
+	student := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "AuditFail", fmt.Sprintf("Stud-%d", time.Now().UnixNano()), "3a")
 	f.studentIDs = append(f.studentIDs, student.ID)
 	f.attachStudent(t, instID, student.ID, nil)
 
@@ -594,14 +582,14 @@ func TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything(t *testing.T) {
 	inst1 := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 	inst2 := f.newInstance(t, old, scheduleModels.InstanceStatusCancelled, roomID, nil)
 
-	stud := testpkg.CreateTestStudent(t, f.db, "Rollback", fmt.Sprintf("Stud-%d", time.Now().UnixNano()), "3a")
+	stud := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Rollback", fmt.Sprintf("Stud-%d", time.Now().UnixNano()), "3a")
 	f.studentIDs = append(f.studentIDs, stud.ID)
 	f.attachStudent(t, inst1, stud.ID, nil)
 	f.attachStudent(t, inst2, stud.ID, nil)
 
 	rollbackErr := errors.New("simulated caller-side failure after cleanup")
-	txCtx := tenant.WithTenantID(context.Background(), testTenantID)
-	err := tenant.WithTenantTx(txCtx, f.db, testTenantID, func(innerCtx context.Context, _ bun.Tx) error {
+	txCtx := tenant.WithTenantID(context.Background(), f.tenantID)
+	err := tenant.WithTenantTx(txCtx, f.db, f.tenantID, func(innerCtx context.Context, _ bun.Tx) error {
 		// Cleanup succeeds inside the tx: audit row is written, both
 		// instances are DELETEd (CASCADE removes the instance_students rows).
 		result, cErr := svc.CleanupExpiredTimetableData(innerCtx)
@@ -628,7 +616,7 @@ func TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything(t *testing.T) {
 	// was deleted when it actually wasn't.
 	auditCount, err := f.db.NewSelect().Table("audit.data_deletions").
 		Where("tenant_id = ? AND student_id = ? AND deletion_type = ?",
-			testTenantID, stud.ID, auditModels.DeletionTypeTimetableRetention).
+			f.tenantID, stud.ID, auditModels.DeletionTypeTimetableRetention).
 		Count(f.ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, auditCount,
@@ -648,7 +636,7 @@ func createTemplate(t *testing.T, f *instFixture, roomID, categoryID int64) *act
 		PlannedRoomID:   &roomID,
 		IsTemplate:      true,
 	}
-	tpl.SetTenantID(testTenantID)
+	tpl.SetTenantID(f.tenantID)
 	_, err := f.db.NewInsert().Model(tpl).ModelTableExpr(`activities.groups AS "group"`).Exec(f.ctx)
 	require.NoError(t, err)
 	f.templateIDs = append(f.templateIDs, tpl.ID)
@@ -674,39 +662,4 @@ func assertRowExists(t *testing.T, f *instFixture, table string, id int64, wantE
 	} else {
 		assert.False(t, got, append([]any{fmt.Sprintf("%s row %d should be deleted", table, id)}, msgAndArgs...)...)
 	}
-}
-
-// ensureOtherSchool returns the ID of a school with the given ID. If the
-// tenant ID is already taken, returns 0 to signal "skip deletion on cleanup".
-// If we created it, returns the created ID for cleanup. We use a fixed ID of
-// 2 here — tenant_id=2 is whitelisted.
-func ensureOtherSchool(t *testing.T, db *bun.DB, ctx context.Context, tenantID int64) int64 {
-	t.Helper()
-	exists, err := db.NewSelect().Table("platform.schools").Where("id = ?", tenantID).Exists(ctx)
-	require.NoError(t, err)
-	if exists {
-		return 0
-	}
-	// Create a minimal organization + school so we can use tenant_id=2.
-	suffix := time.Now().UnixNano()
-	orgName := fmt.Sprintf("test-org-%d", suffix)
-	var orgID int64
-	err = db.NewRaw(
-		`INSERT INTO platform.organizations (name, slug) VALUES (?, ?) RETURNING id`,
-		orgName, fmt.Sprintf("org-%d", suffix),
-	).Scan(ctx, &orgID)
-	require.NoError(t, err)
-	_, err = db.NewRaw(
-		`INSERT INTO platform.schools (id, organization_id, name, slug, subdomain)
-		 VALUES (?, ?, ?, ?, ?)`,
-		tenantID, orgID,
-		fmt.Sprintf("other-school-%d", suffix),
-		fmt.Sprintf("other-%d", suffix),
-		fmt.Sprintf("sub-%d", suffix),
-	).Exec(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("platform.organizations").Where("id = ?", orgID).Exec(ctx)
-	})
-	return tenantID
 }

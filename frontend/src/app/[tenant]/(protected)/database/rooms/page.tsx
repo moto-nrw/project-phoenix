@@ -27,7 +27,16 @@ import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import {
+  useSWRAuth,
+  useTenantMutate,
+  useTenantMutateMatching,
+} from "~/lib/swr";
+import {
+  DATABASE_ROOMS_LIST_CACHE_KEY,
+  ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
+  ROOM_LIST_CACHE_KEYS,
+} from "~/lib/swr/room-derived-caches";
 
 const logger = createLogger({ component: "DatabaseRoomsPage" });
 
@@ -57,7 +66,6 @@ export default function RoomsPage() {
   const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
 
   const {
     showConfirmModal: showDeleteConfirmModal,
@@ -77,12 +85,25 @@ export default function RoomsPage() {
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
   const tenantMutate = useTenantMutate();
+  // Other pages stamp room data (colour, name) into their cached student/
+  // visit rows, so a Room save has to invalidate them too — otherwise the
+  // badge colours stay stale until the user navigates away and back. The
+  // list of affected cache substrings lives in lib/swr/room-derived-caches.ts
+  // as a single source of truth — keep it there, not inline here, so future
+  // SWR consumers see the doc comment when they touch the file.
+  const refreshRoomConsumers = useTenantMutateMatching(
+    ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
+  );
+  const refreshRoomLists = useCallback(
+    () => Promise.all(ROOM_LIST_CACHE_KEYS.map((key) => tenantMutate(key))),
+    [tenantMutate],
+  );
 
   const {
     data: roomsData,
     isLoading: loading,
     error: roomsError,
-  } = useSWRAuth("database-rooms-list", async () => {
+  } = useSWRAuth(DATABASE_ROOMS_LIST_CACHE_KEY, async () => {
     const data = await service.getList({ page: 1, pageSize: 500 });
     return Array.isArray(data.data) ? data.data : [];
   });
@@ -213,7 +234,6 @@ export default function RoomsPage() {
   const handleCreateRoom = useCallback(
     async (data: Partial<Room>) => {
       try {
-        setCreateLoading(true);
         if (roomsConfig.form.transformBeforeSubmit) {
           data = roomsConfig.form.transformBeforeSubmit(data);
         }
@@ -226,12 +246,18 @@ export default function RoomsPage() {
           ),
         );
         setShowCreateModal(false);
-        await tenantMutate("database-rooms-list");
-      } finally {
-        setCreateLoading(false);
+        await refreshRoomLists();
+      } catch (createError) {
+        logger.error("failed to create room", {
+          error:
+            createError instanceof Error
+              ? createError.message
+              : String(createError),
+        });
+        throw createError;
       }
     },
-    [service, tenantMutate, toastSuccess],
+    [service, refreshRoomLists, toastSuccess],
   );
 
   const handleUpdateRoom = useCallback(
@@ -249,7 +275,12 @@ export default function RoomsPage() {
             selectedRoom.name,
           ),
         );
-        await tenantMutate("database-rooms-list");
+        await Promise.all([
+          refreshRoomLists(),
+          // Refetch every consumer that holds room-stamped data so badges
+          // pick up the new color without a manual reload.
+          refreshRoomConsumers(),
+        ]);
       } catch (updateError) {
         logger.error("failed to update room", {
           room_id: selectedRoom.id,
@@ -261,7 +292,13 @@ export default function RoomsPage() {
         throw updateError;
       }
     },
-    [selectedRoom, service, tenantMutate, toastSuccess],
+    [
+      selectedRoom,
+      service,
+      refreshRoomLists,
+      refreshRoomConsumers,
+      toastSuccess,
+    ],
   );
 
   const handleDeleteRoom = useCallback(async () => {
@@ -279,14 +316,14 @@ export default function RoomsPage() {
       ),
     );
     handleSelectRoom(null);
-    await tenantMutate("database-rooms-list");
+    await refreshRoomLists();
   }, [
     selectedRoom,
     service,
     toastError,
     toastSuccess,
     handleSelectRoom,
-    tenantMutate,
+    refreshRoomLists,
   ]);
 
   const canShowDetail =
@@ -401,7 +438,6 @@ export default function RoomsPage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateRoom}
-        loading={createLoading}
       />
 
       {selectedRoom && (

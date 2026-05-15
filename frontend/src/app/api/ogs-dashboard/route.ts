@@ -28,6 +28,8 @@ interface BackendStudent {
   name?: string;
   school_class?: string;
   current_location?: string;
+  /** Hex color of the student's current room when set; drives badge color in LocationBadge. */
+  current_room_color?: string | null;
   sick?: boolean;
   sick_since?: string;
   sick_until?: string;

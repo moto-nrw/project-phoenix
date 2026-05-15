@@ -17,12 +17,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
+	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -64,6 +66,7 @@ type Factory struct {
 	Materialization          schedule.MaterializationService
 	TimetableCleanup         schedule.TimetableCleanupService
 	Instance                 schedule.InstanceService
+	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
@@ -84,7 +87,7 @@ type Factory struct {
 	Announcement         platform.AnnouncementService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 
-	// Email outbox (parent-enrollment PR 5) — shared across features.
+	// Email outbox (parent-enrollment PR 5) - shared across features.
 	// EmailOutbox enqueues from feature code; EmailOutboxWorker drains
 	// the table on a scheduler tick; EmailTemplateRegistry holds the
 	// kind→Renderer mapping populated at startup.
@@ -100,8 +103,18 @@ type Factory struct {
 	EnrollmentPhase        enrollment.PhaseService
 	EnrollmentDecision     enrollment.DecisionService
 
-	// Parent (cross-tenant guardian portal — PR 9)
+	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service
+
+	// SettingsSideEffects is the per-key handler registry the API binds to
+	// SettingsResource.OnValueSet. Domain packages register handlers here
+	// (facilities at startup, students via EnableStudentPhotos). API never
+	// owns the registry - its only job is to dispatch.
+	SettingsSideEffects *sideeffects.Registry
+	// StudentPhotos is set by EnableStudentPhotos. nil until the API layer
+	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
+	// service-layer one).
+	StudentPhotos users.StudentPhotoService
 }
 
 // NewFactory creates a new services factory
@@ -143,7 +156,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
 
-	// Parents-portal URL — used for every parent-facing email link
+	// Parents-portal URL - used for every parent-facing email link
 	// (status, decision emails, guardian invitation accept). Falls
 	// back to the staff frontendURL when unset so dev keeps working
 	// without an explicit value, but production must set it
@@ -233,7 +246,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession)
 
 	// Initialize attendance sync service (WP-B10). Implements
-	// active.AttendanceSyncer — called from CreateVisit / EndVisit to mirror
+	// active.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
 	// into schedule.instance_students and enrich SSE events. No circular
 	// dependency because it only depends on repos, not on active.Service.
 	attendanceSyncService := schedule.NewAttendanceSyncService(
@@ -250,6 +263,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
 		AttendanceRepo:     repos.Attendance,
+		StudentStatusRepo:  repos.StudentStatusDay,
 		CrossTenantRepo:    activeRepo.NewCrossTenantRepository(db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
@@ -403,7 +417,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize instance lifecycle service (WP-B9). Drives the state machine
 	// on schedule.activity_instances and its bridge to active.groups. Takes
-	// the active service as a dependency (for EndActivitySession) — when the
+	// the active service as a dependency (for EndActivitySession) - when the
 	// bridge closes, visits + supervisors close and per-student checkout SSE
 	// events fire, matching today's observable behavior for a session ending.
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
@@ -415,11 +429,31 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:         repos.ActiveVisit,
 		RoomRepo:          repos.Room,
 		ActivityGroupRepo: repos.ActivityGroup,
+		StaffRepo:         repos.Staff,
+		StudentRepo:       repos.Student,
 		ActiveService:     activeService,
 		Materialization:   materializationService,
 		Broadcaster:       realtimeHub,
 		DB:                db,
 		Logger:            logger.With("service", "instance-lifecycle"),
+	})
+
+	timetableOperationsService := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
+		InstanceRepo:       repos.ActivityInstance,
+		InstanceStaffRepo:  repos.InstanceStaff,
+		InstanceStudents:   repos.InstanceStudent,
+		InstanceService:    instanceService,
+		ActiveGroupRepo:    repos.ActiveGroup,
+		ActiveService:      activeService,
+		SupervisorRepo:     repos.GroupSupervisor,
+		VisitRepo:          repos.ActiveVisit,
+		StudentRepo:        repos.Student,
+		EducationGroupRepo: repos.Group,
+		PersonService:      usersService,
+		Settings:           settingsService,
+		Broadcaster:        realtimeHub,
+		DB:                 db,
+		Logger:             logger.With("service", "timetable-operations"),
 	})
 
 	// Initialize arrival schedule service
@@ -641,7 +675,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Operator frontend URL for invitation emails. The operator subdomain is separate
 	// from FRONTEND_URL, so we link directly to the operator host to avoid a
 	// cross-origin redirect hop that email content scanners treat as a phishing
-	// signal. Constructed conditionally — only required when actually sending
+	// signal. Constructed conditionally - only required when actually sending
 	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
 	// operatorFrontendURL.
 	var operatorFrontendURL string
@@ -763,6 +797,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:    repos.Organization,
 		SchoolRepo:          repos.School,
+		SummariesRepo:       repos.OperatorSummaries,
 		CategoryRepo:        repos.ActivityCategory,
 		DeviceRepo:          repos.Device,
 		RoleRepo:            repos.Role,
@@ -778,7 +813,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              platformLogger,
 	})
 
-	return &Factory{
+	factory := &Factory{
 		Auth:                     authService,
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
@@ -801,6 +836,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Materialization:          materializationService,
 		TimetableCleanup:         timetableCleanupService,
 		Instance:                 instanceService,
+		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,
@@ -816,7 +852,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
-		// Platform services — OperatorAuth and OperatorInvitation both point
+		// Platform services - OperatorAuth and OperatorInvitation both point
 		// at the same concrete operatorAuthService struct, exposed through
 		// two narrower interfaces so that each handler depends only on the
 		// methods it actually calls. NewOperatorAuthService returns the
@@ -839,5 +875,37 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentDecision:     enrollmentDecisionService,
 
 		Parent: parentService,
-	}, nil
+	}
+
+	factory.SettingsSideEffects = sideeffects.NewRegistry()
+	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
+	return factory, nil
+}
+
+// StudentPhotoBootstrap aggregates the dependencies api/base.go must
+// provide to wire the photo lifecycle. The unlinker is api-layer (file IO
+// shared with login-image/avatar upload helpers); the StudentRepo is
+// passed in to avoid storing the repo factory on the services Factory.
+type StudentPhotoBootstrap struct {
+	Unlinker    users.PhotoUnlinker
+	StudentRepo userModels.StudentRepository
+	DB          *bun.DB
+	Logger      *slog.Logger
+}
+
+// EnableStudentPhotos constructs the StudentPhotoService with the supplied
+// dependencies and registers its settings handler on
+// f.SettingsSideEffects. Idempotent: repeated calls overwrite the prior
+// service. Call once at API bootstrap.
+func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
+	f.StudentPhotos = users.NewStudentPhotoService(users.StudentPhotoServiceDependencies{
+		StudentRepo: deps.StudentRepo,
+		Settings:    f.Settings,
+		UserContext: f.UserContext,
+		Broadcaster: f.RealtimeHub,
+		Unlinker:    deps.Unlinker,
+		DB:          deps.DB,
+		Logger:      deps.Logger,
+	})
+	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }

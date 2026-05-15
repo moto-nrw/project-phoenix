@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -21,6 +23,9 @@ type Resource struct {
 	ActivitiesService activitiesSvc.ActivityService
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
+	InstanceRepo      schedule.ActivityInstanceRepository
+	InstanceStaffRepo schedule.InstanceStaffRepository
+	Broadcaster       realtime.Broadcaster
 }
 
 // NewResource creates a new Sessions resource
@@ -40,6 +45,18 @@ func NewResource(
 		FacilityService:   facilityService,
 		EducationService:  educationService,
 	}
+}
+
+// ConfigureTimetableMirror wires optional repositories used to mirror
+// PyrePortal/RFID activity sessions into the timetable instance layer.
+func (rs *Resource) ConfigureTimetableMirror(
+	instanceRepo schedule.ActivityInstanceRepository,
+	instanceStaffRepo schedule.InstanceStaffRepository,
+	broadcaster realtime.Broadcaster,
+) {
+	rs.InstanceRepo = instanceRepo
+	rs.InstanceStaffRepo = instanceStaffRepo
+	rs.Broadcaster = broadcaster
 }
 
 // Router returns a configured router for session management endpoints

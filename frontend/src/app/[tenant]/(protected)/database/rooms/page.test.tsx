@@ -1,8 +1,13 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RoomsPage from "./page";
+
+const mockTenantMutate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+const mockRefreshRoomConsumers = vi.hoisted(() =>
+  vi.fn(() => Promise.resolve()),
+);
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
@@ -33,7 +38,10 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutate: vi.fn(() => mockTenantMutate),
+  // Added with Issue #1324 — page invalidates badge consumer caches after a
+  // room save. Tests only assert that the returned refresher is called.
+  useTenantMutateMatching: vi.fn(() => mockRefreshRoomConsumers),
 }));
 
 const mockGetOne = vi.fn();
@@ -131,12 +139,22 @@ vi.mock("@/components/rooms", () => ({
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="room-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
-          onClick={() => void onCreate({ name: "Neuer Raum" })}
+          onClick={() => submit({ name: "Neuer Raum" })}
         >
           Submit
         </button>
@@ -144,7 +162,8 @@ vi.mock("@/components/rooms", () => ({
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   RoomsMasterDetail: ({
     groupDefinitions,
     selectedId,
@@ -226,6 +245,7 @@ vi.mock("~/components/ui/modal", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 
 const mockRooms = [
   {
@@ -383,6 +403,61 @@ describe("RoomsPage", () => {
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalled();
     });
+    await waitFor(() => {
+      for (const key of ROOM_LIST_CACHE_KEYS) {
+        expect(mockTenantMutate).toHaveBeenCalledWith(key);
+      }
+    });
+  });
+
+  it("re-throws create errors so the form can render them inline (Issue #1356)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error(
+        "facilities error during CreateRoom: Ein Raum mit diesem Namen existiert bereits",
+      ),
+    );
+
+    render(<RoomsPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Raum erstellen")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("room-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
+    });
+    // The modal must NOT close on a duplicate so the user can correct the name.
+    expect(screen.getByTestId("room-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("logs the stringified value when create rejects with a non-Error", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce("plain-string-error");
+
+    render(<RoomsPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Raum erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("room-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("failed to create room", {
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
   });
 
   it("syncs room selection into the URL when a row is clicked", async () => {
@@ -445,6 +520,12 @@ describe("RoomsPage", () => {
         expect.objectContaining({ name: "Updated Room" }),
       );
     });
+    await waitFor(() => {
+      for (const key of ROOM_LIST_CACHE_KEYS) {
+        expect(mockTenantMutate).toHaveBeenCalledWith(key);
+      }
+      expect(mockRefreshRoomConsumers).toHaveBeenCalled();
+    });
   });
 
   it("calls delete service after confirming deletion from the detail panel", async () => {
@@ -470,6 +551,11 @@ describe("RoomsPage", () => {
       expect(mockReplace).toHaveBeenCalledWith("/tenant/database/rooms", {
         scroll: false,
       });
+    });
+    await waitFor(() => {
+      for (const key of ROOM_LIST_CACHE_KEYS) {
+        expect(mockTenantMutate).toHaveBeenCalledWith(key);
+      }
     });
   });
 

@@ -132,8 +132,9 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 1")
 		device := testpkg.CreateTestDevice(t, db, "test-device-001")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 1")
+		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Check for conflicts - should be none
 		conflict, err := service.CheckActivityConflict(ctx, activityGroup.ID, device.ID)
@@ -143,7 +144,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		assert.False(t, conflict.HasConflict, "Expected no conflict for inactive activity")
 
 		// Start session - should succeed with real IDs
-		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, 1, &room.ID)
+		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, session)
 		require.NotNil(t, session.GroupID)
@@ -157,11 +158,12 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		device1 := testpkg.CreateTestDevice(t, db, "test-device-002")
 		device2 := testpkg.CreateTestDevice(t, db, "test-device-003")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 2")
+		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID, staff.ID)
 
 		// ACT: Start session on device 1
-		session1, err := service.StartActivitySession(ctx, activityGroup.ID, device1.ID, 1, &room.ID)
+		session1, err := service.StartActivitySession(ctx, activityGroup.ID, device1.ID, staff.ID, &room.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, session1)
 
@@ -174,7 +176,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		assert.Contains(t, conflict.ConflictMessage, "already active")
 
 		// Try to start session on device 2 - should fail
-		_, err = service.StartActivitySession(ctx, activityGroup.ID, device2.ID, 1, &room.ID)
+		_, err = service.StartActivitySession(ctx, activityGroup.ID, device2.ID, staff.ID, &room.ID)
 		assert.Error(t, err, "Expected error when starting session on conflicting device")
 		assert.Contains(t, err.Error(), "conflict")
 	})
@@ -185,16 +187,17 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		activity2 := testpkg.CreateTestActivityGroup(t, db, "Test Activity 4")
 		device := testpkg.CreateTestDevice(t, db, "test-device-004")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 3")
+		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, device.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Start session for activity 1 on device
-		session1, err := service.StartActivitySession(ctx, activity1.ID, device.ID, 1, &room.ID)
+		session1, err := service.StartActivitySession(ctx, activity1.ID, device.ID, staff.ID, &room.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, session1)
 
 		// Try to start activity 2 on same device - should fail
-		_, err = service.StartActivitySession(ctx, activity2.ID, device.ID, 1, &room.ID)
+		_, err = service.StartActivitySession(ctx, activity2.ID, device.ID, staff.ID, &room.ID)
 
 		// ASSERT
 		assert.Error(t, err, "Expected error when device already running another activity")
@@ -235,11 +238,12 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 6")
 		device := testpkg.CreateTestDevice(t, db, "test-device-007")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 5")
+		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Start session
-		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, 1, &room.ID)
+		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
 		require.NoError(t, err)
 
 		// Get current session
@@ -281,11 +285,12 @@ func TestSessionLifecycle(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 7")
 		device := testpkg.CreateTestDevice(t, db, "test-device-008")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 6")
+		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Start session
-		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, 1, &room.ID)
+		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -371,8 +376,9 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		device1 := testpkg.CreateTestDevice(t, db, "test-device-009")
 		device2 := testpkg.CreateTestDevice(t, db, "test-device-010")
 		room := testpkg.CreateTestRoom(t, db, "Test Room 7")
+		staff := testpkg.CreateTestStaff(t, db, "Session", "Supervisor")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID, staff.ID)
 
 		// ACT: Start two goroutines trying to start the same activity simultaneously
 		// Use sync.WaitGroup to coordinate start for better race condition testing
@@ -386,14 +392,14 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			startSignal.Wait() // Wait for signal
-			_, err := service.StartActivitySession(ctx, activityGroup.ID, device1.ID, 1, &room.ID)
+			_, err := service.StartActivitySession(ctx, activityGroup.ID, device1.ID, staff.ID, &room.ID)
 			results <- err
 		}()
 
 		go func() {
 			defer wg.Done()
 			startSignal.Wait() // Wait for signal
-			_, err := service.StartActivitySession(ctx, activityGroup.ID, device2.ID, 1, &room.ID)
+			_, err := service.StartActivitySession(ctx, activityGroup.ID, device2.ID, staff.ID, &room.ID)
 			results <- err
 		}()
 

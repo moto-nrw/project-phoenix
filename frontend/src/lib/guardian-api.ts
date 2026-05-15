@@ -66,7 +66,7 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
 // Exported for testing
 export const errorTranslations: Record<string, string> = {
   "invalid email format": "Ungültiges E-Mail-Format",
-  "email already exists": "Diese E-Mail-Adresse wird bereits verwendet",
+  "bereits registriert": "Diese E-Mail-Adresse wird bereits verwendet",
   "guardian not found": "Erziehungsberechtigte/r nicht gefunden",
   "student not found": "Schüler/in nicht gefunden",
   "relationship already exists": "Diese Verknüpfung existiert bereits",

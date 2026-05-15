@@ -229,7 +229,7 @@ func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds timeframes overlapping with range", func(t *testing.T) {
-		now := time.Now()
+		now := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		endTime := now.Add(2 * time.Hour)
 		timeframe := &schedule.Timeframe{
 			StartTime:   now,

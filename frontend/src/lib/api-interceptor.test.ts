@@ -55,6 +55,7 @@ mockAxiosInstance.put = vi.fn();
 mockAxiosInstance.delete = vi.fn();
 
 vi.mock("axios", () => ({
+  create: vi.fn(() => mockAxiosInstance),
   default: {
     create: vi.fn(() => mockAxiosInstance),
   },
@@ -175,6 +176,7 @@ describe("response interceptor token refresh queue", () => {
 
     // Re-setup the mock since resetModules clears it
     vi.doMock("axios", () => ({
+      create: vi.fn(() => mockAxiosInstance),
       default: {
         create: vi.fn(() => mockAxiosInstance),
       },

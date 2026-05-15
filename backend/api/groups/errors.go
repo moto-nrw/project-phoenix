@@ -22,30 +22,34 @@ func (e *ErrorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// ErrorRenderer renders an error to an HTTP response
+// ErrorRenderer renders an error to an HTTP response.
+//
+// User-facing branches render the inner sentinel directly so the JSON
+// `error` field carries just the (German) message instead of EducationError's
+// "education: {Op}: …" prefix. The 500 fallback keeps the wrapped eduErr so
+// server logs still capture the operation context. Same pattern as
+// api/rooms/errors.go.
 func ErrorRenderer(err error) render.Renderer {
-	// Check if the error is a specific education service error
 	if eduErr, ok := err.(*education.EducationError); ok {
-		// Map specific education service errors to appropriate HTTP status codes
-		switch eduErr.Unwrap() {
+		inner := eduErr.Unwrap()
+		switch inner {
 		case education.ErrGroupNotFound:
-			return ErrorNotFound(eduErr)
+			return ErrorNotFound(inner)
 		case education.ErrDuplicateGroup:
-			return ErrorConflict(eduErr)
+			return ErrorConflict(inner)
 		case education.ErrRoomNotFound:
-			return ErrorInvalidRequest(eduErr)
+			return ErrorInvalidRequest(inner)
 		case education.ErrTeacherNotFound:
-			return ErrorInvalidRequest(eduErr)
+			return ErrorInvalidRequest(inner)
 		case education.ErrGroupTeacherNotFound:
-			return ErrorNotFound(eduErr)
+			return ErrorNotFound(inner)
 		case education.ErrGroupHasStudents:
-			return ErrorConflict(eduErr)
+			return ErrorConflict(inner)
 		default:
 			return ErrorInternalServer(eduErr)
 		}
 	}
 
-	// For unknown errors, return a generic internal server error
 	return ErrorInternalServer(err)
 }
 

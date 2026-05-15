@@ -53,6 +53,11 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  // useStudentPhotosEnabled (used by ogs-groups for the avatar-clearance
+  // spacer) reads tenant.studentPhotosEnabled via this selector. The mock
+  // returns null which makes the hook resolve to enabled=false — fine for
+  // these tests since they don't exercise the spacer path.
+  useTenantSafe: vi.fn(() => null),
   usePresenceMode: vi.fn(() => "binary"),
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -295,6 +300,16 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 vi.mock("./ogs-group-helpers", () => ({
+  countCheckedInStudents: (students: Array<{ current_location?: string }>) =>
+    students.filter((student) => student.current_location !== "Zuhause").length,
+  formatGroupLabelWithAttendance: (group: {
+    name: string;
+    present_count?: number;
+    student_count?: number;
+  }) =>
+    group.student_count === undefined
+      ? group.name
+      : `${group.name} ${group.present_count ?? 0}/${group.student_count}`,
   isStudentInGroupRoom: () => true,
   matchesSearchFilter: () => true,
   matchesAttendanceFilter: () => true,

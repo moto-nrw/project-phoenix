@@ -138,6 +138,42 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	// Duplicate-active-visit path (Issue #844). Two paths can produce
+	// ErrStudentAlreadyActive: the application-level read-then-write check
+	// in ensureStudentHasNoActiveVisit (covers the common single-thread
+	// case) and the partial unique index from migration 1.15.47 (catches
+	// concurrent races that slip past the app check). Both must produce
+	// the same typed error so the IoT handler can map either to a 409.
+	t.Run("returns ErrStudentAlreadyActive when student already has open visit", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, "dup-visit")
+		room := testpkg.CreateTestRoom(t, db, "Dup Visit Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, db, "Duplicate", "Visit", "1a")
+		staff := testpkg.CreateTestStaff(t, db, "Dup", "Staff")
+		iotDevice := testpkg.CreateTestDevice(t, db, "dup-visit-device")
+		existing := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-5*time.Minute), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, iotDevice.ID, existing.ID)
+
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+
+		duplicate := &activeModels.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: activeGroup.ID,
+			EntryTime:     time.Now(),
+		}
+
+		// ACT
+		err := service.CreateVisit(deviceCtx, duplicate)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, active.ErrStudentAlreadyActive),
+			"expected ErrStudentAlreadyActive, got %v", err)
+		assert.Equal(t, int64(0), duplicate.ID, "duplicate visit must not be persisted")
+	})
 }
 
 // =============================================================================
@@ -194,6 +230,26 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
+	})
+
+	t.Run("preserves database errors while preloading visit", func(t *testing.T) {
+		// ARRANGE
+		failingDB := testpkg.SetupTestDB(t)
+		serviceWithClosedDB := setupActiveService(t, failingDB)
+		require.NoError(t, failingDB.Close())
+		visit := &activeModels.Visit{
+			StudentID:     99999998,
+			ActiveGroupID: 99999997,
+			EntryTime:     time.Now(),
+		}
+		visit.ID = 99999999
+
+		// ACT
+		err := serviceWithClosedDB.UpdateVisit(ctx, visit)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, active.ErrDatabaseOperation), "expected ErrDatabaseOperation")
 	})
 }
 
@@ -453,6 +509,23 @@ func TestActiveService_EndVisit(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
+	})
+
+	t.Run("returns already ended for closed visit", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, "end-visit-closed")
+		room := testpkg.CreateTestRoom(t, db, "End Visit Closed Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, db, "End", "ClosedVisit", "1a")
+		exit := time.Now()
+		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, exit.Add(-time.Hour), &exit)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
+
+		// ACT
+		err := service.EndVisit(ctx, visit.ID)
+
+		// ASSERT
+		require.ErrorIs(t, err, active.ErrVisitAlreadyEnded)
 	})
 }
 

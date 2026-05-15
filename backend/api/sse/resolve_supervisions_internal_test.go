@@ -169,6 +169,15 @@ func (m *mockActiveSvcForSSE) CountActiveVisitsByRoomID(_ context.Context, _ int
 func (m *mockActiveSvcForSSE) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
+func (m *mockActiveSvcForSSE) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ListStudentsInTransit(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
+	return nil, nil
+}
 func (m *mockActiveSvcForSSE) GetGroupSupervisor(_ context.Context, _ int64) (*activeModel.GroupSupervisor, error) {
 	return nil, nil
 }
@@ -266,9 +275,6 @@ func (m *mockActiveSvcForSSE) CleanupAbandonedSessions(_ context.Context, _ time
 func (m *mockActiveSvcForSSE) EndDailySessions(_ context.Context) (*activeSvc.DailySessionCleanupResult, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) GetActiveGroupsCount(_ context.Context) (int, error) { return 0, nil }
-func (m *mockActiveSvcForSSE) GetTotalVisitsCount(_ context.Context) (int, error)  { return 0, nil }
-func (m *mockActiveSvcForSSE) GetActiveVisitsCount(_ context.Context) (int, error) { return 0, nil }
 func (m *mockActiveSvcForSSE) GetDashboardAnalytics(_ context.Context) (*activeSvc.DashboardAnalytics, error) {
 	return nil, nil
 }

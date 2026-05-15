@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -281,6 +282,15 @@ func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
 // FK constraints on tenant-scoped tables.
 func TenantContext(tenantID int64) context.Context {
 	return tenant.WithTenantID(context.Background(), tenantID)
+}
+
+var uniqueTestTenantCounter int64
+
+// UniqueTestTenantID returns a high, process-local tenant ID for tests that
+// assert aggregate counts and therefore must not share tenant_id=1.
+func UniqueTestTenantID(tb testing.TB) int64 {
+	tb.Helper()
+	return time.Now().UnixNano() + int64(os.Getpid()) + atomic.AddInt64(&uniqueTestTenantCounter, 1)
 }
 
 // ============================================================================

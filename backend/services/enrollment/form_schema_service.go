@@ -20,7 +20,7 @@ var ErrNoActiveSchema = errors.New("no active form schema for tenant")
 // FormSchemaService manages form-schema versioning. The two key
 // operations are GetActive (consumed by PR 7's public form renderer
 // + admin editor pre-fill) and PublishVersion (called by the admin
-// editor on save — creates a new version and atomically marks it
+// editor on save - creates a new version and atomically marks it
 // active, deactivating the previous one).
 type FormSchemaService interface {
 	// GetActive returns the currently-active form schema for the
@@ -104,7 +104,7 @@ func (s *formSchemaService) PublishVersion(ctx context.Context, fields []enrollm
 	}
 
 	// Validate fields up front so we don't write a half-correct row.
-	// (FormSchema.Validate runs again inside the repo on Create — this
+	// (FormSchema.Validate runs again inside the repo on Create - this
 	// is the early bail-out path so callers get a clean 400 before
 	// any DB roundtrip.)
 	tmp := &enrollmentModels.FormSchema{Version: 1, CreatedBy: createdBy, Fields: fields}

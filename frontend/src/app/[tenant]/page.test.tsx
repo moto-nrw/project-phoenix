@@ -378,6 +378,10 @@ describe("Tenant selector button", () => {
       status: "unauthenticated",
       update: vi.fn(),
     });
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      tenant: null,
+    });
     Element.prototype.animate = mockAnimate;
   });
 
@@ -389,6 +393,26 @@ describe("Tenant selector button", () => {
         screen.getByRole("button", { name: /Einrichtung wechseln/i }),
       ).toBeInTheDocument();
     });
+  });
+
+  it("does not render tenant selector button for hidden tenants", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "demo-ogs",
+      tenant: {
+        name: "Demo-OGS",
+        hidden: true,
+      } as ReturnType<typeof useTenant>["tenant"],
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Willkommen bei moto!")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /Einrichtung wechseln/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("navigates to tenant domain with port when port is present", async () => {

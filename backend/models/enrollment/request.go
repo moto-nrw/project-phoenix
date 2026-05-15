@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// Request is a row in enrollment.requests — one parent submission. Each
+// Request is a row in enrollment.requests - one parent submission. Each
 // row carries the immutable schema_id pinning it to the form-schema
 // version that was active at submission time.
 //
@@ -39,7 +39,7 @@ func (r *Request) TableName() string {
 	return "enrollment.requests"
 }
 
-// RequestStatus values — derived, not stored. Documented here as the
+// RequestStatus values - derived, not stored. Documented here as the
 // canonical source for the derivation logic the request service applies.
 const (
 	RequestStatusSubmitted   = "submitted"    // every child still submitted
@@ -51,7 +51,7 @@ const (
 
 // RequestListFilters narrows the admin list query. Zero-value fields
 // are ignored. ChildStatus matches when ANY child of the request
-// carries the given status — handy for "show me everything still
+// carries the given status - handy for "show me everything still
 // awaiting a decision".
 type RequestListFilters struct {
 	PhaseID     int64

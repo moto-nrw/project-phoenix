@@ -14,7 +14,7 @@ const (
 	SubmissionRateLimitKeyTypeEmail = "email"
 )
 
-// SubmissionRateLimit is a row in enrollment.submission_rate_limits —
+// SubmissionRateLimit is a row in enrollment.submission_rate_limits -
 // one per (tenant, key_type, key_value) combination. The repository
 // upserts rows atomically so concurrent submissions can't oversubscribe.
 type SubmissionRateLimit struct {

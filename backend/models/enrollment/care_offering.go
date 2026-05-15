@@ -29,7 +29,7 @@ var canonicalDaySet = map[string]bool{
 	"sat": true, "sun": true,
 }
 
-// CareOffering is a row in enrollment.care_offerings — one care option
+// CareOffering is a row in enrollment.care_offerings - one care option
 // in the tenant's catalog. Admins build the catalog per calendar period
 // (typically a school year, occasionally a holiday); parents pick from
 // the open-window subset on the public submission form.
@@ -104,7 +104,7 @@ type CareOfferingRepository interface {
 	// context, sorted by sort_order. Admin endpoint uses this.
 	ListByTenant(ctx context.Context) ([]*CareOffering, error)
 
-	// ListByPhase returns offerings filtered to a single phase —
+	// ListByPhase returns offerings filtered to a single phase -
 	// admin pages pivot on the phase dropdown, and the public-form
 	// endpoint uses it after resolving the parent's selected phase.
 	ListByPhase(ctx context.Context, phaseID int64) ([]*CareOffering, error)
@@ -116,7 +116,7 @@ type CareOfferingRepository interface {
 	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*CareOffering, error)
 }
 
-// RequestChildOffering is a row in enrollment.request_child_offerings —
+// RequestChildOffering is a row in enrollment.request_child_offerings -
 // the join table linking a request_child to a care_offering. PR 6
 // ships the schema; PR 7 fills it on submission.
 type RequestChildOffering struct {

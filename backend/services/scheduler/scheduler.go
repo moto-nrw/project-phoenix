@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -585,14 +588,72 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 			s.getLogger().Error("session end failed", "error", err)
 			return nil
 		}
+		timetableCompleted, err := s.completeTimetableInstancesForEndedSessions(tenantCtx, result)
+		if err != nil {
+			s.getLogger().Error("session end timetable sync failed",
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
 		if result.SessionsEnded > 0 {
 			s.getLogger().Info("session end completed",
 				slog.Int("sessions_ended", result.SessionsEnded),
 				slog.Int("visits_ended", result.VisitsEnded),
+				slog.Int("timetable_instances_completed", timetableCompleted),
 			)
 		}
 		return nil
 	})
+}
+
+// completeTimetableInstancesForEndedSessions closes the schedule-side rows
+// linked to active.groups that the daily session-end job just closed.
+//
+// The active service owns active.groups/visits/supervisors; timetable
+// instances live in schedule.*, so the scheduler bridges the two inside the
+// tenant transaction created by ForEachActive. If this sync fails, callers
+// return the error so the active close rolls back too instead of leaving the
+// planner in a stale "active" state.
+func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *active.DailySessionCleanupResult) (int, error) {
+	if result == nil || len(result.EndedActiveGroupIDs) == 0 || s.db == nil {
+		return 0, nil
+	}
+
+	db := repoBase.GetDB(ctx, s.db)
+	now := time.Now()
+
+	if _, err := db.NewUpdate().
+		TableExpr(`schedule.instance_students AS "student"`).
+		Set("status = ?", scheduleModel.AttendanceStatusAbsent).
+		Set("updated_at = ?", now).
+		Where(`"student".status = ?`, scheduleModel.AttendanceStatusExpected).
+		Where(`"student".instance_id IN (
+			SELECT "instance".id
+			FROM schedule.activity_instances AS "instance"
+			WHERE "instance".status = ?
+				AND "instance".active_group_id IN (?)
+		)`, scheduleModel.InstanceStatusActive, bun.List(result.EndedActiveGroupIDs)).
+		Exec(ctx); err != nil {
+		return 0, fmt.Errorf("mark expected timetable students absent: %w", err)
+	}
+
+	res, err := db.NewUpdate().
+		TableExpr(`schedule.activity_instances AS "instance"`).
+		Set("status = ?", scheduleModel.InstanceStatusCompleted).
+		Set("completed_at = ?", now).
+		Set("updated_at = ?", now).
+		Where(`"instance".status = ?`, scheduleModel.InstanceStatusActive).
+		Where(`"instance".active_group_id IN (?)`, bun.List(result.EndedActiveGroupIDs)).
+		Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("complete active timetable instances: %w", err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("complete active timetable instances rows affected: %w", err)
+	}
+	return int(rows), nil
 }
 
 // executeSessionCleanup runs session cleanup for all tenants (backward-compatible wrapper).
@@ -922,12 +983,21 @@ func (s *Scheduler) checkAndRunSessionEnd(task *ScheduledTask) {
 			)
 			return nil // don't fail other tenants
 		}
+		timetableCompleted, err := s.completeTimetableInstancesForEndedSessions(endCtx, result)
+		if err != nil {
+			s.getLogger().Error("session end timetable sync failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
 
 		s.getLogger().Info("session end completed for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int("sessions_ended", result.SessionsEnded),
 			slog.Int("visits_ended", result.VisitsEnded),
 			slog.Int("supervisors_ended", result.SupervisorsEnded),
+			slog.Int("timetable_instances_completed", timetableCompleted),
 		)
 
 		markRunToday(&s.lastSessionEnd, tenantID)
@@ -1287,8 +1357,7 @@ func markRunToday(lastRunMap *sync.Map, tenantID int64) {
 // scheduleStatusFlagClearTask schedules a daily task to clear sick / excused
 // flags for tenants whose operations.sick_clear_mode or
 // operations.excused_clear_mode is set to "end_of_day". The task fires at the
-// tenant's configured operations.student_daily_checkout_time (the natural
-// end of the OGS day); when that setting is empty, no clear happens.
+// tenant's configured operations.status_flag_clear_time.
 func (s *Scheduler) scheduleStatusFlagClearTask() {
 	// Env var kill switch to allow ops to disable this task without code changes.
 	if os.Getenv("STATUS_FLAG_CLEAR_ENABLED") == "false" {
@@ -1309,8 +1378,8 @@ func (s *Scheduler) scheduleStatusFlagClearTask() {
 	go s.runStatusFlagClearTaskPolling(task)
 }
 
-// runStatusFlagClearTaskPolling checks every minute if any tenant's checkout
-// time matches now and clears the configured end_of_day flags.
+// runStatusFlagClearTaskPolling checks every minute if any tenant's status
+// flag clear time matches now and clears the configured end_of_day flags.
 func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
 	defer s.wg.Done()
 	defer func() {
@@ -1344,7 +1413,7 @@ func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
 }
 
 // checkAndRunStatusFlagClear evaluates each tenant's clear_mode settings and
-// clears flags when the configured daily checkout time matches now.
+// clears flags when the configured status flag clear time matches now.
 func (s *Scheduler) checkAndRunStatusFlagClear(task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
@@ -1363,7 +1432,7 @@ func (s *Scheduler) checkAndRunStatusFlagClear(task *ScheduledTask) {
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
-		clearTime := s.resolveStringSetting(tenantCtx, configModel.KeyStudentDailyCheckoutTime, "", "")
+		clearTime := s.resolveStringSetting(tenantCtx, configModel.KeyStatusFlagClearTime, "", "18:00")
 		if clearTime == "" || !timeMatchesNow(clearTime) {
 			return nil
 		}
@@ -1417,11 +1486,34 @@ func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn
 	if s.db == nil {
 		return 0, fmt.Errorf("scheduler db not configured")
 	}
-	query := fmt.Sprintf(
+	status, err := statusForFlagColumn(flagColumn)
+	if err != nil {
+		return 0, err
+	}
+	now := time.Now()
+	today := timezone.TodayUTC()
+	db := repoBase.GetDB(ctx, s.db)
+
+	upsertQuery := fmt.Sprintf(`
+		INSERT INTO active.student_status_days
+			(tenant_id, student_id, date, status, reported_at, cleared_at, source)
+		SELECT tenant_id, id, ?, ?, COALESCE(%s, ?), ?, ?
+		FROM users.students
+		WHERE %s = TRUE
+		ON CONFLICT (tenant_id, student_id, date, status) DO UPDATE
+		SET reported_at = EXCLUDED.reported_at,
+		    cleared_at = EXCLUDED.cleared_at,
+		    source = EXCLUDED.source;
+	`, sinceColumn, flagColumn)
+	if _, err := db.NewRaw(upsertQuery, today, status, now, now, activeModel.StudentStatusSourceEndOfDay).Exec(ctx); err != nil {
+		return 0, err
+	}
+
+	clearQuery := fmt.Sprintf(
 		`UPDATE users.students SET %s = FALSE, %s = NULL WHERE %s = TRUE`,
 		flagColumn, sinceColumn, flagColumn,
 	)
-	res, err := s.db.NewRaw(query).Exec(ctx)
+	res, err := db.NewRaw(clearQuery).Exec(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -1430,6 +1522,17 @@ func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn
 		return 0, err
 	}
 	return affected, nil
+}
+
+func statusForFlagColumn(flagColumn string) (string, error) {
+	switch flagColumn {
+	case "sick":
+		return activeModel.StudentStatusDaySick, nil
+	case "excused":
+		return activeModel.StudentStatusDayExcused, nil
+	default:
+		return "", fmt.Errorf("unsupported status flag column %q", flagColumn)
+	}
 }
 
 // --- Timetable materialization (WP-B8) ---
@@ -1732,7 +1835,7 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	}
 }
 
-// emitInstanceOverdue builds the SSE envelope and fires it as BroadcastToAll:
+// emitInstanceOverdue builds the SSE envelope and fires it tenant-wide:
 // a planned instance has no bridged active.group yet, so there is no group-
 // scoped topic to route through. Admin dashboard subscribers pick it up.
 func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, inst *scheduleModel.ActivityInstance) {
@@ -1747,8 +1850,21 @@ func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, ins
 		InstanceStartTime: &instanceStart,
 		RoomID:            &roomIDStr,
 	})
-	if err := s.overdueBroadcaster.BroadcastToAll(event); err != nil {
+	if err := s.overdueBroadcaster.BroadcastToTenant(tenantID, event); err != nil {
 		s.getLogger().Warn("overdue tick: broadcast failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("instance_id", inst.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	reason := "instance_overdue"
+	refreshEvent := realtime.NewEvent(realtime.EventActiveSupervisionChanged, "", realtime.EventData{
+		InstanceID: &instanceIDStr,
+		Reason:     &reason,
+	})
+	if err := s.overdueBroadcaster.BroadcastToTenant(tenantID, refreshEvent); err != nil {
+		s.getLogger().Warn("overdue tick: active supervision broadcast failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("instance_id", inst.ID),
 			slog.String("error", err.Error()),

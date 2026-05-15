@@ -202,6 +202,41 @@ func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
 	})
 }
 
+func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "mark-completed")
+	defer fx.cleanup()
+
+	inst := buildInstance(
+		1, fx.roomID, &fx.activityID,
+		time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
+		"Lernzeit Lifecycle",
+	)
+	inst.Status = scheduleModels.InstanceStatusActive
+	require.NoError(t, repo.Create(ctx, inst))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
+
+	completedAt := time.Date(2026, 9, 16, 15, 31, 0, 0, time.UTC)
+	require.NoError(t, repo.MarkCompleted(ctx, inst.ID, completedAt))
+
+	found, err := repo.FindByID(ctx, inst.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, scheduleModels.InstanceStatusCompleted, found.Status)
+	require.NotNil(t, found.CompletedAt)
+	assert.WithinDuration(t, completedAt, *found.CompletedAt, time.Second)
+	assert.Equal(t, "Lernzeit Lifecycle", found.Title)
+	assert.Equal(t, 14, found.StartTime.Hour())
+	assert.Equal(t, 30, found.EndTime.Minute())
+}
+
 func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

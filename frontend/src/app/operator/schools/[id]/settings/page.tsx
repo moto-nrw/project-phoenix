@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
 import type { SettingsSchema } from "~/lib/settings-api";
@@ -12,6 +13,7 @@ import {
   revealOperatorSettingValue,
 } from "~/lib/operator/operator-settings-api";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import { resolveOperatorBackHref } from "~/lib/operator/back-href";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -35,6 +37,14 @@ interface PageProps {
 export default function OperatorSchoolSettingsPage({ params }: PageProps) {
   const { id: schoolId } = use(params);
   const { status: sessionStatus } = useSession();
+  const searchParams = useSearchParams();
+  const backHref = useMemo(
+    () =>
+      resolveOperatorBackHref(searchParams.get("back"), "/operator/schools"),
+    [searchParams],
+  );
+  const backLabel =
+    backHref === "/operator/schools" ? "Zu den Schulen" : "Zurück zur Schule";
 
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
   const [schoolName, setSchoolName] = useState<string>("");
@@ -121,7 +131,7 @@ export default function OperatorSchoolSettingsPage({ params }: PageProps) {
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
         <Link
-          href="/operator/schools"
+          href={backHref}
           className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
         >
           <svg
@@ -137,7 +147,7 @@ export default function OperatorSchoolSettingsPage({ params }: PageProps) {
               d="M15 19l-7-7 7-7"
             />
           </svg>
-          Zu den Schulen
+          {backLabel}
         </Link>
         <h1 className="text-2xl font-semibold text-gray-900">
           Einstellungen{schoolName ? ` · ${schoolName}` : ""}

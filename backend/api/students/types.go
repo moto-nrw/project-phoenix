@@ -21,7 +21,8 @@ type StudentResponse struct {
 	Birthday           string     `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
 	SchoolClass        string     `json:"school_class"`
 	Location           string     `json:"current_location"`
-	LocationSince      *time.Time `json:"location_since,omitempty"` // When student entered current location
+	LocationSince      *time.Time `json:"location_since,omitempty"`     // When student entered current location
+	RoomColor          *string    `json:"current_room_color,omitempty"` // Hex of the current room when set; nil for status-only locations or rooms without override
 	GuardianName       string     `json:"guardian_name,omitempty"`
 	GuardianContact    string     `json:"guardian_contact,omitempty"`
 	GuardianEmail      string     `json:"guardian_email,omitempty"`
@@ -45,9 +46,29 @@ type StudentResponse struct {
 	SickSince          *time.Time `json:"sick_since,omitempty"`
 	Excused            bool       `json:"excused"`
 	ExcusedSince       *time.Time `json:"excused_since,omitempty"`
-	HasFullAccess      bool       `json:"has_full_access"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
+
+	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
+	// when no photo is set OR when the feature is off — the frontend's Avatar
+	// fallback to initials handles both cases without conditional rendering.
+	//
+	// PhotoConsentGiven is a *bool with omitempty so the JSON layer can
+	// distinguish three states the frontend cares about:
+	//   - field omitted     → tenant has photos disabled (don't render
+	//                         the consent UI at all)
+	//   - "..._given": true → consent recorded
+	//   - "..._given": false→ consent not given / explicitly withdrawn
+	// A plain bool would serialise the zero value `false` even when the
+	// feature is off, making "photos disabled" indistinguishable from
+	// "consent withdrawn" — the frontend ended up special-casing this in
+	// buildDraft(...) just to recover the missing signal.
+	PhotoURL            string     `json:"photo_url,omitempty"`
+	PhotoConsentGiven   *bool      `json:"photo_consent_given,omitempty"`
+	PhotoConsentGivenAt *time.Time `json:"photo_consent_given_at,omitempty"`
+	PhotoConsentGivenBy *int64     `json:"photo_consent_given_by,omitempty"`
+
+	HasFullAccess bool      `json:"has_full_access"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // SupervisorContact represents contact information for a group supervisor
@@ -118,6 +139,13 @@ type UpdateStudentRequest struct {
 	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
 	Sick            *bool   `json:"sick,omitempty"`             // true = currently sick
 	Excused         *bool   `json:"excused,omitempty"`          // true = currently excused (not attending today)
+
+	// PhotoConsentGiven: documented parental photo-consent flag. The handler
+	// records who set it and when (photo_consent_given_at/_by columns) on a
+	// false→true transition; on true→false the photo file is deleted in the
+	// same tenant transaction so consent withdrawal can never leave a stored
+	// image behind.
+	PhotoConsentGiven *bool `json:"photo_consent_given,omitempty"`
 }
 
 // RFIDAssignmentRequest represents an RFID tag assignment request

@@ -43,10 +43,10 @@ describe("translateApiError", () => {
     );
   });
 
-  it("translates 'email already exists' to German", () => {
-    expect(translateApiError("email already exists")).toBe(
-      "Diese E-Mail-Adresse wird bereits verwendet",
-    );
+  it("translates the German duplicate-email sentinel to the guardian-context wording", () => {
+    expect(
+      translateApiError("Diese E-Mail-Adresse ist bereits registriert"),
+    ).toBe("Diese E-Mail-Adresse wird bereits verwendet");
   });
 
   it("translates 'guardian not found' to German", () => {
@@ -117,7 +117,9 @@ describe("translateApiError", () => {
       "Ungültiges E-Mail-Format",
     );
     expect(
-      translateApiError("Error 400: email already exists in database"),
+      translateApiError(
+        "auth error during register: Diese E-Mail-Adresse ist bereits registriert",
+      ),
     ).toBe("Diese E-Mail-Adresse wird bereits verwendet");
   });
 
@@ -141,7 +143,7 @@ describe("errorTranslations", () => {
   it("contains all expected error patterns", () => {
     const expectedPatterns = [
       "invalid email format",
-      "email already exists",
+      "bereits registriert",
       "guardian not found",
       "student not found",
       "relationship already exists",
@@ -451,7 +453,10 @@ describe("guardian-api functions", () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         statusText: "Bad Request",
-        json: () => Promise.resolve({ error: "email already exists" }),
+        json: () =>
+          Promise.resolve({
+            error: "Diese E-Mail-Adresse ist bereits registriert",
+          }),
       });
 
       await expect(createGuardian(mockGuardianFormData)).rejects.toThrow(

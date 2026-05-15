@@ -56,7 +56,7 @@ describe("ActiveFilterChips", () => {
     expect(screen.getByText("Alle löschen")).toBeInTheDocument();
   });
 
-  it("does not render clear all button when only one filter", () => {
+  it("renders clear all button when only one filter and onClearAll provided", () => {
     render(
       <ActiveFilterChips
         filters={[defaultFilters[0]!]}
@@ -64,7 +64,7 @@ describe("ActiveFilterChips", () => {
       />,
     );
 
-    expect(screen.queryByText("Alle löschen")).not.toBeInTheDocument();
+    expect(screen.getByText("Alle löschen")).toBeInTheDocument();
   });
 
   it("does not render clear all button when onClearAll not provided", () => {

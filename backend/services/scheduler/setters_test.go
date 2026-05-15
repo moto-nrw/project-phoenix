@@ -179,6 +179,9 @@ func (f *fakeInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64
 func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+func (f *fakeInstanceRepo) MarkCompleted(_ context.Context, _ int64, _ time.Time) error {
+	return nil
+}
 
 func TestCheckAndRunOverdue_AlreadyRunning(t *testing.T) {
 	repo := &fakeInstanceRepo{}

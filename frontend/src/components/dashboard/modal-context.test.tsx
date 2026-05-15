@@ -88,6 +88,53 @@ describe("useModal", () => {
       expect(result.current.closeModal).toBe(initialCloseModal);
     });
 
+    it("stays open while a stacked modal opens and closes on top", () => {
+      const { result } = renderHook(() => useModal(), {
+        wrapper: ModalProviderWrapper,
+      });
+
+      // Outer modal opens.
+      act(() => {
+        result.current.openModal();
+      });
+      expect(result.current.isModalOpen).toBe(true);
+
+      // Inner modal opens on top.
+      act(() => {
+        result.current.openModal();
+      });
+      expect(result.current.isModalOpen).toBe(true);
+
+      // Inner modal unmounts. Outer is still open, so the flag must stay true.
+      act(() => {
+        result.current.closeModal();
+      });
+      expect(result.current.isModalOpen).toBe(true);
+
+      // Outer modal unmounts last.
+      act(() => {
+        result.current.closeModal();
+      });
+      expect(result.current.isModalOpen).toBe(false);
+    });
+
+    it("clamps closeModal at zero when called too often", () => {
+      const { result } = renderHook(() => useModal(), {
+        wrapper: ModalProviderWrapper,
+      });
+
+      act(() => {
+        result.current.closeModal();
+        result.current.closeModal();
+      });
+      expect(result.current.isModalOpen).toBe(false);
+
+      act(() => {
+        result.current.openModal();
+      });
+      expect(result.current.isModalOpen).toBe(true);
+    });
+
     it("should handle multiple open/close cycles", () => {
       const { result } = renderHook(() => useModal(), {
         wrapper: ModalProviderWrapper,

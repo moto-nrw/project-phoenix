@@ -482,30 +482,30 @@ func TestWSCheckIn_Success(t *testing.T) {
 		return nil
 	}
 
-	session, err := svc.CheckIn(ctx, staffID, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(ctx, staffID, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Equal(t, staffID, session.StaffID)
 	assert.Equal(t, activeModels.WorkSessionStatusPresent, session.Status)
+	assert.Equal(t, activeModels.WorkSessionSourceApp, session.Source)
 	assert.Nil(t, session.CheckOutTime)
 }
 
-func TestWSCheckIn_DefaultStatus(t *testing.T) {
+func TestWSCheckIn_RejectsEmptyStatus(t *testing.T) {
+	// Issue #1368: staff must explicitly choose Vor Ort vs Homeoffice; the
+	// service no longer silently defaults an empty status to "present".
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	ctx := context.Background()
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
-	}
-	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
-		assert.Equal(t, activeModels.WorkSessionStatusPresent, entity.Status)
-		entity.ID = 10
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("createFunc should not be called when status is empty")
 		return nil
 	}
 
-	session, err := svc.CheckIn(ctx, 100, "")
-	require.NoError(t, err)
-	assert.Equal(t, activeModels.WorkSessionStatusPresent, session.Status)
+	session, err := svc.CheckIn(ctx, 100, "", activeModels.WorkSessionSourceApp)
+	require.Error(t, err)
+	assert.Nil(t, session)
+	assert.Contains(t, err.Error(), "status must be")
 }
 
 func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {
@@ -519,7 +519,7 @@ func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {
 		}, nil
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "already checked in")
@@ -548,19 +548,237 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 		return nil
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Nil(t, session.CheckOutTime)
 }
 
+// TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus locks in the
+// audit-trail behaviour for Issue #1368: when the staff member reopens an
+// NFC-originated session via the App with the SAME status, both Source and
+// Status are preserved. Reopen never overwrites either field — Source has
+// no audit-edit channel, and Status changes must go through UpdateSession
+// (which gates on a notes reason).
+func TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	checkOut := time.Now().Add(-1 * time.Hour)
+
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:          base.Model{ID: 1},
+			StaffID:        100,
+			CheckInTime:    time.Now().Add(-4 * time.Hour),
+			CheckOutTime:   &checkOut,
+			AutoCheckedOut: true,
+			Status:         activeModels.WorkSessionStatusPresent,
+			Source:         activeModels.WorkSessionSourceNFC,
+			Date:           time.Now().Truncate(24 * time.Hour),
+			CreatedBy:      100,
+		}, nil
+	}
+
+	var capturedSource, capturedStatus string
+	sessionRepo.updateFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		capturedSource = entity.Source
+		capturedStatus = entity.Status
+		return nil
+	}
+
+	// Reopen via App with the SAME status — both Source and Status survive.
+	session, err := svc.CheckIn(context.Background(), 100,
+		activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Equal(t, activeModels.WorkSessionSourceNFC, capturedSource,
+		"reopen must preserve the originating Source")
+	assert.Equal(t, activeModels.WorkSessionStatusPresent, capturedStatus,
+		"reopen must preserve the originating Status")
+}
+
+// TestWSCheckIn_ReopenStatusMismatchReturnsTypedConflict guards the audit
+// trail: a reopen that would silently flip Vor Ort ↔ Homeoffice is rejected
+// before the DB write. The frontend uses the typed code to branch into the
+// "change status with reason" flow (UpdateSession with notes).
+func TestWSCheckIn_ReopenStatusMismatchReturnsTypedConflict(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	checkOut := time.Now().Add(-1 * time.Hour)
+
+	existing := &activeModels.WorkSession{
+		Model:          base.Model{ID: 42},
+		StaffID:        100,
+		CheckInTime:    time.Now().Add(-4 * time.Hour),
+		CheckOutTime:   &checkOut,
+		AutoCheckedOut: true,
+		Status:         activeModels.WorkSessionStatusPresent,
+		Source:         activeModels.WorkSessionSourceNFC,
+		Date:           time.Now().Truncate(24 * time.Hour),
+		CreatedBy:      100,
+	}
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
+		return existing, nil
+	}
+	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("repo.Update must not be called on a status-mismatch reopen")
+		return nil
+	}
+
+	session, err := svc.CheckIn(context.Background(), 100,
+		activeModels.WorkSessionStatusHomeOffice, activeModels.WorkSessionSourceApp)
+	require.Error(t, err)
+	assert.Nil(t, session)
+
+	var conflict *ReopenStatusConflictError
+	require.ErrorAs(t, err, &conflict, "must surface as the typed conflict")
+	assert.Equal(t, int64(42), conflict.SessionID)
+	assert.Equal(t, activeModels.WorkSessionStatusPresent, conflict.ExistingStatus)
+	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, conflict.RequestedStatus)
+}
+
 func TestWSCheckIn_InvalidStatus(t *testing.T) {
 	svc, _, _, _, _ := wsCreateTestService()
 
-	session, err := svc.CheckIn(context.Background(), 100, "invalid_status")
+	session, err := svc.CheckIn(context.Background(), 100, "invalid_status", activeModels.WorkSessionSourceApp)
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "status must be")
+}
+
+// TestWSCheckIn_InvalidSource guards the second validation step in CheckIn:
+// a bogus channel must be rejected at the service boundary before any DB
+// write, so the only values that ever reach active.work_sessions.source are
+// 'app' or 'nfc' (matching the CHECK constraint in migration 1.15.54).
+// The error string is also part of the HTTP-boundary contract — the
+// classifier in api/time-tracking/errors.go keys on the "source must be"
+// prefix to produce 400 instead of 500.
+func TestWSCheckIn_InvalidSource(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+
+	session, err := svc.CheckIn(context.Background(), 100,
+		activeModels.WorkSessionStatusPresent, "bogus")
+	require.Error(t, err)
+	assert.Nil(t, session)
+	assert.Contains(t, err.Error(), "source must be",
+		"classifyServiceError matches this prefix to map the error to HTTP 400")
+}
+
+// TestWSCheckIn_RejectsUnknownSource locks in the write/read asymmetry on
+// the 'unknown' sentinel: legacy rows on disk may carry it (migration 1.15.54
+// backfills NULL → 'unknown'), but the service must never produce a new row
+// with source='unknown'. Without this gate, a careless caller could erase
+// the audit signal "this stamp's channel was actually never recorded" by
+// re-writing a fresh row with the same sentinel.
+func TestWSCheckIn_RejectsUnknownSource(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+
+	session, err := svc.CheckIn(context.Background(), 100,
+		activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceUnknown)
+	require.Error(t, err)
+	assert.Nil(t, session)
+	assert.Contains(t, err.Error(), "source must be",
+		"'unknown' is a read-only sentinel for legacy rows and must not be writable")
+}
+
+// TestReopenStatusConflictError_Error covers the typed error's stringification.
+// Production callers use errors.As to branch on the type, which does not
+// invoke Error(), but the message still appears in slog warnings/info logs
+// when the error bubbles up — locking the string keeps log greps stable.
+func TestReopenStatusConflictError_Error(t *testing.T) {
+	err := &ReopenStatusConflictError{
+		SessionID:       7,
+		ExistingStatus:  activeModels.WorkSessionStatusPresent,
+		RequestedStatus: activeModels.WorkSessionStatusHomeOffice,
+	}
+	assert.Equal(t, "reopen status conflict", err.Error())
+}
+
+// TestWSReopenThenUpdateSession_EmitsFieldStatusEdit exercises the realistic
+// frontend sequence end-to-end: a checked-out 'present' session is reopened
+// at the existing status (no conflict), then the requested status flip is
+// routed through UpdateSession with a notes reason. The combined behaviour
+// the audit trail relies on is:
+//
+//  1. The reopen does not create an audit edit (it preserves Status).
+//  2. The follow-up UpdateSession produces a FieldStatus edit whose old/new
+//     values match the chosen flip and whose Reason carries the user's text.
+//
+// This complements the unit tests that cover each step in isolation
+// (TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus and
+// TestWSUpdateSession_StatusChange) by locking in the cross-call behaviour.
+func TestWSReopenThenUpdateSession_EmitsFieldStatusEdit(t *testing.T) {
+	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
+	ctx := context.Background()
+	staffID := int64(100)
+	sessionID := int64(701)
+	checkOut := time.Now().Add(-1 * time.Hour)
+
+	current := &activeModels.WorkSession{
+		Model:          base.Model{ID: sessionID},
+		StaffID:        staffID,
+		CheckInTime:    time.Now().Add(-4 * time.Hour),
+		CheckOutTime:   &checkOut,
+		AutoCheckedOut: true,
+		Status:         activeModels.WorkSessionStatusPresent,
+		Source:         activeModels.WorkSessionSourceApp,
+		Date:           time.Now().Truncate(24 * time.Hour),
+		CreatedBy:      staffID,
+	}
+
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
+		return current, nil
+	}
+	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
+		return current, nil
+	}
+	sessionRepo.updateFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		current = entity
+		return nil
+	}
+
+	var auditCalls int
+	var capturedEdits []*auditModels.WorkSessionEdit
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+		auditCalls++
+		capturedEdits = append(capturedEdits, edits...)
+		return nil
+	}
+
+	// Step 1: reopen at existing status — no audit edit.
+	reopened, err := svc.CheckIn(ctx, staffID,
+		activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
+	require.NoError(t, err)
+	require.NotNil(t, reopened)
+	require.Nil(t, reopened.CheckOutTime, "reopen must clear CheckOutTime")
+	assert.Equal(t, 0, auditCalls, "reopen alone must not emit audit edits")
+
+	// Step 2: route the actual status flip through UpdateSession with reason.
+	newStatus := activeModels.WorkSessionStatusHomeOffice
+	reason := "Mittags ins Homeoffice gewechselt"
+	updated, err := svc.UpdateSession(ctx, staffID, sessionID, SessionUpdateRequest{
+		Status: &newStatus,
+		Notes:  &reason,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+
+	require.GreaterOrEqual(t, auditCalls, 1, "UpdateSession must emit an audit batch")
+	var statusEdit *auditModels.WorkSessionEdit
+	for _, e := range capturedEdits {
+		if e.FieldName == auditModels.FieldStatus {
+			statusEdit = e
+			break
+		}
+	}
+	require.NotNil(t, statusEdit, "audit batch must contain a FieldStatus edit")
+	require.NotNil(t, statusEdit.OldValue)
+	require.NotNil(t, statusEdit.NewValue)
+	assert.Equal(t, activeModels.WorkSessionStatusPresent, *statusEdit.OldValue,
+		"FieldStatus old value reflects the pre-update status")
+	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, *statusEdit.NewValue,
+		"FieldStatus new value reflects the requested flip")
+	require.NotNil(t, statusEdit.Notes,
+		"FieldStatus edit must carry the user-supplied reason in Notes")
+	assert.Equal(t, reason, *statusEdit.Notes)
 }
 
 func TestWSCheckIn_RepoError(t *testing.T) {
@@ -570,7 +788,7 @@ func TestWSCheckIn_RepoError(t *testing.T) {
 		return nil, errors.New("database error")
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to check existing session")
@@ -1108,7 +1326,7 @@ func TestWSEnsureCheckedIn_AlreadyActive(t *testing.T) {
 		}, nil
 	}
 
-	session, err := svc.EnsureCheckedIn(context.Background(), staffID)
+	session, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceNFC)
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Equal(t, staffID, session.StaffID)
@@ -1131,7 +1349,7 @@ func TestWSEnsureCheckedIn_AlreadyCheckedOutToday(t *testing.T) {
 		}, nil
 	}
 
-	session, err := svc.EnsureCheckedIn(context.Background(), staffID)
+	session, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceNFC)
 	require.NoError(t, err)
 	assert.Nil(t, session) // Should return nil when already checked out today
 }
@@ -1155,14 +1373,44 @@ func TestWSEnsureCheckedIn_CreatesNew(t *testing.T) {
 		return nil, sql.ErrNoRows
 	}
 
+	var capturedSource string
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
 		entity.ID = 10
+		capturedSource = entity.Source
 		return nil
 	}
 
-	session, err := svc.EnsureCheckedIn(context.Background(), staffID)
+	session, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceNFC)
 	require.NoError(t, err)
 	require.NotNil(t, session)
+	assert.Equal(t, activeModels.WorkSessionSourceNFC, capturedSource,
+		"EnsureCheckedIn must forward the caller-supplied source to CheckIn")
+}
+
+// TestWSEnsureCheckedIn_ForwardsAppSource verifies that EnsureCheckedIn does
+// not hard-code 'nfc' — non-NFC callers (web triggers, future schedulers)
+// must be able to record their channel faithfully.
+func TestWSEnsureCheckedIn_ForwardsAppSource(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	staffID := int64(100)
+
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return nil, sql.ErrNoRows
+	}
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
+		return nil, sql.ErrNoRows
+	}
+
+	var capturedSource string
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		entity.ID = 11
+		capturedSource = entity.Source
+		return nil
+	}
+
+	_, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceApp)
+	require.NoError(t, err)
+	assert.Equal(t, activeModels.WorkSessionSourceApp, capturedSource)
 }
 
 // ============================================================================

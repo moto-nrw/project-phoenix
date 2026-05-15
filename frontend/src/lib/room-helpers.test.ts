@@ -571,8 +571,13 @@ describe("isSystemRoom", () => {
     expect(isSystemRoom(room)).toBe(true);
   });
 
+  it("returns true for Toilette", () => {
+    const room: Room = { id: "3", name: "Toilette", isOccupied: false };
+    expect(isSystemRoom(room)).toBe(true);
+  });
+
   it("returns false for regular room", () => {
-    const room: Room = { id: "3", name: "Gruppenraum 1", isOccupied: false };
+    const room: Room = { id: "4", name: "Gruppenraum 1", isOccupied: false };
     expect(isSystemRoom(room)).toBe(false);
   });
 

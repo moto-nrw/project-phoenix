@@ -357,6 +357,33 @@ func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) 
 	return attendance, nil
 }
 
+// ListOpenStudentIDsForDate returns unique student IDs with open attendance
+// rows on the given date.
+func (r *AttendanceRepository) ListOpenStudentIDsForDate(ctx context.Context, date time.Time) ([]int64, error) {
+	dateOnly := timezone.DateOfUTC(date)
+	var ids []int64
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`active.attendance AS "attendance"`).
+		ColumnExpr(`DISTINCT "attendance".student_id`).
+		Where(`"attendance".date = ?`, dateOnly).
+		Where(`"attendance".check_out_time IS NULL`).
+		OrderExpr(`"attendance".student_id ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list open student IDs for date",
+			Err: err,
+		}
+	}
+
+	return ids, nil
+}
+
 // CountByStaffID counts attendance records where the staff member checked in or checked out students.
 func (r *AttendanceRepository) CountByStaffID(ctx context.Context, staffID int64) (int, error) {
 	query := base.GetDB(ctx, r.db).NewSelect().

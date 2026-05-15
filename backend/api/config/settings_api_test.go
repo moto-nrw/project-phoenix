@@ -77,12 +77,12 @@ func TestRenderSettingsError_PermissionDenied(t *testing.T) {
 }
 
 func TestNewSettingsResource(t *testing.T) {
-	res := NewSettingsResource(nil, nil)
+	res := NewSettingsResource(nil, nil, nil)
 	assert.NotNil(t, res)
 }
 
 func TestSettingsRouter_ReturnsRouter(t *testing.T) {
-	res := NewSettingsResource(nil, nil)
+	res := NewSettingsResource(nil, nil, nil)
 	router := res.SettingsRouter()
 	assert.NotNil(t, router)
 }

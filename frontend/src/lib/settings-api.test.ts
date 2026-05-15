@@ -14,7 +14,11 @@ const {
   setSettingValue,
   resetSettingValue,
   revealSettingValue,
+  applyOptimisticSchemaUpdate,
+  SETTINGS_SCHEMA_SWR_KEY,
 } = await import("./settings-api");
+
+type SchemaForTest = Awaited<ReturnType<typeof fetchSettingsSchema>>;
 
 function mockResponse(status: number, body?: unknown): Response {
   return {
@@ -203,6 +207,170 @@ describe("resetSettingValue", () => {
     const result = await resetSettingValue("test.key");
 
     expect(result).toContain("Netzwerkfehler");
+  });
+});
+
+describe("SETTINGS_SCHEMA_SWR_KEY", () => {
+  it("is the literal string used by every SWR consumer", () => {
+    // The key is a string constant rather than a hash so cross-component
+    // mutate() calls hit the same cache entry. Locking the value keeps
+    // the bridge / sidebar / mobile-bottom-nav in sync.
+    expect(SETTINGS_SCHEMA_SWR_KEY).toBe("settings-schema");
+  });
+});
+
+describe("applyOptimisticSchemaUpdate", () => {
+  function makeItem(
+    key: string,
+    overrides: Partial<{
+      type: "boolean" | "number" | "time" | "text" | "password" | "select";
+      value: unknown;
+      depends_on:
+        | { key: string; condition: string; value: unknown }
+        | null
+        | undefined;
+    }> = {},
+  ) {
+    return {
+      key,
+      label: key,
+      description: "",
+      type: overrides.type ?? "boolean",
+      default: false,
+      value: overrides.value ?? false,
+      is_default: true,
+      writable: true,
+      visible: true,
+      sort_order: 0,
+      access_policy: "shared" as const,
+      depends_on: overrides.depends_on ?? undefined,
+    };
+  }
+
+  function makeSchema(
+    items: ReturnType<typeof makeItem>[],
+  ): NonNullable<SchemaForTest> {
+    return {
+      tabs: [
+        {
+          key: "tab",
+          label: "Tab",
+          categories: [{ key: "cat", label: "Cat", items }],
+        },
+      ],
+    };
+  }
+
+  it("updates the targeted item's value and clears is_default", () => {
+    const schema = makeSchema([
+      makeItem("a", { type: "number", value: 5 }),
+      makeItem("b", { type: "number", value: 10 }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "a", 99);
+
+    const items = next.tabs[0]!.categories[0]!.items;
+    expect(items[0]!.value).toBe(99);
+    expect(items[0]!.is_default).toBe(false);
+    // Untouched item stays as-is.
+    expect(items[1]!.value).toBe(10);
+    expect(items[1]!.is_default).toBe(true);
+  });
+
+  it("masks password fields with bullets instead of leaking the cleartext", () => {
+    const schema = makeSchema([
+      makeItem("pw", { type: "password", value: "" }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "pw", "supersecret");
+
+    expect(next.tabs[0]!.categories[0]!.items[0]!.value).toBe("••••••");
+  });
+
+  it("does not mutate the input schema", () => {
+    const schema = makeSchema([makeItem("a", { type: "number", value: 5 })]);
+    const before = JSON.stringify(schema);
+
+    applyOptimisticSchemaUpdate(schema, "a", 42);
+
+    expect(JSON.stringify(schema)).toBe(before);
+  });
+
+  it("re-evaluates depends_on with `eq` against the new parent value", () => {
+    const schema = makeSchema([
+      makeItem("parent", { type: "boolean", value: false }),
+      makeItem("child", {
+        type: "number",
+        value: 1,
+        depends_on: { key: "parent", condition: "eq", value: true },
+      }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "parent", true);
+
+    const child = next.tabs[0]!.categories[0]!.items[1]!;
+    expect(child.visible).toBe(true);
+  });
+
+  it("hides depends_on `eq` children when the parent no longer matches", () => {
+    const schema = makeSchema([
+      makeItem("parent", { type: "boolean", value: true }),
+      makeItem("child", {
+        type: "number",
+        value: 1,
+        depends_on: { key: "parent", condition: "eq", value: true },
+      }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "parent", false);
+
+    expect(next.tabs[0]!.categories[0]!.items[1]!.visible).toBe(false);
+  });
+
+  it("supports the `neq` depends_on condition", () => {
+    const schema = makeSchema([
+      makeItem("parent", { type: "boolean", value: true }),
+      makeItem("child", {
+        type: "number",
+        value: 1,
+        depends_on: { key: "parent", condition: "neq", value: false },
+      }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "parent", false);
+
+    expect(next.tabs[0]!.categories[0]!.items[1]!.visible).toBe(false);
+  });
+
+  it("supports the `not_empty` depends_on condition", () => {
+    const schema = makeSchema([
+      makeItem("parent", { type: "text", value: "filled" }),
+      makeItem("child", {
+        type: "number",
+        value: 1,
+        depends_on: { key: "parent", condition: "not_empty", value: null },
+      }),
+    ]);
+
+    const cleared = applyOptimisticSchemaUpdate(schema, "parent", "");
+    expect(cleared.tabs[0]!.categories[0]!.items[1]!.visible).toBe(false);
+
+    const filled = applyOptimisticSchemaUpdate(schema, "parent", "still here");
+    expect(filled.tabs[0]!.categories[0]!.items[1]!.visible).toBe(true);
+  });
+
+  it("leaves items without depends_on visibility logic untouched", () => {
+    const schema = makeSchema([
+      makeItem("a", { type: "number", value: 1 }),
+      makeItem("b", { type: "number", value: 2 }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "a", 99);
+
+    // No depends_on rule on either item: visibility stays true.
+    for (const item of next.tabs[0]!.categories[0]!.items) {
+      expect(item.visible).toBe(true);
+    }
   });
 });
 

@@ -280,6 +280,19 @@ const mockStudents = [
     group_name: "Gruppe B",
     name_lg: null,
   },
+  // Sparse fixture: all string fields except name_lg are nullish so the
+  // optional-chaining branches in the search filter (`student.first_name?.…`,
+  // `student.second_name?.…`, `student.school_class?.…`, `student.group_name?.…`)
+  // exercise their falsy paths when a search runs.
+  {
+    id: "3",
+    first_name: null,
+    second_name: null,
+    school_class: null,
+    group_id: null,
+    group_name: null,
+    name_lg: "Erika Beispiel",
+  },
 ];
 
 describe("StudentsPage", () => {
@@ -409,6 +422,42 @@ describe("StudentsPage", () => {
     });
   });
 
+  it("filters students by full name across first and last name", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Max Mu" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters students by last name", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Muster" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters students by reversed full name", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Mustermann Max" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
   it("filters students by guardian name (name_lg)", async () => {
     render(<StudentsPage />);
 
@@ -423,6 +472,22 @@ describe("StudentsPage", () => {
     });
   });
 
+  it("matches a student whose name and class fields are nullish", async () => {
+    render(<StudentsPage />);
+
+    // Student id "3" has first_name/second_name/school_class/group_name all null;
+    // searching by guardian name still matches and exercises every `?.` falsy
+    // branch in the search filter.
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Erika" } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Erika Beispiel/)).toBeInTheDocument();
+      expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
   it("filters students by school class", async () => {
     render(<StudentsPage />);
 
@@ -432,6 +497,18 @@ describe("StudentsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
       // Anna is in 2b, so should be filtered out
+      expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters students by group name", async () => {
+    render(<StudentsPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Gruppe A" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
       expect(screen.queryByText("Anna Schmidt")).not.toBeInTheDocument();
     });
   });

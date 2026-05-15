@@ -137,7 +137,7 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 	}
 
 	clone := *source
-	clone.ID = 0 // BIGSERIAL — let the DB assign
+	clone.ID = 0 // BIGSERIAL - let the DB assign
 	clone.PhaseID = targetPhaseID
 
 	if err := s.repo.Create(ctx, &clone); err != nil {

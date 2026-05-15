@@ -215,6 +215,31 @@ describe("GET /api/students", () => {
     );
     expect(response.status).toBe(200);
   });
+
+  it("respects an explicit page_size from the client (room modal sends 200)", async () => {
+    // Regression guard for #1374: the proxy used to overwrite every
+    // page_size value to 1000, which silently disabled the room-detail
+    // modal's 200-card cap and the overflow notice that depends on it.
+    const mockResponse = {
+      data: [],
+      pagination: {
+        current_page: 1,
+        page_size: 200,
+        total_pages: 0,
+        total_records: 0,
+      },
+    };
+    mockApiGet.mockResolvedValueOnce(mockResponse);
+
+    const request = createMockRequest("/api/students?room_id=42&page_size=200");
+    const response = await GET(request, createMockContext());
+
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/students?room_id=42&page_size=200",
+      "test-token",
+    );
+    expect(response.status).toBe(200);
+  });
 });
 
 describe("POST /api/students", () => {

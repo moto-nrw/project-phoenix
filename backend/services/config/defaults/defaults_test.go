@@ -26,6 +26,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
 		"operations.admin_supervision_overview",
+		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
 		"gdpr.data_cleanup_enabled",
@@ -46,7 +47,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"tracking.indicator_1",
 		"tracking.indicator_2",
 		"tracking.indicator_3",
-		// Timetable settings (WP-B7): 6 in operations tab + 1 in gdpr tab.
+		// Timetable settings: top-level enable toggle + operations/GDPR details.
+		"timetable.enabled",
 		"timetable.materialization_enabled",
 		"timetable.materialization_weekday",
 		"timetable.materialization_weeks_ahead",
@@ -54,16 +56,22 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
 		"gdpr.timetable_retention_days",
+		// Display range for the admin weekly calendar (Apple-style grid).
+		"timetable.day_start_time",
+		"timetable.day_end_time",
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_checkin_access",
+		"attendance.web_spontaneous_activities_enabled",
+		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
+		"operations.student_photos_enabled",
 		// Parent-enrollment PR 2: activate-students scheduler interval.
 		"operations.student_activation_interval_minutes",
 		// Parent-enrollment PR 3: guardian invitation token expiry.
 		"invitations.guardian_token_expiry_hours",
 		// Parent-enrollment registry plumbing. open_window_*,
 		// show_status_reason_to_parent, and care_overflow_mode moved
-		// to per-phase columns on enrollment.phases — they're no
+		// to per-phase columns on enrollment.phases - they're no
 		// longer tenant-wide settings.
 		"enrollment.enabled",
 		"enrollment.collect_grade_level",
@@ -95,10 +103,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		assert.NotEmpty(t, def.Category, "setting %q should have a category", key)
 	}
 
-	// 28 pre-WP-B7 settings + 7 timetable settings + 2 sick/excused clear-mode
-	// settings == 37 minimum. The `>=` is intentional so later work packages can
-	// add more settings without retrofitting this assertion.
-	assert.GreaterOrEqual(t, len(all), 37, "at least 37 settings should be registered (28 existing + 7 timetable + 2 clear-mode + parent-enrollment additions)")
+	// The `>=` is intentional so later work packages can add more settings
+	// without retrofitting this assertion.
+	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
 }
 
 func TestPresenceModeSetting(t *testing.T) {
@@ -106,7 +113,7 @@ func TestPresenceModeSetting(t *testing.T) {
 	require.NotNil(t, def, "operations.presence_mode should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
 	assert.Equal(t, config.PresenceModeDetailed, def.Default, "default must be detailed for backwards compatibility")
-	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "presence_mode is operator-only — cascading impact too large for tenant admins")
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "presence_mode is operator-only - cascading impact too large for tenant admins")
 	assert.Equal(t, "operations", def.Tab)
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 2)
@@ -126,11 +133,23 @@ func TestWebCheckinAccessSetting(t *testing.T) {
 	require.Len(t, def.Options.Static, 2)
 }
 
+func TestWebSpontaneousActivitiesSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyWebSpontaneousActivities)
+	require.NotNil(t, def, "attendance.web_spontaneous_activities_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "web spontaneous activities must default off")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy, "tenant admins and operators should both be able to manage this operational setting")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "anwesenheit", def.Category)
+	assert.Equal(t, "config:manage", def.WritePermission)
+}
+
 func TestTimetableSettings_Types(t *testing.T) {
 	tests := []struct {
 		key      string
 		expected config.FieldType
 	}{
+		{"timetable.enabled", config.FieldBoolean},
 		{"timetable.materialization_enabled", config.FieldBoolean},
 		{"timetable.materialization_weekday", config.FieldSelect},
 		{"timetable.materialization_weeks_ahead", config.FieldNumber},
@@ -148,6 +167,10 @@ func TestTimetableSettings_Types(t *testing.T) {
 }
 
 func TestTimetableSettings_Defaults(t *testing.T) {
+	enabledDef := config.GetDefinition("timetable.enabled")
+	require.NotNil(t, enabledDef)
+	assert.Equal(t, false, enabledDef.Default, "timetable must default to false")
+
 	// Both the materialization and auto-start flags default to FALSE so that
 	// WP-B7 is a pure no-op until the consuming services (WP-B8 / B9) ship
 	// AND a tenant explicitly opts in. Regressing either of these defaults
@@ -172,7 +195,30 @@ func TestTimetableSettings_Defaults(t *testing.T) {
 }
 
 func TestTimetableSettings_DependsOn(t *testing.T) {
-	// Materialization sub-settings are gated on the top-level toggle.
+	toggleDef := config.GetDefinition("timetable.enabled")
+	require.NotNil(t, toggleDef)
+	assert.Nil(t, toggleDef.DependsOn, "top-level timetable toggle must stand alone")
+
+	// All timetable detail settings are hidden until the top-level feature is enabled.
+	topLevelGatedKeys := []string{
+		"timetable.materialization_enabled",
+		"timetable.auto_start_planned",
+		"timetable.overdue_threshold_minutes",
+		"timetable.show_expected_children_count",
+		"gdpr.timetable_retention_days",
+		"timetable.day_start_time",
+		"timetable.day_end_time",
+	}
+	for _, key := range topLevelGatedKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.DependsOn, "setting %q should have DependsOn", key)
+		assert.Equalf(t, "timetable.enabled", def.DependsOn.Key, "setting %q should depend on timetable.enabled", key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+
+	// Materialization sub-settings are gated on the materialization toggle.
 	gatedKeys := []string{
 		"timetable.materialization_weekday",
 		"timetable.materialization_weeks_ahead",
@@ -186,18 +232,8 @@ func TestTimetableSettings_DependsOn(t *testing.T) {
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
 
-	// Retention hangs off the shared GDPR cleanup toggle — same pattern as
-	// the other gdpr.* time/timeout settings.
-	retentionDef := config.GetDefinition("gdpr.timetable_retention_days")
-	require.NotNil(t, retentionDef)
-	require.NotNil(t, retentionDef.DependsOn)
-	assert.Equal(t, "gdpr.data_cleanup_enabled", retentionDef.DependsOn.Key)
-
-	// Overdue threshold is independent — materialization can be off while
-	// staff still see passive "this instance is overdue" indicators.
-	overdueDef := config.GetDefinition("timetable.overdue_threshold_minutes")
-	require.NotNil(t, overdueDef)
-	assert.Nil(t, overdueDef.DependsOn, "overdue threshold must stand alone (no DependsOn)")
+	// Overdue threshold is independent of materialization - it only depends on
+	// the top-level feature toggle.
 }
 
 func TestTimetableSettings_Permissions(t *testing.T) {
@@ -218,6 +254,11 @@ func TestTimetableSettings_Permissions(t *testing.T) {
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 	}
 
+	toggleDef := config.GetDefinition("timetable.enabled")
+	require.NotNil(t, toggleDef)
+	assert.Equal(t, "operations", toggleDef.Tab)
+	assert.Equal(t, "config:update", toggleDef.WritePermission)
+
 	retentionDef := config.GetDefinition("gdpr.timetable_retention_days")
 	require.NotNil(t, retentionDef)
 	assert.Equal(t, "gdpr", retentionDef.Tab)
@@ -230,8 +271,8 @@ func TestTimetableSettings_WeekdayOptions(t *testing.T) {
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 7, "all 7 weekdays must be offered")
 
-	// Weekday option values must be ISO 8601 integers 1–7. Drifting to
-	// time.Weekday's 0–6 convention would silently break any future
+	// Weekday option values must be ISO 8601 integers 1-7. Drifting to
+	// time.Weekday's 0-6 convention would silently break any future
 	// materialization consumer that compares to time.Weekday()+1.
 	seen := map[int]string{}
 	for _, opt := range def.Options.Static {
@@ -260,6 +301,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.session_cleanup_interval_minutes", config.FieldNumber},
 		{"operations.session_abandoned_threshold_minutes", config.FieldNumber},
 		{"operations.admin_supervision_overview", config.FieldBoolean},
+		{"operations.status_flag_clear_time", config.FieldTime},
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
 	}
@@ -387,7 +429,7 @@ func TestEnrollmentSelectOptions_AreCanonical(t *testing.T) {
 }
 
 // (TestEnrollmentDateFields removed: the open-window settings moved to
-// per-phase columns on enrollment.phases — no tenant-wide date pickers
+// per-phase columns on enrollment.phases - no tenant-wide date pickers
 // remain.)
 
 // TestEnrollmentOutboxWorkerInterval guards the registry shape of the
@@ -409,7 +451,7 @@ func TestEnrollmentOutboxWorkerInterval(t *testing.T) {
 }
 
 // TestEnrollmentStatusTokenTTL_OperatorOnly guards the §11 rule that this
-// setting is operator-writable only — readable by tenant admins, not
+// setting is operator-writable only - readable by tenant admins, not
 // editable. We use AccessOperatorOnly + config:manage instead of
 // introducing a new platform:config:update permission.
 func TestEnrollmentStatusTokenTTL_OperatorOnly(t *testing.T) {
@@ -420,14 +462,14 @@ func TestEnrollmentStatusTokenTTL_OperatorOnly(t *testing.T) {
 	assert.Equal(t, "system", def.Tab)
 	assert.Equal(t, "config:manage", def.WritePermission)
 	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy,
-		"status_token_ttl_days must be operator-only — tenant admins should not extend their own status-link windows")
+		"status_token_ttl_days must be operator-only - tenant admins should not extend their own status-link windows")
 	require.NotNil(t, def.Validation)
 	require.NotNil(t, def.Validation.Min)
 	require.NotNil(t, def.Validation.Max)
 }
 
 // TestEnrollmentSafetyPermissions guards that the captcha and retention
-// settings — both with security/GDPR implications — use the stricter
+// settings - both with security/GDPR implications - use the stricter
 // config:manage write permission, not the operational config:update.
 func TestEnrollmentSafetyPermissions(t *testing.T) {
 	captcha := config.GetDefinition(config.KeyEnrollmentRequireCaptcha)
@@ -449,7 +491,7 @@ func TestGuardianInvitationTokenExpiry(t *testing.T) {
 	assert.Equal(t, "system", def.Tab)
 	assert.Equal(t, "config:manage", def.WritePermission)
 	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy,
-		"guardian token TTL is auth plumbing — operators only")
+		"guardian token TTL is auth plumbing - operators only")
 	require.NotNil(t, def.Validation)
 	require.NotNil(t, def.Validation.Min)
 	require.NotNil(t, def.Validation.Max)
@@ -458,7 +500,7 @@ func TestGuardianInvitationTokenExpiry(t *testing.T) {
 }
 
 // TestStudentActivationInterval guards the registry shape of the activate-
-// students scheduler interval. Default 60 minutes, validation 5–1440.
+// students scheduler interval. Default 60 minutes, validation 5-1440.
 func TestStudentActivationInterval(t *testing.T) {
 	def := config.GetDefinition(config.KeyStudentActivationIntervalMin)
 	require.NotNil(t, def, "operations.student_activation_interval_minutes should be registered")
@@ -696,6 +738,16 @@ func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
 	assert.Equal(t, "", def.Default, "daily checkout time should default to empty (always available)")
 }
 
+func TestStatusFlagClearTime_Default(t *testing.T) {
+	def := config.GetDefinition(config.KeyStatusFlagClearTime)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldTime, def.Type)
+	assert.Equal(t, "18:00", def.Default, "status flag clear time should have a real default so end_of_day can run")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "abwesenheit", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+}
+
 func TestValidation_NumberFields(t *testing.T) {
 	// All number fields should have min/max validation
 	numberKeys := []string{
@@ -733,6 +785,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
 		{"operations.admin_supervision_overview", false},
+		{"operations.status_flag_clear_time", "18:00"},
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},
 		{"gdpr.data_cleanup_timeout_minutes", 30},
@@ -751,6 +804,8 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"tracking.indicator_1", ""},
 		{"tracking.indicator_2", ""},
 		{"tracking.indicator_3", ""},
+		{"attendance.web_spontaneous_activities_enabled", false},
+		{"operations.student_photos_enabled", false},
 	}
 
 	for _, tc := range tests {
@@ -758,6 +813,21 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expectedDefault, def.Default, "setting %q default", tc.key)
 	}
+}
+
+// TestStudentPhotosSetting guards the photo-feature toggle: defaults to OFF so
+// no school surfaces photos until an admin opts in, sits in the operations tab
+// alongside other Datenverwaltung-affecting toggles, and uses config:update
+// (operational, not GDPR-scoped - consent itself is captured per student).
+func TestStudentPhotosSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyStudentPhotosEnabled)
+	require.NotNil(t, def, "operations.student_photos_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "must default to false - feature is off until admin opts in")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "kinder", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
 }
 
 func TestTrackingSettings_Types(t *testing.T) {

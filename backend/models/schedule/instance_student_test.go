@@ -154,3 +154,110 @@ func TestAttendanceFieldPatch_HasChanges(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
+	excused := AttendanceSubstatusExcused
+	tests := []struct {
+		name         string
+		current      *InstanceStudent
+		patch        AttendanceFieldPatch
+		wantErrField string
+		wantOK       bool
+	}{
+		{
+			name:    "expected + new substatus without status change rejects",
+			current: &InstanceStudent{Status: AttendanceStatusExpected},
+			patch: AttendanceFieldPatch{
+				Substatus: strPtr(AttendanceSubstatusLate),
+			},
+			wantErrField: "substatus",
+		},
+		{
+			name:    "expected to present with substatus is valid",
+			current: &InstanceStudent{Status: AttendanceStatusExpected},
+			patch: AttendanceFieldPatch{
+				Status:    strPtr(AttendanceStatusPresent),
+				Substatus: strPtr(AttendanceSubstatusLate),
+			},
+			wantOK: true,
+		},
+		{
+			name:    "expected to absent with substatus is valid",
+			current: &InstanceStudent{Status: AttendanceStatusExpected},
+			patch: AttendanceFieldPatch{
+				Status:    strPtr(AttendanceStatusAbsent),
+				Substatus: strPtr(AttendanceSubstatusSick),
+			},
+			wantOK: true,
+		},
+		{
+			name:    "present with substatus is valid",
+			current: &InstanceStudent{Status: AttendanceStatusPresent},
+			patch: AttendanceFieldPatch{
+				Substatus: strPtr(AttendanceSubstatusLate),
+			},
+			wantOK: true,
+		},
+		{
+			name:    "present to expected with existing substatus rejects",
+			current: &InstanceStudent{Status: AttendanceStatusPresent, Substatus: &excused},
+			patch: AttendanceFieldPatch{
+				Status: strPtr(AttendanceStatusExpected),
+			},
+			wantErrField: "substatus",
+		},
+		{
+			name:    "present to expected clearing substatus is valid",
+			current: &InstanceStudent{Status: AttendanceStatusPresent, Substatus: &excused},
+			patch: AttendanceFieldPatch{
+				Status:         strPtr(AttendanceStatusExpected),
+				SubstatusClear: true,
+			},
+			wantOK: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := ValidateAttendancePatch(tc.patch, tc.current)
+			if tc.wantOK {
+				assert.Empty(t, errs)
+				return
+			}
+			require.NotEmpty(t, errs)
+			assert.Equal(t, tc.wantErrField, errs[0].Field)
+		})
+	}
+}
+
+func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
+	cur := &InstanceStudent{Status: AttendanceStatusPresent}
+
+	t.Run("invalid status", func(t *testing.T) {
+		errs := ValidateAttendancePatch(AttendanceFieldPatch{Status: strPtr("ghost")}, cur)
+		require.Len(t, errs, 1)
+		assert.Equal(t, "status", errs[0].Field)
+	})
+
+	t.Run("invalid substatus", func(t *testing.T) {
+		errs := ValidateAttendancePatch(AttendanceFieldPatch{Substatus: strPtr("banana")}, cur)
+		require.Len(t, errs, 1)
+		assert.Equal(t, "substatus", errs[0].Field)
+	})
+
+	t.Run("note too long", func(t *testing.T) {
+		tooLong := strings.Repeat("x", InstanceStudentNoteMaxLength+1)
+		errs := ValidateAttendancePatch(AttendanceFieldPatch{Note: &tooLong}, cur)
+		require.Len(t, errs, 1)
+		assert.Equal(t, "note", errs[0].Field)
+	})
+
+	t.Run("two per-field errors returned together", func(t *testing.T) {
+		tooLong := strings.Repeat("y", InstanceStudentNoteMaxLength+1)
+		errs := ValidateAttendancePatch(AttendanceFieldPatch{
+			Status: strPtr("ghost"),
+			Note:   &tooLong,
+		}, cur)
+		require.Len(t, errs, 2)
+	})
+}

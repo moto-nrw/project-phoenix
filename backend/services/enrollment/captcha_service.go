@@ -34,7 +34,7 @@ type CaptchaSettingsResolver interface {
 // for the tenant (settings-driven via enrollment.require_captcha).
 type CaptchaService interface {
 	// Verify validates `token` against the configured provider for the
-	// tenant in context. `remoteIP` is the parent's source IP — passed
+	// tenant in context. `remoteIP` is the parent's source IP - passed
 	// through to the provider as a defense-in-depth signal.
 	Verify(ctx context.Context, token, remoteIP string) error
 
@@ -86,11 +86,11 @@ func NewCaptchaService(cfg CaptchaServiceConfig) CaptchaService {
 }
 
 // IsEnabled checks the enrollment.require_captcha setting via the
-// standard HasTenantOverride → ResolveBool → env var → default chain.
-// Default true: a fresh tenant gets bot protection out of the box.
+// standard tenant override, env var, registry default chain.
+// Default false: a fresh tenant has no Turnstile keys configured yet.
 func (s *captchaService) IsEnabled(ctx context.Context) bool {
 	if s.settings == nil {
-		return true
+		return false
 	}
 	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentRequireCaptcha); err == nil && has {
 		if v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentRequireCaptcha); err == nil {
@@ -100,7 +100,7 @@ func (s *captchaService) IsEnabled(ctx context.Context) bool {
 	if env := strings.TrimSpace(os.Getenv("ENROLLMENT_REQUIRE_CAPTCHA")); env != "" {
 		return env == "true"
 	}
-	return true
+	return false
 }
 
 // Verify hits the provider's siteverify endpoint with secret + token +

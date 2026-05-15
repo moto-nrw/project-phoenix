@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -20,9 +19,6 @@ type CalendarPeriodService interface {
 	CreatePeriod(ctx context.Context, period *schedule.CalendarPeriod) error
 	UpdatePeriod(ctx context.Context, period *schedule.CalendarPeriod) error
 	DeletePeriod(ctx context.Context, id int64) error
-
-	// Auto-creation
-	GetOrCreateDefaultPeriod(ctx context.Context) (*schedule.CalendarPeriod, error)
 
 	// A/B week resolution — weekPattern: 0=every, 1=week A, 2=week B
 	ShouldMaterialize(weekPattern int, instanceDate time.Time, period *schedule.CalendarPeriod) bool
@@ -139,63 +135,6 @@ func (s *calendarPeriodService) DeletePeriod(ctx context.Context, id int64) erro
 		return &ScheduleError{Op: "delete calendar period", Err: err}
 	}
 	return nil
-}
-
-// GetOrCreateDefaultPeriod returns the default school-year period for the tenant,
-// creating one if none exists. Uses the current school year dates (Aug 1 - Jul 31).
-func (s *calendarPeriodService) GetOrCreateDefaultPeriod(ctx context.Context) (*schedule.CalendarPeriod, error) {
-	periods, err := s.repo.FindByTenantID(ctx)
-	if err != nil {
-		return nil, &ScheduleError{Op: "get or create default period", Err: err}
-	}
-
-	if len(periods) > 0 {
-		// Return the first active period, or the first period if none are active
-		for _, p := range periods {
-			if p.IsActive {
-				return p, nil
-			}
-		}
-		return periods[0], nil
-	}
-
-	// No periods exist — create a default school year
-	now := time.Now()
-	year := now.Year()
-
-	// German school year: Aug 1 - Jul 31
-	// If we're past Aug 1, current year starts this Aug; otherwise last Aug
-	var startDate, endDate time.Time
-	if now.Month() >= time.August {
-		startDate = time.Date(year, time.August, 1, 0, 0, 0, 0, time.UTC)
-		endDate = time.Date(year+1, time.July, 31, 0, 0, 0, 0, time.UTC)
-	} else {
-		startDate = time.Date(year-1, time.August, 1, 0, 0, 0, 0, time.UTC)
-		endDate = time.Date(year, time.July, 31, 0, 0, 0, 0, time.UTC)
-	}
-
-	defaultName := fmt.Sprintf("Schuljahr %d/%d", startDate.Year(), endDate.Year())
-
-	period := &schedule.CalendarPeriod{
-		Name:            defaultName,
-		PeriodType:      schedule.PeriodTypeSchoolYear,
-		StartDate:       startDate,
-		EndDate:         endDate,
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
-	period.SetTenantID(tenant.FromContext(ctx))
-
-	if err := s.repo.Create(ctx, period); err != nil {
-		return nil, &ScheduleError{Op: "get or create default period", Err: err}
-	}
-
-	s.getLogger().Info("default calendar period created",
-		slog.Int64("period_id", period.ID),
-		slog.String("name", period.Name),
-	)
-
-	return period, nil
 }
 
 // ShouldMaterialize determines whether a schedule with the given weekPattern should

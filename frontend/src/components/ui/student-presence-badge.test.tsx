@@ -21,6 +21,7 @@ function makeTenant(
     organizationName: "Org",
     settings: {},
     presenceMode,
+    studentPhotosEnabled: false,
   };
 }
 

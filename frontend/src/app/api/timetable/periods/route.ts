@@ -1,65 +1,32 @@
-import { NextResponse } from "next/server";
+// app/api/timetable/periods/route.ts
+//
+// GET  /api/timetable/periods       - list all calendar periods for the tenant
+// POST /api/timetable/periods       - create a new calendar period
+//
+// The Go backend (api/timetable/api.go listPeriods/createPeriod) wraps
+// responses in { status, data, message }. Strip that envelope here so
+// route-wrapper does not double-wrap the payload.
 import type { NextRequest } from "next/server";
-import { auth } from "~/server/auth";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
+import { apiGet, apiPost } from "~/lib/api-helpers";
+import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 
-const logger = createLogger({ component: "TimetablePeriodsRoute" });
-
-async function bearerHeader() {
-  const session = await auth();
-  const token = session?.user?.token;
-  if (!token) return null;
-  return `Bearer ${token}`;
-}
-
-export async function GET(_request: NextRequest) {
-  const authHeader = await bearerHeader();
-  if (!authHeader) {
-    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
-  }
-  try {
-    const response = await fetch(`${getServerApiUrl()}/api/timetable/periods`, {
-      headers: { Authorization: authHeader },
-      cache: "no-store",
-    });
-    const payload = await response.json().catch(() => ({}));
-    return NextResponse.json(payload, { status: response.status });
-  } catch (error) {
-    logger.error("timetable_periods_list_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
+export const GET = createGetHandler(
+  async (_request: NextRequest, token: string) => {
+    const response = await apiGet<{ data: unknown }>(
+      "/api/timetable/periods",
+      token,
     );
-  }
-}
+    return response.data;
+  },
+);
 
-export async function POST(request: NextRequest) {
-  const authHeader = await bearerHeader();
-  if (!authHeader) {
-    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
-  }
-  try {
-    const body = (await request.json()) as Record<string, unknown>;
-    const response = await fetch(`${getServerApiUrl()}/api/timetable/periods`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
-      },
-      body: JSON.stringify(body),
-    });
-    const payload = await response.json().catch(() => ({}));
-    return NextResponse.json(payload, { status: response.status });
-  } catch (error) {
-    logger.error("timetable_periods_create_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
+export const POST = createPostHandler(
+  async (_request: NextRequest, body: unknown, token: string) => {
+    const response = await apiPost<{ data: unknown }>(
+      "/api/timetable/periods",
+      token,
+      body ?? {},
     );
-  }
-}
+    return response.data;
+  },
+);

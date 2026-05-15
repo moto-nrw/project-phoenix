@@ -102,8 +102,7 @@ export function EditSchoolModal({
           active: school.active,
           hidden: schoolHidden,
         });
-        // Purge ISR cache for old subdomain so it stops serving stale pages
-        if (oldSubdomain !== newSubdomain) {
+        if (oldSubdomain !== newSubdomain || school.hidden !== schoolHidden) {
           await revalidateTenantCache([oldSubdomain, newSubdomain]);
         }
         onClose();

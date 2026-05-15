@@ -16,12 +16,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Operation name constants to avoid string duplication
 const (
-	opCreateRoom = "create room"
-	opUpdateRoom = "update room"
+	opCreateRoom     = "create room"
+	opUpdateRoom     = "update room"
+	opFindToiletRoom = "find toilet room"
 )
 
 // service implements the facilities.Service interface
@@ -30,6 +32,17 @@ type service struct {
 	activeGroupRepo active.GroupRepository
 	db              *bun.DB
 }
+
+// wcRoomAliasNames lists the accepted canonical toilet-room aliases in
+// canonical-first order. Only the exact-case names "WC" and "Toilette" are
+// treated as the toilet system room — case variants like "wc" or "toilette"
+// remain regular admin-managed rooms and are NOT auto-reused as the toilet
+// special-room. This keeps the contract aligned across all layers
+// (constants.IsWCRoomName, IsSystemRoomName, the rename/delete guards, the
+// IoT scan-fallback switch in api/iot/checkin/workflow.go, and the partial
+// unique index from migration 1.15.48 — all exact-case). Fixed array (not a
+// slice) so a future caller can't append to a package global.
+var wcRoomAliasNames = [...]string{constants.WCRoomName, constants.WCRoomAliasName}
 
 // NewService creates a new facilities service
 func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.GroupRepository, db *bun.DB) Service {
@@ -72,31 +85,48 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 		SupervisorNames *string `bun:"supervisor_names"`
 	}
 
-	// Build query with LEFT JOINs for occupancy information
+	// Aggregate occupancy across ALL active groups in the room (not a single
+	// arbitrary one). The "Kinder im Raum" view in the room detail modal
+	// (#1374) unions visits from every active group in the room, so the
+	// header summary has to follow the same union — otherwise the header
+	// can read "1 Gruppe / 4 Kinder" while the section below lists 8.
+	// Rooms that legitimately host concurrent groups (Schulhof Freispiel +
+	// Garten, Sporthalle combined groups) make this visibly contradictory.
 	var result roomQueryResult
 	err := repoBase.GetDB(ctx, s.db).NewSelect().
 		TableExpr("facilities.rooms AS r").
 		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
-		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
-		ColumnExpr("act_group.name AS group_name").
-		ColumnExpr("cat.name AS category_name").
-		// Student count: count active visits for this room's active group
+		ColumnExpr(`EXISTS (
+			SELECT 1 FROM active.groups ag
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL
+		) AS is_occupied`).
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT act_group.name, ', ' ORDER BY act_group.name)
+			FROM active.groups ag
+			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL
+		) AS group_name`).
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT cat.name, ', ' ORDER BY cat.name)
+			FROM active.groups ag
+			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
+			INNER JOIN activities.categories cat ON cat.id = act_group.category_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL
+		) AS category_name`).
 		ColumnExpr(`COALESCE((
 			SELECT COUNT(DISTINCT v.student_id)
 			FROM active.visits v
-			WHERE v.active_group_id = ag.id AND v.exit_time IS NULL
+			INNER JOIN active.groups ag ON ag.id = v.active_group_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND v.exit_time IS NULL
 		), 0)::int AS student_count`).
-		// Supervisor names: aggregate staff names for this room's active group
 		ColumnExpr(`(
 			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
 			FROM active.group_supervisors gs
+			INNER JOIN active.groups ag ON ag.id = gs.group_id
 			INNER JOIN users.staff st ON st.id = gs.staff_id
 			INNER JOIN users.persons p ON p.id = st.person_id
-			WHERE gs.group_id = ag.id AND gs.end_date IS NULL
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND gs.end_date IS NULL
 		) AS supervisor_names`).
-		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
-		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
-		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
 		Where("r.id = ?", id).
 		Scan(ctx, &result)
 
@@ -135,12 +165,22 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 	// Validate room data
 	if err := room.Validate(); err != nil {
-		return &FacilitiesError{Op: opCreateRoom, Err: err}
+		return &FacilitiesError{Op: opCreateRoom, Err: translateValidationError(err)}
 	}
 
 	// Set tenant ID from context
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		room.SetTenantID(tenantID)
+	}
+
+	if constants.IsWCRoomName(room.Name) {
+		existingAlias, err := s.FindToiletRoom(ctx, 0)
+		if err != nil && !errors.Is(err, ErrRoomNotFound) {
+			return &FacilitiesError{Op: opCreateRoom, Err: err}
+		}
+		if existingAlias != nil {
+			return &FacilitiesError{Op: opCreateRoom, Err: ErrDuplicateToiletRoom}
+		}
 	}
 
 	// Check if a room with the same name already exists
@@ -151,17 +191,130 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 
 	// Create the room
 	if err := s.roomRepo.Create(ctx, room); err != nil {
+		if isUniqueWCAliasViolation(err) {
+			return &FacilitiesError{Op: opCreateRoom, Err: ErrDuplicateToiletRoom}
+		}
+		if isUniqueColorViolation(err) {
+			return &FacilitiesError{Op: opCreateRoom, Err: ErrColorAlreadyInUse}
+		}
 		return &FacilitiesError{Op: opCreateRoom, Err: err}
 	}
 
 	return nil
 }
 
+// translateValidationError maps Validate() sentinels to the service-level
+// errors that the API layer can render with the correct HTTP status. Any
+// other validation error is forwarded unchanged so the existing
+// ErrorInvalidRequest path renders 400.
+func translateValidationError(err error) error {
+	if errors.Is(err, facilities.ErrReservedColor) {
+		return ErrColorReserved
+	}
+	return err
+}
+
+// isUniqueColorViolation reports whether err is a PostgreSQL 23505 raised by
+// the partial unique index on facilities.rooms (tenant_id, lower(color)). The
+// constraint name is checked so other future unique indexes on the table do
+// not accidentally surface as "color already in use" toasts.
+func isUniqueColorViolation(err error) bool {
+	return isUniqueViolationOnIndex(err, facilities.RoomColorUniqueConstraintName)
+}
+
+// isUniqueWCAliasViolation reports whether err is a PostgreSQL 23505 raised
+// by the partial unique index that enforces "at most one WC/Toilette alias
+// per tenant". Hit only on the TOCTOU race the application-level guard in
+// CreateRoom/UpdateRoom can't close — see migration 1.15.48.
+func isUniqueWCAliasViolation(err error) bool {
+	return isUniqueViolationOnIndex(err, facilities.RoomWCAliasUniqueConstraintName)
+}
+
+// isUniqueViolationOnIndex reports whether err is a PostgreSQL 23505 raised
+// by the named partial unique index. Pulled out of isUniqueColorViolation
+// because we now have two such indexes on facilities.rooms and the matching
+// logic is identical — only the index name differs.
+func isUniqueViolationOnIndex(err error, indexName string) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *base.DatabaseError
+	if errors.As(err, &dbErr) {
+		err = dbErr.Err
+	}
+	var pgErr pgdriver.Error
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	if pgErr.Field('C') != "23505" {
+		return false
+	}
+	return pgErr.Field('n') == indexName
+}
+
+// equalStringPtr compares two *string for equality treating nil as "no value"
+// — used to detect "color actually changed" without false-positives from the
+// nil/empty distinction.
+func equalStringPtr(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+// FindToiletRoom iterates wcRoomAliasNames in canonical-first order and
+// returns the first room whose name exactly matches one of the canonical
+// aliases ("WC" or "Toilette"). Used by the auto-create flow and by the
+// create/update guards that prevent a tenant from ending up with both
+// canonical aliases at once. Returns ErrRoomNotFound (wrapped in
+// FacilitiesError) when no canonical alias exists.
+//
+// Why the explicit IsWCRoomName re-check after FindByName: the repository
+// matches case-insensitively via LOWER(name) = LOWER(?) — that CI behavior
+// is required by the duplicate-name guard in CreateRoom and we don't want to
+// change it. But the system-room contract is exact-case everywhere else
+// (constants.IsWCRoomName, the partial unique index from migration 1.15.48,
+// the IoT scan-fallback switch in api/iot/checkin/workflow.go). Without the
+// re-check a lowercase "wc" room would be silently adopted as the toilet
+// special-room here while remaining unprotected against rename/delete and
+// invisible to the IoT scan path — exactly the split contract issue #1184
+// review flagged. Skipping non-canonical rows keeps every layer aligned.
+//
+// Edge case: if a tenant somehow has both lowercase "wc" AND canonical "WC"
+// (DB-level write that bypassed CreateRoom's CI duplicate guard), the
+// FindByName CI lookup may return either row. If it returns the lowercase
+// row we skip and try "Toilette" next; the canonical "WC" then goes
+// undiscovered and the auto-create path will hit the CI duplicate guard.
+// That stuck state requires DB cleanup but is not silent corruption.
+func (s *service) FindToiletRoom(ctx context.Context, excludeRoomID int64) (*facilities.Room, error) {
+	for _, roomName := range wcRoomAliasNames {
+		room, err := s.roomRepo.FindByName(ctx, roomName)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, &FacilitiesError{Op: opFindToiletRoom, Err: err}
+		}
+		if !constants.IsWCRoomName(room.Name) {
+			continue
+		}
+		if excludeRoomID > 0 && room.ID == excludeRoomID {
+			continue
+		}
+		return room, nil
+	}
+
+	return nil, &FacilitiesError{Op: opFindToiletRoom, Err: ErrRoomNotFound}
+}
+
 // UpdateRoom updates an existing room
 func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 	// Validate room data
 	if err := room.Validate(); err != nil {
-		return &FacilitiesError{Op: opUpdateRoom, Err: err}
+		return &FacilitiesError{Op: opUpdateRoom, Err: translateValidationError(err)}
 	}
 
 	// Check if room exists
@@ -175,8 +328,56 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 		return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
 	}
 
+	// System-room color handling.
+	//
+	// The frontend strips the color picker for Schulhof/WC, so a benign edit
+	// (e.g. changing capacity) arrives with room.Color == nil regardless of
+	// what's persisted. If we treated nil as "user wants to clear", every
+	// non-color edit on a Schulhof that still carries the legacy #4F46E5
+	// bug-default would 403 — the migration covers most cases but not all
+	// (e.g. a tenant that hasn't run migrations yet, or a system room
+	// imported with a colour later).
+	//
+	// Strategy: treat a nil incoming colour as "request did not touch the
+	// colour field" and silently preserve the existing value. Only block
+	// when the request explicitly sets a different non-nil colour — that's
+	// the path a malicious or buggy direct API call would take, and the one
+	// the rule actually exists to stop.
+	//
+	// Side-effect of this strategy: a system room cannot have its colour
+	// *cleared* via the API. If a Schulhof somehow carries a stale colour
+	// (legacy bug-default that escaped migration cleanup, or an imported
+	// dataset), the only way to drop it is direct SQL. Acceptable trade-off
+	// — system rooms shouldn't have admin-set colours anyway, and the
+	// alternative is admins losing the ability to edit any other field.
+	//
+	// Why both `room.Color != nil` AND equalStringPtr?
+	//   - Inline `*room.Color != *existingRoom.Color` would NPE when the
+	//     existing colour is nil and the request sets a new one (case A).
+	//   - Dropping the outer guard would re-block benign updates whose
+	//     incoming colour is nil but existing is non-nil (the very bug
+	//     this comment block exists to fix).
+	// Both checks together give: "block only when the request explicitly
+	// names a different non-nil colour, ignore colour-field absence".
+	if constants.IsSystemRoomName(existingRoom.Name) {
+		if room.Color != nil && !equalStringPtr(room.Color, existingRoom.Color) {
+			return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
+		}
+		room.Color = existingRoom.Color
+	}
+
 	// If name is changing, check for duplicates
 	if existingRoom.Name != room.Name {
+		if constants.IsWCRoomName(room.Name) {
+			existingAlias, err := s.FindToiletRoom(ctx, room.ID)
+			if err != nil && !errors.Is(err, ErrRoomNotFound) {
+				return &FacilitiesError{Op: opUpdateRoom, Err: err}
+			}
+			if existingAlias != nil {
+				return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateToiletRoom}
+			}
+		}
+
 		existing, err := s.roomRepo.FindByName(ctx, room.Name)
 		if err == nil && existing != nil && existing.ID != room.ID {
 			return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateRoom}
@@ -185,6 +386,12 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 
 	// Update the room
 	if err := s.roomRepo.Update(ctx, room); err != nil {
+		if isUniqueWCAliasViolation(err) {
+			return &FacilitiesError{Op: opUpdateRoom, Err: ErrDuplicateToiletRoom}
+		}
+		if isUniqueColorViolation(err) {
+			return &FacilitiesError{Op: opUpdateRoom, Err: ErrColorAlreadyInUse}
+		}
 		return &FacilitiesError{Op: opUpdateRoom, Err: err}
 	}
 
@@ -247,33 +454,45 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 		SupervisorNames *string `bun:"supervisor_names"`
 	}
 
-	// Build query with LEFT JOINs for occupancy information
-	// Use DISTINCT ON to handle rooms with multiple active groups (e.g., Schulhof with Freispiel + Garten)
+	// Aggregate occupancy across ALL active groups in each room (not a
+	// single arbitrary one). See GetRoomWithOccupancy above for the
+	// motivation — same query shape so the list and detail surfaces stay
+	// consistent for multi-group rooms (#1374).
 	query := repoBase.GetDB(ctx, s.db).NewSelect().
 		TableExpr("facilities.rooms AS r").
-		DistinctOn("r.id").
 		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
-		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
-		ColumnExpr("act_group.name AS group_name").
-		ColumnExpr("cat.name AS category_name").
-		// Student count: count active visits for this room's active group
+		ColumnExpr(`EXISTS (
+			SELECT 1 FROM active.groups ag
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL
+		) AS is_occupied`).
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT act_group.name, ', ' ORDER BY act_group.name)
+			FROM active.groups ag
+			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL
+		) AS group_name`).
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT cat.name, ', ' ORDER BY cat.name)
+			FROM active.groups ag
+			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
+			INNER JOIN activities.categories cat ON cat.id = act_group.category_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL
+		) AS category_name`).
 		ColumnExpr(`COALESCE((
 			SELECT COUNT(DISTINCT v.student_id)
 			FROM active.visits v
-			WHERE v.active_group_id = ag.id AND v.exit_time IS NULL
+			INNER JOIN active.groups ag ON ag.id = v.active_group_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND v.exit_time IS NULL
 		), 0)::int AS student_count`).
-		// Supervisor names: aggregate staff names for this room's active group
 		ColumnExpr(`(
 			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
 			FROM active.group_supervisors gs
+			INNER JOIN active.groups ag ON ag.id = gs.group_id
 			INNER JOIN users.staff st ON st.id = gs.staff_id
 			INNER JOIN users.persons p ON p.id = st.person_id
-			WHERE gs.group_id = ag.id AND gs.end_date IS NULL
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND gs.end_date IS NULL
 		) AS supervisor_names`).
-		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
-		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
-		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
-		OrderExpr("r.id, r.name ASC")
+		OrderExpr("r.name ASC")
 
 	// Apply filters if provided
 	if options != nil && options.Filter != nil {

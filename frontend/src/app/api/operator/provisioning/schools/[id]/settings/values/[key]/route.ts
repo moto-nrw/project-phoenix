@@ -1,13 +1,77 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
+import { createLogger } from "~/lib/logger";
 import {
   createOperatorPutHandler,
   createOperatorDeleteHandler,
   isStringParam,
+  operatorApiGet,
   operatorApiPut,
   operatorApiDelete,
 } from "~/lib/operator/route-wrapper";
+import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
+
+const logger = createLogger({
+  component: "OperatorSchoolSettingsValuesRoute",
+});
 
 const VALID_KEY_PATTERN = /^[a-z0-9_.]{1,255}$/;
+
+interface SchoolSummary {
+  id: number;
+  slug: string;
+}
+
+interface SchoolSummariesEnvelope {
+  data?: SchoolSummary[];
+}
+
+async function resolveSchoolSlug(
+  schoolId: string,
+  token: string,
+): Promise<string | null> {
+  try {
+    const numericId = Number(schoolId);
+    if (!Number.isFinite(numericId)) return null;
+    // No dedicated single-school endpoint exists; the summaries list is the
+    // cheapest server-side path that returns the slug for an operator. List
+    // size is bounded (one entry per school in the platform) so a single
+    // server-to-server call per write is acceptable for an admin action.
+    const resp = await operatorApiGet<
+      SchoolSummariesEnvelope | SchoolSummary[]
+    >("/operator/schools/summaries", token);
+    const summaries = Array.isArray(resp) ? resp : (resp.data ?? []);
+    const match = summaries.find((s) => s.id === numericId);
+    return match?.slug ?? null;
+  } catch (error) {
+    logger.warn("school_slug_lookup_failed", {
+      school_id: schoolId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+async function revalidateTenantIfNeeded(
+  schoolId: string,
+  key: string,
+  token: string,
+): Promise<void> {
+  if (!TENANT_RESOLVE_AFFECTING_KEYS.has(key)) return;
+
+  const slug = await resolveSchoolSlug(schoolId, token);
+  if (!slug) {
+    logger.warn("tenant_revalidate_skipped_no_slug", {
+      school_id: schoolId,
+      key,
+    });
+    return;
+  }
+
+  revalidateTag(`tenant-${slug}`, { expire: 0 });
+  revalidatePath(`/${slug}`, "layout");
+  logger.info("tenant_cache_revalidated", { slug, key });
+}
 
 export const PUT = createOperatorPutHandler(
   async (
@@ -23,11 +87,13 @@ export const PUT = createOperatorPutHandler(
     if (!VALID_KEY_PATTERN.test(key)) {
       throw new Error("API error (400): Invalid settings key format");
     }
-    return await operatorApiPut(
+    const result = await operatorApiPut(
       `/operator/schools/${params.id}/settings/values/${key}`,
       token,
       body,
     );
+    await revalidateTenantIfNeeded(params.id, key, token);
+    return result;
   },
 );
 
@@ -44,9 +110,11 @@ export const DELETE = createOperatorDeleteHandler(
     if (!VALID_KEY_PATTERN.test(key)) {
       throw new Error("API error (400): Invalid settings key format");
     }
-    return await operatorApiDelete(
+    const result = await operatorApiDelete(
       `/operator/schools/${params.id}/settings/values/${key}`,
       token,
     );
+    await revalidateTenantIfNeeded(params.id, key, token);
+    return result;
   },
 );

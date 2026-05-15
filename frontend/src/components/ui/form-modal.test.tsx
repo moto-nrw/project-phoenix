@@ -74,6 +74,25 @@ describe("FormModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("removes the backdrop from the tab order so FocusScope cannot land on it", async () => {
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={vi.fn()} title="Test">
+          <input data-testid="first-field" />
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const backdrop = screen.getByRole("button", {
+      name: /hintergrund.*schließen/i,
+    });
+    expect(backdrop).toHaveAttribute("tabIndex", "-1");
+  });
+
   it("should call onClose when backdrop is clicked", async () => {
     const onClose = vi.fn();
     render(

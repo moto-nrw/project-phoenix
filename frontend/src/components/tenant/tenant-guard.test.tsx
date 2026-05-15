@@ -124,7 +124,7 @@ describe("TenantGuard", () => {
 
   it("renders children when session tenant matches URL tenant", () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: 1 } },
+      data: { user: { tenantId: 1, token: "access-token" } },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -166,7 +166,7 @@ describe("TenantGuard", () => {
 
   it("shows switching state when mismatch detected", () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: 1 } },
+      data: { user: { tenantId: 1, token: "access-token" } },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -190,7 +190,7 @@ describe("TenantGuard", () => {
   it("calls performTenantSwitch + update on mismatch", async () => {
     const mockUpdate = vi.fn().mockResolvedValue(undefined);
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: 1 } },
+      data: { user: { tenantId: 1, token: "access-token" } },
       status: "authenticated",
       update: mockUpdate,
     });
@@ -222,7 +222,7 @@ describe("TenantGuard", () => {
 
   it("signs out when switchTenant reports access denied", async () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: 1 } },
+      data: { user: { tenantId: 1, token: "access-token" } },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -251,7 +251,13 @@ describe("TenantGuard", () => {
 
   it("signs out operator session on tenant subdomain and blocks render", async () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: undefined, scope: "platform" } },
+      data: {
+        user: {
+          tenantId: undefined,
+          scope: "platform",
+          token: "operator-token",
+        },
+      },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -286,7 +292,13 @@ describe("TenantGuard", () => {
 
   it("redirects to tenant login even when signOut fails", async () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: undefined, scope: "platform" } },
+      data: {
+        user: {
+          tenantId: undefined,
+          scope: "platform",
+          token: "operator-token",
+        },
+      },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -313,7 +325,13 @@ describe("TenantGuard", () => {
 
   it("redirects to tenant login even when cache clear fails", async () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: undefined, scope: "platform" } },
+      data: {
+        user: {
+          tenantId: undefined,
+          scope: "platform",
+          token: "operator-token",
+        },
+      },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -340,7 +358,13 @@ describe("TenantGuard", () => {
 
   it("skips check when session tenantId is undefined and scope is not platform", () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: undefined, scope: undefined } },
+      data: {
+        user: {
+          tenantId: undefined,
+          scope: undefined,
+          token: "access-token",
+        },
+      },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -362,7 +386,7 @@ describe("TenantGuard", () => {
 
   it("does not sign out on transient switch failures", async () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: 1 } },
+      data: { user: { tenantId: 1, token: "access-token" } },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -391,7 +415,7 @@ describe("TenantGuard", () => {
 
   it("retries after a remount instead of persisting a failed slug marker", async () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: 1 } },
+      data: { user: { tenantId: 1, token: "access-token" } },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -437,7 +461,7 @@ describe("TenantGuard", () => {
 
   it("renders children when tenant context is null", () => {
     mockUseSession.mockReturnValue({
-      data: { user: { tenantId: 1 } },
+      data: { user: { tenantId: 1, token: "access-token" } },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -455,5 +479,77 @@ describe("TenantGuard", () => {
     // tenant is null — guard skips check, renders children
     expect(screen.getByText("Protected Content")).toBeInTheDocument();
     expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
+  });
+
+  it("signs out invalid authenticated session with no token", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          tenantId: 1,
+          token: "",
+          roles: [],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-a",
+      tenant: tenantA,
+    });
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    expect(screen.getByText("Sitzung wird erneuert...")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    });
+    expect(mockMutate).toHaveBeenCalled();
+    expect(mockClearSessionCache).toHaveBeenCalled();
+    expect(window.location.assign).toHaveBeenCalledWith(
+      "/?error=SessionExpired",
+    );
+    expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
+  });
+
+  it("signs out authenticated session with refresh error", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          tenantId: 1,
+          token: "access-token",
+          roles: [],
+        },
+        error: "RefreshTokenError",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-a",
+      tenant: tenantA,
+    });
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    expect(screen.getByText("Sitzung wird erneuert...")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    });
+    expect(window.location.assign).toHaveBeenCalledWith(
+      "/?error=SessionExpired",
+    );
   });
 });

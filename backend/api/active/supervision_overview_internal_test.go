@@ -149,11 +149,20 @@ func (s *stubActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ 
 func (s *stubActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*activeModel.Visit, error) {
 	return nil, nil
 }
+func (s *stubActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (s *stubActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
+	return nil, nil
+}
 func (s *stubActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
 func (s *stubActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
+}
+func (s *stubActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
 }
 func (s *stubActiveService) GetGroupSupervisor(_ context.Context, _ int64) (*activeModel.GroupSupervisor, error) {
 	return nil, nil
@@ -260,9 +269,6 @@ func (s *stubActiveService) CleanupAbandonedSessions(_ context.Context, _ time.D
 func (s *stubActiveService) EndDailySessions(_ context.Context) (*activeSvc.DailySessionCleanupResult, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetActiveGroupsCount(_ context.Context) (int, error) { return 0, nil }
-func (s *stubActiveService) GetTotalVisitsCount(_ context.Context) (int, error)  { return 0, nil }
-func (s *stubActiveService) GetActiveVisitsCount(_ context.Context) (int, error) { return 0, nil }
 func (s *stubActiveService) GetDashboardAnalytics(_ context.Context) (*activeSvc.DashboardAnalytics, error) {
 	return nil, nil
 }

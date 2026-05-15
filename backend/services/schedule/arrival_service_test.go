@@ -26,6 +26,17 @@ func setupArrivalScheduleService(t *testing.T, db *bun.DB) schedule.ArrivalSched
 	return serviceFactory.ArrivalSchedule
 }
 
+func createArrivalServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+
+	staff := testpkg.CreateTestStaff(t, db, "Arrival", fmt.Sprintf("Creator-%d", time.Now().UnixNano()))
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(t, db, staff.ID)
+	})
+
+	return staff.ID
+}
+
 // =============================================================================
 // Schedule Operations Tests
 // =============================================================================
@@ -46,7 +57,7 @@ func TestArrivalScheduleService_GetStudentArrivalSchedules(t *testing.T) {
 				StudentID:       student.ID,
 				Weekday:         weekday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.UpsertStudentArrivalSchedule(ctx, sched)
 			require.NoError(t, err)
@@ -81,7 +92,7 @@ func TestArrivalScheduleService_GetStudentArrivalScheduleForWeekday(t *testing.T
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayTuesday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -117,7 +128,7 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayFriday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
@@ -134,7 +145,7 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -155,7 +166,7 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 			StudentID:       0,
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
@@ -179,17 +190,17 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 			{
 				Weekday:         scheduleModels.WeekdayMonday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			},
 			{
 				Weekday:         scheduleModels.WeekdayWednesday,
 				ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			},
 			{
 				Weekday:         scheduleModels.WeekdayFriday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 45, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			},
 		}
 
@@ -210,12 +221,12 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 			{
 				Weekday:         scheduleModels.WeekdayMonday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			},
 			{
 				Weekday:         10,
 				ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			},
 		}
 
@@ -250,7 +261,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayThursday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -281,7 +292,7 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalSchedules(t *testing.T) {
 				StudentID:       student.ID,
 				Weekday:         weekday,
 				ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-				CreatedBy:       1,
+				CreatedBy:       createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.UpsertStudentArrivalSchedule(ctx, sched)
 			require.NoError(t, err)
@@ -316,7 +327,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Reason:        strPtr("Doctor appointment"),
-			CreatedBy:     1,
+			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentArrivalException(ctx, exception)
@@ -334,7 +345,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			Reason:        strPtr("First exception"),
-			CreatedBy:     1,
+			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalException(ctx, exception1)
 		require.NoError(t, err)
@@ -343,7 +354,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			Reason:        strPtr("Second exception"),
-			CreatedBy:     1,
+			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception2)
 
@@ -356,7 +367,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 			StudentID:     0,
 			ExceptionDate: time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Reason:        strPtr("Test"),
-			CreatedBy:     1,
+			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentArrivalException(ctx, exception)
@@ -382,7 +393,7 @@ func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        strPtr("Exception"),
-				CreatedBy:     1,
+				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalException(ctx, exception)
 			require.NoError(t, err)
@@ -413,7 +424,7 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        strPtr("Past"),
-				CreatedBy:     1,
+				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalException(ctx, exception)
 			require.NoError(t, err)
@@ -424,7 +435,7 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        strPtr("Future"),
-				CreatedBy:     1,
+				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalException(ctx, exception)
 			require.NoError(t, err)
@@ -455,7 +466,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
 			Reason:        strPtr("Original reason"),
-			CreatedBy:     1,
+			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalException(ctx, exception)
 		require.NoError(t, err)
@@ -488,7 +499,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: time.Date(2024, 5, 1, 0, 0, 0, 0, time.UTC),
 			Reason:        strPtr("Test"),
-			CreatedBy:     1,
+			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalException(ctx, exception)
 		require.NoError(t, err)
@@ -520,7 +531,7 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) 
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        strPtr("Exception"),
-				CreatedBy:     1,
+				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalException(ctx, exception)
 			require.NoError(t, err)
@@ -555,7 +566,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Arrives by bus today",
-			CreatedBy: 1,
+			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentArrivalNote(ctx, note)
@@ -569,7 +580,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 			StudentID: 0, // Invalid
 			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Test",
-			CreatedBy: 1,
+			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentArrivalNote(ctx, note)
@@ -585,7 +596,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "",
-			CreatedBy: 1,
+			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentArrivalNote(ctx, note)
@@ -610,7 +621,7 @@ func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 3, 16, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Test note",
-			CreatedBy: 1,
+			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalNote(ctx, note)
 		require.NoError(t, err)
@@ -641,7 +652,7 @@ func TestArrivalScheduleService_GetStudentArrivalNotes(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  baseDate.AddDate(0, 0, i),
 				Content:   "Note content",
-				CreatedBy: 1,
+				CreatedBy: createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalNote(ctx, note)
 			require.NoError(t, err)
@@ -680,7 +691,7 @@ func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  targetDate,
 				Content:   fmt.Sprintf("Note %d", i),
-				CreatedBy: 1,
+				CreatedBy: createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalNote(ctx, note)
 			require.NoError(t, err)
@@ -692,7 +703,7 @@ func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  differentDate,
 			Content:   "Different date note",
-			CreatedBy: 1,
+			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalNote(ctx, note)
 		require.NoError(t, err)
@@ -719,7 +730,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
 			Content:   "Original content",
-			CreatedBy: 1,
+			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalNote(ctx, note)
 		require.NoError(t, err)
@@ -741,7 +752,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 			StudentID: 0, // Invalid
 			NoteDate:  time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
 			Content:   "Test",
-			CreatedBy: 1,
+			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
 
 		err := service.UpdateStudentArrivalNote(ctx, note)
@@ -765,7 +776,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 5, 1, 0, 0, 0, 0, time.UTC),
 			Content:   "Test",
-			CreatedBy: 1,
+			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalNote(ctx, note)
 		require.NoError(t, err)
@@ -797,7 +808,7 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalNotes(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  baseDate.AddDate(0, 0, i),
 				Content:   "Note",
-				CreatedBy: 1,
+				CreatedBy: createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalNote(ctx, note)
 			require.NoError(t, err)
@@ -832,7 +843,7 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -841,7 +852,7 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: timezone.Today().AddDate(0, 0, 5),
 			Reason:        strPtr("Future exception"),
-			CreatedBy:     1,
+			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception)
 		require.NoError(t, err)
@@ -850,7 +861,7 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  timezone.Today(),
 			Content:   "Test note",
-			CreatedBy: 1,
+			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalNote(ctx, note)
 		require.NoError(t, err)
@@ -881,7 +892,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
 			Notes:           &recurringNote,
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -895,7 +906,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 			ExceptionDate:   testDate,
 			ExpectedArrival: &earlyTime,
 			Reason:          strPtr("Late arrival"),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception)
 		require.NoError(t, err)
@@ -917,7 +928,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayTuesday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 15, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -971,7 +982,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 			Weekday:         scheduleModels.WeekdayFriday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 			Notes:           &notes,
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -997,7 +1008,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
 			Notes:           &recurringNote,
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -1010,7 +1021,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 			ExceptionDate:   testDate,
 			ExpectedArrival: &updatedTime,
 			Reason:          &blankReason,
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception)
 		require.NoError(t, err)
@@ -1047,7 +1058,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 			ExceptionDate:   testDate,
 			ExpectedArrival: nil, // absent
 			Reason:          strPtr("Sick"),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalException(ctx, exception)
 		require.NoError(t, err)
@@ -1081,7 +1092,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 			StudentID:       student1.ID,
 			Weekday:         scheduleModels.WeekdayThursday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched1)
 		require.NoError(t, err)
@@ -1092,7 +1103,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 			ExceptionDate:   testDate,
 			ExpectedArrival: &earlyTime,
 			Reason:          strPtr("Doctor appointment"),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception2)
 		require.NoError(t, err)
@@ -1102,7 +1113,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 			ExceptionDate:   testDate,
 			ExpectedArrival: nil,
 			Reason:          strPtr("Sick"),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception3)
 		require.NoError(t, err)
@@ -1160,7 +1171,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 			Notes:           &notes,
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -1186,7 +1197,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 			Notes:           &recurringNote,
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -1198,7 +1209,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 			ExceptionDate:   testDate,
 			ExpectedArrival: &updatedTime,
 			Reason:          &blankReason,
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception)
 		require.NoError(t, err)
@@ -1226,7 +1237,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 	t.Run("returns error for empty school class", func(t *testing.T) {
 		result, err := service.BulkUpsertBySchoolClass(ctx, "", []schedule.ArrivalScheduleInput{
 			{Weekday: 1, ArrivalTime: "08:00"},
-		}, 1)
+		}, createArrivalServiceTestStaffID(t, db))
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -1234,7 +1245,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 	})
 
 	t.Run("returns error for empty schedules", func(t *testing.T) {
-		result, err := service.BulkUpsertBySchoolClass(ctx, "1a", []schedule.ArrivalScheduleInput{}, 1)
+		result, err := service.BulkUpsertBySchoolClass(ctx, "1a", []schedule.ArrivalScheduleInput{}, createArrivalServiceTestStaffID(t, db))
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -1244,7 +1255,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 	t.Run("returns zero students affected for empty class", func(t *testing.T) {
 		result, err := service.BulkUpsertBySchoolClass(ctx, "NONEXISTENT_CLASS_XYZ", []schedule.ArrivalScheduleInput{
 			{Weekday: 1, ArrivalTime: "08:00"},
-		}, 1)
+		}, createArrivalServiceTestStaffID(t, db))
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.StudentsAffected)
@@ -1271,7 +1282,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			{Weekday: 3, ArrivalTime: "08:15"},
 		}
 
-		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, 1)
+		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, createArrivalServiceTestStaffID(t, db))
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, result.StudentsAffected)
@@ -1294,7 +1305,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			StudentID:       student.ID,
 			Weekday:         scheduleModels.WeekdayMonday,
 			ExpectedArrival: time.Date(2024, 1, 1, 7, 30, 0, 0, time.UTC),
-			CreatedBy:       1,
+			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentArrivalSchedule(ctx, existingSched)
 		require.NoError(t, err)
@@ -1303,7 +1314,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			{Weekday: 1, ArrivalTime: "08:00"}, // Different time
 		}
 
-		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, 1)
+		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, createArrivalServiceTestStaffID(t, db))
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.StudentsAffected)
@@ -1319,7 +1330,7 @@ func TestArrivalScheduleService_BulkUpsertBySchoolClass(t *testing.T) {
 			{Weekday: 1, ArrivalTime: "invalid"},
 		}
 
-		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, 1)
+		result, err := service.BulkUpsertBySchoolClass(ctx, className, schedules, createArrivalServiceTestStaffID(t, db))
 
 		require.Error(t, err)
 		assert.Nil(t, result)
