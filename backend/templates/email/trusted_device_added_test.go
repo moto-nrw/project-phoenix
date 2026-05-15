@@ -47,12 +47,13 @@ func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
 				"90",
 				// "Was that you?" guidance
 				"Waren Sie das nicht",
-				// Non-admin path: contact administration
-				"Administration",
-				// Admin path: self-service section still mentioned
+				// Primary self-service path — every user has access via /profile
+				"Mein Profil",
 				"Meine vertrauten Geräte",
-				// Password change is the universal first step
+				// Step 1 of the rescue checklist
 				"Passwort",
+				// Account-locked fallback: contact admin
+				"Administration",
 				// Branding chrome
 				"moto Logo",
 				"Ganztag. Digital.",

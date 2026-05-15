@@ -19,7 +19,6 @@ import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
 import { PersonalizationTab } from "./personalization-tab";
-import { TrustedDevicesSection } from "./trusted-devices-section";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
@@ -238,11 +237,6 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
         </div>
       )}
       <SettingsTabContent tab={tab} onSave={handleSave} onReset={handleReset} />
-      {tabKey === "security" && (
-        <div className="mt-6">
-          <TrustedDevicesSection />
-        </div>
-      )}
     </>
   );
 }
