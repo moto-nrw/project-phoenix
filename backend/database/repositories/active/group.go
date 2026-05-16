@@ -1183,13 +1183,22 @@ func (r *GroupRepository) AggregateRoomSessions(
 			ELSE CAST(EXTRACT(EPOCH FROM (ag.end_time - ag.start_time)) / 60 AS INTEGER)
 		END AS duration_minutes`).
 		ColumnExpr(`COALESCE(g.name, '') AS activity_name`).
-		ColumnExpr(supervisorSQL, supervisorArgs...).
-		ColumnExpr(studentCountSQL, studentCountArgs...).
 		Join("LEFT JOIN activities.groups g ON g.id = ag.group_id").
 		Where("ag.room_id = ?", roomID).
 		Where("ag.start_time <= ?", end).
 		Where("(ag.end_time IS NULL OR ag.end_time >= ?)", start).
 		OrderExpr("ag.start_time DESC")
+
+	if len(supervisorArgs) > 0 {
+		query = query.ColumnExpr(supervisorSQL, supervisorArgs...)
+	} else {
+		query = query.ColumnExpr(supervisorSQL)
+	}
+	if len(studentCountArgs) > 0 {
+		query = query.ColumnExpr(studentCountSQL, studentCountArgs...)
+	} else {
+		query = query.ColumnExpr(studentCountSQL)
+	}
 
 	if tenantID > 0 {
 		query = query.Where("ag.tenant_id = ?", tenantID)
