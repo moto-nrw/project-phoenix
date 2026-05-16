@@ -1,6 +1,7 @@
 package facilities_test
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,24 +16,35 @@ import (
 	"github.com/uptrace/bun"
 )
 
+var facilityTenantCounter int64 = time.Now().UnixNano()
+
+func createFacilityTestTenant(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+
+	tenantID := atomic.AddInt64(&facilityTenantCounter, 1)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	return tenantID
+}
+
 // createRoomWithExactName creates a room with the exact given name (no timestamp suffix).
 // Use this for system room tests where the name must match constants exactly.
 // Cleans up any pre-existing room with the same name first to avoid unique constraint violations.
-func createRoomWithExactName(t *testing.T, db *bun.DB, name string) *facilities.Room {
+func createRoomWithExactName(t *testing.T, db *bun.DB, tenantID int64, name string) *facilities.Room {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.TenantContext(tenantID)
 
 	// Clean up any pre-existing room with this exact name (from crashed tests or seed data)
 	_, _ = db.NewDelete().
 		TableExpr("facilities.rooms").
-		Where("name = ? AND tenant_id = 1", name).
+		Where("name = ? AND tenant_id = ?", name, tenantID).
 		Exec(ctx)
 
 	room := &facilities.Room{
 		Name:     name,
 		Building: "Test Building",
 	}
-	room.SetTenantID(1)
+	room.SetTenantID(tenantID)
 	err := db.NewInsert().
 		Model(room).
 		ModelTableExpr(`facilities.rooms`).
@@ -42,9 +54,9 @@ func createRoomWithExactName(t *testing.T, db *bun.DB, name string) *facilities.
 }
 
 // cleanupRoom removes a room by ID.
-func cleanupRoom(t *testing.T, db *bun.DB, roomID int64) {
+func cleanupRoom(t *testing.T, db *bun.DB, tenantID int64, roomID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.TenantContext(tenantID)
 	_, _ = db.NewDelete().
 		TableExpr("facilities.rooms").
 		Where("id = ?", roomID).
@@ -163,6 +175,44 @@ func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
+
+	t.Run("aggregates summary across all active groups in the room", func(t *testing.T) {
+		// ARRANGE — two concurrent active groups in one room (Schulhof
+		// Freispiel + Garten, Sporthalle combined groups, etc). Each
+		// group has its own checked-in student so the count must sum
+		// across groups, not pick one arbitrarily (#1374).
+		room := testpkg.CreateTestRoom(t, db, "Occupancy-MultiGroup")
+		ag1 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup-A")
+		ag2 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup-B")
+		active1 := testpkg.CreateTestActiveGroup(t, db, ag1.ID, room.ID)
+		active2 := testpkg.CreateTestActiveGroup(t, db, ag2.ID, room.ID)
+
+		student1 := testpkg.CreateTestStudent(t, db, "MGStu", "One", "1a")
+		student2 := testpkg.CreateTestStudent(t, db, "MGStu", "Two", "1a")
+		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, active1.ID, time.Now(), nil)
+		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, active2.ID, time.Now(), nil)
+
+		defer testpkg.CleanupActivityFixtures(
+			t, db,
+			room.ID, ag1.ID, ag2.ID, active1.ID, active2.ID,
+			student1.ID, student2.ID, visit1.ID, visit2.ID,
+		)
+
+		// ACT
+		result, err := service.GetRoomWithOccupancy(ctx, room.ID)
+
+		// ASSERT — count must sum (2), not pick one (1).
+		require.NoError(t, err)
+		assert.True(t, result.IsOccupied)
+		assert.Equal(t, 2, result.StudentCount,
+			"student count must sum across all active groups in the room")
+		require.NotNil(t, result.GroupName)
+		// Both group names must appear in the aggregated label so the
+		// header doesn't silently disagree with the merged "Kinder im
+		// Raum" section. ORDER BY in the SQL keeps this deterministic.
+		assert.Contains(t, *result.GroupName, "MultiGroup-A")
+		assert.Contains(t, *result.GroupName, "MultiGroup-B")
+	})
 }
 
 // ============================================================================
@@ -220,7 +270,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.Contains(t, err.Error(), "existiert bereits")
 	})
 
 	t.Run("rejects room with empty name", func(t *testing.T) {
@@ -317,7 +367,7 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.Contains(t, err.Error(), "existiert bereits")
 	})
 
 	t.Run("allows update without changing name", func(t *testing.T) {
@@ -342,8 +392,10 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 
 	t.Run("blocks renaming system room Schulhof", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.SchulhofRoomName
-		room := createRoomWithExactName(t, db, "Schulhof")
-		defer cleanupRoom(t, db, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Name = "Spielplatz"
 
@@ -357,8 +409,10 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 
 	t.Run("allows updating other properties of system room", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.WCRoomName
-		room := createRoomWithExactName(t, db, "WC")
-		defer cleanupRoom(t, db, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		room := createRoomWithExactName(t, db, tenantID, "WC")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newCapacity := 25
 		room.Capacity = &newCapacity
@@ -456,8 +510,10 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 
 	t.Run("blocks deletion of system room Schulhof", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.SchulhofRoomName
-		room := createRoomWithExactName(t, db, "Schulhof")
-		defer cleanupRoom(t, db, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)
@@ -469,8 +525,10 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 
 	t.Run("blocks deletion of system room WC", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.WCRoomName
-		room := createRoomWithExactName(t, db, "WC")
-		defer cleanupRoom(t, db, room.ID)
+		tenantID := createFacilityTestTenant(t, db)
+		ctx := testpkg.TenantContext(tenantID)
+		room := createRoomWithExactName(t, db, tenantID, "WC")
+		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)

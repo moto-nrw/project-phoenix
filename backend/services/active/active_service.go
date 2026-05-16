@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Broadcaster interface (re-exported from realtime for convenience)
@@ -31,6 +32,10 @@ type Broadcaster = realtime.Broadcaster
 const (
 	// sseErrorMessage is the standard error message for SSE broadcast failures
 	sseErrorMessage = "SSE broadcast failed"
+
+	activeSupervisionReasonActivityStarted = "activity_started"
+	activeSupervisionReasonActivityEnded   = "activity_ended"
+	activeSupervisionReasonStudentMoved    = "student_moved"
 )
 
 // RoomConflictStrategy defines how to handle room conflicts when determining room ID
@@ -66,6 +71,7 @@ type ServiceDependencies struct {
 	CombinedGroupRepo active.CombinedGroupRepository
 	GroupMappingRepo  active.GroupMappingRepository
 	AttendanceRepo    active.AttendanceRepository
+	StudentStatusRepo active.StudentStatusDayRepository
 
 	// Cross-tenant query repository (optional - nil-safe)
 	CrossTenantRepo CrossTenantRepo
@@ -124,11 +130,12 @@ type service struct {
 	deviceRepo         iotModels.DeviceRepository
 
 	// New dependencies for attendance tracking
-	attendanceRepo   active.AttendanceRepository
-	educationService education.Service
-	usersService     users.PersonService
-	teacherRepo      userModels.TeacherRepository
-	staffRepo        userModels.StaffRepository
+	attendanceRepo    active.AttendanceRepository
+	studentStatusRepo active.StudentStatusDayRepository
+	educationService  education.Service
+	usersService      users.PersonService
+	teacherRepo       userModels.TeacherRepository
+	staffRepo         userModels.StaffRepository
 
 	db *bun.DB
 
@@ -206,6 +213,7 @@ func NewService(deps ServiceDependencies) Service {
 		personRepo:         deps.PersonRepo,
 		deviceRepo:         deps.DeviceRepo,
 		attendanceRepo:     deps.AttendanceRepo,
+		studentStatusRepo:  deps.StudentStatusRepo,
 		educationService:   deps.EducationService,
 		usersService:       deps.UsersService,
 		teacherRepo:        deps.TeacherRepo,
@@ -476,7 +484,15 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 
 	// Create the visit record
 	visit.SetTenantID(tenant.FromContext(ctx))
-	if s.visitRepo.Create(ctx, visit) != nil {
+	if err := s.visitRepo.Create(ctx, visit); err != nil {
+		// The partial unique index uniq_active_visits_open_per_student is the
+		// race-safety net behind ensureStudentHasNoActiveVisit above. When
+		// two concurrent requests both pass the read-then-write check, the
+		// loser hits 23505 here. Translate to ErrStudentAlreadyActive so the
+		// IoT handler maps it to 409 Conflict instead of 500.
+		if isDuplicateActiveVisitViolation(err) {
+			return &ActiveError{Op: "CreateVisit", Err: ErrStudentAlreadyActive}
+		}
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
 
@@ -495,6 +511,30 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 	s.broadcastVisitCreated(ctx, visit, snapshot)
 
 	return nil
+}
+
+// isDuplicateActiveVisitViolation returns true when err carries PostgreSQL
+// error code 23505 (unique_violation) on the partial unique index
+// uniq_active_visits_open_per_student, defined in migration 1.15.47 on
+// active.visits (tenant_id, student_id) WHERE exit_time IS NULL.
+//
+// We match by constraint name (Field 'n') rather than just the error code
+// so a future unrelated unique index on active.visits doesn't accidentally
+// translate into ErrStudentAlreadyActive.
+func isDuplicateActiveVisitViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *base.DatabaseError
+	if errors.As(err, &dbErr) {
+		err = dbErr.Err
+	}
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.Field('C') == "23505" &&
+			pgErr.Field('n') == "uniq_active_visits_open_per_student"
+	}
+	return false
 }
 
 // isNotFoundError checks if an error is due to "not found" (sql.ErrNoRows) vs. other database errors
@@ -555,8 +595,40 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrInvalidData}
 	}
 
+	existing, err := s.visitRepo.FindByID(ctx, visit.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrVisitNotFound}
+		}
+		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+	if existing == nil {
+		return &ActiveError{Op: "UpdateVisit", Err: ErrVisitNotFound}
+	}
+
+	isActiveGroupMove := existing.ExitTime == nil && existing.ActiveGroupID != visit.ActiveGroupID
+	if isActiveGroupMove {
+		targetGroup, err := s.groupRepo.FindByID(ctx, visit.ActiveGroupID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+			}
+			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
+		if targetGroup == nil {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+		}
+		if !targetGroup.IsActive() {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+		}
+	}
+
 	if s.visitRepo.Update(ctx, visit) != nil {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+
+	if isActiveGroupMove {
+		s.broadcastVisitMoved(ctx, existing, visit)
 	}
 
 	return nil
@@ -644,8 +716,15 @@ func (s *service) endVisitRecord(ctx context.Context, id int64) (*active.Visit, 
 	if err != nil || visit == nil {
 		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
 	}
+	if visit.ExitTime != nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitAlreadyEnded}
+	}
 
-	if s.visitRepo.EndVisit(ctx, id) != nil {
+	if err := s.visitRepo.EndVisit(ctx, id); err != nil {
+		latest, findErr := s.visitRepo.FindByID(ctx, id)
+		if findErr == nil && latest != nil && latest.ExitTime != nil {
+			return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitAlreadyEnded}
+		}
 		return nil, &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
 	}
 
@@ -687,6 +766,25 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 
 	// Notify all clients so dashboard counts refresh
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
+}
+
+// broadcastVisitMoved mirrors a room/session transfer as a checkout from the
+// source active group and a checkin into the target active group. Attendance is
+// not mutated here; the snapshot only enriches SSE payloads for clients that
+// display timetable attendance state alongside visit rows.
+func (s *service) broadcastVisitMoved(ctx context.Context, previousVisit, movedVisit *active.Visit) {
+	if s.broadcaster == nil || previousVisit == nil || movedVisit == nil {
+		return
+	}
+
+	var snapshot *AttendanceSnapshot
+	if s.attendanceSyncer != nil {
+		snapshot = s.attendanceSyncer.LoadAttendanceForVisit(ctx, movedVisit)
+	}
+
+	s.broadcastVisitCheckout(ctx, previousVisit, snapshot)
+	s.broadcastVisitCreated(ctx, movedVisit, snapshot)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
@@ -755,6 +853,7 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// Single global broadcast for the entire batch
 	if len(visitsToNotify) > 0 && s.broadcaster != nil {
 		_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonStudentMoved)
 	}
 }
 
@@ -784,6 +883,7 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 
 	// Notify all clients (including zero-topic) so dashboard refreshes
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonActivityEnded)
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.
@@ -887,6 +987,18 @@ func (s *service) CountActiveVisitsByActiveGroupID(ctx context.Context, activeGr
 		return 0, &ActiveError{Op: "CountActiveVisitsByActiveGroupID", Err: ErrDatabaseOperation}
 	}
 	return count, nil
+}
+
+// ListStudentsPresentInRoom returns the IDs of students currently checked-in
+// to any active group in the given room. The student list handler feeds
+// these IDs through the standard ListWithOptions pipeline, which applies
+// GDPR redaction and pagination.
+func (s *service) ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error) {
+	ids, err := s.visitRepo.ListActiveStudentIDsByRoomID(ctx, roomID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ListStudentsPresentInRoom", Err: fmt.Errorf("list active student IDs: %w", err)}
+	}
+	return ids, nil
 }
 
 // Group Supervisor operations

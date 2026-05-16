@@ -16,12 +16,19 @@ import (
 // The role and config are LOCAL to the transaction and automatically reset on commit/rollback.
 // Nested-safe: if the context already contains a tenant tx with the same tenantID, the existing
 // tx is reused instead of opening a new one. Mismatched tenantIDs return an error.
+//
+// After-commit hooks: callbacks registered via RegisterAfterCommit run only
+// after the OUTERMOST WithTenantTx successfully commits. Nested calls just
+// append to the shared holder. If db.RunInTx returns an error (commit failed
+// or fn errored), queued hooks are dropped — destructive side effects MUST
+// NOT run when the database state never moved.
 func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx context.Context, tx bun.Tx) error) error {
 	if tenantID == 0 {
 		return fmt.Errorf("tenant: WithTenantTx requires a non-zero tenant_id")
 	}
 
-	// Nested-safe: if already in a tenant tx, reuse it
+	// Nested-safe: if already in a tenant tx, reuse it. The hooks holder is
+	// already attached to ctx by the outermost call — drains happen there.
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		existingTenantID := FromContext(ctx)
 		if existingTenantID != tenantID {
@@ -30,7 +37,11 @@ func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx c
 		return fn(ctx, *tx)
 	}
 
-	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
+	// Outermost call: attach a fresh hooks holder so nested
+	// RegisterAfterCommit appends to it via context propagation.
+	ctx, hooks := withAfterCommitHooks(ctx)
+
+	err := db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		// Switch to the RLS-enforced tenant role
 		if _, err := tx.ExecContext(ctx, "SET LOCAL ROLE phoenix_tenant"); err != nil {
 			return fmt.Errorf("tenant: SET LOCAL ROLE phoenix_tenant: %w", err)
@@ -54,6 +65,11 @@ func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx c
 
 		return fn(ctx, tx)
 	})
+	if err != nil {
+		return err
+	}
+	runAfterCommitHooks(hooks)
+	return nil
 }
 
 // WithAdminTx executes fn inside a transaction that:

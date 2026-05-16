@@ -220,19 +220,14 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 				slog.Int64("student_id", student.ID),
 			)
 		case "checked_in":
-			deviceCtx := device.DeviceFromCtx(r.Context())
 			staffID := int64(0)
-			deviceID := int64(0)
-			if deviceCtx != nil {
-				deviceID = deviceCtx.ID
-			}
 			if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
 				staffID = staffCtx.ID
 			}
 
 			// Set attendance to "checked_out" — sets check_out_time on today's record.
 			// skipAuthCheck=true because the IoT device already authenticated this request.
-			_, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceID, true)
+			_, err := rs.ActiveService.CheckOutStudent(r.Context(), student.ID, staffID, true)
 			if err != nil {
 				slog.Default().ErrorContext(r.Context(), "failed to update attendance for daily checkout",
 					slog.Int64("student_id", student.ID),

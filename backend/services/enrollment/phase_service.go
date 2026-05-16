@@ -23,7 +23,7 @@ var (
 // per-phase care-overflow mode, and admin/parent visibility flags.
 //
 // The service deliberately doesn't bake "current school year" logic in
-// — admins can have multiple active phases simultaneously (e.g.
+// - admins can have multiple active phases simultaneously (e.g.
 // "Schuljahr 26/27" + "Sommerferien 2026"), and the parent landing page
 // surfaces every is_active=true phase whose window includes now.
 type PhaseService interface {
@@ -112,7 +112,7 @@ func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase
 }
 
 // Delete refuses to remove phases that already have rows referencing
-// them. Admins should toggle is_active=false instead — that hides the
+// them. Admins should toggle is_active=false instead - that hides the
 // phase from parents without losing the audit trail.
 //
 // The reference checks short-circuit: requests first (more likely to
@@ -122,7 +122,7 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("%w: id must be positive", ErrInvalidPhase)
 	}
 
-	// Both checks bypass the FK ON DELETE CASCADE — we want a clean
+	// Both checks bypass the FK ON DELETE CASCADE - we want a clean
 	// admin-facing error, not a silent cascade that nukes submissions.
 	hasRequests, err := s.phaseHasRequests(ctx, id)
 	if err != nil {
@@ -148,7 +148,7 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 
 func (s *phaseService) phaseHasRequests(ctx context.Context, phaseID int64) (bool, error) {
 	// Cheap path: a small repo helper would be cleaner, but PR A keeps
-	// the surface tight — we already have the offering join repo. Future
+	// the surface tight - we already have the offering join repo. Future
 	// PRs can add a dedicated count method on RequestRepository if this
 	// shows up in a hot path.
 	if s.requestRepo == nil {

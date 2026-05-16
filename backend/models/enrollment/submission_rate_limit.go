@@ -14,7 +14,7 @@ const (
 	SubmissionRateLimitKeyTypeEmail = "email"
 )
 
-// SubmissionRateLimit is a row in enrollment.submission_rate_limits —
+// SubmissionRateLimit is a row in enrollment.submission_rate_limits -
 // one per (tenant, key_type, key_value) combination. The repository
 // upserts rows atomically so concurrent submissions can't oversubscribe.
 type SubmissionRateLimit struct {
@@ -24,11 +24,6 @@ type SubmissionRateLimit struct {
 	KeyValue    string    `bun:"key_value,notnull" json:"key_value"`
 	Attempts    int       `bun:"attempts,notnull" json:"attempts"`
 	WindowStart time.Time `bun:"window_start,notnull,default:current_timestamp" json:"window_start"`
-}
-
-// TableName returns the schema-qualified table name.
-func (s *SubmissionRateLimit) TableName() string {
-	return "enrollment.submission_rate_limits"
 }
 
 // SubmissionRateLimitState is the post-increment view the service uses

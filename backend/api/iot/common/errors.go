@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -117,6 +118,73 @@ func ErrorActivityCapacityExceeded(activityID int64, activityName string, curren
 			ActivityName:     activityName,
 			CurrentOccupancy: currentOccupancy,
 			MaxCapacity:      maxCapacity,
+		},
+	}
+}
+
+// StudentAlreadyActiveError carries the existing-visit context that the
+// kiosk surfaces to the user when a duplicate-checkin is rejected.
+//
+// All fields except StudentID are optional: ExistingVisitID is omitted when
+// the lookup couldn't load the prior visit (race window between the
+// failing INSERT and the response build), RoomID/RoomName are omitted when
+// the prior visit's active group has no associated room.
+//
+// EntryTime is *time.Time rather than time.Time because encoding/json's
+// `omitempty` tag does not skip zero-valued struct fields — a value-typed
+// time.Time would marshal to "0001-01-01T00:00:00Z" in the degraded path,
+// breaking the optional-field contract and feeding clients a bogus
+// timestamp. A nil pointer is omitted correctly.
+type StudentAlreadyActiveError struct {
+	StudentID       int64      `json:"student_id"`
+	ExistingVisitID int64      `json:"existing_visit_id,omitempty"`
+	EntryTime       *time.Time `json:"entry_time,omitempty"`
+	RoomID          *int64     `json:"room_id,omitempty"`
+	RoomName        string     `json:"room_name,omitempty"`
+}
+
+// Error implements the error interface for StudentAlreadyActiveError.
+// The substring "student already has an active visit" is the canonical
+// active-service phrasing (see services/active/errors.go) and is what
+// PyrePortal substring-matches on for the German UI translation.
+func (e *StudentAlreadyActiveError) Error() string {
+	return "student already has an active visit"
+}
+
+// StudentAlreadyActiveErrorResponse is the structured 409 body returned
+// when a duplicate-active-visit attempt is rejected. The shape mirrors
+// CapacityErrorResponse so PyrePortal can parse all checkin-conflict
+// responses through a single decoder.
+type StudentAlreadyActiveErrorResponse struct {
+	Status  string                     `json:"status"`
+	Message string                     `json:"message"`
+	Code    string                     `json:"code"`
+	Details *StudentAlreadyActiveError `json:"details"`
+}
+
+// Render implements render.Renderer
+func (e *StudentAlreadyActiveErrorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	render.Status(r, http.StatusConflict)
+	return nil
+}
+
+// ErrorStudentAlreadyActive returns a 409 Conflict response with details
+// about the existing visit. existingVisitID, entryTime, roomID and
+// roomName may all be zero-valued — only studentID is required. Pass
+// entryTime as nil (not &time.Time{}) when the visit lookup couldn't
+// resolve the entry timestamp; the field is dropped from the JSON body
+// rather than serialized as the Go zero value.
+func ErrorStudentAlreadyActive(studentID, existingVisitID int64, entryTime *time.Time, roomID *int64, roomName string) render.Renderer {
+	return &StudentAlreadyActiveErrorResponse{
+		Status:  "error",
+		Message: "student already has an active visit",
+		Code:    "STUDENT_ALREADY_ACTIVE",
+		Details: &StudentAlreadyActiveError{
+			StudentID:       studentID,
+			ExistingVisitID: existingVisitID,
+			EntryTime:       entryTime,
+			RoomID:          roomID,
+			RoomName:        roomName,
 		},
 	}
 }

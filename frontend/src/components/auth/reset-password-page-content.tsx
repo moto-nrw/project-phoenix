@@ -1,0 +1,300 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { useTenantRouter } from "~/lib/tenant-router";
+import Image from "next/image";
+import { Loading } from "~/components/ui/loading";
+import Link from "next/link";
+import { Input } from "~/components/ui";
+import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
+import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
+import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ResetPasswordPage" });
+
+interface PasswordFieldProps {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly visible: boolean;
+  readonly onToggleVisible: () => void;
+  readonly disabled: boolean;
+}
+
+function PasswordField({
+  id,
+  label,
+  value,
+  onChange,
+  visible,
+  onToggleVisible,
+  disabled,
+}: PasswordFieldProps) {
+  return (
+    <div className="text-left">
+      <label
+        htmlFor={id}
+        className="mb-1 block text-sm font-medium text-gray-700"
+      >
+        {label}
+      </label>
+      <div className="relative">
+        <Input
+          id={id}
+          name={id}
+          type={visible ? "text" : "password"}
+          autoComplete="new-password"
+          required
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full pr-10"
+          label=""
+          disabled={disabled}
+        />
+        <PasswordToggleButton
+          showPassword={visible}
+          onToggle={onToggleVisible}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function ResetPasswordPageContent() {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const router = useTenantRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const tokenParam = searchParams.get("token");
+    if (tokenParam) {
+      setToken(tokenParam);
+    } else {
+      setError(
+        "Ungültiger oder fehlender Reset-Token. Bitte fordern Sie einen neuen Link an.",
+      );
+    }
+  }, [searchParams]);
+
+  const validatePassword = (pwd: string): string | null => {
+    if (pwd.length < 8) {
+      return "Das Passwort muss mindestens 8 Zeichen lang sein.";
+    }
+    if (!/[A-Z]/.test(pwd)) {
+      return "Das Passwort muss mindestens einen Großbuchstaben enthalten.";
+    }
+    if (!/[a-z]/.test(pwd)) {
+      return "Das Passwort muss mindestens einen Kleinbuchstaben enthalten.";
+    }
+    if (!/\d/.test(pwd)) {
+      return "Das Passwort muss mindestens eine Zahl enthalten.";
+    }
+    if (!/[^A-Za-z0-9]/.test(pwd)) {
+      return "Das Passwort muss mindestens ein Sonderzeichen enthalten.";
+    }
+    return null;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!token) {
+      setError("Ungültiger Reset-Token.");
+      return;
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Die Passwörter stimmen nicht überein.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await confirmPasswordReset(token, password, confirmPassword);
+      setIsSuccess(true);
+
+      setTimeout(() => {
+        router.push("/");
+      }, 3000);
+    } catch (err) {
+      const apiError = err as ApiError | undefined;
+      const status = apiError?.status;
+      if (status === 410 || status === 404) {
+        logger.warn("password_reset_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          status,
+        });
+      } else {
+        logger.error("password_reset_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      let message =
+        apiError?.message ??
+        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
+
+      if (apiError?.status === 410) {
+        message =
+          "Dieser Passwort-Reset-Link ist abgelaufen. Bitte fordere einen neuen Link an.";
+      } else if (apiError?.status === 404) {
+        message =
+          "Wir konnten diesen Passwort-Reset-Link nicht finden. Bitte fordere einen neuen Link an.";
+      } else if (apiError?.status === 400 && apiError.message) {
+        message = apiError.message;
+      }
+
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isSuccess) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md rounded-2xl border border-gray-200/50 bg-white/90 p-8 shadow-sm backdrop-blur-sm">
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+              <CheckIcon className="h-10 w-10 text-green-600" />
+            </div>
+
+            <h1 className="mb-2 text-2xl font-semibold text-gray-900">
+              Passwort erfolgreich geändert!
+            </h1>
+            <p className="mb-6 text-sm text-gray-600">
+              Sie werden zur Anmeldeseite weitergeleitet...
+            </p>
+
+            <Loading fullPage={false} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-gray-200/50 bg-white/90 p-8 shadow-sm backdrop-blur-sm">
+        <div className="mb-6 flex justify-center">
+          <Image
+            src="/images/moto_transparent.png"
+            alt="MOTO Logo"
+            width={100}
+            height={40}
+            priority
+            className="opacity-60"
+          />
+        </div>
+
+        <div className="mb-6 text-center">
+          <h1 className="mb-2 text-2xl font-semibold text-gray-900">
+            Neues Passwort festlegen
+          </h1>
+          <p className="text-sm text-gray-600">
+            Bitte geben Sie Ihr neues Passwort ein.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          {error && (
+            <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-4">
+              <div className="flex items-start gap-3">
+                <svg
+                  className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <PasswordField
+              id="password"
+              label="Neues Passwort"
+              value={password}
+              onChange={setPassword}
+              visible={showPassword}
+              onToggleVisible={() => setShowPassword(!showPassword)}
+              disabled={isLoading || !token}
+            />
+            <PasswordField
+              id="confirmPassword"
+              label="Passwort bestätigen"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              visible={showConfirmPassword}
+              onToggleVisible={() =>
+                setShowConfirmPassword(!showConfirmPassword)
+              }
+              disabled={isLoading || !token}
+            />
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-left">
+            <p className="mb-1.5 text-xs font-medium text-gray-700">
+              Passwort-Anforderungen:
+            </p>
+            <ul className="space-y-0.5 text-xs text-gray-600">
+              <li>• Mindestens 8 Zeichen lang</li>
+              <li>• Groß- und Kleinbuchstaben</li>
+              <li>• Mindestens eine Zahl</li>
+              <li>• Mindestens ein Sonderzeichen</li>
+            </ul>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading || !token}
+            className="inline-flex w-full items-center justify-center rounded-md bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+          >
+            {isLoading ? (
+              <>
+                <SpinnerIcon className="mr-2 -ml-1 h-4 w-4 text-white" />
+                <span>Wird gespeichert...</span>
+              </>
+            ) : (
+              <span>Passwort ändern</span>
+            )}
+          </button>
+
+          <div className="pt-2 text-center">
+            <Link
+              href="/"
+              className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline"
+            >
+              Zurück zur Anmeldung
+            </Link>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

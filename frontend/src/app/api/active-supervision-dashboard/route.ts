@@ -15,6 +15,7 @@ interface BackendActiveGroup {
   room?: {
     id: number;
     name: string;
+    color?: string | null;
   };
   end_time?: string;
 }
@@ -58,6 +59,7 @@ interface BackendRoom {
   name: string;
   building?: string;
   floor?: number;
+  color?: string | null;
 }
 
 // Backend response for visits with display data
@@ -77,6 +79,9 @@ interface BackendVisitDisplay {
   excused?: boolean;
   excused_since?: string;
   is_active: boolean;
+  // Authenticated /api/students/{id}/photo/{filename} URL — backend
+  // rewrites the raw /uploads path before returning.
+  photo_url?: string;
 }
 
 // Backend response for Schulhof status
@@ -100,6 +105,25 @@ interface BackendSchulhofStatus {
   supervisors: BackendSchulhofSupervisor[];
 }
 
+interface BackendPlannedTimetableInstance {
+  id: number;
+  title: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  room_id: number;
+  status: "planned" | "active" | "completed" | "cancelled";
+  is_overdue: boolean;
+  minutes_until_start: number;
+  expected_students_count: number;
+  present_students_count: number;
+  assigned_staff_ids: number[];
+}
+
+interface BackendTimetableOperationCapabilities {
+  web_spontaneous_activities_enabled?: boolean;
+}
+
 // Combined dashboard response type
 interface ActiveSupervisionDashboardResponse {
   // User's supervised active groups (with room info pre-loaded)
@@ -107,7 +131,7 @@ interface ActiveSupervisionDashboardResponse {
     id: string;
     name: string;
     room_id?: string;
-    room?: { id: string; name: string };
+    room?: { id: string; name: string; color?: string | null };
   }>;
 
   // Unclaimed groups available to claim
@@ -144,6 +168,7 @@ interface ActiveSupervisionDashboardResponse {
     sickSince?: string;
     excused?: boolean;
     excusedSince?: string;
+    photoUrl?: string;
   }>;
 
   // ID of first room (for state initialization)
@@ -167,6 +192,23 @@ interface ActiveSupervisionDashboardResponse {
       isCurrentUser: boolean;
     }>;
   } | null;
+  capabilities?: {
+    webSpontaneousActivitiesEnabled: boolean;
+  };
+  plannedNow: Array<{
+    id: string;
+    title: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    roomId: string;
+    status: "planned" | "active" | "completed" | "cancelled";
+    isOverdue: boolean;
+    minutesUntilStart: number;
+    expectedStudentsCount: number;
+    presentStudentsCount: number;
+    assignedStaffIds: string[];
+  }>;
 }
 
 /**
@@ -195,6 +237,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       staffResult,
       groupsResult,
       schulhofResult,
+      plannedNowResult,
     ] = await Promise.all([
       // User's supervised active groups. For admin-only users, try the admin
       // overview endpoint first. If it returns 403 (setting disabled) fall
@@ -245,6 +288,12 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         "/api/active/schulhof/status",
         token,
       ).catch(() => ({ data: null as BackendSchulhofStatus | null })),
+      apiGet<{ data: { instances: BackendPlannedTimetableInstance[] } }>(
+        "/api/timetable/operations/planned-now",
+        token,
+      ).catch(() => ({
+        data: { instances: [] as BackendPlannedTimetableInstance[] },
+      })),
     ]);
 
     // Extract data with null safety, sorted by room name for deterministic order
@@ -264,6 +313,20 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       ? groupsResult.data
       : [];
     const schulhofData = schulhofResult.data;
+    const plannedNow = (plannedNowResult.data?.instances ?? []).map((i) => ({
+      id: i.id.toString(),
+      title: i.title,
+      date: i.date,
+      startTime: i.start_time,
+      endTime: i.end_time,
+      roomId: i.room_id.toString(),
+      status: i.status,
+      isOverdue: i.is_overdue,
+      minutesUntilStart: i.minutes_until_start,
+      expectedStudentsCount: i.expected_students_count,
+      presentStudentsCount: i.present_students_count,
+      assignedStaffIds: i.assigned_staff_ids.map(String),
+    }));
 
     // Transform Schulhof status to frontend format
     const schulhofStatus = schulhofData
@@ -286,8 +349,26 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         }
       : null;
 
+    const fetchCapabilities = async () => {
+      const result = await Promise.resolve(
+        apiGet<{ data: BackendTimetableOperationCapabilities }>(
+          "/api/timetable/operations/capabilities",
+          token,
+        ),
+      ).catch(() => ({
+        data: {
+          web_spontaneous_activities_enabled: false,
+        } satisfies BackendTimetableOperationCapabilities,
+      }));
+      return {
+        webSpontaneousActivitiesEnabled:
+          result?.data?.web_spontaneous_activities_enabled === true,
+      };
+    };
+
     // If no supervised groups, return early with just unclaimed groups data
     if (supervisedGroups.length === 0) {
+      const capabilities = await fetchCapabilities();
       return {
         supervisedGroups: [],
         unclaimedGroups: unclaimedGroups.map((g) => ({
@@ -304,6 +385,8 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         firstRoomVisits: [],
         firstRoomId: null,
         schulhofStatus,
+        capabilities,
+        plannedNow,
       };
     }
 
@@ -320,7 +403,11 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
             id: group.id.toString(),
             name: group.name,
             room_id: group.room_id?.toString(),
-            room: { id: group.room.id.toString(), name: group.room.name },
+            room: {
+              id: group.room.id.toString(),
+              name: group.room.name,
+              color: group.room.color ?? null,
+            },
           };
         }
 
@@ -339,6 +426,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
                 ? {
                     id: roomResponse.data.id.toString(),
                     name: roomResponse.data.name,
+                    color: roomResponse.data.color ?? null,
                   }
                 : undefined,
             };
@@ -388,11 +476,14 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
             sickSince: v.sick_since,
             excused: v.excused,
             excusedSince: v.excused_since,
+            photoUrl: v.photo_url,
           }));
       } catch {
         firstRoomVisits = [];
       }
     }
+
+    const capabilities = await fetchCapabilities();
 
     return {
       supervisedGroups: enrichedGroups,
@@ -410,6 +501,8 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       firstRoomVisits,
       firstRoomId: firstGroupId,
       schulhofStatus,
+      capabilities,
+      plannedNow,
     };
   },
 );

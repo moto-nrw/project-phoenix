@@ -121,7 +121,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 
 	repoFactory := repositories.NewFactory(db)
 	settings := newStubRequestSettings()
-	// Default to "enabled, no window restrictions" — individual tests
+	// Default to "enabled, no window restrictions" - individual tests
 	// override these maps to drive specific branches.
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true

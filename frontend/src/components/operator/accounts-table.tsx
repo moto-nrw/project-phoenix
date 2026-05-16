@@ -1,0 +1,227 @@
+"use client";
+
+import { useMemo } from "react";
+import type {
+  OrgAccount,
+  School,
+  SchoolAccount,
+} from "~/lib/operator/provisioning-helpers";
+import { DataTable } from "~/components/ui/data-table";
+import type { DataTableColumn } from "~/components/ui/data-table";
+
+type AccountRow = SchoolAccount | OrgAccount;
+
+function getAccountCapabilityMeta(account: SchoolAccount) {
+  if (account.isActiveCaregiver && account.hasAdminRole) {
+    return {
+      label: "Verwaltung + Betreuung",
+      className: "bg-[#83CD2D]/15 text-[#5A8B1F]",
+    };
+  }
+  if (account.isActiveCaregiver) {
+    return {
+      label: "Betreuung aktiv",
+      className: "bg-[#F78C10]/15 text-[#C56F0D]",
+    };
+  }
+  if (account.hasUserRole && !account.hasCaregiverProfile) {
+    return {
+      label: "Betreuung unvollständig",
+      className: "bg-[#EAB308]/15 text-[#854D0E]",
+    };
+  }
+  if (account.hasCaregiverProfile && !account.hasUserRole) {
+    return {
+      label: "Betreuungsprofil inaktiv",
+      className: "bg-gray-100 text-gray-700",
+    };
+  }
+  if (account.hasAdminRole) {
+    return {
+      label: "Nur Verwaltung",
+      className: "bg-[#5080D8]/15 text-[#4070C8]",
+    };
+  }
+  return {
+    label: "Keine Betreuung",
+    className: "bg-gray-100 text-gray-600",
+  };
+}
+
+function AccountStatusBadge({ status }: Readonly<{ status: string }>) {
+  const styles: Record<string, string> = {
+    active: "bg-[#83CD2D]/15 text-[#5A8B1F]",
+    pending: "bg-[#EAB308]/15 text-[#854D0E]",
+    invited: "bg-[#7C3AED]/15 text-[#5B21B6]",
+    inactive: "bg-gray-100 text-gray-500",
+  };
+  const labels: Record<string, string> = {
+    active: "Aktiv",
+    pending: "Ausstehend",
+    invited: "Eingeladen",
+    inactive: "Inaktiv",
+  };
+  return (
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? "bg-gray-100 text-gray-500"}`}
+    >
+      {labels[status] ?? status}
+    </span>
+  );
+}
+
+function getDisplayName(account: AccountRow): string {
+  return account.firstName || account.lastName
+    ? `${account.firstName} ${account.lastName}`.trim()
+    : "—";
+}
+
+function getNameSortValue(account: AccountRow): string {
+  return account.firstName || account.lastName
+    ? `${account.lastName} ${account.firstName}`.trim().toLowerCase()
+    : "";
+}
+
+interface AccountsTableProps {
+  accounts: SchoolAccount[] | OrgAccount[];
+  showSchool?: boolean;
+  selectedSchool?: School | null;
+  onManageCaregiver?: (
+    account: AccountRow,
+    schoolContext: { id: string; name: string } | null,
+  ) => void;
+}
+
+export function AccountsTable({
+  accounts,
+  showSchool = false,
+  selectedSchool,
+  onManageCaregiver,
+}: Readonly<AccountsTableProps>) {
+  const columns = useMemo<DataTableColumn<AccountRow>[]>(() => {
+    const cols: DataTableColumn<AccountRow>[] = [];
+
+    if (showSchool) {
+      cols.push({
+        key: "schoolName",
+        header: "Schule",
+        render: (row) => (row as OrgAccount).schoolName,
+        sortValue: (row) => (row as OrgAccount).schoolName.toLowerCase(),
+        className: "text-gray-600",
+      });
+    }
+
+    cols.push(
+      {
+        key: "name",
+        header: "Name",
+        render: getDisplayName,
+        sortValue: getNameSortValue,
+        className: "font-medium text-gray-900",
+      },
+      {
+        key: "email",
+        header: "E-Mail",
+        render: (row) => row.email,
+        sortValue: (row) => row.email.toLowerCase(),
+        className: "text-gray-600",
+      },
+      {
+        key: "roleName",
+        header: "Rolle",
+        render: (row) =>
+          row.roleName ? (
+            <span className="inline-flex flex-wrap gap-1">
+              {row.roleName.split(", ").map((role) => (
+                <span
+                  key={role}
+                  className="inline-flex rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#4070C8]"
+                >
+                  {role}
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span className="text-gray-400">—</span>
+          ),
+        sortValue: (row) => row.roleName.toLowerCase(),
+      },
+      {
+        key: "pedagogicRole",
+        header: "Päd. Rolle",
+        render: (row) => row.pedagogicRole || "—",
+        sortValue: (row) => row.pedagogicRole.toLowerCase(),
+        className: "text-gray-600",
+      },
+      {
+        key: "capability",
+        header: "Einsatz",
+        render: (row) => {
+          const capability = getAccountCapabilityMeta(row);
+          return (
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${capability.className}`}
+            >
+              {capability.label}
+            </span>
+          );
+        },
+      },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => <AccountStatusBadge status={row.status} />,
+        sortValue: (row) => row.status.toLowerCase(),
+      },
+      {
+        key: "action",
+        header: "Aktion",
+        align: "right",
+        render: (row) => {
+          const orgAccount = showSchool ? (row as OrgAccount) : undefined;
+          const schoolContext = showSchool
+            ? orgAccount
+              ? { id: orgAccount.schoolId, name: orgAccount.schoolName }
+              : null
+            : selectedSchool
+              ? { id: selectedSchool.id, name: selectedSchool.name }
+              : null;
+          const canManageCaregiver =
+            row.accountId !== "0" &&
+            row.status !== "invited" &&
+            onManageCaregiver != null &&
+            schoolContext != null;
+          if (!canManageCaregiver) {
+            return <span className="text-xs text-gray-400">—</span>;
+          }
+          return (
+            <button
+              type="button"
+              onClick={() => onManageCaregiver?.(row, schoolContext)}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Betreuung verwalten
+            </button>
+          );
+        },
+      },
+    );
+
+    return cols;
+  }, [showSchool, selectedSchool, onManageCaregiver]);
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={accounts as AccountRow[]}
+      getRowKey={(row) => {
+        const orgAccount = showSchool ? (row as OrgAccount) : undefined;
+        return row.accountId !== "0"
+          ? `${orgAccount?.schoolId ?? ""}-${row.accountId}`
+          : `${orgAccount?.schoolId ?? ""}-invited-${row.email}`;
+      }}
+      defaultSortKey={showSchool ? "schoolName" : "name"}
+      pageSize={50}
+    />
+  );
+}

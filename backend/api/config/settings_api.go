@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -50,25 +51,61 @@ func guardTenantAccess(w http.ResponseWriter, r *http.Request, key string) bool 
 	return false
 }
 
+// ValueSetCallback runs in the same tenant transaction as the setting
+// write. Returning an error aborts the request and rolls back the update.
+//
+// The optional postCommit closure runs ONLY if the transaction commits
+// successfully. Use it for non-transactional side effects that must not
+// happen if the DB write rolls back (file-system unlinks, external API
+// calls, anything we can't undo on rollback). Return nil when no post-
+// commit work is needed.
+type ValueSetCallback func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)
+
 // SettingsResource defines the settings API resource.
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
-	onValueSet      func(ctx context.Context, tenantID int64, key string, value any) error
+	broadcaster     realtime.Broadcaster
+	onValueSet      ValueSetCallback
 }
 
-// OnValueSet registers a callback that runs after a setting value is validated and saved.
-// The callback executes inside the same tenant transaction as the setting write, so
-// returning an error aborts the request and rolls back the update.
-func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+// OnValueSet registers a callback that runs after a setting value change is
+// validated and persisted. See ValueSetCallback for the in-tx vs post-commit
+// contract.
+func (rs *SettingsResource) OnValueSet(fn ValueSetCallback) {
 	rs.onValueSet = fn
 }
 
-// NewSettingsResource creates a new settings resource.
-func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB) *SettingsResource {
+// scheduleSettingsBroadcast queues a tenant_settings_changed SSE event to fire
+// after the OUTERMOST tenant tx commits. Cross-origin tabs (e.g. operator
+// changing a tenant setting from operator.<domain>) only receive change
+// notifications via SSE; same-origin tabs are covered by the
+// BroadcastChannel ping the frontend fires. Source carries the setting key
+// so the receiving tab can scope future selective invalidations and so log
+// review can attribute writes.
+func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenantID int64, key string) {
+	if rs.broadcaster == nil || tenantID == 0 {
+		return
+	}
+	tenant.RegisterAfterCommit(ctx, func() {
+		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
+			Source: &key,
+		})
+		_ = rs.broadcaster.BroadcastToTenant(tenantID, event)
+	})
+}
+
+// NewSettingsResource creates a new settings resource. broadcaster is
+// optional — when supplied, the resource emits a tenant_settings_changed
+// SSE event after every successful Set/Reset so other tabs (including
+// cross-origin operator/tenant pairs) invalidate their settings caches.
+// Same-origin tabs are already covered by the BroadcastChannel ping the
+// frontend fires; this closes the cross-origin loop.
+func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster) *SettingsResource {
 	return &SettingsResource{
 		settingsService: svc,
 		db:              db,
+		broadcaster:     broadcaster,
 	}
 }
 
@@ -110,6 +147,14 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 
 type setValueRequest struct {
 	Value any `json:"value"`
+}
+
+// shouldReplayResetHook gates which keys re-run their OnValueSet callback
+// on DELETE so reset can trigger reset-specific side effects. Limited to
+// keys whose registry default carries semantic meaning (e.g. student photo
+// purge on disable). Other settings keep their pre-feature reset behavior.
+func shouldReplayResetHook(key string) bool {
+	return key == configModel.KeyStudentPhotosEnabled
 }
 
 // --- Handlers ---
@@ -171,8 +216,20 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if rs.onValueSet != nil {
-			return rs.onValueSet(ctx, tenantID, key, req.Value)
+			cb, err := rs.onValueSet(ctx, tenantID, key, req.Value)
+			if err != nil {
+				return err
+			}
+			// Post-commit closure runs only after the OUTERMOST tenant tx
+			// commits. SettingsRouter wraps these handlers in
+			// TenantTxMiddleware, so the inner WithTenantTx merely reuses
+			// the middleware's already-open transaction; the real COMMIT
+			// happens once the handler returns. Running destructive cleanup
+			// before that point would unlink files / invalidate caches even
+			// if the outer commit later fails.
+			tenant.RegisterAfterCommit(ctx, cb)
 		}
+		rs.scheduleSettingsBroadcast(ctx, tenantID, key)
 		return nil
 	})
 	if err != nil {
@@ -191,9 +248,29 @@ func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
+	tenantID := tenant.FromContext(r.Context())
 
-	err := tenant.WithTenantTx(r.Context(), rs.db, tenant.FromContext(r.Context()), func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.ResetValue(ctx, key, &changedBy, claims.Permissions)
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := rs.settingsService.ResetValue(ctx, key, &changedBy, claims.Permissions); err != nil {
+			return err
+		}
+		// Replay the OnValueSet hook for keys that need reset-specific side
+		// effects (e.g. clearing photo files when student_photos_enabled is
+		// reset to its default-off state). Otherwise a "Zurücksetzen" click
+		// on student_photos_enabled would clear the override but leave
+		// already-stored photos on disk.
+		if rs.onValueSet != nil && shouldReplayResetHook(key) {
+			def := configModel.GetDefinition(key)
+			if def != nil {
+				cb, err := rs.onValueSet(ctx, tenantID, key, def.Default)
+				if err != nil {
+					return err
+				}
+				tenant.RegisterAfterCommit(ctx, cb)
+			}
+		}
+		rs.scheduleSettingsBroadcast(ctx, tenantID, key)
+		return nil
 	})
 	if err != nil {
 		renderSettingsError(w, r, err)

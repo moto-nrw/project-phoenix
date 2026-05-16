@@ -49,7 +49,10 @@ func TestErrorRenderer_BadRequestErrors(t *testing.T) {
 		{"ErrCombinedGroupAlreadyEnded", activeSvc.ErrCombinedGroupAlreadyEnded},
 		{"ErrGroupAlreadyInCombination", activeSvc.ErrGroupAlreadyInCombination},
 		{"ErrStudentAlreadyInGroup", activeSvc.ErrStudentAlreadyInGroup},
-		{"ErrStudentAlreadyActive", activeSvc.ErrStudentAlreadyActive},
+		// ErrStudentAlreadyActive moved out of the 400 list — see
+		// TestErrorRenderer_ConflictError. It now maps to 409 Conflict
+		// because Issue #844 routes the DB-level duplicate-active-visit
+		// translation through this renderer for non-IoT callers.
 		{"ErrStaffAlreadySupervising", activeSvc.ErrStaffAlreadySupervising},
 		{"ErrCannotDeleteActiveGroup", activeSvc.ErrCannotDeleteActiveGroup},
 		{"ErrInvalidTimeRange", activeSvc.ErrInvalidTimeRange},
@@ -73,6 +76,20 @@ func TestErrorRenderer_ConflictError(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	assert.Equal(t, "Room Conflict", resp.StatusText)
+}
+
+// TestErrorRenderer_StudentAlreadyActiveConflict guards the Issue #844
+// review fix: ErrStudentAlreadyActive must map to 409 Conflict, not
+// 400 Bad Request. The active service's CreateVisit now translates
+// the DB unique-index violation to this sentinel for every caller —
+// including admin POST /active/visits — so a 400 here would
+// contradict the IoT path's 409 response on the same conflict.
+func TestErrorRenderer_StudentAlreadyActiveConflict(t *testing.T) {
+	renderer := active.ErrorRenderer(activeSvc.ErrStudentAlreadyActive)
+	resp, ok := renderer.(*active.ErrResponse)
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Equal(t, "Student Already Has Active Visit", resp.StatusText)
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {

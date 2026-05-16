@@ -178,6 +178,14 @@ Migrations connect via `DB_DSN` as the `postgres` **superuser**. PostgreSQL supe
 - **Never add `ALTER TABLE ... DISABLE/ENABLE ROW LEVEL SECURITY`** in migration code — it's unnecessary and can cause test failures
 - **Migration version numbers must be unique** — two migrations sharing a version in `MigrationRegistry` causes a map key collision where one silently overwrites the other
 
+### 11. Time Modeling: Do Not Store Clock Times as TIMESTAMPTZ
+Use the database type that matches the business meaning:
+- **Actual instant** (created_at, checked_in_at, started_at): `TIMESTAMPTZ`, API ISO timestamp
+- **Calendar date** (attendance day, timetable date): `DATE`, API `YYYY-MM-DD`
+- **Clock time without date** (template start/end, pickup time): `TIME WITHOUT TIME ZONE`, API `HH:MM`
+
+Never model a pure wall-clock value like `11:30` as `TIMESTAMPTZ`. That creates Berlin/UTC shifts such as `11:30 → 12:30` when the DB session timezone changes. In Go, normalize SQL `TIME` values through `timezone.WallClock()` before comparing or writing them across layers.
+
 ## Essential Commands
 
 **RULE: Always suggest Docker Compose commands** when advising how to run, build, test, or debug services. Never default to bare `go run` or `pnpm run dev` unless the user explicitly asks for it. The development environment runs through Docker Compose.

@@ -19,6 +19,8 @@ import (
 	attendanceAPI "github.com/moto-nrw/project-phoenix/api/iot/attendance"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -592,7 +594,9 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 // =============================================================================
 
 // TestToggleAttendance_DailyCheckoutZuhauseCheckedIn tests the daily checkout with
-// destination "zuhause" when the student IS checked in — the ToggleStudentAttendance path.
+// destination "zuhause" when the student is checked in. Real IoT daily-checkout
+// requests carry device context, but no staff context, so this guards against
+// routing through an insert path that would write checked_in_by=0.
 func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
@@ -620,13 +624,12 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
 		testutil.WithDeviceContext(testDevice),
-		testutil.WithStaffContext(staff),
 	)
 
 	// ACT
 	rr := testutil.ExecuteRequest(router, req)
 
-	// ASSERT: Should succeed — student checked_in + zuhause triggers ToggleStudentAttendance
+	// ASSERT: Should succeed — student checked_in + zuhause performs an explicit checkout.
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	// Verify response contains daily checkout action
@@ -636,6 +639,18 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 		assert.Equal(t, "checked_out_daily", data["action"])
 		assert.Contains(t, data["message"], "Tschüss")
 	}
+
+	var records []*activeModel.Attendance
+	err := ctx.db.NewSelect().
+		Model(&records).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".student_id = ?`, student.ID).
+		Where(`"attendance".date = ?`, timezone.TodayUTC()).
+		Scan(context.Background())
+	require.NoError(t, err)
+	require.Len(t, records, 1, "daily checkout must close the existing row instead of inserting a new one")
+	require.NotNil(t, records[0].CheckOutTime)
+	assert.Nil(t, records[0].CheckedOutBy, "IoT daily checkout without staff context must not write a bogus staff FK")
 }
 
 // TestToggleAttendance_DailyCheckoutZuhauseAlreadyCheckedOut tests the daily checkout with

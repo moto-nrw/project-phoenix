@@ -226,7 +226,7 @@ func (s *decisionService) Get(ctx context.Context, requestID int64) (*RequestSum
 func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Request) (*RequestSummary, error) {
 	phase, err := s.phaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil {
-		// Phase may have been deleted under us — surface as "phase
+		// Phase may have been deleted under us - surface as "phase
 		// missing" but don't drop the row from the list.
 		s.logger.Warn("decision: phase lookup failed",
 			slog.Int64("request_id", req.ID),
@@ -244,14 +244,14 @@ func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Re
 // Decide updates a single child's status. When status==approved the
 // service also creates the downstream records (Person + Student +
 // GuardianProfile + StudentGuardian + StudentEnrollment[s]) inside the
-// same tenant tx the handler provides — failure of any one rolls the
+// same tenant tx the handler provides - failure of any one rolls the
 // whole approval back. Parent decision emails are enqueued via the
 // outbox in the same tx; guardian invitation creation is returned as a
 // PendingGuardianInvite for the handler to fire post-commit.
 //
 // Idempotency: applying the same status twice is a no-op. Re-applying
 // any new status to an already-terminal child (approved/rejected/
-// withdrawn) returns ErrDecisionAlreadyTerminal — admins must use
+// withdrawn) returns ErrDecisionAlreadyTerminal - admins must use
 // dedicated revoke/promote flows for those (deferred).
 func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error) {
 	if input.RequestID <= 0 {
@@ -335,7 +335,7 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 
 	// Enqueue parent decision email. Best-effort: log on error but
 	// don't roll back the approval. (Outbox writes share the outer tx,
-	// so a hard failure WILL roll back — log+swallow keeps the
+	// so a hard failure WILL roll back - log+swallow keeps the
 	// behaviour aligned with submit's "delivery is downstream of the
 	// decision".)
 	s.enqueueDecisionEmail(ctx, request, target, phase, input.Status, reasonPtr)
@@ -354,7 +354,7 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 }
 
 // applyApproval creates the downstream records that an approval
-// implies. Runs inside the outer tenant tx the handler provides — every
+// implies. Runs inside the outer tenant tx the handler provides - every
 // repo call shares that tx via base.GetDB(ctx, db).
 //
 // Returns a PendingGuardianInvite when the guardian needs an invitation
@@ -391,7 +391,7 @@ func (s *decisionService) applyApproval(
 	// 1b. Cross-tenant account check. If the email already has a global
 	// auth.accounts row (from another school's enrollment, an admin
 	// invitation, etc.), attach the new tenant + this profile to it
-	// directly. This bypasses the invitation flow entirely — the
+	// directly. This bypasses the invitation flow entirely - the
 	// invitation accept path overwrites the password hash, which is
 	// the wrong UX when the parent already has a working password from
 	// another school.
@@ -401,7 +401,7 @@ func (s *decisionService) applyApproval(
 	// email lookup. A parent who edits their email in the form would
 	// otherwise miss the attach step and trigger an invitation that
 	// overwrites their existing password. The by-ID path is also
-	// strictly cheaper — no platform-wide email index hit.
+	// strictly cheaper - no platform-wide email index hit.
 	if guardian.AccountID == nil {
 		var (
 			linked bool
@@ -492,7 +492,7 @@ func (s *decisionService) applyApproval(
 
 	// 6. Stamp the request_children row with the resulting student id
 	// so the admin UI can link to the new student record. Failure is
-	// fatal — if we can't link them, future revoke flows can't reverse
+	// fatal - if we can't link them, future revoke flows can't reverse
 	// the approval cleanly.
 	if err := s.linkCreatedStudent(ctx, child.ID, student.ID); err != nil {
 		return nil, fmt.Errorf("decision: link created student: %w", err)
@@ -592,7 +592,7 @@ func (s *decisionService) applyApprovalRollover(
 
 // resolveGuardianProfile finds an existing tenant-scoped guardian by
 // email or creates a new one. Phone numbers from the submission are
-// NOT migrated into guardian_phone_numbers in slice 2 — that's a
+// NOT migrated into guardian_phone_numbers in slice 2 - that's a
 // separate hop the admin guardian editor already supports if they want
 // to enrich the profile later.
 func (s *decisionService) resolveGuardianProfile(
@@ -607,7 +607,7 @@ func (s *decisionService) resolveGuardianProfile(
 			return existing, false, nil
 		}
 		// errors.Is(sql.ErrNoRows) and "not found" both flow through;
-		// we don't distinguish — if the lookup fails we still create.
+		// we don't distinguish - if the lookup fails we still create.
 	}
 
 	// Build a fresh profile.
@@ -681,7 +681,7 @@ func (s *decisionService) materializeEnrollments(
 			continue
 		}
 		if offering.ActivityGroupID == nil || *offering.ActivityGroupID == 0 {
-			// Schedule-only offering — no activity group, nothing to enroll into.
+			// Schedule-only offering - no activity group, nothing to enroll into.
 			continue
 		}
 		row := &activities.StudentEnrollment{
@@ -731,12 +731,16 @@ func (s *decisionService) enqueueDecisionEmail(
 		kind = platformModels.EmailKindEnrollmentRejected
 	default:
 		// under_review (and any future intermediate status) is
-		// admin-internal — parent stays on the existing status email.
+		// admin-internal - parent stays on the existing status email.
 		return
 	}
 
 	logoURL := s.parentsURL + "/images/moto_transparent.png"
 	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.parentsURL, request.StatusToken)
+	phaseName := ""
+	if phase != nil {
+		phaseName = phase.Name
+	}
 
 	payload := map[string]any{
 		EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
@@ -746,7 +750,7 @@ func (s *decisionService) enqueueDecisionEmail(
 		EnrollmentPayloadLogoURL:           logoURL,
 		EnrollmentPayloadChildNames:        []string{child.FirstName + " " + child.LastName},
 		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
-		"phase_name":                       phase.Name,
+		"phase_name":                       phaseName,
 	}
 	if phase != nil && phase.ShowStatusReasonToParent && reason != nil && *reason != "" {
 		payload["status_reason"] = *reason
@@ -780,7 +784,7 @@ func (s *decisionService) findChildByID(ctx context.Context, requestID, childID 
 }
 
 // attachExistingAccountIfPresent looks up the parent email in the
-// global auth.accounts table (no tenant_id — emails are unique
+// global auth.accounts table (no tenant_id - emails are unique
 // platform-wide). If a row exists, it ensures the new tenant is
 // represented in account_tenants + account_roles, and links the
 // per-tenant guardian profile to that account_id. Returns true when
@@ -800,7 +804,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 ) (bool, error) {
 	if s.accountRepo == nil || s.accountTenantRepo == nil ||
 		s.accountRoleRepo == nil || s.roleRepo == nil {
-		// Auth repos not wired — fall back to the original invitation
+		// Auth repos not wired - fall back to the original invitation
 		// flow. Test factories that don't bring up the auth side will
 		// hit this path.
 		return false, nil
@@ -813,7 +817,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 	account, err := s.accountRepo.FindByEmail(ctx, email)
 	if err != nil {
 		// Not-found is the common case (parent has no portal account
-		// yet) — treat it as "nothing to attach", let the invitation
+		// yet) - treat it as "nothing to attach", let the invitation
 		// flow run. We don't import the auth package's notfound
 		// detection here; instead we rely on the FindByEmail wrapper
 		// returning a typed DatabaseError on real failures. Logging
@@ -868,7 +872,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 // attachExistingAccountByID links the guardian profile to the account
 // identified by accountID directly, bypassing the email lookup that
 // attachExistingAccountIfPresent uses. Called when the enrollment
-// request was submitted by an authenticated parent (PR 11) — the
+// request was submitted by an authenticated parent (PR 11) - the
 // JWT-derived account_id is more authoritative than the email field
 // (which the parent could have typed differently in the form).
 //
@@ -887,7 +891,7 @@ func (s *decisionService) attachExistingAccountByID(
 	}
 	account, err := s.accountRepo.FindByID(ctx, accountID)
 	if err != nil || account == nil {
-		// Account was deleted between submission and decision — fall
+		// Account was deleted between submission and decision - fall
 		// back to email lookup so the approval still goes through.
 		s.logger.Warn("decision: request guardian_account_id no longer resolvable, falling back to email",
 			slog.Int64("guardian_account_id", accountID),
@@ -941,7 +945,7 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 	existing, err := s.accountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
 	if err == nil && existing != nil {
 		// Already assigned for this tenant (FindByAccountAndRole
-		// honours tenant scope) — nothing to do.
+		// honours tenant scope) - nothing to do.
 		return nil
 	}
 

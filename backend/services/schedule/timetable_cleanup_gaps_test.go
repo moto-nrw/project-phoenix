@@ -257,7 +257,7 @@ func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
 	// Seed one affected student so writeStudentAuditRows has work to do.
 	old := time.Now().UTC().AddDate(0, 0, -400)
 	instID := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
-	stud := testpkg.CreateTestStudent(t, f.db, "Nil", "AuditRepo", "3a")
+	stud := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Nil", "AuditRepo", "3a")
 	f.studentIDs = append(f.studentIDs, stud.ID)
 	f.attachStudent(t, instID, stud.ID, nil)
 
@@ -289,12 +289,14 @@ func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
 	)
 	require.NotNil(t, svc)
 
-	// Exercise a codepath that uses the logger (no tenant → early error return
-	// avoids logger use, so we use a tenant ctx that makes it into slog.Info).
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	// Exercise a codepath that uses the logger. A unique tenant keeps the
+	// aggregate cleanup query isolated from other tests.
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := tenant.WithTenantID(context.Background(), tenantID)
 	_, err := svc.CleanupExpiredTimetableData(ctx)
-	// Real DB under tenant_id=1 with no seeded rows → cleanup succeeds with
-	// zeros. The critical assertion is "no panic".
+	// Real DB under an empty tenant → cleanup succeeds with zeros. The
+	// critical assertion is "no panic".
 	require.NoError(t, err)
 }
 
@@ -311,7 +313,7 @@ func TestCleanup_AuditMetadata_HasInstanceIDsSample(t *testing.T) {
 	old := time.Now().UTC().AddDate(0, 0, -400)
 	inst := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
-	stud := testpkg.CreateTestStudent(t, f.db, "Sample", "Student", "3a")
+	stud := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Sample", "Student", "3a")
 	f.studentIDs = append(f.studentIDs, stud.ID)
 	f.attachStudent(t, inst, stud.ID, nil)
 
@@ -321,7 +323,7 @@ func TestCleanup_AuditMetadata_HasInstanceIDsSample(t *testing.T) {
 	var row auditModels.DataDeletion
 	err = f.db.NewSelect().Model(&row).
 		Where("tenant_id = ? AND student_id = ? AND deletion_type = ?",
-			testTenantID, stud.ID, auditModels.DeletionTypeTimetableRetention).
+			f.tenantID, stud.ID, auditModels.DeletionTypeTimetableRetention).
 		Scan(f.ctx)
 	require.NoError(t, err)
 	assert.Contains(t, row.Metadata, "instance_ids_sample")

@@ -63,10 +63,16 @@ type GroupSupervisorSimple struct {
 	Role    string `json:"role,omitempty"`
 }
 
-// RoomSimple represents simplified room info for active group response
+// RoomSimple represents simplified room info for active group response.
+//
+// Color is included so badge consumers (active-supervisions BFF, OGS dashboard
+// BFF) can paint per-room badges without a follow-up GET /rooms/{id} per
+// active group. omitempty keeps responses unchanged for rooms with no color
+// override; clients fall back to the OTHER_ROOM blue.
 type RoomSimple struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID    int64   `json:"id"`
+	Name  string  `json:"name"`
+	Color *string `json:"color,omitempty"`
 }
 
 // VisitResponse represents a visit API response
@@ -101,8 +107,13 @@ type VisitWithDisplayDataResponse struct {
 	SickSince     *time.Time `json:"sick_since,omitempty"`
 	Excused       bool       `json:"excused"`
 	ExcusedSince  *time.Time `json:"excused_since,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	// Photo URL — already rewritten by the visit-display handler from the
+	// raw /uploads/student-photos/{f} on-disk path to the authenticated
+	// /api/students/{id}/photo/{f} proxy URL the browser can fetch via
+	// same-origin cookie session.
+	PhotoURL  string    `json:"photo_url,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // SupervisorResponse represents a group supervisor API response
@@ -144,13 +155,6 @@ type GroupMappingResponse struct {
 	CombinedName    string `json:"combined_name,omitempty"`
 }
 
-// AnalyticsResponse represents analytics API response
-type AnalyticsResponse struct {
-	ActiveGroupsCount int `json:"active_groups_count"`
-	TotalVisitsCount  int `json:"total_visits_count"`
-	ActiveVisitsCount int `json:"active_visits_count"`
-}
-
 // DashboardAnalyticsResponse represents dashboard analytics API response
 type DashboardAnalyticsResponse struct {
 	// Student Overview
@@ -158,6 +162,7 @@ type DashboardAnalyticsResponse struct {
 	StudentsInTransit    int `json:"students_in_transit"` // Students present but not in any active visit
 	StudentsOnPlayground int `json:"students_on_playground"`
 	StudentsInRooms      int `json:"students_in_rooms"` // Students in indoor rooms (excluding playground)
+	StudentsSick         int `json:"students_sick"`     // Students currently flagged as sick
 
 	// Activities & Rooms
 	ActiveActivities    int     `json:"active_activities"`

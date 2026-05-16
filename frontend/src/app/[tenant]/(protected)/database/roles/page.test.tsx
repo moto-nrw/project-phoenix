@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RolesPage from "./page";
 
@@ -105,12 +105,22 @@ vi.mock("@/components/roles", () => ({
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onCreate(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="role-create-modal">
+        {error ? <span data-testid="create-error">{error}</span> : null}
         <button
           data-testid="submit-create"
-          onClick={() => void onCreate({ name: "Neue Rolle" })}
+          onClick={() => submit({ name: "Neue Rolle" })}
         >
           Submit
         </button>
@@ -118,7 +128,8 @@ vi.mock("@/components/roles", () => ({
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   RoleEditModal: ({
     isOpen,
     onClose,
@@ -127,12 +138,22 @@ vi.mock("@/components/roles", () => ({
     isOpen: boolean;
     onClose: () => void;
     onSave: (data: { name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
+  }) => {
+    // Mirrors DatabaseForm: catches the rejection from onSave and renders
+    // the message inline. Tests assert against the resulting message.
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name: string }) => {
+      setError(null);
+      void onSave(data).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    return isOpen ? (
       <div data-testid="role-edit-modal">
+        {error ? <span data-testid="edit-error">{error}</span> : null}
         <button
           data-testid="submit-edit"
-          onClick={() => void onSave({ name: "Updated" })}
+          onClick={() => submit({ name: "Updated" })}
         >
           Save
         </button>
@@ -140,7 +161,8 @@ vi.mock("@/components/roles", () => ({
           Close
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
   RolesMasterDetail: ({
     roles,
     selectedId,
@@ -333,6 +355,202 @@ describe("RolesPage", () => {
     });
   });
 
+  it("translates duplicate-key conflicts into a German message and renders inline (Issue #1356)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error(
+        "auth error during CreateRole: duplicate key value violates unique constraint",
+      ),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Neue Rolle" existiert bereits/,
+      );
+    });
+    // Raw Postgres internals must not leak to the user.
+    expect(screen.getByTestId("create-error")).not.toHaveTextContent(
+      /duplicate key/,
+    );
+    // The modal must NOT close so the user can correct the name.
+    expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("matches duplicate-key conflicts via the 23505 SQLSTATE branch on create", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new Error("constraint violation 23505 on auth.roles_unique"),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Neue Rolle" existiert bereits/,
+      );
+    });
+  });
+
+  it("re-throws the original error when create fails for a non-duplicate reason", async () => {
+    mockCreate.mockRejectedValueOnce(new Error("network unreachable"));
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        "network unreachable",
+      );
+    });
+    // Modal stays open and toast is not fired on failure.
+    expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("re-throws stringified non-Error rejections from create unchanged", async () => {
+    // Exercises the `createError instanceof Error : false` ternary branch.
+    // The page logs `String(createError)` and rethrows the original value.
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockCreate.mockRejectedValueOnce("plain-string-error");
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("role-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("role_create_failed", {
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
+  it("matches duplicate-key conflicts via the 23505 SQLSTATE branch on update", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error("23505 duplicate role for tenant"),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Updated" existiert bereits/,
+      );
+    });
+  });
+
+  it("re-throws the original error when update fails for a non-duplicate reason", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockRejectedValueOnce(new Error("server timeout"));
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        "server timeout",
+      );
+    });
+    expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("re-throws stringified non-Error rejections from update unchanged", async () => {
+    setSelectedRole("1");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockUpdate.mockRejectedValueOnce("plain-string-error");
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("role_update_failed", {
+        role_id: "1",
+        error: "plain-string-error",
+      });
+    });
+    consoleError.mockRestore();
+  });
+
   it("syncs role selection into the URL when a row is clicked", async () => {
     render(<RolesPage />);
 
@@ -417,6 +635,41 @@ describe("RolesPage", () => {
         expect.objectContaining({ name: "Updated" }),
       );
     });
+  });
+
+  it("translates duplicate-key conflicts on update into a German message and renders inline (Issue #1356)", async () => {
+    setSelectedRole("1");
+    mockUpdate.mockRejectedValueOnce(
+      new Error(
+        "auth error during UpdateRole: duplicate key value violates unique constraint",
+      ),
+    );
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("trigger-edit"));
+    await waitFor(() => {
+      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-edit"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /Eine Rolle mit dem Namen "Updated" existiert bereits/,
+      );
+    });
+    // Raw Postgres internals must not leak to the user.
+    expect(screen.getByTestId("edit-error")).not.toHaveTextContent(
+      /duplicate key/,
+    );
+    // The modal must NOT close so the user can correct the name.
+    expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
   it("calls delete service after confirming deletion from the detail panel", async () => {

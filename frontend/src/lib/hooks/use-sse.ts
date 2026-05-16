@@ -150,8 +150,14 @@ export function useSSE(
           "activity_start",
           "activity_end",
           "activity_update",
+          "active_supervision_changed",
           "dashboard_counts_changed",
           "arrival_schedule_changed",
+          "tenant_settings_changed",
+          "instance_started",
+          "instance_completed",
+          "instance_cancelled",
+          "instance_overdue",
         ];
 
         for (const eventType of eventTypes) {

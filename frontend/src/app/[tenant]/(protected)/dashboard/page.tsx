@@ -63,6 +63,10 @@ const COLOR_THEMES: Record<string, ColorTheme> = {
     overlay: "from-red-50/80 to-rose-100/80",
     ring: "ring-red-200/60",
   },
+  "[#EAB308]": {
+    overlay: "from-amber-50/80 to-yellow-100/80",
+    ring: "ring-amber-200/60",
+  },
   "orange-500": {
     overlay: "from-orange-50/80 to-orange-100/80",
     ring: "ring-orange-200/60",
@@ -315,8 +319,8 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* Main Stats Grid */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-4 md:gap-4">
+      {/* Main Stats Grid (3x3) */}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4">
         <StatCard
           title="Kinder anwesend"
           value={dashboardData?.studentsPresent ?? 0}
@@ -349,10 +353,14 @@ function DashboardContent() {
           loading={isLoading}
           href="/students/search?status=schulhof"
         />
-      </div>
-
-      {/* Secondary Stats */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-4 md:gap-4">
+        <StatCard
+          title="Krank"
+          value={dashboardData?.studentsSick ?? 0}
+          icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          color="from-[#EAB308] to-[#CA9908]"
+          loading={isLoading}
+          href="/students/search?status=krank"
+        />
         <StatCard
           title="Aktive Gruppen"
           value={dashboardData?.activeOGSGroups ?? 0}

@@ -137,6 +137,72 @@ describe("getLocationColor", () => {
   it("returns UNKNOWN color for unknown status", () => {
     expect(getLocationColor("SomeRandomStatus")).toBe(LOCATION_COLORS.UNKNOWN);
   });
+
+  // ===========================================================================
+  // Per-room color (Issue #1324 — eliminate the all-blue room badges)
+  // ===========================================================================
+
+  it("returns the per-room color when set and the room is not a group room", () => {
+    // The viewer is not in this group → no green; the room has its own
+    // configured hex → that wins over the OTHER_ROOM blue fallback.
+    const color = getLocationColor(
+      "Anwesend - Bibliothek",
+      false,
+      ["Raum A"],
+      "#A3D977",
+    );
+    expect(color).toBe("#A3D977");
+  });
+
+  it("falls back to OTHER_ROOM blue when no per-room color is set", () => {
+    // Same scenario as above without a configured color: kept as today.
+    const color = getLocationColor(
+      "Anwesend - Bibliothek",
+      false,
+      ["Raum A"],
+      null,
+    );
+    expect(color).toBe(LOCATION_COLORS.OTHER_ROOM);
+  });
+
+  it("treats empty string roomColor like null (clearing the override)", () => {
+    // Clearing the color via the picker yields "" or null depending on the
+    // wire shape; either must fall back to the blue default.
+    const color = getLocationColor(
+      "Anwesend - Bibliothek",
+      false,
+      ["Raum A"],
+      "",
+    );
+    expect(color).toBe(LOCATION_COLORS.OTHER_ROOM);
+  });
+
+  it("keeps GROUP_ROOM green when viewer is in the same group, even with a per-room color", () => {
+    // Hard constraint: non-blue colors must keep their meaning. If the room
+    // is the viewer's own OGS-Gruppenraum, green wins over the configured
+    // per-room hex.
+    const color = getLocationColor(
+      "Anwesend - Raum A",
+      false,
+      ["Raum A"],
+      "#A3D977",
+    );
+    expect(color).toBe(LOCATION_COLORS.GROUP_ROOM);
+  });
+
+  it("keeps status colors unchanged regardless of per-room color", () => {
+    // Status badges (Schulhof, Unterwegs, Zuhause) must never be overridden
+    // by a roomColor — the parser hits STATUS_COLOR_MAP first.
+    expect(getLocationColor("Schulhof", false, [], "#A3D977")).toBe(
+      LOCATION_COLORS.SCHOOLYARD,
+    );
+    expect(getLocationColor("Unterwegs", false, [], "#A3D977")).toBe(
+      LOCATION_COLORS.TRANSIT,
+    );
+    expect(getLocationColor("Zuhause", false, [], "#A3D977")).toBe(
+      LOCATION_COLORS.HOME,
+    );
+  });
 });
 
 // =============================================================================

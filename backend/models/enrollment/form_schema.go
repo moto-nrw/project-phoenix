@@ -1,5 +1,5 @@
 // Package enrollment holds domain entities for the parent-enrollment
-// feature. The schema is split across several tables — form_schemas
+// feature. The schema is split across several tables - form_schemas
 // (versioned form definitions), requests (parent submissions),
 // request_children (per-child decisions), and (PR 6) care_offerings +
 // request_child_offerings.
@@ -25,7 +25,7 @@ import (
 //
 // "textarea" is the only enrollment-specific addition (handy for
 // open-ended fields like allergy notes). "email" / "phone" are NOT
-// included — guardian email + phone are core fields with their own
+// included - guardian email + phone are core fields with their own
 // columns on enrollment.requests.
 type FormFieldType string
 
@@ -77,7 +77,7 @@ type FormField struct {
 	AppliesToCh bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
 }
 
-// CoreFieldKeys are reserved — the form_schemas.fields JSONB MUST NOT
+// CoreFieldKeys are reserved - the form_schemas.fields JSONB MUST NOT
 // declare a custom field with one of these keys. The frontend already
 // renders these from dedicated columns on enrollment.requests / .request_children.
 var CoreFieldKeys = map[string]bool{

@@ -196,7 +196,7 @@ describe("ActivitiesMasterDetail", () => {
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
   });
 
-  it("shows the loading spinner instead of the form while detailLoading is true", () => {
+  it("renders the loading spinner instead of the form while detailLoading is true", () => {
     render(
       <ActivitiesMasterDetail
         activities={[regularActivity]}
@@ -214,7 +214,6 @@ describe("ActivitiesMasterDetail", () => {
     expect(
       screen.getByText("Aktivitätsdaten werden geladen..."),
     ).toBeInTheDocument();
-    // The form must NOT mount while loading.
     expect(screen.queryByTestId("database-form")).not.toBeInTheDocument();
   });
 });

@@ -52,7 +52,7 @@ describe("compressAvatar", () => {
 
     const result = await compressAvatar(originalFile);
 
-    expect(result.name).toBe("my.avatar.image.jpg");
+    expect(result.name).toBe("my-avatar-image.jpg");
   });
 
   it("handles files without extension", async () => {

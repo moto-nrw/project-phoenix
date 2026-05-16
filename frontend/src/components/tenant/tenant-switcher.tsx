@@ -140,7 +140,7 @@ export function TenantSwitcher() {
 
       {/* Dropdown menu */}
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-1 w-64 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+        <div className="absolute right-0 z-50 mt-1 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
           {[...grouped.entries()].map(([orgName, orgTenants]) => (
             <div key={orgName}>
               {grouped.size > 1 && (

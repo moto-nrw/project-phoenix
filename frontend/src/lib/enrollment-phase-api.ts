@@ -121,16 +121,6 @@ export async function listPhases(): Promise<Phase[]> {
   return Array.isArray(list) ? list : [];
 }
 
-export async function getPhase(id: string): Promise<Phase> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readError(response, "Phase konnte nicht geladen werden");
-  }
-  return readJSON<Phase>(response);
-}
-
 export async function createPhase(input: PhaseInput): Promise<Phase> {
   const response = await fetch(BASE, {
     method: "POST",

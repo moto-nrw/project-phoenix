@@ -18,10 +18,29 @@ import (
 func init() {
 	// --- Materialization (operations tab) ---
 
+	timetableEnabledDependency := &config.Dependency{
+		Key:       config.KeyTimetableEnabled,
+		Condition: "eq",
+		Value:     true,
+	}
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableEnabled,
+		Label:           "Stundenplan aktivieren",
+		Description:     "Zeigt den Stundenplan in der Navigation an und schaltet die passenden Einstellungen frei.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       29,
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableMaterializationEnabled,
-		Label:           "Automatische Stundenplan-Materialisierung",
-		Description:     "Wenn aktiviert, erzeugt der Scheduler wöchentlich Aktivitäts-Instanzen aus den Aktivitäts-Vorlagen (Templates) für den kommenden Planungszeitraum.",
+		Label:           "Wiederkehrende Termine automatisch vorbereiten",
+		Description:     "Legt aus den wiederkehrenden Aktivitäten automatisch die konkreten Termine für die kommenden Wochen an.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -29,12 +48,13 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       30,
+		DependsOn:       timetableEnabledDependency,
 	})
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableMaterializationWeekday,
-		Label:           "Materialisierungs-Wochentag",
-		Description:     "Wochentag, an dem der Scheduler den kommenden Planungszeitraum materialisiert. Empfohlen ist ein Freitag, damit die Folgewoche ab Montag bereitsteht.",
+		Label:           "Termine vorbereiten am",
+		Description:     "Wochentag, an dem die Termine für die kommenden Wochen angelegt werden.",
 		Type:            config.FieldSelect,
 		Default:         5, // Friday (ISO 8601: Monday=1 … Sunday=7)
 		ReadPermission:  "config:read",
@@ -65,7 +85,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableMaterializationWeeksAhead,
 		Label:           "Vorlauf (Wochen)",
-		Description:     "Anzahl der Wochen, die im Voraus materialisiert werden. 1 Woche ist Standard; größere Werte erzeugen mehr Daten auf einmal und erhöhen das Rollback-Risiko bei Template-Änderungen.",
+		Description:     "Anzahl der Wochen, die im Voraus angelegt werden.",
 		Type:            config.FieldNumber,
 		Default:         1,
 		ReadPermission:  "config:read",
@@ -86,7 +106,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableAutoStartPlanned,
 		Label:           "Automatischer Start geplanter Aktivitäten",
-		Description:     "Wenn aktiviert, werden geplante Instanzen automatisch in eine aktive Sitzung überführt, sobald deren Startzeit erreicht ist (RFC E19 Level 3). Ohne Aktivierung zeigt die Staff-Oberfläche lediglich passive Hinweise an.",
+		Description:     "Startet geplante Aktivitäten automatisch zur eingetragenen Uhrzeit. Wenn deaktiviert, werden sie als Hinweis angezeigt und manuell gestartet.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -94,14 +114,15 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       33,
+		DependsOn:       timetableEnabledDependency,
 	})
 
 	minOverdue := float64(1)
 	maxOverdue := float64(30)
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableOverdueThresholdMinutes,
-		Label:           "Überfälligkeits-Schwelle (Minuten)",
-		Description:     "Minuten nach dem geplanten Start, ab denen eine Instanz in der Staff-Ansicht als überfällig markiert wird.",
+		Label:           "Als überfällig markieren nach (Minuten)",
+		Description:     "Minuten nach der geplanten Startzeit, ab denen eine Aktivität als überfällig angezeigt wird.",
 		Type:            config.FieldNumber,
 		Default:         5,
 		ReadPermission:  "config:read",
@@ -110,12 +131,13 @@ func init() {
 		Category:        "stundenplan",
 		SortOrder:       34,
 		Validation:      &config.ValidationRules{Min: &minOverdue, Max: &maxOverdue},
+		DependsOn:       timetableEnabledDependency,
 	})
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableShowExpectedChildrenCount,
-		Label:           "Erwartete Kinderzahl in Instanzansicht anzeigen",
-		Description:     "Zeigt in der Staff-Instanzansicht die erwartete Anzahl Kinder (auf Basis der Einschreibungen) neben der tatsächlich anwesenden Anzahl an.",
+		Label:           "Erwartete Kinderzahl anzeigen",
+		Description:     "Zeigt bei einer Aktivität, wie viele Kinder erwartet werden und wie viele bereits anwesend sind.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -123,6 +145,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       35,
+		DependsOn:       timetableEnabledDependency,
 	})
 
 	// --- GDPR retention (gdpr tab) ---
@@ -137,7 +160,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRTimetableRetentionDays,
 		Label:           "Aufbewahrungsdauer Stundenplan (Tage)",
-		Description:     "Anzahl Tage, für die abgeschlossene oder abgesagte Aktivitäts-Instanzen vorgehalten werden, bevor sie bereinigt werden. Trennt sich bewusst von der Bereinigung der Anwesenheitsdaten.",
+		Description:     "Anzahl der Tage, für die abgeschlossene oder abgesagte Termine gespeichert bleiben.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",
@@ -147,9 +170,43 @@ func init() {
 		SortOrder:       30,
 		Validation:      &config.ValidationRules{Min: &minRetention, Max: &maxRetention},
 		DependsOn: &config.Dependency{
-			Key:       config.KeyDataCleanupEnabled,
+			Key:       config.KeyTimetableEnabled,
 			Condition: "eq",
 			Value:     true,
 		},
+	})
+
+	// --- Display range (operations tab) ---
+
+	// The admin weekly calendar (Apple-style grid) renders hour rows between
+	// these two HH:MM times by default. Events outside the window are still
+	// rendered and become reachable via scroll. Defaults match the typical
+	// OGS day (09:00 Schulende → 17:00 Abholung).
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableDayStartTime,
+		Label:           "Tagesansicht Beginn",
+		Description:     "Uhrzeit, ab der die Wochenansicht standardmäßig beginnt. Frühere Termine bleiben per Scrollen erreichbar.",
+		Type:            config.FieldTime,
+		Default:         "09:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       40,
+		DependsOn:       timetableEnabledDependency,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableDayEndTime,
+		Label:           "Tagesansicht Ende",
+		Description:     "Uhrzeit, bis zu der die Wochenansicht standardmäßig angezeigt wird. Spätere Termine bleiben per Scrollen erreichbar.",
+		Type:            config.FieldTime,
+		Default:         "17:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       41,
+		DependsOn:       timetableEnabledDependency,
 	})
 }

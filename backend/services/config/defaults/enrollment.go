@@ -4,14 +4,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
-// Parent-enrollment settings registry. Plumbing-only in PR 4 — these values
+// Parent-enrollment settings registry. Plumbing-only in PR 4 - these values
 // are not yet consumed anywhere outside the registry; PRs 5-8 wire them in.
 //
 // Tab structure:
-//   - "form"           — public submission form fields + windows
-//   - "anmeldung"      — care offerings + admin notification preferences
-//   - "datenschutz"    — captcha, retention, waitlist visibility
-//   - "system"         — outbox + status-token plumbing
+//   - "form"           - public submission form fields + windows
+//   - "anmeldung"      - care offerings + admin notification preferences
+//   - "datenschutz"    - captcha, retention, waitlist visibility
+//   - "system"         - outbox + status-token plumbing
 //
 // All write permissions are config:update (admin operational) except
 // `enrollment.require_captcha`, `enrollment.rejected_retention_days`, and
@@ -58,7 +58,7 @@ func registerEnrollmentForm() {
 
 	// enrollment.open_window_start / end were tenant-wide tunables in
 	// the pre-phase model. Phases now own the open/close window per
-	// row — see migration 1.15.56 + 1.15.57.
+	// row - see migration 1.15.67 + 1.15.68.
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentCollectGradeLevel,
@@ -171,7 +171,7 @@ func registerEnrollmentNotifications() {
 		},
 	})
 
-	// enrollment.show_status_reason_to_parent moved to per-phase column —
+	// enrollment.show_status_reason_to_parent moved to per-phase column -
 	// each phase decides whether parents see admin-provided reason
 	// strings on the status page.
 }
@@ -348,7 +348,7 @@ func registerEnrollmentSystem() {
 	})
 }
 
-// registerEnrollmentPublicForm wires PR 7's settings — captcha keys,
+// registerEnrollmentPublicForm wires PR 7's settings - captcha keys,
 // grade-level cap, care-offering overflow mode. These are consumed by
 // the public submission flow.
 func registerEnrollmentPublicForm() {
@@ -358,7 +358,7 @@ func registerEnrollmentPublicForm() {
 		Value:     true,
 	}
 
-	// Captcha site key — public, tenant-scoped. Embedded in the
+	// Captcha site key - public, tenant-scoped. Embedded in the
 	// public form HTML so the parent's browser can challenge.
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentCaptchaSiteKey,
@@ -374,7 +374,7 @@ func registerEnrollmentPublicForm() {
 		DependsOn:       dependsOnEnabled,
 	})
 
-	// Captcha secret key — server-side only. Sent to Turnstile's
+	// Captcha secret key - server-side only. Sent to Turnstile's
 	// /siteverify endpoint along with the parent's token. Operator-
 	// only because the secret rotates outside tenant ops.
 	config.Register(config.Definition{
@@ -399,7 +399,7 @@ func registerEnrollmentPublicForm() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentGradeLevelMax,
 		Label:           "Höchste Klassenstufe im Formular",
-		Description:     "Eltern können Klassenstufen 1 bis zu diesem Wert auswählen. Standard ist 4 (OGS-Schuljahre 1–4); Schulen mit weiterführenden Stufen erhöhen den Wert entsprechend.",
+		Description:     "Eltern können Klassenstufen 1 bis zu diesem Wert auswählen. Standard ist 4 (OGS-Schuljahre 1-4); Schulen mit weiterführenden Stufen erhöhen den Wert entsprechend.",
 		Type:            config.FieldNumber,
 		Default:         4,
 		ReadPermission:  "config:read",
@@ -415,7 +415,7 @@ func registerEnrollmentPublicForm() {
 		},
 	})
 
-	// enrollment.care_overflow_mode moved to per-phase column — each
+	// enrollment.care_overflow_mode moved to per-phase column - each
 	// phase carries its own waitlist/reject/allow setting now. The
 	// constants live on enrollmentModels.PhaseCareOverflow*; the
 	// service reads phase.CareOverflowMode at submit time.

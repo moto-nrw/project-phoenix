@@ -139,6 +139,10 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 			return &AuthError{Op: "assign role to account", Err: err}
 		}
 
+		if err := s.repos.Token.DeleteByAccountID(txCtx, int64(accountID)); err != nil {
+			return &AuthError{Op: "revoke tokens after role assignment", Err: err}
+		}
+
 		return nil
 	})
 }
@@ -146,8 +150,21 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 // RemoveRoleFromAccount removes a role from an account
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
 	return s.runInTx(ctx, func(txCtx context.Context) error {
+		existingRole, err := s.repos.AccountRole.FindByAccountAndRole(txCtx, int64(accountID), int64(roleID))
+		if err != nil && !strings.Contains(err.Error(), "no rows") {
+			return &AuthError{Op: "check role assignment", Err: err}
+		}
+
+		if existingRole == nil {
+			return nil
+		}
+
 		if err := s.repos.AccountRole.DeleteByAccountAndRole(txCtx, int64(accountID), int64(roleID)); err != nil {
 			return &AuthError{Op: "remove role from account", Err: err}
+		}
+
+		if err := s.repos.Token.DeleteByAccountID(txCtx, int64(accountID)); err != nil {
+			return &AuthError{Op: "revoke tokens after role removal", Err: err}
 		}
 
 		return nil

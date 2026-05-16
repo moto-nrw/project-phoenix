@@ -2,6 +2,7 @@
 
 import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
+import { RoomColorField } from "@/components/ui/database/room-color-field";
 import { mapRoomResponse, prepareRoomForBackend } from "@/lib/room-helpers";
 import type { Room, BackendRoom } from "@/lib/room-helpers";
 
@@ -64,19 +65,22 @@ export const roomsConfig = defineEntityConfig<Room>({
               return null;
             },
           },
+          {
+            name: "color",
+            label: "Farbe",
+            type: "custom",
+            colSpan: 2,
+            component: RoomColorField,
+          },
         ],
       },
     ],
 
-    defaultValues: {
-      color: "#4F46E5", // Default color (matches original implementation)
-    },
-
     transformBeforeSubmit: (data) => {
-      // Match original implementation:
-      // - Trim name (String(form.name).trim())
-      // - Convert floor to number (Number(form.floor))
-      // - Ensure color has default (form.color ?? "#4F46E5")
+      // - Trim name
+      // - Convert floor to number
+      // - Pass color through untouched: null/undefined clears it server-side,
+      //   the backend uses NULL to mean "fall back to badge default blue"
       return {
         ...data,
         name: typeof data.name === "string" ? data.name.trim() : data.name,
@@ -84,7 +88,6 @@ export const roomsConfig = defineEntityConfig<Room>({
           typeof data.floor === "string"
             ? Number.parseInt(data.floor, 10)
             : data.floor,
-        color: data.color ?? "#4F46E5", // Ensure color is always set
       };
     },
   },

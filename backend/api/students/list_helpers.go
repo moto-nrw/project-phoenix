@@ -16,12 +16,19 @@ type studentListParams struct {
 	firstName           string
 	lastName            string
 	location            string
+	locationState       string
 	groupID             int64
+	roomID              int64
 	search              string
 	page                int
 	pageSize            int
 	includePickupTimes  bool
 	includeArrivalTimes bool
+	// studentIDs is an optional pre-filter populated by upstream resolution
+	// (e.g., room_id → active visits) before the SQL list query runs. When
+	// set, buildBaseFilter adds `student.id IN (...)` so the standard
+	// school_class / guardian_name / pagination pipeline still applies.
+	studentIDs []int64
 }
 
 // studentAccessContext is an alias for the shared common.StudentAccessContext
@@ -31,18 +38,29 @@ type studentAccessContext = common.StudentAccessContext
 // parseStudentListParams extracts query parameters from the request
 func parseStudentListParams(r *http.Request) *studentListParams {
 	params := &studentListParams{
-		schoolClass:  r.URL.Query().Get("school_class"),
-		guardianName: r.URL.Query().Get("guardian_name"),
-		firstName:    r.URL.Query().Get("first_name"),
-		lastName:     r.URL.Query().Get("last_name"),
-		location:     r.URL.Query().Get("location"),
-		search:       r.URL.Query().Get("search"),
+		schoolClass:   r.URL.Query().Get("school_class"),
+		guardianName:  r.URL.Query().Get("guardian_name"),
+		firstName:     r.URL.Query().Get("first_name"),
+		lastName:      r.URL.Query().Get("last_name"),
+		location:      r.URL.Query().Get("location"),
+		locationState: r.URL.Query().Get("location_state"),
+		search:        r.URL.Query().Get("search"),
 	}
 
 	// Parse group ID if provided
 	if groupIDStr := r.URL.Query().Get("group_id"); groupIDStr != "" {
 		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
 			params.groupID = groupID
+		}
+	}
+
+	// Parse room ID if provided. Filters the list to students currently
+	// checked-in to any active group taking place in this room (joins via
+	// active.visits → active.groups). Used by the "In Kindersuche öffnen"
+	// link from the room detail page (#1323).
+	if roomIDStr := r.URL.Query().Get("room_id"); roomIDStr != "" {
+		if roomID, err := strconv.ParseInt(roomIDStr, 10, 64); err == nil {
+			params.roomID = roomID
 		}
 	}
 
@@ -69,6 +87,13 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")
+	}
+	if len(p.studentIDs) > 0 {
+		ids := make([]interface{}, len(p.studentIDs))
+		for i, id := range p.studentIDs {
+			ids[i] = id
+		}
+		filter.In("id", ids...)
 	}
 	return filter
 }

@@ -20,6 +20,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -53,6 +55,9 @@ type ServiceDependencies struct {
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolRepo            platform.SchoolRepository
+	ActivityInstanceRepo  scheduleModel.ActivityInstanceRepository
+	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
+	Broadcaster           realtime.Broadcaster
 	Logger                *slog.Logger
 	DB                    *bun.DB
 }
@@ -69,6 +74,9 @@ type Resource struct {
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolRepo            platform.SchoolRepository
+	ActivityInstanceRepo  scheduleModel.ActivityInstanceRepository
+	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
+	Broadcaster           realtime.Broadcaster
 	logger                *slog.Logger
 	db                    *bun.DB
 }
@@ -86,6 +94,9 @@ func NewResource(deps ServiceDependencies) *Resource {
 		FeedbackService:       deps.FeedbackService,
 		PickupScheduleService: deps.PickupScheduleService,
 		SchoolRepo:            deps.SchoolRepo,
+		ActivityInstanceRepo:  deps.ActivityInstanceRepo,
+		InstanceStaffRepo:     deps.InstanceStaffRepo,
+		Broadcaster:           deps.Broadcaster,
 		logger:                deps.Logger,
 		db:                    deps.DB,
 	}
@@ -215,6 +226,11 @@ func (rs *Resource) Router() chi.Router {
 			rs.ActivitiesService,
 			rs.FacilityService,
 			rs.EducationService,
+		)
+		sessionsResource.ConfigureTimetableMirror(
+			rs.ActivityInstanceRepo,
+			rs.InstanceStaffRepo,
+			rs.Broadcaster,
 		)
 		r.Mount("/session", sessionsResource.Router())
 

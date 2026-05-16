@@ -297,6 +297,8 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		if fetchErr != nil {
 			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
 		}
+		s.autoClearStudentSickness(ctx, studentID)
+		s.autoClearStudentExcused(ctx, studentID)
 		return &AttendanceResult{
 			Action:       "checked_in",
 			AttendanceID: existing.ID,
@@ -304,6 +306,9 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 			Timestamp:    existing.CheckInTime,
 		}, nil
 	}
+
+	s.autoClearStudentSickness(ctx, studentID)
+	s.autoClearStudentExcused(ctx, studentID)
 
 	return &AttendanceResult{
 		Action:       "checked_in",

@@ -1,14 +1,20 @@
 import { operatorFetch } from "./api-helpers";
 import type {
   BackendOrganization,
+  BackendOrganizationSummary,
+  BackendProvisioningStats,
   BackendSchool,
+  BackendSchoolSummary,
   BackendInvitation,
   BackendSchoolAccount,
   BackendOrgAccount,
   BackendOperatorDevice,
   BackendOperatorPerson,
   Organization,
+  OrganizationSummary,
+  ProvisioningStats,
   School,
+  SchoolSummary,
   Invitation,
   SchoolAccount,
   OrgAccount,
@@ -24,7 +30,10 @@ import type {
 } from "./provisioning-helpers";
 import {
   mapOrganization,
+  mapOrganizationSummary,
+  mapProvisioningStats,
   mapSchool,
+  mapSchoolSummary,
   mapInvitation,
   mapSchoolAccount,
   mapOrgAccount,
@@ -33,6 +42,36 @@ import {
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
+  async getStats(): Promise<ProvisioningStats> {
+    const data = await operatorFetch<BackendProvisioningStats>(
+      "/api/operator/provisioning/stats",
+    );
+    return mapProvisioningStats(data);
+  }
+
+  async listOrganizationSummaries(): Promise<OrganizationSummary[]> {
+    const data = await operatorFetch<BackendOrganizationSummary[]>(
+      "/api/operator/provisioning/organizations/summaries",
+    );
+    return data.map(mapOrganizationSummary);
+  }
+
+  async listSchoolSummaries(): Promise<SchoolSummary[]> {
+    const data = await operatorFetch<BackendSchoolSummary[]>(
+      "/api/operator/provisioning/schools/summaries",
+    );
+    return data.map(mapSchoolSummary);
+  }
+
+  async listOrganizationSchools(
+    organizationId: string,
+  ): Promise<SchoolSummary[]> {
+    const data = await operatorFetch<BackendSchoolSummary[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/schools`,
+    );
+    return data.map(mapSchoolSummary);
+  }
+
   async listOrganizations(): Promise<Organization[]> {
     const data = await operatorFetch<BackendOrganization[]>(
       "/api/operator/provisioning/organizations",
@@ -177,6 +216,15 @@ class OperatorProvisioningService {
   async listSchoolPersons(schoolId: string): Promise<OperatorPerson[]> {
     const data = await operatorFetch<BackendOperatorPerson[]>(
       `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/persons`,
+    );
+    return data.map(mapOperatorPerson);
+  }
+
+  async listOrganizationPersons(
+    organizationId: string,
+  ): Promise<OperatorPerson[]> {
+    const data = await operatorFetch<BackendOperatorPerson[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/persons`,
     );
     return data.map(mapOperatorPerson);
   }

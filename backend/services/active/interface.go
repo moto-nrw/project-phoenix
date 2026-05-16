@@ -39,6 +39,9 @@ type Service interface {
 	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error)
 	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
+	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
+	ListStudentsInTransit(ctx context.Context) ([]int64, error)
+	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
@@ -94,9 +97,6 @@ type Service interface {
 	EndDailySessions(ctx context.Context) (*DailySessionCleanupResult, error)
 
 	// Analytics and statistics
-	GetActiveGroupsCount(ctx context.Context) (int, error)
-	GetTotalVisitsCount(ctx context.Context) (int, error)
-	GetActiveVisitsCount(ctx context.Context) (int, error)
 	GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error)
 	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error)
 
@@ -144,6 +144,22 @@ type Service interface {
 	SetSettingsService(resolver SettingsResolver)
 }
 
+// TransitAssignSkipped describes a student that was not assigned during a
+// transit bulk operation.
+type TransitAssignSkipped struct {
+	StudentID int64  `json:"student_id"`
+	Reason    string `json:"reason"`
+}
+
+// TransitAssignResult is returned when transit students are assigned to an
+// active room session.
+type TransitAssignResult struct {
+	Assigned      []int64                `json:"assigned"`
+	Skipped       []TransitAssignSkipped `json:"skipped"`
+	ActiveGroupID int64                  `json:"active_group_id"`
+	RoomID        int64                  `json:"room_id"`
+}
+
 // DashboardAnalytics represents aggregated analytics for dashboard
 type DashboardAnalytics struct {
 	// Student Overview
@@ -151,6 +167,7 @@ type DashboardAnalytics struct {
 	StudentsInTransit    int // Students present but not in any active visit
 	StudentsOnPlayground int
 	StudentsInRooms      int // Students in indoor rooms (excluding playground)
+	StudentsSick         int // Students currently flagged as sick
 
 	// Activities & Rooms
 	ActiveActivities    int
@@ -326,12 +343,13 @@ type AttendanceResult struct {
 
 // DailySessionCleanupResult represents the result of ending daily sessions
 type DailySessionCleanupResult struct {
-	SessionsEnded    int       `json:"sessions_ended"`
-	VisitsEnded      int       `json:"visits_ended"`
-	SupervisorsEnded int       `json:"supervisors_ended"`
-	ExecutedAt       time.Time `json:"executed_at"`
-	Success          bool      `json:"success"`
-	Errors           []string  `json:"errors,omitempty"`
+	SessionsEnded       int       `json:"sessions_ended"`
+	VisitsEnded         int       `json:"visits_ended"`
+	SupervisorsEnded    int       `json:"supervisors_ended"`
+	EndedActiveGroupIDs []int64   `json:"-"`
+	ExecutedAt          time.Time `json:"executed_at"`
+	Success             bool      `json:"success"`
+	Errors              []string  `json:"errors,omitempty"`
 }
 
 // AttendanceCleanupResult represents the result of cleaning stale attendance records

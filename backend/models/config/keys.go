@@ -73,11 +73,14 @@ const (
 	KeySessionCleanupIntervalMinutes  = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin   = "operations.session_abandoned_threshold_minutes"
 	KeyAdminSupervisionOverview       = "operations.admin_supervision_overview"
+	KeyStatusFlagClearTime            = "operations.status_flag_clear_time"
 	KeySickClearMode                  = "operations.sick_clear_mode"
 	KeyExcusedClearMode               = "operations.excused_clear_mode"
 	KeyPresenceMode                   = "operations.presence_mode"
 	KeyWebCheckinAccess               = "attendance.web_checkin_access"
 	KeyStudentActivationIntervalMin   = "operations.student_activation_interval_minutes"
+	KeyWebSpontaneousActivities       = "attendance.web_spontaneous_activities_enabled"
+	KeyStudentPhotosEnabled           = "operations.student_photos_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.
@@ -104,7 +107,7 @@ const (
 	KeyGuardianInvitationTokenExpiryHours = "invitations.guardian_token_expiry_hours"
 )
 
-// Parent-enrollment settings. Tenant-wide behavioural toggles only —
+// Parent-enrollment settings. Tenant-wide behavioural toggles only -
 // per-phase overrides (open window, form schema, overflow mode, status-
 // reason visibility) live on enrollment.phases columns.
 const (
@@ -146,6 +149,7 @@ const (
 // template → instance materialization pipeline and the staff-facing
 // auto-start behaviour. All definitions live in defaults/timetable.go.
 const (
+	KeyTimetableEnabled                   = "timetable.enabled"
 	KeyTimetableMaterializationEnabled    = "timetable.materialization_enabled"
 	KeyTimetableMaterializationWeekday    = "timetable.materialization_weekday"
 	KeyTimetableMaterializationWeeksAhead = "timetable.materialization_weeks_ahead"
@@ -153,4 +157,9 @@ const (
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
 	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
 	KeyGDPRTimetableRetentionDays         = "gdpr.timetable_retention_days"
+	// Display range for the admin weekly calendar (Apple-style grid).
+	// Both are HH:MM strings; the UI renders the visible window between them
+	// and scrolls if events fall outside.
+	KeyTimetableDayStartTime = "timetable.day_start_time"
+	KeyTimetableDayEndTime   = "timetable.day_end_time"
 )

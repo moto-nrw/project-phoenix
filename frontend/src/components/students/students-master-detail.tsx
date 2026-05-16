@@ -29,6 +29,8 @@ import { StudentAbholungTab } from "./student-abholung-tab";
 import { StudentGuardiansTab } from "./student-guardians-tab";
 import { StudentHistorieTab } from "./student-historie-tab";
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { getInitials } from "~/lib/format-utils";
 import type { Student } from "~/lib/api";
 
 export type GroupingMode = "class" | "group" | "none";
@@ -60,12 +62,6 @@ function formatStudentName(student: Student): string {
   return student.name || "Unbekannt";
 }
 
-function getStudentInitials(student: Student): string {
-  const first = (student.first_name?.[0] ?? "").toUpperCase();
-  const last = (student.second_name?.[0] ?? "").toUpperCase();
-  return `${first}${last}` || "?";
-}
-
 function buildHeaderSubtitle(student: Student): string {
   const parts: string[] = [];
   if (student.school_class) parts.push(student.school_class);
@@ -87,6 +83,11 @@ export function StudentsMasterDetail({
 }: StudentsMasterDetailProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
   const [bulkClass, setBulkClass] = useState<string | null>(null);
+  // Photo feature gate. When off, the detail header falls back to the
+  // legacy light-blue initials chip (string avatar form) instead of the
+  // shared <Avatar> — matches what the header looked like before the
+  // feature shipped, so opt-out schools see no visual change.
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
 
   const groupers = useMemo<
     Partial<Record<Exclude<GroupingMode, "none">, Grouper<Student>>>
@@ -216,7 +217,25 @@ export function StudentsMasterDetail({
     <DetailPanel
       header={
         <DatabaseDetailHeader
-          avatar={getStudentInitials(selectedStudent)}
+          // Object form (photo + initials fallback via shared <Avatar>) when
+          // the feature is on; legacy string form (light-blue initials chip)
+          // when off — restoring the pre-feature appearance for opt-out
+          // schools and keeping the master-detail consistent with the other
+          // domain pages (groups, roles, permissions) that use the chip.
+          // Both branches derive the initials from the same name source via
+          // getInitials so chip-only schools see "F L" → "FL" identically
+          // to the photo-feature schools' Avatar fallback.
+          avatar={
+            photosEnabled
+              ? {
+                  name: formatStudentName(selectedStudent),
+                  imageUrl: selectedStudent.photo_url ?? null,
+                }
+              : getInitials(
+                  `${selectedStudent.first_name ?? ""} ${selectedStudent.second_name ?? ""}`.trim() ||
+                    "?",
+                )
+          }
           title={formatStudentName(selectedStudent)}
           subtitle={buildHeaderSubtitle(selectedStudent)}
           warning={
@@ -291,6 +310,10 @@ function buildTabs({
           student={student}
           groups={groups}
           onSave={(data) => onUpdateStudent(studentId, data)}
+          // onArrivalDataChanged already mutates the database-students-list
+          // SWR cache in the parent page; reusing it here means a photo
+          // upload/delete refreshes the same list state, no extra plumbing.
+          onStudentRefresh={onArrivalDataChanged}
         />
       ),
     },
@@ -372,7 +395,7 @@ function ClassActionsMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute top-full right-0 z-50 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute top-full right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
         >
           <button
             type="button"

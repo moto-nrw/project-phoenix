@@ -36,7 +36,7 @@ var (
 	ErrDuplicateEnrollment    = errors.New("an active enrollment already exists for this parent and child in this phase")
 )
 
-// Rate-limit thresholds. Hardcoded for now — if individual schools
+// Rate-limit thresholds. Hardcoded for now - if individual schools
 // need different limits we can promote these to settings, but the
 // defaults need to work for "small school with families of 3 kids
 // submitting once" without ever needing tuning.
@@ -56,7 +56,7 @@ type SubmitRequest struct {
 
 	// RemoteIP is the parent's source IP (handler resolves X-Forwarded-For
 	// when set, falls back to RemoteAddr). Empty disables IP-based rate
-	// limiting for that submission — emit it from the handler when at
+	// limiting for that submission - emit it from the handler when at
 	// all possible.
 	RemoteIP string
 
@@ -228,7 +228,7 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 //
 // Phase-model: req.PhaseID identifies the parent's chosen phase. The
 // phase carries its own enrollment window, form-schema reference, and
-// care-overflow mode — all the things that used to be tenant-wide.
+// care-overflow mode - all the things that used to be tenant-wide.
 func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error) {
 	if err := s.enforceRateLimit(ctx, req); err != nil {
 		return nil, err
@@ -282,8 +282,8 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	// Pin the schema version to whichever schema the phase points at,
 	// or the tenant's currently-active schema if the phase has no
 	// override. When neither resolves (Basis phase + no tenant schema
-	// ever published), we submit without a schema_id — the column is
-	// nullable since migration 1.15.58.
+	// ever published), we submit without a schema_id - the column is
+	// nullable since migration 1.15.69.
 	schema, err := s.resolveSubmissionSchema(ctx, phase)
 	if err != nil {
 		return nil, fmt.Errorf("submit: load schema: %w", err)
@@ -305,7 +305,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		// email) so two parallel requests can't both pass the dedup
 		// check and then both insert. The lock auto-releases at tx
 		// commit/rollback. Phase ID is the first key, FNV-64 hash of
-		// the lowercased email is the second — pg_advisory_xact_lock
+		// the lowercased email is the second - pg_advisory_xact_lock
 		// takes two int4s OR one int8.
 		emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 		emailHash := fnvHash64(emailLC)
@@ -409,7 +409,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 		return ErrEnrollmentDisabled
 	}
 	// Phase-window enforcement happens after we load the phase row in
-	// Submit(). The here check used to enforce a tenant-wide window —
+	// Submit(). The here check used to enforce a tenant-wide window -
 	// that setting is gone in the phase model.
 	if req.PhaseID <= 0 {
 		return fmt.Errorf("%w: phase_id is required", ErrInvalidSubmission)
@@ -462,7 +462,7 @@ func validateOfferingSelections(children []SubmitChild, openByID map[int64]*enro
 
 // GetByStatusToken loads a request + its children for the public
 // status page. Caller is responsible for setting an admin-tx context
-// (token-only auth — RLS would block unprivileged SELECTs).
+// (token-only auth - RLS would block unprivileged SELECTs).
 func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
@@ -539,7 +539,7 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 
 // Withdraw transitions a child to `withdrawn` (or every non-terminal
 // child when childID is 0). Approved children must go through the
-// admin (terminal student records exist) — returns ErrWithdrawNotAllowed.
+// admin (terminal student records exist) - returns ErrWithdrawNotAllowed.
 func (s *requestService) Withdraw(ctx context.Context, token string, childID int64) error {
 	req, children, err := s.GetByStatusToken(ctx, token)
 	if err != nil {
@@ -621,7 +621,7 @@ func (s *requestService) ConfirmRenewal(ctx context.Context, token string) (int,
 }
 
 // enqueueSubmissionEmails fires off the parent confirmation + admin
-// notifications. Best-effort — failures log but don't fail the
+// notifications. Best-effort - failures log but don't fail the
 // submission (the rows are already committed).
 func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID int64, request *enrollmentModels.Request, children []*enrollmentModels.RequestChild, statusURL string) {
 	if s.outboxEnqueuer == nil {
@@ -689,7 +689,7 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 // loadPhaseForSubmission fetches the phase the parent selected and
 // validates it's enabled. Returns ErrEnrollmentDisabled when the phase
 // is inactive (admin marked it hidden) and ErrInvalidSubmission when
-// the id is unknown. The window check happens in Submit() — kept
+// the id is unknown. The window check happens in Submit() - kept
 // separate so error mapping in the handler stays specific.
 func (s *requestService) loadPhaseForSubmission(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
 	if s.phaseRepo == nil {
@@ -708,8 +708,8 @@ func (s *requestService) loadPhaseForSubmission(ctx context.Context, phaseID int
 // resolveSubmissionSchema returns the phase's pinned form schema, or
 // nil when the phase is "Basis" (form_schema_id IS NULL). Returning
 // nil writes the request with a NULL schema_id, which is allowed
-// since migration 1.15.58. We deliberately do NOT fall back to the
-// tenant's currently-active schema for Basis phases — the admin UI
+// since migration 1.15.69. We deliberately do NOT fall back to the
+// tenant's currently-active schema for Basis phases - the admin UI
 // promises "nur die Standardfelder", so silently inheriting the
 // latest custom schema would leak its fields into every Basis phase.
 func (s *requestService) resolveSubmissionSchema(ctx context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.FormSchema, error) {
@@ -720,7 +720,7 @@ func (s *requestService) resolveSubmissionSchema(ctx context.Context, phase *enr
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// Pinned schema was deleted out from under the phase.
-			// Treat as Basis rather than 500 — submission still
+			// Treat as Basis rather than 500 - submission still
 			// succeeds with NULL schema_id and the admin can repin.
 			s.logger.Warn("phase form_schema_id pointed at missing schema; submitting as Basis",
 				slog.Int64("phase_id", phase.ID),
@@ -741,7 +741,7 @@ func newStatusToken() (string, error) {
 }
 
 func (s *requestService) statusURL(token string) string {
-	// Status link is parent-facing — sent in the submitted/approved/
+	// Status link is parent-facing - sent in the submitted/approved/
 	// waitlisted/rejected emails. Routes to the parents portal.
 	host := s.parentsURL
 	if host == "" {
@@ -827,7 +827,7 @@ func (s *requestService) resolveSettingString(ctx context.Context, key, fallback
 
 // resolveAdminEmails parses the comma-separated notification_emails
 // setting and returns a list of valid email addresses. Invalid entries
-// are silently dropped — admins shouldn't receive errors because of a
+// are silently dropped - admins shouldn't receive errors because of a
 // trailing comma in their config.
 func (s *requestService) resolveAdminEmails(ctx context.Context) []string {
 	csv := s.resolveSettingString(ctx, configModel.KeyEnrollmentNotificationEmails, "")
@@ -865,7 +865,7 @@ func (s *requestService) lookupSchoolName(ctx context.Context, tenantID int64) s
 // rejects the whole submission, returns per-child status overrides
 // (waitlist), or lets everything pass through unchanged (allow).
 //
-// The map[childIndex]status return is intentionally sparse — entries
+// The map[childIndex]status return is intentionally sparse - entries
 // only appear for children that need a non-default status. Callers
 // fall back to ChildStatusSubmitted when the index isn't in the map.
 //
@@ -947,7 +947,7 @@ func (s *requestService) applyCapacityOverflow(
 
 // enforceRateLimit increments the per-IP and per-email buckets and
 // returns ErrRateLimited as soon as either crosses its threshold. The
-// repository is optional — when not wired, this is a no-op (mainly for
+// repository is optional - when not wired, this is a no-op (mainly for
 // tests that don't care about rate limiting). Tenant-scoped: each
 // school owns its own counters.
 func (s *requestService) enforceRateLimit(ctx context.Context, req SubmitRequest) error {

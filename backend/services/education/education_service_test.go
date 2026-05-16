@@ -724,7 +724,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.Contains(t, err.Error(), "existiert bereits")
 	})
 
 	t.Run("updates group with room change", func(t *testing.T) {
@@ -1235,7 +1235,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
+		assert.Contains(t, err.Error(), "existiert bereits")
 	})
 }
 

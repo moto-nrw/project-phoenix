@@ -261,11 +261,21 @@ describe("StudentSearchPage — school check-in wiring", () => {
       isLoading: false,
       error: null,
     } as never);
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: { students: mockStudents },
-      isLoading: false,
-      error: null,
-    } as never);
+    vi.mocked(useSWRAuth).mockImplementation((key) => {
+      if (key === "search-rooms-list") {
+        return {
+          data: [],
+          isLoading: false,
+          error: null,
+        } as never;
+      }
+
+      return {
+        data: { students: mockStudents },
+        isLoading: false,
+        error: null,
+      } as never;
+    });
   });
 
   afterEach(() => {

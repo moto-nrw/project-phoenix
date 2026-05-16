@@ -434,13 +434,14 @@ func TestRoleManagement_ListAndGetAccountRoles_ErrorPaths(t *testing.T) {
 	})
 }
 
-func TestRoleManagement_AssignAndRemoveRole_DoNotRevokeTokens(t *testing.T) {
+func TestRoleManagement_AssignAndRemoveRole_RevokeTokens(t *testing.T) {
 	ctx := tenant.WithTenantID(context.Background(), 9)
 	account := &authModel.Account{Model: base.Model{ID: 12}}
 	role := &authModel.Role{Model: base.Model{ID: 34}}
 
-	t.Run("AssignRoleToAccount succeeds without token cleanup", func(t *testing.T) {
+	t.Run("AssignRoleToAccount revokes account tokens after creating assignment", func(t *testing.T) {
 		var createdAssignment *authModel.AccountRole
+		var revokedAccountID int64
 		svc := newRoleManagementService(
 			roleManagementRoleRepo{
 				findByIDFn: func(_ context.Context, id interface{}) (*authModel.Role, error) {
@@ -466,7 +467,7 @@ func TestRoleManagement_AssignAndRemoveRole_DoNotRevokeTokens(t *testing.T) {
 			roleManagementRolePermissionRepo{},
 			roleManagementTokenRepo{
 				deleteByAccountIDFn: func(_ context.Context, accountID int64) error {
-					t.Fatalf("unexpected token cleanup for account %d", accountID)
+					revokedAccountID = accountID
 					return nil
 				},
 			},
@@ -476,14 +477,21 @@ func TestRoleManagement_AssignAndRemoveRole_DoNotRevokeTokens(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, createdAssignment)
 		assert.Equal(t, int64(9), createdAssignment.TenantID)
+		assert.Equal(t, int64(12), revokedAccountID)
 	})
 
 	t.Run("RemoveRoleFromAccount returns delete failure without token cleanup", func(t *testing.T) {
+		tokenCleanupCalled := false
 		expectedErr := errors.New("assignment delete failed")
 		svc := newRoleManagementService(
 			roleManagementRoleRepo{},
 			roleManagementAccountRepo{},
 			roleManagementAccountRoleRepo{
+				findByAccountAndRoleFn: func(_ context.Context, accountID, roleID int64) (*authModel.AccountRole, error) {
+					assert.Equal(t, int64(12), accountID)
+					assert.Equal(t, int64(34), roleID)
+					return &authModel.AccountRole{AccountID: accountID, RoleID: roleID}, nil
+				},
 				deleteByAccountAndRoleFn: func(_ context.Context, accountID, roleID int64) error {
 					assert.Equal(t, int64(12), accountID)
 					assert.Equal(t, int64(34), roleID)
@@ -493,7 +501,7 @@ func TestRoleManagement_AssignAndRemoveRole_DoNotRevokeTokens(t *testing.T) {
 			roleManagementRolePermissionRepo{},
 			roleManagementTokenRepo{
 				deleteByAccountIDFn: func(_ context.Context, accountID int64) error {
-					t.Fatalf("unexpected token cleanup for account %d", accountID)
+					tokenCleanupCalled = true
 					return nil
 				},
 			},
@@ -502,17 +510,30 @@ func TestRoleManagement_AssignAndRemoveRole_DoNotRevokeTokens(t *testing.T) {
 		err := svc.RemoveRoleFromAccount(context.Background(), 12, 34)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, expectedErr)
+		assert.False(t, tokenCleanupCalled)
 	})
 
-	t.Run("RemoveRoleFromAccount succeeds without token cleanup", func(t *testing.T) {
+	t.Run("RemoveRoleFromAccount no-op does not revoke account tokens", func(t *testing.T) {
+		tokenCleanupCalled := false
+		deleteCalled := false
 		svc := newRoleManagementService(
 			roleManagementRoleRepo{},
 			roleManagementAccountRepo{},
-			roleManagementAccountRoleRepo{},
+			roleManagementAccountRoleRepo{
+				findByAccountAndRoleFn: func(_ context.Context, accountID, roleID int64) (*authModel.AccountRole, error) {
+					assert.Equal(t, int64(12), accountID)
+					assert.Equal(t, int64(34), roleID)
+					return nil, sql.ErrNoRows
+				},
+				deleteByAccountAndRoleFn: func(context.Context, int64, int64) error {
+					deleteCalled = true
+					return nil
+				},
+			},
 			roleManagementRolePermissionRepo{},
 			roleManagementTokenRepo{
-				deleteByAccountIDFn: func(_ context.Context, accountID int64) error {
-					t.Fatalf("unexpected token cleanup for account %d", accountID)
+				deleteByAccountIDFn: func(context.Context, int64) error {
+					tokenCleanupCalled = true
 					return nil
 				},
 			},
@@ -520,5 +541,33 @@ func TestRoleManagement_AssignAndRemoveRole_DoNotRevokeTokens(t *testing.T) {
 
 		err := svc.RemoveRoleFromAccount(context.Background(), 12, 34)
 		require.NoError(t, err)
+		assert.False(t, deleteCalled)
+		assert.False(t, tokenCleanupCalled)
+	})
+
+	t.Run("RemoveRoleFromAccount revokes account tokens after deleting assignment", func(t *testing.T) {
+		var revokedAccountID int64
+		svc := newRoleManagementService(
+			roleManagementRoleRepo{},
+			roleManagementAccountRepo{},
+			roleManagementAccountRoleRepo{
+				findByAccountAndRoleFn: func(_ context.Context, accountID, roleID int64) (*authModel.AccountRole, error) {
+					assert.Equal(t, int64(12), accountID)
+					assert.Equal(t, int64(34), roleID)
+					return &authModel.AccountRole{AccountID: accountID, RoleID: roleID}, nil
+				},
+			},
+			roleManagementRolePermissionRepo{},
+			roleManagementTokenRepo{
+				deleteByAccountIDFn: func(_ context.Context, accountID int64) error {
+					revokedAccountID = accountID
+					return nil
+				},
+			},
+		)
+
+		err := svc.RemoveRoleFromAccount(context.Background(), 12, 34)
+		require.NoError(t, err)
+		assert.Equal(t, int64(12), revokedAccountID)
 	})
 }

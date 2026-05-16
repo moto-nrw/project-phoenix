@@ -212,6 +212,30 @@ func TestParseImage_ContentTypeSpoofed(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid file type")
 }
 
+func TestParseImageWithLimits_AllowsExactFileSizeWithMultipartHeadroom(t *testing.T) {
+	content := make([]byte, 1024)
+	copy(content, makeJPEGBytes())
+	req := createMultipartRequest(t, "image", "photo.jpg", content)
+	w := httptest.NewRecorder()
+
+	uploaded, err := ParseImageWithLimits(w, req, "image", int64(len(content)), int64(len(content)+1024))
+	require.NoError(t, err)
+	defer func() { _ = uploaded.File.Close() }()
+
+	assert.Equal(t, "image/jpeg", uploaded.ContentType)
+}
+
+func TestParseImageWithLimits_RejectsFileOverAdvertisedLimit(t *testing.T) {
+	content := make([]byte, 1025)
+	copy(content, makeJPEGBytes())
+	req := createMultipartRequest(t, "image", "photo.jpg", content)
+	w := httptest.NewRecorder()
+
+	_, err := ParseImageWithLimits(w, req, "image", 1024, int64(len(content)+1024))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "file too large")
+}
+
 func TestSaveImage_CreatesFileWithCorrectExtension(t *testing.T) {
 	dir := t.TempDir()
 	content := bytes.NewReader([]byte("fake image data"))

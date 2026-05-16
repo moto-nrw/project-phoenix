@@ -90,27 +90,6 @@ func (s *stubOutboxRepo) FindByRelatedEntity(_ context.Context, _ string, _ int6
 	return nil, errors.New("not implemented in stub")
 }
 
-// stubMailer captures dispatched messages.
-type stubMailer struct {
-	mu      sync.Mutex
-	sent    []email.Message
-	sendErr error
-}
-
-func (m *stubMailer) Send(msg email.Message) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.sendErr != nil {
-		return m.sendErr
-	}
-	m.sent = append(m.sent, msg)
-	return nil
-}
-
-func (m *stubMailer) SendAsync(msg email.Message) {
-	_ = m.Send(msg)
-}
-
 // TestTemplateRegistry_LookupRoundTrip — register + lookup + kinds.
 func TestTemplateRegistry_LookupRoundTrip(t *testing.T) {
 	reg := NewTemplateRegistry()

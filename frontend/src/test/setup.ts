@@ -88,6 +88,14 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
     tenant: null,
   })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  // Safe context accessor — never throws. Tests that need a populated
+  // tenant override this mock locally; the default returns a slug-only
+  // context so feature-flag hooks (useStudentPhotosEnabled) read `false`
+  // by default and don't render avatars in unrelated test fixtures.
+  useTenantSafe: vi.fn(() => ({
+    tenantSlug: "test-tenant",
+    tenant: null,
+  })),
   // usePresenceMode defaults to "detailed" so components that decide between
   // LocationBadge / PresenceBadge render the richer detailed variant in tests
   // unless a specific test overrides the mock.
@@ -110,6 +118,10 @@ vi.mock("swr", () => ({
     isValidating: false,
     mutate: vi.fn(),
   })),
+  // Top-level `mutate` (named export) — used for cross-component cache
+  // invalidation (e.g. settings-page busts settings-schema cache so the
+  // useStudentPhotosEnabled hook in other surfaces refetches).
+  mutate: vi.fn(),
   useSWRConfig: vi.fn(() => ({
     mutate: vi.fn(),
     cache: new Map(),

@@ -28,12 +28,16 @@ export interface ApiErrorResponse {
   error: string;
   status?: number;
   code?: string;
+  // Structured payload mirrored from the backend's ErrResponse.details.
+  // Forwarded through the proxy so codes like reopen_status_conflict can
+  // carry identifying fields (session_id, existing_status, …) to the UI.
+  details?: Record<string, unknown>;
 }
 
 /**
  * HTTP methods supported by the API helpers
  */
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /**
  * Options for server-side fetch requests
@@ -129,6 +133,9 @@ async function clientAxiosRequest<T>(
       case "PUT":
         response = await api.put<T>(endpoint, body, config);
         break;
+      case "PATCH":
+        response = await api.patch<T>(endpoint, body, config);
+        break;
       case "DELETE":
         response = await api.delete<T>(endpoint, config);
         break;
@@ -202,6 +209,24 @@ export async function apiPut<T, B = unknown>(
 }
 
 /**
+ * Make a PATCH request to the API
+ * @param endpoint API endpoint to request
+ * @param token Authentication token
+ * @param body Request body
+ * @returns Promise with the response data
+ */
+export async function apiPatch<T, B = unknown>(
+  endpoint: string,
+  token: string,
+  body?: B,
+): Promise<T> {
+  if (globalThis.window === undefined) {
+    return serverFetchWithRetry<T>(endpoint, token, { method: "PATCH", body });
+  }
+  return clientAxiosRequest<T>("PATCH", endpoint, token, body);
+}
+
+/**
  * Make a DELETE request to the API
  * @param endpoint API endpoint to request
  * @param token Authentication token
@@ -247,7 +272,10 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
         });
       }
 
-      // Try to extract structured fields from embedded backend JSON response
+      // Try to extract structured fields from embedded backend JSON response.
+      // Mirror the wire shape: error, code, AND details — the proxy must not
+      // silently drop details, or codes like reopen_status_conflict that carry
+      // identifying fields lose them between backend and browser (Issue #1368).
       const response: ApiErrorResponse = { error: error.message };
       const jsonStart = error.message.indexOf("{");
       if (jsonStart !== -1) {
@@ -256,12 +284,16 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
             error?: string;
             message?: string;
             code?: string;
+            details?: Record<string, unknown>;
           };
           if (parsed.error ?? parsed.message) {
             response.error = (parsed.error ?? parsed.message) as string;
           }
           if (parsed.code) {
             response.code = parsed.code;
+          }
+          if (parsed.details) {
+            response.details = parsed.details;
           }
         } catch {
           // Not valid JSON, keep original error message

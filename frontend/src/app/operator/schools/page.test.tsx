@@ -1,11 +1,16 @@
 /**
  * Tests for Operator Schulen Page (Schools management).
  *
- * Ported from provisioning/page.test.tsx — school-specific behaviour
- * (create, edit, toggle active, soft-delete, slug/subdomain validation,
- * tenant cache revalidation side-effects, invite admin flow).
+ * Ported from provisioning/page.test.tsx — now focused on the directory
+ * behaviour of the schools overview plus create/trash flows.
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const {
@@ -81,6 +86,7 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
 
 vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (dateStr: string) => `relative(${dateStr})`,
+  formatCount: (value: number) => new Intl.NumberFormat("de-DE").format(value),
 }));
 
 vi.mock("~/components/ui/page-header", () => ({
@@ -205,7 +211,7 @@ describe("OperatorSchoolsPage", () => {
     render(<OperatorSchoolsPage />);
 
     expect(screen.getByText("Test Org")).toBeInTheDocument();
-    expect(screen.getByText("Main St 1, 10115, Berlin")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
   });
 
   it("shows Verborgen badge for hidden schools", () => {
@@ -499,595 +505,46 @@ describe("OperatorSchoolsPage", () => {
     expect((orgSelect as HTMLSelectElement).value).toBe("1");
   });
 
-  // --- Invite admin ---
-
-  it("opens invite admin modal", async () => {
+  it("navigates to the school detail page when a row is clicked", () => {
     withDefaultSWR();
 
     render(<OperatorSchoolsPage />);
 
-    fireEvent.click(screen.getByText("Admin einladen"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-      expect(
-        screen.getByText(/Admin einladen — Test School/),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("sends admin invitation and shows success", async () => {
-    withDefaultSWR();
-    mockInviteSchoolAdmin.mockResolvedValue({
-      id: "1",
-      email: "admin@school.de",
-      deliveryStatus: "sent",
-      emailError: null,
-    });
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Admin einladen"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText(/E-Mail/), {
-      target: { value: "admin@school.de" },
-    });
-
-    fireEvent.click(screen.getByText("Einladung senden"));
-
-    await waitFor(() => {
-      expect(mockInviteSchoolAdmin).toHaveBeenCalledWith("10", {
-        email: "admin@school.de",
-      });
-      expect(screen.getByText("Einladung erstellt")).toBeInTheDocument();
-      expect(screen.getByText("Gesendet")).toBeInTheDocument();
-    });
-  });
-
-  it("handles invite error gracefully", async () => {
-    withDefaultSWR();
-    mockInviteSchoolAdmin.mockRejectedValue(new Error("Invite failed"));
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
-      // noop
-    });
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Admin einladen"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText(/E-Mail/), {
-      target: { value: "admin@school.de" },
-    });
-    fireEvent.click(screen.getByText("Einladung senden"));
-
-    await waitFor(() => {
-      expect(screen.getByText("Invite failed")).toBeInTheDocument();
-      expect(consoleError).toHaveBeenCalledWith(
-        "admin_invite_failed",
-        expect.objectContaining({ error: "Invite failed" }),
-      );
-    });
-
-    consoleError.mockRestore();
-  });
-
-  it("sends invite with optional fields", async () => {
-    withDefaultSWR();
-    mockInviteSchoolAdmin.mockResolvedValue({
-      id: "1",
-      email: "admin@school.de",
-      deliveryStatus: "sent",
-      emailError: null,
-    });
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Admin einladen"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText(/E-Mail/), {
-      target: { value: "admin@school.de" },
-    });
-    fireEvent.change(screen.getByLabelText(/Vorname/), {
-      target: { value: "Ada" },
-    });
-    fireEvent.change(screen.getByLabelText(/Nachname/), {
-      target: { value: "Lovelace" },
-    });
-    fireEvent.click(screen.getByText("Einladung senden"));
-
-    await waitFor(() => {
-      expect(mockInviteSchoolAdmin).toHaveBeenCalledWith("10", {
-        email: "admin@school.de",
-        first_name: "Ada",
-        last_name: "Lovelace",
-      });
-    });
-  });
-
-  it("shows invite result with email error", async () => {
-    withDefaultSWR();
-    mockInviteSchoolAdmin.mockResolvedValue({
-      id: "1",
-      email: "admin@school.de",
-      deliveryStatus: "failed",
-      emailError: "SMTP timeout",
-    });
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Admin einladen"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText(/E-Mail/), {
-      target: { value: "admin@school.de" },
-    });
-    fireEvent.click(screen.getByText("Einladung senden"));
-
-    await waitFor(() => {
-      expect(screen.getByText("Einladung erstellt")).toBeInTheDocument();
-      expect(screen.getByText("SMTP timeout")).toBeInTheDocument();
-    });
-  });
-
-  // --- Edit ---
-
-  it("opens edit school modal with pre-filled data", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-      expect(screen.getByText("Schule bearbeiten")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("Test School")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("Main St 1")).toBeInTheDocument();
-    });
-  });
-
-  it("updates school and mutates", async () => {
-    withDefaultSWR();
-    mockUpdateSchool.mockResolvedValue({
-      ...mockSchool,
-      name: "Renamed School",
-    });
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByDisplayValue("Test School"), {
-      target: { value: "Renamed School" },
-    });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(mockUpdateSchool).toHaveBeenCalledWith(
-        "10",
-        expect.objectContaining({ name: "Renamed School" }),
-      );
-      expect(mockMutateSchools).toHaveBeenCalled();
-    });
-  });
-
-  it("shows subdomain warning when changing subdomain", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    const subdomainInputs = screen.getAllByDisplayValue("test-school");
-    fireEvent.change(subdomainInputs[1]!, {
-      target: { value: "new-subdomain" },
-    });
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          /Subdomain-Änderungen erfordern, dass alle Benutzer die neue Adresse verwenden/,
-        ),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows slug warning when changing school slug", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    const slugInputs = screen.getAllByDisplayValue("test-school");
-    fireEvent.change(slugInputs[0]!, { target: { value: "new-slug" } });
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          /Slug-Änderungen können bestehende Verweise ungültig machen/,
-        ),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("calls revalidation endpoint when subdomain changes", async () => {
-    withDefaultSWR();
-    mockUpdateSchool.mockResolvedValue({ ...mockSchool, subdomain: "new-sub" });
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify({ status: "ok" })));
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    const subdomainInputs = screen.getAllByDisplayValue("test-school");
-    fireEvent.change(subdomainInputs[1]!, { target: { value: "new-sub" } });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/operator/provisioning/revalidate-tenant",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            slugs: ["test-school", "new-sub"],
-          }),
-        }),
-      );
-    });
-
-    fetchSpy.mockRestore();
-  });
-
-  it("does not call revalidation when subdomain is unchanged", async () => {
-    withDefaultSWR();
-    mockUpdateSchool.mockResolvedValue(mockSchool);
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify({ status: "ok" })));
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByDisplayValue("Test School"), {
-      target: { value: "Renamed" },
-    });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(mockUpdateSchool).toHaveBeenCalled();
-    });
-
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/operator/provisioning/revalidate-tenant",
-      expect.anything(),
-    );
-
-    fetchSpy.mockRestore();
-  });
-
-  it("shows subdomain conflict error on school update", async () => {
-    withDefaultSWR();
-    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
-    mockUpdateSchool.mockRejectedValue(
-      new OperatorApiError("subdomain already exists", 409),
-    );
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Eine Schule mit dieser Subdomain existiert bereits."),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows slug conflict error on school update", async () => {
-    withDefaultSWR();
-    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
-    mockUpdateSchool.mockRejectedValue(
-      new OperatorApiError("slug conflict", 409),
-    );
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Eine Schule mit diesem Slug existiert bereits in dieser Organisation.",
-        ),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("handles update school error gracefully", async () => {
-    withDefaultSWR();
-    mockUpdateSchool.mockRejectedValue(new Error("Update failed"));
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
-      // noop
-    });
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(screen.getByText("Update failed")).toBeInTheDocument();
-      expect(consoleError).toHaveBeenCalledWith(
-        "school_update_failed",
-        expect.objectContaining({ error: "Update failed" }),
-      );
-    });
-
-    consoleError.mockRestore();
-  });
-
-  it("validates invalid slug when updating school", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    const slugInputs = screen.getAllByDisplayValue("test-school");
-    fireEvent.change(slugInputs[0]!, { target: { value: "BAD SLUG!" } });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
-        ),
-      ).toBeInTheDocument();
-    });
-
-    expect(mockUpdateSchool).not.toHaveBeenCalled();
-  });
-
-  it("validates invalid subdomain when updating school", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    const subdomainInputs = screen.getAllByDisplayValue("test-school");
-    fireEvent.change(subdomainInputs[1]!, {
-      target: { value: "BAD DOMAIN!" },
-    });
-
-    fireEvent.click(screen.getByText("Speichern"));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Subdomain darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
-        ),
-      ).toBeInTheDocument();
-    });
-
-    expect(mockUpdateSchool).not.toHaveBeenCalled();
-  });
-
-  it("closes edit school modal on cancel", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Abbrechen"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
-    });
-  });
-
-  it("shows org change warning when changing school organization", async () => {
-    const secondOrg = {
-      ...mockOrg,
-      id: "2",
-      name: "Other Org",
-      slug: "other-org",
-    };
-    withDefaultSWR({ orgs: [mockOrg, secondOrg] });
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("modal")).toBeInTheDocument();
-    });
-
-    const orgSelect = screen.getByDisplayValue("Test Org");
-    fireEvent.change(orgSelect, { target: { value: "2" } });
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Trägerwechsel kann die Slug-Eindeutigkeit/),
-      ).toBeInTheDocument();
-    });
-  });
-
-  // --- Toggle active ---
-
-  it("toggles school active status", async () => {
-    withDefaultSWR();
-    mockUpdateSchool.mockResolvedValue({ ...mockSchool, active: false });
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByLabelText("Deaktivieren"));
-
-    await waitFor(() => {
-      expect(mockUpdateSchool).toHaveBeenCalled();
-      expect(mockMutateSchools).toHaveBeenCalled();
-    });
-  });
-
-  it("handles toggle school active error gracefully", async () => {
-    withDefaultSWR();
-    mockUpdateSchool.mockRejectedValue(new Error("Toggle failed"));
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
-      // noop
-    });
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByLabelText("Deaktivieren"));
-
-    await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith(
-        "school_toggle_active_failed",
-        expect.objectContaining({ error: "Toggle failed" }),
-      );
-    });
-
-    consoleError.mockRestore();
-  });
-
-  // --- Account creation launch ---
-
-  it("shows Konto erstellen button on school card", () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    expect(screen.getByText("Konto erstellen")).toBeInTheDocument();
-  });
-
-  it("opens create account modal when Konto erstellen is clicked", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Konto erstellen"));
-
-    await waitFor(() => {
-      const modal = screen.getByTestId("create-account-modal");
-      expect(modal).toBeInTheDocument();
-      expect(modal).toHaveTextContent("Test School");
-    });
-  });
-
-  it("renders CreateAccountModal with correct school info", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Konto erstellen"));
-
-    await waitFor(() => {
-      const modal = screen.getByTestId("create-account-modal");
-      expect(modal).toBeInTheDocument();
-      expect(modal).toHaveTextContent("Test School");
-      expect(modal).toHaveTextContent("10");
-    });
-  });
-
-  // --- Konten navigation ---
-
-  it("navigates to Konten page when Konten button is clicked", () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Konten"));
+    fireEvent.click(screen.getByText("Test School"));
 
     expect(mockPush).toHaveBeenCalledWith(
-      expect.stringContaining("/operator/accounts"),
+      "/operator/organizations/test-org/schools/test-school",
     );
-    const target = mockPush.mock.calls.at(-1)?.[0] as string;
-    expect(target).toContain(`orgId=${encodeURIComponent("1")}`);
-    expect(target).toContain(`schoolId=${encodeURIComponent("10")}`);
+  });
+
+  it("keeps row-level management buttons out of the directory table", () => {
+    withDefaultSWR();
+
+    render(<OperatorSchoolsPage />);
+
+    const table = screen.getByRole("table");
+    expect(
+      within(table).queryByRole("button", { name: "Konten" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(table).queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(table).queryByRole("button", { name: "Konto erstellen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(table).queryByRole("button", { name: "Admin einladen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(table).queryByRole("link", { name: "Einstellungen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(table).queryByRole("button", { name: "Löschen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Deaktivieren")).not.toBeInTheDocument();
   });
 
   // --- Soft-delete flow ---
-
-  it("shows Löschen button on school cards", () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    expect(screen.getByText("Löschen")).toBeInTheDocument();
-  });
 
   it("shows Papierkorb toggle when deleted schools exist", () => {
     withDefaultSWR({
@@ -1100,99 +557,6 @@ describe("OperatorSchoolsPage", () => {
     render(<OperatorSchoolsPage />);
 
     expect(screen.getByText(/Papierkorb \(1\)/)).toBeInTheDocument();
-  });
-
-  it("opens triple-confirm dialog when Löschen clicked", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getByText("Löschen"));
-
-    await waitFor(() => {
-      expect(screen.getByText("Schule löschen")).toBeInTheDocument();
-      expect(
-        screen.getByText("Geben Sie den Schulnamen ein:"),
-      ).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("Test School")).toBeInTheDocument();
-    });
-  });
-
-  it("keeps delete button disabled until school name is typed", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getAllByText("Löschen")[0]!);
-
-    await waitFor(() => {
-      expect(screen.getByText("Schule löschen")).toBeInTheDocument();
-    });
-
-    const confirmButtons = screen.getAllByRole("button", { name: "Löschen" });
-    const deleteBtn = confirmButtons[confirmButtons.length - 1]!;
-    expect(deleteBtn).toBeDisabled();
-
-    const input = screen.getByPlaceholderText("Test School");
-    fireEvent.change(input, { target: { value: "Test" } });
-    expect(deleteBtn).toBeDisabled();
-
-    fireEvent.change(input, { target: { value: "Test School" } });
-    expect(deleteBtn).not.toBeDisabled();
-  });
-
-  it("calls softDeleteSchool after typing name and confirming", async () => {
-    withDefaultSWR();
-    mockSoftDeleteSchool.mockResolvedValue(undefined);
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getAllByText("Löschen")[0]!);
-
-    await waitFor(() => {
-      expect(screen.getByText("Schule löschen")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByPlaceholderText("Test School"), {
-      target: { value: "Test School" },
-    });
-
-    const confirmButtons = screen.getAllByRole("button", { name: "Löschen" });
-    fireEvent.click(confirmButtons[confirmButtons.length - 1]!);
-
-    await waitFor(() => {
-      expect(mockSoftDeleteSchool).toHaveBeenCalledWith("10");
-      expect(mockMutateSchools).toHaveBeenCalled();
-    });
-  });
-
-  it("resets confirm input when dialog is closed and reopened", async () => {
-    withDefaultSWR();
-
-    render(<OperatorSchoolsPage />);
-
-    fireEvent.click(screen.getAllByText("Löschen")[0]!);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText("Test School")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByPlaceholderText("Test School"), {
-      target: { value: "Test" },
-    });
-
-    fireEvent.click(screen.getByText("Abbrechen"));
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Löschen").length).toBeGreaterThan(0);
-    });
-
-    fireEvent.click(screen.getAllByText("Löschen")[0]!);
-
-    await waitFor(() => {
-      const input = screen.getByPlaceholderText("Test School");
-      expect(input).toHaveValue("");
-    });
   });
 
   it("shows trash view with deleted schools when Papierkorb clicked", async () => {
@@ -1248,6 +612,59 @@ describe("OperatorSchoolsPage", () => {
     await waitFor(() => {
       expect(mockRestoreSchool).toHaveBeenCalledWith("20");
       expect(mockMutateSchools).toHaveBeenCalled();
+    });
+  });
+
+  // --- Column sorting (covers each column's sortValue callback) ---
+
+  describe("column sorting", () => {
+    it("sorts by Schule / Träger / Konten / Geräte / Personen / Status when headers are clicked", () => {
+      withDefaultSWR({
+        schools: [
+          {
+            ...mockSchool,
+            id: "1",
+            slug: "z-school",
+            name: "Z School",
+            subdomain: "z-school",
+            organizationName: "Org B",
+            kontenCount: 10,
+            geraeteCount: 2,
+            personenCount: 7,
+            active: false,
+          },
+          {
+            ...mockSchool,
+            id: "2",
+            slug: "a-school",
+            name: "A School",
+            subdomain: "a-school",
+            organizationName: "Org A",
+            kontenCount: 30,
+            geraeteCount: 8,
+            personenCount: 3,
+            active: true,
+          },
+        ],
+      });
+
+      render(<OperatorSchoolsPage />);
+
+      for (const header of [
+        "Schule",
+        "Träger",
+        "Konten",
+        "Geräte",
+        "Personen",
+        "Status",
+      ]) {
+        fireEvent.click(
+          screen.getByRole("button", { name: new RegExp(`^${header} – `) }),
+        );
+      }
+
+      expect(screen.getByText("A School")).toBeInTheDocument();
+      expect(screen.getByText("Z School")).toBeInTheDocument();
     });
   });
 });

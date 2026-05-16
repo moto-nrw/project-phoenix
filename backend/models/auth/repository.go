@@ -17,6 +17,7 @@ type AccountRepository interface {
 	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
+	SetActive(ctx context.Context, id int64, active bool) error
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)

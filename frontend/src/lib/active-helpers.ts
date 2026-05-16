@@ -55,6 +55,9 @@ export interface BackendVisit {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  // Authenticated proxy URL — backend rewrites the raw /uploads path
+  // to /api/students/{id}/photo/{filename} before sending it down.
+  photo_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -93,12 +96,6 @@ export interface BackendGroupMapping {
   combined_group_id: number;
   group_name?: string;
   combined_name?: string;
-}
-
-export interface BackendAnalytics {
-  active_groups_count?: number;
-  total_visits_count?: number;
-  active_visits_count?: number;
 }
 
 // Frontend types
@@ -147,6 +144,8 @@ export interface Visit {
   sickSince?: string;
   excused?: boolean;
   excusedSince?: string;
+  // Authenticated photo URL (forwarded as-is from the BFF/proxy).
+  photoUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -185,12 +184,6 @@ export interface GroupMapping {
   combinedGroupId: string;
   groupName?: string;
   combinedName?: string;
-}
-
-export interface Analytics {
-  activeGroupsCount?: number;
-  totalVisitsCount?: number;
-  activeVisitsCount?: number;
 }
 
 // Transformation functions
@@ -243,6 +236,7 @@ export function mapVisitResponse(backendVisit: BackendVisit): Visit {
     sickSince: backendVisit.sick_since,
     excused: backendVisit.excused,
     excusedSince: backendVisit.excused_since,
+    photoUrl: backendVisit.photo_url,
     createdAt: new Date(backendVisit.created_at),
     updatedAt: new Date(backendVisit.updated_at),
   };
@@ -297,16 +291,6 @@ export function mapGroupMappingResponse(
     combinedGroupId: String(backendGroupMapping.combined_group_id),
     groupName: backendGroupMapping.group_name,
     combinedName: backendGroupMapping.combined_name,
-  };
-}
-
-export function mapAnalyticsResponse(
-  backendAnalytics: BackendAnalytics,
-): Analytics {
-  return {
-    activeGroupsCount: backendAnalytics.active_groups_count,
-    totalVisitsCount: backendAnalytics.total_visits_count,
-    activeVisitsCount: backendAnalytics.active_visits_count,
   };
 }
 

@@ -1,0 +1,269 @@
+"use client";
+
+/**
+ * WeeklyCalendarGrid — Apple-Calendar-style week view.
+ *
+ * Layout: a sticky day-header row above a vertically scrollable body.
+ * Inside the body: a fixed time-gutter on the left and 7 day columns
+ * (Mo-So). Each day column is a positioned container; events are placed
+ * absolutely via `getEventBlockPosition`. Overlapping events split a
+ * column horizontally via `assignBlockLanes`.
+ *
+ * Replaces the previous vertical-stack `WeeklyPlannerGrid`. The stack
+ * approach worked but failed the "where is the 11am AG?" test —
+ * positioning by time is the whole point of a week view.
+ */
+
+import { useEffect, useState } from "react";
+
+import {
+  assignBlockLanes,
+  formatDayHeader,
+  getCurrentTimeOffset,
+  getEventBlockPosition,
+  getGermanWeekdayShort,
+  groupInstancesByDate,
+  parseTimeToMinutes,
+  toISODate,
+} from "~/lib/timetable-helpers";
+import type { EnrichedInstance } from "~/lib/timetable-types";
+
+import { InstanceBlock } from "./instance-block";
+
+// Grid template columns: narrow time gutter + 7 day columns (Mo-So).
+// Mobile uses a 40px gutter so the day cells get ~48px each on iPhone SE.
+const GRID_COLS_CLASS =
+  "grid-cols-[40px_repeat(7,minmax(0,1fr))] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]";
+
+interface WeeklyCalendarGridProps {
+  weekDays: Date[]; // Mo-So (7 dates)
+  instances: EnrichedInstance[];
+  selectedId: string | null;
+  onInstanceClick: (instance: EnrichedInstance) => void;
+  todayISO: string;
+  /** Visible day window start (HH parsed to integer). Default 9. */
+  dayStartHour: number;
+  /** Visible day window end (HH parsed to integer). Default 17. */
+  dayEndHour: number;
+  /** Pixel height per hour row. Driven by zoom controls. */
+  hourHeightPx: number;
+  emptyState?: {
+    title: string;
+    description: string;
+  };
+}
+
+export function WeeklyCalendarGrid({
+  weekDays,
+  instances,
+  selectedId,
+  onInstanceClick,
+  todayISO,
+  dayStartHour,
+  dayEndHour,
+  hourHeightPx,
+  emptyState,
+}: WeeklyCalendarGridProps) {
+  const grouped = groupInstancesByDate(instances);
+  const eventStarts = instances
+    .map((instance) => parseTimeToMinutes(instance.startTime))
+    .filter((minutes) => Number.isFinite(minutes));
+  const eventEnds = instances
+    .map((instance) => parseTimeToMinutes(instance.endTime))
+    .filter((minutes) => Number.isFinite(minutes));
+  const renderStartHour =
+    eventStarts.length > 0
+      ? Math.max(
+          0,
+          Math.min(dayStartHour, Math.floor(Math.min(...eventStarts) / 60)),
+        )
+      : dayStartHour;
+  const renderEndHour =
+    eventEnds.length > 0
+      ? Math.min(
+          24,
+          Math.max(dayEndHour, Math.ceil(Math.max(...eventEnds) / 60)),
+        )
+      : dayEndHour;
+  const hours = Array.from(
+    { length: renderEndHour - renderStartHour + 1 },
+    (_, i) => renderStartHour + i,
+  );
+  const gridHeightPx = (renderEndHour - renderStartHour) * hourHeightPx;
+
+  // Re-render every minute so the now-line moves smoothly.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  void nowTick;
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      {/* Sticky day header */}
+      <div
+        className={`grid h-[52px] border-b border-slate-200 bg-white sm:h-14 ${GRID_COLS_CLASS}`}
+      >
+        <div aria-hidden />
+        {weekDays.map((day) => {
+          const iso = toISODate(day);
+          const isToday = iso === todayISO;
+          return (
+            <div
+              key={iso}
+              className="flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-slate-200 px-1 py-1 sm:flex-row sm:gap-2 sm:px-2 sm:py-2"
+            >
+              <span className="text-[10px] font-medium tracking-wide text-slate-500 uppercase sm:text-[11px]">
+                {getGermanWeekdayShort(day)}
+              </span>
+              {isToday ? (
+                <span
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-[12px]"
+                  aria-label={formatDayHeader(day)}
+                >
+                  {day.getDate()}
+                </span>
+              ) : (
+                <span
+                  className="text-[12px] font-semibold text-slate-900 tabular-nums sm:text-[14px]"
+                  aria-label={formatDayHeader(day)}
+                >
+                  {String(day.getDate()).padStart(2, "0")}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Scrollable body */}
+      <div className="relative max-h-[720px] overflow-y-auto">
+        <div className={`grid ${GRID_COLS_CLASS}`}>
+          {/* Time gutter */}
+          <div
+            className="border-r border-slate-200 bg-slate-50"
+            style={{ height: `${gridHeightPx}px` }}
+          >
+            {hours.slice(0, -1).map((hour) => (
+              <div
+                key={hour}
+                className="flex items-start justify-end px-1 pt-1 text-[10px] font-medium text-slate-400 sm:px-2 sm:text-[11px]"
+                style={{ height: `${hourHeightPx}px` }}
+              >
+                {String(hour).padStart(2, "0")}:00
+              </div>
+            ))}
+          </div>
+
+          {/* Day columns */}
+          {weekDays.map((day) => {
+            const iso = toISODate(day);
+            const isToday = iso === todayISO;
+            const dayInstances = grouped.get(iso) ?? [];
+            const laned = assignBlockLanes(dayInstances);
+            const nowOffset = isToday
+              ? getCurrentTimeOffset(
+                  hourHeightPx,
+                  renderStartHour,
+                  renderEndHour,
+                )
+              : null;
+
+            return (
+              <div
+                key={iso}
+                className={`relative min-w-0 border-l border-slate-200 ${isToday ? "bg-slate-50/60" : ""}`}
+                style={{ height: `${gridHeightPx}px` }}
+              >
+                {/* Hour grid lines */}
+                {hours.slice(1, -1).map((hour) => {
+                  const top = (hour - renderStartHour) * hourHeightPx;
+                  return (
+                    <div
+                      key={hour}
+                      className="pointer-events-none absolute right-0 left-0 border-t border-slate-100"
+                      style={{ top: `${top}px` }}
+                    />
+                  );
+                })}
+
+                {/* Half-hour grid lines (lighter) */}
+                {hours.slice(0, -1).map((hour) => {
+                  const top =
+                    (hour - renderStartHour) * hourHeightPx + hourHeightPx / 2;
+                  return (
+                    <div
+                      key={`half-${hour}`}
+                      className="pointer-events-none absolute right-0 left-0 border-t border-slate-50"
+                      style={{ top: `${top}px` }}
+                    />
+                  );
+                })}
+
+                {/* Event blocks */}
+                {laned.map(({ instance, lane, laneCount }) => {
+                  const { top, height } = getEventBlockPosition(
+                    instance.startTime,
+                    instance.endTime,
+                    hourHeightPx,
+                    renderStartHour,
+                  );
+                  const widthPct = 100 / laneCount;
+                  return (
+                    <InstanceBlock
+                      key={instance.id}
+                      instance={instance}
+                      top={top}
+                      height={height}
+                      left={`${lane * widthPct}%`}
+                      width={`calc(${widthPct}% - 4px)`}
+                      isSelected={selectedId === instance.id}
+                      onClick={() => onInstanceClick(instance)}
+                    />
+                  );
+                })}
+
+                {/* Now line (today only) */}
+                {nowOffset !== null && (
+                  <>
+                    <div
+                      className="pointer-events-none absolute -left-1 z-10 h-2 w-2 rounded-full bg-[#FF3130]"
+                      style={{ top: `${nowOffset - 4}px` }}
+                    />
+                    <div
+                      className="pointer-events-none absolute right-0 left-0 z-10 border-t-2 border-[#FF3130]"
+                      style={{ top: `${nowOffset}px` }}
+                    />
+                  </>
+                )}
+
+                {/* Empty-state hint (hidden on mobile: column too narrow) */}
+                {dayInstances.length === 0 && (
+                  <div className="pointer-events-none absolute inset-0 hidden items-center justify-center sm:flex">
+                    <span className="text-[11px] text-slate-400 italic">
+                      Keine Aktivitäten
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {emptyState && (
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
+            <div className="max-w-sm rounded-lg border border-slate-200 bg-white/95 px-4 py-3 text-center shadow-sm backdrop-blur">
+              <h3 className="text-sm font-semibold text-slate-900">
+                {emptyState.title}
+              </h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                {emptyState.description}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

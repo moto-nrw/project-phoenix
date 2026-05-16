@@ -31,18 +31,26 @@ func (req *materializeRequest) Bind(_ *http.Request) error {
 // fields surfaced to API consumers. Admin UIs can show the counts directly;
 // operators can use them to sanity-check a run.
 type materializeResponse struct {
-	From                        string `json:"from"`
-	To                          string `json:"to"`
-	InstancesCreated            int    `json:"instances_created"`
-	CandidatesSkippedExisting   int    `json:"candidates_skipped_existing"`
-	CandidatesSkippedException  int    `json:"candidates_skipped_exception"`
-	CandidatesSkippedABWeek     int    `json:"candidates_skipped_ab_week"`
-	CandidatesSkippedNoPeriod   int    `json:"candidates_skipped_no_period"`
-	CandidatesSkippedIncomplete int    `json:"candidates_skipped_incomplete"`
-	CandidatesRaced             int    `json:"candidates_raced"`
-	InstanceStudentsCreated     int    `json:"instance_students_created"`
-	InstanceStaffCreated        int    `json:"instance_staff_created"`
-	DurationMS                  int64  `json:"duration_ms"`
+	From                        string               `json:"from"`
+	To                          string               `json:"to"`
+	InstancesCreated            int                  `json:"instances_created"`
+	CandidatesSkippedExisting   int                  `json:"candidates_skipped_existing"`
+	CandidatesSkippedException  int                  `json:"candidates_skipped_exception"`
+	CandidatesSkippedABWeek     int                  `json:"candidates_skipped_ab_week"`
+	CandidatesSkippedNoPeriod   int                  `json:"candidates_skipped_no_period"`
+	CandidatesSkippedIncomplete int                  `json:"candidates_skipped_incomplete"`
+	CandidatesRaced             int                  `json:"candidates_raced"`
+	InstanceStudentsCreated     int                  `json:"instance_students_created"`
+	InstanceStaffCreated        int                  `json:"instance_staff_created"`
+	Warnings                    []materializeWarning `json:"warnings"`
+	DurationMS                  int64                `json:"duration_ms"`
+}
+
+// materializeWarning is the API shape for soft preconditions surfaced by
+// the materialization service. Mirrors scheduleSvc.MaterializationWarning.
+type materializeWarning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 // materialize is POST /api/timetable/materialize. Admin-only (gated by
@@ -78,6 +86,11 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	warnings := make([]materializeWarning, 0, len(result.Warnings))
+	for _, w := range result.Warnings {
+		warnings = append(warnings, materializeWarning{Code: w.Code, Message: w.Message})
+	}
+
 	resp := materializeResponse{
 		From:                        result.From.Format(dateLayout),
 		To:                          result.To.Format(dateLayout),
@@ -90,6 +103,7 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 		CandidatesRaced:             result.CandidatesRaced,
 		InstanceStudentsCreated:     result.InstanceStudentsCreated,
 		InstanceStaffCreated:        result.InstanceStaffCreated,
+		Warnings:                    warnings,
 		DurationMS:                  result.DurationMS,
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Materialization completed")

@@ -200,6 +200,19 @@ func init() {
 	}
 
 	config.Register(config.Definition{
+		Key:             config.KeyStatusFlagClearTime,
+		Label:           "Abwesenheit automatisch beenden um",
+		Description:     "Uhrzeit, zu der Krankmeldungen und Entschuldigungen mit Einstellung \"Am Ende des Tages\" automatisch aufgehoben werden.",
+		Type:            config.FieldTime,
+		Default:         "18:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "abwesenheit",
+		SortOrder:       29,
+	})
+
+	config.Register(config.Definition{
 		Key:             config.KeySickClearMode,
 		Label:           "Krankmeldung automatisch beenden",
 		Description:     "Legt fest, wann die Krankmeldung eines Schülers automatisch aufgehoben wird.",
@@ -291,5 +304,36 @@ func init() {
 				{Label: "Alle berechtigten Mitarbeitenden", Value: config.WebCheckinAccessAllStaff},
 			},
 		},
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyWebSpontaneousActivities,
+		Label:           "Spontane Aktivitäten über Web/App",
+		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Stundenplan geschrieben, auch wenn die Stundenplanplanung deaktiviert ist.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "anwesenheit",
+		SortOrder:       42,
+	})
+
+	// --- Kinderfotos (Datenverwaltung-Erweiterung) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyStudentPhotosEnabled,
+		Label:           "Kinderfotos aktivieren",
+		Description:     "Wenn aktiviert, können Mitarbeitende mit Bearbeitungsrecht in der Datenverwaltung Fotos zu Kindern hinterlegen (nur mit dokumentierter Einwilligung der Eltern). Fotos erscheinen anschließend in Suche, Räumen, Abholplan und Kinderdetail.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		// Category key is shown verbatim as the section header in the
+		// settings UI (schema_builder.Label = catName). German umlaut here
+		// matches the visible "Kinder" copy throughout the photo feature.
+		Category:  "kinder",
+		SortOrder: 50,
 	})
 }

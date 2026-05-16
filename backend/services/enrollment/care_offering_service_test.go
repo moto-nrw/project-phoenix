@@ -18,7 +18,7 @@ import (
 
 // setupCareTest wires a real DB-backed CareOfferingService and creates a
 // phase the offerings can FK against. Phase model replaced calendar
-// periods as the parent entity for care offerings (migration 1.15.57).
+// periods as the parent entity for care offerings (migration 1.15.68).
 func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService, *enrollmentModels.Phase, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)

@@ -83,19 +83,20 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	return nil
 }
 
-// buildUnreadArgs returns the fixed-size positional args shared by the JOIN + WHERE
+// buildUnreadArgs returns the fixed-size positional args shared by the FROM + WHERE
 // in the unread announcement query.
-// Arg order: userID (JOIN), now, now, pgArray(userRoles), userID (EXISTS), tenantID (EXISTS), tenantID (targeting), orgID (targeting) — 8 args.
+// Arg order: userID (account JOIN), tenantID (membership JOIN), orgID (school JOIN),
+// now, now, pgArray(userRoles) — 6 args.
 func buildUnreadArgs(userID int64, userRoles []string, tenantID int64, orgID int64) []any {
 	now := time.Now()
 	if userRoles == nil {
 		userRoles = []string{}
 	}
-	return []any{userID, now, now, pgdialect.Array(userRoles), userID, tenantID, tenantID, orgID}
+	return []any{userID, tenantID, orgID, now, now, pgdialect.Array(userRoles)}
 }
 
 // unreadWhereClause is the shared SQL fragment used by both GetUnreadForUser
-// and CountUnread. Arg positions are fixed (always 8 — see buildUnreadArgs).
+// and CountUnread. Arg positions are fixed (always 6 — see buildUnreadArgs).
 //
 // Role matching: a user matches if their JWT role names overlap with target_roles
 // (direct match) OR if any of their assigned roles in the current session tenant
@@ -108,22 +109,41 @@ const unreadWhereClause = `
 		AND a.published_at IS NOT NULL
 		AND a.published_at <= ?
 		AND (a.expires_at IS NULL OR a.expires_at > ?)
+		AND a.published_at >= GREATEST(
+			s.created_at,
+			COALESCE(at.invited_at, at.created_at),
+			acc.created_at
+		)
 		AND v.seen_at IS NULL
 		AND (a.target_roles = '{}'
 			OR a.target_roles && ?::text[]
 			OR EXISTS (
 				SELECT 1 FROM auth.account_roles ar
 				JOIN auth.roles r ON r.id = ar.role_id
-				WHERE ar.account_id = ?
-				AND ar.tenant_id = ?
+				WHERE ar.account_id = acc.id
+				AND ar.tenant_id = at.tenant_id
 				AND r.base_role IS NOT NULL
 				AND r.base_role = ANY(a.target_roles)
 			))
 		AND (
 			(a.target_org_ids = '{}' AND a.target_tenant_ids = '{}')
-			OR (a.target_tenant_ids != '{}' AND ? = ANY(a.target_tenant_ids))
-			OR (a.target_org_ids != '{}' AND ? = ANY(a.target_org_ids))
+			OR (a.target_tenant_ids != '{}' AND at.tenant_id = ANY(a.target_tenant_ids))
+			OR (a.target_org_ids != '{}' AND s.organization_id = ANY(a.target_org_ids))
 		)`
+
+const unreadFromClause = ` FROM platform.announcements a
+		JOIN auth.accounts acc
+			ON acc.id = ?
+		JOIN auth.account_tenants at
+			ON at.account_id = acc.id
+			AND at.tenant_id = ?
+			AND at.status = 'active'
+		JOIN platform.schools s
+			ON s.id = at.tenant_id
+			AND s.organization_id = ?
+			AND s.deleted_at IS NULL
+		LEFT JOIN platform.announcement_views v
+			ON v.announcement_id = a.id AND v.user_id = acc.id`
 
 // GetUnreadForUser retrieves all unread active announcements for a user scoped to the current session tenant/org.
 // Targeting logic uses OR-union: global / org match / tenant match.
@@ -131,10 +151,8 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 	var announcements []*platform.Announcement
 	args := buildUnreadArgs(userID, userRoles, tenantID, orgID)
 
-	query := `SELECT a.*
-		FROM platform.announcements a
-		LEFT JOIN platform.announcement_views v
-			ON v.announcement_id = a.id AND v.user_id = ?` +
+	query := `SELECT a.*` +
+		unreadFromClause +
 		unreadWhereClause +
 		` ORDER BY a.published_at DESC`
 
@@ -153,10 +171,8 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error) {
 	args := buildUnreadArgs(userID, userRoles, tenantID, orgID)
 
-	query := `SELECT COUNT(*)
-		FROM platform.announcements a
-		LEFT JOIN platform.announcement_views v
-			ON v.announcement_id = a.id AND v.user_id = ?` +
+	query := `SELECT COUNT(*)` +
+		unreadFromClause +
 		unreadWhereClause
 
 	var count int
@@ -185,12 +201,14 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 		TargetRoles     []string `bun:"target_roles,array"`
 		TargetOrgIDs    []int64  `bun:"target_org_ids,array"`
 		TargetTenantIDs []int64  `bun:"target_tenant_ids,array"`
+		PublishedAt     *time.Time
 	}
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
 			COALESCE(target_roles, '{}'::text[]) AS target_roles,
 			COALESCE(target_org_ids, '{}'::bigint[]) AS target_org_ids,
-			COALESCE(target_tenant_ids, '{}'::bigint[]) AS target_tenant_ids
+			COALESCE(target_tenant_ids, '{}'::bigint[]) AS target_tenant_ids,
+			published_at
 		FROM platform.announcements WHERE id = ?
 	`, announcementID).Scan(ctx, &targeting)
 	if err != nil {
@@ -216,6 +234,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	var queryArgs []any
 
 	queryParts = append(queryParts, `SELECT COUNT(DISTINCT at.account_id) FROM auth.account_tenants at`)
+	queryParts = append(queryParts, `JOIN auth.accounts acc ON acc.id = at.account_id AND acc.active = true`)
 
 	// Always join schools to exclude accounts linked to soft-deleted tenants,
 	// even for global announcements (consistent with targeted path).
@@ -228,6 +247,11 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	}
 
 	queryParts = append(queryParts, `WHERE at.status = 'active'`)
+
+	if targeting.PublishedAt != nil {
+		queryParts = append(queryParts, `AND ? >= GREATEST(s.created_at, COALESCE(at.invited_at, at.created_at), acc.created_at)`)
+		queryArgs = append(queryArgs, *targeting.PublishedAt)
+	}
 
 	if hasRoleFilter {
 		queryParts = append(queryParts, `AND (r.name IN (?) OR (r.base_role IS NOT NULL AND r.base_role IN (?)))`)

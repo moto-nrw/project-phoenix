@@ -1138,14 +1138,20 @@ func (m *mockActiveService) ValidateSessionTimeout(_ context.Context, _ int64, _
 func (m *mockActiveService) GetSessionTimeoutInfo(_ context.Context, _ int64) (*activeService.SessionTimeoutInfo, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetActiveGroupsCount(_ context.Context) (int, error) { return 0, nil }
-func (m *mockActiveService) GetTotalVisitsCount(_ context.Context) (int, error)  { return 0, nil }
-func (m *mockActiveService) GetActiveVisitsCount(_ context.Context) (int, error) { return 0, nil }
 func (m *mockActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
 func (m *mockActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
 	return 0, nil
+}
+func (m *mockActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.TransitAssignResult, error) {
+	return nil, nil
 }
 func (m *mockActiveService) GetDashboardAnalytics(_ context.Context) (*activeService.DashboardAnalytics, error) {
 	return nil, nil

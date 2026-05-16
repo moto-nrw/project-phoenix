@@ -1,0 +1,151 @@
+name: Notify Deploy Slack
+description: Send Slack notification for deploy outcomes (success, failure, cancelled) via Incoming Webhook
+
+inputs:
+  webhook_url:
+    description: "Slack Incoming Webhook URL"
+    required: true
+  job_status:
+    description: "GitHub job.status (success, failure, cancelled)"
+    required: true
+  environment:
+    description: "Target environment (staging, production)"
+    required: true
+  app_name:
+    description: "Application name shown in Slack"
+    required: false
+    default: "Phoenix"
+  exit_code:
+    description: "Exit code from deploy script (0=ok, 1=pre-deploy abort, 10=rolled back, 11=rollback failed). Empty for non-deploy notifications."
+    required: false
+    default: ""
+  github_token:
+    description: "GitHub token used to resolve the PR linked to the deployed commit"
+    required: false
+    default: ""
+  repository:
+    description: "GitHub repository in owner/name format"
+    required: true
+  commit_url:
+    description: "Full URL to the commit"
+    required: true
+  sha:
+    description: "Commit SHA (truncated to 7 chars for display)"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        WEBHOOK_URL: ${{ inputs.webhook_url }}
+        JOB_STATUS: ${{ inputs.job_status }}
+        ENV: ${{ inputs.environment }}
+        APP_NAME: ${{ inputs.app_name }}
+        EXIT_CODE: ${{ inputs.exit_code }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPOSITORY: ${{ inputs.repository }}
+        COMMIT_URL: ${{ inputs.commit_url }}
+        INPUT_SHA: ${{ inputs.sha }}
+      run: |
+        if [ -z "$WEBHOOK_URL" ]; then
+          echo "::warning::SLACK_DEPLOY_WEBHOOK secret not set, skipping Slack notification"
+          exit 0
+        fi
+
+        SHORT_SHA=$(echo "$INPUT_SHA" | cut -c1-7)
+
+        if [ "$ENV" = "production" ]; then
+          DISPLAY_ENV="Production"
+        else
+          DISPLAY_ENV="${ENV^}"
+        fi
+
+        LINK_URL="$COMMIT_URL"
+        LINK_LABEL="\`$SHORT_SHA\`"
+
+        AUTH_HEADER=()
+        if [ -n "$GITHUB_TOKEN" ]; then
+          AUTH_HEADER=(-H "Authorization: Bearer $GITHUB_TOKEN")
+        fi
+
+        if PR_JSON=$(curl -fsS \
+          "${AUTH_HEADER[@]}" \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/$REPOSITORY/commits/$INPUT_SHA/pulls" 2>/dev/null); then
+          PR_URL=$(echo "$PR_JSON" | jq -r '.[0].html_url // empty')
+          PR_NUMBER=$(echo "$PR_JSON" | jq -r '.[0].number // empty')
+          if [ -n "$PR_URL" ] && [ -n "$PR_NUMBER" ]; then
+            LINK_URL="$PR_URL"
+            LINK_LABEL="PR #$PR_NUMBER"
+          fi
+        else
+          echo "::warning::Could not resolve PR for commit $SHORT_SHA, linking to commit instead"
+        fi
+
+        # Map (job_status, exit_code) to (emoji, headline). Use Unicode emoji so
+        # rendering doesn't depend on Slack's :shortcode: → emoji conversion.
+        if [ "$JOB_STATUS" = "success" ]; then
+          if [ "$ENV" = "production" ]; then
+            EMOJI="🎉"
+          else
+            EMOJI="✅"
+          fi
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deployed"
+        elif [ "$JOB_STATUS" = "cancelled" ]; then
+          EMOJI="🚫"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deploy Cancelled"
+        elif [ "$EXIT_CODE" = "11" ]; then
+          EMOJI="🚨"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deploy + Rollback Failed"
+        elif [ "$EXIT_CODE" = "10" ]; then
+          EMOJI="⚠️"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Rolled Back"
+        elif [ "$EXIT_CODE" = "1" ]; then
+          EMOJI="⚠️"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deploy Aborted"
+        else
+          EMOJI="❌"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deploy Failed"
+        fi
+
+        # Build the payload entirely inside jq so newlines and JSON escaping are
+        # handled in one pass. Block Kit guarantees mrkdwn rendering for bold
+        # text and <url|label> links, which the bare {text: ...} field does not
+        # render reliably for newer webhook apps.
+        # Best-effort: notification failures must never mask the real deploy outcome.
+        if ! PAYLOAD=$(jq -n \
+          --arg emoji "$EMOJI" \
+          --arg headline "$HEADLINE" \
+          --arg link_url "$LINK_URL" \
+          --arg link_label "$LINK_LABEL" \
+          '{
+            text: "\($emoji) \($headline)",
+            blocks: [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: "\($emoji) *\($headline)* · <\($link_url)|\($link_label)>"
+                }
+              }
+            ]
+          }' 2>&1); then
+          echo "::warning::Failed to build Slack payload (non-critical): $PAYLOAD"
+          exit 0
+        fi
+
+        if ! HTTP_RESPONSE=$(curl -sS -o /tmp/slack_response.txt -w "%{http_code}" \
+          -X POST "$WEBHOOK_URL" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" 2>&1); then
+          echo "::warning::Slack notification request failed (non-critical): $HTTP_RESPONSE"
+          exit 0
+        fi
+
+        if [ "$HTTP_RESPONSE" -ge 200 ] 2>/dev/null && [ "$HTTP_RESPONSE" -lt 300 ] 2>/dev/null; then
+          echo "Slack notification sent (HTTP $HTTP_RESPONSE)"
+        else
+          echo "::warning::Slack notification rejected (HTTP $HTTP_RESPONSE, non-critical): $(cat /tmp/slack_response.txt 2>/dev/null)"
+        fi

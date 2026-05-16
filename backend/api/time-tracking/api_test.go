@@ -133,7 +133,7 @@ func (m *mockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]users
 // --- Mock WorkSessionService ---
 
 type mockWorkSessionService struct {
-	checkInFn            func(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error)
+	checkInFn            func(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error)
 	checkOutFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	startBreakFn         func(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	endBreakFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
@@ -147,9 +147,9 @@ type mockWorkSessionService struct {
 	autoEndExpiredBreaks func(ctx context.Context) (int, error)
 }
 
-func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error) {
+func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
 	if m.checkInFn != nil {
-		return m.checkInFn(ctx, staffID, status)
+		return m.checkInFn(ctx, staffID, status, source)
 	}
 	return &activeModels.WorkSession{}, nil
 }
@@ -208,7 +208,7 @@ func (m *mockWorkSessionService) GetTodayPresenceMap(ctx context.Context) (map[i
 	return map[int64]string{}, nil
 }
 func (m *mockWorkSessionService) CleanupOpenSessions(_ context.Context) (int, error) { return 0, nil }
-func (m *mockWorkSessionService) EnsureCheckedIn(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+func (m *mockWorkSessionService) EnsureCheckedIn(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
 func (m *mockWorkSessionService) ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error) {
@@ -426,10 +426,11 @@ func TestCheckIn_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, staffID int64, status string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "present", status)
-			ws := &activeModels.WorkSession{Status: "present"}
+			assert.Equal(t, activeModels.WorkSessionSourceApp, source)
+			ws := &activeModels.WorkSession{Status: "present", Source: source}
 			ws.ID = 1
 			return ws, nil
 		},
@@ -485,7 +486,7 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
 			return nil, errors.New("already checked in")
 		},
 	}
@@ -499,6 +500,59 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 
 	rs.checkIn(w, r)
 	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+// TestCheckIn_ReopenStatusConflict locks in the HTTP-boundary contract for
+// Issue #1368: when the service returns *ReopenStatusConflictError, the
+// handler must respond 409 with a stable {"code":"reopen_status_conflict"}
+// body so the frontend can branch into the "change status with reason" flow
+// without parsing message strings. The errors.As wiring in
+// classifyServiceError is what would silently break if someone wrapped the
+// error or moved the type — service-level tests alone don't catch that.
+func TestCheckIn_ReopenStatusConflict(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+			return nil, &activeSvc.ReopenStatusConflictError{
+				SessionID:       42,
+				ExistingStatus:  activeModels.WorkSessionStatusPresent,
+				RequestedStatus: activeModels.WorkSessionStatusHomeOffice,
+			}
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"home_office"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkIn(w, r)
+	require.Equal(t, http.StatusConflict, w.Code)
+
+	var resp struct {
+		Status  string         `json:"status"`
+		Code    string         `json:"code"`
+		Error   string         `json:"error"`
+		Details map[string]any `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "error", resp.Status)
+	assert.Equal(t, "reopen_status_conflict", resp.Code,
+		"frontend branches on this code via REOPEN_STATUS_CONFLICT_CODE")
+
+	// Details payload drives the reopen-with-status-change modal directly.
+	// Without it the frontend would have to look up the session in local
+	// history — which fails when the user is viewing a past week and today's
+	// session isn't in the fetched range.
+	require.NotNil(t, resp.Details, "details must carry the conflicting session id and statuses")
+	assert.Equal(t, "42", resp.Details["session_id"],
+		"session_id is an int64; serialize as string so the frontend can use it as-is")
+	assert.Equal(t, activeModels.WorkSessionStatusPresent, resp.Details["existing_status"])
+	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, resp.Details["requested_status"])
 }
 
 // --- checkOut handler ---
@@ -758,6 +812,35 @@ func TestUpdateSession_Forbidden(t *testing.T) {
 
 	rs.updateSession(w, r)
 	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// TestUpdateSession_NotesRequiredOnStatusChange locks in the HTTP-boundary
+// contract for the service error introduced in Issue #1368: a status flip
+// without a reason in `notes` is a client validation failure and must
+// surface as HTTP 400, not 500. Without a matching case in
+// classifyServiceError the error would fall through to ErrorInternalServer
+// and leak the raw message — this test guards the classifier wiring.
+func TestUpdateSession_NotesRequiredOnStatusChange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		updateSessionFn: func(_ context.Context, _ int64, _ int64, _ activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
+			return nil, errors.New("notes required when changing status")
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"home_office"}`)
+	r := httptest.NewRequest(http.MethodPut, "/42", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	r = withChiParam(r, "id", "42")
+	w := httptest.NewRecorder()
+
+	rs.updateSession(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code,
+		"missing reason on status change must classify as 400, not 500")
 }
 
 // --- startBreak handler ---

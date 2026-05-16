@@ -13,7 +13,6 @@ interface Props {
   readonly permission: Permission | null;
   readonly onSave: (data: Partial<Permission>) => Promise<void>;
   readonly loading?: boolean;
-  readonly error?: string | null;
 }
 
 export function PermissionEditModal({
@@ -22,7 +21,6 @@ export function PermissionEditModal({
   permission,
   onSave,
   loading = false,
-  error = null,
 }: Props) {
   // Transform permission data to form data structure
   // The form expects permissionSelector: { resource, action } but permission has them as separate fields
@@ -47,26 +45,16 @@ export function PermissionEditModal({
         permissionsConfig.labels?.editModalTitle ?? "Berechtigung bearbeiten"
       }
     >
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-pink-600" />
-            <p className="text-gray-600">Daten werden geladen...</p>
-          </div>
-        </div>
-      ) : (
-        <DatabaseForm
-          theme={permissionsConfig.theme}
-          sections={permissionsConfig.form.sections.map(configToFormSection)}
-          initialData={formData}
-          onSubmit={onSave}
-          onCancel={onClose}
-          isLoading={loading}
-          error={error}
-          submitLabel="Speichern"
-          stickyActions
-        />
-      )}
+      <DatabaseForm
+        theme={permissionsConfig.theme}
+        sections={permissionsConfig.form.sections.map(configToFormSection)}
+        initialData={formData}
+        onSubmit={onSave}
+        onCancel={onClose}
+        isLoading={loading}
+        submitLabel="Speichern"
+        stickyActions
+      />
     </Modal>
   );
 }

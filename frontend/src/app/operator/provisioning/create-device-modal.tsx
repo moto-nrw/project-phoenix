@@ -51,7 +51,12 @@ export function CreateDeviceModal({
       setCreatedDevice(null);
       setCopied(false);
     }
-  }, [isOpen, schools]);
+    // schools is intentionally omitted: callers pass a fresh array reference on
+    // every render, and onCreated handlers refetch summaries which re-creates
+    // that array — a schools-driven reset would wipe the success view (and the
+    // generated API key) before the user can read it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const handleCreate = useCallback(
     async (e: React.FormEvent) => {

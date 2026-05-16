@@ -123,36 +123,56 @@ export function MobileFilterPanel({
 
       case "dropdown":
         return (
-          <div className="space-y-1">
-            {filter.options.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() =>
-                  isMulti
-                    ? handleMultiSelectClick(
+          <div>
+            {isMulti ? (
+              <div className="flex flex-wrap gap-1.5">
+                {filter.options.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() =>
+                      handleMultiSelectClick(
                         filter,
                         option.value,
                         selectedValues,
                       )
-                    : handleSingleSelectClick(filter, option.value)
-                }
-                className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition-all ${
-                  selectedValues.includes(option.value)
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
-                } `}
-              >
-                {option.label}
-                {option.count !== undefined && (
-                  <span
-                    className={`ml-2 text-xs ${selectedValues.includes(option.value) ? "text-gray-300" : "text-gray-500"}`}
+                    }
+                    className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                      selectedValues.includes(option.value)
+                        ? "bg-gray-900 text-white"
+                        : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                    } `}
                   >
-                    ({option.count})
-                  </span>
-                )}
-              </button>
-            ))}
+                    {option.label}
+                    {option.count !== undefined && (
+                      <span
+                        className={`ml-2 text-xs ${selectedValues.includes(option.value) ? "text-gray-300" : "text-gray-500"}`}
+                      >
+                        ({option.count})
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <select
+                id={`mobile-filter-${filter.id}`}
+                data-testid={`filter-${filter.id}`}
+                value={filter.value as string}
+                onChange={(event) =>
+                  handleSingleSelectClick(filter, event.target.value)
+                }
+                className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-medium text-gray-900"
+              >
+                {filter.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.count !== undefined
+                      ? `${option.label} (${option.count})`
+                      : option.label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         );
 
@@ -188,7 +208,10 @@ export function MobileFilterPanel({
         <div className="space-y-4">
           {filters.map((filter) => (
             <div key={filter.id}>
-              <label className="mb-1.5 block text-xs font-medium text-gray-600">
+              <label
+                htmlFor={`mobile-filter-${filter.id}`}
+                className="mb-1.5 block text-sm font-semibold text-gray-800"
+              >
                 {filter.label}
               </label>
               {renderFilterOptions(filter)}

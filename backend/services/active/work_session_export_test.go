@@ -238,8 +238,13 @@ func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 
 	require.Len(t, rows, 3) // 3 days: Jan 2, 3, 4
 	assert.Equal(t, dateStart, rows[0].Date)
-	assert.Contains(t, rows[0].Row[6], "Krank")
-	assert.Contains(t, rows[0].Row[7], "Flu")
+	// Header is 9 cells after the Status/Quelle split — pin the length so a
+	// future regression that drops a cell (and silently shifts Note into the
+	// Quelle column) fails here instead of on the user's CSV.
+	require.Len(t, rows[0].Row, 9, "absence rows must match the 9-column export header")
+	assert.Contains(t, rows[0].Row[6], "Krank")                     // Status
+	assert.Equal(t, "", rows[0].Row[7], "absences carry no Quelle") // Quelle
+	assert.Contains(t, rows[0].Row[8], "Flu")                       // Bemerkungen
 }
 
 func TestWSBuildExportRows_Mixed(t *testing.T) {
@@ -339,6 +344,7 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 			CheckOutTime: &checkOut,
 			BreakMinutes: 45,
 			Status:       activeModels.WorkSessionStatusPresent,
+			Source:       activeModels.WorkSessionSourceApp,
 			Notes:        "Regular day",
 		},
 		NetMinutes: 480, // 8h 0min
@@ -346,15 +352,68 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 
 	row := svc.sessionToRow(sr)
 
-	require.Len(t, row, 8)
+	require.Len(t, row, 9)
 	assert.Equal(t, "15.01.2024", row[0])  // Datum
 	assert.Equal(t, "Montag", row[1])      // Wochentag
 	assert.Equal(t, "08:30", row[2])       // Start
 	assert.Equal(t, "17:15", row[3])       // Ende
 	assert.Equal(t, "45", row[4])          // Pause
 	assert.Equal(t, "8h 00min", row[5])    // Netto
-	assert.Equal(t, "In der OGS", row[6])  // Ort
-	assert.Equal(t, "Regular day", row[7]) // Bemerkungen
+	assert.Equal(t, "Vor Ort", row[6])     // Status (Issue #1368)
+	assert.Equal(t, "App", row[7])         // Quelle (Issue #1368)
+	assert.Equal(t, "Regular day", row[8]) // Bemerkungen
+}
+
+func TestWSSessionToRow_NFC(t *testing.T) {
+	// Issue #1368: an NFC-stamped session must be distinguishable from an
+	// App-stamped one in the export. Status and Quelle are now in separate
+	// columns (Status row[6], Quelle row[7]) so the channel survives even
+	// when system events overlay the Quelle cell.
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	sr := &SessionResponse{
+		WorkSession: &activeModels.WorkSession{
+			Model:       base.Model{ID: 1},
+			Date:        date,
+			CheckInTime: checkIn,
+			Status:      activeModels.WorkSessionStatusPresent,
+			Source:      activeModels.WorkSessionSourceNFC,
+		},
+		NetMinutes: 0,
+	}
+
+	row := svc.sessionToRow(sr)
+	assert.Equal(t, "Vor Ort", row[6])
+	assert.Equal(t, "NFC", row[7])
+}
+
+// TestWSSessionToRow_LegacyUnknownSource verifies that pre-migration rows
+// (source = 'unknown') render Quelle as "—" rather than guessing App or NFC.
+// Issue #1368: the audit trail must distinguish "we know it was App" from
+// "we never recorded the channel".
+func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	sr := &SessionResponse{
+		WorkSession: &activeModels.WorkSession{
+			Model:       base.Model{ID: 1},
+			Date:        date,
+			CheckInTime: checkIn,
+			Status:      activeModels.WorkSessionStatusPresent,
+			Source:      activeModels.WorkSessionSourceUnknown,
+		},
+		NetMinutes: 0,
+	}
+
+	row := svc.sessionToRow(sr)
+	assert.Equal(t, "Vor Ort", row[6])
+	assert.Equal(t, "—", row[7], "legacy 'unknown' source must render as em-dash, not guessed App/NFC")
 }
 
 func TestWSSessionToRow_NoCheckOut(t *testing.T) {
@@ -392,13 +451,70 @@ func TestWSSessionToRow_HomeOffice(t *testing.T) {
 			Date:        date,
 			CheckInTime: checkIn,
 			Status:      activeModels.WorkSessionStatusHomeOffice,
+			Source:      activeModels.WorkSessionSourceApp,
 		},
 		NetMinutes: 0,
 	}
 
 	row := svc.sessionToRow(sr)
 
-	assert.Equal(t, "Homeoffice", row[6]) // Ort
+	assert.Equal(t, "Homeoffice", row[6]) // Status (Issue #1368)
+	assert.Equal(t, "App", row[7])        // Quelle (Issue #1368)
+}
+
+func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
+	// Issue #1368: Auto-Checkout overlays the Quelle cell so the
+	// OGS-Leitung sees the session was closed by the scheduler. Status
+	// remains the underlying work mode — Vor Ort is preserved here even
+	// though Quelle is "Auto-Checkout".
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+	checkOut := time.Date(2024, 1, 15, 23, 59, 0, 0, time.UTC)
+
+	sr := &SessionResponse{
+		WorkSession: &activeModels.WorkSession{
+			Model:          base.Model{ID: 1},
+			Date:           date,
+			CheckInTime:    checkIn,
+			CheckOutTime:   &checkOut,
+			Status:         activeModels.WorkSessionStatusPresent,
+			AutoCheckedOut: true,
+		},
+		NetMinutes: 0,
+		EditCount:  0,
+	}
+
+	row := svc.sessionToRow(sr)
+	assert.Equal(t, "Vor Ort", row[6], "Status survives Auto-Checkout overlay")
+	assert.Equal(t, "Auto-Checkout", row[7])
+}
+
+func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
+	// Issue #1368: a manual correction overlays Quelle, but Status still
+	// shows the underlying work mode (Homeoffice) — so the OGS-Leitung can
+	// see both the corrected-state signal AND what the staff actually did.
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	sr := &SessionResponse{
+		WorkSession: &activeModels.WorkSession{
+			Model:          base.Model{ID: 1},
+			Date:           date,
+			CheckInTime:    checkIn,
+			Status:         activeModels.WorkSessionStatusHomeOffice,
+			AutoCheckedOut: true,
+		},
+		NetMinutes: 0,
+		EditCount:  2,
+	}
+
+	row := svc.sessionToRow(sr)
+	assert.Equal(t, "Homeoffice", row[6], "Status survives Manuell-korrigiert overlay")
+	assert.Equal(t, "Manuell korrigiert", row[7])
 }
 
 func TestWSSessionToRow_NetMinutesFormatting(t *testing.T) {
@@ -495,14 +611,16 @@ func TestWSExportCSV_Headers(t *testing.T) {
 	require.Len(t, records, 1) // Only header
 
 	header := records[0]
+	require.Len(t, header, 9) // Issue #1368: split "Ort" into Status + Quelle
 	assert.Equal(t, "Datum", header[0])
 	assert.Equal(t, "Wochentag", header[1])
 	assert.Equal(t, "Start", header[2])
 	assert.Equal(t, "Ende", header[3])
 	assert.Equal(t, "Pause (Min)", header[4])
 	assert.Equal(t, "Netto (Std)", header[5])
-	assert.Equal(t, "Ort", header[6])
-	assert.Equal(t, "Bemerkungen", header[7])
+	assert.Equal(t, "Status", header[6]) // Issue #1368: was part of "Ort"
+	assert.Equal(t, "Quelle", header[7]) // Issue #1368: split out
+	assert.Equal(t, "Bemerkungen", header[8])
 }
 
 func TestWSExportCSV_UTF8BOM(t *testing.T) {
@@ -576,6 +694,8 @@ func TestWSExportXLSX_WithData(t *testing.T) {
 // ============================================================================
 
 func TestWSUpdateSession_StatusChange(t *testing.T) {
+	// Issue #1368: status changes require a non-empty reason in notes — the
+	// happy path now sends notes alongside the new status.
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	sessionID := int64(100)
@@ -596,17 +716,109 @@ func TestWSUpdateSession_StatusChange(t *testing.T) {
 	}
 
 	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
-		assert.Len(t, edits, 1)
-		assert.Equal(t, auditModels.FieldStatus, edits[0].FieldName)
+		// Both status and notes change → two audit entries, both annotated
+		// with the same reason via uc.notes.
+		assert.Len(t, edits, 2)
+		fields := []string{edits[0].FieldName, edits[1].FieldName}
+		assert.Contains(t, fields, auditModels.FieldStatus)
+		assert.Contains(t, fields, auditModels.FieldNotes)
 		return nil
 	}
 
 	newStatus := activeModels.WorkSessionStatusHomeOffice
+	reason := "Mittags ins Homeoffice gewechselt"
 	updates := SessionUpdateRequest{
 		Status: &newStatus,
+		Notes:  &reason,
 	}
 
 	session, err := svc.UpdateSession(context.Background(), staffID, sessionID, updates)
+	require.NoError(t, err)
+	require.NotNil(t, session)
+}
+
+func TestWSUpdateSession_StatusChangeRequiresNotes(t *testing.T) {
+	// Issue #1368: a status change without a reason must be rejected so the
+	// audit trail can never silently lose the "why" of a Vor Ort ↔ Homeoffice
+	// switch. Empty/whitespace-only notes count as missing.
+	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	sessionID := int64(100)
+
+	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: sessionID},
+			StaffID:     staffID,
+			CheckInTime: time.Now().Add(-8 * time.Hour),
+			Status:      activeModels.WorkSessionStatusPresent,
+			Date:        time.Now().Truncate(24 * time.Hour),
+			CreatedBy:   staffID,
+		}, nil
+	}
+	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("repo.Update must not be called when status change is rejected")
+		return nil
+	}
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+		t.Fatal("audit.CreateBatch must not be called when status change is rejected")
+		return nil
+	}
+
+	newStatus := activeModels.WorkSessionStatusHomeOffice
+	emptyNotes := ""
+	whitespaceNotes := "   "
+	cases := []struct {
+		name  string
+		notes *string
+	}{
+		{name: "nil notes", notes: nil},
+		{name: "empty notes", notes: &emptyNotes},
+		{name: "whitespace-only notes", notes: &whitespaceNotes},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			updates := SessionUpdateRequest{
+				Status: &newStatus,
+				Notes:  tc.notes,
+			}
+			session, err := svc.UpdateSession(context.Background(), staffID, sessionID, updates)
+			require.Error(t, err)
+			assert.Nil(t, session)
+			assert.Contains(t, err.Error(), "notes required")
+		})
+	}
+}
+
+func TestWSUpdateSession_NotesOnlyDoesNotRequireReason(t *testing.T) {
+	// Issue #1368: the gate is specifically for status changes — editing only
+	// notes (e.g., adding a comment) must still work without a reason field.
+	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	sessionID := int64(100)
+
+	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: sessionID},
+			StaffID:     staffID,
+			CheckInTime: time.Now().Add(-8 * time.Hour),
+			Status:      activeModels.WorkSessionStatusHomeOffice,
+			Date:        time.Now().Truncate(24 * time.Hour),
+			CreatedBy:   staffID,
+			Notes:       "old",
+		}, nil
+	}
+	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		return nil
+	}
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+		return nil
+	}
+
+	newNotes := "added comment"
+	session, err := svc.UpdateSession(context.Background(), staffID, sessionID, SessionUpdateRequest{
+		Notes: &newNotes,
+	})
 	require.NoError(t, err)
 	require.NotNil(t, session)
 }
@@ -1134,7 +1346,7 @@ func TestWSCheckIn_CreateError(t *testing.T) {
 		return errors.New("create error")
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to create work session")

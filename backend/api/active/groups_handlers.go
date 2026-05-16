@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/uptrace/bun"
 )
 
@@ -278,7 +279,8 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	responses := rs.buildVisitDisplayResponses(results, attendanceStatuses, access)
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.getLogger())
+	responses := rs.buildVisitDisplayResponses(results, attendanceStatuses, access, photosEnabled)
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
@@ -364,6 +366,7 @@ type visitWithStudent struct {
 	SickSince     *time.Time `bun:"sick_since"`
 	Excused       *bool      `bun:"excused"`
 	ExcusedSince  *time.Time `bun:"excused_since"`
+	PhotoPath     *string    `bun:"photo_path"`
 	CreatedAt     time.Time  `bun:"created_at"`
 	UpdatedAt     time.Time  `bun:"updated_at"`
 }
@@ -389,6 +392,7 @@ func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID in
 		ColumnExpr("s.sick_since").
 		ColumnExpr("s.excused").
 		ColumnExpr("s.excused_since").
+		ColumnExpr("s.photo_path").
 		TableExpr("active.visits AS v").
 		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
 		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
@@ -456,7 +460,12 @@ func collectAuthorizedVisitStudentIDs(results []visitWithStudent, access *common
 // full data access to — the same gate planned times use on the bulk pickup
 // and arrival endpoints. Other fields (name, school class, sick/excused) keep
 // their existing group-level visibility.
-func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, attendanceStatuses map[int64]*activeService.AttendanceStatus, access *common.StudentAccessContext) []VisitWithDisplayDataResponse {
+//
+// photosEnabled mirrors operations.student_photos_enabled. When false we
+// skip photo_url for every row so an admin who turns the feature off
+// after photos were uploaded actually suppresses them — matches the
+// gate in api/students/response_helpers.go.
+func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, attendanceStatuses map[int64]*activeService.AttendanceStatus, access *common.StudentAccessContext, photosEnabled bool) []VisitWithDisplayDataResponse {
 	responses := make([]VisitWithDisplayDataResponse, 0, len(results))
 	for _, result := range results {
 		studentName := result.FirstName + " " + result.LastName
@@ -478,6 +487,29 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, atten
 			}
 		}
 
+		// Rewrite the raw /uploads/student-photos/{filename} path stored on
+		// the row to the authenticated /api/students/{id}/photo/{filename}
+		// proxy URL the browser uses (same logic as populatePhotoFields in
+		// api/students/response_helpers.go). Storing the proxy URL inside
+		// active.visits would couple two domains; rewriting here keeps the
+		// JSON contract consistent across endpoints — same helper the
+		// student response shaper uses, so a path-format change in one
+		// place can't desync the two response payloads.
+		//
+		// Gate on access.HasFullAccessByGroupID(result.GroupID) — the same
+		// predicate the actualArrival/actualPickup branch above uses, and
+		// the same predicate serveStudentPhoto checks via
+		// authorize.CanReadStudent. A caregiver may supervise this active
+		// room without supervising the student's home education group;
+		// without the gate, list responses would emit photo_url for those
+		// rows and every avatar request would 403 in the byte-serve path,
+		// leaving the UI with broken-image placeholders.
+		photoURL := ""
+		if photosEnabled && result.PhotoPath != nil &&
+			access.HasFullAccessByGroupID(result.GroupID) {
+			photoURL = common.BuildStudentPhotoServeURL(result.StudentID, *result.PhotoPath)
+		}
+
 		responses = append(responses, VisitWithDisplayDataResponse{
 			ID:            result.VisitID,
 			StudentID:     result.StudentID,
@@ -494,6 +526,7 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, atten
 			SickSince:     result.SickSince,
 			Excused:       excused,
 			ExcusedSince:  result.ExcusedSince,
+			PhotoURL:      photoURL,
 			CreatedAt:     result.CreatedAt,
 			UpdatedAt:     result.UpdatedAt,
 		})

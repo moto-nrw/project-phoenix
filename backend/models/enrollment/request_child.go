@@ -46,7 +46,7 @@ const (
 	ChildActivationScheduled = "scheduled"
 )
 
-// RequestChild is a row in enrollment.request_children — one row per
+// RequestChild is a row in enrollment.request_children - one row per
 // child included in a parent submission. Status transitions per child
 // independently; the parent request's overall status is derived from the
 // per-child set (see Request.RequestStatus* constants).
@@ -85,7 +85,7 @@ func (c *RequestChild) TableName() string {
 }
 
 // IsTerminal returns true when this child's status is approved, rejected,
-// or withdrawn — i.e., no further admin decision can change it (other than
+// or withdrawn - i.e., no further admin decision can change it (other than
 // promotion of a waitlisted child, but waitlisted is non-terminal).
 func (c *RequestChild) IsTerminal() bool {
 	switch c.Status {
