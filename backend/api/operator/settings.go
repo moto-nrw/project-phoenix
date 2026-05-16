@@ -14,6 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -100,29 +102,97 @@ func guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool
 type SettingsResource struct {
 	settingsService configSvc.SettingsService
 	db              *bun.DB
-	onValueSet      func(ctx context.Context, tenantID int64, key string, value any) error
+	broadcaster     realtime.Broadcaster
+	// schoolRepo lets the resource emit `school_slug` in set/reset
+	// responses so the frontend operator proxy can bust the slug-keyed
+	// `tenant-${slug}` Next.js cache after tenant-resolve-affecting
+	// toggles (currently only operations.student_photos_enabled).
+	schoolRepo platformModels.SchoolRepository
+	// onValueSet shares its signature with config.ValueSetCallback — see
+	// that type for the in-tx vs post-commit contract. Duplicated here
+	// (rather than imported) so api/operator stays free of api/config
+	// dependency, mirroring the rest of the operator package's isolation.
+	onValueSet func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)
 }
 
-// NewSettingsResource creates a new operator settings resource.
-func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB) *SettingsResource {
+// NewSettingsResource creates a new operator settings resource. broadcaster
+// emits the cross-origin tenant_settings_changed SSE event so open tenant
+// tabs invalidate their settings caches when an operator flips a value.
+// schoolRepo enriches the response with the school's slug so the frontend
+// operator proxy can additionally bust the `tenant-${slug}` Next.js cache
+// for tenant-resolve-affecting settings (e.g. student_photos_enabled).
+// Both are optional — nil disables the corresponding mechanism.
+func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster, schoolRepo platformModels.SchoolRepository) *SettingsResource {
 	return &SettingsResource{
 		settingsService: svc,
 		db:              db,
+		broadcaster:     broadcaster,
+		schoolRepo:      schoolRepo,
 	}
 }
 
-// OnValueSet registers a callback that runs after a setting value is validated
-// and saved. The callback executes inside the same tenant transaction as the
-// setting write, so returning an error aborts the request and rolls back the
-// update. Mirrors the tenant SettingsResource.OnValueSet contract so side
-// effects (e.g. auto-creating the Schulhof/WC rooms when the corresponding
-// checkout toggle flips on) apply uniformly regardless of who flipped it.
-func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) error) {
+// scheduleSettingsBroadcast queues a tenant_settings_changed SSE event to
+// fire after the OUTERMOST tenant tx commits. Mirrors the tenant-side
+// helper so both writers fan out the same event shape.
+func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenantID int64, key string) {
+	if rs.broadcaster == nil || tenantID == 0 {
+		return
+	}
+	tenant.RegisterAfterCommit(ctx, func() {
+		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
+			Source: &key,
+		})
+		_ = rs.broadcaster.BroadcastToTenant(tenantID, event)
+	})
+}
+
+// OnValueSet registers a callback that runs after a setting value change is
+// validated and persisted. The callback runs inside the tenant transaction;
+// the optional postCommit closure it returns runs only after a successful
+// commit. Mirrors the tenant SettingsResource.OnValueSet contract so side
+// effects apply uniformly regardless of who flipped the value.
+func (rs *SettingsResource) OnValueSet(fn func(ctx context.Context, tenantID int64, key string, value any) (postCommit func(), err error)) {
 	rs.onValueSet = fn
 }
 
 type setSchoolSettingRequest struct {
 	Value any `json:"value"`
+}
+
+// requiresPhotoMutationResponse gates which keys carry a body in set/reset
+// responses (vs. an empty 204 / generic 200). Today only the photo-feature
+// flag needs the slug for cache busting; other settings stay on the
+// development-era empty-body response.
+func requiresPhotoMutationResponse(key string) bool {
+	return key == configModel.KeyStudentPhotosEnabled
+}
+
+// schoolSettingMutationResponse carries the school slug back to the frontend
+// so the operator proxy can bust the `tenant-${slug}` Next.js cache. The
+// slug is omitted when the lookup fails (the mutation already committed by
+// then — failing the response would lie about the underlying state).
+type schoolSettingMutationResponse struct {
+	SchoolSlug string `json:"school_slug,omitempty"`
+}
+
+// resolveSchoolSlug fetches the school's slug for inclusion in the mutation
+// response. Failures are logged but never propagated — the slug is only
+// used for cache invalidation, and a missed bust is recoverable (cache TTL
+// is 5 min) whereas a 500 here would mislead the operator about whether the
+// setting actually persisted.
+func (rs *SettingsResource) resolveSchoolSlug(ctx context.Context, schoolID int64) string {
+	if rs.schoolRepo == nil {
+		return ""
+	}
+	school, err := rs.schoolRepo.FindByID(ctx, schoolID)
+	if err != nil || school == nil {
+		slog.Warn("operator settings: school slug lookup failed",
+			slog.Int64("school_id", schoolID),
+			slog.Any("error", err),
+		)
+		return ""
+	}
+	return school.Slug
 }
 
 // GetSchoolSettingsSchema returns the full settings schema with resolved values for a school.
@@ -190,8 +260,13 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 			return err
 		}
 		if rs.onValueSet != nil {
-			return rs.onValueSet(ctx, schoolID, key, req.Value)
+			cb, err := rs.onValueSet(ctx, schoolID, key, req.Value)
+			if err != nil {
+				return err
+			}
+			tenant.RegisterAfterCommit(ctx, cb)
 		}
+		rs.scheduleSettingsBroadcast(ctx, schoolID, key)
 		return nil
 	})
 	if err != nil {
@@ -206,7 +281,13 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, nil, "Value updated successfully")
+	if !requiresPhotoMutationResponse(key) {
+		common.Respond(w, r, http.StatusOK, nil, "Value updated successfully")
+		return
+	}
+
+	resp := schoolSettingMutationResponse{SchoolSlug: rs.resolveSchoolSlug(r.Context(), schoolID)}
+	common.Respond(w, r, http.StatusOK, resp, "Value updated successfully")
 }
 
 // ResetSchoolSettingValue resets a setting value for a specific school to its default.
@@ -224,14 +305,39 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 	changedBy := int64(claims.ID)
 
 	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.settingsService.ResetValue(ctx, key, &changedBy, nil)
+		if err := rs.settingsService.ResetValue(ctx, key, &changedBy, nil); err != nil {
+			return err
+		}
+		// Photo disable/reset needs the same downstream cleanup regardless
+		// of whether the operator chose PUT false or DELETE reset. Other
+		// settings keep their development-era reset semantics.
+		if rs.onValueSet != nil && requiresPhotoMutationResponse(key) {
+			def := configModel.GetDefinition(key)
+			if def != nil {
+				cb, err := rs.onValueSet(ctx, schoolID, key, def.Default)
+				if err != nil {
+					return err
+				}
+				tenant.RegisterAfterCommit(ctx, cb)
+			}
+		}
+		rs.scheduleSettingsBroadcast(ctx, schoolID, key)
+		return nil
 	})
 	if err != nil {
 		renderOperatorSettingsError(w, r, err)
 		return
 	}
 
-	common.RespondNoContent(w, r)
+	if !requiresPhotoMutationResponse(key) {
+		common.RespondNoContent(w, r)
+		return
+	}
+
+	// Photo reset returns a body so the proxy can read the slug and bust
+	// the tenant-resolve cache immediately.
+	resp := schoolSettingMutationResponse{SchoolSlug: rs.resolveSchoolSlug(r.Context(), schoolID)}
+	common.Respond(w, r, http.StatusOK, resp, "Value reset successfully")
 }
 
 // RevealSchoolSettingValue reveals the unmasked value of a password/PIN setting for a school.

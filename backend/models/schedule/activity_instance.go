@@ -148,4 +148,9 @@ type ActivityInstanceRepository interface {
 	// FindByActiveGroupID returns the instance that is currently bridged to the
 	// given active.group, or nil if none.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*ActivityInstance, error)
+
+	// MarkCompleted updates only lifecycle columns. Do not use a full-row
+	// Update for DB-loaded instances because SQL TIME columns do not round-trip
+	// safely through Bun.
+	MarkCompleted(ctx context.Context, instanceID int64, completedAt time.Time) error
 }

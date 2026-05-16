@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -363,14 +362,11 @@ func TestScheduleRepository_Delete_NonExistent(t *testing.T) {
 // ============================================================================
 
 // createTestTimeframe inserts a schedule.timeframes row with the given
-// wall-clock start (HH:MM → UTC date-zeroed). Returns the model with its
-// assigned ID. The tenant is 1.
+// timezone-free wall-clock start. Returns the model with its assigned ID.
+// The tenant is 1.
 func createTestTimeframe(t *testing.T, db *bun.DB, startHour, startMin int) *scheduleModels.Timeframe {
 	t.Helper()
-	// Mirrors the production flow: admins enter wall-clock times in Berlin
-	// local zone. A TIMESTAMPTZ round-trip via Go's local TZ then preserves
-	// the HH:MM components that extractTimeOfDay inside the repo relies on.
-	start := time.Date(2024, 1, 1, startHour, startMin, 0, 0, timezone.Berlin)
+	start := time.Date(2000, 1, 1, startHour, startMin, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
 	tf := &scheduleModels.Timeframe{
 		StartTime:   start,

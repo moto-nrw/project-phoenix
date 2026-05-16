@@ -160,6 +160,11 @@ export type ApiError = Error & {
   status?: number;
   retryAfterSeconds?: number;
   code?: string;
+  // Structured payload mirrored from the backend's ErrResponse.details.
+  // Populated for codes that carry follow-up data (e.g. reopen_status_conflict
+  // returns the conflicting session id and the existing/requested statuses so
+  // the UI doesn't have to look them up in local state).
+  details?: Record<string, unknown>;
 };
 
 function parseRetryAfter(value: string | null): number | null {
@@ -181,11 +186,13 @@ function parseRetryAfter(value: string | null): number | null {
   return null;
 }
 
-async function buildApiError(
+export async function buildApiError(
   response: Response,
   fallbackMessage: string,
 ): Promise<ApiError> {
   let message = fallbackMessage;
+  let code: string | undefined;
+  let details: Record<string, unknown> | undefined;
 
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
@@ -193,8 +200,12 @@ async function buildApiError(
       const body = (await response.json()) as {
         error?: string;
         message?: string;
+        code?: string;
+        details?: Record<string, unknown>;
       };
       message = body?.error ?? body?.message ?? fallbackMessage;
+      code = body?.code;
+      details = body?.details;
     } else {
       const text = (await response.text()).trim();
       if (text) {
@@ -209,6 +220,12 @@ async function buildApiError(
 
   const apiError = new Error(message) as ApiError;
   apiError.status = response.status;
+  if (code) {
+    apiError.code = code;
+  }
+  if (details) {
+    apiError.details = details;
+  }
 
   const retryAfter = parseRetryAfter(response.headers.get("Retry-After"));
   if (retryAfter !== null) {

@@ -121,6 +121,28 @@ describe("MobileFilterPanel", () => {
 
       expect(mockOnChange).toHaveBeenCalledWith(["active", "inactive"]);
     });
+
+    it("removes a selected multi-select button when clicked again", () => {
+      const multiSelectFilters: FilterConfig[] = [
+        {
+          ...sampleFilters[0]!,
+          value: ["active", "inactive"],
+          multiSelect: true,
+        },
+      ];
+
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={multiSelectFilters}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Aktiv"));
+
+      expect(mockOnChange).toHaveBeenCalledWith(["inactive"]);
+    });
   });
 
   describe("Grid type filters", () => {
@@ -167,6 +189,42 @@ describe("MobileFilterPanel", () => {
       expect(screen.getByText("Gruppe")).toBeInTheDocument();
       expect(screen.getByText("Raum")).toBeInTheDocument();
     });
+
+    it("handles single-select grid option clicks", () => {
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={gridFilters}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Raum"));
+
+      expect(mockOnChange).toHaveBeenCalledWith("room");
+    });
+
+    it("handles multi-select grid option clicks", () => {
+      const multiGridFilters: FilterConfig[] = [
+        {
+          ...gridFilters[0]!,
+          value: ["group"],
+          multiSelect: true,
+        },
+      ];
+
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={multiGridFilters}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Raum"));
+
+      expect(mockOnChange).toHaveBeenCalledWith(["group", "room"]);
+    });
   });
 
   describe("Dropdown type filters", () => {
@@ -185,7 +243,7 @@ describe("MobileFilterPanel", () => {
       },
     ];
 
-    it("renders dropdown options as list", () => {
+    it("renders single-select dropdown options inside a select", () => {
       render(
         <MobileFilterPanel
           isOpen={true}
@@ -194,12 +252,19 @@ describe("MobileFilterPanel", () => {
         />,
       );
 
-      expect(screen.getByText("Alle Räume")).toBeInTheDocument();
-      expect(screen.getByText("Raum 101")).toBeInTheDocument();
-      expect(screen.getByText("Raum 102")).toBeInTheDocument();
+      expect(screen.getByTestId("filter-room")).toHaveValue("all");
+      expect(
+        screen.getByRole("option", { name: "Alle Räume" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Raum 101 (5)" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Raum 102 (3)" }),
+      ).toBeInTheDocument();
     });
 
-    it("shows count when provided", () => {
+    it("includes counts in single-select option labels", () => {
       render(
         <MobileFilterPanel
           isOpen={true}
@@ -208,8 +273,138 @@ describe("MobileFilterPanel", () => {
         />,
       );
 
-      expect(screen.getByText("(5)")).toBeInTheDocument();
-      expect(screen.getByText("(3)")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Raum 101 (5)" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Raum 102 (3)" }),
+      ).toBeInTheDocument();
+    });
+
+    it("calls onChange when the single-select dropdown changes", () => {
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={dropdownFilters}
+        />,
+      );
+
+      fireEvent.change(screen.getByTestId("filter-room"), {
+        target: { value: "101" },
+      });
+
+      expect(mockOnChange).toHaveBeenCalledWith("101");
+    });
+
+    it("renders multi-select dropdowns as compact buttons with counts", () => {
+      const multiDropdownFilters: FilterConfig[] = [
+        {
+          ...dropdownFilters[0]!,
+          value: ["101"],
+          multiSelect: true,
+        },
+      ];
+
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={multiDropdownFilters}
+        />,
+      );
+
+      expect(screen.queryByTestId("filter-room")).not.toBeInTheDocument();
+      expect(screen.getByText("Raum 101")).toHaveClass(
+        "bg-gray-900",
+        "text-white",
+      );
+      expect(screen.getByText("(5)")).toHaveClass("text-gray-300");
+      expect(screen.getByText("(3)")).toHaveClass("text-gray-500");
+    });
+
+    it("toggles multi-select dropdown options", () => {
+      const multiDropdownFilters: FilterConfig[] = [
+        {
+          ...dropdownFilters[0]!,
+          value: ["101"],
+          multiSelect: true,
+        },
+      ];
+
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={multiDropdownFilters}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Raum 102"));
+
+      expect(mockOnChange).toHaveBeenCalledWith(["101", "102"]);
+    });
+  });
+
+  describe("Panel dismissal", () => {
+    it("closes when Escape is pressed", () => {
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={sampleFilters}
+        />,
+      );
+
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      expect(mockOnClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores non-Escape key presses", () => {
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={sampleFilters}
+        />,
+      );
+
+      fireEvent.keyDown(document, { key: "Enter" });
+
+      expect(mockOnClose).not.toHaveBeenCalled();
+    });
+
+    it("closes when the backdrop is clicked", () => {
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={sampleFilters}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Filter schließen" }));
+
+      expect(mockOnClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders nothing for unsupported filter types", () => {
+      const unknownFilter = {
+        ...sampleFilters[0]!,
+        type: "unknown",
+      } as unknown as FilterConfig;
+
+      render(
+        <MobileFilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={[unknownFilter]}
+        />,
+      );
+
+      expect(screen.getByText("Status")).toBeInTheDocument();
+      expect(screen.queryByText("Alle")).not.toBeInTheDocument();
     });
   });
 

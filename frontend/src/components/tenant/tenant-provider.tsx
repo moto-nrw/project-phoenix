@@ -1,7 +1,19 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
-import type { PresenceMode, TenantInfo } from "~/lib/tenant-api";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  resolveTenant,
+  type PresenceMode,
+  type TenantInfo,
+} from "~/lib/tenant-api";
+import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
 
 interface TenantContextValue {
   /** The tenant slug from the URL path segment */
@@ -10,28 +22,111 @@ interface TenantContextValue {
   tenant: TenantInfo | null;
 }
 
-// Kept unexported: consumers use the hooks below. An export was tried
-// earlier to let sibling modules subscribe directly, but knip flagged it
-// as unused (its static analysis doesn't follow `~/` alias imports through
-// the hook file reliably), and the global test mock in `src/test/setup.ts`
-// doesn't replicate `createContext` output — which broke every test that
-// rendered a component reading presence state. Co-locating the hook here
-// sidesteps both issues.
+// Unexported — knip flags exports it can't trace through the `~/` alias and
+// the test mock in setup.ts can't replicate createContext output.
 const TenantContext = createContext<TenantContextValue | null>(null);
 
 /**
- * Provides tenant context to all child components within the [tenant] route segment.
- * The layout.tsx at [tenant]/layout.tsx wraps its children with this provider.
+ * Tenant context for the [tenant] route segment.
+ *
+ * Cross-tab settings sync subscribes to three signals (centralised here so
+ * pages with N avatars don't fan out into N identical resolve calls):
+ *  1. BroadcastChannel — same-origin tabs.
+ *  2. `phoenix:tenant-settings-stale` — SSE-backed cross-origin path
+ *     (operator → tenant); see use-global-sse.ts.
+ *  3. visibilitychange — fallback when SSE was disconnected during commit.
  */
 export function TenantProvider({
   tenantSlug,
-  tenant,
+  tenant: serverTenant,
   children,
 }: {
   tenantSlug: string;
   tenant: TenantInfo | null;
   children: React.ReactNode;
 }) {
+  // Mirror the server prop so broadcasts can replace it without re-routing
+  // through layout.tsx; re-sync when the prop itself changes.
+  const [tenant, setTenant] = useState<TenantInfo | null>(serverTenant);
+  useEffect(() => {
+    setTenant(serverTenant);
+  }, [serverTenant]);
+
+  // Sequence-token to drop out-of-order resolveTenant responses when
+  // multiple signals land in the same tick. Kept monotonic across slug
+  // changes so an in-flight resolve from a previous slug can't satisfy
+  // the token check after the counter rolls back to zero. Bumped in
+  // this effect's cleanup so navigation away from slug A invalidates
+  // any A-resolve still in flight, even if no B-refetch fires before
+  // A's response lands.
+  const requestSeqRef = useRef(0);
+
+  useEffect(() => {
+    if (!tenantSlug) return undefined;
+
+    const refetch = () => {
+      const token = ++requestSeqRef.current;
+      const requestedSlug = tenantSlug;
+      void resolveTenant(requestedSlug).then((fresh) => {
+        if (token !== requestSeqRef.current) return;
+        if (!fresh) return;
+        // Defence-in-depth: also drop responses whose payload slug
+        // doesn't match the slug we asked for. The counter-bump on
+        // slug change already invalidates stale responses, but the
+        // explicit slug compare guards against an upstream that
+        // returned data for a different slug than requested.
+        if (fresh.slug !== requestedSlug) return;
+        setTenant(fresh);
+      });
+    };
+
+    const unsubscribeBroadcast = subscribeSettingsChanged(refetch);
+
+    const onTenantSettingsStale = () => refetch();
+    if (typeof window !== "undefined") {
+      window.addEventListener(
+        "phoenix:tenant-settings-stale",
+        onTenantSettingsStale,
+      );
+    }
+
+    const onVisibilityChange = () => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible"
+      ) {
+        refetch();
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibilityChange);
+    }
+
+    return () => {
+      // Invalidate any in-flight resolve for the slug we're leaving so
+      // its response can't overwrite the next slug's context. Without
+      // this, navigating A → B while an A-resolve is pending leaves
+      // token === counter and requestedSlug === fresh.slug both true,
+      // and A's payload wins the last write on B's tenant context.
+      // Direct ref mutation in cleanup is intentional here — the ref
+      // is a counter, not a DOM node, so the lint rule's concern
+      // (node identity changing between effect and cleanup) does not
+      // apply.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      requestSeqRef.current++;
+      unsubscribeBroadcast();
+      if (typeof window !== "undefined") {
+        window.removeEventListener(
+          "phoenix:tenant-settings-stale",
+          onTenantSettingsStale,
+        );
+      }
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
+    };
+  }, [tenantSlug]);
+
   const value = useMemo(() => ({ tenantSlug, tenant }), [tenantSlug, tenant]);
 
   return (
@@ -62,6 +157,16 @@ export function useTenant(): TenantContextValue {
 export function useTenantSlugSafe(): string | null {
   const ctx = useContext(TenantContext);
   return ctx?.tenantSlug ?? null;
+}
+
+/**
+ * Returns the full tenant context value, or null if outside a TenantProvider.
+ * Safe variant of `useTenant` for hooks that must keep React's hook-order
+ * invariant intact (a try/catch around the throwing variant would break
+ * subsequent hooks on first render).
+ */
+export function useTenantSafe(): TenantContextValue | null {
+  return useContext(TenantContext);
 }
 
 /**

@@ -309,6 +309,7 @@ function HeaderBreadcrumb({
     "/staff",
     "/substitutions",
     "/statistics",
+    "/timetables",
     "/time-tracking",
   ];
 

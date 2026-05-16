@@ -11,10 +11,21 @@ inputs:
   environment:
     description: "Target environment (staging, production)"
     required: true
+  app_name:
+    description: "Application name shown in Slack"
+    required: false
+    default: "Phoenix"
   exit_code:
     description: "Exit code from deploy script (0=ok, 1=pre-deploy abort, 10=rolled back, 11=rollback failed). Empty for non-deploy notifications."
     required: false
     default: ""
+  github_token:
+    description: "GitHub token used to resolve the PR linked to the deployed commit"
+    required: false
+    default: ""
+  repository:
+    description: "GitHub repository in owner/name format"
+    required: true
   commit_url:
     description: "Full URL to the commit"
     required: true
@@ -30,7 +41,10 @@ runs:
         WEBHOOK_URL: ${{ inputs.webhook_url }}
         JOB_STATUS: ${{ inputs.job_status }}
         ENV: ${{ inputs.environment }}
+        APP_NAME: ${{ inputs.app_name }}
         EXIT_CODE: ${{ inputs.exit_code }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        REPOSITORY: ${{ inputs.repository }}
         COMMIT_URL: ${{ inputs.commit_url }}
         INPUT_SHA: ${{ inputs.sha }}
       run: |
@@ -44,29 +58,56 @@ runs:
         if [ "$ENV" = "production" ]; then
           DISPLAY_ENV="Production"
         else
-          DISPLAY_ENV="$(echo "$ENV" | sed 's/./\U&/')"
+          DISPLAY_ENV="${ENV^}"
         fi
 
-        # Map (job_status, exit_code) to (emoji, status). Use Unicode emoji so
+        LINK_URL="$COMMIT_URL"
+        LINK_LABEL="\`$SHORT_SHA\`"
+
+        AUTH_HEADER=()
+        if [ -n "$GITHUB_TOKEN" ]; then
+          AUTH_HEADER=(-H "Authorization: Bearer $GITHUB_TOKEN")
+        fi
+
+        if PR_JSON=$(curl -fsS \
+          "${AUTH_HEADER[@]}" \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/$REPOSITORY/commits/$INPUT_SHA/pulls" 2>/dev/null); then
+          PR_URL=$(echo "$PR_JSON" | jq -r '.[0].html_url // empty')
+          PR_NUMBER=$(echo "$PR_JSON" | jq -r '.[0].number // empty')
+          if [ -n "$PR_URL" ] && [ -n "$PR_NUMBER" ]; then
+            LINK_URL="$PR_URL"
+            LINK_LABEL="PR #$PR_NUMBER"
+          fi
+        else
+          echo "::warning::Could not resolve PR for commit $SHORT_SHA, linking to commit instead"
+        fi
+
+        # Map (job_status, exit_code) to (emoji, headline). Use Unicode emoji so
         # rendering doesn't depend on Slack's :shortcode: → emoji conversion.
         if [ "$JOB_STATUS" = "success" ]; then
-          EMOJI="✅"
-          STATUS="deployed"
+          if [ "$ENV" = "production" ]; then
+            EMOJI="🎉"
+          else
+            EMOJI="✅"
+          fi
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deployed"
         elif [ "$JOB_STATUS" = "cancelled" ]; then
           EMOJI="🚫"
-          STATUS="cancelled"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deploy Cancelled"
         elif [ "$EXIT_CODE" = "11" ]; then
           EMOJI="🚨"
-          STATUS="deploy + rollback failed"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deploy + Rollback Failed"
         elif [ "$EXIT_CODE" = "10" ]; then
           EMOJI="⚠️"
-          STATUS="rolled back"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Rolled Back"
         elif [ "$EXIT_CODE" = "1" ]; then
           EMOJI="⚠️"
-          STATUS="aborted"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deploy Aborted"
         else
           EMOJI="❌"
-          STATUS="failed"
+          HEADLINE="$APP_NAME $DISPLAY_ENV Deploy Failed"
         fi
 
         # Build the payload entirely inside jq so newlines and JSON escaping are
@@ -76,18 +117,17 @@ runs:
         # Best-effort: notification failures must never mask the real deploy outcome.
         if ! PAYLOAD=$(jq -n \
           --arg emoji "$EMOJI" \
-          --arg env "$DISPLAY_ENV" \
-          --arg status "$STATUS" \
-          --arg commit_url "$COMMIT_URL" \
-          --arg sha "$SHORT_SHA" \
+          --arg headline "$HEADLINE" \
+          --arg link_url "$LINK_URL" \
+          --arg link_label "$LINK_LABEL" \
           '{
-            text: "\($emoji) Deployments: Phoenix \($env) \($status) \($sha)",
+            text: "\($emoji) \($headline)",
             blocks: [
               {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: "\($emoji) *Deployments:* Phoenix \($env) \($status) <\($commit_url)|`\($sha)`>"
+                  text: "\($emoji) *\($headline)* · <\($link_url)|\($link_label)>"
                 }
               }
             ]

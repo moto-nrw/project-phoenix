@@ -248,3 +248,62 @@ func TestGetStudentCurrentVisitWithRoom_NilVisit(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, visit)
 }
+
+// =============================================================================
+// ListStudentsPresentInRoom Tests (#1323)
+//
+// Service-level wrapper around repo.ListActiveStudentIDsByRoomID. Behavior we
+// pin: passes through the room ID, returns IDs verbatim on success, wraps
+// errors with the service-error envelope so the handler layer can map them.
+// =============================================================================
+
+func TestListStudentsPresentInRoom_ReturnsIDsFromRepo(t *testing.T) {
+	expected := []int64{11, 22, 33}
+	var receivedRoom int64
+	visitRepo := &mockVisitRepository{
+		listActiveStudentIDsByRoomIDFunc: func(_ context.Context, roomID int64) ([]int64, error) {
+			receivedRoom = roomID
+			return expected, nil
+		},
+	}
+
+	svc := &service{visitRepo: visitRepo}
+	ids, err := svc.ListStudentsPresentInRoom(context.Background(), 42)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), receivedRoom, "service must pass through the room ID without mutation")
+	assert.Equal(t, expected, ids)
+}
+
+func TestListStudentsPresentInRoom_EmptyResult(t *testing.T) {
+	visitRepo := &mockVisitRepository{
+		listActiveStudentIDsByRoomIDFunc: func(_ context.Context, _ int64) ([]int64, error) {
+			return nil, nil
+		},
+	}
+
+	svc := &service{visitRepo: visitRepo}
+	ids, err := svc.ListStudentsPresentInRoom(context.Background(), 1)
+
+	require.NoError(t, err)
+	assert.Empty(t, ids)
+}
+
+func TestListStudentsPresentInRoom_WrapsRepoError(t *testing.T) {
+	repoErr := errors.New("db unavailable")
+	visitRepo := &mockVisitRepository{
+		listActiveStudentIDsByRoomIDFunc: func(_ context.Context, _ int64) ([]int64, error) {
+			return nil, repoErr
+		},
+	}
+
+	svc := &service{visitRepo: visitRepo}
+	ids, err := svc.ListStudentsPresentInRoom(context.Background(), 1)
+
+	require.Error(t, err)
+	assert.Nil(t, ids)
+	assert.Contains(t, err.Error(), "ListStudentsPresentInRoom",
+		"error envelope must name the service operation so handler-side mapping has a clear surface")
+	assert.Contains(t, err.Error(), "db unavailable",
+		"underlying repo error must remain wrapped (errors.Is/Unwrap chain)")
+}

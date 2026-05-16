@@ -127,7 +127,7 @@ export function ModernContactActions({
 
                 {/* Dropdown menu */}
                 {isPhoneDropdownOpen && (
-                  <div className="absolute left-0 z-50 mt-1 min-w-[200px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                  <div className="absolute left-0 z-50 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                     {phoneNumbers.map((phoneOption) => (
                       <button
                         key={phoneOption.number}

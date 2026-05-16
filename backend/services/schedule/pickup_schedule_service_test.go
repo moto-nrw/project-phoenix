@@ -31,6 +31,17 @@ func setupPickupScheduleService(t *testing.T, db *bun.DB) schedule.PickupSchedul
 	return serviceFactory.PickupSchedule
 }
 
+func createPickupServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+
+	staff := testpkg.CreateTestStaff(t, db, "Pickup", fmt.Sprintf("Creator-%d", time.Now().UnixNano()))
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(t, db, staff.ID)
+	})
+
+	return staff.ID
+}
+
 // =============================================================================
 // Schedule Operations Tests
 // =============================================================================
@@ -51,7 +62,7 @@ func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
 				StudentID:  student.ID,
 				Weekday:    weekday,
 				PickupTime: time.Date(2024, 1, 1, 14, 30, 0, 0, time.UTC),
-				CreatedBy:  1,
+				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			}
 			err := service.UpsertStudentPickupSchedule(ctx, sched)
 			require.NoError(t, err)
@@ -86,7 +97,7 @@ func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) 
 			StudentID:  student.ID,
 			Weekday:    scheduleModels.WeekdayTuesday,
 			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -122,7 +133,7 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 			StudentID:  student.ID,
 			Weekday:    scheduleModels.WeekdayFriday,
 			PickupTime: time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
@@ -139,7 +150,7 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 			StudentID:  student.ID,
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -160,7 +171,7 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 			StudentID:  0,
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
@@ -184,17 +195,17 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 			{
 				Weekday:    scheduleModels.WeekdayMonday,
 				PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
-				CreatedBy:  1,
+				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			},
 			{
 				Weekday:    scheduleModels.WeekdayWednesday,
 				PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
-				CreatedBy:  1,
+				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			},
 			{
 				Weekday:    scheduleModels.WeekdayFriday,
 				PickupTime: time.Date(2024, 1, 1, 13, 30, 0, 0, time.UTC),
-				CreatedBy:  1,
+				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			},
 		}
 
@@ -215,12 +226,12 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 			{
 				Weekday:    scheduleModels.WeekdayMonday,
 				PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
-				CreatedBy:  1,
+				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			},
 			{
 				Weekday:    10,
 				PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
-				CreatedBy:  1,
+				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			},
 		}
 
@@ -255,7 +266,7 @@ func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
 			StudentID:  student.ID,
 			Weekday:    scheduleModels.WeekdayThursday,
 			PickupTime: time.Date(2024, 1, 1, 14, 30, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -286,7 +297,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
 				StudentID:  student.ID,
 				Weekday:    weekday,
 				PickupTime: time.Date(2024, 1, 1, 14, 30, 0, 0, time.UTC),
-				CreatedBy:  1,
+				CreatedBy:  createPickupServiceTestStaffID(t, db),
 			}
 			err := service.UpsertStudentPickupSchedule(ctx, sched)
 			require.NoError(t, err)
@@ -321,7 +332,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Reason:        strPtr("Doctor appointment"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentPickupException(ctx, exception)
@@ -342,7 +353,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 			ExceptionDate: exceptionDate,
 			PickupTime:    &firstPickupTime,
 			Reason:        strPtr("First exception"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupException(ctx, exception1)
 		require.NoError(t, err)
@@ -354,7 +365,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 			ExceptionDate: exceptionDate,
 			PickupTime:    &secondPickupTime,
 			Reason:        strPtr("Changed pickup"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 
 		err = service.CreateStudentPickupException(ctx, exception2)
@@ -370,7 +381,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 			StudentID:     0,
 			ExceptionDate: time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Reason:        strPtr("Test"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentPickupException(ctx, exception)
@@ -397,7 +408,7 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        strPtr("Exception"),
-				CreatedBy:     1,
+				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupException(ctx, exception)
 			require.NoError(t, err)
@@ -429,7 +440,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        strPtr("Past"),
-				CreatedBy:     1,
+				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupException(ctx, exception)
 			require.NoError(t, err)
@@ -440,7 +451,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        strPtr("Future"),
-				CreatedBy:     1,
+				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupException(ctx, exception)
 			require.NoError(t, err)
@@ -471,7 +482,7 @@ func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
 			Reason:        strPtr("Original reason"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupException(ctx, exception)
 		require.NoError(t, err)
@@ -504,7 +515,7 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: time.Date(2024, 5, 1, 0, 0, 0, 0, time.UTC),
 			Reason:        strPtr("Test"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupException(ctx, exception)
 		require.NoError(t, err)
@@ -537,7 +548,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        strPtr("Exception"),
-				CreatedBy:     1,
+				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupException(ctx, exception)
 			require.NoError(t, err)
@@ -572,7 +583,7 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 			StudentID:  student.ID,
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -581,7 +592,7 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: timezone.Today().AddDate(0, 0, 5),
 			Reason:        strPtr("Future exception"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception)
 		require.NoError(t, err)
@@ -611,7 +622,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			Notes:      &recurringNote,
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -626,7 +637,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 			ExceptionDate: testDate,
 			PickupTime:    &earlyTime,
 			Reason:        strPtr("Early pickup"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception)
 		require.NoError(t, err)
@@ -648,7 +659,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 			StudentID:  student.ID,
 			Weekday:    scheduleModels.WeekdayTuesday,
 			PickupTime: time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -705,7 +716,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 			Weekday:    scheduleModels.WeekdayFriday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			Notes:      &notes,
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -732,7 +743,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			Notes:      &recurringNote,
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -745,7 +756,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 			ExceptionDate: testDate,
 			PickupTime:    &updatedTime,
 			Reason:        &blankReason,
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception)
 		require.NoError(t, err)
@@ -793,7 +804,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 			StudentID:  student1.ID,
 			Weekday:    scheduleModels.WeekdayThursday,
 			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched1)
 		require.NoError(t, err)
@@ -804,7 +815,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 			ExceptionDate: testDate,
 			PickupTime:    &earlyTime,
 			Reason:        strPtr("Doctor appointment"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception2)
 		require.NoError(t, err)
@@ -814,7 +825,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 			ExceptionDate: testDate,
 			PickupTime:    nil,
 			Reason:        strPtr("Sick"),
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception3)
 		require.NoError(t, err)
@@ -874,7 +885,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			Notes:      &notes,
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -900,7 +911,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			Notes:      &recurringNote,
-			CreatedBy:  1,
+			CreatedBy:  createPickupServiceTestStaffID(t, db),
 		}
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
@@ -912,7 +923,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 			ExceptionDate: testDate,
 			PickupTime:    &updatedTime,
 			Reason:        &blankReason,
-			CreatedBy:     1,
+			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception)
 		require.NoError(t, err)
@@ -945,7 +956,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Please call before pickup",
-			CreatedBy: 1,
+			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentPickupNote(ctx, note)
@@ -959,7 +970,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 			StudentID: 0, // Invalid
 			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Test",
-			CreatedBy: 1,
+			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentPickupNote(ctx, note)
@@ -975,7 +986,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "",
-			CreatedBy: 1,
+			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
 
 		err := service.CreateStudentPickupNote(ctx, note)
@@ -1000,7 +1011,7 @@ func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 3, 16, 12, 0, 0, 0, timezone.Berlin),
 			Content:   "Test note",
-			CreatedBy: 1,
+			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupNote(ctx, note)
 		require.NoError(t, err)
@@ -1031,7 +1042,7 @@ func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  baseDate.AddDate(0, 0, i),
 				Content:   "Note content",
-				CreatedBy: 1,
+				CreatedBy: createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupNote(ctx, note)
 			require.NoError(t, err)
@@ -1070,7 +1081,7 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  targetDate,
 				Content:   fmt.Sprintf("Note %d", i),
-				CreatedBy: 1,
+				CreatedBy: createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupNote(ctx, note)
 			require.NoError(t, err)
@@ -1082,7 +1093,7 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  differentDate,
 			Content:   "Different date note",
-			CreatedBy: 1,
+			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupNote(ctx, note)
 		require.NoError(t, err)
@@ -1109,7 +1120,7 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
 			Content:   "Original content",
-			CreatedBy: 1,
+			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupNote(ctx, note)
 		require.NoError(t, err)
@@ -1131,7 +1142,7 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 			StudentID: 0, // Invalid
 			NoteDate:  time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
 			Content:   "Test",
-			CreatedBy: 1,
+			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
 
 		err := service.UpdateStudentPickupNote(ctx, note)
@@ -1155,7 +1166,7 @@ func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  time.Date(2024, 5, 1, 0, 0, 0, 0, time.UTC),
 			Content:   "Test",
-			CreatedBy: 1,
+			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupNote(ctx, note)
 		require.NoError(t, err)
@@ -1187,7 +1198,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 				StudentID: student.ID,
 				NoteDate:  baseDate.AddDate(0, 0, i),
 				Content:   "Note",
-				CreatedBy: 1,
+				CreatedBy: createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupNote(ctx, note)
 			require.NoError(t, err)

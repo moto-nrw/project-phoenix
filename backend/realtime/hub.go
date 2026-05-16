@@ -149,6 +149,42 @@ func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event
 	return nil
 }
 
+// BroadcastToTenant sends an event to every connected client whose
+// Client.TenantID matches tenantID. Walks the full client map under a
+// read lock — O(N) in connected clients, but the alternative
+// (maintaining a tenant→clients index) is bookkeeping that has to stay
+// in sync with Register/Unregister and isn't worth it for the use case
+// (tenant-wide settings invalidations are rare). Errors propagate the
+// same fire-and-forget semantics as BroadcastToAll: a full client
+// channel is logged and skipped, not surfaced to the caller.
+func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	recipients := 0
+	for client := range h.clients {
+		if client.TenantID != tenantID {
+			continue
+		}
+		recipients++
+		select {
+		case client.Channel <- event:
+		default:
+			h.getLogger().Warn("SSE client channel full, skipping broadcast-to-tenant",
+				slog.Int64("user_id", client.UserID),
+				slog.Int64("tenant_id", tenantID),
+				slog.String("event_type", string(event.Type)),
+			)
+		}
+	}
+	h.getLogger().Debug("SSE event broadcast to tenant",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("recipient_count", recipients),
+	)
+	return nil
+}
+
 // BroadcastToAll sends an event to every connected client regardless of group subscriptions.
 func (h *Hub) BroadcastToAll(event Event) error {
 	h.mu.RLock()

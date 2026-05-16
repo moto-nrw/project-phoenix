@@ -296,6 +296,7 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 
 	// Notify all clients so dashboard counts refresh
 	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
 }
 
 // getStudentDisplayData fetches student name for display

@@ -73,10 +73,6 @@ func (m *mockCalendarPeriodService) DeletePeriod(_ context.Context, id int64) er
 	return m.err
 }
 
-func (m *mockCalendarPeriodService) GetOrCreateDefaultPeriod(_ context.Context) (*schedule.CalendarPeriod, error) {
-	return m.period, m.err
-}
-
 func (m *mockCalendarPeriodService) ShouldMaterialize(_ int, _ time.Time, _ *schedule.CalendarPeriod) bool {
 	return m.shouldMaterialize
 }

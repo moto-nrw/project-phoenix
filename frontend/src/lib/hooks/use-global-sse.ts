@@ -26,6 +26,7 @@ import { useCallback, useRef } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
 
@@ -62,10 +63,12 @@ export function useGlobalSSE(): SSEHookState {
   const pendingGroupIds = useRef(new Set<string>());
   const pendingStudentIds = useRef(new Set<string>());
   const hasPendingActivityEvent = useRef(false);
+  const hasPendingActiveSupervisionEvent = useRef(false);
   const hasPendingDashboardEvent = useRef(false);
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const hasPendingArrivalScheduleEvent = useRef(false);
   const hasPendingStudentUpdateEvent = useRef(false);
+  const hasPendingTimetableEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
@@ -110,7 +113,26 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("database-students-list") ||
             key.includes("search-students-") ||
             key.includes("tracking-supervisions-") ||
-            key.includes("tracking-indicators-")),
+            key.includes("tracking-indicators-") ||
+            // Live "Kinder im Raum" view on /rooms/{id}. Cache key shape is
+            // "room-students-{roomId}" — see
+            // components/rooms/students-in-room-section.tsx. Student
+            // checkin/checkout events do not carry room_id, so we cannot
+            // narrow further here; refetching the section's SWR key is
+            // cheap and gives the page live data without polling.
+            // NOTE: includes() (not startsWith) — useSWRAuth prefixes keys
+            // with the tenant slug, so the real key is
+            // "<tenant>:room-students-1" and startsWith would never match.
+            key.includes("room-students-") ||
+            // Room header in the detail modal/subpage — supervisor,
+            // groupName, studentCount, isOccupied. Without this, the
+            // "Aktuell anwesend: X" InfoItem stays stale while the
+            // section above it refreshes (#1374).
+            key.includes("room-detail-") ||
+            // Room overview cards on /rooms use their own direct rooms
+            // list cache. A room move changes studentCount there even
+            // though the Room entity itself did not change.
+            ROOM_LIST_CACHE_KEYS.some((cacheKey) => key.includes(cacheKey))),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -170,6 +192,7 @@ export function useGlobalSSE(): SSEHookState {
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
       hasPendingActivityEvent.current ||
+      hasPendingActiveSupervisionEvent.current ||
       hasPendingDashboardEvent.current ||
       hasPendingDailyCheckoutDashboardEvent.current ||
       hasPendingArrivalScheduleEvent.current ||
@@ -192,7 +215,11 @@ export function useGlobalSSE(): SSEHookState {
           typeof key === "string" &&
           (key.includes("supervision") ||
             key.includes("active") ||
-            key.includes("rooms")),
+            key.includes("rooms") ||
+            // Detail modal/subpage header (#1374) — activity_start /
+            // activity_end change groupName/activityName/isOccupied,
+            // which the room summary in the modal reflects.
+            key.includes("room-detail-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -201,14 +228,49 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    if (hasPendingActiveSupervisionEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("active-supervision-dashboard-") ||
+            key.includes("supervision-visits-") ||
+            key.includes("timetable-roster-") ||
+            key.includes("room-detail-") ||
+            key.includes("tracking-supervisions-") ||
+            key.includes("tracking-indicators-") ||
+            key.includes("dashboard")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "active_supervision",
+        });
+      });
+    }
+
+    if (hasPendingTimetableEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("timetable-") ||
+            key.includes("database-calendar-periods-list")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "timetable",
+        });
+      });
+    }
+
     // Reset pending state
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();
     hasPendingActivityEvent.current = false;
+    hasPendingActiveSupervisionEvent.current = false;
     hasPendingDashboardEvent.current = false;
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
     hasPendingStudentUpdateEvent.current = false;
+    hasPendingTimetableEvent.current = false;
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -256,6 +318,18 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        case "active_supervision_changed": {
+          if (event.active_group_id) {
+            pendingGroupIds.current.add(event.active_group_id);
+          }
+          if (event.data.student_id) {
+            pendingStudentIds.current.add(event.data.student_id);
+          }
+          hasPendingActiveSupervisionEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
         case "dashboard_counts_changed": {
           // Global event from BroadcastToAll — only refresh dashboard counts,
           // NOT room/supervision/active caches (those are for activity events).
@@ -266,6 +340,39 @@ export function useGlobalSSE(): SSEHookState {
 
         case "arrival_schedule_changed": {
           hasPendingArrivalScheduleEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "tenant_settings_changed": {
+          // Cross-origin tenant settings sync. The backend fires this when a
+          // setting whose value travels through /auth/tenant/resolve flips
+          // (currently operations.student_photos_enabled).
+          // BroadcastChannel only reaches same-origin tabs, so an operator
+          // toggle at operator.<domain> never reaches <slug>.<domain> tabs;
+          // SSE crosses that boundary because every authenticated tab holds
+          // an open connection regardless of its origin.
+          //
+          // Dispatch a window event instead of directly mutating SWR or
+          // tenant context here: TenantProvider owns the resolve refetch and
+          // already serialises concurrent triggers (BroadcastChannel +
+          // visibilitychange + this event). Keeping this hook decoupled
+          // avoids importing tenant internals into the global SSE handler.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("phoenix:tenant-settings-stale", {
+                detail: { source: event.data.source ?? null },
+              }),
+            );
+          }
+          break;
+        }
+
+        case "instance_started":
+        case "instance_completed":
+        case "instance_cancelled":
+        case "instance_overdue": {
+          hasPendingTimetableEvent.current = true;
           scheduleFlush();
           break;
         }

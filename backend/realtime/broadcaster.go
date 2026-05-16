@@ -7,6 +7,14 @@ type Broadcaster interface {
 	// This is a fire-and-forget operation - errors are logged but don't affect service execution.
 	BroadcastToGroup(tenantID int64, activeGroupID string, event Event) error
 
+	// BroadcastToTenant sends an event to every client whose Client.TenantID
+	// matches the supplied tenantID, regardless of group subscriptions.
+	// Used for tenant-wide invalidations (e.g. tenant_settings_changed,
+	// active_supervision_changed) where a signal must reach all of one
+	// school's tabs but NOT the rest of the platform's connected clients.
+	// Fire-and-forget.
+	BroadcastToTenant(tenantID int64, event Event) error
+
 	// BroadcastToAll sends an event to every connected client regardless of group subscriptions.
 	// Used for global dashboard count refreshes. Fire-and-forget.
 	BroadcastToAll(event Event) error

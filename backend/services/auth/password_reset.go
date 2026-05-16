@@ -170,7 +170,8 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	baseRetry := resetToken.EmailRetryCount
 
-	s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	// WithoutCancel: async delivery must outlive the HTTP request.
+	s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,

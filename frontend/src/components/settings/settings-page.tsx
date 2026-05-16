@@ -1,13 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import useSWR, { mutate } from "swr";
 import { createLogger } from "~/lib/logger";
 import {
+  SETTINGS_SCHEMA_SWR_KEY,
+  applyOptimisticSchemaUpdate,
   fetchSettingsSchema,
   setSettingValue,
   resetSettingValue,
 } from "~/lib/settings-api";
+import { notifySettingsChanged } from "~/lib/settings-broadcast";
+import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
 import type { SettingsSchema, SchemaTab } from "~/lib/settings-api";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -78,35 +84,38 @@ interface SettingsContentProps {
   readonly tabKey: string;
 }
 
-function SettingsContent({ tabKey }: SettingsContentProps) {
+// useSettingsSchemaSWR is the single read path. The bridge mounted in the
+// protected layout invalidates SETTINGS_SCHEMA_SWR_KEY on cross-tab
+// BroadcastChannel notifications and SSE tenant_settings_changed events;
+// every consumer (this page, sidebar, mobile bottom nav, timetable day
+// hours) sees the same fresh data without per-component subscriptions.
+function useSettingsSchemaSWR() {
   const { status: sessionStatus } = useSession();
+  return useSWR<SettingsSchema | null>(
+    sessionStatus === "authenticated" ? SETTINGS_SCHEMA_SWR_KEY : null,
+    fetchSettingsSchema,
+  );
+}
+
+function SettingsContent({ tabKey }: SettingsContentProps) {
   const { refresh: refreshSupervision } = useOptionalSupervision();
-  const [schema, setSchema] = useState<SettingsSchema | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const {
+    data: schema,
+    error: fetchError,
+    isLoading,
+    mutate: revalidate,
+  } = useSettingsSchemaSWR();
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const loadSchema = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchSettingsSchema();
-      setSchema(data);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Einstellungen konnten nicht geladen werden",
-      );
-    } finally {
-      setLoading(false);
-    }
+  const applyOptimistic = useCallback((key: string, value: unknown) => {
+    void mutate(
+      SETTINGS_SCHEMA_SWR_KEY,
+      (current?: SettingsSchema | null) =>
+        current ? applyOptimisticSchemaUpdate(current, key, value) : current,
+      { revalidate: true },
+    );
   }, []);
-
-  useEffect(() => {
-    if (sessionStatus === "authenticated") {
-      void loadSchema();
-    }
-  }, [loadSchema, sessionStatus]);
 
   const handleSave = useCallback(
     async (key: string, value: unknown): Promise<string | null> => {
@@ -116,123 +125,68 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
           errorMsg.startsWith("Netzwerkfehler") ||
           errorMsg.startsWith("Einstellung konnte nicht")
         ) {
-          setError(errorMsg);
+          setSaveError(errorMsg);
         }
-      } else {
-        setError(null);
-        logger.info("setting_value_saved", { key });
-        // Update schema state locally so values persist across tab switches.
-        setSchema((prev) => {
-          if (!prev) return prev;
-          // Build a value map for DependsOn evaluation
-          const valueMap = new Map<string, unknown>();
-          for (const tab of prev.tabs) {
-            for (const cat of tab.categories) {
-              for (const item of cat.items) {
-                valueMap.set(item.key, item.key === key ? value : item.value);
-              }
-            }
-          }
-          return {
-            ...prev,
-            tabs: prev.tabs.map((tab) => ({
-              ...tab,
-              categories: tab.categories.map((cat) => ({
-                ...cat,
-                items: cat.items.map((item) => {
-                  const optimisticValue =
-                    item.type === "password" ? "••••••" : value;
-                  const updated =
-                    item.key === key
-                      ? { ...item, value: optimisticValue, is_default: false }
-                      : item;
-                  // Re-evaluate DependsOn visibility
-                  if (updated.depends_on) {
-                    const parentVal = valueMap.get(updated.depends_on.key);
-                    const cond = updated.depends_on.condition;
-                    const expected = updated.depends_on.value;
-                    let visible = true;
-                    if (cond === "eq")
-                      visible =
-                        JSON.stringify(parentVal) === JSON.stringify(expected);
-                    if (cond === "neq")
-                      visible =
-                        JSON.stringify(parentVal) !== JSON.stringify(expected);
-                    if (cond === "not_empty")
-                      visible = parentVal != null && parentVal !== "";
-                    return { ...updated, visible };
-                  }
-                  return updated;
-                }),
-              })),
-            })),
-          };
-        });
-
-        // Background sync: silently re-fetch to pick up server-side changes.
-        // Only updates state if the server data actually differs from local state.
-        setTimeout(() => {
-          void fetchSettingsSchema().then((fresh) => {
-            if (!fresh) return;
-            setSchema((prev) => {
-              // Skip update if values are identical (prevents unnecessary re-render)
-              if (JSON.stringify(prev) === JSON.stringify(fresh)) return prev;
-              return fresh;
-            });
-          });
-        }, 6000);
-
-        if (SUPERVISION_AFFECTING_KEYS.has(key)) {
-          void refreshSupervision({ force: true });
-        }
+        return errorMsg;
       }
-      return errorMsg;
+      setSaveError(null);
+      logger.info("setting_value_saved", { key });
+      // Tenant-resolve-affecting keys: refresh the RSC tree so the cached
+      // layout picks up the new value (BroadcastChannel only reaches OTHER
+      // tabs).
+      if (TENANT_RESOLVE_AFFECTING_KEYS.has(key)) {
+        router.refresh();
+      }
+      notifySettingsChanged();
+      applyOptimistic(key, value);
+      if (SUPERVISION_AFFECTING_KEYS.has(key)) {
+        void refreshSupervision({ force: true });
+      }
+      return null;
     },
-    [refreshSupervision],
+    [applyOptimistic, refreshSupervision, router],
   );
 
   const handleReset = useCallback(
     async (key: string): Promise<string | null> => {
       const errorMsg = await resetSettingValue(key);
       if (errorMsg) {
-        setError(errorMsg);
-      } else {
-        setError(null);
-        logger.info("setting_value_reset", { key });
-
-        // Background sync: re-fetch schema to get the default value
-        // without blocking the UI or showing a loading spinner.
-        setTimeout(() => {
-          void fetchSettingsSchema().then((fresh) => {
-            if (!fresh) return;
-            setSchema((prev) => {
-              if (JSON.stringify(prev) === JSON.stringify(fresh)) return prev;
-              return fresh;
-            });
-          });
-        }, 500);
-
-        if (SUPERVISION_AFFECTING_KEYS.has(key)) {
-          void refreshSupervision({ force: true });
-        }
+        setSaveError(errorMsg);
+        return errorMsg;
       }
-      return errorMsg;
+      setSaveError(null);
+      logger.info("setting_value_reset", { key });
+      if (TENANT_RESOLVE_AFFECTING_KEYS.has(key)) {
+        router.refresh();
+      }
+      notifySettingsChanged();
+      // Reset has no optimistic value — bridge mutate() picks up the
+      // registry default on revalidation.
+      void mutate(SETTINGS_SCHEMA_SWR_KEY);
+      if (SUPERVISION_AFFECTING_KEYS.has(key)) {
+        void refreshSupervision({ force: true });
+      }
+      return null;
     },
-    [refreshSupervision],
+    [refreshSupervision, router],
   );
 
-  if (loading) {
+  if (isLoading && !schema) {
     return <SettingsSkeleton />;
   }
 
-  // Server error — show error message with retry
-  if (error && !schema) {
+  // Server error on initial fetch — show retry.
+  if (fetchError && !schema) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-600">
+          {fetchError instanceof Error
+            ? fetchError.message
+            : "Einstellungen konnten nicht geladen werden"}
+        </p>
         <button
           type="button"
-          onClick={() => void loadSchema()}
+          onClick={() => void revalidate()}
           className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
         >
           Erneut versuchen
@@ -241,7 +195,7 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
     );
   }
 
-  // No access (null from 401/403) — render nothing, tabs won't show
+  // No access (null from 401/403) — render nothing, tabs won't show.
   if (!schema) {
     return null;
   }
@@ -258,11 +212,11 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
 
   return (
     <>
-      {error && (
+      {saveError && (
         <div className="relative mb-4">
-          <Alert type="error" message={error} />
+          <Alert type="error" message={saveError} />
           <button
-            onClick={() => setError(null)}
+            onClick={() => setSaveError(null)}
             className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
             aria-label="Fehler schließen"
           >
@@ -296,27 +250,13 @@ export function useSettingsTabs(): {
   tabs: { id: string; label: string; icon: string }[];
   renderTab: (tabId: string) => React.ReactNode;
 } | null {
-  const { status: sessionStatus } = useSession();
-  const [schema, setSchema] = useState<SettingsSchema | null>(null);
-  const [schemaFetchFailed, setSchemaFetchFailed] = useState(false);
-  const [schemaLoaded, setSchemaLoaded] = useState(false);
+  const {
+    data: schema,
+    error: schemaError,
+    isLoading,
+  } = useSettingsSchemaSWR();
 
-  useEffect(() => {
-    if (sessionStatus === "authenticated") {
-      void fetchSettingsSchema()
-        .then((data) => {
-          if (data) setSchema(data);
-        })
-        .catch(() => {
-          // Schema fetch failed — mark so we still render placeholder tabs.
-          // Inner SettingsContent has its own fetch with error display and retry button.
-          setSchemaFetchFailed(true);
-        })
-        .finally(() => setSchemaLoaded(true));
-    }
-  }, [sessionStatus]);
-
-  if (!schemaLoaded) {
+  if (isLoading) {
     return null;
   }
 
@@ -343,12 +283,11 @@ export function useSettingsTabs(): {
       "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
   };
 
-  // Schema-driven tabs (may be empty if user has no config:read permission).
   // When the schema fetch failed, render placeholder tabs so SettingsContent
-  // mounts and can show its own error/retry UI instead of silently dropping
-  // all schema tabs.
+  // mounts and can show its own retry UI instead of silently dropping all
+  // schema tabs.
   const fallbackTabKeys = ["operations", "gdpr", "devices", "system"];
-  const schemaTabs = schemaFetchFailed
+  const schemaTabs = schemaError
     ? fallbackTabKeys.map((key) => ({
         id: `settings-${key}`,
         label: tabLabels[key] ?? key,

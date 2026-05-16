@@ -81,6 +81,10 @@ func (f *fakeInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, ti
 	panic("unused")
 }
 
+func (f *fakeInstanceRepo) MarkCompleted(context.Context, int64, time.Time) error {
+	panic("unused")
+}
+
 // -----------------------------------------------------------------------------
 // Fake InstanceStudentRepository — controls FindByInstanceAndStudent and
 // UpdateAttendanceFromCheckin outcomes for every branch.

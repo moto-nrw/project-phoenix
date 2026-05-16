@@ -231,6 +231,26 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("preserves database errors while preloading visit", func(t *testing.T) {
+		// ARRANGE
+		failingDB := testpkg.SetupTestDB(t)
+		serviceWithClosedDB := setupActiveService(t, failingDB)
+		require.NoError(t, failingDB.Close())
+		visit := &activeModels.Visit{
+			StudentID:     99999998,
+			ActiveGroupID: 99999997,
+			EntryTime:     time.Now(),
+		}
+		visit.ID = 99999999
+
+		// ACT
+		err := serviceWithClosedDB.UpdateVisit(ctx, visit)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, active.ErrDatabaseOperation), "expected ErrDatabaseOperation")
+	})
 }
 
 // =============================================================================
@@ -489,6 +509,23 @@ func TestActiveService_EndVisit(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
+	})
+
+	t.Run("returns already ended for closed visit", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, "end-visit-closed")
+		room := testpkg.CreateTestRoom(t, db, "End Visit Closed Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, db, "End", "ClosedVisit", "1a")
+		exit := time.Now()
+		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, exit.Add(-time.Hour), &exit)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
+
+		// ACT
+		err := service.EndVisit(ctx, visit.ID)
+
+		// ASSERT
+		require.ErrorIs(t, err, active.ErrVisitAlreadyEnded)
 	})
 }
 

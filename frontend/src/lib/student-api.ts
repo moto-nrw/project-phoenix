@@ -61,6 +61,17 @@ interface PaginatedResponse<T> {
   message?: string;
 }
 
+interface WrappedPaginatedResponse<T> {
+  status?: string;
+  data:
+    | PaginatedResponse<T>
+    | {
+        data: T[];
+        pagination: PaginatedResponse<T>["pagination"];
+      };
+  message?: string;
+}
+
 // Error handler using shared utility
 function handleStudentApiError(error: unknown, context: string): never {
   handleDomainApiError(error, context, "STUDENT");
@@ -115,10 +126,30 @@ export async function fetchStudents(filters?: StudentFilters): Promise<{
     if (useProxy) {
       const session = await getCachedSession();
       const responseData = await authFetch<
-        Student[] | PaginatedResponse<Student>
+        | Student[]
+        | PaginatedResponse<Student>
+        | WrappedPaginatedResponse<Student>
       >(url, { token: session?.user?.token });
 
-      // Check if it's a paginated response
+      // Next.js API routes wrap GET responses once more:
+      // { status, data: { data: students, pagination } }.
+      if (
+        responseData &&
+        typeof responseData === "object" &&
+        "data" in responseData &&
+        responseData.data &&
+        typeof responseData.data === "object" &&
+        "data" in responseData.data &&
+        "pagination" in responseData.data &&
+        Array.isArray(responseData.data.data)
+      ) {
+        return {
+          students: responseData.data.data,
+          pagination: responseData.data.pagination,
+        };
+      }
+
+      // Backend-style paginated response.
       if (
         responseData &&
         typeof responseData === "object" &&
@@ -362,6 +393,85 @@ export async function deleteStudent(id: string): Promise<void> {
   } catch (error) {
     handleStudentApiError(error, "delete student");
   }
+}
+
+// ─── Student photo (Datenverwaltung) ────────────────────────────────────────
+
+/**
+ * Upload a photo for a student. Caller is expected to have already passed
+ * the file through `compressAvatar` (lib/image-utils) — sending raw 5+ MB
+ * camera JPEGs from a phone would hit the backend's `maxStudentPhotoBody`
+ * cap and fail with 400.
+ *
+ * Pre-conditions checked server-side:
+ *   1. Tenant has `operations.student_photos_enabled = true`
+ *   2. Either the row already has photo_consent_given_at set, OR the
+ *      caller passes `consentAcknowledged=true` so the backend can stamp
+ *      consent atomically alongside saving the photo. The form-level
+ *      checkbox state drives this — the user can tick consent + upload
+ *      without an intermediate "Speichern" round-trip.
+ *
+ * The backend stores filesystem paths internally and returns the stable
+ * `/uploads/student-photos/...` URL; consumers should treat the returned
+ * URL as opaque and re-render the avatar without local path arithmetic.
+ */
+export async function uploadStudentPhoto(
+  studentId: string,
+  file: Blob,
+  options: { consentAcknowledged?: boolean } = {},
+): Promise<{ photoUrl: string }> {
+  const url = `/api/students/${studentId}/photo`;
+  const formData = new FormData();
+  const photoFile =
+    file instanceof File
+      ? file
+      : new File([file], "student-photo.jpg", {
+          type: file.type || "image/jpeg",
+        });
+  formData.append("photo", photoFile);
+  if (options.consentAcknowledged) {
+    formData.append("consent_acknowledged", "true");
+  }
+
+  const session = await getCachedSession();
+  const token = session?.user?.token;
+  if (!token) {
+    throw new Error("Authentifizierung erforderlich");
+  }
+
+  // Use raw fetch — authFetch wraps JSON bodies, but this endpoint expects
+  // multipart/form-data. We forward the cookie-derived JWT manually.
+  const response = await fetch(url, {
+    method: "POST",
+    body: formData,
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    logger.error("student_photo_upload_failed", {
+      student_id: studentId,
+      status: response.status,
+      error: text,
+    });
+    throw new Error(text || `Upload fehlgeschlagen (HTTP ${response.status})`);
+  }
+
+  const body = (await response.json()) as
+    | { data: { photo_url: string } }
+    | { photo_url: string };
+  const data = "data" in body ? body.data : body;
+  return { photoUrl: data.photo_url };
+}
+
+/** Remove a student's photo (idempotent — succeeds even with no photo set). */
+export async function deleteStudentPhoto(studentId: string): Promise<void> {
+  const url = `/api/students/${studentId}/photo`;
+  const session = await getCachedSession();
+  await authFetch<void>(url, {
+    method: "DELETE",
+    token: session?.user?.token,
+  });
 }
 
 // Fetch all groups (for filter dropdown)

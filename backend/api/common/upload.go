@@ -31,15 +31,25 @@ type UploadedFile struct {
 // ParseImage parses a multipart form upload, validates the content type via magic bytes,
 // and returns the file ready for saving. The caller must close UploadedFile.File.
 func ParseImage(w http.ResponseWriter, r *http.Request, fieldName string, maxSize int64) (*UploadedFile, error) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxSize)
+	return ParseImageWithLimits(w, r, fieldName, maxSize, maxSize)
+}
 
-	if err := r.ParseMultipartForm(maxSize); err != nil {
+// ParseImageWithLimits enforces an advertised file-size cap separately from
+// the multipart body cap. Body cap needs headroom for boundaries and headers.
+func ParseImageWithLimits(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64) (*UploadedFile, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
+
+	if err := r.ParseMultipartForm(maxBodySize); err != nil {
 		return nil, errors.New("file too large")
 	}
 
 	file, header, err := r.FormFile(fieldName)
 	if err != nil {
 		return nil, errors.New("no file uploaded")
+	}
+	if header.Size > maxFileSize {
+		_ = file.Close()
+		return nil, errors.New("file too large")
 	}
 
 	contentType, err := detectContentType(file)

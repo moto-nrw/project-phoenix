@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -506,6 +507,9 @@ func (s *service) CheckConflict(ctx context.Context, startTime, endTime time.Tim
 
 // FindAvailableSlots finds available time slots within a date range
 func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate time.Time, duration time.Duration) ([]*schedule.Timeframe, error) {
+	startDate = timezone.WallClock(startDate)
+	endDate = timezone.WallClock(endDate)
+
 	// Validate input
 	if startDate.After(endDate) {
 		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: ErrInvalidDateRange}
@@ -523,7 +527,7 @@ func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate tim
 
 	// Sort timeframes by start time
 	sort.Slice(existingTimeframes, func(i, j int) bool {
-		return existingTimeframes[i].StartTime.Before(existingTimeframes[j].StartTime)
+		return timezone.WallClock(existingTimeframes[i].StartTime).Before(timezone.WallClock(existingTimeframes[j].StartTime))
 	})
 
 	// Find available slots
@@ -531,9 +535,11 @@ func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate tim
 	currentTime := startDate
 
 	for _, tf := range existingTimeframes {
+		tfStart := timezone.WallClock(tf.StartTime)
+
 		// If there's a gap before this timeframe, add it as an available slot
-		if currentTime.Before(tf.StartTime) {
-			endSlotTime := tf.StartTime
+		if currentTime.Before(tfStart) {
+			endSlotTime := tfStart
 			slot := &schedule.Timeframe{
 				StartTime: currentTime,
 				EndTime:   &endSlotTime,
@@ -548,7 +554,7 @@ func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate tim
 
 		// Update current time to the end of this timeframe
 		if tf.EndTime != nil {
-			currentTime = *tf.EndTime
+			currentTime = timezone.WallClock(*tf.EndTime)
 		} else {
 			// Open-ended timeframe, no more available slots
 			return availableSlots, nil

@@ -258,47 +258,7 @@ func decodeNullableString(raw json.RawMessage) (nullableString, error) {
 // did not clear it, OR patch sets a non-null value. Cleared substatus (with
 // SubstatusClear) is treated as nil regardless of context.
 func validateAttendancePatch(patch scheduleModel.AttendanceFieldPatch, current *scheduleModel.InstanceStudent) []fieldError {
-	var errs []fieldError
-
-	if patch.Status != nil && !scheduleModel.IsValidAttendanceStatus(*patch.Status) {
-		errs = append(errs, fieldError{Field: "status", Reason: "must be one of: expected, present, absent"})
-	}
-	if patch.Substatus != nil && !scheduleModel.IsValidAttendanceSubstatus(*patch.Substatus) {
-		errs = append(errs, fieldError{Field: "substatus", Reason: "must be one of: late, excused, sick, field_trip, other"})
-	}
-	if patch.Note != nil && len(*patch.Note) > scheduleModel.InstanceStudentNoteMaxLength {
-		errs = append(errs, fieldError{
-			Field:  "note",
-			Reason: fmt.Sprintf("must be at most %d characters", scheduleModel.InstanceStudentNoteMaxLength),
-		})
-	}
-
-	// Per-field errors must be returned alone — the cross-field rule below
-	// assumes valid status / substatus values.
-	if len(errs) > 0 {
-		return errs
-	}
-
-	finalStatus := current.Status
-	if patch.Status != nil {
-		finalStatus = *patch.Status
-	}
-
-	finalSubstatusNonNull := current.Substatus != nil
-	if patch.SubstatusClear {
-		finalSubstatusNonNull = false
-	} else if patch.Substatus != nil {
-		finalSubstatusNonNull = true
-	}
-
-	if finalSubstatusNonNull && finalStatus == scheduleModel.AttendanceStatusExpected {
-		errs = append(errs, fieldError{
-			Field:  "substatus",
-			Reason: "cannot be set when status is expected",
-		})
-	}
-
-	return errs
+	return attendancePatchFieldErrors(scheduleModel.ValidateAttendancePatch(patch, current))
 }
 
 // renderValidationErrors emits the 400 body with the full errors slice.
@@ -306,6 +266,17 @@ func validateAttendancePatch(patch scheduleModel.AttendanceFieldPatch, current *
 // frontend handler) and the per-field list in `errors`.
 func renderValidationErrors(w http.ResponseWriter, r *http.Request, errs []fieldError) {
 	common.RenderError(w, r, common.ErrorValidation("validation failed", errs))
+}
+
+func attendancePatchFieldErrors(errs []scheduleModel.AttendancePatchFieldError) []fieldError {
+	if len(errs) == 0 {
+		return nil
+	}
+	out := make([]fieldError, 0, len(errs))
+	for _, err := range errs {
+		out = append(out, fieldError{Field: err.Field, Reason: err.Reason})
+	}
+	return out
 }
 
 // AttendanceResponse is the on-wire shape of a schedule.instance_students row.

@@ -176,6 +176,16 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/schedule/attendance_sync_service_unit_test.go", // Uses fake repos for unit testing graceful-degradation branches
 		"services/schedule/timetable_cleanup_service_test.go",    // Uses failingAuditRepo mock for audit-write-failure rollback coverage (WP-B14)
 		"services/schedule/substitute_conflict_test.go",          // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
+		"realtime/hub_broadcast_to_tenant_test.go",               // Pure SSE-hub unit test; tenant IDs are in-memory channel routing keys, not DB rows
+		"services/config/sideeffects/registry_test.go",           // Pure registry unit test; tenant IDs are pass-through arguments, not DB rows
+		"services/facilities/settings_sideeffects_test.go",       // Pure side-effect dispatch unit test against fake services; tenant IDs are not DB rows
+		"api/config/settings_broadcast_test.go",                  // Pure unit test for scheduleSettingsBroadcast; tenant IDs are pass-through arguments to a fake broadcaster
+		"api/operator/settings_broadcast_test.go",                // Pure unit test for the operator-side scheduleSettingsBroadcast; tenant IDs are pass-through arguments to a fake broadcaster
+		"api/students/response_helpers_test.go",                  // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
+		"auth/authorize/student_access_test.go",                  // Pure-logic tests against stub user-context + settings; int64 literals are fake group IDs in stack-allocated structs (no DB)
+		"api/students/photo_error_mappers_test.go",               // Table-driven mapper tests with httptest.NewRecorder; no DB
+		"api/students/photo_unlinker_test.go",                    // Pure file-system unit test for the unlinker; uses a temp dir, no DB
+		"services/users/student_photo_service_broadcast_test.go", // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -310,8 +320,9 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		// Skip files that reference DB types but don't perform real DB operations
 		normalizedPath := filepath.ToSlash(path)
 		skipFiles := []string{
-			"http_middleware_test.go",          // Uses nil *bun.DB for unit testing middleware
-			"role_management_internal_test.go", // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
+			"http_middleware_test.go",                           // Uses nil *bun.DB for unit testing middleware
+			"role_management_internal_test.go",                  // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
+			"database/repositories/schedule/created_by_test.go", // Shared fixture helper; caller tests own DB setup
 		}
 		skip := false
 		for _, sf := range skipFiles {

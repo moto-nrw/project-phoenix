@@ -116,7 +116,7 @@ func TestBuildVisitDisplayResponses_AppliesActualTimesFromMap(t *testing.T) {
 		// student 22 deliberately omitted — actuals must stay nil
 	}
 
-	responses := rs.buildVisitDisplayResponses(results, statuses, adminAccess())
+	responses := rs.buildVisitDisplayResponses(results, statuses, adminAccess(), true)
 
 	if assert.Len(t, responses, 2) {
 		assert.Equal(t, "Anna Müller", responses[0].StudentName)
@@ -149,7 +149,7 @@ func TestBuildVisitDisplayResponses_NilStatusEntryIsSkipped(t *testing.T) {
 	// leave the actuals as nil rather than dereferencing.
 	statuses := map[int64]*activeService.AttendanceStatus{11: nil}
 
-	responses := rs.buildVisitDisplayResponses(results, statuses, adminAccess())
+	responses := rs.buildVisitDisplayResponses(results, statuses, adminAccess(), true)
 
 	if assert.Len(t, responses, 1) {
 		assert.Nil(t, responses[0].ActualArrival)
@@ -202,7 +202,7 @@ func TestBuildVisitDisplayResponses_ActualsGatedPerStudent(t *testing.T) {
 		MyGroupIDs: map[int64]struct{}{groupSupervised: {}},
 	}
 
-	responses := rs.buildVisitDisplayResponses(results, statuses, access)
+	responses := rs.buildVisitDisplayResponses(results, statuses, access, true)
 
 	if assert.Len(t, responses, 3) {
 		// Supervised student → actuals visible

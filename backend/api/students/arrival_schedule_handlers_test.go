@@ -18,6 +18,17 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+func createStudentsAPITestStaffID(t *testing.T, tc *testContext) int64 {
+	t.Helper()
+
+	staff := testpkg.CreateTestStaff(t, tc.db, "Arrival", fmt.Sprintf("Creator-%d", time.Now().UnixNano()))
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
+	})
+
+	return staff.ID
+}
+
 // =============================================================================
 // Get Arrival Schedules Tests
 // =============================================================================
@@ -51,7 +62,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			Weekday:         1, // Monday
 			ExpectedArrival: arrivalTime,
 			Notes:           &notes,
-			CreatedBy:       1,
+			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
 		schedule.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(schedule).
@@ -75,7 +86,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			ExceptionDate:   exceptionDate,
 			ExpectedArrival: &exceptionTime,
 			Reason:          &arztterminReason,
-			CreatedBy:       1,
+			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
 		exception.SetTenantID(1)
 		_, err = tc.db.NewInsert().Model(exception).
@@ -397,7 +408,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 			ExceptionDate:   exceptionDate,
 			ExpectedArrival: &exceptionTime,
 			Reason:          &originalReason,
-			CreatedBy:       1,
+			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		}
 		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
@@ -498,7 +509,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			Reason:        &deleteReason,
-			CreatedBy:     1,
+			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
 		exception.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(exception).
@@ -688,7 +699,7 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  noteDate,
 			Content:   "Original content",
-			CreatedBy: 1,
+			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
 		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).
@@ -765,7 +776,7 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 			StudentID: student.ID,
 			NoteDate:  noteDate,
 			Content:   "To be deleted",
-			CreatedBy: 1,
+			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
 		note.SetTenantID(1)
 		_, err := tc.db.NewInsert().Model(note).

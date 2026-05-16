@@ -1,0 +1,60 @@
+package auth_test
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
+	db, svc := testutil.SetupAPITest(t)
+	defer func() { _ = db.Close() }()
+
+	const tenantID int64 = 9911
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	_, err := db.ExecContext(context.Background(),
+		`UPDATE platform.schools SET hidden = true WHERE id = ?`, tenantID)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(context.Background(),
+			`UPDATE platform.schools SET hidden = false WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+	})
+
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+	resource.SettingsService = svc.Settings
+
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router())
+
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug=t9911", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp struct {
+		Data struct {
+			Hidden bool `json:"hidden"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.True(t, resp.Data.Hidden)
+}

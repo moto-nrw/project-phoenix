@@ -47,8 +47,19 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 	collectRoleStats(ctx, s, claims, response)
 	collectDeviceStats(ctx, s, claims, response)
 	collectPermissionStats(ctx, s, claims, response)
+	collectTimetableStats(claims, response)
 
 	return response, nil
+}
+
+// collectTimetableStats flips CanViewTimetables when the user has the
+// schedules:read or schedules:list permission. No count is exposed because
+// the timetable hub card links into a per-week view, not a flat list.
+func collectTimetableStats(claims jwt.AppClaims, response *StatsResponse) {
+	if !checkUserPermission(claims, permissions.SchedulesRead, permissions.SchedulesList) {
+		return
+	}
+	response.Permissions.CanViewTimetables = true
 }
 
 // checkUserPermission checks if user has any of the given permissions

@@ -166,7 +166,7 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 	var session *activeModels.WorkSession
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status)
+		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status, activeModels.WorkSessionSourceApp)
 		return txErr
 	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))

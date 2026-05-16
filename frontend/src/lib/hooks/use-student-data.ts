@@ -67,28 +67,25 @@ function mapStudentResponse(
     group_supervisors?: SupervisorContact[];
   };
 
+  // Spread upstream-mapped student so future Student fields propagate without
+  // touching this whitelist. Explicit lines below either coerce nullish to a
+  // default (first_name/group_id/...) or apply access-control gating.
   return {
-    id: mappedStudent.id,
+    ...mappedStudent,
     first_name: mappedStudent.first_name ?? "",
     second_name: mappedStudent.second_name ?? "",
-    name: mappedStudent.name,
-    school_class: mappedStudent.school_class,
     group_id: mappedStudent.group_id ?? "",
     group_name: mappedStudent.group_name ?? "",
-    current_location: mappedStudent.current_location,
+    bus: mappedStudent.bus ?? false,
+    buskind: mappedStudent.bus ?? false,
+    current_room: undefined,
     location_since: hasAccess
       ? (mappedStudent.location_since ?? undefined)
       : undefined,
-    bus: mappedStudent.bus ?? false,
-    current_room: undefined,
-    birthday: mappedStudent.birthday ?? undefined,
-    buskind: mappedStudent.bus ?? false,
     extra_info: hasAccess ? (mappedStudent.extra_info ?? undefined) : undefined,
     supervisor_notes: hasAccess
       ? (mappedStudent.supervisor_notes ?? undefined)
       : undefined,
-    health_info: mappedStudent.health_info ?? undefined,
-    pickup_status: mappedStudent.pickup_status ?? undefined,
     sick: hasAccess ? (mappedStudent.sick ?? false) : false,
     sick_since: hasAccess ? (mappedStudent.sick_since ?? undefined) : undefined,
     excused: hasAccess ? (mappedStudent.excused ?? false) : false,
@@ -102,6 +99,17 @@ function mapStudentResponse(
       ? (mappedStudent.actual_pickup_time ?? undefined)
       : undefined,
     has_full_access: hasAccess,
+    // Photo URL is visible to anyone with users:read who can see the
+    // student. The backend returns the authenticated proxy URL, so the
+    // browser can render <img src> with the same-origin session cookie.
+    // Forgetting this field on the detail-page hook was the bug where the
+    // big xl avatar in StudentDetailHeader stayed empty even though all
+    // other surfaces (master-detail header, search cards, OGS-room cards)
+    // showed the photo correctly.
+    photo_url: mappedStudent.photo_url ?? undefined,
+    photo_consent_given: mappedStudent.photo_consent_given ?? undefined,
+    photo_consent_given_at: mappedStudent.photo_consent_given_at ?? undefined,
+    photo_consent_given_by: mappedStudent.photo_consent_given_by ?? undefined,
   };
 }
 

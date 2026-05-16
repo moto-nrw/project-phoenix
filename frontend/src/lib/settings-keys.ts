@@ -1,0 +1,15 @@
+// Keys whose value rides on /auth/tenant/resolve. The settings PUT/DELETE
+// proxies (tenant-side `/api/settings/values/[key]` and operator-side
+// `/api/operator/provisioning/schools/[id]/settings/values/[key]`) consult
+// this set after a successful write and purge the cached layout fetch via
+// `revalidateTag('tenant-${slug}')` + `revalidatePath('/${slug}', 'layout')`.
+// The settings page also calls `router.refresh()` so the RSC tree pulls the
+// fresh layout data.
+export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
+  "operations.student_photos_enabled",
+  // presence_mode is served via /auth/tenant/resolve and drives the
+  // binary-vs-detailed kiosk + UI branch. Without revalidation, an
+  // operator flipping it leaves reloads/new tabs on the old mode for
+  // up to the layout cache TTL (300s).
+  "operations.presence_mode",
+]);

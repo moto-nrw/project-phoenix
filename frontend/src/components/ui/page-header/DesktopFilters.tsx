@@ -13,7 +13,7 @@ export function DesktopFilters({
   className = "",
 }: Readonly<DesktopFiltersProps>) {
   return (
-    <div className={`flex gap-2 ${className}`}>
+    <div className={`flex flex-wrap gap-2 ${className}`}>
       {filters.map((filter) => (
         <FilterControl key={filter.id} filter={filter} />
       ))}
@@ -162,7 +162,7 @@ function DropdownFilter({
 
       {isOpen && (
         <div
-          className={`absolute top-full z-50 mt-1 w-48 rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+          className={`absolute top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
             dropdownPosition === "right" ? "right-0" : "left-0"
           }`}
         >

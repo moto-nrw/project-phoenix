@@ -1,6 +1,7 @@
 // Time tracking API service for check-in/out and history management
 
 import { getSession } from "next-auth/react";
+import { buildApiError } from "./auth-api";
 import type {
   StaffAbsence,
   WorkSession,
@@ -26,12 +27,12 @@ interface ApiResponse<T> {
 }
 
 /**
- * Error response structure
+ * Stable error code surfaced by the backend when a CheckIn would silently
+ * change the status of an existing checked-out session. The page handles
+ * this by prompting for a reason and routing the change through
+ * UpdateSession (Issue #1368).
  */
-interface ErrorResponse {
-  error?: string;
-  message?: string;
-}
+export const REOPEN_STATUS_CONFLICT_CODE = "reopen_status_conflict";
 
 /**
  * Update session request body
@@ -102,8 +103,7 @@ class TimeTrackingService {
     });
 
     if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? errorMessage);
+      throw await buildApiError(response, errorMessage);
     }
 
     return (await response.json()) as ApiResponse<T>;
@@ -121,8 +121,7 @@ class TimeTrackingService {
     });
 
     if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? errorMessage);
+      throw await buildApiError(response, errorMessage);
     }
   }
 

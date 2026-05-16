@@ -38,8 +38,16 @@ export interface TenantInfo {
   subdomain: string;
   organizationId: number;
   organizationName: string;
+  hidden?: boolean;
   settings: TenantSettings;
   presenceMode: PresenceMode;
+  /**
+   * Whether the tenant has the photo feature enabled. Surfaced via the
+   * tenant resolve endpoint (which any authenticated session reaches)
+   * rather than /api/settings/schema, because non-admin Betreuer don't
+   * carry config:read but still need to know whether to render avatars.
+   */
+  studentPhotosEnabled: boolean;
 }
 
 interface TenantResolveResponse {
@@ -49,8 +57,10 @@ interface TenantResolveResponse {
   subdomain: string;
   organization_id: number;
   organization_name: string;
+  hidden?: boolean;
   settings: TenantSettings;
   presence_mode?: string;
+  student_photos_enabled?: boolean;
 }
 
 /**
@@ -88,8 +98,10 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       subdomain: data.subdomain,
       organizationId: data.organization_id,
       organizationName: data.organization_name,
+      hidden: data.hidden === true,
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),
+      studentPhotosEnabled: data.student_photos_enabled === true,
     };
   } catch {
     return null;
@@ -147,10 +159,13 @@ export async function listAllTenants(
           subdomain: t.subdomain,
           organizationId: 0,
           organizationName: t.organization_name,
+          hidden: false,
           settings: {},
           // list endpoints don't carry per-tenant presence mode; consumers
           // that need it call resolveTenant() on the selected slug.
           presenceMode: "detailed",
+          // Same story for the photo flag — re-resolved on tenant landing.
+          studentPhotosEnabled: false,
         })),
         status: "ok",
       };
@@ -204,6 +219,7 @@ export async function listAvailableTenants(): Promise<TenantInfo[]> {
     // account-tenants endpoint is pre-switch listing; presenceMode is re-resolved
     // after the switch when the new tenant's layout mounts and calls resolveTenant.
     presenceMode: "detailed",
+    studentPhotosEnabled: false,
   }));
 }
 

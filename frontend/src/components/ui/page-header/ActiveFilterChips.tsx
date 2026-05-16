@@ -44,7 +44,7 @@ export function ActiveFilterChips({
         ))}
       </div>
 
-      {onClearAll && filters.length > 1 && (
+      {onClearAll && (
         <button
           type="button"
           onClick={onClearAll}

@@ -150,6 +150,7 @@ function DatabaseContent() {
     canViewRoles: boolean;
     canViewDevices: boolean;
     canViewPermissions: boolean;
+    canViewTimetables: boolean;
   }>({
     canViewStudents: false,
     canViewTeachers: false,
@@ -159,6 +160,7 @@ function DatabaseContent() {
     canViewRoles: false,
     canViewDevices: false,
     canViewPermissions: false,
+    canViewTimetables: false,
   });
   const [countsLoading, setCountsLoading] = useState(true);
 
@@ -191,6 +193,7 @@ function DatabaseContent() {
                 canViewRoles: boolean;
                 canViewDevices: boolean;
                 canViewPermissions: boolean;
+                canViewTimetables: boolean;
               };
             };
           };
@@ -215,6 +218,7 @@ function DatabaseContent() {
               canViewRoles: false,
               canViewDevices: false,
               canViewPermissions: false,
+              canViewTimetables: false,
             },
           );
         } else if (response.status === 401 || response.status === 403) {
@@ -239,6 +243,7 @@ function DatabaseContent() {
             canViewRoles: false,
             canViewDevices: false,
             canViewPermissions: false,
+            canViewTimetables: false,
           });
         } else {
           logger.error("failed to fetch counts", { status: response.status });
