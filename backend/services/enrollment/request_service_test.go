@@ -803,3 +803,160 @@ func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
 		require.NoError(t, err, "unlimited capacity must accept all submissions")
 	}
 }
+
+// --- Dedup / duplicate enrollment guard ---
+
+// TestRequestService_Submit_RejectsDuplicateChild covers the dedup
+// guard: a parent who already has an in-flight submission for a child
+// can't submit the same child again in the same phase. The dedup check
+// is case-insensitive on email and child names, runs inside the write
+// tx under an advisory lock so concurrent submits serialize.
+func TestRequestService_Submit_RejectsDuplicateChild(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	first, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+	require.NotNil(t, first.Request)
+
+	// Same parent + same child + same phase = duplicate.
+	dup := validSubmission(env.phaseID)
+	dup.RemoteIP = "10.0.0.99"
+	_, err = env.svc.Submit(ctx, dup)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrDuplicateEnrollment),
+		"second identical submission must hit ErrDuplicateEnrollment; got %v", err)
+}
+
+// TestRequestService_Submit_DedupCaseInsensitive verifies the dedup
+// check normalizes email + child names. A parent who originally
+// submitted with "anna@example.com" and "Lina Beispiel" can't slip
+// the same child past the guard by retyping the form with
+// "Anna@Example.com" and "  lina   beispiel  ".
+func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+
+	variant := validSubmission(env.phaseID)
+	variant.GuardianEmail = "  Anna@EXAMPLE.com  "
+	variant.Children[0].FirstName = "  LINA"
+	variant.Children[0].LastName = "beispiel  "
+	variant.RemoteIP = "10.0.0.50"
+	_, err = env.svc.Submit(ctx, variant)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrDuplicateEnrollment),
+		"case-different rewrite must still hit dedup; got %v", err)
+}
+
+// TestRequestService_Submit_DedupAllowsDifferentChild verifies the
+// guard is per-(parent, child, phase). A parent submitting one child
+// after another in the same phase must succeed — twins or siblings
+// are a legitimate use case.
+func TestRequestService_Submit_DedupAllowsDifferentChild(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+
+	sibling := validSubmission(env.phaseID)
+	sibling.Children[0].FirstName = "Max"
+	sibling.Children[0].LastName = "Beispiel"
+	sibling.RemoteIP = "10.0.0.51"
+	_, err = env.svc.Submit(ctx, sibling)
+	require.NoError(t, err, "different child name must pass dedup")
+}
+
+// TestRequestService_Submit_DedupAllowsDifferentParent verifies two
+// distinct parents can each submit a child named "Lina Beispiel" in
+// the same phase. Dedup is keyed on the parent's email.
+func TestRequestService_Submit_DedupAllowsDifferentParent(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+
+	other := validSubmission(env.phaseID)
+	other.GuardianEmail = "different@example.com"
+	other.RemoteIP = "10.0.0.52"
+	_, err = env.svc.Submit(ctx, other)
+	require.NoError(t, err, "different parent email must pass dedup")
+}
+
+// TestRequestService_Submit_DedupIgnoresWithdrawn covers the
+// "retry-after-withdrawal" branch. A parent who withdrew an
+// enrollment must be able to resubmit the same child later — the
+// dedup query filters out rows where the child status is withdrawn or
+// rejected.
+func TestRequestService_Submit_DedupIgnoresWithdrawn(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	first, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+	require.Len(t, first.Children, 1)
+
+	// Withdraw the child via the service so the status flip lands
+	// through the same code path the parent would hit.
+	require.NoError(t, env.svc.Withdraw(ctx, first.Request.StatusToken, first.Children[0].ID))
+
+	retry := validSubmission(env.phaseID)
+	retry.RemoteIP = "10.0.0.53"
+	_, err = env.svc.Submit(ctx, retry)
+	require.NoError(t, err, "withdrawn submission must not block a resubmit")
+}
+
+// --- Basis phase (form_schema_id IS NULL) ---
+
+// TestRequestService_Submit_BasisPhaseNoFallback guards the Basis
+// invariant: a phase with form_schema_id=NULL submits with schema_id
+// NULL on the request row. Previously the resolver fell back to the
+// tenant's currently-active schema, leaking custom fields into every
+// Basis phase as soon as one was published. The fixup makes Basis
+// strict — admin said "nur die Standardfelder", so we honor it.
+func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Build a second phase with FormSchemaID nil ("Basis"). The shared
+	// env phase doesn't pin a schema either, but it's safer to spell
+	// it out so the test breaks loudly if the default changes.
+	basis := &enrollmentModels.Phase{
+		Name:             "basis-" + t.Name(),
+		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		ServiceStartDate: env.phase.ServiceStartDate,
+		ServiceEndDate:   env.phase.ServiceEndDate,
+		IsActive:         true,
+		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		FormSchemaID:     nil,
+	}
+	basis.SetTenantID(1)
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.Phase.Create(ctx, basis))
+	defer func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("enrollment.phases").
+			Where("id = ?", basis.ID).
+			Exec(context.Background())
+	}()
+
+	req := validSubmission(basis.ID)
+	req.GuardianEmail = "basis-tester@example.com"
+	req.Children[0].FirstName = "BasisChild"
+	req.Children[0].LastName = "BasisName"
+	res, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, res.Request)
+	assert.Nil(t, res.Request.SchemaID,
+		"Basis phase must persist with schema_id=NULL, not silently fall back to the tenant's active schema")
+}

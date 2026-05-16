@@ -371,6 +371,17 @@ func (s *decisionService) applyApproval(
 		return nil, fmt.Errorf("decision: approval requires user repos (person/student/guardian)")
 	}
 
+	// Rollover branch (migration 1.15.62): when this request_child was
+	// carried forward from a previous year's approved enrollment, we
+	// already have a Person + Student row for this human. Update the
+	// existing student (new school year, possibly bumped class) and
+	// skip Person/Student creation entirely. Materialize the new
+	// year's care offerings and link the new request_child to the
+	// same student so the admin UI still navigates correctly.
+	if child.RolloverSourceChildID != nil {
+		return s.applyApprovalRollover(ctx, request, child, phase)
+	}
+
 	// 1. Resolve or create the guardian profile (per-tenant).
 	guardian, profileWasNew, err := s.resolveGuardianProfile(ctx, request)
 	if err != nil {
@@ -501,6 +512,81 @@ func (s *decisionService) applyApproval(
 			CreatedBy:         reviewedBy,
 		}, nil
 	}
+	return nil, nil
+}
+
+// applyApprovalRollover is the abbreviated approval path for
+// rolled-over enrollments. The student row already exists from last
+// year's approval — we update its school_class + enrollment window,
+// materialize the new year's care offerings, and link the new
+// request_child to that same student.
+//
+// Falls back to the full applyApproval path when the source row
+// doesn't have a created_student_id (defensive — the migration's
+// unique index already prevents source-row reuse so this is rare).
+func (s *decisionService) applyApprovalRollover(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	child *enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+) (*PendingGuardianInvite, error) {
+	source, err := s.requestChildRepo.FindByID(ctx, *child.RolloverSourceChildID)
+	if err != nil || source == nil || source.CreatedStudentID == nil {
+		s.logger.Warn("decision: rollover source has no created_student, falling back to fresh approval",
+			slog.Int64("request_child_id", child.ID),
+			slog.Any("source_id", child.RolloverSourceChildID),
+		)
+		// Falling back means we'd re-enter applyApproval, which would
+		// loop back here because child.RolloverSourceChildID is still
+		// set. To break the loop, clear it in-memory for this call
+		// only — the DB row is unchanged, so the audit trail still
+		// shows the row was a rollover.
+		clone := *child
+		clone.RolloverSourceChildID = nil
+		// reviewedBy isn't tracked on this code path; falling back to
+		// 0 keeps the audit row consistent (UpdateStatus already
+		// handles 0 by skipping the column).
+		return s.applyApproval(ctx, request, &clone, phase, 0)
+	}
+
+	studentID := *source.CreatedStudentID
+	existing, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: rollover load existing student %d: %w", studentID, err)
+	}
+
+	// Update school_class / enrollment window. Status is left at
+	// whatever the scheduler had it on — typically 'active'. The
+	// activate-students scheduler keeps the lifecycle in sync.
+	existing.SchoolClass = s.gradeToClass(child.TargetGradeLevel)
+	enrolledFrom := phase.ServiceStartDate
+	enrolledUntil := phase.ServiceEndDate
+	existing.EnrolledFrom = &enrolledFrom
+	existing.EnrolledUntil = &enrolledUntil
+	if err := s.studentRepo.Update(ctx, existing); err != nil {
+		return nil, fmt.Errorf("decision: rollover update student: %w", err)
+	}
+
+	// Materialize the new year's care offerings under this student.
+	if err := s.materializeEnrollments(ctx, child.ID, studentID, phase); err != nil {
+		return nil, err
+	}
+
+	// Link the new request_child to the same student so the admin UI
+	// can navigate from either year's submission to one student row.
+	if err := s.linkCreatedStudent(ctx, child.ID, studentID); err != nil {
+		return nil, fmt.Errorf("decision: rollover link student: %w", err)
+	}
+
+	s.logger.Info("decision: rollover approval — updated existing student",
+		slog.Int64("request_child_id", child.ID),
+		slog.Int64("student_id", studentID),
+	)
+
+	// Skip guardian invitation logic — by definition a rolled-over
+	// child's parent already had an enrollment last year, so they
+	// either already have a portal account or they were already
+	// offered one last year. No new invite here.
 	return nil, nil
 }
 

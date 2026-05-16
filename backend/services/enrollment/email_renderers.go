@@ -121,6 +121,114 @@ func NewEnrollmentAdminNotificationRenderer(cfg EmailRendererConfig) func(contex
 	}
 }
 
+// Rollover payload key — phase name reuses the existing constant in
+// decision_renderers.go (the value is identical: "phase_name").
+const (
+	EnrollmentPayloadRolloverDeadline = "rollover_deadline"
+)
+
+// NewEnrollmentRolloverOptInRenderer builds the renderer for the
+// "please confirm next year's enrollment" email. Sent when an admin
+// triggers an opt_in rollover; the parent must click through and
+// confirm before the deadline or their child is dropped.
+//
+// Slice 1: uses the existing enrollment-submitted.html template as a
+// placeholder — proper opt-in branding lands in a follow-up.
+func NewEnrollmentRolloverOptInRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
+	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+		recipient, _ := row.Payload[EnrollmentPayloadRecipientEmail].(string)
+		if recipient == "" {
+			return nil, fmt.Errorf("rollover opt_in payload missing recipient_email")
+		}
+		statusURL, _ := row.Payload[EnrollmentPayloadStatusURL].(string)
+		if statusURL == "" {
+			return nil, fmt.Errorf("rollover opt_in payload missing status_url")
+		}
+
+		schoolName, _ := row.Payload[EnrollmentPayloadSchoolName].(string)
+		phaseName, _ := row.Payload[EnrollmentPayloadPhaseName].(string)
+		guardianFirst, _ := row.Payload[EnrollmentPayloadGuardianFirstName].(string)
+		guardianLast, _ := row.Payload[EnrollmentPayloadGuardianLastName].(string)
+		logoURL, _ := row.Payload[EnrollmentPayloadLogoURL].(string)
+		deadline, _ := row.Payload[EnrollmentPayloadRolloverDeadline].(string)
+		childNames := payloadStringSlice(row.Payload, EnrollmentPayloadChildNames)
+
+		subject := "Bitte bestätigen Sie die Anmeldung"
+		if phaseName != "" {
+			subject = fmt.Sprintf("Bitte bestätigen: Anmeldung %s", phaseName)
+		}
+		if schoolName != "" && phaseName != "" {
+			subject = fmt.Sprintf("Bitte bestätigen: Anmeldung %s – %s", phaseName, schoolName)
+		}
+
+		return &email.Message{
+			From:     cfg.DefaultFrom,
+			To:       email.NewEmail("", recipient),
+			Subject:  subject,
+			Template: "enrollment-rollover-opt-in.html",
+			Content: map[string]any{
+				"GuardianFirstName": guardianFirst,
+				"GuardianLastName":  guardianLast,
+				"SchoolName":        schoolName,
+				"PhaseName":         phaseName,
+				"StatusURL":         statusURL,
+				"LogoURL":           logoURL,
+				"ChildNames":        childNames,
+				"RolloverDeadline":  deadline,
+			},
+		}, nil
+	}
+}
+
+// NewEnrollmentRolloverOptOutRenderer builds the renderer for the
+// "we have pre-registered you" email. Sent when an admin triggers an
+// opt_out rollover; the parent only acts if they want to decline.
+func NewEnrollmentRolloverOptOutRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
+	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+		recipient, _ := row.Payload[EnrollmentPayloadRecipientEmail].(string)
+		if recipient == "" {
+			return nil, fmt.Errorf("rollover opt_out payload missing recipient_email")
+		}
+		statusURL, _ := row.Payload[EnrollmentPayloadStatusURL].(string)
+		if statusURL == "" {
+			return nil, fmt.Errorf("rollover opt_out payload missing status_url")
+		}
+
+		schoolName, _ := row.Payload[EnrollmentPayloadSchoolName].(string)
+		phaseName, _ := row.Payload[EnrollmentPayloadPhaseName].(string)
+		guardianFirst, _ := row.Payload[EnrollmentPayloadGuardianFirstName].(string)
+		guardianLast, _ := row.Payload[EnrollmentPayloadGuardianLastName].(string)
+		logoURL, _ := row.Payload[EnrollmentPayloadLogoURL].(string)
+		deadline, _ := row.Payload[EnrollmentPayloadRolloverDeadline].(string)
+		childNames := payloadStringSlice(row.Payload, EnrollmentPayloadChildNames)
+
+		subject := "Anmeldung wurde verlängert"
+		if phaseName != "" {
+			subject = fmt.Sprintf("Anmeldung verlängert: %s", phaseName)
+		}
+		if schoolName != "" && phaseName != "" {
+			subject = fmt.Sprintf("Anmeldung verlängert: %s – %s", phaseName, schoolName)
+		}
+
+		return &email.Message{
+			From:     cfg.DefaultFrom,
+			To:       email.NewEmail("", recipient),
+			Subject:  subject,
+			Template: "enrollment-rollover-opt-out.html",
+			Content: map[string]any{
+				"GuardianFirstName": guardianFirst,
+				"GuardianLastName":  guardianLast,
+				"SchoolName":        schoolName,
+				"PhaseName":         phaseName,
+				"StatusURL":         statusURL,
+				"LogoURL":           logoURL,
+				"ChildNames":        childNames,
+				"RolloverDeadline":  deadline,
+			},
+		}, nil
+	}
+}
+
 // payloadStringSlice extracts a string slice from a JSONB roundtrip.
 // JSON arrays come back as []any, so we coerce element-wise.
 func payloadStringSlice(payload map[string]any, key string) []string {

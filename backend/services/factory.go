@@ -99,6 +99,7 @@ type Factory struct {
 	EnrollmentRequest      enrollment.RequestService
 	EnrollmentPhase        enrollment.PhaseService
 	EnrollmentDecision     enrollment.DecisionService
+	EnrollmentRollover     enrollment.RolloverService
 
 	// Parent (cross-tenant guardian portal — PR 9)
 	Parent parent.Service
@@ -544,6 +545,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
+	// Rollover (annual phase renewal) emails. Slice 1 reuses the
+	// submission template as a placeholder — proper branded copy lands
+	// in a follow-up PR.
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentRolloverOptIn,
+		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptInRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentRolloverOptOut,
+		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptOutRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -752,6 +768,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                   logger.With("service", "enrollment-decision"),
 	})
 
+	// Rollover service depends on DecisionService for the
+	// rollover_auto_approve=true deadline path.
+	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
+		PhaseRepo:                repos.Phase,
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		Settings:                 settingsService,
+		DecisionService:          enrollmentDecisionService,
+		ParentsURL:               parentsURL,
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-rollover"),
+	})
+
 	parentService := parent.NewService(parent.ServiceConfig{
 		ChildRepo:             repos.ParentChild,
 		EnrollablePhaseRepo:   repos.ParentEnrollablePhase,
@@ -837,6 +868,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentRequest:      enrollmentRequestService,
 		EnrollmentPhase:        enrollmentPhaseService,
 		EnrollmentDecision:     enrollmentDecisionService,
+		EnrollmentRollover:     enrollmentRolloverService,
 
 		Parent: parentService,
 	}, nil

@@ -91,6 +91,17 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.EmailOutboxWorker != nil {
 			srv.scheduler.SetOutboxWorker(api.Services.EmailOutboxWorker)
 		}
+		// Phase rollover slice 1: per-tenant deadline resolver tick.
+		// The adapter narrows the typed return value behind `any` so
+		// the scheduler doesn't import the enrollment package.
+		if api.Services.EnrollmentRollover != nil {
+			rolloverSvc := api.Services.EnrollmentRollover
+			srv.scheduler.SetRolloverDeadlineRunner(scheduler.NewRolloverDeadlineRunner(
+				func(ctx context.Context, asOf time.Time) (any, error) {
+					return rolloverSvc.RunDeadlineWorker(ctx, asOf)
+				},
+			))
+		}
 	}
 
 	return srv, nil

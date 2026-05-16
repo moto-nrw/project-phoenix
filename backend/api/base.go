@@ -311,6 +311,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentCaptcha,
 		api.Services.EnrollmentPhase,
 		api.Services.EnrollmentDecision,
+		api.Services.EnrollmentRollover,
 		api.Services.GuardianInvitation,
 		repoFactory.School,
 		repoFactory.Phase,

@@ -45,6 +45,19 @@ var validPhaseCareOverflowModes = map[string]bool{
 	PhaseCareOverflowAllow:    true,
 }
 
+// PhaseRolloverMode values match enrollment.phases.rollover_mode.
+// A phase created by RolloverService gets one of these; phases created
+// from scratch leave rollover_mode NULL.
+const (
+	PhaseRolloverModeOptIn  = "opt_in"
+	PhaseRolloverModeOptOut = "opt_out"
+)
+
+var validPhaseRolloverModes = map[string]bool{
+	PhaseRolloverModeOptIn:  true,
+	PhaseRolloverModeOptOut: true,
+}
+
 // Phase is one row in enrollment.phases — a discrete, admin-managed
 // enrollment window with its own service period, open/close window,
 // optional form schema, and per-phase behaviour flags. Every parent
@@ -77,6 +90,33 @@ type Phase struct {
 	ShowStatusReasonToParent bool   `bun:"show_status_reason_to_parent,notnull" json:"show_status_reason_to_parent"`
 	CareOverflowMode         string `bun:"care_overflow_mode,notnull" json:"care_overflow_mode"`
 	IsActive                 bool   `bun:"is_active,notnull" json:"is_active"`
+
+	// Rollover columns (migration 1.15.61). All NULL/false on phases
+	// created from scratch; populated only by RolloverService.
+	//
+	// RolloverSourcePhaseID — the previous-year phase this one was
+	// rolled forward from. NULL for "fresh" phases.
+	// RolloverMode — opt_in (parent must confirm) or opt_out (parent
+	// must decline). NULL when this isn't a rollover phase.
+	// RolloverAutoApprove — if true, the deadline worker promotes
+	// auto_renewed rows directly to approved instead of submitted.
+	// Not yet implemented in slice 1; the flag is reserved.
+	// RolloverDeadline — when the deadline worker should resolve
+	// pending_renewal / auto_renewed rows.
+	// RolloverBumpsGrade — true (default) for yearly cadence; set
+	// false for half-year rollovers that don't bump the grade level.
+	RolloverSourcePhaseID *int64     `bun:"rollover_source_phase_id" json:"rollover_source_phase_id,omitempty"`
+	RolloverMode          *string    `bun:"rollover_mode" json:"rollover_mode,omitempty"`
+	RolloverAutoApprove   bool       `bun:"rollover_auto_approve,notnull" json:"rollover_auto_approve"`
+	RolloverDeadline      *time.Time `bun:"rollover_deadline" json:"rollover_deadline,omitempty"`
+	RolloverBumpsGrade    bool       `bun:"rollover_bumps_grade,notnull" json:"rollover_bumps_grade"`
+}
+
+// IsRollover reports whether this phase was created from a source
+// phase (i.e., the rollover columns are set). Used by the deadline
+// worker to scope its scan to rollover phases only.
+func (p *Phase) IsRollover() bool {
+	return p.RolloverSourcePhaseID != nil && p.RolloverMode != nil
 }
 
 // TableName returns the schema-qualified table name.
@@ -117,6 +157,15 @@ func (p *Phase) Validate() error {
 	}
 	if !validPhaseCareOverflowModes[p.CareOverflowMode] {
 		return fmt.Errorf("care_overflow_mode must be waitlist/reject/allow, got %q", p.CareOverflowMode)
+	}
+	if p.RolloverMode != nil && !validPhaseRolloverModes[*p.RolloverMode] {
+		return fmt.Errorf("rollover_mode must be opt_in/opt_out, got %q", *p.RolloverMode)
+	}
+	// Both rollover_source_phase_id and rollover_mode must be set
+	// together — a rollover phase needs both, a fresh phase needs
+	// neither. Half-set is a programmer bug.
+	if (p.RolloverSourcePhaseID == nil) != (p.RolloverMode == nil) {
+		return errors.New("rollover_source_phase_id and rollover_mode must be set together or both omitted")
 	}
 	return nil
 }
@@ -159,4 +208,9 @@ type PhaseRepository interface {
 	// ExistsByFormSchemaID is the safety check for schema deletion —
 	// phases owning the schema must be repointed first.
 	ExistsByFormSchemaID(ctx context.Context, schemaID int64) (bool, error)
+
+	// ListWithExpiredRolloverDeadline returns every phase in the
+	// tenant whose rollover_deadline is set and not yet in the
+	// future. Powers the rollover deadline worker.
+	ListWithExpiredRolloverDeadline(ctx context.Context, asOf time.Time) ([]*Phase, error)
 }

@@ -29,6 +29,12 @@ const (
 	EmailKindEnrollmentApproved       = "enrollment_approved"
 	EmailKindEnrollmentWaitlisted     = "enrollment_waitlisted"
 	EmailKindEnrollmentRejected       = "enrollment_rejected"
+
+	// Rollover (phase renewal) email kinds. The renderers are
+	// minimal-text placeholders in slice 1; proper branded templates
+	// land in a follow-up.
+	EmailKindEnrollmentRolloverOptIn  = "enrollment_rollover_opt_in"
+	EmailKindEnrollmentRolloverOptOut = "enrollment_rollover_opt_out"
 )
 
 // Pre-defined related_entity_type values.

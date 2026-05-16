@@ -141,6 +141,25 @@ func (r *PhaseRepository) ListPublicOpen(ctx context.Context, now time.Time) ([]
 	return rows, nil
 }
 
+// ListWithExpiredRolloverDeadline returns rollover phases whose
+// deadline has passed and that therefore still have renewal-pending
+// children waiting on the scheduled resolver. Filters are pushed to
+// SQL so the worker doesn't pull every phase into memory.
+func (r *PhaseRepository) ListWithExpiredRolloverDeadline(ctx context.Context, asOf time.Time) ([]*enrollment.Phase, error) {
+	var rows []*enrollment.Phase
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(phaseTableExpr).
+		Where(`"phase".rollover_deadline IS NOT NULL`).
+		Where(`"phase".rollover_deadline <= ?`, asOf).
+		OrderExpr(`"phase".rollover_deadline ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list phases with expired rollover deadline: %w", err)
+	}
+	return rows, nil
+}
+
 // ExistsByFormSchemaID is the safety check the schema-delete path needs.
 // Returns true if any phase still references the given schema id.
 func (r *PhaseRepository) ExistsByFormSchemaID(ctx context.Context, schemaID int64) (bool, error) {

@@ -415,3 +415,41 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	common.RespondNoContent(w, r)
 }
+
+// ConfirmRenewalResponse reports how many child rows were transitioned
+// from pending_renewal to submitted.
+type ConfirmRenewalResponse struct {
+	Confirmed int `json:"confirmed"`
+}
+
+// confirmRenewal handles POST /requests/{statusToken}/confirm-renewal.
+// Public — gated only by status token possession, the same way the
+// other parent-facing /requests endpoints are.
+func (rs *Resource) confirmRenewal(w http.ResponseWriter, r *http.Request) {
+	if rs.RequestService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment request service not configured")))
+		return
+	}
+	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
+	if token == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		return
+	}
+
+	var confirmed int
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+		c, runErr := rs.RequestService.ConfirmRenewal(adminCtx, token)
+		confirmed = c
+		return runErr
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, enrollmentService.ErrRequestNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(err))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
+		return
+	}
+	common.Respond(w, r, http.StatusOK, ConfirmRenewalResponse{Confirmed: confirmed}, "Renewal confirmed")
+}

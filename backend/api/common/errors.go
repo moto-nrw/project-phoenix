@@ -109,6 +109,19 @@ func ErrorInvalidRequest(err error) render.Renderer {
 	}
 }
 
+// ErrorInvalidRequestWithCode returns a 400 Bad Request with a stable
+// error code so the frontend can map to a localized German message
+// without parsing the free-form error string.
+func ErrorInvalidRequestWithCode(err error, code string) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusBadRequest,
+		Status:         "error",
+		ErrorText:      err.Error(),
+		Code:           code,
+	}
+}
+
 // ErrorValidation returns a 400 Bad Request with a summary message and a
 // per-field error list. The summary goes in the standard `error` field so
 // existing frontend handlers that read `.error` continue to display a
@@ -145,6 +158,17 @@ func ErrorForbidden(err error) render.Renderer {
 }
 
 // ErrorNotFound returns a 404 Not Found error response
+// ErrorNotFoundWithCode returns a 404 with a stable error code.
+func ErrorNotFoundWithCode(err error, code string) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusNotFound,
+		Status:         "error",
+		ErrorText:      err.Error(),
+		Code:           code,
+	}
+}
+
 func ErrorNotFound(err error) render.Renderer {
 	return &ErrResponse{
 		Err:            err,

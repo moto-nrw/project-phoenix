@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   type Phase,
   type PhaseInput,
   type PhaseKind,
   type PhaseCareOverflowMode,
+  type RolloverResult,
   createPhase,
   deletePhase,
   listPhases,
@@ -13,6 +15,8 @@ import {
 } from "~/lib/enrollment-phase-api";
 import { listSchemas, type FormSchema } from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
+import { RolloverForm } from "./rollover-form";
+import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -102,6 +106,8 @@ export function PhasesEditor() {
   const [schemaSource, setSchemaSource] = useState<SchemaSource>("base");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
+  const tenantSlug = useTenantSlugSafe();
 
   const loadAll = async () => {
     setLoading(true);
@@ -207,6 +213,31 @@ export function PhasesEditor() {
     }
   };
 
+  const startRollover = (phase: Phase) => {
+    setRolloverSource(phase);
+    setEditingId(null);
+    setDraft(null);
+    setInfo(null);
+    setError(null);
+  };
+
+  const handleRolloverSuccess = (result: RolloverResult) => {
+    setRolloverSource(null);
+    const summaryBits: string[] = [];
+    if (result.summary.rolled_count > 0) {
+      summaryBits.push(`${result.summary.rolled_count} übernommen`);
+    }
+    if (result.summary.review_count > 0) {
+      summaryBits.push(`${result.summary.review_count} brauchen Prüfung`);
+    }
+    if (result.summary.enqueued_emails > 0) {
+      summaryBits.push(`${result.summary.enqueued_emails} E-Mails verschickt`);
+    }
+    const detail = summaryBits.length > 0 ? ` (${summaryBits.join(", ")})` : "";
+    setInfo(`Anschlussphase „${result.phase.name}" wurde erstellt${detail}.`);
+    void loadAll();
+  };
+
   const handleToggleActive = async (phase: Phase) => {
     setSaving(true);
     setError(null);
@@ -260,6 +291,14 @@ export function PhasesEditor() {
           </button>
         )}
       </div>
+
+      {rolloverSource && (
+        <RolloverForm
+          source={rolloverSource}
+          onCancel={() => setRolloverSource(null)}
+          onSuccess={handleRolloverSuccess}
+        />
+      )}
 
       {editingId && draft && (
         <PhaseForm
@@ -370,6 +409,23 @@ export function PhasesEditor() {
                     >
                       Bearbeiten
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => startRollover(p)}
+                      className="text-xs font-medium text-[#83CD2D] hover:underline"
+                      disabled={saving || !!rolloverSource}
+                      title="Bestätigte Anmeldungen in eine Anschlussphase übernehmen"
+                    >
+                      Anschlussphase erstellen
+                    </button>
+                    {tenantSlug && p.rollover_source_phase_id && (
+                      <Link
+                        href={`/enrollment-phases/${encodeURIComponent(p.id)}/review`}
+                        className="text-xs font-medium text-[#F59E0B] hover:underline"
+                      >
+                        Prüfliste
+                      </Link>
+                    )}
                     <button
                       type="button"
                       onClick={() => void handleToggleActive(p)}

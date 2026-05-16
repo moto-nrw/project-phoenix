@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -445,4 +446,194 @@ func TestGuardianInvitationService_CleanupExpired_RemovesExpired(t *testing.T) {
 	_, err = env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
 	require.Error(t, err, "expired invitation should no longer exist after cleanup")
 	_ = authModels.GuardianInvitation{} // import retention
+}
+
+// --- Enrollment backfill on accept ---
+
+// stubEnrollmentBackfiller records inputs to BackfillGuardianAccountID
+// and lets the test choose what to return. The accept flow swallows
+// backfill errors and only logs them, so we use this stub to confirm
+// the call happens with the right inputs without needing a real
+// enrollment.requests row.
+type stubEnrollmentBackfiller struct {
+	calls       int
+	gotAccount  int64
+	gotEmail    string
+	returnRows  int
+	returnError error
+}
+
+func (s *stubEnrollmentBackfiller) BackfillGuardianAccountID(_ context.Context, accountID int64, email string) (int, error) {
+	s.calls++
+	s.gotAccount = accountID
+	s.gotEmail = email
+	return s.returnRows, s.returnError
+}
+
+// setupGuardianInviteWithBackfiller wires the service exactly as
+// setupGuardianInvitationTest but plugs in a custom EnrollmentBackfiller
+// so the accept flow's backfill call can be observed.
+func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.EnrollmentBackfiller) *guardianTestEnv {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	testpkg.EnsureTestTenant(t, db, 1)
+
+	repoFactory := repositories.NewFactory(db)
+	mailer := email.NewMockMailer()
+	dispatcher := email.NewDispatcher(mailer, slog.Default())
+
+	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
+		InvitationRepo:       repoFactory.GuardianInvitation,
+		AccountRepo:          repoFactory.Account,
+		AccountTenantRepo:    repoFactory.AccountTenant,
+		AccountRoleRepo:      repoFactory.AccountRole,
+		RoleRepo:             repoFactory.Role,
+		PersonRepo:           repoFactory.Person,
+		GuardianProfileRepo:  repoFactory.GuardianProfile,
+		SchoolRepo:           repoFactory.School,
+		EnrollmentBackfiller: backfiller,
+		Mailer:               mailer,
+		Dispatcher:           dispatcher,
+		FrontendURL:          "http://localhost:3000",
+		DefaultFrom:          email.NewEmail("Test", "no-reply@moto.local"),
+		FallbackExpiry:       48 * time.Hour,
+		DB:                   db,
+		Logger:               slog.Default(),
+	})
+
+	cleanup := func() { _ = db.Close() }
+
+	return &guardianTestEnv{
+		db:      db,
+		repos:   repoFactory,
+		service: service,
+		mailer:  mailer,
+		cleanup: cleanup,
+	}
+}
+
+// cleanupAcceptedAccount wipes the account + its derived rows created
+// by a successful Accept. Pulled out so the backfill tests below don't
+// each redeclare the same six-line block.
+func cleanupAcceptedAccount(t *testing.T, db *bun.DB, accountID int64) {
+	t.Helper()
+	bg := context.Background()
+	_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", accountID).Exec(bg)
+	_, _ = db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", accountID).Exec(bg)
+	_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", accountID).Exec(bg)
+}
+
+func TestGuardianInvitationService_Accept_InvokesBackfiller(t *testing.T) {
+	bf := &stubEnrollmentBackfiller{returnRows: 0}
+	env := setupGuardianInviteWithBackfiller(t, bf)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-call")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: strongTestPassword,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupAcceptedAccount(t, env.db, account.ID) })
+
+	require.Equal(t, 1, bf.calls, "backfiller must be invoked exactly once on successful accept")
+	assert.Equal(t, account.ID, bf.gotAccount, "backfiller must receive the new account's id")
+	assert.Equal(t, *profile.Email, bf.gotEmail, "backfiller must receive the invitation email")
+}
+
+func TestGuardianInvitationService_Accept_NotInvokedOnPasswordMismatch(t *testing.T) {
+	bf := &stubEnrollmentBackfiller{}
+	env := setupGuardianInviteWithBackfiller(t, bf)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-mismatch")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: "DifferentP@ss!1",
+	})
+	require.Error(t, err)
+	assert.Equal(t, 0, bf.calls, "backfiller must not run when accept fails")
+}
+
+func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *testing.T) {
+	bf := &stubEnrollmentBackfiller{returnError: errors.New("synthetic backfill failure")}
+	env := setupGuardianInviteWithBackfiller(t, bf)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-error")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	// Backfill returns an error — the accept must still succeed because
+	// backfill is best-effort and the new account has already been
+	// committed by the inner tx.
+	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: strongTestPassword,
+	})
+	require.NoError(t, err, "accept must not fail when backfill errors out — backfill is best-effort")
+	require.NotNil(t, account)
+	t.Cleanup(func() { cleanupAcceptedAccount(t, env.db, account.ID) })
+
+	assert.Equal(t, 1, bf.calls, "backfiller must have been called even though it errored")
+
+	// The invitation is still marked accepted — proof the inner tx
+	// committed independent of the backfill outcome.
+	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, updated.AcceptedAt, "invitation must remain accepted after backfill error")
+}
+
+func TestGuardianInvitationService_Accept_NilBackfillerIsSafe(t *testing.T) {
+	// Same setup as the production wiring used to be — no backfiller.
+	// The accept flow checks `if s.enrollmentBackfiller != nil` so this
+	// must not panic.
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-nil")
+	creatorID := env.inviterAccountID(t)
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: strongTestPassword,
+	})
+	require.NoError(t, err, "accept must succeed when backfiller is nil")
+	require.NotNil(t, account)
+	t.Cleanup(func() { cleanupAcceptedAccount(t, env.db, account.ID) })
 }

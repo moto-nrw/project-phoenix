@@ -31,8 +31,16 @@ type PhaseResponse struct {
 	ShowStatusReasonToParent bool    `json:"show_status_reason_to_parent"`
 	CareOverflowMode         string  `json:"care_overflow_mode"`
 	IsActive                 bool    `json:"is_active"`
-	CreatedAt                string  `json:"created_at"`
-	UpdatedAt                string  `json:"updated_at"`
+	// Rollover columns (migration 1.15.61) — emitted so the admin UI
+	// can distinguish rollover phases from fresh ones and surface the
+	// review-queue link only for rolled-forward phases.
+	RolloverSourcePhaseID *string `json:"rollover_source_phase_id,omitempty"`
+	RolloverMode          *string `json:"rollover_mode,omitempty"`
+	RolloverAutoApprove   bool    `json:"rollover_auto_approve"`
+	RolloverDeadline      *string `json:"rollover_deadline,omitempty"`
+	RolloverBumpsGrade    bool    `json:"rollover_bumps_grade"`
+	CreatedAt             string  `json:"created_at"`
+	UpdatedAt             string  `json:"updated_at"`
 }
 
 func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
@@ -60,6 +68,20 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 		s := strconv.FormatInt(*p.FormSchemaID, 10)
 		resp.FormSchemaID = &s
 	}
+	if p.RolloverSourcePhaseID != nil {
+		s := strconv.FormatInt(*p.RolloverSourcePhaseID, 10)
+		resp.RolloverSourcePhaseID = &s
+	}
+	if p.RolloverMode != nil {
+		mode := *p.RolloverMode
+		resp.RolloverMode = &mode
+	}
+	resp.RolloverAutoApprove = p.RolloverAutoApprove
+	if p.RolloverDeadline != nil {
+		s := p.RolloverDeadline.Format(time.RFC3339)
+		resp.RolloverDeadline = &s
+	}
+	resp.RolloverBumpsGrade = p.RolloverBumpsGrade
 	return resp
 }
 

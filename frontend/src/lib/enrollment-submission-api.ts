@@ -209,7 +209,14 @@ export interface StatusChild {
     | "approved"
     | "waitlisted"
     | "rejected"
-    | "withdrawn";
+    | "withdrawn"
+    // Annual phase rollover (migration 1.15.62). pending_renewal +
+    // auto_renewed surface to parents; pending_admin_review is admin-only
+    // and doesn't ship a status URL — but we include it in the union
+    // so the type is exhaustive across all DB values.
+    | "pending_renewal"
+    | "auto_renewed"
+    | "pending_admin_review";
   status_reason?: string | null;
 }
 
@@ -285,4 +292,21 @@ export async function withdrawStatus(
   if (!response.ok) {
     throw await readError(response, "Rücknahme nicht möglich");
   }
+}
+
+/**
+ * Confirms an opt_in rollover: every pending_renewal child under the
+ * request transitions to submitted, where the admin's review queue
+ * picks them up. Returns the number of children promoted.
+ */
+export async function confirmRenewal(token: string): Promise<number> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(token)}/confirm-renewal`,
+    { method: "POST", headers: { "Content-Type": "application/json" } },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Bestätigung nicht möglich");
+  }
+  const payload = (await response.json()) as { confirmed?: number };
+  return payload.confirmed ?? 0;
 }

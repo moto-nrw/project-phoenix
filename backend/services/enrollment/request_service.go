@@ -113,6 +113,13 @@ type RequestService interface {
 	GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error)
 	Edit(ctx context.Context, token string, patch EditPatch) error
 	Withdraw(ctx context.Context, token string, childID int64) error
+
+	// ConfirmRenewal transitions every pending_renewal child under
+	// this request to submitted, so the admin's regular review queue
+	// picks it up. Used by the parent-facing "Anmeldung bestätigen"
+	// button in opt-in rollover mode. No-op when the request has no
+	// pending_renewal rows (idempotent on double-clicks).
+	ConfirmRenewal(ctx context.Context, token string) (int, error)
 	// IsEnrollmentEnabled reports whether the per-tenant master toggle
 	// (enrollment.enabled setting) is on for the tenant in ctx. Public
 	// form-load endpoints call this so a deactivated tenant returns a
@@ -574,6 +581,43 @@ func (s *requestService) Withdraw(ctx context.Context, token string, childID int
 		}
 		return nil
 	})
+}
+
+// ConfirmRenewal transitions every pending_renewal row under the
+// request token to submitted. Idempotent — rows that are no longer
+// pending_renewal are skipped, so a parent who double-clicks doesn't
+// get an error.
+func (s *requestService) ConfirmRenewal(ctx context.Context, token string) (int, error) {
+	req, children, err := s.GetByStatusToken(ctx, token)
+	if err != nil {
+		return 0, err
+	}
+	tenantID := req.GetTenantID()
+	tenantCtx := tenant.WithTenantID(ctx, tenantID)
+
+	var confirmed int
+	txErr := tenant.WithTenantTx(tenantCtx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		for _, c := range children {
+			if c.Status != enrollmentModels.ChildStatusPendingRenewal {
+				continue
+			}
+			if err := s.requestChildRepo.UpdateStatus(txCtx, c.ID, enrollmentModels.ChildStatusSubmitted, nil, 0); err != nil {
+				return err
+			}
+			confirmed++
+		}
+		return nil
+	})
+	if txErr != nil {
+		return 0, txErr
+	}
+	if confirmed > 0 {
+		s.logger.Info("renewal confirmed by parent",
+			slog.Int64("request_id", req.ID),
+			slog.Int("children_confirmed", confirmed),
+		)
+	}
+	return confirmed, nil
 }
 
 // enqueueSubmissionEmails fires off the parent confirmation + admin

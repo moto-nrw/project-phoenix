@@ -25,6 +25,7 @@ type Resource struct {
 	CaptchaService            enrollmentService.CaptchaService
 	PhaseService              enrollmentService.PhaseService
 	DecisionService           enrollmentService.DecisionService
+	RolloverService           enrollmentService.RolloverService
 	GuardianInvitationService authService.GuardianInvitationService
 	SchoolRepo                platformModels.SchoolRepository
 	PhaseRepo                 enrollmentModels.PhaseRepository
@@ -44,6 +45,7 @@ func NewResource(
 	captchaSvc enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,
 	decisionSvc enrollmentService.DecisionService,
+	rolloverSvc enrollmentService.RolloverService,
 	guardianInvitationSvc authService.GuardianInvitationService,
 	schoolRepo platformModels.SchoolRepository,
 	phaseRepo enrollmentModels.PhaseRepository,
@@ -56,6 +58,7 @@ func NewResource(
 		CaptchaService:            captchaSvc,
 		PhaseService:              phaseSvc,
 		DecisionService:           decisionSvc,
+		RolloverService:           rolloverSvc,
 		GuardianInvitationService: guardianInvitationSvc,
 		SchoolRepo:                schoolRepo,
 		PhaseRepo:                 phaseRepo,
@@ -80,6 +83,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Get("/requests/{statusToken}", rs.getStatus)
 	r.Patch("/requests/{statusToken}", rs.patchStatus)
 	r.Post("/requests/{statusToken}/withdraw", rs.withdrawStatus)
+	r.Post("/requests/{statusToken}/confirm-renewal", rs.confirmRenewal)
 
 	// Authenticated admin endpoints.
 	tokenAuth := jwt.MustNewTokenAuth()
@@ -113,6 +117,21 @@ func (rs *Resource) Router() chi.Router {
 				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getPhase)
 				r.With(authorize.RequiresPermission("config:manage")).Put("/", rs.updatePhase)
 				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deletePhase)
+				// Rollover (phase renewal). createRollover carries
+				// approved enrollments from this phase forward into a
+				// new phase; listRolloverReview surfaces children that
+				// landed in pending_admin_review on a phase created
+				// FROM this phase. Both require config:manage.
+				r.With(authorize.RequiresPermission("config:manage")).Post("/rollover", rs.createRollover)
+				r.With(authorize.RequiresPermission("config:read")).Get("/review", rs.listRolloverReview)
+			})
+		})
+
+		// Rollover review decisions live alongside the admin requests
+		// surface so reviewers don't have to keep switching contexts.
+		r.Route("/admin/request-children", func(r chi.Router) {
+			r.Route("/{id}", func(r chi.Router) {
+				r.With(authorize.RequiresPermission("config:manage")).Post("/rollover-review", rs.decideRolloverReview)
 			})
 		})
 

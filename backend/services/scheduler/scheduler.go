@@ -125,6 +125,10 @@ type Scheduler struct {
 	// Outbox worker (parent-enrollment PR 5). Wired via SetOutboxWorker.
 	// Nil → outbox task does not register.
 	outboxWorker OutboxWorkerRunner
+
+	// Rollover deadline resolver (phase rollover slice 1). Wired via
+	// SetRolloverDeadlineRunner. Nil → task does not register.
+	rolloverDeadlineRunner RolloverDeadlineRunner
 }
 
 // OutboxWorkerRunner is the narrow contract the scheduler needs from the
@@ -311,6 +315,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule platform email outbox worker (parent-enrollment PR 5)
 	s.scheduleOutboxWorkerTask()
+
+	// Schedule per-tenant rollover deadline resolver (phase rollover)
+	s.scheduleRolloverDeadlineTask()
 }
 
 // Stop gracefully stops the scheduler
