@@ -661,11 +661,11 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 }
 
 // TestGetRoomHistory_ScopeAllStaff — when gdpr.attendance_log_scope is set
-// to all_staff, the supervisor filter is bypassed even for non-admin
-// callers. Locks in the inverted-condition guard in the handler
-// (`scope != AttendanceLogScopeAllStaff`): if someone typos the constant,
-// the safe default reasserts itself and this test fails, surfacing the
-// bug instead of silently disabling the filter.
+// to all_staff, the supervisor filter is bypassed for staff callers but
+// non-staff callers still fail before the scope is applied. Locks in the
+// inverted-condition guard in the handler (`scope != AttendanceLogScopeAllStaff`):
+// if someone typos the constant, the safe default reasserts itself and this
+// test fails, surfacing the bug instead of silently disabling the filter.
 func TestGetRoomHistory_ScopeAllStaff(t *testing.T) {
 	tc := setupTestContext(t)
 
@@ -714,6 +714,30 @@ func TestGetRoomHistory_ScopeAllStaff(t *testing.T) {
 
 	require.Len(t, body.Data, 1, "all_staff scope must surface the session to a non-supervisor staff caller")
 	assert.Equal(t, float64(activeGroup.ID), body.Data[0]["session_id"])
+
+	t.Run("caller_without_staff_record_returns_forbidden", func(t *testing.T) {
+		nonStaffPerson, nonStaffAcc := testpkg.CreateTestPersonWithAccount(t, tc.db, "AllStaff", "Caregiver")
+		t.Cleanup(func() {
+			testpkg.CleanupPerson(t, tc.db, nonStaffPerson.ID)
+			testpkg.CleanupAccount(t, tc.db, nonStaffAcc.ID)
+		})
+
+		nonStaffClaims := jwt.AppClaims{
+			ID:          int(nonStaffAcc.ID),
+			Sub:         "caregiver@example.com",
+			Username:    "caregiver",
+			Roles:       []string{"user"},
+			Permissions: staffPermissions,
+			TenantID:    1,
+		}
+
+		router := setupRouter(tc.resource.GetRoomHistory, "id")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+		rr := executeWithAuth(router, req, nonStaffClaims, staffPermissions)
+
+		assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "not_group_supervisor")
+	})
 }
 
 // TestGetRoomHistory_RangeCapClamped — gdpr.room_detail_visible_days is the

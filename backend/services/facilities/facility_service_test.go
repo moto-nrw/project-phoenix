@@ -1263,14 +1263,17 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "HistoryGroup")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "History", "Student", "1a")
+		outsideWindowStudent := testpkg.CreateTestStudent(t, db, "History", "OutsideWindow", "1b")
 
 		entryTime := time.Now().Add(-1 * time.Hour)
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil)
 
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
-
 		startTime := time.Now().Add(-24 * time.Hour)
 		endTime := time.Now().Add(1 * time.Hour)
+		oldExitTime := startTime.Add(-1 * time.Hour)
+		oldVisit := testpkg.CreateTestVisit(t, db, outsideWindowStudent.ID, activeGroup.ID, startTime.Add(-2*time.Hour), &oldExitTime)
+
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, outsideWindowStudent.ID, visit.ID, oldVisit.ID)
 
 		// ACT
 		history, err := service.GetRoomHistory(ctx, room.ID, startTime, endTime, nil)
@@ -1282,7 +1285,7 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 		entry := history[0]
 		assert.Equal(t, activeGroup.ID, entry.SessionID)
 		assert.Equal(t, "HistoryGroup", entry.ActivityName)
-		assert.Equal(t, 1, entry.StudentCount, "distinct student count, not per-row visits")
+		assert.Equal(t, 1, entry.StudentCount, "distinct student count must only include visits overlapping the requested window")
 	})
 }
 

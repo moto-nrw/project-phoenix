@@ -31,33 +31,68 @@ SettingAuditRepository → config.setting_audit (append-only)
 | `frontend/src/components/settings/` | Settings page, field components, auto-save |
 | `frontend/src/app/api/settings/` | Next.js proxy routes to backend |
 
-### Registered Settings (11 total)
+### Registered Settings
 
-**Operations Tab** (7 settings) — WritePermission: `config:update`
+The authoritative list lives in `backend/services/config/defaults/*.go` and
+is guarded by `backend/services/config/defaults/defaults_test.go`. The tables
+below document the main tenant-facing groups; update them when adding visible
+settings.
+
+**Operations Tab** — WritePermission: `config:update`
+
+| Key | Type | Default | DependsOn |
+|-----|------|---------|-----------|
+| `operations.student_daily_checkout_time` | time | `""` | — |
+| `operations.per_student_checkout_enabled` | boolean | `false` | — |
+| `operations.per_student_checkout_delta_minutes` | number | `15` (min:0, max:120) | per_student_checkout_enabled eq true |
+| `operations.admin_supervision_overview` | boolean | `false` | — |
+| `operations.status_flag_clear_time` | time | `"18:00"` | — |
+| `operations.sick_clear_mode` | select | `"next_checkin"` | — |
+| `operations.excused_clear_mode` | select | `"end_of_day"` | — |
+| `operations.presence_mode` | select | `"detailed"` | — |
+| `operations.student_photos_enabled` | boolean | `false` | — |
+| `attendance.web_checkin_access` | select | `"group_supervisors"` | — |
+| `attendance.web_spontaneous_activities_enabled` | boolean | `false` | — |
+| `tracking.indicators_enabled` | boolean | `false` | — |
+| `tracking.indicator_1` | text | `""` | tracking.indicators_enabled eq true |
+| `tracking.indicator_2` | text | `""` | tracking.indicators_enabled eq true |
+| `tracking.indicator_3` | text | `""` | tracking.indicators_enabled eq true |
+
+**GDPR Tab** — WritePermission: `config:manage`
+
+| Key | Type | Default | DependsOn |
+|-----|------|---------|-----------|
+| `gdpr.attendance_log_enabled` | boolean | `false` | — |
+| `gdpr.attendance_visible_days` | number | `30` (min:1, max:365) | attendance_log_enabled eq true |
+| `gdpr.room_detail_visible_days` | number | `7` (min:1, max:365) | attendance_log_enabled eq true |
+| `gdpr.attendance_log_scope` | select | `"group_supervisors_only"` | attendance_log_enabled eq true |
+| `gdpr.student_data_scope` | select | `"group_supervisors_only"` | — |
+| `feedback.enabled` | boolean | `false` | — |
+| `feedback.data_retention_days` | number | `90` (min:7, max:365) | feedback.enabled eq true |
+| `gdpr.timetable_retention_days` | number | `365` | timetable.enabled eq true |
+
+**System Tab** — WritePermission: `config:update` or `config:manage`
 
 | Key | Type | Default | DependsOn |
 |-----|------|---------|-----------|
 | `operations.session_end_enabled` | boolean | `true` | — |
 | `operations.session_end_time` | time | `"18:00"` | session_end_enabled eq true |
 | `operations.session_end_timeout_minutes` | number | `10` (min:1, max:60) | session_end_enabled eq true |
-| `operations.student_daily_checkout_time` | time | `"15:00"` | — |
-| `operations.session_cleanup_enabled` | boolean | `true` | — |
+| `operations.session_cleanup_enabled` | boolean | `false` | — |
 | `operations.session_cleanup_interval_minutes` | number | `15` (min:5, max:120) | session_cleanup_enabled eq true |
 | `operations.session_abandoned_threshold_minutes` | number | `60` (min:10, max:480) | session_cleanup_enabled eq true |
-
-**GDPR Tab** (3 settings) — WritePermission: `config:manage`
-
-| Key | Type | Default | DependsOn |
-|-----|------|---------|-----------|
 | `gdpr.data_cleanup_enabled` | boolean | `true` | — |
 | `gdpr.data_cleanup_time` | time | `"02:00"` | data_cleanup_enabled eq true |
 | `gdpr.data_cleanup_timeout_minutes` | number | `30` (min:5, max:120) | data_cleanup_enabled eq true |
 
-**Security Tab** (1 setting) — WritePermission: `config:manage`
+**Security / Devices Tabs** — WritePermission: `config:manage` or `config:update`
 
 | Key | Type | Default | Validation |
 |-----|------|---------|------------|
-| `security.ogs_device_pin` | password | `""` | Pattern: `^\d{4}$` (4-digit PIN) |
+| `security.ogs_device_pin` | password | `"1234"` | Pattern: `^\d{4}$` (4-digit PIN) |
+| `checkout.raumwechsel_enabled` | boolean | `true` | — |
+| `checkout.schulhof_enabled` | boolean | `false` | — |
+| `checkout.wc_enabled` | boolean | `false` | — |
 
 ### Value Resolution
 

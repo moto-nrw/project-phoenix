@@ -7,6 +7,7 @@ import { createLogger } from "~/lib/logger";
 import { ROOM_HISTORY_STATUS_FEATURE_DISABLED } from "~/lib/room-helpers";
 
 const logger = createLogger({ component: "RoomHistoryRoute" });
+const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
 
 // Backend contract for room history entries — one aggregated session per row.
 // Mirrors services/facilities/interface.go::RoomSessionEntry. No per-student
@@ -45,6 +46,11 @@ function isFeatureDisabledError(error: unknown): boolean {
   return body?.error === ROOM_HISTORY_STATUS_FEATURE_DISABLED;
 }
 
+function normalizeRangeParam(value: string, boundary: "start" | "end"): string {
+  if (!dateOnlyPattern.test(value)) return value;
+  return boundary === "start" ? `${value}T00:00:00Z` : `${value}T23:59:59Z`;
+}
+
 /**
  * Custom handler for GET /api/rooms/[id]/history
  * Returns history of a specific room's usage
@@ -80,8 +86,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     request.nextUrl.searchParams.get("end") ??
     request.nextUrl.searchParams.get("end_date");
 
-  if (start) queryParams.append("start", start);
-  if (end) queryParams.append("end", end);
+  if (start) queryParams.append("start", normalizeRangeParam(start, "start"));
+  if (end) queryParams.append("end", normalizeRangeParam(end, "end"));
 
   const queryString = queryParams.toString();
   const querySuffix = queryString ? "?" + queryString : "";
@@ -98,7 +104,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
   } catch (apiError) {
     // 404 means no history exists - return empty array
-    if (apiError instanceof Error && apiError.message.includes("404")) {
+    if (apiError instanceof ApiResponseError && apiError.status === 404) {
       return NextResponse.json({ status: "success", data: [] });
     }
 

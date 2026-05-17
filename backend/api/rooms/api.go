@@ -546,10 +546,11 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 // resolveRoomHistorySupervisorFilter applies the gdpr.attendance_log_scope
-// rule. Admin callers and tenants on the all_staff scope see every session
-// (returns nil filter). Everyone else must be staff and is filtered to
-// sessions they supervise. The "scope != all_staff" condition is inverted
-// on purpose: an unknown / typo'd setting value falls through to the safe
+// rule. Admin callers see every session without a staff lookup. Non-admin
+// callers must resolve to a staff row before the tenant scope is applied:
+// all_staff sees every session, while group_supervisors_only is filtered to
+// sessions they supervise. The "scope != all_staff" condition is inverted on
+// purpose: an unknown / typo'd setting value falls through to the safe
 // supervisor-only path instead of silently disabling the filter.
 //
 // Return contract:
@@ -568,11 +569,6 @@ func (rs *Resource) resolveRoomHistorySupervisorFilter(
 ) (*int64, bool) {
 	ctx := r.Context()
 	if common.HasAdminPermissions(jwt.PermissionsFromCtx(ctx)) {
-		return nil, false
-	}
-
-	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
-	if scope == configModel.AttendanceLogScopeAllStaff {
 		return nil, false
 	}
 
@@ -597,6 +593,12 @@ func (rs *Resource) resolveRoomHistorySupervisorFilter(
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("unexpected nil staff")))
 		return nil, true
 	}
+
+	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
+	if scope == configModel.AttendanceLogScopeAllStaff {
+		return nil, false
+	}
+
 	staffID := staff.ID
 	return &staffID, false
 }

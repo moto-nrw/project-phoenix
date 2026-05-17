@@ -1307,8 +1307,8 @@ func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
 	_ = testpkg.CreateTestGroupSupervisor(t, db, staffA.ID, overlapping.ID, "lead")
 	_ = testpkg.CreateTestGroupSupervisor(t, db, staffB.ID, overlapping.ID, "support")
 
-	visitAEnd := overlapStart.Add(30 * time.Minute)
-	visitBEnd := overlapStart.Add(45 * time.Minute)
+	visitAEnd := windowStart.Add(30 * time.Minute)
+	visitBEnd := windowStart.Add(45 * time.Minute)
 	duplicateAEnd := overlapStart.Add(55 * time.Minute)
 	_ = testpkg.CreateTestVisit(t, db, studentA.ID, overlapping.ID, overlapStart.Add(5*time.Minute), &visitAEnd)
 	_ = testpkg.CreateTestVisit(t, db, studentB.ID, overlapping.ID, overlapStart.Add(10*time.Minute), &visitBEnd)
@@ -1333,8 +1333,7 @@ func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
 		require.NotNil(t, rows[1].DurationMinutes)
 		assert.Equal(t, 180, *rows[1].DurationMinutes)
 		assert.Equal(t, 2, rows[1].StudentCount)
-		assert.Contains(t, rows[1].SupervisorName, "Ada Supervisor")
-		assert.Contains(t, rows[1].SupervisorName, "Bert Supervisor")
+		assert.Equal(t, "Ada Supervisor, Bert Supervisor", rows[1].SupervisorName)
 	})
 
 	t.Run("filters to sessions supervised by the supplied staff member", func(t *testing.T) {

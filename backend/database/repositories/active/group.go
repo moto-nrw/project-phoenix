@@ -1123,8 +1123,10 @@ func (r *GroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, group
 // AggregateRoomSessions builds the per-room occupancy timeline used by the
 // room-history endpoint. One row per session: activity name,
 // comma-separated supervisor names (staff, not students), distinct student
-// count via correlated subquery, and computed duration in minutes. Result
-// is ordered by session start time DESC. Tenant filters are applied
+// count via correlated subquery, and computed duration in minutes. The
+// student count follows the same window semantics as the session itself:
+// only students whose visit overlapped [start, end] are counted. Result is
+// ordered by session start time DESC. Tenant filters are applied
 // explicitly on every joined table as defense-in-depth on top of RLS for
 // normal request paths; the superuser / migration paths (tenantID == 0)
 // bypass both RLS and these explicit filters by design.
@@ -1151,7 +1153,7 @@ func (r *GroupRepository) AggregateRoomSessions(
 	// == 0) intentionally see everything — matches the rest of the repo
 	// layer.
 	supervisorSQL := `COALESCE((
-		SELECT STRING_AGG(DISTINCT TRIM(CONCAT(p.first_name, ' ', p.last_name)), ', ')
+		SELECT STRING_AGG(DISTINCT TRIM(CONCAT(p.first_name, ' ', p.last_name)), ', ' ORDER BY TRIM(CONCAT(p.first_name, ' ', p.last_name)))
 		FROM active.group_supervisors gs
 		JOIN users.staff s ON s.id = gs.staff_id
 		JOIN users.persons p ON p.id = s.person_id
@@ -1166,8 +1168,10 @@ func (r *GroupRepository) AggregateRoomSessions(
 	studentCountSQL := `COALESCE((
 		SELECT COUNT(DISTINCT v.student_id)
 		FROM active.visits v
-		WHERE v.active_group_id = ag.id`
-	studentCountArgs := []any{}
+		WHERE v.active_group_id = ag.id
+		  AND v.entry_time <= ?
+		  AND (v.exit_time IS NULL OR v.exit_time >= ?)`
+	studentCountArgs := []any{end, start}
 	if tenantID > 0 {
 		studentCountSQL += ` AND v.tenant_id = ?`
 		studentCountArgs = append(studentCountArgs, tenantID)

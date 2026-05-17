@@ -185,6 +185,20 @@ describe("GET /api/rooms/[id]/history", () => {
     );
   });
 
+  it("normalizes legacy date-only range params to RFC3339 bounds", async () => {
+    mockApiGet.mockResolvedValueOnce({ status: "success", data: [] });
+
+    const request = createMockRequest(
+      "/api/rooms/123/history?start_date=2024-01-01&end_date=2024-01-31",
+    );
+    await GET(request);
+
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/rooms/123/history?start=2024-01-01T00%3A00%3A00Z&end=2024-01-31T23%3A59%3A59Z",
+      "test-token",
+    );
+  });
+
   it("supports partial date parameters", async () => {
     mockApiGet.mockResolvedValueOnce({ status: "success", data: [] });
 
@@ -200,7 +214,9 @@ describe("GET /api/rooms/[id]/history", () => {
   });
 
   it("returns empty array when room has no history (404)", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Not found (404)"));
+    mockApiGet.mockRejectedValueOnce(
+      new ApiResponseError(404, '{"status":"error","error":"not found"}'),
+    );
 
     const request = createMockRequest("/api/rooms/999/history");
     const response = await GET(request);
