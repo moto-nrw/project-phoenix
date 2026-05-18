@@ -37,6 +37,12 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		analytics.StudentsSick = sickCount
 	}
 
+	excusedOpts := modelBase.NewQueryOptions()
+	excusedOpts.Filter.Equal("excused", true)
+	if excusedCount, err := s.studentRepo.CountWithOptions(ctx, excusedOpts); err == nil {
+		analytics.StudentsExcused = excusedCount
+	}
+
 	// Phase 3: Build room lookup maps
 	roomData := s.buildRoomLookupMaps(baseData.allRooms)
 

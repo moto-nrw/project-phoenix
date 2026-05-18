@@ -67,6 +67,10 @@ const COLOR_THEMES: Record<string, ColorTheme> = {
     overlay: "from-amber-50/80 to-yellow-100/80",
     ring: "ring-amber-200/60",
   },
+  "[#7C3AED]": {
+    overlay: "from-purple-50/80 to-violet-100/80",
+    ring: "ring-purple-200/60",
+  },
   "orange-500": {
     overlay: "from-orange-50/80 to-orange-100/80",
     ring: "ring-orange-200/60",
@@ -319,8 +323,8 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* Main Stats Grid (3x3) */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4">
+      {/* Main Stats Grid */}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-5">
         <StatCard
           title="Kinder anwesend"
           value={dashboardData?.studentsPresent ?? 0}
@@ -360,6 +364,14 @@ function DashboardContent() {
           color="from-[#EAB308] to-[#CA9908]"
           loading={isLoading}
           href="/students/search?status=krank"
+        />
+        <StatCard
+          title="Entschuldigt"
+          value={dashboardData?.studentsExcused ?? 0}
+          icon="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+          color="from-[#7C3AED] to-[#5B21B6]"
+          loading={isLoading}
+          href="/students/search?status=entschuldigt"
         />
         <StatCard
           title="Aktive Gruppen"
