@@ -145,7 +145,11 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
     );
 
     return (
-      <div className="flex justify-center gap-2" aria-label={ariaLabel}>
+      <div
+        role="group"
+        className="flex justify-center gap-2"
+        aria-label={ariaLabel}
+      >
         {digits.map((digit, index) => (
           <input
             // eslint-disable-next-line react/no-array-index-key -- positional digit slots

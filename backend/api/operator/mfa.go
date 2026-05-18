@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/spf13/viper"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -20,12 +19,6 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
-
-// secureCookie returns true only in production so the trusted-device
-// cookie is accepted by browsers over HTTP in local dev.
-func secureCookie() bool {
-	return strings.ToLower(strings.TrimSpace(viper.GetString("app_env"))) == "production"
-}
 
 // MFA email-code length is shared with the tenant flow — both call into the
 // same crypto helpers in services/auth/mfa_codes.go.
@@ -365,12 +358,11 @@ func (rs *MFAResource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.R
 		Path:    "/",
 		Expires: expiresAt,
 		MaxAge:  int(time.Until(expiresAt).Seconds()),
-		// secureCookie() returns true in production. Sonar's static analyzer
-		// cannot see through the helper. Mirrors the project-wide convention
-		// used by the NextAuth session/CSRF cookies in
-		// frontend/src/server/auth/{tenant,operator}-config.ts. Local HTTP
-		// dev needs the cookie to be non-Secure or browsers drop it.
-		Secure:   secureCookie(), // NOSONAR go:S2092 secureCookie() is true in prod; mirrors NextAuth pattern in frontend/src/server/auth/{tenant,operator}-config.ts; local HTTP dev needs the cookie to be non-Secure
+		// Always Secure — Chrome ≥89, Firefox and Safari accept Secure
+		// cookies on `localhost` (and `*.localhost`) over HTTP as a
+		// special-cased "secure context". Production serves HTTPS, so
+		// the literal `true` is correct in every supported environment.
+		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
