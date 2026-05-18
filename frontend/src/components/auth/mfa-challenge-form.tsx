@@ -132,7 +132,9 @@ export function MFAChallengeForm({
       requestAnimationFrame(() => inputRefs.current[focusTarget]?.focus());
       const filled = next.every((d) => d !== "");
       if (filled && !submittedRef.current) {
-        void performVerify(next.join(""));
+        // Fire-and-forget: the verify call is awaited internally and
+        // surfaces errors through state, not the caller.
+        void performVerify(next.join("")); //NOSONAR(typescript:S3735)
       }
       return next;
     });

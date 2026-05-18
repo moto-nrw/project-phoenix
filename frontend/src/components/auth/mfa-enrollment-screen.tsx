@@ -137,7 +137,9 @@ export function MFAEnrollmentScreen({
       requestAnimationFrame(() => inputRefs.current[focusTarget]?.focus());
       const filled = next.every((d) => d !== "");
       if (filled && !submittedRef.current) {
-        void performConfirm(next.join(""));
+        // Fire-and-forget: the confirm call is awaited internally and
+        // surfaces errors through state, not the caller.
+        void performConfirm(next.join("")); //NOSONAR(typescript:S3735)
       }
       return next;
     });
