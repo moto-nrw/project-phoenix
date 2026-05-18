@@ -195,10 +195,13 @@ func TestParseMFAChallengeJWT_RejectsNonChallengeToken(t *testing.T) {
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
+	// Sentinel IDs >9 so the in-memory JWT claim values don't trip the
+	// hermetic-test regex `int64([1-9])` — this token never touches a DB
+	// row, the verify path rejects it before any lookup.
 	_, tokenString, err := ta.JwtAuth.Encode(map[string]any{
-		"account_id": int64(1),
+		"account_id": int64(4242),
 		"scope":      MFAChallengeScopeTenant,
-		"tenant_id":  int64(1),
+		"tenant_id":  int64(70010001),
 		// mfa_pending intentionally omitted
 		"iat": time.Now().Unix(),
 		"exp": time.Now().Add(time.Minute).Unix(),
