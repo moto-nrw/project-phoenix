@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ChangeEvent, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CaregiverCapabilityModal } from "./caregiver-capability-modal";
 
@@ -34,99 +35,128 @@ const {
   },
 }));
 
-vi.mock("~/components/ui", () => ({
-  FormModal: ({
-    isOpen,
-    title,
-    footer,
-    children,
-  }: {
-    isOpen: boolean;
-    title: string;
-    footer: React.ReactNode;
-    children: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="form-modal">
-        <h1>{title}</h1>
-        <div>{children}</div>
-        <div>{footer}</div>
-      </div>
-    ) : null,
-}));
+vi.mock("~/components/ui", async () => {
+  const { createElement } = await import("react");
 
-vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message }: { message?: string }) =>
-    message ? <div data-testid="alert">{message}</div> : null,
-}));
+  return {
+    FormModal: ({
+      isOpen,
+      title,
+      footer,
+      children,
+    }: {
+      isOpen: boolean;
+      title: string;
+      footer: ReactNode;
+      children: ReactNode;
+    }) =>
+      isOpen
+        ? createElement(
+            "div",
+            { "data-testid": "form-modal" },
+            createElement("h1", null, title),
+            createElement("div", null, children),
+            createElement("div", null, footer),
+          )
+        : null,
+  };
+});
 
-vi.mock("~/components/ui/input", () => ({
-  Input: ({
-    label,
-    name,
-    value,
-    onChange,
-    placeholder,
-  }: {
-    label: string;
-    name: string;
-    value: string;
-    onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-    placeholder?: string;
-  }) => (
-    <label>
-      <span>{label}</span>
-      <input
-        aria-label={label}
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-      />
-    </label>
-  ),
-}));
+vi.mock("~/components/ui/alert", async () => {
+  const { createElement } = await import("react");
 
-vi.mock("~/components/ui/detail-modal-components", () => ({
-  DataField: ({
-    label,
-    children,
-  }: {
-    label: string;
-    children: React.ReactNode;
-  }) => (
-    <div>
-      <span>{label}</span>
-      <span>{children}</span>
-    </div>
-  ),
-  DataGrid: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  InfoSection: ({
-    title,
-    children,
-  }: {
-    title: string;
-    children: React.ReactNode;
-  }) => (
-    <section>
-      <h2>{title}</h2>
-      {children}
-    </section>
-  ),
-  DetailIcons: {
-    person: <span>person</span>,
-    briefcase: <span>briefcase</span>,
-    group: <span>group</span>,
-    x: <span>x</span>,
+  return {
+    Alert: ({ message }: { message?: string }) =>
+      message
+        ? createElement("div", { "data-testid": "alert" }, message)
+        : null,
+  };
+});
+
+vi.mock("~/components/ui/input", async () => {
+  const { createElement } = await import("react");
+
+  return {
+    Input: ({
+      label,
+      name,
+      value,
+      onChange,
+      placeholder,
+    }: {
+      label: string;
+      name: string;
+      value: string;
+      onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+      placeholder?: string;
+    }) =>
+      createElement(
+        "label",
+        null,
+        createElement("span", null, label),
+        createElement("input", {
+          "aria-label": label,
+          name,
+          value,
+          onChange,
+          placeholder,
+        }),
+      ),
+  };
+});
+
+vi.mock("~/components/ui/detail-modal-components", async () => {
+  const { createElement } = await import("react");
+
+  return {
+    DataField: ({ label, children }: { label: string; children: ReactNode }) =>
+      createElement(
+        "div",
+        null,
+        createElement("span", null, label),
+        createElement("span", null, children),
+      ),
+    DataGrid: ({ children }: { children: ReactNode }) =>
+      createElement("div", null, children),
+    InfoSection: ({
+      title,
+      children,
+    }: {
+      title: string;
+      children: ReactNode;
+    }) =>
+      createElement(
+        "section",
+        null,
+        createElement("h2", null, title),
+        children,
+      ),
+    DetailIcons: {
+      person: createElement("span", null, "person"),
+      briefcase: createElement("span", null, "briefcase"),
+      group: createElement("span", null, "group"),
+      x: createElement("span", null, "x"),
+    },
+  };
+});
+
+vi.mock(
+  "~/components/teachers/caregiver-blocker-resolution-modal",
+  async () => {
+    const { createElement } = await import("react");
+
+    return {
+      CaregiverBlockerResolutionModal: ({ isOpen }: { isOpen: boolean }) =>
+        isOpen
+          ? createElement(
+              "div",
+              { "data-testid": "resolution-modal" },
+              "Resolution modal",
+            )
+          : null,
+    };
   },
-}));
-
-vi.mock("~/components/teachers/caregiver-blocker-resolution-modal", () => ({
-  CaregiverBlockerResolutionModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="resolution-modal">Resolution modal</div> : null,
-}));
+);
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
