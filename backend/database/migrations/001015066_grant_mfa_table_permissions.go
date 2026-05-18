@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	grantMFATablePermissionsVersion     = "1.15.55"
-	grantMFATablePermissionsDescription = "Grant phoenix_auth + phoenix_tenant CRUD permissions on auth.mfa_* tables (missed in migrations 1.15.49–52)"
+	grantMFATablePermissionsVersion     = "1.15.66"
+	grantMFATablePermissionsDescription = "Grant phoenix_auth + phoenix_tenant CRUD permissions on auth.mfa_* tables (missed in migrations 1.15.60–63)"
 )
 
 // mfaPermissionRoles enumerates the two DB roles that need access to the
@@ -82,20 +82,20 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     grantMFATablePermissionsVersion,
 		Description: grantMFATablePermissionsDescription,
-		DependsOn:   []string{"1.15.54"},
+		DependsOn:   []string{"1.15.65"},
 	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.55: Granting phoenix_tenant access to auth.mfa_* tables...")
+			fmt.Println("Migration 1.15.66: Granting phoenix_tenant access to auth.mfa_* tables...")
 			if err := execMFAPermissionStatements(ctx, db, mfaGrantStatements(), "grant failed"); err != nil {
 				return err
 			}
-			fmt.Println("Migration 1.15.55: Done")
+			fmt.Println("Migration 1.15.66: Done")
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.55: Revoking phoenix_auth + phoenix_tenant access to auth.mfa_* tables...")
+			fmt.Println("Rolling back migration 1.15.66: Revoking phoenix_auth + phoenix_tenant access to auth.mfa_* tables...")
 			return execMFAPermissionStatements(ctx, db, mfaRevokeStatements(), "revoke failed")
 		},
 	)

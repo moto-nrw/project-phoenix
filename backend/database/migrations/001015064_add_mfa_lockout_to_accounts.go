@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	addMFALockoutToAccountsVersion     = "1.15.53"
+	addMFALockoutToAccountsVersion     = "1.15.64"
 	addMFALockoutToAccountsDescription = "Add mfa_attempts + mfa_locked_until columns to auth.accounts and platform.operators (mirrors PIN-Lockout pattern)"
 )
 
@@ -34,7 +34,7 @@ func init() {
 }
 
 func addMFALockoutToAccountsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.53: Adding mfa_attempts + mfa_locked_until to auth.accounts and platform.operators...")
+	fmt.Println("Migration 1.15.64: Adding mfa_attempts + mfa_locked_until to auth.accounts and platform.operators...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -63,7 +63,7 @@ func addMFALockoutToAccountsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addMFALockoutToAccountsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.53: Dropping mfa_attempts + mfa_locked_until from auth.accounts and platform.operators...")
+	fmt.Println("Rolling back migration 1.15.64: Dropping mfa_attempts + mfa_locked_until from auth.accounts and platform.operators...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

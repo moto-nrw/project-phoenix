@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	authMFAEmailChallengesVersion     = "1.15.50"
+	authMFAEmailChallengesVersion     = "1.15.61"
 	authMFAEmailChallengesDescription = "Create auth.mfa_email_challenges table (active 6-digit email codes, hashed, time-limited, single-use)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func authMFAEmailChallengesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.50: Creating auth.mfa_email_challenges table...")
+	fmt.Println("Migration 1.15.61: Creating auth.mfa_email_challenges table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -78,7 +78,7 @@ func authMFAEmailChallengesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func authMFAEmailChallengesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.50: Dropping auth.mfa_email_challenges...")
+	fmt.Println("Rolling back migration 1.15.61: Dropping auth.mfa_email_challenges...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

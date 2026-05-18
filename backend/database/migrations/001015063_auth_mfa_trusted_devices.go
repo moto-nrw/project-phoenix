@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	authMFATrustedDevicesVersion     = "1.15.52"
+	authMFATrustedDevicesVersion     = "1.15.63"
 	authMFATrustedDevicesDescription = "Create auth.mfa_trusted_devices table (HMAC-signed device tokens, opaque hashes stored, expiring)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func authMFATrustedDevicesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.52: Creating auth.mfa_trusted_devices table...")
+	fmt.Println("Migration 1.15.63: Creating auth.mfa_trusted_devices table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -81,7 +81,7 @@ func authMFATrustedDevicesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func authMFATrustedDevicesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.52: Dropping auth.mfa_trusted_devices...")
+	fmt.Println("Rolling back migration 1.15.63: Dropping auth.mfa_trusted_devices...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

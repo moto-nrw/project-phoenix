@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	authMFARecoveryCodesVersion     = "1.15.51"
+	authMFARecoveryCodesVersion     = "1.15.62"
 	authMFARecoveryCodesDescription = "Create auth.mfa_recovery_codes table (10 Argon2id-hashed single-use codes per account)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func authMFARecoveryCodesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.51: Creating auth.mfa_recovery_codes table...")
+	fmt.Println("Migration 1.15.62: Creating auth.mfa_recovery_codes table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -75,7 +75,7 @@ func authMFARecoveryCodesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func authMFARecoveryCodesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.51: Dropping auth.mfa_recovery_codes...")
+	fmt.Println("Rolling back migration 1.15.62: Dropping auth.mfa_recovery_codes...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

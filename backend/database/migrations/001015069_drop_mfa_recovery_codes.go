@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	dropMFARecoveryCodesVersion     = "1.15.58"
+	dropMFARecoveryCodesVersion     = "1.15.69"
 	dropMFARecoveryCodesDescription = "Drop auth.mfa_recovery_codes + platform.operator_mfa_recovery_codes — feature retired due to poor UX (#1308)"
 )
 
@@ -16,12 +16,12 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     dropMFARecoveryCodesVersion,
 		Description: dropMFARecoveryCodesDescription,
-		DependsOn:   []string{"1.15.57"},
+		DependsOn:   []string{"1.15.68"},
 	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.58: Dropping auth.mfa_recovery_codes + platform.operator_mfa_recovery_codes...")
+			fmt.Println("Migration 1.15.69: Dropping auth.mfa_recovery_codes + platform.operator_mfa_recovery_codes...")
 			_, err := db.ExecContext(ctx, `
 				DROP TRIGGER IF EXISTS update_mfa_recovery_codes_updated_at ON auth.mfa_recovery_codes;
 				DROP TABLE IF EXISTS auth.mfa_recovery_codes CASCADE;
@@ -34,11 +34,11 @@ func init() {
 			}
 			return nil
 		},
-		// Down: recreate the original DDL from migrations 1.15.51 + 1.15.54
+		// Down: recreate the original DDL from migrations 1.15.62 + 1.15.65
 		// so `migrate reset` (and any test harness that walks down then up)
 		// can replay cleanly. Mirrors the original schema bit-for-bit.
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.58: Recreating recovery code tables...")
+			fmt.Println("Rolling back migration 1.15.69: Recreating recovery code tables...")
 			_, err := db.ExecContext(ctx, `
 				CREATE TABLE IF NOT EXISTS auth.mfa_recovery_codes (
 					id         BIGSERIAL PRIMARY KEY,

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	authMFACredentialsVersion     = "1.15.49"
+	authMFACredentialsVersion     = "1.15.60"
 	authMFACredentialsDescription = "Create auth.mfa_credentials table (per-account MFA enrollment, v1: email-only)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func authMFACredentialsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.49: Creating auth.mfa_credentials table...")
+	fmt.Println("Migration 1.15.60: Creating auth.mfa_credentials table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -76,7 +76,7 @@ func authMFACredentialsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func authMFACredentialsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.49: Dropping auth.mfa_credentials...")
+	fmt.Println("Rolling back migration 1.15.60: Dropping auth.mfa_credentials...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

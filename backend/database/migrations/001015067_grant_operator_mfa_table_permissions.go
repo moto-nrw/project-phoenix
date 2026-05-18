@@ -8,20 +8,20 @@ import (
 )
 
 const (
-	grantOperatorMFATablePermissionsVersion     = "1.15.56"
-	grantOperatorMFATablePermissionsDescription = "Grant phoenix_auth CRUD permissions on platform.operator_mfa_* tables (missed in migration 1.15.54)"
+	grantOperatorMFATablePermissionsVersion     = "1.15.67"
+	grantOperatorMFATablePermissionsDescription = "Grant phoenix_auth CRUD permissions on platform.operator_mfa_* tables (missed in migration 1.15.65)"
 )
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     grantOperatorMFATablePermissionsVersion,
 		Description: grantOperatorMFATablePermissionsDescription,
-		DependsOn:   []string{"1.15.55"},
+		DependsOn:   []string{"1.15.66"},
 	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.56: Granting phoenix_auth access to platform.operator_mfa_* tables...")
+			fmt.Println("Migration 1.15.67: Granting phoenix_auth access to platform.operator_mfa_* tables...")
 
 			// platform.operator_mfa_* tables are accessed from
 			// /operator/auth/mfa/* handlers, which run on the phoenix_auth
@@ -46,11 +46,11 @@ func init() {
 				}
 			}
 
-			fmt.Println("Migration 1.15.56: Done")
+			fmt.Println("Migration 1.15.67: Done")
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.56: Revoking phoenix_auth access to platform.operator_mfa_* tables...")
+			fmt.Println("Rolling back migration 1.15.67: Revoking phoenix_auth access to platform.operator_mfa_* tables...")
 
 			tables := []string{
 				"operator_mfa_credentials",

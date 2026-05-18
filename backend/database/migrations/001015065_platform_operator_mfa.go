@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	platformOperatorMFAVersion     = "1.15.54"
+	platformOperatorMFAVersion     = "1.15.65"
 	platformOperatorMFADescription = "Create platform.operator_mfa_credentials, _email_challenges, _recovery_codes, _trusted_devices (mirrors auth.mfa_* for moto-Operators)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func platformOperatorMFAUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.54: Creating platform.operator_mfa_* tables...")
+	fmt.Println("Migration 1.15.65: Creating platform.operator_mfa_* tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -139,7 +139,7 @@ func platformOperatorMFAUp(ctx context.Context, db *bun.DB) error {
 }
 
 func platformOperatorMFADown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.54: Dropping platform.operator_mfa_* tables...")
+	fmt.Println("Rolling back migration 1.15.65: Dropping platform.operator_mfa_* tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

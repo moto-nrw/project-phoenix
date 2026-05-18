@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	addMFAAdminOverrideVersion     = "1.15.59"
+	addMFAAdminOverrideVersion     = "1.15.70"
 	addMFAAdminOverrideDescription = "Add auth.accounts.mfa_admin_override for per-user MFA opt-out/in (#1308 follow-up)"
 )
 
@@ -16,12 +16,12 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     addMFAAdminOverrideVersion,
 		Description: addMFAAdminOverrideDescription,
-		DependsOn:   []string{"1.15.58"},
+		DependsOn:   []string{"1.15.69"},
 	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.59: Adding auth.accounts.mfa_admin_override...")
+			fmt.Println("Migration 1.15.70: Adding auth.accounts.mfa_admin_override...")
 			_, err := db.ExecContext(ctx, `
 				ALTER TABLE auth.accounts
 				ADD COLUMN IF NOT EXISTS mfa_admin_override TEXT NOT NULL DEFAULT 'none';
@@ -38,7 +38,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.59: Dropping mfa_admin_override column...")
+			fmt.Println("Rolling back migration 1.15.70: Dropping mfa_admin_override column...")
 			_, err := db.ExecContext(ctx, `
 				ALTER TABLE auth.accounts DROP CONSTRAINT IF EXISTS chk_accounts_mfa_admin_override;
 				ALTER TABLE auth.accounts DROP COLUMN IF EXISTS mfa_admin_override;
