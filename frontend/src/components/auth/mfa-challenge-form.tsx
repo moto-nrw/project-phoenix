@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ClipboardEvent,
-  type KeyboardEvent,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
@@ -19,6 +11,7 @@ import {
   type LoginScope,
   type MFATokenResponse,
 } from "~/lib/mfa-api";
+import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
 
 const logger = createLogger({ component: "MFAChallengeForm" });
 
@@ -58,22 +51,12 @@ export function MFAChallengeForm({
   trustedDeviceEnabled = true,
   trustedDeviceDays = 90,
 }: MFAChallengeFormProps) {
-  const [digits, setDigits] = useState<string[]>(() =>
-    Array.from({ length: CODE_LENGTH }, () => ""),
-  );
   const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendIn, setResendIn] = useState(resendCooldownSeconds);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const submittedRef = useRef(false);
-
-  const code = useMemo(() => digits.join(""), [digits]);
-
-  useEffect(() => {
-    inputRefs.current[0]?.focus();
-  }, []);
+  const otpRef = useRef<OTPInputGridHandle | null>(null);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -82,98 +65,30 @@ export function MFAChallengeForm({
   }, [resendIn]);
 
   const performVerify = useCallback(
-    async (overrideCode?: string) => {
-      if (submittedRef.current) return;
-      submittedRef.current = true;
+    async (submittedCode: string) => {
       setIsVerifying(true);
       setError("");
       try {
         const tokens = await verifyMFA(scope, {
           challengeToken,
-          code: overrideCode ?? code,
+          code: submittedCode,
           rememberDevice,
         });
         await onSuccess(tokens);
       } catch (err) {
-        submittedRef.current = false;
         const msg = germanMFAErrorMessage(err);
         setError(msg);
         logger.warn("mfa_verify_failed", {
           scope,
           error: err instanceof Error ? err.message : String(err),
         });
-        setDigits(Array.from({ length: CODE_LENGTH }, () => ""));
-        inputRefs.current[0]?.focus();
+        otpRef.current?.reset();
       } finally {
         setIsVerifying(false);
       }
     },
-    [scope, challengeToken, code, rememberDevice, onSuccess],
+    [scope, challengeToken, rememberDevice, onSuccess],
   );
-
-  const handleDigitChange = (index: number, value: string) => {
-    const sanitized = value.replace(/\D/g, "");
-    if (sanitized.length === 0) {
-      setDigits((prev) => {
-        const next = [...prev];
-        next[index] = "";
-        return next;
-      });
-      return;
-    }
-
-    setDigits((prev) => {
-      const next = [...prev];
-      const chars = sanitized.slice(0, CODE_LENGTH - index).split("");
-      for (let i = 0; i < chars.length; i++) {
-        next[index + i] = chars[i] ?? "";
-      }
-      const focusTarget = Math.min(index + chars.length, CODE_LENGTH - 1);
-      requestAnimationFrame(() => inputRefs.current[focusTarget]?.focus());
-      const filled = next.every((d) => d !== "");
-      if (filled && !submittedRef.current) {
-        // Fire-and-forget: the verify call is awaited internally and
-        // surfaces errors through state, not the caller.
-        void performVerify(next.join("")); //NOSONAR(typescript:S3735)
-      }
-      return next;
-    });
-  };
-
-  const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace") {
-      if (digits[index]) {
-        setDigits((prev) => {
-          const next = [...prev];
-          next[index] = "";
-          return next;
-        });
-        return;
-      }
-      if (index > 0) {
-        e.preventDefault();
-        inputRefs.current[index - 1]?.focus();
-        setDigits((prev) => {
-          const next = [...prev];
-          next[index - 1] = "";
-          return next;
-        });
-      }
-    } else if (e.key === "ArrowLeft" && index > 0) {
-      e.preventDefault();
-      inputRefs.current[index - 1]?.focus();
-    } else if (e.key === "ArrowRight" && index < CODE_LENGTH - 1) {
-      e.preventDefault();
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
-    if (pasted.length === 0) return;
-    e.preventDefault();
-    handleDigitChange(0, pasted);
-  };
 
   const handleResend = async () => {
     if (resendIn > 0 || isResending) return;
@@ -182,8 +97,7 @@ export function MFAChallengeForm({
     try {
       await resendChallenge(scope, { challengeToken });
       setResendIn(resendCooldownSeconds);
-      setDigits(Array.from({ length: CODE_LENGTH }, () => ""));
-      inputRefs.current[0]?.focus();
+      otpRef.current?.reset();
     } catch (err) {
       setError(germanMFAErrorMessage(err));
       logger.warn("mfa_resend_failed", {
@@ -252,32 +166,16 @@ export function MFAChallengeForm({
       {error && <Alert type="error" message={error} />}
 
       <div className="space-y-3">
-        <div
-          className="flex justify-center gap-2"
-          aria-label="6-stelliger Bestätigungscode"
-        >
-          {digits.map((digit, index) => (
-            <input
-              // eslint-disable-next-line react/no-array-index-key -- positional digit slots
-              key={index}
-              ref={(el) => {
-                inputRefs.current[index] = el;
-              }}
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]"
-              maxLength={CODE_LENGTH}
-              value={digit}
-              onChange={(e) => handleDigitChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              onPaste={handlePaste}
-              disabled={isVerifying}
-              aria-label={`Stelle ${index + 1}`}
-              className="h-14 w-12 rounded-lg border-0 bg-white text-center text-2xl font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5080D8] disabled:bg-gray-50 disabled:text-gray-400"
-            />
-          ))}
-        </div>
+        <OTPInputGrid
+          ref={otpRef}
+          length={CODE_LENGTH}
+          disabled={isVerifying}
+          onComplete={(code) => {
+            // Fire-and-forget: errors surface through state, not the caller.
+            void performVerify(code); //NOSONAR(typescript:S3735)
+          }}
+          ariaLabel="6-stelliger Bestätigungscode"
+        />
         <p className="text-center text-xs text-gray-500">
           {isVerifying
             ? "Code wird geprüft…"

@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -223,23 +224,13 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 
 // ----- /mfa/trusted-devices -----
 
-// TrustedDeviceDTO is what we serialize back to the client. The token hash
-// stays server-side, and we surface only the columns the user can act on:
-// id (for revoke), user-agent + IP for "is this still you", and the four
-// timestamps that drive the list UI ("created on ..., last used ...").
-type TrustedDeviceDTO struct {
-	ID         int64   `json:"id"`
-	UserAgent  *string `json:"user_agent,omitempty"`
-	IPAddress  string  `json:"ip_address,omitempty"`
-	CreatedAt  string  `json:"created_at"`
-	ExpiresAt  string  `json:"expires_at"`
-	LastUsedAt *string `json:"last_used_at,omitempty"`
-}
-
 // mfaListTrustedDevices returns the calling user's active trusted-device
 // records so they can see and revoke them from the admin Sicherheit tab.
 // Filtered to the authenticated account — ownership is enforced in the
 // service layer too, but scoping the query here keeps the data path tight.
+//
+// The DTO + mapping helper live in api/common so the operator-side
+// /operator/auth/mfa/trusted-devices endpoint can reuse them.
 func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -254,24 +245,16 @@ func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request
 		mapMFAError(w, r, err)
 		return
 	}
-	out := make([]TrustedDeviceDTO, 0, len(devices))
-	for _, d := range devices {
-		dto := TrustedDeviceDTO{
-			ID:        d.ID,
-			UserAgent: d.UserAgent,
-			CreatedAt: d.CreatedAt.UTC().Format(time.RFC3339),
-			ExpiresAt: d.ExpiresAt.UTC().Format(time.RFC3339),
+	render.JSON(w, r, common.MapTrustedDevices(devices, func(d *authModels.MFATrustedDevice) common.TrustedDeviceRow {
+		return common.TrustedDeviceRow{
+			ID:         d.ID,
+			UserAgent:  d.UserAgent,
+			IPAddress:  d.IPAddress,
+			CreatedAt:  d.CreatedAt,
+			ExpiresAt:  d.ExpiresAt,
+			LastUsedAt: d.LastUsedAt,
 		}
-		if d.IPAddress != nil {
-			dto.IPAddress = d.IPAddress.String()
-		}
-		if d.LastUsedAt != nil {
-			s := d.LastUsedAt.UTC().Format(time.RFC3339)
-			dto.LastUsedAt = &s
-		}
-		out = append(out, dto)
-	}
-	render.JSON(w, r, out)
+	}))
 }
 
 // mfaRevokeTrustedDevice deletes one trusted device the user has

@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -239,20 +240,10 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 
 // ----- /auth/mfa/trusted-devices -----
 
-// OperatorTrustedDeviceDTO mirrors the tenant-side DTO. Keeps the token
-// hash server-side; surfaces id, agent, ip and the three timestamps the
-// list UI needs.
-type OperatorTrustedDeviceDTO struct {
-	ID         int64   `json:"id"`
-	UserAgent  *string `json:"user_agent,omitempty"`
-	IPAddress  string  `json:"ip_address,omitempty"`
-	CreatedAt  string  `json:"created_at"`
-	ExpiresAt  string  `json:"expires_at"`
-	LastUsedAt *string `json:"last_used_at,omitempty"`
-}
-
 // ListTrustedDevices returns the operator's active trusted devices so
 // they can be displayed + revoked from the operator settings page.
+// Uses the shared TrustedDeviceDTO + mapper from api/common — same
+// wire shape as the tenant-side /auth/mfa/trusted-devices endpoint.
 func (rs *MFAResource) ListTrustedDevices(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -267,24 +258,17 @@ func (rs *MFAResource) ListTrustedDevices(w http.ResponseWriter, r *http.Request
 		mapOperatorMFAError(w, r, err)
 		return
 	}
-	out := make([]OperatorTrustedDeviceDTO, 0, len(devices))
-	for _, d := range devices {
-		dto := OperatorTrustedDeviceDTO{
-			ID:        d.ID,
-			UserAgent: d.UserAgent,
-			CreatedAt: d.CreatedAt.UTC().Format(time.RFC3339),
-			ExpiresAt: d.ExpiresAt.UTC().Format(time.RFC3339),
+	dtos := common.MapTrustedDevices(devices, func(d *platformModels.OperatorMFATrustedDevice) common.TrustedDeviceRow {
+		return common.TrustedDeviceRow{
+			ID:         d.ID,
+			UserAgent:  d.UserAgent,
+			IPAddress:  d.IPAddress,
+			CreatedAt:  d.CreatedAt,
+			ExpiresAt:  d.ExpiresAt,
+			LastUsedAt: d.LastUsedAt,
 		}
-		if d.IPAddress != nil {
-			dto.IPAddress = d.IPAddress.String()
-		}
-		if d.LastUsedAt != nil {
-			s := d.LastUsedAt.UTC().Format(time.RFC3339)
-			dto.LastUsedAt = &s
-		}
-		out = append(out, dto)
-	}
-	common.Respond(w, r, http.StatusOK, out, "trusted devices")
+	})
+	common.Respond(w, r, http.StatusOK, dtos, "trusted devices")
 }
 
 // RevokeTrustedDevice removes a single device the operator no longer

@@ -94,3 +94,30 @@ func (a *TokenAuth) CreateMFAChallengeJWT(c MFAChallengeClaims, ttl time.Duratio
 	_, tokenString, err := a.JwtAuth.Encode(claims)
 	return tokenString, err
 }
+
+// ParseMFAChallengeJWT decodes an MFA challenge token, extracts its
+// claims into MFAChallengeClaims, and rejects expired tokens. Used by
+// both the tenant- and operator-side MFA verification flows — the
+// service-layer wrappers used to inline this logic, but the loop was
+// identical and flagged by SonarCloud as duplication.
+func (a *TokenAuth) ParseMFAChallengeJWT(tokenString string) (*MFAChallengeClaims, error) {
+	jwtToken, err := a.JwtAuth.Decode(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	raw := make(map[string]any)
+	for _, k := range jwtToken.Keys() {
+		var v any
+		if jwtToken.Get(k, &v) == nil {
+			raw[k] = v
+		}
+	}
+	var claims MFAChallengeClaims
+	if err := claims.ParseClaims(raw); err != nil {
+		return nil, err
+	}
+	if claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
+		return nil, errors.New("challenge token expired")
+	}
+	return &claims, nil
+}

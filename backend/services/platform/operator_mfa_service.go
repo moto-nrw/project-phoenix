@@ -395,25 +395,7 @@ func (s *operatorMFAService) RevokeTrustedDevice(ctx context.Context, operatorID
 // ===== Internal helpers =====
 
 func (s *operatorMFAService) parseChallengeToken(tokenString string) (*authjwt.MFAChallengeClaims, error) {
-	jwtToken, err := s.tokenAuth.JwtAuth.Decode(tokenString)
-	if err != nil {
-		return nil, err
-	}
-	raw := make(map[string]any)
-	for _, k := range jwtToken.Keys() {
-		var v any
-		if jwtToken.Get(k, &v) == nil {
-			raw[k] = v
-		}
-	}
-	var claims authjwt.MFAChallengeClaims
-	if err := claims.ParseClaims(raw); err != nil {
-		return nil, err
-	}
-	if claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
-		return nil, errors.New("challenge token expired")
-	}
-	return &claims, nil
+	return s.tokenAuth.ParseMFAChallengeJWT(tokenString)
 }
 
 func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *platform.Operator, plainCode string, ip net.IP) {
