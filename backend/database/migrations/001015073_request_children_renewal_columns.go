@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	requestChildrenRenewalColumnsVersion     = "1.15.62"
+	requestChildrenRenewalColumnsVersion     = "1.15.73"
 	requestChildrenRenewalColumnsDescription = "Add rollover_source_child_id, review_reason to enrollment.request_children, and extend the status CHECK with pending_renewal / auto_renewed / pending_admin_review to support the annual phase rollover flow."
 )
 
@@ -24,7 +24,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.62: Adding renewal columns to enrollment.request_children...")
+			fmt.Println("Migration 1.15.73: Adding renewal columns to enrollment.request_children...")
 
 			// New columns first so the constraint rewrite below can see them.
 			if _, err := db.NewRaw(`

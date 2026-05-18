@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	phaseRolloverColumnsVersion     = "1.15.61"
+	phaseRolloverColumnsVersion     = "1.15.72"
 	phaseRolloverColumnsDescription = "Add rollover columns to enrollment.phases — links a new phase back to its source phase, picks opt-in/opt-out renewal mode, sets the parent-action deadline, and toggles whether grade levels bump (yearly vs half-year cadence)."
 )
 
@@ -23,7 +23,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.61: Adding rollover columns to enrollment.phases...")
+			fmt.Println("Migration 1.15.72: Adding rollover columns to enrollment.phases...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.phases
 				ADD COLUMN IF NOT EXISTS rollover_source_phase_id BIGINT
