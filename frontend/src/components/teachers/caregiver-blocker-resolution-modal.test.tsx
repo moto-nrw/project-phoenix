@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CaregiverBlockerResolutionModal } from "./caregiver-blocker-resolution-modal";
 
@@ -10,52 +11,69 @@ const { mockToastSuccess, mockGetAllAvailableStaff, mockFetch } = vi.hoisted(
   }),
 );
 
-vi.mock("~/components/ui", () => ({
-  FormModal: ({
-    isOpen,
-    title,
-    footer,
-    children,
-  }: {
-    isOpen: boolean;
-    title: string;
-    footer: React.ReactNode;
-    children: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="form-modal">
-        <h1>{title}</h1>
-        <div>{children}</div>
-        <div>{footer}</div>
-      </div>
-    ) : null,
-}));
+vi.mock("~/components/ui", async () => {
+  const { createElement } = await import("react");
 
-vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message }: { message?: string }) =>
-    message ? <div data-testid="alert">{message}</div> : null,
-}));
+  return {
+    FormModal: ({
+      isOpen,
+      title,
+      footer,
+      children,
+    }: {
+      isOpen: boolean;
+      title: string;
+      footer: ReactNode;
+      children: ReactNode;
+    }) =>
+      isOpen
+        ? createElement(
+            "div",
+            { "data-testid": "form-modal" },
+            createElement("h1", null, title),
+            createElement("div", null, children),
+            createElement("div", null, footer),
+          )
+        : null,
+  };
+});
 
-vi.mock("~/components/ui/detail-modal-components", () => ({
-  InfoSection: ({
-    title,
-    children,
-  }: {
-    title: string;
-    children: React.ReactNode;
-  }) => (
-    <section>
-      <h2>{title}</h2>
-      {children}
-    </section>
-  ),
-  DetailIcons: {
-    group: <span>group</span>,
-    bus: <span>bus</span>,
-    heart: <span>heart</span>,
-    home: <span>home</span>,
-  },
-}));
+vi.mock("~/components/ui/alert", async () => {
+  const { createElement } = await import("react");
+
+  return {
+    Alert: ({ message }: { message?: string }) =>
+      message
+        ? createElement("div", { "data-testid": "alert" }, message)
+        : null,
+  };
+});
+
+vi.mock("~/components/ui/detail-modal-components", async () => {
+  const { createElement } = await import("react");
+
+  return {
+    InfoSection: ({
+      title,
+      children,
+    }: {
+      title: string;
+      children: ReactNode;
+    }) =>
+      createElement(
+        "section",
+        null,
+        createElement("h2", null, title),
+        children,
+      ),
+    DetailIcons: {
+      group: createElement("span", null, "group"),
+      bus: createElement("span", null, "bus"),
+      heart: createElement("span", null, "heart"),
+      home: createElement("span", null, "home"),
+    },
+  };
+});
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
