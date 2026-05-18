@@ -376,12 +376,17 @@ func (rs *MFAResource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.R
 		return err
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:     trustedDeviceCookieName,
-		Value:    cookieValue,
-		Path:     "/",
-		Expires:  expiresAt,
-		MaxAge:   int(time.Until(expiresAt).Seconds()),
-		Secure:   secureCookie(),
+		Name:    trustedDeviceCookieName,
+		Value:   cookieValue,
+		Path:    "/",
+		Expires: expiresAt,
+		MaxAge:  int(time.Until(expiresAt).Seconds()),
+		// secureCookie() returns true in production. Sonar's static analyzer
+		// cannot see through the helper. Mirrors the project-wide convention
+		// used by the NextAuth session/CSRF cookies in
+		// frontend/src/server/auth/{tenant,operator}-config.ts. Local HTTP
+		// dev needs the cookie to be non-Secure or browsers drop it.
+		Secure:   secureCookie(), //NOSONAR(go:S2092)
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
