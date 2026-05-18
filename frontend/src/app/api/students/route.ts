@@ -155,9 +155,19 @@ export const GET = createGetHandler(
         },
       };
     } catch (error) {
-      logger.error("students fetch failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const logContext = {
+        error: errorMessage,
+        ...(errorMessage.includes("API error (429)") && {
+          rate_limited: true,
+        }),
+      };
+      if (logContext.rate_limited) {
+        logger.warn("students fetch failed", logContext);
+      } else {
+        logger.error("students fetch failed", logContext);
+      }
       throw error; // Re-throw to let the error handler deal with it
     }
   },

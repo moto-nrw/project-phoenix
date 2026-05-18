@@ -106,9 +106,19 @@ export const GET = createGetHandler(
         },
       };
     } catch (error) {
-      logger.error("rooms fetch failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const logContext = {
+        error: errorMessage,
+        ...(errorMessage.includes("API error (429)") && {
+          rate_limited: true,
+        }),
+      };
+      if (logContext.rate_limited) {
+        logger.warn("rooms fetch failed", logContext);
+      } else {
+        logger.error("rooms fetch failed", logContext);
+      }
       // Return empty response with pagination
       return {
         data: [],
