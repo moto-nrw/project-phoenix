@@ -74,7 +74,8 @@ type StatusFilter =
   | "abwesend"
   | "unterwegs"
   | "schulhof"
-  | "krank";
+  | "krank"
+  | "entschuldigt";
 type SortMode = "name" | "arrival" | "pickup";
 type GroupMode = "none" | "status" | "room" | "arrival" | "pickup";
 
@@ -83,6 +84,7 @@ const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "anwesend", label: "Anwesend" },
   { value: "abwesend", label: "Abwesend" },
   { value: "krank", label: "Krank" },
+  { value: "entschuldigt", label: "Entschuldigt" },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
 ];
@@ -132,8 +134,20 @@ const STATUS_GROUP_ORDER = new Map([
   ["Unterwegs", 1],
   ["Schulhof", 2],
   ["Krank", 3],
-  ["Abwesend", 4],
+  ["Entschuldigt", 4],
+  ["Abwesend", 5],
 ]);
+
+const STATUS_FILTER_LABELS: Record<
+  Exclude<StatusFilter, "all" | "anwesend">,
+  string
+> = {
+  abwesend: "Abwesend",
+  unterwegs: "Unterwegs",
+  schulhof: "Schulhof",
+  krank: "Krank",
+  entschuldigt: "Entschuldigt",
+};
 
 function validQueryValue<T extends string>(
   value: string | null,
@@ -309,6 +323,7 @@ function compareByName(a: Student, b: Student) {
 
 function statusLabelForStudent(student: Student): string {
   if (student.sick) return "Krank";
+  if (student.excused) return "Entschuldigt";
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
   if (isHomeLocation(student.current_location)) return "Abwesend";
@@ -975,6 +990,7 @@ function SearchPageContent() {
           { value: "anwesend", label: "Anwesend" },
           { value: "abwesend", label: "Abwesend" },
           { value: "krank", label: "Krank" },
+          { value: "entschuldigt", label: "Entschuldigt" },
           { value: "unterwegs", label: "Unterwegs" },
           { value: "schulhof", label: "Schulhof" },
         ],
@@ -1095,6 +1111,7 @@ function SearchPageContent() {
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
         krank: "Krank",
+        entschuldigt: "Entschuldigt",
       };
       filters.push({
         id: "attendance",
@@ -1197,30 +1214,10 @@ function SearchPageContent() {
       }
 
       if (
-        attendanceFilter === "abwesend" &&
-        !isHomeLocation(student.current_location)
+        attendanceFilter !== "anwesend" &&
+        statusLabelForStudent(student) !==
+          STATUS_FILTER_LABELS[attendanceFilter]
       ) {
-        return false;
-      }
-
-      // Filter for "Unterwegs" status specifically
-      if (
-        attendanceFilter === "unterwegs" &&
-        !isTransitLocation(student.current_location)
-      ) {
-        return false;
-      }
-
-      // Filter for "Schulhof" status specifically
-      if (
-        attendanceFilter === "schulhof" &&
-        !isSchoolyardLocation(student.current_location)
-      ) {
-        return false;
-      }
-
-      // Filter for "Krank" status specifically — independent of location
-      if (attendanceFilter === "krank" && !student.sick) {
         return false;
       }
     }
