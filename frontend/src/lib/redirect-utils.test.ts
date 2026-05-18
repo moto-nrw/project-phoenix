@@ -96,6 +96,32 @@ describe("redirect-utils", () => {
       expect(result).toBe("/active-supervisions");
     });
 
+    it("should return /students/search for binary-mode caregivers", () => {
+      const session = createSession(["user"]);
+      const supervisionState: SupervisionState = {
+        hasGroups: false,
+        isLoadingGroups: false,
+        isSupervising: true,
+        isLoadingSupervision: false,
+      };
+
+      const result = getSmartRedirectPath(session, supervisionState, "binary");
+      expect(result).toBe("/students/search");
+    });
+
+    it("should return /students/search for binary-mode caregivers with groups", () => {
+      const session = createSession(["user"]);
+      const supervisionState: SupervisionState = {
+        hasGroups: true,
+        isLoadingGroups: false,
+        isSupervising: false,
+        isLoadingSupervision: false,
+      };
+
+      const result = getSmartRedirectPath(session, supervisionState, "binary");
+      expect(result).toBe("/students/search");
+    });
+
     it("should return /ogs-groups as default for regular users", () => {
       const session = createSession(["user"]);
       const supervisionState: SupervisionState = {
@@ -301,6 +327,21 @@ describe("redirect-utils", () => {
 
       expect(result.isReady).toBe(true);
       expect(result.redirectPath).toBe("/active-supervisions");
+    });
+
+    it("should return students search for binary-mode caregiver when ready", () => {
+      const session = createSession(["user"]);
+      const supervisionState: SupervisionState = {
+        hasGroups: false,
+        isLoadingGroups: false,
+        isSupervising: true,
+        isLoadingSupervision: false,
+      };
+
+      const result = useSmartRedirectPath(session, supervisionState, "binary");
+
+      expect(result.isReady).toBe(true);
+      expect(result.redirectPath).toBe("/students/search");
     });
 
     it("should return caregiver path for teacher-only accounts when ready", () => {

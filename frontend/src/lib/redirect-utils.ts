@@ -4,6 +4,7 @@
 
 import type { Session } from "next-auth";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import type { PresenceMode } from "~/lib/tenant-api";
 
 export interface SupervisionState {
   hasGroups: boolean;
@@ -15,19 +16,25 @@ export interface SupervisionState {
 /**
  * Determines the best redirect path for a user based on their permissions and supervision state
  * Priority order:
- * 1. Caregivers with groups → /ogs-groups
- * 2. Caregivers actively supervising → /active-supervisions
- * 3. Other caregivers → /ogs-groups
- * 4. Admin-only users → /dashboard
+ * 1. Binary-mode caregivers: /students/search
+ * 2. Caregivers with groups: /ogs-groups
+ * 3. Caregivers actively supervising: /active-supervisions
+ * 4. Other caregivers: /ogs-groups
+ * 5. Admin-only users: /dashboard
  */
 export function getSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
+  presenceMode: PresenceMode = "detailed",
 ): string {
   const canUseCaregiverFlows = isCaregiver(session);
   const canUseAdminFlows = hasRole(session, "admin");
 
   if (canUseCaregiverFlows) {
+    if (presenceMode === "binary") {
+      return "/students/search";
+    }
+
     // If still loading supervision state, use ogs-groups as caregiver fallback
     if (
       supervisionState.isLoadingGroups ||
@@ -61,10 +68,15 @@ export function getSmartRedirectPath(
 export function useSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
+  presenceMode: PresenceMode = "detailed",
 ): { redirectPath: string; isReady: boolean } {
   const isReady =
     !supervisionState.isLoadingGroups && !supervisionState.isLoadingSupervision;
-  const redirectPath = getSmartRedirectPath(session, supervisionState);
+  const redirectPath = getSmartRedirectPath(
+    session,
+    supervisionState,
+    presenceMode,
+  );
 
   return {
     redirectPath,
