@@ -51,7 +51,7 @@ interface TransitAssignSkipped {
   reason: string;
 }
 
-export interface TransitAssignResult {
+interface TransitAssignResult {
   assigned: number[];
   skipped: TransitAssignSkipped[];
   active_group_id: number;
