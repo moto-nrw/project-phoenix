@@ -119,6 +119,26 @@ export default function OperatorLoginPage() {
     await seedSessionWithTokens(tokens);
   };
 
+  // Map login failures to a German UI message. Kept outside the
+  // handler to keep its cognitive complexity below the linter cap.
+  const operatorLoginErrorMessage = (err: unknown): string => {
+    if (err instanceof MFAApiError) {
+      if (err.status === 403) {
+        return "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.";
+      }
+      if (err.status === 429) {
+        return "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.";
+      }
+      if (err.status === 401) {
+        return "Ungültige Anmeldedaten";
+      }
+      return germanMFAErrorMessage(err);
+    }
+    return err instanceof Error
+      ? err.message
+      : "Anmeldefehler. Bitte versuchen Sie es erneut.";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -154,27 +174,7 @@ export default function OperatorLoginPage() {
       });
     } catch (err) {
       clearConfetti();
-      if (err instanceof MFAApiError) {
-        if (err.status === 403) {
-          setError(
-            "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.",
-          );
-        } else if (err.status === 429) {
-          setError(
-            "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
-          );
-        } else if (err.status === 401) {
-          setError("Ungültige Anmeldedaten");
-        } else {
-          setError(germanMFAErrorMessage(err));
-        }
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Anmeldefehler. Bitte versuchen Sie es erneut.",
-        );
-      }
+      setError(operatorLoginErrorMessage(err));
       logger.error("operator_login_failed", {
         error: err instanceof Error ? err.message : String(err),
       });

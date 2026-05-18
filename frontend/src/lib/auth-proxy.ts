@@ -10,6 +10,45 @@ interface ForwardOptions {
   readonly hasBody?: boolean;
 }
 
+function buildForwardHeaders(request: NextRequest): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...getClientForwardHeaders(request),
+  };
+  const cookieHeader = request.headers.get("cookie");
+  if (cookieHeader) headers.Cookie = cookieHeader;
+  const authHeader = request.headers.get("authorization");
+  if (authHeader) headers.Authorization = authHeader;
+  return headers;
+}
+
+async function readBackendBody(
+  response: Response,
+  backendPath: string,
+): Promise<unknown> {
+  const contentType = response.headers.get("content-type");
+  const responseText = await response.text();
+  if (!contentType?.includes("application/json")) {
+    return { message: responseText || "Request failed with no response" };
+  }
+  if (!responseText) return null;
+  try {
+    return JSON.parse(responseText) as unknown;
+  } catch (jsonError) {
+    logger.error("failed to parse backend JSON", {
+      path: backendPath,
+      error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+    });
+    return { message: responseText };
+  }
+}
+
+function mirrorSetCookies(from: Response, to: NextResponse): void {
+  for (const cookie of from.headers.getSetCookie()) {
+    to.headers.append("set-cookie", cookie);
+  }
+}
+
 export async function forwardJsonPost(
   request: NextRequest,
   backendPath: string,
@@ -25,54 +64,23 @@ export async function forwardJsonPost(
       bodyJson = JSON.stringify(body ?? {});
     }
 
-    const cookieHeader = request.headers.get("cookie");
-    const authHeader = request.headers.get("authorization");
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...getClientForwardHeaders(request),
-    };
-    if (cookieHeader) headers.Cookie = cookieHeader;
-    if (authHeader) headers.Authorization = authHeader;
-
     const response = await fetch(`${getServerApiUrl()}${backendPath}`, {
       method,
-      headers,
+      headers: buildForwardHeaders(request),
       body: bodyJson,
     });
 
     if (response.status === 204) {
       const out = new NextResponse(null, { status: 204 });
-      for (const cookie of response.headers.getSetCookie()) {
-        out.headers.append("set-cookie", cookie);
-      }
+      mirrorSetCookies(response, out);
       return out;
     }
 
-    let data: unknown;
-    const contentType = response.headers.get("content-type");
-    const responseText = await response.text();
-
-    if (contentType?.includes("application/json")) {
-      try {
-        data = responseText ? (JSON.parse(responseText) as unknown) : null;
-      } catch (jsonError) {
-        logger.error("failed to parse backend JSON", {
-          path: backendPath,
-          error:
-            jsonError instanceof Error ? jsonError.message : String(jsonError),
-        });
-        data = { message: responseText };
-      }
-    } else {
-      data = { message: responseText || "Request failed with no response" };
-    }
-
+    const data = await readBackendBody(response, backendPath);
     const out = NextResponse.json(data ?? { message: "Empty response" }, {
       status: response.status,
     });
-    for (const cookie of response.headers.getSetCookie()) {
-      out.headers.append("set-cookie", cookie);
-    }
+    mirrorSetCookies(response, out);
     return out;
   } catch (error) {
     logger.error("proxy_failed", {

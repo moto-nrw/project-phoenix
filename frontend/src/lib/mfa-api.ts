@@ -375,6 +375,38 @@ export async function operatorAdminSetMFAOverride(
   );
 }
 
+function germanMessageFor401(text: string): string {
+  if (text.includes("locked") || text.includes("gesperrt")) {
+    return "Konto vorübergehend gesperrt. Bitte versuchen Sie es in 15 Minuten erneut.";
+  }
+  // Check "invalid" before "expired": the backend conflates both into the
+  // single string "invalid or expired code" for security (no oracle on
+  // whether the code was wrong vs. timed out). In practice the dominant
+  // cause is a mistyped code, so we surface the friendlier "ungültig"
+  // message and let the user retry. A genuinely expired code falls into
+  // the same branch — both states are resolved by requesting a new code.
+  if (text.includes("invalid") || text.includes("ungültig")) {
+    return "Der eingegebene Code ist ungültig. Bitte erneut versuchen.";
+  }
+  if (text.includes("expired") || text.includes("abgelaufen")) {
+    return "Der Code ist abgelaufen. Fordern Sie einen neuen Code an.";
+  }
+  return "Anmeldung fehlgeschlagen. Bitte erneut versuchen.";
+}
+
+function germanMessageFor429(text: string): string {
+  // Distinguish the two 429 paths from the backend:
+  //   ErrMFALocked      ("account locked due to too many failed attempts")
+  //   ErrMFARateLimited ("too many code requests, please wait")
+  if (text.includes("locked") || text.includes("gesperrt")) {
+    return "Konto vorübergehend gesperrt. Bitte versuchen Sie es in 15 Minuten erneut.";
+  }
+  if (text.includes("code request") || text.includes("code-anfrage")) {
+    return "Zu viele Code-Anfragen. Bitte warten Sie ein paar Minuten, bevor Sie einen neuen Code anfordern.";
+  }
+  return "Zu viele Versuche. Bitte warten Sie einen Moment.";
+}
+
 export function germanMFAErrorMessage(err: unknown): string {
   if (!(err instanceof MFAApiError)) {
     logger.warn("unexpected_mfa_error_shape", {
@@ -383,36 +415,8 @@ export function germanMFAErrorMessage(err: unknown): string {
     return "Anmeldefehler. Bitte versuchen Sie es erneut.";
   }
   const text = err.message.toLowerCase();
-  if (err.status === 401) {
-    if (text.includes("locked") || text.includes("gesperrt")) {
-      return "Konto vorübergehend gesperrt. Bitte versuchen Sie es in 15 Minuten erneut.";
-    }
-    // Check "invalid" before "expired": the backend conflates both into the
-    // single string "invalid or expired code" for security (no oracle on
-    // whether the code was wrong vs. timed out). In practice the dominant
-    // cause is a mistyped code, so we surface the friendlier "ungültig"
-    // message and let the user retry. A genuinely expired code falls into
-    // the same branch — both states are resolved by requesting a new code.
-    if (text.includes("invalid") || text.includes("ungültig")) {
-      return "Der eingegebene Code ist ungültig. Bitte erneut versuchen.";
-    }
-    if (text.includes("expired") || text.includes("abgelaufen")) {
-      return "Der Code ist abgelaufen. Fordern Sie einen neuen Code an.";
-    }
-    return "Anmeldung fehlgeschlagen. Bitte erneut versuchen.";
-  }
-  if (err.status === 429) {
-    // Distinguish the two 429 paths from the backend:
-    //   ErrMFALocked      ("account locked due to too many failed attempts")
-    //   ErrMFARateLimited ("too many code requests, please wait")
-    if (text.includes("locked") || text.includes("gesperrt")) {
-      return "Konto vorübergehend gesperrt. Bitte versuchen Sie es in 15 Minuten erneut.";
-    }
-    if (text.includes("code request") || text.includes("code-anfrage")) {
-      return "Zu viele Code-Anfragen. Bitte warten Sie ein paar Minuten, bevor Sie einen neuen Code anfordern.";
-    }
-    return "Zu viele Versuche. Bitte warten Sie einen Moment.";
-  }
+  if (err.status === 401) return germanMessageFor401(text);
+  if (err.status === 429) return germanMessageFor429(text);
   if (err.status >= 500) {
     return "Der Server ist gerade nicht erreichbar. Bitte später erneut versuchen.";
   }
