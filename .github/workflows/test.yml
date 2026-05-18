@@ -73,6 +73,11 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          # Dummy 32+ char secret so services.NewFactory can init the MFA
+          # service in tests. NewFactory hard-fails without it (the secret
+          # is the HMAC key for trusted-device cookies). Production and
+          # staging supply this via SOPS; CI tests get a fixed test value.
+          AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
         run: |
           gotestsum \
             --format pkgname-and-test-fails \
@@ -89,6 +94,7 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
         run: |
           if [ ! -f rerun-fails.json ]; then
             exit 0
