@@ -437,3 +437,152 @@ func TestIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
 	assert.Equal(t, "Gelöscht", dbPerson.FirstName)
 	assert.NotNil(t, dbPerson.DeletedAt)
 }
+
+// =============================================================================
+// Global Operator Listings: deleted-school Papierkorb hiding
+// =============================================================================
+
+// TestIntegration_ListAllDevices_HidesDeletedSchoolDevices verifies that the
+// global operator devices listing excludes devices whose tenant school is
+// soft-deleted, and re-includes them after restore. Companion to
+// TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool — both
+// guard the user-visible contract "everything tied to a deleted school must
+// disappear from the UI; the school itself stays restorable via Papierkorb."
+func TestIntegration_ListAllDevices_HidesDeletedSchoolDevices(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+
+	tenantID := int64(90021)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "trash-test")
+
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM iot.devices WHERE id = ?`, device.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+	})
+
+	containsDevice := func(devices []platformSvc.OperatorDeviceInfo) bool {
+		for _, d := range devices {
+			if d.ID == device.ID {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Baseline: device visible while school is active.
+	devices, err := service.ListAllDevices(ctx)
+	require.NoError(t, err)
+	require.True(t, containsDevice(devices),
+		"baseline: device should be visible while school is active")
+
+	// Soft-delete the school directly (avoids SoftDeleteSchool's token/invitation
+	// side effects which are orthogonal to the read-filter behavior under test).
+	_, err = db.ExecContext(ctx,
+		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
+	require.NoError(t, err)
+
+	// After soft-delete: device must disappear from the global listing.
+	devices, err = service.ListAllDevices(ctx)
+	require.NoError(t, err)
+	require.False(t, containsDevice(devices),
+		"device whose school is soft-deleted must not appear in ListAllDevices")
+
+	// Also hidden when filtered by the parent organization (org filter goes through
+	// the same query path; no separate IsDeleted pre-check protects ListOrganizationDevices).
+	devices, err = service.ListOrganizationDevices(ctx, tenantID)
+	require.NoError(t, err)
+	require.False(t, containsDevice(devices),
+		"device whose school is soft-deleted must not appear in ListOrganizationDevices")
+
+	// Restore: device reappears.
+	_, err = db.ExecContext(ctx,
+		`UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, tenantID)
+	require.NoError(t, err)
+
+	devices, err = service.ListAllDevices(ctx)
+	require.NoError(t, err)
+	assert.True(t, containsDevice(devices),
+		"restore: device should be visible again in ListAllDevices")
+}
+
+// TestIntegration_ListAllDevices_HidesDeletedOrgDevices verifies the
+// second layer of the SQL filter: devices belonging to a soft-deleted
+// organization (whose schools may technically still have deleted_at IS NULL
+// in a corrupt-state scenario) also disappear. Defensive — under normal
+// flow an org can only be deleted after all its schools are in the Papierkorb.
+func TestIntegration_ListAllDevices_HidesDeletedOrgDevices(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+
+	tenantID := int64(90022)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "org-trash")
+
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM iot.devices WHERE id = ?`, device.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+	})
+
+	containsDevice := func(devices []platformSvc.OperatorDeviceInfo) bool {
+		for _, d := range devices {
+			if d.ID == device.ID {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Mark only the org as deleted (school stays active to isolate the org filter).
+	_, err := db.ExecContext(ctx,
+		`UPDATE platform.organizations SET deleted_at = NOW() WHERE id = ?`, tenantID)
+	require.NoError(t, err)
+
+	devices, err := service.ListAllDevices(ctx)
+	require.NoError(t, err)
+	assert.False(t, containsDevice(devices),
+		"device whose organization is soft-deleted must not appear in ListAllDevices")
+}
+
+// TestIntegration_ListOrganizationDevices_RejectsDeletedOrg verifies the
+// explicit IsDeleted pre-check on ListOrganizationDevices: targeting a
+// soft-deleted org must return OrganizationDeletedError, mirroring the
+// behavior of ListSchoolDevices for soft-deleted schools.
+func TestIntegration_ListOrganizationDevices_RejectsDeletedOrg(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+
+	tenantID := int64(90023)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+	})
+
+	// Soft-delete the org (EnsureTestTenant created school+org sharing tenantID
+	// as their primary key, see testpkg.EnsureTestTenant).
+	_, err := db.ExecContext(ctx,
+		`UPDATE platform.organizations SET deleted_at = NOW() WHERE id = ?`, tenantID)
+	require.NoError(t, err)
+
+	_, err = service.ListOrganizationDevices(ctx, tenantID)
+	require.Error(t, err)
+	var deletedErr *platformSvc.OrganizationDeletedError
+	require.ErrorAs(t, err, &deletedErr,
+		"ListOrganizationDevices on a soft-deleted org must return OrganizationDeletedError")
+	assert.Equal(t, tenantID, deletedErr.OrganizationID)
+}
