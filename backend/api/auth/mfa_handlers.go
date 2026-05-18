@@ -355,7 +355,7 @@ func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Requ
 		// used by the NextAuth session/CSRF cookies in
 		// frontend/src/server/auth/{tenant,operator}-config.ts. Local HTTP
 		// dev needs the cookie to be non-Secure or browsers drop it.
-		Secure:   secureCookie(), //NOSONAR(go:S2092)
+		Secure:   secureCookie(), // NOSONAR go:S2092 secureCookie() is true in prod; mirrors NextAuth pattern in frontend/src/server/auth/{tenant,operator}-config.ts; local HTTP dev needs the cookie to be non-Secure
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})

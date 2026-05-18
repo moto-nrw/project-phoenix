@@ -92,7 +92,7 @@ export function TrustedDevicesSection({
     if (sessionStatus === "authenticated") {
       // Fire-and-forget pattern is the project convention for async work in
       // useEffect; errors are surfaced via the function's own try/catch.
-      void load(); //NOSONAR(typescript:S3735)
+      void load(); // NOSONAR typescript:S3735 fire-and-forget pattern matches project convention (10+ existing sites)
     }
   }, [sessionStatus, load]);
 
@@ -178,7 +178,7 @@ export function TrustedDevicesSection({
                 disabled={revokingId === d.id}
                 // void discards the promise from the async handler so the
                 // onClick signature returns void as expected.
-                onClick={() => void handleRevoke(d.id)} //NOSONAR(typescript:S3735)
+                onClick={() => void handleRevoke(d.id)} // NOSONAR typescript:S3735 fire-and-forget pattern matches project convention (10+ existing sites)
               >
                 {revokingId === d.id ? "Entferne..." : "Entfernen"}
               </Button>

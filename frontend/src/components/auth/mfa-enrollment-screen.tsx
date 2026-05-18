@@ -234,7 +234,7 @@ export function MFAEnrollmentScreen({
                 disabled={isConfirming}
                 onComplete={(code) => {
                   // Fire-and-forget: errors surface through state, not the caller.
-                  void performConfirm(code); //NOSONAR(typescript:S3735)
+                  void performConfirm(code); // NOSONAR typescript:S3735 fire-and-forget pattern matches project convention (10+ existing sites)
                 }}
                 ariaLabel="6-stelliger Bestätigungscode"
               />

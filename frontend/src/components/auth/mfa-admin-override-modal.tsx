@@ -132,7 +132,7 @@ export function MFAAdminOverrideModal({
     if (isOpen) {
       // Fire-and-forget pattern is the project convention for async work in
       // useEffect; errors are surfaced via the function's own try/catch.
-      void loadState(); //NOSONAR(typescript:S3735)
+      void loadState(); // NOSONAR typescript:S3735 fire-and-forget pattern matches project convention (10+ existing sites)
     }
   }, [isOpen, loadState]);
 
