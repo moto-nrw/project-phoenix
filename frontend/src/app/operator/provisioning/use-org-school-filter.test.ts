@@ -2,7 +2,7 @@
  * Tests for useOrgSchoolFilter — guards the Papierkorb-hiding contract that
  * lives in the activeSchools / filteredSchools memos. Issue #1435.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 
@@ -11,8 +11,9 @@ vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
 }));
 
+const mockReplace = vi.fn();
 const mockUseRouter = vi.fn(() => ({
-  replace: vi.fn(),
+  replace: mockReplace,
   push: vi.fn(),
 }));
 const mockUseSearchParams = vi.fn(() => new URLSearchParams());
@@ -34,6 +35,11 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
     listOrganizations: vi.fn(),
     listSchools: vi.fn(),
   },
+}));
+
+vi.mock("~/lib/operator-url", () => ({
+  operatorPath: (path: string) =>
+    path.startsWith("/operator") ? path : `/operator${path}`,
 }));
 
 import { useOrgSchoolFilter } from "./use-org-school-filter";
@@ -77,6 +83,11 @@ function setupData(orgs: Organization[], schools: School[]): void {
 }
 
 describe("useOrgSchoolFilter — Papierkorb filtering (issue #1435)", () => {
+  beforeEach(() => {
+    mockReplace.mockClear();
+    mockUseSearchParams.mockReturnValue(new URLSearchParams());
+  });
+
   it("activeSchools excludes soft-deleted schools", () => {
     setupData(
       [org("1")],
@@ -127,5 +138,61 @@ describe("useOrgSchoolFilter — Papierkorb filtering (issue #1435)", () => {
 
     expect(result.current.activeSchools).toEqual([]);
     expect(result.current.filteredSchools).toEqual([]);
+  });
+
+  it("selectedSchool is null when urlSchoolId points at a soft-deleted school", () => {
+    mockUseSearchParams.mockReturnValueOnce(new URLSearchParams("schoolId=11"));
+    setupData(
+      [org("1")],
+      [school("10", "1"), school("11", "1", "2025-06-01T00:00:00Z")],
+    );
+
+    const { result } = renderHook(() => useOrgSchoolFilter("/devices"));
+
+    expect(result.current.selectedSchool).toBeNull();
+  });
+
+  it("self-heals URL: clears schoolId param when the school is soft-deleted", () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("schoolId=11"));
+    setupData(
+      [org("1")],
+      [school("10", "1"), school("11", "1", "2025-06-01T00:00:00Z")],
+    );
+
+    renderHook(() => useOrgSchoolFilter("/devices"));
+
+    expect(mockReplace).toHaveBeenCalledWith("/operator/devices");
+  });
+
+  it("self-heals URL: clears schoolId param when the school no longer exists", () => {
+    mockUseSearchParams.mockReturnValue(
+      new URLSearchParams("orgId=1&schoolId=99"),
+    );
+    setupData([org("1")], [school("10", "1")]);
+
+    renderHook(() => useOrgSchoolFilter("/devices"));
+
+    expect(mockReplace).toHaveBeenCalledWith("/operator/devices?orgId=1");
+  });
+
+  it("does NOT self-heal while schools is still loading (SWR undefined)", () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("schoolId=11"));
+    mockSWRData.mockImplementation((key: string | null) => {
+      if (key === "operator-organizations") return [org("1")];
+      return undefined;
+    });
+
+    renderHook(() => useOrgSchoolFilter("/devices"));
+
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("does NOT self-heal when the urlSchoolId points at an active school", () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("schoolId=10"));
+    setupData([org("1")], [school("10", "1")]);
+
+    renderHook(() => useOrgSchoolFilter("/devices"));
+
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });
