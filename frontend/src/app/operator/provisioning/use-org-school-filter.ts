@@ -18,6 +18,7 @@ export function useOrgSchoolFilter(routePath: string): {
   readonly organizations: Organization[] | undefined;
   readonly schools: School[] | undefined;
   readonly activeOrganizations: Organization[];
+  readonly activeSchools: School[];
   readonly filterOrgId: string;
   readonly urlSchoolId: string;
   readonly selectedSchool: School | null;
@@ -58,16 +59,20 @@ export function useOrgSchoolFilter(routePath: string): {
     [organizations],
   );
 
+  const activeSchools = useMemo(
+    () => schools?.filter((s) => s.deletedAt == null) ?? [],
+    [schools],
+  );
+
   const selectedSchool = useMemo<School | null>(() => {
     if (!urlSchoolId) return null;
     return schools?.find((s) => s.id === urlSchoolId) ?? null;
   }, [urlSchoolId, schools]);
 
   const filteredSchools = useMemo(() => {
-    if (!schools) return [];
-    if (!filterOrgId) return schools;
-    return schools.filter((s) => s.organizationId === filterOrgId);
-  }, [schools, filterOrgId]);
+    if (!filterOrgId) return activeSchools;
+    return activeSchools.filter((s) => s.organizationId === filterOrgId);
+  }, [activeSchools, filterOrgId]);
 
   const updateQuery = useCallback(
     (next: { orgId?: string; schoolId?: string }) => {
@@ -109,6 +114,7 @@ export function useOrgSchoolFilter(routePath: string): {
     organizations,
     schools,
     activeOrganizations,
+    activeSchools,
     filterOrgId,
     urlSchoolId,
     selectedSchool,

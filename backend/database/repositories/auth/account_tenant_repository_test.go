@@ -234,3 +234,76 @@ func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 	}
 	assert.True(t, found, "expected to find test account in all accounts")
 }
+
+// containsAccount reports whether the result list includes an entry for the given email.
+func containsAccount(accounts []authModels.OrgAccountInfo, email string) bool {
+	for _, a := range accounts {
+		if a.Email == email {
+			return true
+		}
+	}
+	return false
+}
+
+// TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool verifies that
+// the global org-accounts listing hides accounts whose tenant school is in the
+// Papierkorb (soft-deleted), and re-includes them after restore.
+func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+
+	tenantID := int64(90011)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "list-all-deleted")
+	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
+		_ = db.Close()
+	})
+
+	repo := authRepo.NewAccountTenantRepository(db)
+
+	// Baseline: account is visible while school is active.
+	accounts, err := repo.ListAllAccounts(ctx)
+	require.NoError(t, err)
+	require.True(t, containsAccount(accounts, account.Email),
+		"baseline: account should be visible while school is active")
+
+	// Soft-delete the school directly to keep the test isolated from
+	// SoftDeleteSchool's side effects (token revocation, invitation invalidation).
+	_, err = db.ExecContext(ctx,
+		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
+	require.NoError(t, err)
+
+	// After soft-delete: account must disappear from global listing.
+	accounts, err = repo.ListAllAccounts(ctx)
+	require.NoError(t, err)
+	require.False(t, containsAccount(accounts, account.Email),
+		"account whose school is soft-deleted must not appear in ListAllAccounts")
+
+	// Also hidden when filtered by the parent organization.
+	orgAccounts, err := repo.ListAccountsByOrganizationID(ctx, tenantID)
+	require.NoError(t, err)
+	require.False(t, containsAccount(orgAccounts, account.Email),
+		"account whose school is soft-deleted must not appear in ListAccountsByOrganizationID")
+
+	// Restore: account reappears in both listings.
+	_, err = db.ExecContext(ctx,
+		`UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, tenantID)
+	require.NoError(t, err)
+
+	accounts, err = repo.ListAllAccounts(ctx)
+	require.NoError(t, err)
+	assert.True(t, containsAccount(accounts, account.Email),
+		"restore: account should be visible again in ListAllAccounts")
+
+	orgAccounts, err = repo.ListAccountsByOrganizationID(ctx, tenantID)
+	require.NoError(t, err)
+	assert.True(t, containsAccount(orgAccounts, account.Email),
+		"restore: account should be visible again in ListAccountsByOrganizationID")
+}
