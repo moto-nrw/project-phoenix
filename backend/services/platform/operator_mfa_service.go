@@ -402,7 +402,7 @@ func (s *operatorMFAService) parseChallengeToken(tokenString string) (*authjwt.M
 	raw := make(map[string]any)
 	for _, k := range jwtToken.Keys() {
 		var v any
-		if gErr := jwtToken.Get(k, &v); gErr == nil {
+		if jwtToken.Get(k, &v) == nil {
 			raw[k] = v
 		}
 	}

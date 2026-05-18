@@ -267,7 +267,7 @@ export function MFAEnrollmentScreen({
                   Ihre Schule verlangt eine zweite Sicherheitsstufe beim Login.
                   Wir senden dafür einen 6-stelligen Code an{" "}
                   <span className="font-medium text-gray-800">{userEmail}</span>
-                  .
+                  {"."}
                 </>
               ) : (
                 <>
@@ -308,7 +308,6 @@ export function MFAEnrollmentScreen({
             <div className="space-y-5">
               <div
                 className="flex justify-center gap-2"
-                role="group"
                 aria-label="6-stelliger Bestätigungscode"
               >
                 {digits.map((digit, index) => (

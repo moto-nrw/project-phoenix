@@ -193,12 +193,14 @@ export function MFAChallengeForm({
     }
   };
 
-  const resendLabel =
-    resendIn > 0
-      ? `Neuen Code anfordern (${resendIn}s)`
-      : isResending
-        ? "Code wird gesendet…"
-        : "Neuen Code anfordern";
+  let resendLabel: string;
+  if (resendIn > 0) {
+    resendLabel = `Neuen Code anfordern (${resendIn}s)`;
+  } else if (isResending) {
+    resendLabel = "Code wird gesendet…";
+  } else {
+    resendLabel = "Neuen Code anfordern";
+  }
 
   const handleBack = () => {
     onCancel?.();
@@ -250,7 +252,6 @@ export function MFAChallengeForm({
       <div className="space-y-3">
         <div
           className="flex justify-center gap-2"
-          role="group"
           aria-label="6-stelliger Bestätigungscode"
         >
           {digits.map((digit, index) => (

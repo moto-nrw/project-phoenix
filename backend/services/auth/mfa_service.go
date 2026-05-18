@@ -670,11 +670,24 @@ func (s *mfaService) GetMFAOverride(ctx context.Context, accountID int64) (strin
 func (s *mfaService) adminDisableCore(ctx context.Context, actorType string, actorID, targetAccountID int64, reason string) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
-		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "disable", "", "", "reason is required")
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       actorType,
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          "disable",
+			ErrMsg:          "reason is required",
+		})
 		return errors.New("reason is required for admin override")
 	}
 	if err := s.Disable(ctx, targetAccountID); err != nil {
-		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "disable", "", reason, err.Error())
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       actorType,
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          "disable",
+			Reason:          reason,
+			ErrMsg:          err.Error(),
+		})
 		return err
 	}
 	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
@@ -690,7 +703,15 @@ func (s *mfaService) SetMFAOverride(ctx context.Context, actorID, targetAccountI
 	if err := s.requireAdminPermission(actorPermissions); err != nil {
 		// Audit denied attempts too so abuse / misconfigured roles
 		// surface in the same stream as successful overrides.
-		s.recordAdminOverrideFailure(ctx, "account", actorID, targetAccountID, "set_override", override, reason, "permission denied")
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       "account",
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          "set_override",
+			Override:        override,
+			Reason:          reason,
+			ErrMsg:          "permission denied",
+		})
 		return err
 	}
 	return s.setMFAOverrideCore(ctx, "account", actorID, targetAccountID, override, reason)
@@ -716,12 +737,27 @@ func (s *mfaService) OperatorSetMFAOverride(ctx context.Context, operatorID, sch
 // missing target) produce a failure audit row so abuse is observable.
 func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, actorID, targetAccountID int64, override, reason string) error {
 	if !IsValidMFAAdminOverride(override) {
-		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "set_override", override, reason, ErrMFAInvalidOverride.Error())
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       actorType,
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          "set_override",
+			Override:        override,
+			Reason:          reason,
+			ErrMsg:          ErrMFAInvalidOverride.Error(),
+		})
 		return ErrMFAInvalidOverride
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
-		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "set_override", override, "", "reason is required")
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       actorType,
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          "set_override",
+			Override:        override,
+			ErrMsg:          "reason is required",
+		})
 		return errors.New("reason is required for admin override")
 	}
 
@@ -750,7 +786,15 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 		return nil
 	})
 	if txErr != nil {
-		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, "set_override", override, reason, txErr.Error())
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       actorType,
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          "set_override",
+			Override:        override,
+			Reason:          reason,
+			ErrMsg:          txErr.Error(),
+		})
 		return txErr
 	}
 
@@ -773,38 +817,69 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 // emits a failure audit row.
 func (s *mfaService) requireSchoolMembership(ctx context.Context, actorType string, actorID, schoolID, targetAccountID int64, action string) error {
 	if schoolID == 0 {
-		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, action, "", "", "missing school_id")
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       actorType,
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          action,
+			ErrMsg:          "missing school_id",
+		})
 		return ErrMFAPermissionDenied
 	}
 	exists, err := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, targetAccountID, schoolID)
 	if err != nil {
-		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, action, "", "", "membership lookup failed: "+err.Error())
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       actorType,
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          action,
+			ErrMsg:          "membership lookup failed: " + err.Error(),
+		})
 		return fmt.Errorf("verify account membership: %w", err)
 	}
 	if !exists {
-		s.recordAdminOverrideFailure(ctx, actorType, actorID, targetAccountID, action, "", "", "account is not a member of school")
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       actorType,
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          action,
+			ErrMsg:          "account is not a member of school",
+		})
 		return ErrMFAPermissionDenied
 	}
 	return nil
+}
+
+// adminOverrideFailureEvent carries the variable shape of a rejected
+// admin-override audit row. Grouped into a struct so the recording
+// helper stays under the function-parameter cap (go:S107).
+type adminOverrideFailureEvent struct {
+	ActorType       string
+	ActorID         int64
+	TargetAccountID int64
+	Action          string
+	Override        string
+	Reason          string
+	ErrMsg          string
 }
 
 // recordAdminOverrideFailure emits an audit row for a rejected admin
 // override attempt. Success rows go through recordAuthEvent directly;
 // this helper centralizes the failure shape so every rejection path
 // produces consistent metadata.
-func (s *mfaService) recordAdminOverrideFailure(ctx context.Context, actorType string, actorID, targetAccountID int64, action, override, reason, errMsg string) {
+func (s *mfaService) recordAdminOverrideFailure(ctx context.Context, ev adminOverrideFailureEvent) {
 	metadata := map[string]any{
-		"actor_type":       actorType,
-		"actor_account_id": actorID,
-		"action":           action,
+		"actor_type":       ev.ActorType,
+		"actor_account_id": ev.ActorID,
+		"action":           ev.Action,
 	}
-	if override != "" {
-		metadata["override"] = override
+	if ev.Override != "" {
+		metadata["override"] = ev.Override
 	}
-	if reason != "" {
-		metadata["reason"] = reason
+	if ev.Reason != "" {
+		metadata["reason"] = ev.Reason
 	}
-	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, false, nil, errMsg, metadata)
+	s.recordAuthEvent(ctx, ev.TargetAccountID, audit.EventTypeMFAAdminOverride, false, nil, ev.ErrMsg, metadata)
 }
 
 func (s *mfaService) requireAdminPermission(actorPermissions []string) error {
@@ -836,7 +911,7 @@ func (s *mfaService) parseChallengeToken(tokenString string) (*authjwt.MFAChalle
 	raw := make(map[string]any)
 	for _, k := range jwtToken.Keys() {
 		var v any
-		if gErr := jwtToken.Get(k, &v); gErr == nil {
+		if jwtToken.Get(k, &v) == nil {
 			raw[k] = v
 		}
 	}

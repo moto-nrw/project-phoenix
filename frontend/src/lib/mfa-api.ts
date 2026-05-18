@@ -202,17 +202,11 @@ export async function resendChallenge(
 
 // ----- Enrollment + self-service (authenticated, requires Bearer token) -----
 
-function enrollUrl(scope: LoginScope, suffix: string): string {
-  return isOperator(scope)
-    ? `/api/operator/auth/mfa/${suffix}`
-    : `/api/auth/mfa/${suffix}`;
-}
-
 export async function enrollStart(
   scope: LoginScope,
   bearerToken: string,
 ): Promise<void> {
-  const url = enrollUrl(scope, "enroll/start");
+  const url = mfaUrl(scope, "enroll/start");
   await postJson<unknown>(url, undefined, {
     bearerToken,
     allowEmptyBody: true,
@@ -224,7 +218,7 @@ export async function enrollConfirm(
   bearerToken: string,
   code: string,
 ): Promise<void> {
-  const url = enrollUrl(scope, "enroll/confirm");
+  const url = mfaUrl(scope, "enroll/confirm");
   await postJson<unknown>(
     url,
     { code },

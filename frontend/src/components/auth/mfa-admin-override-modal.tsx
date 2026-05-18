@@ -203,12 +203,14 @@ export function MFAAdminOverrideModal({
         );
       }
       setOverride(selectedOverride);
-      const msg =
-        selectedOverride === "force_off"
-          ? `2FA für ${accountLabel} wurde deaktiviert.`
-          : selectedOverride === "force_on"
-            ? `2FA für ${accountLabel} wurde aktiviert.`
-            : `Für ${accountLabel} gilt wieder die Standard-Einstellung.`;
+      let msg: string;
+      if (selectedOverride === "force_off") {
+        msg = `2FA für ${accountLabel} wurde deaktiviert.`;
+      } else if (selectedOverride === "force_on") {
+        msg = `2FA für ${accountLabel} wurde aktiviert.`;
+      } else {
+        msg = `Für ${accountLabel} gilt wieder die Standard-Einstellung.`;
+      }
       toast.success(msg);
       setOverrideReason("");
     } catch (err) {

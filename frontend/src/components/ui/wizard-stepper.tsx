@@ -24,7 +24,6 @@ export function WizardStepper({
   return (
     <div
       className={`flex flex-col gap-3 ${className}`}
-      role="group"
       aria-label={`Schritt ${clampedCurrent + 1} von ${total}`}
     >
       <div className="flex items-center gap-2">

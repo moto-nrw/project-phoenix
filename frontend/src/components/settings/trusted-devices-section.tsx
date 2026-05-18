@@ -138,16 +138,18 @@ export function TrustedDevicesSection({
         </div>
       )}
 
-      {loading ? (
+      {loading && (
         <div className="space-y-2">
           <Skeleton className="h-16 w-full rounded" />
           <Skeleton className="h-16 w-full rounded" />
         </div>
-      ) : !devices || devices.length === 0 ? (
+      )}
+      {!loading && (!devices || devices.length === 0) && (
         <p className="py-4 text-sm text-gray-500">
           Sie haben aktuell keine vertrauten Geräte gespeichert.
         </p>
-      ) : (
+      )}
+      {!loading && devices && devices.length > 0 && (
         <ul className="divide-y divide-gray-100">
           {devices.map((d) => (
             <li
