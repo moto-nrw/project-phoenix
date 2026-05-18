@@ -446,6 +446,17 @@ describe("StudentSearchPage", () => {
       });
     });
 
+    it("reads 'entschuldigt' status from URL params", async () => {
+      mockSearchParams.set("status", "entschuldigt");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        const attendanceFilter = screen.getByTestId("filter-attendance");
+        expect(attendanceFilter).toHaveValue("entschuldigt");
+      });
+    });
+
     it("falls back to 'all' for invalid status param", async () => {
       mockSearchParams.set("status", "invalid_status");
 
@@ -701,6 +712,29 @@ describe("StudentSearchPage", () => {
       });
     });
 
+    it("does not show excused-at-home students when 'abwesend' is selected", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            { ...mockStudents[0]!, current_location: "Zuhause", excused: true },
+            { ...mockStudents[1]!, current_location: "Zuhause" },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      mockSearchParams.set("status", "abwesend");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Anna")).toBeInTheDocument();
+        expect(screen.queryByText("Max")).not.toBeInTheDocument();
+      });
+    });
+
     it("filters to show only transit students when 'unterwegs' is selected", async () => {
       mockSearchParams.set("status", "unterwegs");
 
@@ -758,6 +792,38 @@ describe("StudentSearchPage", () => {
         expect(
           screen.getByTestId("active-filter-attendance"),
         ).toHaveTextContent("Krank");
+      });
+    });
+
+    it("filters to show only excused students when 'entschuldigt' is selected", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            { ...mockStudents[0]!, excused: true },
+            { ...mockStudents[1]!, excused: false },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-attendance"), {
+        target: { value: "entschuldigt" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(
+          screen.getByTestId("active-filter-attendance"),
+        ).toHaveTextContent("Entschuldigt");
       });
     });
   });
@@ -1699,6 +1765,12 @@ describe("StudentSearchPage", () => {
         { ...mockStudents[2]!, first_name: "TransitChild" },
         { ...mockStudents[0]!, first_name: "PresentChild" },
         { ...mockStudents[0]!, id: "9", first_name: "SickChild", sick: true },
+        {
+          ...mockStudents[1]!,
+          id: "10",
+          first_name: "ExcusedChild",
+          excused: true,
+        },
       ];
       const swrModule = await import("~/lib/swr");
       mockUseSWRAuthWithStudents(swrModule, {
@@ -1725,7 +1797,14 @@ describe("StudentSearchPage", () => {
 
       expect(
         screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
-      ).toEqual(["Anwesend", "Unterwegs", "Schulhof", "Krank", "Abwesend"]);
+      ).toEqual([
+        "Anwesend",
+        "Unterwegs",
+        "Schulhof",
+        "Krank",
+        "Entschuldigt",
+        "Abwesend",
+      ]);
     });
 
     it("groups redacted and missing room/time values under explicit fallback labels", async () => {
