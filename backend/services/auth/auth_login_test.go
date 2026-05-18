@@ -2,6 +2,8 @@ package auth_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"testing"
 	"time"
 
@@ -31,10 +33,31 @@ type loginGateScenario struct {
 	tenantID  int64
 }
 
-const (
-	loginGatePassword  = "C0rrectHorse!Test"
-	loginGateJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
+// loginGatePassword + loginGateJWTSecret are generated at init time so
+// they never appear as string literals in the source tree. The fixed
+// "Aa1!" prefix on the password guarantees the strength rules
+// (upper + lower + digit + special) are satisfied regardless of the
+// hex-randomness that follows.
+var (
+	loginGatePassword  = randomTestPassword()
+	loginGateJWTSecret = randomTestJWTSecret()
 )
+
+func randomTestPassword() string {
+	b := make([]byte, 12)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return "Aa1!" + hex.EncodeToString(b)
+}
+
+func randomTestJWTSecret() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b)
+}
 
 func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
 	t.Helper()

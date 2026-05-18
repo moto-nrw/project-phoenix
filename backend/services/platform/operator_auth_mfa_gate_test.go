@@ -2,6 +2,8 @@ package platform_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log/slog"
 	"net"
 	"strings"
@@ -17,6 +19,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
+
+// operatorGatePassword is generated at runtime so no plaintext literal
+// appears in the source tree. The fixed "Aa1!" prefix guarantees the
+// strength rules (upper + lower + digit + special) are satisfied
+// regardless of the hex-randomness that follows.
+var operatorGatePassword = randomOperatorGatePassword()
+
+func randomOperatorGatePassword() string {
+	b := make([]byte, 12)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return "Aa1!" + hex.EncodeToString(b)
+}
 
 // withJWTSecret seeds viper with a stable HMAC key for the duration of
 // the test, mirroring the convention used by the sibling operator-auth
@@ -81,8 +97,6 @@ func (s *stubOperatorMFAService) ListTrustedDevices(context.Context, int64) ([]*
 func (s *stubOperatorMFAService) RevokeTrustedDevice(context.Context, int64, int64) error {
 	panic("unexpected RevokeTrustedDevice")
 }
-
-const operatorGatePassword = "Op3ratorPa55!"
 
 // newOperatorAuthServiceForGate builds an operatorAuthService backed by the
 // stubs above plus the existing shared mockOperatorRepo / mockAuditLogRepoShared.
