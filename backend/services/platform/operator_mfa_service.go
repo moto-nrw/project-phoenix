@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -349,17 +350,32 @@ func (s *operatorMFAService) Enroll(ctx context.Context, operatorID int64) error
 	return nil
 }
 
+// Disable wipes the operator's MFA enrollment + revokes every trusted
+// device + resets the lockout counter. The three writes happen in a
+// single transaction so partial failure can't leave the operator in a
+// half-disabled state (e.g. credential gone but trusted-device cookies
+// still verifying, or attempts counter still stuck at the lockout
+// threshold). Mirrors the tenant-side mfaService.Disable cascade.
+// (#1430 review item #7)
 func (s *operatorMFAService) Disable(ctx context.Context, operatorID int64) error {
-	if err := s.repos.OperatorMFACredential.DeleteByOperatorID(ctx, operatorID); err != nil {
-		return fmt.Errorf("delete operator credential: %w", err)
+	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.repos.OperatorMFACredential.DeleteByOperatorID(txCtx, operatorID); err != nil {
+			return fmt.Errorf("delete operator credential: %w", err)
+		}
+		if err := s.repos.OperatorMFATrustedDevice.RevokeAllByOperatorID(txCtx, operatorID, time.Now()); err != nil {
+			return fmt.Errorf("revoke operator trusted devices: %w", err)
+		}
+		// Atomic reset — replaces the previous fetch + full-row Update with a
+		// single UPDATE so the disable cascade isn't racing concurrent failed
+		// verifies on the same operator.
+		if err := s.repos.Operator.ResetMFAAttempts(txCtx, operatorID); err != nil {
+			return fmt.Errorf("reset operator mfa attempts: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	if err := s.repos.OperatorMFATrustedDevice.RevokeAllByOperatorID(ctx, operatorID, time.Now()); err != nil {
-		return fmt.Errorf("revoke operator trusted devices: %w", err)
-	}
-	// Atomic reset — replaces the previous fetch + full-row Update with a
-	// single UPDATE so the disable cascade isn't racing concurrent failed
-	// verifies on the same operator.
-	_ = s.repos.Operator.ResetMFAAttempts(ctx, operatorID)
 	s.recordAudit(ctx, operatorID, platform.ActionMFADisabled, nil, nil, nil)
 	return nil
 }
