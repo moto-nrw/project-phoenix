@@ -407,10 +407,23 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 		return nil, ErrMFACodeInvalid
 	}
 
-	// Single-use + reset lockout, all in one transaction.
+	// Single-use enforcement. MarkConsumed uses
+	//   UPDATE ... SET consumed_at=? WHERE id=? AND consumed_at IS NULL
+	// plus AssertRowsAffected(1), so two concurrent verifies on the same
+	// code race on the UPDATE: the winner flips consumed_at; the loser
+	// observes 0 rows affected and returns a DatabaseError. We MUST refuse
+	// the loser — the previous code only logged the error and continued to
+	// mint a VerifiedChallenge, which let both racers complete the login
+	// with the same single-use code. Treat any consume failure the same
+	// way (DB outage included — we can't prove single-use, so we refuse).
 	now := time.Now()
 	if err := s.repos.MFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
-		s.logger.Warn("failed to mark challenge consumed", slog.String("error", err.Error()))
+		s.logger.Warn("failed to mark challenge consumed; refusing verify",
+			slog.Int64("account_id", claims.AccountID),
+			slog.Int64("challenge_id", active.ID),
+			slog.String("error", err.Error()))
+		s.recordAuthEvent(ctx, claims.AccountID, audit.EventTypeMFAFailed, false, nil, "consume race", nil)
+		return nil, ErrMFACodeInvalid
 	}
 	account.ResetMFAAttempts()
 	if err := s.repos.Account.Update(ctx, account); err != nil {
@@ -454,7 +467,16 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	}
 	now := time.Now()
 	if err := s.repos.MFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
-		s.logger.Warn("failed to mark challenge consumed", slog.String("error", err.Error()))
+		// Same single-use guard as VerifyChallenge — if the atomic UPDATE
+		// reports 0 rows affected, another concurrent caller already
+		// consumed this code. Refuse this caller so the code remains
+		// single-use across racing requests.
+		s.logger.Warn("failed to mark challenge consumed; refusing verify",
+			slog.Int64("account_id", accountID),
+			slog.Int64("challenge_id", active.ID),
+			slog.String("error", err.Error()))
+		s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAFailed, false, nil, "consume race", nil)
+		return ErrMFACodeInvalid
 	}
 	account.ResetMFAAttempts()
 	_ = s.repos.Account.Update(ctx, account)

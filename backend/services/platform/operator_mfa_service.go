@@ -231,9 +231,19 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 		return nil, ErrOperatorMFACodeInvalid
 	}
 
+	// Single-use enforcement — mirrors the tenant-side fix. MarkConsumed
+	// returns a DatabaseError when 0 rows are affected (another concurrent
+	// verify already consumed this code). The previous code logged-and-
+	// continued, which let two racing requests both mint a session from a
+	// single-use code. Refuse the loser instead.
 	now := time.Now()
 	if err := s.repos.OperatorMFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
-		s.logger.Warn("failed to mark operator challenge consumed", slog.String("error", err.Error()))
+		s.logger.Warn("failed to mark operator challenge consumed; refusing verify",
+			slog.Int64("operator_id", op.ID),
+			slog.Int64("challenge_id", active.ID),
+			slog.String("error", err.Error()))
+		s.recordAudit(ctx, op.ID, platform.ActionMFAFailed, nil, &active.ID, map[string]any{"reason": "consume race"})
+		return nil, ErrOperatorMFACodeInvalid
 	}
 	op.ResetMFAAttempts()
 	if err := s.repos.Operator.Update(ctx, op); err != nil {
@@ -282,7 +292,13 @@ func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operator
 	}
 	now := time.Now()
 	if err := s.repos.OperatorMFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
-		s.logger.Warn("failed to mark operator challenge consumed", slog.String("error", err.Error()))
+		// Same race-loser refusal as VerifyChallenge (operator scope).
+		s.logger.Warn("failed to mark operator challenge consumed; refusing verify",
+			slog.Int64("operator_id", operatorID),
+			slog.Int64("challenge_id", active.ID),
+			slog.String("error", err.Error()))
+		s.recordAudit(ctx, operatorID, platform.ActionMFAFailed, nil, &active.ID, map[string]any{"reason": "consume race"})
+		return ErrOperatorMFACodeInvalid
 	}
 	op.ResetMFAAttempts()
 	_ = s.repos.Operator.Update(ctx, op)
