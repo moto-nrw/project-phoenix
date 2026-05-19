@@ -90,13 +90,23 @@ describe("germanMFAErrorMessage", () => {
     );
   });
 
-  it("returns the raw err.message for unhandled status codes", () => {
+  it("returns a generic German fallback for unhandled status codes — never leaks the raw English backend string", () => {
+    // #1430 review item #11: any status outside 401/429/5xx used to
+    // return `err.message`, which surfaced raw English ("invalid request
+    // body", "permission denied", "Not Found") inside the German UI.
+    // The fallback now always speaks German.
     expect(germanMFAErrorMessage(new MFAApiError(418, "I'm a teapot"))).toBe(
-      "I'm a teapot",
+      "Anmeldung fehlgeschlagen. Bitte erneut versuchen.",
     );
     expect(germanMFAErrorMessage(new MFAApiError(404, "Not Found"))).toBe(
-      "Not Found",
+      "Anmeldung fehlgeschlagen. Bitte erneut versuchen.",
     );
+    expect(
+      germanMFAErrorMessage(new MFAApiError(403, "permission denied")),
+    ).toBe("Anmeldung fehlgeschlagen. Bitte erneut versuchen.");
+    expect(
+      germanMFAErrorMessage(new MFAApiError(400, "invalid request body")),
+    ).toBe("Anmeldung fehlgeschlagen. Bitte erneut versuchen.");
   });
 });
 

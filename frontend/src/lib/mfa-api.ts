@@ -452,5 +452,13 @@ export function germanMFAErrorMessage(err: unknown): string {
   if (err.status >= 500) {
     return "Der Server ist gerade nicht erreichbar. Bitte später erneut versuchen.";
   }
-  return err.message;
+  // Anything else (400/403/404/etc.) used to leak the raw backend English
+  // string into the German UI ("invalid request body", "permission denied",
+  // …). Log the original message so we can spot missing translations, but
+  // surface a generic German fallback to the user. (#1430 review item #11)
+  logger.warn("mfa_error_no_translation", {
+    status: err.status,
+    error: err.message,
+  });
+  return "Anmeldung fehlgeschlagen. Bitte erneut versuchen.";
 }
