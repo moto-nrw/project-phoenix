@@ -607,6 +607,7 @@ func (s *Service) buildJWTClaims(
 		ID:       int(account.ID),
 		Token:    token.Token,
 		TenantID: metadata.tenantID,
+		Scope:    metadata.scope,
 	}
 
 	return appClaims, refreshClaims
@@ -1124,9 +1125,26 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	// Load account metadata (roles, permissions, person info)
 	// Refresh flow preserves the tenant from the existing refresh token — never re-resolve
 	// via default fallback, which could silently switch to a different tenant for multi-tenant users.
-	metadata, err := s.loadAccountMetadataForTenant(ctx, account, refreshClaims.TenantID)
-	if err != nil {
-		return nil, err
+	//
+	// Parent-scope refresh tokens must round-trip as parent tokens.
+	// loadAccountMetadataForTenant returns tenant-scope metadata (scope="",
+	// tenant_id pinned), so a naive refresh would silently demote a parent
+	// JWT to a tenant JWT — that token then fails the parents-portal
+	// ParentMiddleware on the very next request and the parent dashboard
+	// gets stuck on the auth-guard loading state.
+	//
+	// We detect this via:
+	//   - explicit scope claim (new tokens, see RefreshClaims.Scope), OR
+	//   - backward-compat: account is guardian-only at the refresh tenant
+	//     (old in-flight refresh tokens issued before Scope was added).
+	var metadata *accountMetadata
+	if refreshClaims.Scope == tenant.ScopeParent || s.isGuardianOnlyAccount(ctx, account, refreshClaims.TenantID) {
+		metadata = s.buildParentMetadata(account)
+	} else {
+		metadata, err = s.loadAccountMetadataForTenant(ctx, account, refreshClaims.TenantID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Build JWT claims from account and metadata

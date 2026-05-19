@@ -188,10 +188,16 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 }
 
 // RefreshClaims represents the claims parsed from JWT refresh token.
+//
+// Scope mirrors AppClaims.Scope so the refresh path can re-mint the
+// access token in the right shape — e.g. a parent-scope token must
+// stay parent-scope across refresh, not silently get re-issued as a
+// tenant-scope token (which would break the parents portal).
 type RefreshClaims struct {
 	ID       int    `json:"id,omitempty"`
 	Token    string `json:"token,omitempty"`
 	TenantID int64  `json:"tenant_id,omitempty"` // Multi-tenancy: School ID
+	Scope    string `json:"scope,omitempty"`     // "", "org", "platform", "parent"
 	CommonClaims
 }
 
@@ -223,6 +229,13 @@ func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
 
 	// Optional multi-tenancy field
 	c.TenantID = getOptionalInt64(claims, "tenant_id")
+
+	// Optional scope field. Absent on tenant-scope refresh tokens
+	// (omitempty); present on parent / platform / org tokens so the
+	// refresh path can preserve scope.
+	if s, ok := claims["scope"].(string); ok {
+		c.Scope = s
+	}
 
 	return nil
 }
