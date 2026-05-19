@@ -21,6 +21,9 @@ const STATUS_LABELS: Record<ChildStatus, string> = {
   waitlisted: "Warteliste",
   rejected: "Abgelehnt",
   withdrawn: "Zurückgezogen",
+  pending_renewal: "Wartet auf Verlängerung",
+  auto_renewed: "Vorgemerkt",
+  pending_admin_review: "Manuelle Prüfung",
 };
 
 const STATUS_COLORS: Record<ChildStatus, { bg: string; text: string }> = {
@@ -30,6 +33,9 @@ const STATUS_COLORS: Record<ChildStatus, { bg: string; text: string }> = {
   waitlisted: { bg: "#F78C10", text: "#FFFFFF" },
   rejected: { bg: "#FF3130", text: "#FFFFFF" },
   withdrawn: { bg: "#6B7280", text: "#FFFFFF" },
+  pending_renewal: { bg: "#F59E0B", text: "#FFFFFF" },
+  auto_renewed: { bg: "#5080D8", text: "#FFFFFF" },
+  pending_admin_review: { bg: "#6B7280", text: "#FFFFFF" },
 };
 
 const TERMINAL: ReadonlySet<ChildStatus> = new Set([

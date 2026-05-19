@@ -8,7 +8,10 @@ export type ChildStatus =
   | "approved"
   | "waitlisted"
   | "rejected"
-  | "withdrawn";
+  | "withdrawn"
+  | "pending_renewal"
+  | "auto_renewed"
+  | "pending_admin_review";
 
 export type DecisionStatus =
   | "approved"
