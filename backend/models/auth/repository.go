@@ -234,12 +234,26 @@ type MFAEmailChallengeRepository interface {
 }
 
 // MFATrustedDeviceRepository persists HMAC-signed trusted-device records.
+// Every read/list/revoke that touches per-cookie state is scoped by
+// (account_id, tenant_id) so a cookie issued in one tenant can never
+// bypass MFA in another — see #1430 review item #9.
 type MFATrustedDeviceRepository interface {
 	Create(ctx context.Context, device *MFATrustedDevice) error
-	FindActiveByAccountIDAndTokenHash(ctx context.Context, accountID int64, tokenHash string) (*MFATrustedDevice, error)
-	ListActiveByAccountID(ctx context.Context, accountID int64) ([]*MFATrustedDevice, error)
+	// FindActiveByAccountTenantAndTokenHash is the lookup behind
+	// VerifyTrustedDevice. The tenant_id filter is the security boundary:
+	// the same raw cookie hash MUST NOT match across tenants.
+	FindActiveByAccountTenantAndTokenHash(ctx context.Context, accountID, tenantID int64, tokenHash string) (*MFATrustedDevice, error)
+	// ListActiveByAccountTenant returns the devices the user can see in
+	// the currently-active tenant's settings page. Settings are per-
+	// tenant so the list is too; users with cross-tenant access see
+	// their devices for the tenant they're in.
+	ListActiveByAccountTenant(ctx context.Context, accountID, tenantID int64) ([]*MFATrustedDevice, error)
 	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
 	Revoke(ctx context.Context, id int64, revokedAt time.Time) error
+	// RevokeAllByAccountID stays account-scoped (no tenant filter) because
+	// it is only used by the Disable cascade — disabling MFA on one tenant
+	// removes the account-wide credential, so every cross-tenant trusted
+	// device must go with it.
 	RevokeAllByAccountID(ctx context.Context, accountID int64, revokedAt time.Time) error
 	DeleteExpired(ctx context.Context) (int, error)
 }

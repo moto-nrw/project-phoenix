@@ -14,7 +14,12 @@ import (
 // without ever exposing a plaintext credential at rest.
 type MFATrustedDevice struct {
 	base.Model `bun:"schema:auth,table:mfa_trusted_devices"`
-	AccountID  int64      `bun:"account_id,notnull" json:"account_id"`
+	AccountID  int64 `bun:"account_id,notnull" json:"account_id"`
+	// TenantID scopes the trust to a single (account, tenant) pair. An
+	// account that belongs to multiple schools needs to re-prove MFA on
+	// each one; a cookie issued for tenant A must NOT bypass MFA on
+	// tenant B. Added by migration 1.15.71 for #1430 review item #9.
+	TenantID   int64      `bun:"tenant_id,notnull" json:"tenant_id"`
 	TokenHash  string     `bun:"token_hash,notnull" json:"-"`
 	UserAgent  *string    `bun:"user_agent" json:"user_agent,omitempty"`
 	IPAddress  net.IP     `bun:"ip_address,type:inet,nullzero" json:"ip_address,omitempty"`

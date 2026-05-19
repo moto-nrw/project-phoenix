@@ -30,30 +30,35 @@ func TestMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-list-trusted")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
+	// Trust is per-(account, tenant) as of #1430 review item #9 — give the
+	// fixture a real tenant so the FK on auth.mfa_trusted_devices is
+	// satisfied.
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
 
 	// Fresh account has zero devices.
-	devices, err := svc.ListTrustedDevices(ctx, acc.ID)
+	devices, err := svc.ListTrustedDevices(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
 	assert.Empty(t, devices)
 
 	// Issue two cookies — list returns both.
-	cookieA, _, err := svc.IssueTrustedDevice(ctx, acc.ID, 0, "UA-A", net.ParseIP("203.0.113.1"))
+	cookieA, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-A", net.ParseIP("203.0.113.1"))
 	require.NoError(t, err)
 	require.NotEmpty(t, cookieA)
-	cookieB, _, err := svc.IssueTrustedDevice(ctx, acc.ID, 0, "UA-B", net.ParseIP("203.0.113.2"))
+	cookieB, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "UA-B", net.ParseIP("203.0.113.2"))
 	require.NoError(t, err)
 	require.NotEmpty(t, cookieB)
 
-	devices, err = svc.ListTrustedDevices(ctx, acc.ID)
+	devices, err = svc.ListTrustedDevices(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
 	require.Len(t, devices, 2)
 
 	// Revoke one — list drops to one and the revoked cookie no longer verifies.
-	require.NoError(t, svc.RevokeTrustedDevice(ctx, acc.ID, devices[0].ID))
+	require.NoError(t, svc.RevokeTrustedDevice(ctx, acc.ID, tenantID, devices[0].ID))
 
-	remaining, err := svc.ListTrustedDevices(ctx, acc.ID)
+	remaining, err := svc.ListTrustedDevices(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
 	assert.NotEqual(t, devices[0].ID, remaining[0].ID)
@@ -69,21 +74,23 @@ func TestMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
 		testpkg.CleanupAccount(t, db, owner.ID)
 		testpkg.CleanupAccount(t, db, attacker.ID)
 	})
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	require.NoError(t, svc.Enroll(ctx, owner.ID))
-	_, _, err := svc.IssueTrustedDevice(ctx, owner.ID, 0, "UA", net.ParseIP("203.0.113.10"))
+	_, _, err := svc.IssueTrustedDevice(ctx, owner.ID, tenantID, "UA", net.ParseIP("203.0.113.10"))
 	require.NoError(t, err)
 
-	ownerDevices, err := svc.ListTrustedDevices(ctx, owner.ID)
+	ownerDevices, err := svc.ListTrustedDevices(ctx, owner.ID, tenantID)
 	require.NoError(t, err)
 	require.Len(t, ownerDevices, 1)
 
 	// Attacker (different account) cannot revoke owner's device.
-	err = svc.RevokeTrustedDevice(ctx, attacker.ID, ownerDevices[0].ID)
+	err = svc.RevokeTrustedDevice(ctx, attacker.ID, tenantID, ownerDevices[0].ID)
 	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
 
 	// And the owner's device is still listed (not silently consumed).
-	stillThere, err := svc.ListTrustedDevices(ctx, owner.ID)
+	stillThere, err := svc.ListTrustedDevices(ctx, owner.ID, tenantID)
 	require.NoError(t, err)
 	assert.Len(t, stillThere, 1)
 }
@@ -150,16 +157,17 @@ func TestMFAService_SetMFAOverride_ForceOff_RevokesTrustedDevices(t *testing.T) 
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-revoke")
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
-	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, 0, "UA", net.ParseIP("203.0.113.20"))
+	// Issue the trusted-device row in the same tenant the admin acts from.
+	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, actorTenantID, "UA", net.ParseIP("203.0.113.20"))
 	require.NoError(t, err)
 
-	devicesBefore, err := svc.ListTrustedDevices(ctx, acc.ID)
+	devicesBefore, err := svc.ListTrustedDevices(ctx, acc.ID, actorTenantID)
 	require.NoError(t, err)
 	require.Len(t, devicesBefore, 1)
 
 	require.NoError(t, svc.SetMFAOverride(ctx, 0, actorTenantID, acc.ID, auth.MFAAdminOverrideForceOff, "lost mailbox", []string{"users:manage"}))
 
-	devicesAfter, err := svc.ListTrustedDevices(ctx, acc.ID)
+	devicesAfter, err := svc.ListTrustedDevices(ctx, acc.ID, actorTenantID)
 	require.NoError(t, err)
 	assert.Empty(t, devicesAfter, "force_off must revoke all trusted devices")
 }
@@ -210,7 +218,7 @@ func TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite(t *testing.T) {
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-noPartial")
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
-	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, 0, "UA", net.ParseIP("203.0.113.55"))
+	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, actorTenantID, "UA", net.ParseIP("203.0.113.55"))
 	require.NoError(t, err)
 
 	// Bogus override value — service must reject before touching state.
@@ -221,7 +229,7 @@ func TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, auth.MFAAdminOverrideNone, override, "override must stay none after rejected write")
 
-	devices, err := svc.ListTrustedDevices(ctx, acc.ID)
+	devices, err := svc.ListTrustedDevices(ctx, acc.ID, actorTenantID)
 	require.NoError(t, err)
 	assert.Len(t, devices, 1, "trusted device must survive a rejected override attempt")
 }

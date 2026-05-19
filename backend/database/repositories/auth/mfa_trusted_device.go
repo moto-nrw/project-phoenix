@@ -38,6 +38,9 @@ func (r *MFATrustedDeviceRepository) Create(ctx context.Context, device *auth.MF
 	if device.AccountID == 0 {
 		return fmt.Errorf("account_id is required")
 	}
+	if device.TenantID == 0 {
+		return fmt.Errorf("tenant_id is required")
+	}
 	if device.TokenHash == "" {
 		return fmt.Errorf("token_hash is required")
 	}
@@ -47,14 +50,18 @@ func (r *MFATrustedDeviceRepository) Create(ctx context.Context, device *auth.MF
 	return r.Repository.Create(ctx, device)
 }
 
-// FindActiveByAccountIDAndTokenHash returns the device record matching the cookie's
-// hashed token if and only if it is still active (not expired, not revoked).
-func (r *MFATrustedDeviceRepository) FindActiveByAccountIDAndTokenHash(ctx context.Context, accountID int64, tokenHash string) (*auth.MFATrustedDevice, error) {
+// FindActiveByAccountTenantAndTokenHash returns the device record matching the
+// cookie's hashed token iff it is still active (not expired, not revoked) AND
+// belongs to the given (account, tenant) pair. The tenant filter is the
+// per-tenant trust boundary from #1430 review item #9: a cookie issued for
+// tenant A must never resolve to a row from tenant B.
+func (r *MFATrustedDeviceRepository) FindActiveByAccountTenantAndTokenHash(ctx context.Context, accountID, tenantID int64, tokenHash string) (*auth.MFATrustedDevice, error) {
 	device := new(auth.MFATrustedDevice)
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(device).
 		ModelTableExpr(mfaTrustedDeviceTableAlias).
 		Where("account_id = ?", accountID).
+		Where("tenant_id = ?", tenantID).
 		Where("token_hash = ?", tokenHash).
 		Where("revoked_at IS NULL").
 		Where("expires_at > ?", time.Now()).
@@ -66,14 +73,17 @@ func (r *MFATrustedDeviceRepository) FindActiveByAccountIDAndTokenHash(ctx conte
 	return device, nil
 }
 
-// ListActiveByAccountID returns every non-revoked, non-expired device for an account.
-// Used by the security-settings UI.
-func (r *MFATrustedDeviceRepository) ListActiveByAccountID(ctx context.Context, accountID int64) ([]*auth.MFATrustedDevice, error) {
+// ListActiveByAccountTenant returns every non-revoked, non-expired device for
+// (account, tenant). Security settings are per-tenant so the list is too —
+// users see only the devices they trusted while logged into the current
+// tenant. (#1430 review item #9)
+func (r *MFATrustedDeviceRepository) ListActiveByAccountTenant(ctx context.Context, accountID, tenantID int64) ([]*auth.MFATrustedDevice, error) {
 	var devices []*auth.MFATrustedDevice
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(mfaTrustedDeviceTableAlias).
 		Where("account_id = ?", accountID).
+		Where("tenant_id = ?", tenantID).
 		Where("revoked_at IS NULL").
 		Where("expires_at > ?", time.Now()).
 		Order("last_used_at DESC NULLS LAST", "created_at DESC").

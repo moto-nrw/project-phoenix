@@ -165,8 +165,12 @@ func TestMFAService_IssueTrustedDevice_PersistsAndReturnsSignedToken(t *testing.
 	svc, _, accID := newExtraMFAService(t)
 	require.NoError(t, svc.Enroll(context.Background(), accID))
 
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
 	cookie, expiresAt, err := svc.IssueTrustedDevice(
-		context.Background(), accID, 0, "ua-test", net.ParseIP("127.0.0.1"),
+		context.Background(), accID, tenantID, "ua-test", net.ParseIP("127.0.0.1"),
 	)
 	require.NoError(t, err)
 	assert.NotEmpty(t, cookie, "trusted-device default-enabled tenant must mint a cookie value")

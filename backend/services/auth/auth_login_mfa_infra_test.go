@@ -66,11 +66,11 @@ func (s *stubMFAService) VerifyTrustedDevice(_ context.Context, _, _ int64, _ st
 	panic("stubMFAService.VerifyTrustedDevice must not be called in these tests")
 }
 
-func (s *stubMFAService) ListTrustedDevices(_ context.Context, _ int64) ([]*authmodel.MFATrustedDevice, error) {
+func (s *stubMFAService) ListTrustedDevices(_ context.Context, _, _ int64) ([]*authmodel.MFATrustedDevice, error) {
 	panic("stubMFAService.ListTrustedDevices must not be called in these tests")
 }
 
-func (s *stubMFAService) RevokeTrustedDevice(_ context.Context, _, _ int64) error {
+func (s *stubMFAService) RevokeTrustedDevice(_ context.Context, _, _, _ int64) error {
 	panic("stubMFAService.RevokeTrustedDevice must not be called in these tests")
 }
 

@@ -72,20 +72,27 @@ func TestMFAService_TrustedDeviceFlow(t *testing.T) {
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-trusted")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
+	// Trust is per-(account, tenant) as of #1430 review item #9 — every
+	// IssueTrustedDevice / VerifyTrustedDevice call needs a real tenant
+	// because auth.mfa_trusted_devices.tenant_id is NOT NULL with FK to
+	// platform.schools.
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
 
-	cookie, expiresAt, err := svc.IssueTrustedDevice(ctx, acc.ID, 0, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	cookie, expiresAt, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 	assert.NotEmpty(t, cookie)
 	assert.True(t, expiresAt.After(time.Now()), "expiry must be in the future")
 
-	ok, err := svc.VerifyTrustedDevice(ctx, acc.ID, 0, cookie)
+	ok, err := svc.VerifyTrustedDevice(ctx, acc.ID, tenantID, cookie)
 	require.NoError(t, err)
 	assert.True(t, ok, "freshly issued cookie must verify")
 
 	// Tampered cookie rejected.
 	badCookie := cookie + "x"
-	ok, err = svc.VerifyTrustedDevice(ctx, acc.ID, 0, badCookie)
+	ok, err = svc.VerifyTrustedDevice(ctx, acc.ID, tenantID, badCookie)
 	require.NoError(t, err)
 	assert.False(t, ok, "tampered cookie must not verify")
 }

@@ -244,7 +244,11 @@ func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	devices, err := rs.MFAService.ListTrustedDevices(r.Context(), int64(claims.ID))
+	// Trust is per-(account, tenant) — pass the tenant from claims so the
+	// settings page never leaks devices trusted in another tenant. The
+	// route runs inside TenantTxMiddleware, but threading the value
+	// explicitly avoids relying on context state at the handler boundary.
+	devices, err := rs.MFAService.ListTrustedDevices(r.Context(), int64(claims.ID), claims.TenantID)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -280,7 +284,10 @@ func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid device id")))
 		return
 	}
-	if err := rs.MFAService.RevokeTrustedDevice(r.Context(), int64(claims.ID), deviceID); err != nil {
+	// Tenant scope is enforced at the service layer too: a user with an
+	// access token for (account A, tenant T1) can't revoke a device that
+	// was trusted in tenant T2.
+	if err := rs.MFAService.RevokeTrustedDevice(r.Context(), int64(claims.ID), claims.TenantID, deviceID); err != nil {
 		mapMFAError(w, r, err)
 		return
 	}

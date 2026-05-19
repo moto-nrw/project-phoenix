@@ -33,8 +33,8 @@ type stubMFAService struct {
 	enrollFn              func(ctx context.Context, accountID int64) error
 	verifyCodeFn          func(ctx context.Context, accountID int64, code string) error
 	startChallengeFn      func(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
-	listTrustedDevicesFn  func(ctx context.Context, accountID int64) ([]*authModels.MFATrustedDevice, error)
-	revokeTrustedDeviceFn func(ctx context.Context, accountID, deviceID int64) error
+	listTrustedDevicesFn  func(ctx context.Context, accountID, tenantID int64) ([]*authModels.MFATrustedDevice, error)
+	revokeTrustedDeviceFn func(ctx context.Context, accountID, tenantID, deviceID int64) error
 }
 
 func (s *stubMFAService) IsRequired(context.Context, *authModels.Account, int64) (bool, error) {
@@ -80,15 +80,15 @@ func (s *stubMFAService) IssueTrustedDevice(context.Context, int64, int64, strin
 func (s *stubMFAService) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
 	return false, nil
 }
-func (s *stubMFAService) ListTrustedDevices(ctx context.Context, accountID int64) ([]*authModels.MFATrustedDevice, error) {
+func (s *stubMFAService) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]*authModels.MFATrustedDevice, error) {
 	if s.listTrustedDevicesFn != nil {
-		return s.listTrustedDevicesFn(ctx, accountID)
+		return s.listTrustedDevicesFn(ctx, accountID, tenantID)
 	}
 	return nil, nil
 }
-func (s *stubMFAService) RevokeTrustedDevice(ctx context.Context, accountID, deviceID int64) error {
+func (s *stubMFAService) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
 	if s.revokeTrustedDeviceFn != nil {
-		return s.revokeTrustedDeviceFn(ctx, accountID, deviceID)
+		return s.revokeTrustedDeviceFn(ctx, accountID, tenantID, deviceID)
 	}
 	return nil
 }
@@ -373,7 +373,7 @@ func TestMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 // listTrustedDevices returns an empty slice for an account with no rows.
 func TestMFAListTrustedDevices_EmptyOK(t *testing.T) {
 	rs := &Resource{MFAService: &stubMFAService{
-		listTrustedDevicesFn: func(context.Context, int64) ([]*authModels.MFATrustedDevice, error) {
+		listTrustedDevicesFn: func(context.Context, int64, int64) ([]*authModels.MFATrustedDevice, error) {
 			return []*authModels.MFATrustedDevice{}, nil
 		},
 	}}
@@ -400,7 +400,7 @@ func TestMFAListTrustedDevices_RequiresClaim(t *testing.T) {
 
 func TestMFAListTrustedDevices_ServiceErrorReturns500(t *testing.T) {
 	rs := &Resource{MFAService: &stubMFAService{
-		listTrustedDevicesFn: func(context.Context, int64) ([]*authModels.MFATrustedDevice, error) {
+		listTrustedDevicesFn: func(context.Context, int64, int64) ([]*authModels.MFATrustedDevice, error) {
 			return nil, errors.New("db down")
 		},
 	}}

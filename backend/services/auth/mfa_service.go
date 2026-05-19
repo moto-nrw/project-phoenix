@@ -132,14 +132,18 @@ type MFAService interface {
 	// flipping the setting off immediately invalidates any cookies
 	// already issued, instead of waiting for natural expiry.
 	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error)
-	// ListTrustedDevices returns all active (non-revoked, non-expired)
-	// trusted-device rows for the given account. Used by the self-service
-	// "Meine vertrauten Geräte" section in the admin Sicherheit tab.
-	ListTrustedDevices(ctx context.Context, accountID int64) ([]*auth.MFATrustedDevice, error)
+	// ListTrustedDevices returns the user's active (non-revoked,
+	// non-expired) trusted-device rows for the GIVEN tenant. Trust is
+	// per-(account, tenant) (#1430 review item #9), so the settings page
+	// only ever displays the devices the user trusted while logged into
+	// the tenant they're currently in. Cross-tenant device management is
+	// not a feature today.
+	ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]*auth.MFATrustedDevice, error)
 	// RevokeTrustedDevice marks a single trusted-device row revoked. The
-	// service verifies the device belongs to the calling account so an
-	// IDOR can't revoke someone else's device.
-	RevokeTrustedDevice(ctx context.Context, accountID, deviceID int64) error
+	// service verifies the device belongs to the calling (account,
+	// tenant) so an IDOR can't revoke someone else's device or another
+	// tenant's row.
+	RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error
 	// IsTrustedDeviceEnabled reports whether the tenant has the
 	// security.mfa_trusted_device_enabled setting on. The login flow uses
 	// this to tell the frontend whether to render the "remember this
@@ -661,6 +665,9 @@ func (s *mfaService) IssueTrustedDevice(ctx context.Context, accountID, tenantID
 	}
 	device := &auth.MFATrustedDevice{
 		AccountID: accountID,
+		// Bind the row to the resolved tenant so a cookie issued for
+		// tenant A cannot ever bypass MFA on tenant B (#1430 review #9).
+		TenantID:  tenantID,
 		TokenHash: HashTrustedDeviceToken(rawToken),
 		IPAddress: ip,
 		ExpiresAt: expiresAt,
@@ -695,7 +702,10 @@ func (s *mfaService) VerifyTrustedDevice(ctx context.Context, accountID, tenantI
 		return false, nil
 	}
 	tokenHash := HashTrustedDeviceToken(rawToken)
-	device, err := s.repos.MFATrustedDevice.FindActiveByAccountIDAndTokenHash(ctx, accountID, tokenHash)
+	// Tenant-scoped lookup: the repo refuses to match against a row that
+	// belongs to a different tenant, even if the (account_id, token_hash)
+	// pair happens to collide. (#1430 review #9)
+	device, err := s.repos.MFATrustedDevice.FindActiveByAccountTenantAndTokenHash(ctx, accountID, tenantID, tokenHash)
 	if err != nil || device == nil {
 		return false, nil
 	}
@@ -703,15 +713,17 @@ func (s *mfaService) VerifyTrustedDevice(ctx context.Context, accountID, tenantI
 	return true, nil
 }
 
-func (s *mfaService) ListTrustedDevices(ctx context.Context, accountID int64) ([]*auth.MFATrustedDevice, error) {
-	return s.repos.MFATrustedDevice.ListActiveByAccountID(ctx, accountID)
+func (s *mfaService) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]*auth.MFATrustedDevice, error) {
+	return s.repos.MFATrustedDevice.ListActiveByAccountTenant(ctx, accountID, tenantID)
 }
 
-func (s *mfaService) RevokeTrustedDevice(ctx context.Context, accountID, deviceID int64) error {
+func (s *mfaService) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {
 	// Validate ownership before revoke — a device row can only be revoked by
-	// its own account so an attacker with a stolen access token for account A
-	// can't revoke account B's devices via id-guessing.
-	devices, err := s.repos.MFATrustedDevice.ListActiveByAccountID(ctx, accountID)
+	// its own account AND only from the tenant it was trusted in. An attacker
+	// with a stolen access token for account A in tenant T1 can't revoke
+	// account B's devices via id-guessing, and can't revoke A's tenant-T2
+	// devices either.
+	devices, err := s.repos.MFATrustedDevice.ListActiveByAccountTenant(ctx, accountID, tenantID)
 	if err != nil {
 		return err
 	}

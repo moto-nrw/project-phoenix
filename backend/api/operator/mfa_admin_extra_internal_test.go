@@ -88,10 +88,10 @@ func (s *stubTenantMFAService) IssueTrustedDevice(context.Context, int64, int64,
 func (s *stubTenantMFAService) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
 	return false, nil
 }
-func (s *stubTenantMFAService) ListTrustedDevices(context.Context, int64) ([]*authModels.MFATrustedDevice, error) {
+func (s *stubTenantMFAService) ListTrustedDevices(context.Context, int64, int64) ([]*authModels.MFATrustedDevice, error) {
 	return nil, nil
 }
-func (s *stubTenantMFAService) RevokeTrustedDevice(context.Context, int64, int64) error {
+func (s *stubTenantMFAService) RevokeTrustedDevice(context.Context, int64, int64, int64) error {
 	return nil
 }
 func (s *stubTenantMFAService) IsTrustedDeviceEnabled(context.Context, int64) bool { return true }
