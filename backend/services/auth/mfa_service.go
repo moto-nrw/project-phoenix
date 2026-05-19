@@ -31,6 +31,14 @@ const (
 	MFAEmailRateLimitWindow           = 15 * time.Minute // count of issued codes within this window
 	MFAEmailRateLimitMaxSent          = 3                // max codes per account per window
 	MFATrustedDeviceCookieDefaultDays = 90
+
+	// mfaAuditFallbackIP is the sentinel address written to
+	// audit.auth_events.ip_address when an MFA event has no real client
+	// IP (lockout counter rollover, async verify cleanup, admin disable
+	// from operator surface). The column is INET NOT NULL, and the rest
+	// of the codebase already uses this convention — see
+	// services/users/caregiver_capability.go caregiverCapabilityAuditIP.
+	mfaAuditFallbackIP = "0.0.0.0"
 )
 
 // MFA admin-override values. Stored as text in auth.accounts.mfa_admin_override
@@ -362,7 +370,7 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 	}
 
 	s.dispatchChallengeEmail(ctx, account, tenantID, plainCode, ip)
-	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAEmailSent, true, ip, "", map[string]any{
+	s.recordAuthEvent(ctx, accountID, tenantID, audit.EventTypeMFAEmailSent, true, ip, "", map[string]any{
 		"challenge_id": challenge.ID,
 	})
 
@@ -396,14 +404,14 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 
 	active, err := s.repos.MFAEmailChallenge.FindActiveByAccountID(ctx, claims.AccountID)
 	if err != nil || active == nil {
-		s.recordAuthEvent(ctx, claims.AccountID, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
+		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
 		return nil, ErrMFACodeInvalid
 	}
 
 	ok, verifyErr := VerifyShortCode(code, active.CodeHash)
 	if verifyErr != nil || !ok {
-		s.handleFailedAttempt(ctx, account)
-		s.recordAuthEvent(ctx, claims.AccountID, audit.EventTypeMFAFailed, false, nil, "code mismatch", nil)
+		s.handleFailedAttempt(ctx, account, claims.TenantID)
+		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "code mismatch", nil)
 		return nil, ErrMFACodeInvalid
 	}
 
@@ -422,7 +430,7 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 			slog.Int64("account_id", claims.AccountID),
 			slog.Int64("challenge_id", active.ID),
 			slog.String("error", err.Error()))
-		s.recordAuthEvent(ctx, claims.AccountID, audit.EventTypeMFAFailed, false, nil, "consume race", nil)
+		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "consume race", nil)
 		return nil, ErrMFACodeInvalid
 	}
 	account.ResetMFAAttempts()
@@ -435,7 +443,7 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 		_ = s.repos.MFACredential.UpdateLastUsedAt(ctx, cred.ID, now)
 	}
 
-	s.recordAuthEvent(ctx, claims.AccountID, audit.EventTypeMFAVerified, true, nil, "", nil)
+	s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAVerified, true, nil, "", nil)
 	return &VerifiedChallenge{
 		AccountID: claims.AccountID,
 		Scope:     claims.Scope,
@@ -454,15 +462,19 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	if account.IsMFALocked() {
 		return ErrMFALocked
 	}
+	// VerifyCodeForAccount runs INSIDE TenantTxMiddleware (called from
+	// authenticated /auth/mfa/enroll/confirm), so tenant.FromContext(ctx)
+	// is set. Pass 0 below; recordAuthEvent + handleFailedAttempt fall
+	// back to the context tenant.
 	active, err := s.repos.MFAEmailChallenge.FindActiveByAccountID(ctx, accountID)
 	if err != nil || active == nil {
-		s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
+		s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
 		return ErrMFACodeInvalid
 	}
 	ok, vErr := VerifyShortCode(code, active.CodeHash)
 	if vErr != nil || !ok {
-		s.handleFailedAttempt(ctx, account)
-		s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAFailed, false, nil, "code mismatch", nil)
+		s.handleFailedAttempt(ctx, account, 0)
+		s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAFailed, false, nil, "code mismatch", nil)
 		return ErrMFACodeInvalid
 	}
 	now := time.Now()
@@ -475,12 +487,12 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 			slog.Int64("account_id", accountID),
 			slog.Int64("challenge_id", active.ID),
 			slog.String("error", err.Error()))
-		s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAFailed, false, nil, "consume race", nil)
+		s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAFailed, false, nil, "consume race", nil)
 		return ErrMFACodeInvalid
 	}
 	account.ResetMFAAttempts()
 	_ = s.repos.Account.Update(ctx, account)
-	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFAVerified, true, nil, "", nil)
+	s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAVerified, true, nil, "", nil)
 	return nil
 }
 
@@ -502,7 +514,12 @@ func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string,
 // event when the threshold is hit. Errors here are logged but never bubble
 // up — VerifyChallenge already returns a generic "invalid code" message and
 // must keep timing consistent.
-func (s *mfaService) handleFailedAttempt(ctx context.Context, account *auth.Account) {
+//
+// tenantID is forwarded to recordAuthEvent so the mfa_locked row lands in
+// the audit table during login (where tenant.FromContext(ctx) is 0). Pass 0
+// from authenticated callers (post-login enrollment confirm) — the recorder
+// falls back to the context tenant.
+func (s *mfaService) handleFailedAttempt(ctx context.Context, account *auth.Account, tenantID int64) {
 	wasLocked := account.IsMFALocked()
 	account.IncrementMFAAttempts()
 	if err := s.repos.Account.Update(ctx, account); err != nil {
@@ -510,7 +527,7 @@ func (s *mfaService) handleFailedAttempt(ctx context.Context, account *auth.Acco
 		return
 	}
 	if !wasLocked && account.IsMFALocked() {
-		s.recordAuthEvent(ctx, account.ID, audit.EventTypeMFALocked, false, nil, "", map[string]any{
+		s.recordAuthEvent(ctx, account.ID, tenantID, audit.EventTypeMFALocked, false, nil, "", map[string]any{
 			"locked_until": account.MFALockedUntil,
 		})
 	}
@@ -558,7 +575,9 @@ func (s *mfaService) Disable(ctx context.Context, accountID int64) error {
 	if err != nil {
 		return err
 	}
-	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFADisabled, true, nil, "", nil)
+	// Disable runs from authenticated endpoints (self-service or admin) with
+	// an active TenantTxMiddleware, so context already carries the tenant.
+	s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFADisabled, true, nil, "", nil)
 	return nil
 }
 
@@ -630,7 +649,7 @@ func (s *mfaService) IssueTrustedDevice(ctx context.Context, accountID, tenantID
 		return "", time.Time{}, fmt.Errorf("persist trusted device: %w", err)
 	}
 	signed := SignTrustedDeviceToken(rawToken, s.mfaSecret)
-	s.recordAuthEvent(ctx, accountID, audit.EventTypeMFATrustedDeviceAdded, true, ip, "", map[string]any{
+	s.recordAuthEvent(ctx, accountID, tenantID, audit.EventTypeMFATrustedDeviceAdded, true, ip, "", map[string]any{
 		"device_id": device.ID,
 	})
 	// Fire-and-forget security notification — the user gets a mail so
@@ -705,7 +724,10 @@ func (s *mfaService) AdminDisable(ctx context.Context, actorID, actorTenantID, t
 	if err := s.requireSchoolMembership(ctx, "account", actorID, actorTenantID, targetAccountID, "disable"); err != nil {
 		return err
 	}
-	return s.adminDisableCore(ctx, "account", actorID, targetAccountID, reason)
+	// targetTenantID == actorTenantID: membership check just proved the
+	// target is in the actor's tenant. Pass it explicitly so audit rows
+	// land even when the caller isn't inside TenantTxMiddleware.
+	return s.adminDisableCore(ctx, "account", actorID, actorTenantID, targetAccountID, reason)
 }
 
 // OperatorAdminDisable mirrors AdminDisable but skips the users:manage
@@ -717,7 +739,10 @@ func (s *mfaService) OperatorAdminDisable(ctx context.Context, operatorID, schoo
 	if err := s.requireSchoolMembership(ctx, "operator", operatorID, schoolID, targetAccountID, "disable"); err != nil {
 		return err
 	}
-	return s.adminDisableCore(ctx, "operator", operatorID, targetAccountID, reason)
+	// schoolID is the target tenant. Operator routes do not run inside
+	// TenantTxMiddleware, so the audit row would otherwise lose its
+	// tenant_id and be skipped entirely. (#1430 Item #5)
+	return s.adminDisableCore(ctx, "operator", operatorID, schoolID, targetAccountID, reason)
 }
 
 func (s *mfaService) GetMFAOverride(ctx context.Context, accountID int64) (string, error) {
@@ -736,12 +761,13 @@ func (s *mfaService) GetMFAOverride(ctx context.Context, accountID int64) (strin
 // tell which surface initiated the disable. Both rejected attempts and
 // successful disables produce an audit row so brute-force / scanning
 // behaviour is forensically visible.
-func (s *mfaService) adminDisableCore(ctx context.Context, actorType string, actorID, targetAccountID int64, reason string) error {
+func (s *mfaService) adminDisableCore(ctx context.Context, actorType string, actorID, targetTenantID, targetAccountID int64, reason string) error {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
 		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
 			ActorType:       actorType,
 			ActorID:         actorID,
+			TargetTenantID:  targetTenantID,
 			TargetAccountID: targetAccountID,
 			Action:          "disable",
 			ErrMsg:          "reason is required",
@@ -752,6 +778,7 @@ func (s *mfaService) adminDisableCore(ctx context.Context, actorType string, act
 		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
 			ActorType:       actorType,
 			ActorID:         actorID,
+			TargetTenantID:  targetTenantID,
 			TargetAccountID: targetAccountID,
 			Action:          "disable",
 			Reason:          reason,
@@ -759,7 +786,7 @@ func (s *mfaService) adminDisableCore(ctx context.Context, actorType string, act
 		})
 		return err
 	}
-	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
+	s.recordAuthEvent(ctx, targetAccountID, targetTenantID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
 		"actor_type":       actorType,
 		"actor_account_id": actorID,
 		"action":           "disable",
@@ -789,7 +816,7 @@ func (s *mfaService) SetMFAOverride(ctx context.Context, actorID, actorTenantID,
 	if err := s.requireSchoolMembership(ctx, "account", actorID, actorTenantID, targetAccountID, "set_override"); err != nil {
 		return err
 	}
-	return s.setMFAOverrideCore(ctx, "account", actorID, targetAccountID, override, reason)
+	return s.setMFAOverrideCore(ctx, "account", actorID, actorTenantID, targetAccountID, override, reason)
 }
 
 // OperatorSetMFAOverride mirrors SetMFAOverride for the operator path.
@@ -800,7 +827,7 @@ func (s *mfaService) OperatorSetMFAOverride(ctx context.Context, operatorID, sch
 	if err := s.requireSchoolMembership(ctx, "operator", operatorID, schoolID, targetAccountID, "set_override"); err != nil {
 		return err
 	}
-	return s.setMFAOverrideCore(ctx, "operator", operatorID, targetAccountID, override, reason)
+	return s.setMFAOverrideCore(ctx, "operator", operatorID, schoolID, targetAccountID, override, reason)
 }
 
 // setMFAOverrideCore is the shared write + trusted-device-revoke +
@@ -810,11 +837,12 @@ func (s *mfaService) OperatorSetMFAOverride(ctx context.Context, operatorID, sch
 // could leave the account flagged "no MFA" while stale trusted-device
 // cookies remain valid. Rejected attempts (bad value, empty reason,
 // missing target) produce a failure audit row so abuse is observable.
-func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, actorID, targetAccountID int64, override, reason string) error {
+func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, actorID, targetTenantID, targetAccountID int64, override, reason string) error {
 	if !IsValidMFAAdminOverride(override) {
 		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
 			ActorType:       actorType,
 			ActorID:         actorID,
+			TargetTenantID:  targetTenantID,
 			TargetAccountID: targetAccountID,
 			Action:          "set_override",
 			Override:        override,
@@ -828,6 +856,7 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
 			ActorType:       actorType,
 			ActorID:         actorID,
+			TargetTenantID:  targetTenantID,
 			TargetAccountID: targetAccountID,
 			Action:          "set_override",
 			Override:        override,
@@ -864,6 +893,7 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
 			ActorType:       actorType,
 			ActorID:         actorID,
+			TargetTenantID:  targetTenantID,
 			TargetAccountID: targetAccountID,
 			Action:          "set_override",
 			Override:        override,
@@ -873,7 +903,7 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 		return txErr
 	}
 
-	s.recordAuthEvent(ctx, targetAccountID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
+	s.recordAuthEvent(ctx, targetAccountID, targetTenantID, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
 		"actor_type":        actorType,
 		"actor_account_id":  actorID,
 		"action":            "set_override",
@@ -932,10 +962,15 @@ type adminOverrideFailureEvent struct {
 	ActorType       string
 	ActorID         int64
 	TargetAccountID int64
-	Action          string
-	Override        string
-	Reason          string
-	ErrMsg          string
+	// TargetTenantID is the tenant the audit row should be filed under.
+	// Required because the admin paths often run from contexts (operator
+	// surface) where tenant.FromContext(ctx) is 0 and the row would be
+	// silently dropped without it. (#1430 Item #5)
+	TargetTenantID int64
+	Action         string
+	Override       string
+	Reason         string
+	ErrMsg         string
 }
 
 // recordAdminOverrideFailure emits an audit row for a rejected admin
@@ -954,7 +989,7 @@ func (s *mfaService) recordAdminOverrideFailure(ctx context.Context, ev adminOve
 	if ev.Reason != "" {
 		metadata["reason"] = ev.Reason
 	}
-	s.recordAuthEvent(ctx, ev.TargetAccountID, audit.EventTypeMFAAdminOverride, false, nil, ev.ErrMsg, metadata)
+	s.recordAuthEvent(ctx, ev.TargetAccountID, ev.TargetTenantID, audit.EventTypeMFAAdminOverride, false, nil, ev.ErrMsg, metadata)
 }
 
 func (s *mfaService) requireAdminPermission(actorPermissions []string) error {
@@ -1185,10 +1220,26 @@ func (s *mfaService) resolveTrustedDeviceHint(ctx context.Context, tenantID int6
 // recordAuthEvent writes to audit.auth_events asynchronously, in a tenant-scoped
 // transaction. Failures are logged but never bubble up to the caller — auditing
 // is best-effort by design.
-func (s *mfaService) recordAuthEvent(ctx context.Context, accountID int64, eventType string, success bool, ip net.IP, errorMessage string, metadata map[string]any) {
-	tenantID := tenant.FromContext(ctx)
+//
+// tenantID is required so the login flow (which runs OUTSIDE TenantTxMiddleware
+// and therefore has tenant.FromContext(ctx) == 0) can still produce audit rows.
+// Callers that already have a tenant tx in flight may pass 0 to fall back to
+// tenant.FromContext(ctx); pre-login callers MUST pass the resolved tenant
+// explicitly or the audit row is silently dropped. Item #5 (PR #1430 review)
+// added the parameter — previously the login-flow MFA events (email sent,
+// code mismatch, verified, locked) were all skipped because no tenant context
+// was set, leaving a blind spot in the audit trail.
+func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID int64, eventType string, success bool, ip net.IP, errorMessage string, metadata map[string]any) {
+	if tenantID == 0 {
+		tenantID = tenant.FromContext(ctx)
+	}
 
-	ipStr := ""
+	// audit.auth_events.ip_address is INET NOT NULL. MFA events from
+	// internal state transitions (lockout, admin disable, async verify)
+	// have no client IP; substitute the project's established sentinel
+	// (see caregiverCapabilityAuditIP) so the row still lands instead of
+	// being rejected by Validate() and lost.
+	ipStr := mfaAuditFallbackIP
 	if ip != nil {
 		ipStr = ip.String()
 	}

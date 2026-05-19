@@ -64,7 +64,16 @@ func (ae *AuthEvent) Validate() error {
 	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh,
 		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked,
 		EventTypeTenantSwitch, EventTypeCaregiverCapabilityEnabled,
-		EventTypeCaregiverCapabilityDisabled:
+		EventTypeCaregiverCapabilityDisabled,
+		// MFA event types — were defined as constants but missing from this
+		// allowlist, so every Create() call from mfa_service quietly bounced
+		// with "invalid event type". The drop was masked by the previous
+		// "no tenant context" short-circuit (Item #5 review). Now that the
+		// service threads tenant_id through to the recorder, rows actually
+		// hit the INSERT and the validation gate has to accept them.
+		EventTypeMFAEmailSent, EventTypeMFAVerified, EventTypeMFAFailed,
+		EventTypeMFALocked, EventTypeMFARecoveryUsed, EventTypeMFADisabled,
+		EventTypeMFATrustedDeviceAdded, EventTypeMFAAdminOverride:
 		// Valid types
 	default:
 		return errors.New("invalid event type")
