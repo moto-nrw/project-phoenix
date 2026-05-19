@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
@@ -572,6 +573,22 @@ func (s *operatorMFAService) recordAudit(ctx context.Context, operatorID int64, 
 	}
 
 	go func() {
+		// Recover from any panic in the audit-write path. Without this
+		// guard a nil-pointer in the repo, a bun driver bug, or any
+		// other unexpected panic in the goroutine would crash the
+		// entire server process. Mirrors the recovery + sentry pattern
+		// in mfaService.recordAuthEvent. (#1430 review item #10)
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("panic in operator mfa audit logging: %v", r)
+				s.logger.Error("operator audit goroutine panic recovered",
+					slog.String("action", action),
+					slog.String("error", err.Error()),
+				)
+				sentry.CurrentHub().Recover(r)
+				sentry.Flush(2 * time.Second)
+			}
+		}()
 		logCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := s.repos.OperatorAuditLog.Create(logCtx, entry); err != nil {
