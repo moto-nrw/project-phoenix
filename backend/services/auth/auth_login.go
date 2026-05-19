@@ -131,15 +131,15 @@ func (s *Service) LoginWithMFAGate(
 	}
 
 	// Branch 1: no MFA service wired or MFA not required for this account.
+	// On infra errors (settings DB blip etc.) IsRequired now returns
+	// ErrMFAStatusUnavailable so we refuse THIS login with 503 instead of
+	// silently dropping to "not required" — that would let an attacker who
+	// can DoS the settings table bypass MFA entirely.
 	mfaRequired := false
 	if s.mfaService != nil {
 		mfaRequired, err = s.mfaService.IsRequired(ctx, account, metadata.tenantID)
 		if err != nil {
-			s.getLogger().Warn("mfa IsRequired check failed; treating as not required",
-				slog.Int64("account_id", account.ID),
-				slog.String("error", err.Error()),
-			)
-			mfaRequired = false
+			return nil, &AuthError{Op: "check mfa required", Err: ErrMFAStatusUnavailable}
 		}
 	}
 
@@ -151,9 +151,17 @@ func (s *Service) LoginWithMFAGate(
 	//   was advisory only — middleware did not enforce it, so a direct
 	//   API client (curl) got a fully privileged token pair before ever
 	//   setting up a second factor. The enrollment token closes that gap.
+	//
+	// HasEnrollment distinguishes sql.ErrNoRows (legitimate not-enrolled)
+	// from infra errors. On infra errors we refuse this login the same way
+	// as the IsRequired branch above — otherwise an attacker who DoSes the
+	// credentials table could log a victim in without ever facing MFA.
 	enrolled := false
 	if s.mfaService != nil {
-		enrolled, _ = s.mfaService.HasEnrollment(ctx, account.ID)
+		enrolled, err = s.mfaService.HasEnrollment(ctx, account.ID)
+		if err != nil {
+			return nil, &AuthError{Op: "check mfa enrollment", Err: ErrMFAStatusUnavailable}
+		}
 	}
 
 	if mfaRequired && !enrolled {

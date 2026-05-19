@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -136,7 +137,17 @@ func NewOperatorMFAService(cfg OperatorMFAServiceConfig) (OperatorMFAService, er
 func (s *operatorMFAService) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {
 	cred, err := s.repos.OperatorMFACredential.FindByOperatorID(ctx, operatorID)
 	if err != nil {
-		return false, nil
+		// sql.ErrNoRows is the legitimate "not enrolled" signal — every
+		// fresh operator hits it on the first login. Anything else is
+		// infrastructure: refuse this login rather than fail-open with
+		// false. errors.Is walks through DatabaseError.Unwrap().
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		s.logger.Warn("operator mfa enrollment lookup failed; refusing login",
+			slog.Int64("operator_id", operatorID),
+			slog.String("error", err.Error()))
+		return false, authService.ErrMFAStatusUnavailable
 	}
 	return cred != nil && cred.ID > 0, nil
 }

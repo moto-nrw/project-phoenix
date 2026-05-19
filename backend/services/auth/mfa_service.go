@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -66,6 +67,13 @@ var (
 	ErrMFAPermissionDenied      = errors.New("permission denied")
 	ErrMFAInvalidOverride       = errors.New("invalid mfa override value")
 	ErrMFAUnsupportedScope      = errors.New("operator-scope MFA is wired up in a separate phase")
+	// ErrMFAStatusUnavailable surfaces when the MFA gate cannot determine
+	// whether this login requires MFA — typically a Settings or
+	// MFA-credentials lookup that failed with a non-"not found" error
+	// (DB timeout, connection error, etc.). Reject *this* login with 503
+	// so an infrastructure blip doesn't silently degrade the security
+	// posture, but never block other accounts (no global fail-closed).
+	ErrMFAStatusUnavailable = errors.New("mfa status unavailable, please retry")
 )
 
 // VerifiedChallenge is returned by VerifyChallenge so the login flow has
@@ -265,8 +273,15 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 			val, err = s.settings.ResolveString(ctx, configModel.KeyMFAMode)
 		}
 		if err != nil {
-			s.logger.Warn("mfa_mode resolve failed; treating as off",
+			// Settings infra error (DB timeout, connection drop). We can't
+			// tell whether the tenant has opted in or out, so failing-open
+			// to "off" would silently downgrade security; fail-closed to
+			// "required" would lock everyone out on a registry hiccup.
+			// Refuse THIS login instead — caller maps to 503.
+			s.logger.Warn("mfa_mode resolve failed; refusing login",
+				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()))
+			return false, ErrMFAStatusUnavailable
 		} else if val != "" {
 			mode = val
 		}
@@ -287,7 +302,18 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 func (s *mfaService) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
 	cred, err := s.repos.MFACredential.FindByAccountID(ctx, accountID)
 	if err != nil {
-		return false, nil // not-found is the most common case; treat as "no enrollment"
+		// sql.ErrNoRows is the legitimate "not enrolled" signal — every
+		// fresh account hits it. Anything else (DB timeout, connection
+		// drop) means we can't actually answer the question; refuse this
+		// login instead of fail-open returning false. errors.Is walks
+		// through DatabaseError.Unwrap() so the wrapped sentinel matches.
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		s.logger.Warn("mfa enrollment lookup failed; refusing login",
+			slog.Int64("account_id", accountID),
+			slog.String("error", err.Error()))
+		return false, ErrMFAStatusUnavailable
 	}
 	return cred != nil && cred.ID > 0, nil
 }

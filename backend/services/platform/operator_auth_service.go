@@ -229,7 +229,15 @@ func (s *operatorAuthService) LoginWithMFAGate(
 		}, nil
 	}
 
-	enrolled, _ := s.mfaService.HasEnrollment(ctx, operator.ID)
+	// HasEnrollment now distinguishes sql.ErrNoRows (legitimate "not
+	// enrolled" — every fresh operator hits it) from infra errors. On
+	// infra errors we refuse THIS login with 503 instead of treating it
+	// as not-enrolled, which would silently downgrade an enrolled
+	// operator straight back to the enrollment-token flow.
+	enrolled, err := s.mfaService.HasEnrollment(ctx, operator.ID)
+	if err != nil {
+		return nil, err
+	}
 
 	// Step 3: not-enrolled branch. Operator MFA is mandatory, so a
 	// not-yet-enrolled operator MUST go through the narrow enrollment

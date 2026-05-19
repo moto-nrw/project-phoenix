@@ -174,6 +174,11 @@ func TestLogin_ServiceErrorMapping(t *testing.T) {
 		{"invalid creds", &authService.AuthError{Op: "login", Err: authService.ErrInvalidCredentials}, http.StatusUnauthorized},
 		{"account inactive", &authService.AuthError{Op: "login", Err: authService.ErrAccountInactive}, http.StatusUnauthorized},
 		{"tenant not found", &authService.AuthError{Op: "login", Err: authService.ErrTenantNotFound}, http.StatusNotFound},
+		// Item #3: an MFA gate that couldn't resolve required/enrolled
+		// (settings or credentials lookup hit a non-not-found error) must
+		// surface as 503 so the frontend can retry, and so a settings DB
+		// outage cannot silently downgrade MFA to "off" for this login.
+		{"mfa status unavailable", &authService.AuthError{Op: "check mfa required", Err: authService.ErrMFAStatusUnavailable}, http.StatusServiceUnavailable},
 		{"unknown server error", errors.New("boom"), http.StatusInternalServerError},
 	}
 	for _, tc := range cases {

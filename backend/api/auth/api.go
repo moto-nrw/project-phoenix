@@ -658,6 +658,12 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// preparing the next challenge. Same HTTP status as rate limit,
 			// distinct message body — handled separately on the frontend.
 			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
+		case errors.Is(authErr.Err, authService.ErrMFAStatusUnavailable):
+			// MFA gate couldn't determine required/enrolled status (settings
+			// or credentials lookup failed with a non-not-found error).
+			// Refuse this login rather than fail-open. 503 lets the client
+			// retry — the frontend renders it as "Bitte versuche es erneut".
+			common.RenderError(w, r, common.ErrorServiceUnavailable(authErr.Err))
 		default:
 			common.RenderError(w, r, ErrorInternalServer(err))
 		}

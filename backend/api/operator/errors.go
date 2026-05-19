@@ -82,6 +82,17 @@ func ErrInternal(message string) render.Renderer {
 	}
 }
 
+// ErrServiceUnavailable creates a 503 response. Used when a transient
+// dependency makes a security decision impossible and the safe behaviour
+// is to refuse this caller without globally locking everyone out.
+func ErrServiceUnavailable(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusServiceUnavailable,
+		StatusText:     "Service Unavailable",
+		ErrorText:      message,
+	}
+}
+
 // AuthErrorRenderer maps auth service errors to HTTP responses
 func AuthErrorRenderer(err error) render.Renderer {
 	var invalidCreds *platformSvc.InvalidCredentialsError
@@ -102,6 +113,8 @@ func AuthErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, authService.ErrMFAChallengeTokenInvalid),
 		errors.Is(err, authService.ErrMFACodeInvalid):
 		return ErrInvalidCredentials()
+	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+		return ErrServiceUnavailable("MFA status temporarily unavailable, please retry")
 	default:
 		return ErrInternal("Authentication failed")
 	}
