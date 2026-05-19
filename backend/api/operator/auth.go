@@ -111,7 +111,8 @@ func (rs *AuthResource) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if result.Status == platformSvc.OperatorLoginStatusMFARequired {
+	switch result.Status {
+	case platformSvc.OperatorLoginStatusMFARequired:
 		tde := result.TrustedDeviceEnabled
 		tdd := result.TrustedDeviceDays
 		common.Respond(w, r, http.StatusOK, &LoginResponse{
@@ -122,13 +123,28 @@ func (rs *AuthResource) Login(w http.ResponseWriter, r *http.Request) {
 			TrustedDeviceDays:    &tdd,
 		}, "MFA verification required")
 		return
+	case platformSvc.OperatorLoginStatusMFAEnrollmentRequired:
+		resp := &LoginResponse{
+			Status:                string(platformSvc.OperatorLoginStatusMFAEnrollmentRequired),
+			AccessToken:           result.AccessToken,
+			MaskedEmail:           result.MaskedEmail,
+			MFAEnrollmentRequired: true,
+		}
+		if result.Operator != nil {
+			resp.Operator = &OperatorResponse{
+				ID:          result.Operator.ID,
+				Email:       result.Operator.Email,
+				DisplayName: result.Operator.DisplayName,
+			}
+		}
+		common.Respond(w, r, http.StatusOK, resp, "MFA enrollment required")
+		return
 	}
 
 	resp := &LoginResponse{
-		Status:                string(platformSvc.OperatorLoginStatusAuthenticated),
-		AccessToken:           result.AccessToken,
-		RefreshToken:          result.RefreshToken,
-		MFAEnrollmentRequired: result.MFAEnrollmentRequired,
+		Status:       string(platformSvc.OperatorLoginStatusAuthenticated),
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
 	}
 	if result.Operator != nil {
 		resp.Operator = &OperatorResponse{

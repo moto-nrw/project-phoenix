@@ -30,8 +30,10 @@ interface MFAStep {
 }
 
 interface MFAEnrollmentStep {
-  accessToken: string;
-  refreshToken: string;
+  // enrollmentToken is the narrow-scope JWT issued by operator login when
+  // MFA enrollment is required. Only authorizes /operator/auth/mfa/enroll/*.
+  // A full session pair is minted by the confirm endpoint.
+  enrollmentToken: string;
   email: string;
 }
 
@@ -159,10 +161,13 @@ export default function OperatorLoginPage() {
         return;
       }
 
-      if (response.mfa_enrollment_required) {
+      if (response.status === "mfa_enrollment_required") {
+        // Post-#1430: response carries an enrollment-scoped JWT in
+        // access_token (no refresh_token). It only authorizes the
+        // operator enrollment routes; the real session is minted by
+        // /operator/auth/mfa/enroll/confirm.
         setEnrollmentStep({
-          accessToken: response.access_token,
-          refreshToken: response.refresh_token,
+          enrollmentToken: response.access_token,
           email,
         });
         return;
@@ -232,15 +237,22 @@ export default function OperatorLoginPage() {
         {enrollmentStep && (
           <MFAEnrollmentScreen
             scope="operator"
-            bearerToken={enrollmentStep.accessToken}
+            bearerToken={enrollmentStep.enrollmentToken}
             userEmail={enrollmentStep.email}
-            onComplete={async () => {
-              const tokens = {
-                access_token: enrollmentStep.accessToken,
-                refresh_token: enrollmentStep.refreshToken,
-              };
+            onExit={() => {
               setEnrollmentStep(null);
-              await seedSessionWithTokens(tokens);
+              setError("");
+              setPassword("");
+            }}
+            onComplete={async (tokens) => {
+              // Post-#1430: confirm() returns a fresh access/refresh pair.
+              // The enrollment-scoped token never had session privileges,
+              // so dropping the enrollment step is the only cleanup needed.
+              setEnrollmentStep(null);
+              await seedSessionWithTokens({
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token,
+              });
             }}
           />
         )}

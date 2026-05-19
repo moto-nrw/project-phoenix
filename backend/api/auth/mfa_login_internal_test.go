@@ -109,15 +109,19 @@ func TestLogin_AuthenticatedResponseShape(t *testing.T) {
 	assert.False(t, resp.MFAEnrollmentRequired)
 }
 
-// TestLogin_AuthenticatedSurfacesEnrollmentFlag covers the case where an
-// account has tokens *and* a pending forced enrollment.
-func TestLogin_AuthenticatedSurfacesEnrollmentFlag(t *testing.T) {
+// TestLogin_EnrollmentRequiredEmitsScopedToken covers the new
+// post-#1430 contract: when MFA is required but the account has no
+// credential yet, the response carries status=mfa_enrollment_required
+// plus an enrollment-scoped JWT in `access_token` and NO `refresh_token`.
+// The previous "full session + flag" shape was the bypass the review
+// flagged as critical.
+func TestLogin_EnrollmentRequiredEmitsScopedToken(t *testing.T) {
 	rs := &Resource{
 		AuthService: &loginGateStub{
 			result: &authService.LoginResult{
-				Status:                authService.LoginStatusAuthenticated,
-				AccessToken:           "a",
-				RefreshToken:          "r",
+				Status:                authService.LoginStatusMFAEnrollmentRequired,
+				AccessToken:           "enrollment.scoped.tok",
+				MaskedEmail:           "x***@y.de",
 				MFAEnrollmentRequired: true,
 			},
 		},
@@ -128,6 +132,10 @@ func TestLogin_AuthenticatedSurfacesEnrollmentFlag(t *testing.T) {
 
 	var resp LoginResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
+	assert.Equal(t, "mfa_enrollment_required", resp.Status)
+	assert.Equal(t, "enrollment.scoped.tok", resp.AccessToken)
+	assert.Empty(t, resp.RefreshToken,
+		"no refresh token is issued before MFA enrollment — closes the pre-MFA-bypass hole")
 	assert.True(t, resp.MFAEnrollmentRequired)
 }
 

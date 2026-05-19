@@ -176,6 +176,19 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/auth/refresh", rs.authResource.RefreshToken)
 	})
 
+	// Enrollment-only routes (issue #1308): operator-side mirror of the
+	// tenant /auth/mfa/enroll/* group. Accepts the narrow enrollment JWT
+	// that operator login mints when no MFA credential is on file. The
+	// enrollment authenticator guarantees mfa_enrollment_pending=true so
+	// these routes are reachable only from a pre-enrollment session, never
+	// from a full operator access token.
+	r.Group(func(r chi.Router) {
+		r.Use(rs.tokenAuth.Verifier())
+		r.Use(jwt.MFAEnrollmentAuthenticator)
+		r.Post("/auth/mfa/enroll/start", rs.mfaResource.EnrollStart)
+		r.Post("/auth/mfa/enroll/confirm", rs.mfaResource.EnrollConfirm)
+	})
+
 	// Protected routes (require operator auth)
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
@@ -267,17 +280,9 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/email-change", rs.profileResource.InitiateEmailChange)
 		})
 
-		// MFA enrollment for the currently-authenticated operator
-		// (issue #1308). Routes are registered as individual leaves rather
-		// than via r.Route("/auth/mfa", ...) because the public sibling
-		// routes (mfa/verify, mfa/resend) already own the /auth/mfa/*
-		// subtree from a different group, and mounting a second sub-router
-		// on that prefix here shadows them.
-		r.Post("/auth/mfa/enroll/start", rs.mfaResource.EnrollStart)
-		r.Post("/auth/mfa/enroll/confirm", rs.mfaResource.EnrollConfirm)
-		// Self-service trusted-device management (operator-side mirror of
-		// the tenant section). Ownership is enforced in the service so
-		// these stay plain authenticated routes.
+		// MFA enrollment lives in its own group above (uses the dedicated
+		// MFAEnrollmentAuthenticator). Self-service trusted-device
+		// management stays here — ownership is enforced in the service.
 		r.Get("/auth/mfa/trusted-devices", rs.mfaResource.ListTrustedDevices)
 		r.Delete("/auth/mfa/trusted-devices/{deviceId}", rs.mfaResource.RevokeTrustedDevice)
 

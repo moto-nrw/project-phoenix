@@ -156,7 +156,21 @@ func toStringSliceLenient(val any) []string {
 
 // ParseClaims parses JWT claims into AppClaims.
 // Uses safe type assertions to prevent panics from malformed tokens.
+//
+// Defense-in-depth: tokens that carry an MFA-pending or
+// MFA-enrollment-pending flag are rejected here even when the rest of the
+// AppClaims fields happen to be set. Without this gate, a token issued for
+// the narrow MFA-challenge or enrollment surface could be replayed against
+// any fully authenticated route if a future change ever fills in id/sub/
+// roles on those tokens.
 func (c *AppClaims) ParseClaims(claims map[string]any) error {
+	if getOptionalBool(claims, "mfa_pending") {
+		return errors.New("token is a pending-MFA challenge, not a session token")
+	}
+	if getOptionalBool(claims, "mfa_enrollment_pending") {
+		return errors.New("token is a pending-MFA-enrollment token, not a session token")
+	}
+
 	var err error
 
 	c.ID, err = getRequiredInt(claims, "id")

@@ -127,6 +127,21 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/logout", rs.logout)
 	})
 
+	// Enrollment-only routes (issue #1308): accept the narrow enrollment
+	// JWT that login mints for accounts on an mfa-required tenant that
+	// have no credential yet. Lives in its own group with a dedicated
+	// authenticator so the enrollment token NEVER reaches a fully
+	// authenticated handler. The full session is minted by
+	// mfaEnrollConfirm after successful enrollment.
+	r.Group(func(r chi.Router) {
+		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
+		r.Use(jwt.MFAEnrollmentAuthenticator)
+		r.Route("/mfa/enroll", func(r chi.Router) {
+			r.Post("/start", rs.mfaEnrollStart)
+			r.Post("/confirm", rs.mfaEnrollConfirm)
+		})
+	})
+
 	// Protected routes that require access token
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
@@ -143,18 +158,11 @@ func (rs *Resource) Router() chi.Router {
 		// Password change - users can change their own password without special permissions
 		r.Post("/password", rs.changePassword)
 
-		// MFA enrollment for the currently authenticated user (issue #1308).
-		// The two endpoints here cover the forced-enrollment flow that runs
-		// when the tenant has mfa_mode = required_* and the user has no
-		// credential yet — all other MFA lifecycle operations (disable,
-		// recovery-code regen) flow through the admin-override path.
+		// Self-service trusted-device management — every authenticated
+		// account can see and revoke its own remembered devices from
+		// the admin Sicherheit tab. Ownership is enforced in the
+		// service so this stays a plain authenticated route.
 		r.Route("/mfa", func(r chi.Router) {
-			r.Post("/enroll/start", rs.mfaEnrollStart)
-			r.Post("/enroll/confirm", rs.mfaEnrollConfirm)
-			// Self-service trusted-device management — every authenticated
-			// account can see and revoke its own remembered devices from
-			// the admin Sicherheit tab. Ownership is enforced in the
-			// service so this stays a plain authenticated route.
 			r.Get("/trusted-devices", rs.mfaListTrustedDevices)
 			r.Delete("/trusted-devices/{deviceId}", rs.mfaRevokeTrustedDevice)
 		})
@@ -530,14 +538,21 @@ type TokenResponse struct {
 // that MFA can short-circuit the token pair. The `status` field tells the
 // client which fields to read:
 //
-//   - status == "authenticated"   → access_token + refresh_token populated;
-//     the frontend stores them as before.
-//   - status == "mfa_required"    → challenge_token + masked_email populated;
-//     the frontend renders the code-entry UI
-//     and POSTs to /auth/mfa/verify.
+//   - status == "authenticated"           → access_token + refresh_token
+//     populated; the frontend stores them as before.
+//   - status == "mfa_required"             → challenge_token + masked_email
+//     populated; the frontend renders the code-entry UI and POSTs to
+//     /auth/mfa/verify.
+//   - status == "mfa_enrollment_required"  → access_token carries a
+//     short-lived enrollment-scoped JWT (no refresh_token). The frontend
+//     uses it as the Authorization header for /auth/mfa/enroll/* and
+//     replaces it with the real token pair returned by
+//     /auth/mfa/enroll/confirm. The token is REJECTED by the regular
+//     Authenticator middleware, so it cannot be used to bypass MFA.
 //
-// mfa_enrollment_required is only set on the authenticated branch and tells
-// the frontend to redirect to the enrollment screen before the dashboard.
+// mfa_enrollment_required is retained as a legacy hint for clients that key
+// off the boolean rather than the status discriminator; new code should
+// branch on `status`.
 type LoginResponse struct {
 	Status                string `json:"status"`
 	AccessToken           string `json:"access_token,omitempty"`
@@ -587,7 +602,8 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if result.Status == authService.LoginStatusMFARequired {
+	switch result.Status {
+	case authService.LoginStatusMFARequired:
 		tde := result.TrustedDeviceEnabled
 		tdd := result.TrustedDeviceDays
 		render.JSON(w, r, LoginResponse{
@@ -598,13 +614,20 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 			TrustedDeviceDays:    &tdd,
 		})
 		return
+	case authService.LoginStatusMFAEnrollmentRequired:
+		render.JSON(w, r, LoginResponse{
+			Status:                string(authService.LoginStatusMFAEnrollmentRequired),
+			AccessToken:           result.AccessToken,
+			MaskedEmail:           result.MaskedEmail,
+			MFAEnrollmentRequired: true,
+		})
+		return
 	}
 
 	render.JSON(w, r, LoginResponse{
-		Status:                string(authService.LoginStatusAuthenticated),
-		AccessToken:           result.AccessToken,
-		RefreshToken:          result.RefreshToken,
-		MFAEnrollmentRequired: result.MFAEnrollmentRequired,
+		Status:       string(authService.LoginStatusAuthenticated),
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
 	})
 }
 

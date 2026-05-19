@@ -30,7 +30,26 @@ interface MFARequiredLoginResponse {
   trusted_device_days?: number;
 }
 
-type LoginResponse = AuthenticatedLoginResponse | MFARequiredLoginResponse;
+/**
+ * MFAEnrollmentRequiredLoginResponse is the new (post-#1430) login shape
+ * for accounts on an MFA-required tenant that have no credential yet.
+ * `access_token` carries an enrollment-scoped JWT that ONLY authorizes
+ * `/auth/mfa/enroll/*` — it is rejected by every other authenticated
+ * route. `refresh_token` is intentionally absent: the full session is
+ * minted by `/auth/mfa/enroll/confirm` after the user proves they own
+ * the inbox.
+ */
+interface MFAEnrollmentRequiredLoginResponse {
+  status: "mfa_enrollment_required";
+  access_token: string;
+  masked_email: string;
+  mfa_enrollment_required: true;
+}
+
+type LoginResponse =
+  | AuthenticatedLoginResponse
+  | MFARequiredLoginResponse
+  | MFAEnrollmentRequiredLoginResponse;
 
 export interface MFATokenResponse {
   access_token: string;
@@ -213,20 +232,33 @@ export async function enrollStart(
   });
 }
 
+/**
+ * enrollConfirm submits the emailed code and returns the freshly-minted
+ * access/refresh pair. Post-#1430 the backend no longer reuses the
+ * enrollment-scoped token for the regular session — successful
+ * confirmation mints a full session token pair that the frontend uses to
+ * seed NextAuth, identical to the verify-flow contract.
+ *
+ * `rememberDevice: true` additionally issues a trusted-device cookie so
+ * the next login on this browser skips MFA.
+ */
 export async function enrollConfirm(
   scope: LoginScope,
   bearerToken: string,
   code: string,
-): Promise<void> {
+  rememberDevice = false,
+): Promise<MFATokenResponse> {
   const url = mfaUrl(scope, "enroll/confirm");
-  await postJson<unknown>(
-    url,
-    { code },
-    {
-      bearerToken,
-      allowEmptyBody: true,
-    },
-  );
+  const payload = { code, remember_device: rememberDevice };
+  if (isOperator(scope)) {
+    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
+      url,
+      payload,
+      { bearerToken },
+    );
+    return envelope.data;
+  }
+  return postJson<MFATokenResponse>(url, payload, { bearerToken });
 }
 
 // ----- Self-service trusted devices (Tenant-only) -----

@@ -37,8 +37,11 @@ interface MFAStep {
 }
 
 interface MFAEnrollmentStep {
-  accessToken: string;
-  refreshToken: string;
+  // enrollmentToken is the narrow-scope JWT issued by login when MFA is
+  // required and the user has no credential yet. It only authorizes
+  // /auth/mfa/enroll/* — a full session pair is minted by the confirm
+  // endpoint and seeded via seedSessionWithTokens once enrollment succeeds.
+  enrollmentToken: string;
   email: string;
 }
 function LoginForm() {
@@ -212,10 +215,12 @@ function LoginForm() {
         return;
       }
 
-      if (response.mfa_enrollment_required) {
+      if (response.status === "mfa_enrollment_required") {
+        // Post-#1430: the response carries an enrollment-scoped JWT in
+        // access_token (no refresh_token). It only authorizes
+        // /auth/mfa/enroll/* — the real session is minted by confirm.
         setEnrollmentStep({
-          accessToken: response.access_token,
-          refreshToken: response.refresh_token,
+          enrollmentToken: response.access_token,
           email,
         });
         return;
@@ -356,19 +361,21 @@ function LoginForm() {
           <div className="transition-opacity duration-300">
             <MFAEnrollmentScreen
               scope="tenant"
-              bearerToken={enrollmentStep.accessToken}
+              bearerToken={enrollmentStep.enrollmentToken}
               userEmail={enrollmentStep.email}
               onExit={() => {
                 setEnrollmentStep(null);
                 setError("");
                 setPassword("");
               }}
-              onComplete={async () => {
-                const tokens = {
-                  access_token: enrollmentStep.accessToken,
-                  refresh_token: enrollmentStep.refreshToken,
-                };
-                await seedSessionWithTokens(tokens);
+              onComplete={async (tokens) => {
+                // Post-#1430: confirm() returns a freshly-minted access/refresh
+                // pair. The enrollment-scoped token is discarded — it never
+                // had session privileges in the first place.
+                await seedSessionWithTokens({
+                  access_token: tokens.access_token,
+                  refresh_token: tokens.refresh_token,
+                });
                 setEnrollmentStep(null);
               }}
             />

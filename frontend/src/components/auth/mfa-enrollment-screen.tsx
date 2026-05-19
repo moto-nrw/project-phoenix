@@ -9,6 +9,7 @@ import {
   enrollStart,
   germanMFAErrorMessage,
   type LoginScope,
+  type MFATokenResponse,
 } from "~/lib/mfa-api";
 import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
 
@@ -27,9 +28,20 @@ const STEP_INDEX: Record<Step, number> = {
 
 interface MFAEnrollmentScreenProps {
   readonly scope: LoginScope;
+  /**
+   * Enrollment-scoped JWT issued at login for accounts on an mfa-required
+   * tenant with no credential yet. Only authorizes /auth/mfa/enroll/*.
+   * After successful confirmation the backend returns a full session
+   * pair, which is handed to onComplete — this token is discarded.
+   */
   readonly bearerToken: string;
   readonly userEmail: string;
-  readonly onComplete: () => void | Promise<void>;
+  /**
+   * Called after the user successfully confirms their enrollment. Receives
+   * the freshly-minted access/refresh tokens returned by the confirm
+   * endpoint so the caller can seed the real NextAuth session.
+   */
+  readonly onComplete: (tokens: MFATokenResponse) => void | Promise<void>;
   readonly onExit?: () => void;
 }
 
@@ -44,6 +56,11 @@ export function MFAEnrollmentScreen({
   const [error, setError] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  // tokensRef holds the access/refresh pair returned by /enroll/confirm.
+  // We stash them in a ref instead of state to avoid an extra render
+  // between confirm success and the success-screen render; the success
+  // button passes them through to onComplete.
+  const tokensRef = useRef<MFATokenResponse | null>(null);
   const otpRef = useRef<OTPInputGridHandle | null>(null);
 
   useEffect(() => {
@@ -84,7 +101,8 @@ export function MFAEnrollmentScreen({
       setIsConfirming(true);
       setError("");
       try {
-        await enrollConfirm(scope, bearerToken, submittedCode);
+        const tokens = await enrollConfirm(scope, bearerToken, submittedCode);
+        tokensRef.current = tokens;
         setStep("success");
       } catch (err) {
         setError(germanMFAErrorMessage(err));
@@ -169,7 +187,18 @@ export function MFAEnrollmentScreen({
             size="base"
             className="w-full"
             onClick={() => {
-              void onComplete();
+              const tokens = tokensRef.current;
+              if (!tokens) {
+                // Defensive: success step is only reachable after confirm
+                // resolves with tokens, so tokensRef must be set. If it
+                // isn't, surface an error rather than silently falling
+                // through to a broken session.
+                setError(
+                  "Etwas ist schiefgelaufen. Bitte melden Sie sich erneut an.",
+                );
+                return;
+              }
+              void onComplete(tokens);
             }}
           >
             Weiter zum Dashboard

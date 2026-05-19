@@ -154,7 +154,13 @@ func TestOperatorLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
 	assert.False(t, result.MFAEnrollmentRequired)
 }
 
-func TestOperatorLoginWithMFAGate_NotEnrolled_FlagsEnrollment(t *testing.T) {
+func TestOperatorLoginWithMFAGate_NotEnrolled_IssuesEnrollmentToken(t *testing.T) {
+	// Post-#1430 review (Item #1) contract: an unenrolled operator must
+	// receive a narrow enrollment-scoped JWT (no refresh token), NOT a
+	// full operator session. The previous design returned `authenticated`
+	// + MFAEnrollmentRequired flag — an advisory-only signal that any
+	// direct API client could ignore, bypassing the mandatory operator
+	// MFA entirely.
 	withJWTSecret(t)
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn: func(context.Context, int64) (bool, error) { return false, nil },
@@ -167,11 +173,17 @@ func TestOperatorLoginWithMFAGate_NotEnrolled_FlagsEnrollment(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, platformSvc.OperatorLoginStatusAuthenticated, result.Status,
-		"unenrolled operators still get a token pair — frontend handles the enrollment redirect")
-	assert.NotEmpty(t, result.AccessToken)
-	assert.True(t, result.MFAEnrollmentRequired)
-	assert.Empty(t, result.ChallengeToken)
+	assert.Equal(t, platformSvc.OperatorLoginStatusMFAEnrollmentRequired, result.Status,
+		"unenrolled operators must receive the narrow enrollment status, not a full session")
+	assert.NotEmpty(t, result.AccessToken,
+		"AccessToken carries the enrollment-scoped JWT for /operator/auth/mfa/enroll/*")
+	assert.Empty(t, result.RefreshToken,
+		"no refresh token before MFA enrollment — closes the pre-MFA-bypass hole")
+	assert.True(t, result.MFAEnrollmentRequired,
+		"MFAEnrollmentRequired stays as a legacy hint for clients that branch on the boolean")
+	assert.Empty(t, result.ChallengeToken, "no challenge before enrollment")
+	assert.NotEmpty(t, result.MaskedEmail, "enrollment screen renders the masked address")
+	require.NotNil(t, result.Operator)
 }
 
 func TestOperatorLoginWithMFAGate_EnrolledNoCookie_ReturnsChallenge(t *testing.T) {

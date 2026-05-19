@@ -156,6 +156,12 @@ type OperatorLoginStatus string
 const (
 	OperatorLoginStatusAuthenticated OperatorLoginStatus = "authenticated"
 	OperatorLoginStatusMFARequired   OperatorLoginStatus = "mfa_required"
+	// OperatorLoginStatusMFAEnrollmentRequired mirrors the tenant-side
+	// LoginStatusMFAEnrollmentRequired: credentials are valid but the
+	// operator has not enrolled in MFA yet. Response carries a narrow
+	// enrollment-scoped JWT (no refresh) that only authorizes
+	// /operator/auth/mfa/enroll/*.
+	OperatorLoginStatusMFAEnrollmentRequired OperatorLoginStatus = "mfa_enrollment_required"
 )
 
 // OperatorLoginResult is the discriminated response shape for
@@ -225,21 +231,43 @@ func (s *operatorAuthService) LoginWithMFAGate(
 
 	enrolled, _ := s.mfaService.HasEnrollment(ctx, operator.ID)
 
-	// Step 3: trusted-device cookie short-circuit. Only meaningful when
-	// the operator is already enrolled — fresh enrollments need to go
-	// through the challenge flow.
+	// Step 3: not-enrolled branch. Operator MFA is mandatory, so a
+	// not-yet-enrolled operator MUST go through the narrow enrollment
+	// surface before getting a full session. Previous design issued a
+	// full token pair plus an MFAEnrollmentRequired hint; the flag was
+	// advisory only and a direct API client could skip enrollment entirely.
+	// Issue an enrollment-scoped JWT instead — the same defense the tenant
+	// path uses.
+	if !enrolled {
+		enrollmentToken, err := s.tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+			AccountID: operator.ID,
+			Scope:     jwt.MFAEnrollmentScopePlatform,
+		}, authSvc.MFAEnrollmentTokenTTL)
+		if err != nil {
+			return nil, fmt.Errorf("issue operator mfa enrollment token: %w", err)
+		}
+		_ = userAgent // reserved for audit parity with tenant path
+		return &OperatorLoginResult{
+			Status:                OperatorLoginStatusMFAEnrollmentRequired,
+			AccessToken:           enrollmentToken,
+			Operator:              operator,
+			MaskedEmail:           maskOperatorEmailForUX(operator.Email),
+			MFAEnrollmentRequired: true,
+		}, nil
+	}
+
+	// Step 4: trusted-device cookie short-circuit. Only meaningful when
+	// the operator is already enrolled — fresh enrollments are handled by
+	// Step 3 above.
 	trustedDeviceVerified := false
-	if enrolled && trustedDeviceCookie != "" {
+	if trustedDeviceCookie != "" {
 		ok, _ := s.mfaService.VerifyTrustedDevice(ctx, operator.ID, trustedDeviceCookie)
 		trustedDeviceVerified = ok
 	}
 
-	// Step 4: decide which response to return.
-	//   enrolled, !trusted → challenge
-	//   enrolled,  trusted → tokens (MFA skipped)
-	//  !enrolled           → tokens + MFAEnrollmentRequired flag
-	//                        (frontend forces enrollment screen)
-	if enrolled && !trustedDeviceVerified {
+	// Step 5: enrolled + no trusted device → challenge; enrolled + trusted
+	// device → tokens (MFA skipped).
+	if !trustedDeviceVerified {
 		challenge, chErr := s.mfaService.StartChallenge(ctx, operator.ID, clientIP)
 		if chErr != nil {
 			return nil, fmt.Errorf("start operator mfa challenge: %w", chErr)
@@ -259,11 +287,10 @@ func (s *operatorAuthService) LoginWithMFAGate(
 	}
 	_ = userAgent // operator audit log doesn't carry UA today; reserved for future
 	return &OperatorLoginResult{
-		Status:                OperatorLoginStatusAuthenticated,
-		AccessToken:           access,
-		RefreshToken:          refresh,
-		Operator:              operator,
-		MFAEnrollmentRequired: !enrolled,
+		Status:       OperatorLoginStatusAuthenticated,
+		AccessToken:  access,
+		RefreshToken: refresh,
+		Operator:     operator,
 	}, nil
 }
 

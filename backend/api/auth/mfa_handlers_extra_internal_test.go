@@ -140,6 +140,22 @@ func withClaims(r *http.Request, accountID int) *http.Request {
 	return r.WithContext(ctx)
 }
 
+// withEnrollmentClaims primes the request context with an
+// MFAEnrollmentClaims value the same way MFAEnrollmentAuthenticator would
+// after parsing an enrollment JWT. Used by the enroll-handler tests
+// because those handlers now read CtxEnrollmentClaims (not CtxClaims) —
+// the change introduced by Item #1 of the #1430 review to close the
+// pre-enrollment session bypass.
+func withEnrollmentClaims(r *http.Request, accountID int64, tenantID int64) *http.Request {
+	ctx := context.WithValue(r.Context(), jwt.CtxEnrollmentClaims, jwt.MFAEnrollmentClaims{
+		AccountID:            accountID,
+		Scope:                jwt.MFAEnrollmentScopeTenant,
+		TenantID:             tenantID,
+		MFAEnrollmentPending: true,
+	})
+	return r.WithContext(ctx)
+}
+
 // --- tests -------------------------------------------------------------
 
 func TestMFAVerify_InvalidJSONReturns400(t *testing.T) {
@@ -233,15 +249,15 @@ func TestMFAResend_ServiceErrorPropagates(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 }
 
-func TestMFAEnrollStart_RequiresAccountClaim(t *testing.T) {
+func TestMFAEnrollStart_RequiresEnrollmentClaim(t *testing.T) {
 	rs := &Resource{MFAService: &stubMFAService{}}
 
-	r := jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil) // no claims in context
+	r := jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil) // no enrollment claim
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollStart(rr, r)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code,
-		"missing account claim must fail closed, not silently enroll account 0")
+		"missing enrollment claim must fail closed — this is the post-#1430 contract; the handler used to read CtxClaims and a regular session token would have worked")
 }
 
 func TestMFAEnrollStart_Success_Returns204(t *testing.T) {
@@ -250,7 +266,7 @@ func TestMFAEnrollStart_Success_Returns204(t *testing.T) {
 		startChallengeFn: func(context.Context, int64, int64, string, net.IP) (string, error) { return "ch", nil },
 	}}
 
-	r := withClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil), 42)
+	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollStart(rr, r)
 
@@ -267,28 +283,38 @@ func TestMFAEnrollStart_StartChallengeErrorMapped(t *testing.T) {
 		},
 	}}
 
-	r := withClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil), 42)
+	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollStart(rr, r)
 
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 }
 
-func TestMFAEnrollConfirm_AlreadyEnrolledTreatedAsSuccess(t *testing.T) {
-	// The handler swallows ErrMFAAlreadyEnrolled so a retried confirm
-	// (where the credential row was already written) still completes
-	// cleanly with 204.
-	rs := &Resource{MFAService: &stubMFAService{
-		verifyCodeFn: func(context.Context, int64, string) error { return nil },
-		enrollFn:     func(context.Context, int64) error { return authService.ErrMFAAlreadyEnrolled },
-	}}
+func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
+	// Item #1 of #1430 review: confirm no longer returns 204 on
+	// already-enrolled. It mints a full access/refresh pair so the
+	// enrollment-scoped token never sticks around past enrollment.
+	// ErrMFAAlreadyEnrolled is still swallowed so a retried confirm
+	// (where the credential row was already written) advances to the
+	// token-pair branch instead of bubbling up.
+	rs := &Resource{
+		MFAService: &stubMFAService{
+			verifyCodeFn: func(context.Context, int64, string) error { return nil },
+			enrollFn:     func(context.Context, int64) error { return authService.ErrMFAAlreadyEnrolled },
+		},
+		AuthService: &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
+	}
 
-	r := withClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "123456"}), 42)
+	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
+		MFAEnrollConfirmRequest{Code: "123456"}), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 
-	assert.Equal(t, http.StatusNoContent, rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	var body TokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "access-tok", body.AccessToken)
+	assert.Equal(t, "refresh-tok", body.RefreshToken)
 }
 
 func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
@@ -297,15 +323,19 @@ func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
 		enrollFn:     func(context.Context, int64) error { return errors.New("db down") },
 	}}
 
-	r := withClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "123456"}), 42)
+	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
+		MFAEnrollConfirmRequest{Code: "123456"}), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
 
-func TestMFAEnrollConfirm_RequiresAccountClaim(t *testing.T) {
+func TestMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {
+	// Without an enrollment claim on the context the handler must fail
+	// closed — this also covers the case where a regular AppClaims token
+	// (CtxClaims) was set instead. Renamed from RequiresAccountClaim to
+	// reflect the post-#1430 shape.
 	rs := &Resource{MFAService: &stubMFAService{}}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
@@ -319,8 +349,8 @@ func TestMFAEnrollConfirm_RequiresAccountClaim(t *testing.T) {
 func TestMFAEnrollConfirm_BindRejectsShortCode(t *testing.T) {
 	rs := &Resource{MFAService: &stubMFAService{}}
 
-	r := withClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "12"}), 42)
+	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
+		MFAEnrollConfirmRequest{Code: "12"}), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 
@@ -332,8 +362,8 @@ func TestMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 		verifyCodeFn: func(context.Context, int64, string) error { return authService.ErrMFACodeInvalid },
 	}}
 
-	r := withClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "654321"}), 42)
+	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
+		MFAEnrollConfirmRequest{Code: "654321"}), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 

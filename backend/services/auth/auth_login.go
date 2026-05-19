@@ -68,7 +68,18 @@ const (
 	// must present a second factor before tokens are issued. The response
 	// carries a short-lived challenge token and (optional) UX hints.
 	LoginStatusMFARequired LoginStatus = "mfa_required"
+	// LoginStatusMFAEnrollmentRequired means credentials were valid but the
+	// tenant requires MFA and the account has no credential yet. The
+	// response carries an enrollment-scoped access token (no refresh) that
+	// authorizes only /auth/mfa/enroll/*. The full session is minted after
+	// successful enrollment.
+	LoginStatusMFAEnrollmentRequired LoginStatus = "mfa_enrollment_required"
 )
+
+// MFAEnrollmentTokenTTL is the lifetime of an enrollment-scoped JWT. Long
+// enough to fetch the emailed code and confirm enrollment in one sitting,
+// short enough that an abandoned enrollment session does not linger.
+const MFAEnrollmentTokenTTL = 15 * time.Minute
 
 // LoginResult is the discriminated response shape for LoginWithMFAGate.
 // Exactly one of (AccessToken+RefreshToken) or ChallengeToken is populated.
@@ -134,11 +145,32 @@ func (s *Service) LoginWithMFAGate(
 
 	// Branch 2: account has no MFA enrollment yet. Two cases:
 	// - MFA not required: status quo (enrolment optional)
-	// - MFA required: issue tokens but flag MFAEnrollmentRequired so the
-	//   frontend forces the user through the enrollment screen.
+	// - MFA required: issue a NARROW enrollment-scoped JWT that only the
+	//   /auth/mfa/enroll/* surface accepts. The previous design returned a
+	//   full session token plus an MFAEnrollmentRequired flag, but the flag
+	//   was advisory only — middleware did not enforce it, so a direct
+	//   API client (curl) got a fully privileged token pair before ever
+	//   setting up a second factor. The enrollment token closes that gap.
 	enrolled := false
 	if s.mfaService != nil {
 		enrolled, _ = s.mfaService.HasEnrollment(ctx, account.ID)
+	}
+
+	if mfaRequired && !enrolled {
+		enrollmentToken, err := s.tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+			AccountID: account.ID,
+			Scope:     jwt.MFAEnrollmentScopeTenant,
+			TenantID:  metadata.tenantID,
+		}, MFAEnrollmentTokenTTL)
+		if err != nil {
+			return nil, &AuthError{Op: "issue mfa enrollment token", Err: err}
+		}
+		return &LoginResult{
+			Status:                LoginStatusMFAEnrollmentRequired,
+			AccessToken:           enrollmentToken,
+			MaskedEmail:           maskEmailForUX(account.Email),
+			MFAEnrollmentRequired: true,
+		}, nil
 	}
 
 	// Branch 3: trusted-device cookie short-circuits MFA when verifiable.
@@ -177,10 +209,9 @@ func (s *Service) LoginWithMFAGate(
 	}
 
 	return &LoginResult{
-		Status:                LoginStatusAuthenticated,
-		AccessToken:           accessToken,
-		RefreshToken:          refreshToken,
-		MFAEnrollmentRequired: mfaRequired && !enrolled,
+		Status:       LoginStatusAuthenticated,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}, nil
 }
 

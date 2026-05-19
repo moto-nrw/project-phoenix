@@ -144,18 +144,20 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 // ----- /mfa/enroll/start -----
 
 // mfaEnrollStart triggers an email with a code that the user must echo back
-// at /mfa/enroll/confirm. No body — the authenticated session identifies
-// the account.
+// at /mfa/enroll/confirm. No body — the enrollment-scoped JWT in the
+// Authorization header identifies the account. Authenticated by
+// MFAEnrollmentAuthenticator, which guarantees the token has
+// mfa_enrollment_pending=true.
 func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
+	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
+	if !ok || claims.AccountID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	_, err := rs.MFAService.StartChallenge(r.Context(), int64(claims.ID), claims.TenantID, jwt.MFAChallengeScopeTenant, parseClientIP(r))
+	_, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, jwt.MFAChallengeScopeTenant, parseClientIP(r))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -168,6 +170,10 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 // MFAEnrollConfirmRequest is the body for POST /auth/mfa/enroll/confirm.
 type MFAEnrollConfirmRequest struct {
 	Code string `json:"code"`
+	// RememberDevice mirrors the verify-flow flag: when true, a successful
+	// confirm additionally issues a trusted-device cookie so the next
+	// login on this browser can skip MFA. Optional — defaults to false.
+	RememberDevice bool `json:"remember_device,omitempty"`
 }
 
 // Bind validates the confirm request.
@@ -178,15 +184,17 @@ func (req *MFAEnrollConfirmRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// mfaEnrollConfirm verifies the just-emailed code and marks the account as
-// enrolled. No body — the frontend only cares about the 204 to advance to
-// the "2FA aktiviert" success screen.
+// mfaEnrollConfirm verifies the just-emailed code, marks the account as
+// enrolled, and mints a full access/refresh token pair so the frontend can
+// seed a real session. Replaces the original 204 response that re-used the
+// pre-MFA access token — that path allowed bypassing MFA by skipping
+// enrollment entirely.
 func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
+	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
+	if !ok || claims.AccountID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
@@ -196,21 +204,26 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accountID := int64(claims.ID)
+	accountID := claims.AccountID
 
 	if err := rs.MFAService.VerifyCodeForAccount(r.Context(), accountID, req.Code); err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
 	if err := rs.MFAService.Enroll(r.Context(), accountID); err != nil {
-		// Already enrolled is fine here — treat the second enroll call as a
-		// no-op so a retried request still ends with a 204.
+		// Already enrolled is fine — a retried request must still produce a
+		// valid session. The pre-enrollment check at login means we should
+		// rarely hit this branch in practice.
 		if !errors.Is(err, authService.ErrMFAAlreadyEnrolled) {
 			mapMFAError(w, r, err)
 			return
 		}
 	}
-	w.WriteHeader(http.StatusNoContent)
+
+	// Mint the real session now that the second factor is set up. Mirrors
+	// the verify-flow's completeMFAExchange so the frontend handles the
+	// response shape identically.
+	rs.completeMFAExchange(w, r, accountID, claims.TenantID, req.RememberDevice)
 }
 
 // ----- /mfa/trusted-devices -----

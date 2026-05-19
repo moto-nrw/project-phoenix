@@ -98,8 +98,14 @@ describe("MFAEnrollmentScreen", () => {
   });
 
   it("auto-submits enroll/confirm when 6 digits are entered and shows the success screen", async () => {
+    // Post-#1430: confirm now returns a full session token pair (instead
+    // of 204). The screen stashes them and hands them to onComplete so
+    // the caller can seed NextAuth.
     const startMock = mockResponse(204, null);
-    const confirmMock = mockResponse(204, null);
+    const confirmMock = mockResponse(200, {
+      access_token: "enroll-access",
+      refresh_token: "enroll-refresh",
+    });
     let callCount = 0;
     global.fetch = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -131,7 +137,8 @@ describe("MFAEnrollmentScreen", () => {
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/auth/mfa/enroll/confirm",
         expect.objectContaining({
-          body: JSON.stringify({ code: "987654" }),
+          // remember_device is now part of the payload (defaults to false).
+          body: JSON.stringify({ code: "987654", remember_device: false }),
         }),
       );
     });
@@ -146,7 +153,10 @@ describe("MFAEnrollmentScreen", () => {
       screen.getByRole("button", { name: "Weiter zum Dashboard" }),
     );
     await waitFor(() => {
-      expect(onComplete).toHaveBeenCalled();
+      expect(onComplete).toHaveBeenCalledWith({
+        access_token: "enroll-access",
+        refresh_token: "enroll-refresh",
+      });
     });
   });
 

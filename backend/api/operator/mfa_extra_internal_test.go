@@ -117,6 +117,19 @@ func opWithClaims(r *http.Request, operatorID int) *http.Request {
 	return r.WithContext(ctx)
 }
 
+// opWithEnrollmentClaims primes the request context the same way
+// MFAEnrollmentAuthenticator would after parsing an enrollment JWT. Used
+// by the enroll-handler tests because those handlers now require an
+// enrollment-scoped claim (Item #1 of the #1430 review).
+func opWithEnrollmentClaims(r *http.Request, operatorID int64) *http.Request {
+	ctx := context.WithValue(r.Context(), jwt.CtxEnrollmentClaims, jwt.MFAEnrollmentClaims{
+		AccountID:            operatorID,
+		Scope:                jwt.MFAEnrollmentScopePlatform,
+		MFAEnrollmentPending: true,
+	})
+	return r.WithContext(ctx)
+}
+
 // --- tests -------------------------------------------------------------
 
 func TestOperatorMFAVerify_InvalidJSON_Returns400(t *testing.T) {
@@ -183,7 +196,7 @@ func TestOperatorMFAResend_ServiceErrorMapsTo429(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 }
 
-func TestOperatorMFAEnrollStart_RequiresClaim(t *testing.T) {
+func TestOperatorMFAEnrollStart_RequiresEnrollmentClaim(t *testing.T) {
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{}}
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/start", nil)
@@ -198,14 +211,14 @@ func TestOperatorMFAEnrollStart_Success(t *testing.T) {
 		startChallengeFn: func(context.Context, int64, net.IP) (string, error) { return "ch", nil },
 	}}
 
-	r := opWithClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/start", nil), 42)
+	r := opWithEnrollmentClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/start", nil), 42)
 	rr := httptest.NewRecorder()
 	rs.EnrollStart(rr, r)
 
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
-func TestOperatorMFAEnrollConfirm_RequiresClaim(t *testing.T) {
+func TestOperatorMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{}}
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
@@ -221,7 +234,7 @@ func TestOperatorMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 		verifyCodeFn: func(context.Context, int64, string) error { return authService.ErrMFACodeInvalid },
 	}}
 
-	r := opWithClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
+	r := opWithEnrollmentClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
 		MFAEnrollConfirmRequest{Code: "654321"}), 42)
 	rr := httptest.NewRecorder()
 	rs.EnrollConfirm(rr, r)
@@ -229,18 +242,32 @@ func TestOperatorMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-func TestOperatorMFAEnrollConfirm_AlreadyEnrolledTreatedAsSuccess(t *testing.T) {
-	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
-		verifyCodeFn: func(context.Context, int64, string) error { return nil },
-		enrollFn:     func(context.Context, int64) error { return authService.ErrMFAAlreadyEnrolled },
-	}}
+func TestOperatorMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
+	// Item #1 of #1430 review (operator side): confirm now mints a full
+	// access/refresh pair instead of returning 204, so the enrollment
+	// token doesn't outlive enrollment. ErrMFAAlreadyEnrolled is still
+	// swallowed so retried confirms succeed.
+	rs := &MFAResource{
+		mfaService: &stubOperatorMFAServiceExtra{
+			verifyCodeFn: func(context.Context, int64, string) error { return nil },
+			enrollFn:     func(context.Context, int64) error { return authService.ErrMFAAlreadyEnrolled },
+		},
+		authService: &completeOperatorMFAAuthStub{access: "op-access", refresh: "op-refresh"},
+	}
 
-	r := opWithClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
+	r := opWithEnrollmentClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
 		MFAEnrollConfirmRequest{Code: "123456"}), 42)
 	rr := httptest.NewRecorder()
 	rs.EnrollConfirm(rr, r)
 
-	assert.Equal(t, http.StatusNoContent, rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	var body struct {
+		Data    MFATokenResponse `json:"data"`
+		Message string           `json:"message"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "op-access", body.Data.AccessToken)
+	assert.Equal(t, "op-refresh", body.Data.RefreshToken)
 }
 
 func TestOperatorMFAListTrustedDevices_EmptyOK(t *testing.T) {

@@ -163,18 +163,19 @@ func (rs *MFAResource) Resend(w http.ResponseWriter, r *http.Request) {
 // ----- /auth/mfa/enroll/start -----
 
 // EnrollStart triggers an email with a code that the operator must echo back
-// at /auth/mfa/enroll/confirm. No body — the authenticated session identifies
-// the operator.
+// at /auth/mfa/enroll/confirm. No body — the enrollment-scoped JWT
+// identifies the operator. Authenticated by MFAEnrollmentAuthenticator,
+// which guarantees mfa_enrollment_pending=true and scope=platform.
 func (rs *MFAResource) EnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
+	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
+	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopePlatform {
 		common.RenderError(w, r, ErrUnauthorized())
 		return
 	}
-	if _, err := rs.mfaService.StartChallenge(r.Context(), int64(claims.ID), parseOperatorClientIP(r)); err != nil {
+	if _, err := rs.mfaService.StartChallenge(r.Context(), claims.AccountID, parseOperatorClientIP(r)); err != nil {
 		mapOperatorMFAError(w, r, err)
 		return
 	}
@@ -186,6 +187,9 @@ func (rs *MFAResource) EnrollStart(w http.ResponseWriter, r *http.Request) {
 // MFAEnrollConfirmRequest is the body for POST /operator/auth/mfa/enroll/confirm.
 type MFAEnrollConfirmRequest struct {
 	Code string `json:"code"`
+	// RememberDevice optionally issues a trusted-device cookie on
+	// successful enrollment, parallel to the verify-flow's flag.
+	RememberDevice bool `json:"remember_device,omitempty"`
 }
 
 // Bind validates the confirm request.
@@ -196,15 +200,16 @@ func (req *MFAEnrollConfirmRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// EnrollConfirm verifies the just-emailed code and marks the operator as
-// enrolled. Returns 204 — the frontend uses that as the cue to show the
-// success screen and continue.
+// EnrollConfirm verifies the just-emailed code, marks the operator as
+// enrolled, and mints a full access/refresh token pair so the frontend can
+// seed a real operator session. Replaces the original 204 response that
+// re-used the pre-MFA access token.
 func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
+	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
+	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopePlatform {
 		common.RenderError(w, r, ErrUnauthorized())
 		return
 	}
@@ -214,21 +219,22 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	operatorID := int64(claims.ID)
+	operatorID := claims.AccountID
 
 	if err := rs.mfaService.VerifyCodeForOperator(r.Context(), operatorID, req.Code); err != nil {
 		mapOperatorMFAError(w, r, err)
 		return
 	}
 	if err := rs.mfaService.Enroll(r.Context(), operatorID); err != nil {
-		// Already-enrolled is not fatal — treat a retried enroll call as a
-		// no-op so the frontend still advances to the success screen.
+		// Already-enrolled is not fatal — a retried request must still mint
+		// a real session (no longer the pre-enrollment token).
 		if !errors.Is(err, authService.ErrMFAAlreadyEnrolled) {
 			mapOperatorMFAError(w, r, err)
 			return
 		}
 	}
-	common.RespondNoContent(w, r)
+
+	rs.completeMFAExchange(w, r, operatorID, req.RememberDevice)
 }
 
 // ----- /auth/mfa/trusted-devices -----

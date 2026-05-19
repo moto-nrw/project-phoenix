@@ -152,7 +152,12 @@ func TestLoginWithMFAGate_MFANotRequired_ReturnsTokens(t *testing.T) {
 		"force_off must not trigger the enrollment redirect")
 }
 
-func TestLoginWithMFAGate_MFARequiredNotEnrolled_FlagsEnrollment(t *testing.T) {
+func TestLoginWithMFAGate_MFARequiredNotEnrolled_IssuesEnrollmentToken(t *testing.T) {
+	// Post-#1430 review (Item #1) contract: unenrolled accounts on an
+	// mfa-required tenant get an ENROLLMENT-SCOPED JWT in AccessToken
+	// (not a full session) and NO refresh token. The previous design
+	// returned `Status: authenticated` plus a full token pair, which
+	// allowed bypassing MFA entirely by skipping enrollment.
 	sc := newLoginGateScenario(t, true)
 	sc.setOverride(auth.MFAAdminOverrideForceOn) // require MFA, but no credential row exists
 
@@ -162,13 +167,16 @@ func TestLoginWithMFAGate_MFARequiredNotEnrolled_FlagsEnrollment(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	assert.Equal(t, auth.LoginStatusAuthenticated, result.Status,
-		"unenrolled accounts still get a token pair — frontend must redirect to enrollment")
-	assert.NotEmpty(t, result.AccessToken)
-	assert.NotEmpty(t, result.RefreshToken)
+	assert.Equal(t, auth.LoginStatusMFAEnrollmentRequired, result.Status,
+		"unenrolled accounts must receive the narrow enrollment status, not a full session")
+	assert.NotEmpty(t, result.AccessToken,
+		"AccessToken carries the enrollment-scoped JWT so the frontend can call /mfa/enroll/*")
+	assert.Empty(t, result.RefreshToken,
+		"no refresh token before MFA enrollment — closes the pre-MFA-bypass hole")
 	assert.True(t, result.MFAEnrollmentRequired,
-		"MFAEnrollmentRequired must signal the forced-enrollment redirect")
-	assert.Empty(t, result.ChallengeToken, "no challenge issued when account isn't enrolled yet")
+		"MFAEnrollmentRequired is retained for legacy clients that branch on the boolean")
+	assert.Empty(t, result.ChallengeToken, "no challenge issued before enrollment")
+	assert.NotEmpty(t, result.MaskedEmail, "the enrollment screen renders the masked address")
 }
 
 func TestLoginWithMFAGate_MFARequiredAndEnrolled_ReturnsChallenge(t *testing.T) {
