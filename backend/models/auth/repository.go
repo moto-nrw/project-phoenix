@@ -22,6 +22,26 @@ type AccountRepository interface {
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
+	// mfa_locked_until = now() + lockoutDuration when the post-increment
+	// value reaches threshold. The CAS-style UPDATE means N concurrent
+	// failed verifies count as N, not 1, closing the lockout-bypass race
+	// from #1430 review item #6. Returns the post-update counter so the
+	// caller can detect "this attempt triggered the lockout" via
+	// `result.Attempts == threshold`.
+	IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (MFAAttemptResult, error)
+	// ResetMFAAttempts atomically clears mfa_attempts + mfa_locked_until
+	// after a successful verify so a single Account.Update can't
+	// inadvertently overwrite a concurrent increment.
+	ResetMFAAttempts(ctx context.Context, id int64) error
+}
+
+// MFAAttemptResult is the post-update snapshot returned by
+// AccountRepository.IncrementMFAAttempts. Used by callers to decide
+// whether the increment triggered the lockout transition.
+type MFAAttemptResult struct {
+	Attempts    int
+	LockedUntil *time.Time
 }
 
 // RoleRepository defines operations for managing roles

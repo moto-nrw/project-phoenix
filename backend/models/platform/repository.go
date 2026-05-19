@@ -18,6 +18,22 @@ type OperatorRepository interface {
 
 	// Auth operations
 	UpdateLastLogin(ctx context.Context, id int64) error
+
+	// IncrementMFAAttempts atomically bumps mfa_attempts and applies the
+	// lockout window once threshold is reached. Mirrors the auth.Account
+	// version from #1430 review item #6 — prevents concurrent failed
+	// verifies from collapsing into a single counted attempt.
+	IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (OperatorMFAAttemptResult, error)
+	// ResetMFAAttempts atomically clears mfa_attempts + mfa_locked_until
+	// after a successful verify.
+	ResetMFAAttempts(ctx context.Context, id int64) error
+}
+
+// OperatorMFAAttemptResult is the post-update snapshot returned by
+// OperatorRepository.IncrementMFAAttempts. Mirrors auth.MFAAttemptResult.
+type OperatorMFAAttemptResult struct {
+	Attempts    int
+	LockedUntil *time.Time
 }
 
 // OrganizationRepository defines operations for managing organizations.

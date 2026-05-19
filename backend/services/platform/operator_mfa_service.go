@@ -245,10 +245,13 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 		s.recordAudit(ctx, op.ID, platform.ActionMFAFailed, nil, &active.ID, map[string]any{"reason": "consume race"})
 		return nil, ErrOperatorMFACodeInvalid
 	}
-	op.ResetMFAAttempts()
-	if err := s.repos.Operator.Update(ctx, op); err != nil {
+	// Atomic reset — single UPDATE so a concurrent failed verify's
+	// increment can't be silently overwritten by a stale full-row Update.
+	if err := s.repos.Operator.ResetMFAAttempts(ctx, op.ID); err != nil {
 		s.logger.Warn("failed to reset operator MFA attempts", slog.String("error", err.Error()))
 	}
+	op.MFAAttempts = 0
+	op.MFALockedUntil = nil
 	cred, _ := s.repos.OperatorMFACredential.FindByOperatorID(ctx, op.ID)
 	if cred != nil && cred.ID > 0 {
 		_ = s.repos.OperatorMFACredential.UpdateLastUsedAt(ctx, cred.ID, now)
@@ -300,21 +303,30 @@ func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operator
 		s.recordAudit(ctx, operatorID, platform.ActionMFAFailed, nil, &active.ID, map[string]any{"reason": "consume race"})
 		return ErrOperatorMFACodeInvalid
 	}
-	op.ResetMFAAttempts()
-	_ = s.repos.Operator.Update(ctx, op)
+	// Atomic reset matches VerifyChallenge — single UPDATE so a concurrent
+	// failed verify's increment isn't silently overwritten.
+	_ = s.repos.Operator.ResetMFAAttempts(ctx, operatorID)
+	op.MFAAttempts = 0
+	op.MFALockedUntil = nil
 	s.recordAudit(ctx, operatorID, platform.ActionMFAVerified, nil, &active.ID, nil)
 	return nil
 }
 
+// handleFailedAttempt atomically bumps the operator's lockout counter via
+// the repository and emits an mfa_locked audit entry when *this* increment
+// crossed the threshold. Mirrors the tenant-side fix from #1430 review
+// item #6 — the previous read-modify-write let two concurrent failed
+// verifies collapse into a single counted attempt.
 func (s *operatorMFAService) handleFailedAttempt(ctx context.Context, op *platform.Operator) {
-	wasLocked := op.IsMFALocked()
-	op.IncrementMFAAttempts()
-	if err := s.repos.Operator.Update(ctx, op); err != nil {
+	result, err := s.repos.Operator.IncrementMFAAttempts(ctx, op.ID, OperatorMFALockoutThreshold, OperatorMFALockoutDuration)
+	if err != nil {
 		s.logger.Warn("failed to persist operator MFA attempt counter", slog.String("error", err.Error()))
 		return
 	}
-	if !wasLocked && op.IsMFALocked() {
-		s.recordAudit(ctx, op.ID, platform.ActionMFALocked, nil, nil, map[string]any{"locked_until": op.MFALockedUntil})
+	op.MFAAttempts = result.Attempts
+	op.MFALockedUntil = result.LockedUntil
+	if result.Attempts == OperatorMFALockoutThreshold {
+		s.recordAudit(ctx, op.ID, platform.ActionMFALocked, nil, nil, map[string]any{"locked_until": result.LockedUntil})
 	}
 }
 
@@ -344,10 +356,10 @@ func (s *operatorMFAService) Disable(ctx context.Context, operatorID int64) erro
 	if err := s.repos.OperatorMFATrustedDevice.RevokeAllByOperatorID(ctx, operatorID, time.Now()); err != nil {
 		return fmt.Errorf("revoke operator trusted devices: %w", err)
 	}
-	if op, err := s.repos.Operator.FindByID(ctx, operatorID); err == nil && op != nil {
-		op.ResetMFAAttempts()
-		_ = s.repos.Operator.Update(ctx, op)
-	}
+	// Atomic reset — replaces the previous fetch + full-row Update with a
+	// single UPDATE so the disable cascade isn't racing concurrent failed
+	// verifies on the same operator.
+	_ = s.repos.Operator.ResetMFAAttempts(ctx, operatorID)
 	s.recordAudit(ctx, operatorID, platform.ActionMFADisabled, nil, nil, nil)
 	return nil
 }

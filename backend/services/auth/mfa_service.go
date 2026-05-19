@@ -433,10 +433,14 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "consume race", nil)
 		return nil, ErrMFACodeInvalid
 	}
-	account.ResetMFAAttempts()
-	if err := s.repos.Account.Update(ctx, account); err != nil {
+	// Atomic reset (UPDATE SET mfa_attempts=0, mfa_locked_until=NULL).
+	// Prevents a successful verify from clobbering a concurrent failed
+	// verify's increment via a full-row Update of stale in-memory state.
+	if err := s.repos.Account.ResetMFAAttempts(ctx, account.ID); err != nil {
 		s.logger.Warn("failed to reset MFA attempts", slog.String("error", err.Error()))
 	}
+	account.MFAAttempts = 0
+	account.MFALockedUntil = nil
 
 	cred, _ := s.repos.MFACredential.FindByAccountID(ctx, claims.AccountID)
 	if cred != nil && cred.ID > 0 {
@@ -490,8 +494,11 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 		s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAFailed, false, nil, "consume race", nil)
 		return ErrMFACodeInvalid
 	}
-	account.ResetMFAAttempts()
-	_ = s.repos.Account.Update(ctx, account)
+	// Atomic reset matches VerifyChallenge — single UPDATE so a concurrent
+	// failed verify's increment is never silently overwritten.
+	_ = s.repos.Account.ResetMFAAttempts(ctx, accountID)
+	account.MFAAttempts = 0
+	account.MFALockedUntil = nil
 	s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAVerified, true, nil, "", nil)
 	return nil
 }
@@ -510,25 +517,42 @@ func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string,
 	return nil
 }
 
-// handleFailedAttempt increments the lockout counter and emits an mfa_locked
-// event when the threshold is hit. Errors here are logged but never bubble
-// up — VerifyChallenge already returns a generic "invalid code" message and
-// must keep timing consistent.
+// handleFailedAttempt atomically bumps the lockout counter via the
+// repository and emits an mfa_locked event when *this* increment was the
+// one that crossed the threshold. Errors here are logged but never bubble
+// up — VerifyChallenge already returns a generic "invalid code" message
+// and must keep timing consistent.
+//
+// The previous read-modify-write pattern was racy: two concurrent failed
+// verifies both read mfa_attempts=N, both wrote N+1, and only one of N
+// failures actually counted (an attacker could double their attempt
+// budget). The atomic UPDATE here closes that. (#1430 review item #6)
 //
 // tenantID is forwarded to recordAuthEvent so the mfa_locked row lands in
-// the audit table during login (where tenant.FromContext(ctx) is 0). Pass 0
-// from authenticated callers (post-login enrollment confirm) — the recorder
-// falls back to the context tenant.
+// the audit table during login (where tenant.FromContext(ctx) is 0). Pass
+// 0 from authenticated callers (post-login enrollment confirm) — the
+// recorder falls back to the context tenant.
 func (s *mfaService) handleFailedAttempt(ctx context.Context, account *auth.Account, tenantID int64) {
-	wasLocked := account.IsMFALocked()
-	account.IncrementMFAAttempts()
-	if err := s.repos.Account.Update(ctx, account); err != nil {
+	result, err := s.repos.Account.IncrementMFAAttempts(ctx, account.ID, MFALockoutThreshold, MFALockoutDuration)
+	if err != nil {
 		s.logger.Warn("failed to persist MFA attempt counter", slog.String("error", err.Error()))
 		return
 	}
-	if !wasLocked && account.IsMFALocked() {
+	// Keep the in-memory account in sync so callers higher up that still
+	// inspect account.MFAAttempts / account.MFALockedUntil see the new
+	// values without re-reading.
+	account.MFAAttempts = result.Attempts
+	account.MFALockedUntil = result.LockedUntil
+
+	// Emit mfa_locked exactly when this attempt crossed the threshold.
+	// `result.Attempts == MFALockoutThreshold` means: my increment was
+	// the N-th and only I see N == threshold. Later attempts past the
+	// threshold (which the model previously also flagged) only push
+	// locked_until forward and don't re-emit — matches the original
+	// "!wasLocked && IsMFALocked()" semantic without the TOCTOU window.
+	if result.Attempts == MFALockoutThreshold {
 		s.recordAuthEvent(ctx, account.ID, tenantID, audit.EventTypeMFALocked, false, nil, "", map[string]any{
-			"locked_until": account.MFALockedUntil,
+			"locked_until": result.LockedUntil,
 		})
 	}
 }
@@ -564,11 +588,11 @@ func (s *mfaService) Disable(ctx context.Context, accountID int64) error {
 		if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(txCtx, accountID, time.Now()); err != nil {
 			return fmt.Errorf("revoke trusted devices: %w", err)
 		}
-		if account, err := s.repos.Account.FindByID(txCtx, accountID); err == nil && account != nil {
-			account.ResetMFAAttempts()
-			if err := s.repos.Account.Update(txCtx, account); err != nil {
-				return fmt.Errorf("reset mfa attempts: %w", err)
-			}
+		// Atomic reset — replaces the previous fetch + Update with a single
+		// UPDATE so the disable cascade isn't racing concurrent failed
+		// verifies on the same account.
+		if err := s.repos.Account.ResetMFAAttempts(txCtx, accountID); err != nil {
+			return fmt.Errorf("reset mfa attempts: %w", err)
 		}
 		return nil
 	})
