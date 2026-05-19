@@ -41,7 +41,16 @@ type MFAChallengeClaims struct {
 }
 
 // ParseClaims fills MFAChallengeClaims from a decoded JWT claim map.
+//
+// Defense-in-depth (symmetric to MFAEnrollmentClaims): a challenge token
+// MUST NOT also carry mfa_enrollment_pending=true. Rejecting the foreign
+// flag up front means a malformed JWT can't satisfy both /auth/mfa/verify
+// and /auth/mfa/enroll/* middlewares. (#1430 review item #8)
 func (c *MFAChallengeClaims) ParseClaims(claims map[string]any) error {
+	if getOptionalBool(claims, "mfa_enrollment_pending") {
+		return errors.New("token is a pending-MFA-enrollment token, not a challenge")
+	}
+
 	c.AccountID = getOptionalInt64(claims, "account_id")
 	if c.AccountID == 0 {
 		return errors.New("missing required claim: account_id")

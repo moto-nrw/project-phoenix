@@ -54,7 +54,18 @@ type MFAEnrollmentClaims struct {
 }
 
 // ParseClaims fills MFAEnrollmentClaims from a decoded JWT claim map.
+//
+// Defense-in-depth (mirrors AppClaims.ParseClaims and the symmetric
+// gate in MFAChallengeClaims): an enrollment token MUST NOT also carry
+// mfa_pending=true — that would be a malformed JWT that satisfies both
+// challenge and enrollment middleware. Rejecting the foreign flag up
+// front means a future bug in CreateMFA*JWT can't accidentally produce
+// a JWT both parsers accept. (#1430 review item #8)
 func (c *MFAEnrollmentClaims) ParseClaims(claims map[string]any) error {
+	if getOptionalBool(claims, "mfa_pending") {
+		return errors.New("token is a pending-MFA challenge, not an enrollment token")
+	}
+
 	c.AccountID = getOptionalInt64(claims, "account_id")
 	if c.AccountID == 0 {
 		return errors.New("missing required claim: account_id")

@@ -210,7 +210,23 @@ type RefreshClaims struct {
 }
 
 // ParseClaims parses the JWT claims into RefreshClaims.
+//
+// Defense-in-depth (mirrors AppClaims.ParseClaims): refresh-token parsing
+// MUST reject tokens that carry an MFA-pending or MFA-enrollment-pending
+// flag, even if the rest of the RefreshClaims fields happen to be set.
+// Today's challenge / enrollment JWTs don't include `id`/`token`, so the
+// parse would fail at the next check anyway — but that's incidental, not
+// deliberate. If a future change ever extends the challenge/enrollment
+// shape, this explicit gate keeps those tokens from being accepted by the
+// /auth/refresh route. (#1430 review item #8)
 func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
+	if getOptionalBool(claims, "mfa_pending") {
+		return errors.New("token is a pending-MFA challenge, not a refresh token")
+	}
+	if getOptionalBool(claims, "mfa_enrollment_pending") {
+		return errors.New("token is a pending-MFA-enrollment token, not a refresh token")
+	}
+
 	// Parse ID field
 	id, ok := claims["id"]
 	if !ok {
