@@ -136,13 +136,20 @@ type MFAService interface {
 	// it. Falls back to MFATrustedDeviceCookieDefaultDays on errors.
 	TrustedDeviceDays(ctx context.Context, tenantID int64) int
 
-	// Admin override ("Godmode") — defense-in-depth permission check.
-	AdminDisable(ctx context.Context, actorID, targetAccountID int64, reason string, actorPermissions []string) error
+	// AdminDisable wipes the target's MFA enrollment + trusted devices. In
+	// addition to the users:manage permission check, the service verifies
+	// the target account is a member of the actor's tenant — `auth.accounts`
+	// has no tenant_id column and no RLS, so without this check a school
+	// admin with users:manage could force-disable MFA on any account in any
+	// other tenant by guessing its primary key (#1430 Item #2 IDOR fix).
+	AdminDisable(ctx context.Context, actorID, actorTenantID, targetAccountID int64, reason string, actorPermissions []string) error
 	// SetMFAOverride writes the per-account admin override
 	// (force_off / force_on / none). Audit row + trusted-device revocation
 	// (for force_off) are part of the same call so callers don't forget
-	// the security hygiene step.
-	SetMFAOverride(ctx context.Context, actorID, targetAccountID int64, override, reason string, actorPermissions []string) error
+	// the security hygiene step. Like AdminDisable, the actor's tenant is
+	// required: cross-tenant calls are rejected as ErrMFAPermissionDenied
+	// with a failure audit row.
+	SetMFAOverride(ctx context.Context, actorID, actorTenantID, targetAccountID int64, override, reason string, actorPermissions []string) error
 	// GetMFAOverride returns the current per-account override value.
 	// Read-side helper used by admin/operator surfaces to drive the
 	// settings modal — returns "none" when no row is present.
@@ -632,8 +639,22 @@ func (s *mfaService) RevokeTrustedDevice(ctx context.Context, accountID, deviceI
 
 // ===== Admin override ("Godmode") =====
 
-func (s *mfaService) AdminDisable(ctx context.Context, actorID, targetAccountID int64, reason string, actorPermissions []string) error {
+func (s *mfaService) AdminDisable(ctx context.Context, actorID, actorTenantID, targetAccountID int64, reason string, actorPermissions []string) error {
 	if err := s.requireAdminPermission(actorPermissions); err != nil {
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       "account",
+			ActorID:         actorID,
+			TargetAccountID: targetAccountID,
+			Action:          "disable",
+			Reason:          reason,
+			ErrMsg:          "permission denied",
+		})
+		return err
+	}
+	// Defense-in-depth: refuse to act across tenants even if a misconfigured
+	// role accidentally granted users:manage. Mirrors the operator-side
+	// requireSchoolMembership check. (#1430 Item #2)
+	if err := s.requireSchoolMembership(ctx, "account", actorID, actorTenantID, targetAccountID, "disable"); err != nil {
 		return err
 	}
 	return s.adminDisableCore(ctx, "account", actorID, targetAccountID, reason)
@@ -699,7 +720,7 @@ func (s *mfaService) adminDisableCore(ctx context.Context, actorType string, act
 	return nil
 }
 
-func (s *mfaService) SetMFAOverride(ctx context.Context, actorID, targetAccountID int64, override, reason string, actorPermissions []string) error {
+func (s *mfaService) SetMFAOverride(ctx context.Context, actorID, actorTenantID, targetAccountID int64, override, reason string, actorPermissions []string) error {
 	if err := s.requireAdminPermission(actorPermissions); err != nil {
 		// Audit denied attempts too so abuse / misconfigured roles
 		// surface in the same stream as successful overrides.
@@ -712,6 +733,12 @@ func (s *mfaService) SetMFAOverride(ctx context.Context, actorID, targetAccountI
 			Reason:          reason,
 			ErrMsg:          "permission denied",
 		})
+		return err
+	}
+	// Defense-in-depth: refuse cross-tenant writes even when the actor has
+	// users:manage. Without this an admin in tenant A with a guessed
+	// account ID could flip force_off on a user in tenant B. (#1430 Item #2)
+	if err := s.requireSchoolMembership(ctx, "account", actorID, actorTenantID, targetAccountID, "set_override"); err != nil {
 		return err
 	}
 	return s.setMFAOverrideCore(ctx, "account", actorID, targetAccountID, override, reason)

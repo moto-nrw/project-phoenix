@@ -97,13 +97,13 @@ func (s *stubMFAService) TrustedDeviceDays(context.Context, int64) int       { r
 func (s *stubMFAService) GetMFAOverride(context.Context, int64) (string, error) {
 	return "", nil
 }
-func (s *stubMFAService) SetMFAOverride(context.Context, int64, int64, string, string, []string) error {
+func (s *stubMFAService) SetMFAOverride(context.Context, int64, int64, int64, string, string, []string) error {
 	return nil
 }
 func (s *stubMFAService) OperatorSetMFAOverride(context.Context, int64, int64, int64, string, string) error {
 	return nil
 }
-func (s *stubMFAService) AdminDisable(context.Context, int64, int64, string, []string) error {
+func (s *stubMFAService) AdminDisable(context.Context, int64, int64, int64, string, []string) error {
 	return nil
 }
 func (s *stubMFAService) OperatorAdminDisable(context.Context, int64, int64, int64, string) error {

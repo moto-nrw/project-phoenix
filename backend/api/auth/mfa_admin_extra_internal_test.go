@@ -38,11 +38,15 @@ func (s *adminAuthStub) GetAccountByID(ctx context.Context, id int) (*authModels
 // adminMFAStub is a focused MFAService stub for the admin handlers.
 // Methods used by the handlers under test (HasEnrollment, SetMFAOverride,
 // AdminDisable) accept per-test overrides; the rest default to no-op.
+//
+// SetMFAOverride / AdminDisable carry an actorTenantID since the #1430
+// Item #2 cross-tenant guard — tests can capture it via the per-method
+// override and assert the handler is forwarding the JWT tenant claim.
 type adminMFAStub struct {
 	stubMFAService  // reuse the broader stub from mfa_handlers_extra_internal_test.go
 	hasEnrollmentFn func(ctx context.Context, accountID int64) (bool, error)
-	setOverrideFn   func(ctx context.Context, actorID, targetID int64, override, reason string, perms []string) error
-	adminDisableFn  func(ctx context.Context, actorID, targetID int64, reason string, perms []string) error
+	setOverrideFn   func(ctx context.Context, actorID, actorTenantID, targetID int64, override, reason string, perms []string) error
+	adminDisableFn  func(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error
 }
 
 func (s *adminMFAStub) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
@@ -52,18 +56,27 @@ func (s *adminMFAStub) HasEnrollment(ctx context.Context, accountID int64) (bool
 	return false, nil
 }
 
-func (s *adminMFAStub) SetMFAOverride(ctx context.Context, actorID, targetID int64, override, reason string, perms []string) error {
+func (s *adminMFAStub) SetMFAOverride(ctx context.Context, actorID, actorTenantID, targetID int64, override, reason string, perms []string) error {
 	if s.setOverrideFn != nil {
-		return s.setOverrideFn(ctx, actorID, targetID, override, reason, perms)
+		return s.setOverrideFn(ctx, actorID, actorTenantID, targetID, override, reason, perms)
 	}
 	return nil
 }
 
-func (s *adminMFAStub) AdminDisable(ctx context.Context, actorID, targetID int64, reason string, perms []string) error {
+func (s *adminMFAStub) AdminDisable(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error {
 	if s.adminDisableFn != nil {
-		return s.adminDisableFn(ctx, actorID, targetID, reason, perms)
+		return s.adminDisableFn(ctx, actorID, actorTenantID, targetID, reason, perms)
 	}
 	return nil
+}
+
+// withActorTenant overrides the TenantID on the AppClaims stored on the
+// context. Used by Item-#2 tests that need to assert the handler forwards
+// the actor's tenant claim to the service-layer cross-tenant guard.
+func withActorTenant(r *http.Request, tenantID int64) *http.Request {
+	claims, _ := r.Context().Value(jwt.CtxClaims).(jwt.AppClaims)
+	claims.TenantID = tenantID
+	return r.WithContext(context.WithValue(r.Context(), jwt.CtxClaims, claims))
 }
 
 // reqWithAccountID constructs a request with the {accountId} URL param
@@ -155,10 +168,12 @@ func TestMFAAdminGetState_DefaultsOverrideToNoneWhenAccountMissing(t *testing.T)
 
 func TestMFAAdminSetOverride_HappyPath(t *testing.T) {
 	var capturedOverride string
+	var capturedTenantID int64
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			setOverrideFn: func(_ context.Context, _, _ int64, override, _ string, _ []string) error {
+			setOverrideFn: func(_ context.Context, _, actorTenantID, _ int64, override, _ string, _ []string) error {
 				capturedOverride = override
+				capturedTenantID = actorTenantID
 				return nil
 			},
 		},
@@ -168,11 +183,16 @@ func TestMFAAdminSetOverride_HappyPath(t *testing.T) {
 	r := reqWithAccountID(t, http.MethodPut, "200",
 		MFAAdminOverrideSetRequest{Override: authService.MFAAdminOverrideForceOff, Reason: "Account compromised"},
 		7, []string{"users:manage"})
+	// The handler must forward the JWT tenant claim so the service-layer
+	// cross-tenant guard (#1430 Item #2) sees the actor's tenant.
+	r = withActorTenant(r, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaAdminSetOverride(rr, r)
 
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 	assert.Equal(t, authService.MFAAdminOverrideForceOff, capturedOverride)
+	assert.Equal(t, int64(70010001), capturedTenantID,
+		"handler must propagate claims.TenantID to the service for the cross-tenant guard")
 }
 
 func TestMFAAdminSetOverride_RequiresClaim(t *testing.T) {
@@ -208,7 +228,7 @@ func TestMFAAdminSetOverride_RejectsBadOverride(t *testing.T) {
 func TestMFAAdminSetOverride_PermissionDeniedMapsTo403(t *testing.T) {
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			setOverrideFn: func(context.Context, int64, int64, string, string, []string) error {
+			setOverrideFn: func(context.Context, int64, int64, int64, string, string, []string) error {
 				return authService.ErrMFAPermissionDenied
 			},
 		},
@@ -226,10 +246,12 @@ func TestMFAAdminSetOverride_PermissionDeniedMapsTo403(t *testing.T) {
 
 func TestMFAAdminDisable_HappyPath(t *testing.T) {
 	var capturedReason string
+	var capturedTenantID int64
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			adminDisableFn: func(_ context.Context, _, _ int64, reason string, _ []string) error {
+			adminDisableFn: func(_ context.Context, _, actorTenantID, _ int64, reason string, _ []string) error {
 				capturedReason = reason
+				capturedTenantID = actorTenantID
 				return nil
 			},
 		},
@@ -238,11 +260,14 @@ func TestMFAAdminDisable_HappyPath(t *testing.T) {
 	r := reqWithAccountID(t, http.MethodPost, "300",
 		MFAAdminOverrideRequest{Reason: "User lost phone"},
 		7, []string{"users:manage"})
+	r = withActorTenant(r, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaAdminDisable(rr, r)
 
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 	assert.Equal(t, "User lost phone", capturedReason)
+	assert.Equal(t, int64(70010001), capturedTenantID,
+		"handler must propagate claims.TenantID to the service for the cross-tenant guard")
 }
 
 func TestMFAAdminDisable_BadID_Returns400(t *testing.T) {
@@ -271,7 +296,7 @@ func TestMFAAdminDisable_RejectsEmptyReason(t *testing.T) {
 
 func TestMFAAdminDisable_ServiceErrorMapsTo500(t *testing.T) {
 	rs := &Resource{MFAService: &adminMFAStub{
-		adminDisableFn: func(context.Context, int64, int64, string, []string) error {
+		adminDisableFn: func(context.Context, int64, int64, int64, string, []string) error {
 			return errors.New("db down")
 		},
 	}}

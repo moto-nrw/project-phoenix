@@ -102,7 +102,7 @@ func (s *stubTenantMFAService) GetMFAOverride(ctx context.Context, accountID int
 	}
 	return authSvc.MFAAdminOverrideNone, nil
 }
-func (s *stubTenantMFAService) SetMFAOverride(context.Context, int64, int64, string, string, []string) error {
+func (s *stubTenantMFAService) SetMFAOverride(context.Context, int64, int64, int64, string, string, []string) error {
 	return nil
 }
 func (s *stubTenantMFAService) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, accountID int64, override, reason string) error {
@@ -111,7 +111,7 @@ func (s *stubTenantMFAService) OperatorSetMFAOverride(ctx context.Context, opera
 	}
 	return nil
 }
-func (s *stubTenantMFAService) AdminDisable(context.Context, int64, int64, string, []string) error {
+func (s *stubTenantMFAService) AdminDisable(context.Context, int64, int64, int64, string, []string) error {
 	return nil
 }
 func (s *stubTenantMFAService) OperatorAdminDisable(ctx context.Context, operatorID, schoolID, accountID int64, reason string) error {

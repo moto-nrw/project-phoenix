@@ -121,15 +121,21 @@ func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
 	target := testpkg.CreateTestAccount(t, db, "mfa-svc-admin-target")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, target.ID) })
 
+	// Map target to a tenant so the new cross-tenant guard (#1430 Item #2)
+	// doesn't reject this permission-gate test before the permission check
+	// has a chance to fire.
+	actorTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureAccountTenant(t, db, target.ID, actorTenantID)
+
 	const actorID int64 = 9999
 
-	// No permissions -> denied.
-	err := svc.AdminDisable(ctx, actorID, target.ID, "lost mailbox", nil)
+	// No permissions -> denied (permission gate, runs before membership).
+	err := svc.AdminDisable(ctx, actorID, actorTenantID, target.ID, "lost mailbox", nil)
 	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
 
-	// Wildcard admin permission -> allowed.
-	require.NoError(t, svc.AdminDisable(ctx, actorID, target.ID, "lost mailbox", []string{"admin:*"}))
+	// Wildcard admin permission + matching tenant -> allowed.
+	require.NoError(t, svc.AdminDisable(ctx, actorID, actorTenantID, target.ID, "lost mailbox", []string{"admin:*"}))
 
 	// Explicit users:manage permission also works.
-	require.NoError(t, svc.AdminDisable(ctx, actorID, target.ID, "user lost device", []string{"users:manage"}))
+	require.NoError(t, svc.AdminDisable(ctx, actorID, actorTenantID, target.ID, "user lost device", []string{"users:manage"}))
 }

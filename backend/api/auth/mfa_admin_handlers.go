@@ -34,12 +34,13 @@ func (req *MFAAdminOverrideRequest) Bind(_ *http.Request) error {
 }
 
 // adminOverrideContext bundles the per-request state every admin handler
-// needs (target ID from URL, actor identity + permissions from JWT, parsed
-// reason). Returning a single struct keeps the handlers thin and below the
-// gocognit cap.
+// needs (target ID from URL, actor identity + tenant + permissions from
+// JWT, parsed reason). Returning a single struct keeps the handlers thin
+// and below the gocognit cap.
 type adminOverrideContext struct {
 	targetAccountID  int64
 	actorAccountID   int64
+	actorTenantID    int64
 	actorPermissions []string
 	reason           string
 }
@@ -70,6 +71,7 @@ func (rs *Resource) resolveAdminOverrideContext(w http.ResponseWriter, r *http.R
 	return &adminOverrideContext{
 		targetAccountID:  targetID,
 		actorAccountID:   int64(claims.ID),
+		actorTenantID:    claims.TenantID,
 		actorPermissions: claims.Permissions,
 		reason:           req.Reason,
 	}
@@ -160,6 +162,7 @@ func (rs *Resource) mfaAdminSetOverride(w http.ResponseWriter, r *http.Request) 
 	if err := rs.MFAService.SetMFAOverride(
 		r.Context(),
 		int64(claims.ID),
+		claims.TenantID,
 		targetID,
 		req.Override,
 		req.Reason,
@@ -185,6 +188,7 @@ func (rs *Resource) mfaAdminDisable(w http.ResponseWriter, r *http.Request) {
 	err := rs.MFAService.AdminDisable(
 		r.Context(),
 		octx.actorAccountID,
+		octx.actorTenantID,
 		octx.targetAccountID,
 		octx.reason,
 		octx.actorPermissions,
