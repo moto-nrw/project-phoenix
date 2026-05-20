@@ -168,6 +168,25 @@ export function PhasesEditor() {
       if (schemaSource === "reuse" && !payload.form_schema_id) {
         throw new Error("Bitte ein Formular auswählen oder 'Basis' wählen.");
       }
+      if (
+        payload.service_start_date &&
+        payload.service_end_date &&
+        payload.service_end_date < payload.service_start_date
+      ) {
+        throw new Error(
+          "Ende des Betreuungszeitraums muss nach dem Beginn liegen.",
+        );
+      }
+      if (
+        payload.enrollment_open_at &&
+        payload.enrollment_close_at &&
+        new Date(payload.enrollment_close_at) <=
+          new Date(payload.enrollment_open_at)
+      ) {
+        throw new Error(
+          "Schließung des Anmeldefensters muss nach der Öffnung liegen.",
+        );
+      }
       if (editingId === "new") {
         const created = await createPhase(payload);
         setInfo(`Phase „${created.name}" erstellt.`);
@@ -499,7 +518,7 @@ function PhaseForm(props: PhaseFormProps) {
             value={draft.name}
             onChange={(e) => update({ name: e.target.value })}
             placeholder="z. B. Schuljahr 2026/27"
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
           />
         </label>
 
@@ -508,7 +527,7 @@ function PhaseForm(props: PhaseFormProps) {
           <select
             value={draft.kind}
             onChange={(e) => update({ kind: e.target.value as PhaseKind })}
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+            className="mt-1 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm"
           >
             <option value="school_year">{KIND_LABELS.school_year}</option>
             <option value="holiday">{KIND_LABELS.holiday}</option>
@@ -528,18 +547,36 @@ function PhaseForm(props: PhaseFormProps) {
               type="date"
               required
               value={draft.service_start_date}
-              onChange={(e) => update({ service_start_date: e.target.value })}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              onChange={(e) => {
+                const next = e.target.value;
+                setDraft((prev) => {
+                  if (!prev) return prev;
+                  const patch: Partial<PhaseInput> = {
+                    service_start_date: next,
+                  };
+                  if (
+                    next &&
+                    prev.service_end_date &&
+                    prev.service_end_date < next
+                  ) {
+                    patch.service_end_date = "";
+                  }
+                  return { ...prev, ...patch };
+                });
+              }}
+              className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
             />
           </label>
           <label className="block">
             <span className="text-xs text-gray-600">Ende</span>
             <input
+              key={draft.service_end_date === "" ? "empty" : "set"}
               type="date"
               required
+              min={draft.service_start_date || undefined}
               value={draft.service_end_date}
               onChange={(e) => update({ service_end_date: e.target.value })}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
             />
           </label>
         </div>
@@ -560,25 +597,39 @@ function PhaseForm(props: PhaseFormProps) {
             <input
               type="datetime-local"
               value={toLocalInputValue(draft.enrollment_open_at)}
-              onChange={(e) =>
-                update({
-                  enrollment_open_at: fromLocalInputValue(e.target.value),
-                })
-              }
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              onChange={(e) => {
+                const nextOpen = fromLocalInputValue(e.target.value);
+                setDraft((prev) => {
+                  if (!prev) return prev;
+                  const patch: Partial<PhaseInput> = {
+                    enrollment_open_at: nextOpen,
+                  };
+                  if (
+                    nextOpen &&
+                    prev.enrollment_close_at &&
+                    new Date(prev.enrollment_close_at) <= new Date(nextOpen)
+                  ) {
+                    patch.enrollment_close_at = null;
+                  }
+                  return { ...prev, ...patch };
+                });
+              }}
+              className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
             />
           </label>
           <label className="block">
             <span className="text-xs text-gray-600">Schließung</span>
             <input
+              key={draft.enrollment_close_at == null ? "empty" : "set"}
               type="datetime-local"
+              min={toLocalInputValue(draft.enrollment_open_at) || undefined}
               value={toLocalInputValue(draft.enrollment_close_at)}
               onChange={(e) =>
                 update({
                   enrollment_close_at: fromLocalInputValue(e.target.value),
                 })
               }
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
             />
           </label>
         </div>
@@ -612,7 +663,9 @@ function PhaseForm(props: PhaseFormProps) {
           </label>
           <label
             htmlFor="schema-source-reuse"
-            className="flex items-start gap-2"
+            className={`flex items-start gap-2 ${
+              schemas.length === 0 ? "cursor-not-allowed opacity-50" : ""
+            }`}
           >
             <input
               id="schema-source-reuse"

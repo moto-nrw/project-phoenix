@@ -77,6 +77,28 @@ async function readJSON<T>(response: Response): Promise<T> {
   return raw as unknown as T;
 }
 
+// Substring-keyed map for raw validation errors returned by the
+// phase model's Validate() method (backend/models/enrollment/phase.go).
+// These come back without a code, so we match on the English text.
+const PHASE_VALIDATION_MESSAGES: Array<[string, string]> = [
+  [
+    "service_end_date must be on or after service_start_date",
+    "Das Ende des Betreuungszeitraums muss am gleichen Tag oder nach dem Beginn liegen.",
+  ],
+  [
+    "enrollment_close_at must be after enrollment_open_at",
+    "Die Schließung des Anmeldefensters muss nach der Öffnung liegen.",
+  ],
+];
+
+function translatePhaseError(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  for (const [needle, german] of PHASE_VALIDATION_MESSAGES) {
+    if (raw.includes(needle)) return german;
+  }
+  return undefined;
+}
+
 async function readError(response: Response, fallback: string): Promise<Error> {
   let message = fallback;
   let code: string | undefined;
@@ -84,8 +106,10 @@ async function readError(response: Response, fallback: string): Promise<Error> {
     const payload = (await response.json()) as BackendEnvelope<unknown>;
     code = payload.code;
     const localized = code ? ROLLOVER_ERROR_MESSAGES[code] : undefined;
+    const validationLocalized = translatePhaseError(payload.error);
     message =
       localized ??
+      validationLocalized ??
       payload.error ??
       payload.message ??
       `${fallback} (HTTP ${response.status})`;
