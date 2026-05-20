@@ -62,11 +62,25 @@ async function readJSON<T>(response: Response): Promise<T> {
   return raw as unknown as T;
 }
 
+// Backend → German UI message map for stable error codes returned by
+// the submission flow. Add new entries here when the backend returns
+// a new `code`.
+const SUBMISSION_ERROR_MESSAGES: Record<string, string> = {
+  "enrollment.care_offering_missing":
+    "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
+};
+
 async function readError(response: Response, fallback: string): Promise<Error> {
   let message = fallback;
+  let code: string | undefined;
   try {
-    const payload = (await response.json()) as BackendEnvelope<unknown>;
+    const payload = (await response.json()) as BackendEnvelope<unknown> & {
+      code?: string;
+    };
+    code = payload.code;
+    const localized = code ? SUBMISSION_ERROR_MESSAGES[code] : undefined;
     message =
+      localized ??
       payload.error ??
       payload.message ??
       `${fallback} (HTTP ${response.status})`;
@@ -76,21 +90,29 @@ async function readError(response: Response, fallback: string): Promise<Error> {
   logger.error("enrollment_submission_api_failed", {
     status: response.status,
     message,
+    code,
   });
-  const err = new Error(message) as Error & { status?: number };
+  const err = new Error(message) as Error & { status?: number; code?: string };
   err.status = response.status;
+  err.code = code;
   return err;
+}
+
+export interface PublicCareOfferingsResult {
+  offerings: PublicCareOffering[];
+  careRequired: boolean;
 }
 
 /**
  * Fetches the public care-offering catalog for a given tenant slug
- * and phase. Returns only is_active=true rows; the phase-level window
- * is enforced by the surrounding parent flow (PR C).
+ * and phase. Returns the offerings plus the tenant's
+ * "care_offerings_required" flag so the form can render the hint and
+ * validate before submit. The backend re-checks the flag on submit.
  */
 export async function fetchPublicCareOfferings(
   tenantSlug: string,
   phaseId: string,
-): Promise<PublicCareOffering[]> {
+): Promise<PublicCareOfferingsResult> {
   const response = await fetch(
     `/api/enrollment/care-offerings/public/${encodeURIComponent(
       tenantSlug,
@@ -103,8 +125,14 @@ export async function fetchPublicCareOfferings(
       "Betreuungsangebote konnten nicht geladen werden",
     );
   }
-  const list = await readJSON<PublicCareOffering[]>(response);
-  return Array.isArray(list) ? list : [];
+  const payload = await readJSON<{
+    offerings?: PublicCareOffering[];
+    care_required?: boolean;
+  }>(response);
+  return {
+    offerings: Array.isArray(payload?.offerings) ? payload.offerings : [],
+    careRequired: payload?.care_required === true,
+  };
 }
 
 export interface PublicPhase {

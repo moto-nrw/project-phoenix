@@ -309,7 +309,10 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var offerings []*enrollmentModels.CareOffering
+	var (
+		offerings    []*enrollmentModels.CareOffering
+		careRequired bool
+	)
 	err = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
 		if schoolErr != nil || school == nil || school.IsDeleted() {
@@ -322,6 +325,9 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 			}
 			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
 			offerings = list
+			if listErr == nil && rs.RequestService != nil {
+				careRequired = rs.RequestService.IsCareOfferingsRequired(txCtx)
+			}
 			return listErr
 		})
 	})
@@ -330,11 +336,23 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	out := make([]CareOfferingResponse, 0, len(offerings))
+	items := make([]CareOfferingResponse, 0, len(offerings))
 	for _, o := range offerings {
-		out = append(out, toCareOfferingResponse(o))
+		items = append(items, toCareOfferingResponse(o))
 	}
-	common.Respond(w, r, http.StatusOK, out, "Public care offerings retrieved")
+	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
+		Offerings:    items,
+		CareRequired: careRequired,
+	}, "Public care offerings retrieved")
+}
+
+// PublicCareOfferingsResponse wraps the public care-offering catalog with
+// the tenant's "verpflichtend" flag so the parent form can render the
+// hint and validate before submit. The flag is server-authoritative — the
+// submission service re-checks it in defense-in-depth.
+type PublicCareOfferingsResponse struct {
+	Offerings    []CareOfferingResponse `json:"offerings"`
+	CareRequired bool                   `json:"care_required"`
 }
 
 // We deliberately don't expose enrollmentService here — it is already

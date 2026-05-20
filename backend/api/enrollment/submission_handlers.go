@@ -179,6 +179,12 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 	return out, nil
 }
 
+// ErrCodeEnrollmentCareOfferingMissing is the stable code returned with
+// 400 when the tenant requires a care-offering selection but a child has
+// none. Frontend maps it to a German message and highlights the affected
+// child card.
+const ErrCodeEnrollmentCareOfferingMissing = "enrollment.care_offering_missing"
+
 // mapSubmitError translates service-layer sentinel errors into HTTP
 // status codes. Unknown errors fall through to 500.
 func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
@@ -186,6 +192,8 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
 		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
 	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

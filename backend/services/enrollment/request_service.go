@@ -29,11 +29,16 @@ var (
 	ErrInvalidSubmission      = errors.New("invalid submission")
 	ErrCareOfferingClosed     = errors.New("one or more selected care offerings are not currently accepting applications")
 	ErrCareOfferingFull       = errors.New("one or more selected care offerings are at capacity")
-	ErrRateLimited            = errors.New("too many submission attempts; please retry later")
-	ErrRequestNotFound        = errors.New("enrollment request not found")
-	ErrEditNotAllowed         = errors.New("request can no longer be edited")
-	ErrWithdrawNotAllowed     = errors.New("child cannot be withdrawn in its current state")
-	ErrDuplicateEnrollment    = errors.New("an active enrollment already exists for this parent and child in this phase")
+	// ErrCareOfferingMissing is returned when the tenant setting
+	// enrollment.care_offerings_required is true but a child in the
+	// submission has no offering selected. Mapped to 400 with a stable
+	// code so the parent form can highlight the right child.
+	ErrCareOfferingMissing = errors.New("care offering selection is required for every child")
+	ErrRateLimited         = errors.New("too many submission attempts; please retry later")
+	ErrRequestNotFound     = errors.New("enrollment request not found")
+	ErrEditNotAllowed      = errors.New("request can no longer be edited")
+	ErrWithdrawNotAllowed  = errors.New("child cannot be withdrawn in its current state")
+	ErrDuplicateEnrollment = errors.New("an active enrollment already exists for this parent and child in this phase")
 )
 
 // Rate-limit thresholds. Hardcoded for now - if individual schools
@@ -128,6 +133,13 @@ type RequestService interface {
 	// already be inside a tenant-tx so the settings repo can read the
 	// per-tenant override.
 	IsEnrollmentEnabled(ctx context.Context) bool
+
+	// IsCareOfferingsRequired reports whether the tenant setting
+	// enrollment.care_offerings_required is on. Surfaced through the
+	// public care-offerings endpoint so the parent form can render the
+	// "verpflichtend" hint and validate client-side. Defense-in-depth:
+	// Submit re-checks the setting server-side.
+	IsCareOfferingsRequired(ctx context.Context) bool
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -431,6 +443,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 		return fmt.Errorf("%w: at least one child is required", ErrInvalidSubmission)
 	}
 	gradeMax := s.resolveGradeMax(ctx)
+	careRequired := s.IsCareOfferingsRequired(ctx)
 	for i, child := range req.Children {
 		if strings.TrimSpace(child.FirstName) == "" || strings.TrimSpace(child.LastName) == "" {
 			return fmt.Errorf("%w: child %d missing name", ErrInvalidSubmission, i)
@@ -442,6 +455,9 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 			if *child.TargetGradeLevel < 1 || int(*child.TargetGradeLevel) > gradeMax {
 				return fmt.Errorf("%w: child %d grade out of range 1..%d", ErrInvalidSubmission, i, gradeMax)
 			}
+		}
+		if careRequired && len(child.OfferingIDs) == 0 {
+			return fmt.Errorf("%w: child %d", ErrCareOfferingMissing, i)
 		}
 	}
 	return nil
@@ -776,6 +792,29 @@ func (s *requestService) isEnrollmentEnabled(ctx context.Context) bool {
 		}
 	}
 	return false
+}
+
+// IsCareOfferingsRequired is the public counterpart consumed by the
+// care-offerings endpoint. Tenant override → registry default; no env
+// var fallback (the setting was registered from day one).
+func (s *requestService) IsCareOfferingsRequired(ctx context.Context) bool {
+	if s.settings == nil {
+		return false
+	}
+	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentCareOfferingsRequired); err == nil && has {
+		v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsRequired)
+		if err == nil {
+			return v
+		}
+	}
+	// Registry default is false (see services/config/defaults/enrollment.go).
+	// Read it through Resolve so a future registry change flows through
+	// without a code touch here.
+	v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsRequired)
+	if err != nil {
+		return false
+	}
+	return v
 }
 
 func (s *requestService) resolveGradeMax(ctx context.Context) int {

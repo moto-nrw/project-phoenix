@@ -88,9 +88,13 @@ export function EnrollmentForm({
   const { tenantSlug } = useTenant();
   const [schema, setSchema] = useState<PublicFormSchema | null>(null);
   const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
+  const [careRequired, setCareRequired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [childOfferingErrors, setChildOfferingErrors] = useState<
+    Record<number, boolean>
+  >({});
 
   const [guardianFirstName, setGuardianFirstName] = useState("");
   const [guardianLastName, setGuardianLastName] = useState("");
@@ -126,7 +130,8 @@ export function EnrollmentForm({
           ]);
         if (cancelled) return;
         setSchema(schemaResult);
-        setOfferings(offeringsResult);
+        setOfferings(offeringsResult.offerings);
+        setCareRequired(offeringsResult.careRequired);
         // Prefill guardian fields from the profile when present. We
         // only fill empty fields so an admin testing the form on a
         // teacher session can still type their own values.
@@ -184,6 +189,7 @@ export function EnrollmentForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setChildOfferingErrors({});
 
     if (!agbConsent || !dataConsent || !emailConsent) {
       setError("Bitte bestätige alle erforderlichen Zustimmungen.");
@@ -191,12 +197,16 @@ export function EnrollmentForm({
     }
 
     const payloadChildren: SubmitChildPayload[] = [];
+    const missingCareIndexes: number[] = [];
     for (const [i, c] of children.entries()) {
       if (!c.first_name || !c.last_name || !c.date_of_birth) {
         setError(
           `Kind ${i + 1}: Vorname, Nachname und Geburtsdatum sind Pflichtfelder.`,
         );
         return;
+      }
+      if (careRequired && c.offering_ids.size === 0) {
+        missingCareIndexes.push(i);
       }
       payloadChildren.push({
         first_name: c.first_name.trim(),
@@ -208,6 +218,15 @@ export function EnrollmentForm({
         custom_data: c.custom,
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
       });
+    }
+    if (missingCareIndexes.length > 0) {
+      setChildOfferingErrors(
+        Object.fromEntries(missingCareIndexes.map((i) => [i, true])),
+      );
+      setError(
+        "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
+      );
+      return;
     }
 
     setSubmitting(true);
@@ -234,7 +253,21 @@ export function EnrollmentForm({
       onSubmitted(result.status_url);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("enrollment_submit_failed", { error: message });
+      const code = (err as { code?: string } | undefined)?.code;
+      logger.error("enrollment_submit_failed", { error: message, code });
+      if (code === "enrollment.care_offering_missing") {
+        // Backend re-checked the setting (defense-in-depth). Mark every
+        // child without an offering — the server doesn't tell us which
+        // one, so we highlight all that are empty.
+        const empties = children.reduce<Record<number, boolean>>(
+          (acc, c, i) => {
+            if (c.offering_ids.size === 0) acc[i] = true;
+            return acc;
+          },
+          {},
+        );
+        setChildOfferingErrors(empties);
+      }
       setError(message);
     } finally {
       setSubmitting(false);
@@ -416,8 +449,17 @@ export function EnrollmentForm({
               <div>
                 <p className="mb-2 text-xs font-medium text-gray-600">
                   Betreuungsangebote
+                  {careRequired && (
+                    <span className="ml-1 text-[#EF4444]">*</span>
+                  )}
                 </p>
-                <div className="space-y-2">
+                <div
+                  className={`space-y-2 ${
+                    childOfferingErrors[i]
+                      ? "rounded-md border border-[#EF4444] bg-red-50 p-2"
+                      : ""
+                  }`}
+                >
                   {offerings.map((o) => {
                     const checked = child.offering_ids.has(o.id);
                     return (
@@ -428,7 +470,16 @@ export function EnrollmentForm({
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => toggleOffering(i, o.id)}
+                          onChange={() => {
+                            toggleOffering(i, o.id);
+                            if (childOfferingErrors[i]) {
+                              setChildOfferingErrors((prev) => {
+                                const next = { ...prev };
+                                delete next[i];
+                                return next;
+                              });
+                            }
+                          }}
                           className="mt-1"
                         />
                         <div>
@@ -454,6 +505,11 @@ export function EnrollmentForm({
                     );
                   })}
                 </div>
+                {childOfferingErrors[i] && (
+                  <p className="mt-1 text-xs text-[#EF4444]">
+                    Bitte mindestens ein Betreuungsangebot auswählen.
+                  </p>
+                )}
               </div>
             )}
 
