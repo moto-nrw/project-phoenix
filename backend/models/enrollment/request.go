@@ -85,4 +85,9 @@ type RequestRepository interface {
 	// double-submits without affecting different parents or different
 	// child names.
 	FindActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []DuplicateChildKey) ([]DuplicateChildKey, error)
+
+	// ExistsByPhaseID reports whether any request row references the
+	// given phase. The phase delete path uses this to refuse a destructive
+	// delete and surface "deaktivieren statt löschen" to the admin.
+	ExistsByPhaseID(ctx context.Context, phaseID int64) (bool, error)
 }

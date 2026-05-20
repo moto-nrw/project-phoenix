@@ -66,6 +66,12 @@ const ROLLOVER_ERROR_MESSAGES: Record<string, string> = {
     "Es existiert bereits eine Phase mit diesem Namen. Bitte einen anderen Namen wählen.",
   "rollover.source_already_rolled":
     "Aus dieser Phase wurde bereits eine Anschlussphase erstellt. Bitte zuerst die bestehende Anschlussphase löschen, bevor du eine neue anlegst.",
+  "enrollment.phase_has_requests":
+    "Diese Phase enthält bereits Anmeldungen und kann nicht gelöscht werden. Bitte deaktiviere sie stattdessen, damit die Anmeldungen und der Verlauf erhalten bleiben.",
+  "enrollment.phase_has_offerings":
+    "Dieser Phase sind noch Betreuungsangebote zugeordnet. Bitte entferne oder verschiebe die Angebote, bevor du die Phase löschst.",
+  "enrollment.phase_has_references":
+    "Diese Phase wird noch an anderer Stelle verwendet und kann nicht gelöscht werden. Bitte deaktiviere sie stattdessen.",
 };
 
 async function readJSON<T>(response: Response): Promise<T> {
