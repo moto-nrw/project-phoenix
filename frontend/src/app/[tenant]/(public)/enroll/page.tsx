@@ -29,12 +29,14 @@ export default function EnrollPhasePickerPage() {
   const [phases, setPhases] = useState<PublicPhase[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [enrollmentDisabled, setEnrollmentDisabled] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       setError(null);
+      setEnrollmentDisabled(false);
       try {
         const list = await fetchPublicPhases(tenantSlug);
         if (cancelled) return;
@@ -43,8 +45,16 @@ export default function EnrollPhasePickerPage() {
         if (cancelled) return;
         const message =
           err instanceof Error ? err.message : "Unbekannter Fehler";
-        logger.error("phase_picker_load_failed", { error: message });
-        setError(message);
+        const code = (err as { code?: string } | undefined)?.code;
+        logger.error("phase_picker_load_failed", { error: message, code });
+        if (code === "enrollment.disabled") {
+          // Surface the disabled-tenant state through the empty
+          // fallback card alone — no red error banner. Avoids the
+          // double "warning + raw English error" the tester saw.
+          setEnrollmentDisabled(true);
+        } else {
+          setError(message);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -83,8 +93,9 @@ export default function EnrollPhasePickerPage() {
 
       {!phases || phases.length === 0 ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Aktuell ist keine Anmeldephase geöffnet. Bitte komm später wieder oder
-          wende dich an die Schulleitung.
+          {enrollmentDisabled
+            ? "Die Online-Anmeldung ist für diese Schule aktuell nicht freigeschaltet. Bitte wende dich an die Schulleitung."
+            : "Aktuell ist keine Anmeldephase geöffnet. Bitte komm später wieder oder wende dich an die Schulleitung."}
         </div>
       ) : (
         <ul className="grid gap-3">

@@ -140,12 +140,7 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		})
 	})
 	if resolveErr != nil {
-		if errors.Is(resolveErr, enrollmentService.ErrEnrollmentDisabled) ||
-			errors.Is(resolveErr, enrollmentService.ErrNoActiveSchema) {
-			common.RenderError(w, r, common.ErrorNotFound(resolveErr))
-			return
-		}
-		common.RenderError(w, r, common.ErrorNotFound(resolveErr))
+		renderPublicEnrollmentError(w, r, resolveErr)
 		return
 	}
 
