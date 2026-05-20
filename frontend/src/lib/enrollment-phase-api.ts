@@ -64,6 +64,8 @@ const ROLLOVER_ERROR_MESSAGES: Record<string, string> = {
     "Dieser Eintrag in der Prüfliste existiert nicht mehr.",
   "rollover.duplicate_name":
     "Es existiert bereits eine Phase mit diesem Namen. Bitte einen anderen Namen wählen.",
+  "rollover.source_already_rolled":
+    "Aus dieser Phase wurde bereits eine Anschlussphase erstellt. Bitte zuerst die bestehende Anschlussphase löschen, bevor du eine neue anlegst.",
 };
 
 async function readJSON<T>(response: Response): Promise<T> {

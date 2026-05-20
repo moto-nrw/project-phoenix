@@ -173,3 +173,19 @@ func (r *PhaseRepository) ExistsByFormSchemaID(ctx context.Context, schemaID int
 	}
 	return count > 0, nil
 }
+
+// ExistsByRolloverSourcePhaseID is the rollover-uniqueness check.
+// Returns true if any phase already references the given phase as its
+// rollover_source_phase_id — i.e., the source has been rolled forward
+// once already and can't be rolled again.
+func (r *PhaseRepository) ExistsByRolloverSourcePhaseID(ctx context.Context, sourcePhaseID int64) (bool, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Phase)(nil)).
+		ModelTableExpr(phaseTableExpr).
+		Where(`"phase".rollover_source_phase_id = ?`, sourcePhaseID).
+		Count(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check rollover source references: %w", err)
+	}
+	return count > 0, nil
+}

@@ -29,6 +29,14 @@ var (
 	// constraint — the admin sees a 409 with a clear message instead
 	// of a raw Postgres error.
 	ErrRolloverDuplicateName = errors.New("phase name already exists")
+	// ErrRolloverSourceAlreadyRolled is returned when the source phase
+	// has already been rolled forward into another phase. Enforced by
+	// the uq_enrollment_request_children_rollover_source partial unique
+	// index (migration 1.15.73) — each source child may live in at
+	// most one follow-up phase. Service checks up front so the admin
+	// sees a clear 409 instead of the raw DB error on the first
+	// request_child insert.
+	ErrRolloverSourceAlreadyRolled = errors.New("source phase already rolled forward")
 )
 
 // phaseNameUniqueConstraint is the Postgres constraint name from
@@ -36,11 +44,32 @@ var (
 // the migration declares it inline.
 const phaseNameUniqueConstraint = "enrollment_phases_unique_name"
 
+// rolloverSourceChildUniqueIndex is the Postgres index name from
+// migration 1.15.73 that enforces "each source child rolled at most
+// once". Kept as a string constant for the same reason as the phase
+// name constraint above.
+const rolloverSourceChildUniqueIndex = "uq_enrollment_request_children_rollover_source"
+
 // isPhaseDuplicateName reports whether err is a PostgreSQL 23505
 // raised by the unique(tenant_id, name) constraint on
 // enrollment.phases. Race-safe: we don't pre-check, we just translate
 // the DB error into the sentinel so the handler can return 409.
 func isPhaseDuplicateName(err error) bool {
+	return isUniqueViolationOn(err, phaseNameUniqueConstraint)
+}
+
+// isRolloverSourceAlreadyRolled reports whether err is the 23505
+// raised by the partial unique index that pins each source child to
+// at most one follow-up phase. Fallback for the race between the
+// vorab-Check and the actual INSERT.
+func isRolloverSourceAlreadyRolled(err error) bool {
+	return isUniqueViolationOn(err, rolloverSourceChildUniqueIndex)
+}
+
+// isUniqueViolationOn reports whether err is a PostgreSQL 23505 raised
+// by the named constraint or unique index. Mirrors the pattern used in
+// services/facilities/facility_service.go.
+func isUniqueViolationOn(err error, name string) bool {
 	if err == nil {
 		return false
 	}
@@ -51,7 +80,7 @@ func isPhaseDuplicateName(err error) bool {
 	if pgErr.Field('C') != "23505" {
 		return false
 	}
-	return pgErr.Field('n') == phaseNameUniqueConstraint
+	return pgErr.Field('n') == name
 }
 
 // RolloverService creates a new phase from a source phase, carrying
@@ -280,6 +309,19 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 		return fmt.Errorf("%w: source phase belongs to another tenant", ErrRolloverSourceNotFound)
 	}
 
+	// 1b. Refuse a second rollover from the same source. The DB-level
+	// partial unique index on rollover_source_child_id will catch this
+	// during the request_child insert, but doing the check up front
+	// gives a clean 409 before any rows are written and means the
+	// admin doesn't see a half-rolled phase.
+	exists, err := s.phaseRepo.ExistsByRolloverSourcePhaseID(ctx, source.ID)
+	if err != nil {
+		return fmt.Errorf("rollover: check existing follow-up: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("%w: source phase %d", ErrRolloverSourceAlreadyRolled, source.ID)
+	}
+
 	// 2. New phase. Default form_schema_id to the source's.
 	formSchemaID := req.FormSchemaID
 	if formSchemaID == nil {
@@ -424,6 +466,9 @@ func (s *rolloverService) rollOneRequest(
 		}
 		child.SetTenantID(tenantID)
 		if err := s.requestChildRepo.Create(ctx, child); err != nil {
+			if isRolloverSourceAlreadyRolled(err) {
+				return fmt.Errorf("%w: source child %d", ErrRolloverSourceAlreadyRolled, source.ID)
+			}
 			return fmt.Errorf("rollover: create request_child: %w", err)
 		}
 
