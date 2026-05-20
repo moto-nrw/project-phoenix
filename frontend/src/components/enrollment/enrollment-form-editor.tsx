@@ -30,7 +30,7 @@ const NEW_SCHEMA_VALUE = "__new__";
 // CORE_FIELDS mirrors backend/models/enrollment/form_schema.go's
 // CoreFieldKeys. These are always rendered on the parent form by
 // dedicated columns on enrollment.requests / .request_children, so
-// the schema editor must never declare them — but admins should see
+// the schema editor must never declare them, but admins should see
 // them here for a complete picture of what parents will fill in.
 interface CoreField {
   readonly key: string;
@@ -111,7 +111,7 @@ const CORE_FIELDS: ReadonlyArray<CoreField> = [
  *     name input is read-only in edit mode)
  *
  * Core fields (guardian name/email/phone, child name/dob/grade) are
- * NOT shown here — they're hardcoded into the form on the parent side.
+ * NOT shown here, they are hardcoded into the form on the parent side.
  */
 export function EnrollmentFormEditor() {
   const [allSchemas, setAllSchemas] = useState<FormSchema[]>([]);
@@ -123,7 +123,7 @@ export function EnrollmentFormEditor() {
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
-  // Group by name — keep only the latest version per name for the
+  // Group by name and keep only the latest version per name for the
   // picker. Older versions are still on the backend and bound phases
   // keep their pinned schema_id, but the editor only ever writes new
   // versions on top of the latest.
@@ -161,7 +161,7 @@ export function EnrollmentFormEditor() {
     void (async () => {
       const list = await loadAll();
       // Auto-select the most recently created schema so reopening the
-      // page lands on something meaningful. Empty list → "Neues
+      // page lands on something meaningful. Empty list keeps "Neues
       // Formular" stays the default.
       if (list.length > 0) {
         const newest = list.reduce((a, b) =>
@@ -272,20 +272,37 @@ export function EnrollmentFormEditor() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-5">
+        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          Optional
+        </p>
+        <h2 className="mt-1 text-lg font-semibold text-gray-900">
+          Zusatzfelder zum Basisformular
+        </h2>
+        <p className="mt-1 max-w-2xl text-sm text-gray-600">
+          Du musst hier nichts anlegen, um eine Online-Anmeldung zu starten. Das
+          Basisformular fragt Eltern, Kind, Klassenstufe, Zustimmungen und
+          Betreuungsangebote bereits ab. Nutze diese Seite nur für zusätzliche
+          Fragen, zum Beispiel Allergien, Abholberechtigte oder Notfallkontakt.
+        </p>
+      </section>
+
+      <div className="moto-content-surface rounded-lg border p-4">
         <label className="block">
           <span className="block text-xs font-medium text-gray-600">
-            Formular auswählen
+            Zusatzfelder-Konfiguration auswählen
           </span>
           <select
             value={selectedKey}
             onChange={(e) => handlePickerChange(e.target.value)}
             disabled={saving}
-            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-500 focus:ring-gray-500"
+            className="moto-select mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-500 focus:ring-gray-500"
           >
-            <option value={NEW_SCHEMA_VALUE}>+ Neues Formular erstellen</option>
+            <option value={NEW_SCHEMA_VALUE}>
+              + Neue Zusatzfelder anlegen
+            </option>
             {latestByName.length > 0 && (
-              <optgroup label="Bestehende Formulare">
+              <optgroup label="Bestehende Konfigurationen">
                 {latestByName.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} (v{s.version})
@@ -298,13 +315,13 @@ export function EnrollmentFormEditor() {
 
         <label className="mt-3 block">
           <span className="block text-xs font-medium text-gray-600">
-            Name des Formulars
+            Name der Konfiguration
           </span>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="z.B. Schuljahr, Ferienbetreuung"
+            placeholder="z. B. Schuljahr, Ferienbetreuung"
             disabled={saving || !isCreating}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:ring-gray-500 disabled:bg-gray-100 disabled:text-gray-600"
           />
@@ -335,7 +352,8 @@ export function EnrollmentFormEditor() {
           Benutzerdefinierte Felder
         </h2>
         <p className="mt-0.5 text-xs text-gray-600">
-          Eigene Felder, die zusätzlich zu den Kernfeldern abgefragt werden.
+          Diese Felder erscheinen zusätzlich zum Basisformular, sobald du sie in
+          einer Anmeldephase auswählst.
         </p>
       </div>
 
@@ -352,8 +370,8 @@ export function EnrollmentFormEditor() {
 
       {fields.length === 0 ? (
         <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-          Keine benutzerdefinierten Felder. Klicke auf "Feld hinzufügen", um zu
-          beginnen.
+          Keine Zusatzfelder. Das ist in Ordnung, wenn das Basisformular für
+          deine Anmeldung reicht.
         </p>
       ) : (
         <div className="space-y-3">
@@ -380,7 +398,7 @@ export function EnrollmentFormEditor() {
           disabled={saving}
           className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          + Feld hinzufügen
+          + Zusatzfeld hinzufügen
         </button>
         <button
           type="button"
@@ -391,7 +409,7 @@ export function EnrollmentFormEditor() {
           {saving
             ? "Speichern..."
             : isCreating
-              ? "Formular erstellen"
+              ? "Zusatzfelder erstellen"
               : "Neue Version speichern"}
         </button>
       </div>
@@ -437,7 +455,7 @@ function CoreFieldsSection() {
 
 function CoreFieldRow({ field }: { readonly field: CoreField }) {
   return (
-    <li className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs">
+    <li className="moto-content-surface flex items-center gap-3 rounded-md border px-3 py-2 text-xs">
       <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-700">
         {field.key}
       </code>
@@ -474,7 +492,7 @@ function FieldEditorRow({
   disabled,
 }: FieldEditorRowProps) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="moto-content-surface rounded-lg border p-4 shadow-sm">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <label className="block">
           <span className="block text-xs font-medium text-gray-600">
@@ -510,7 +528,7 @@ function FieldEditorRow({
               onChange({ type: e.target.value as FormFieldType })
             }
             disabled={disabled}
-            className="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:ring-gray-500"
+            className="moto-select mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:ring-gray-500"
           >
             {Object.entries(fieldTypeLabels).map(([value, label]) => (
               <option key={value} value={value}>

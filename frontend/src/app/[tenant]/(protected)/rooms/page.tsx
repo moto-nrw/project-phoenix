@@ -59,7 +59,7 @@ interface Room {
 // meta line, status pill, two middle rows, and the footer hint.
 function RoomCardSkeleton() {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md">
       <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
       <div className="relative flex min-h-[180px] flex-col p-6">
         <div className="mb-3 flex items-start justify-between">
@@ -113,7 +113,7 @@ function TransitAssignmentCard({
       onClick={onOpen}
       aria-haspopup="dialog"
       aria-controls="room-detail-panel"
-      className="group mb-5 flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white/90 p-4 text-left shadow-[0_8px_30px_rgb(0,0,0,0.10)] backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:border-gray-200 hover:bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.14)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:scale-[0.99] sm:p-5"
+      className="group moto-content-surface mb-5 flex w-full items-center justify-between gap-4 rounded-2xl border p-4 text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-sm focus:ring-2 focus:ring-gray-300 focus:outline-none active:scale-[0.99] sm:p-5"
     >
       <div className="flex min-w-0 items-center gap-3">
         <span
@@ -136,7 +136,7 @@ function TransitAssignmentCard({
           </p>
         </div>
       </div>
-      <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors group-hover:border-gray-300 group-hover:bg-gray-50">
+      <span className="moto-content-surface inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium text-gray-700 transition-colors group-hover:border-gray-300 group-hover:bg-gray-50">
         Zuweisen
         <ArrowRight className="h-4 w-4 text-gray-500" aria-hidden="true" />
       </span>
@@ -603,7 +603,7 @@ function RoomsPageContent() {
                         ? "room-detail-panel"
                         : undefined
                     }
-                    className="group relative w-full cursor-pointer overflow-hidden rounded-3xl bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+                    className="group moto-content-surface relative w-full cursor-pointer overflow-hidden rounded-3xl border text-left transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:shadow-sm"
                   >
                     <div className="relative p-6 pb-5">
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]" />

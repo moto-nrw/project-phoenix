@@ -1,24 +1,26 @@
 /* styles/globals.css */
 @import "tailwindcss";
 @import "@moto-nrw/design-system/tailwind";
-@import '@fontsource/geist-sans';
-@import '@fontsource/geist-sans/800.css'; /* Ensure font-weight 800 is loaded */
+@import "@fontsource/geist-sans";
+@import "@fontsource/geist-sans/800.css"; /* Ensure font-weight 800 is loaded */
 
 /* Base font tokens */
 @theme {
-  --font-geist-sans: 'Geist Sans';
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-  "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-geist-sans: "Geist Sans";
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* CSS custom properties */
 :root {
   /* Animation timing - optimized for perceived performance */
-  --duration-instant: 100ms;   /* Micro-interactions, focus rings */
-  --duration-fast: 150ms;      /* Hover states, small element transitions */
-  --duration-normal: 200ms;    /* Standard transitions, card hovers */
-  --duration-smooth: 250ms;    /* Modal content, dropdown opens */
-  --duration-slow: 300ms;      /* Complex entrances (use sparingly) */
+  --duration-instant: 100ms; /* Micro-interactions, focus rings */
+  --duration-fast: 150ms; /* Hover states, small element transitions */
+  --duration-normal: 200ms; /* Standard transitions, card hovers */
+  --duration-smooth: 250ms; /* Modal content, dropdown opens */
+  --duration-slow: 300ms; /* Complex entrances (use sparingly) */
 
   /* shadcn-style color variables (HSL tuples) */
   --background: 0 0% 100%;
@@ -127,7 +129,6 @@
 
   --color-ring: hsl(var(--ring));
 }
-
 
 /* Custom scrollbar styles for modals */
 .scrollbar-thin {
@@ -248,6 +249,84 @@
   animation: contentReveal 200ms ease-out both;
 }
 
+.moto-dotted-background {
+  position: relative;
+  overflow: hidden;
+  background: #f9fafb;
+}
+
+.moto-dotted-background::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgba(17, 24, 39, 0.12) 1px,
+    transparent 0
+  );
+  background-size: 14px 14px;
+}
+
+.moto-dotted-background--fullscreen::before {
+  mask-image: radial-gradient(
+    circle at center,
+    black 0,
+    black 55%,
+    rgba(0, 0, 0, 0.55) 78%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    circle at center,
+    black 0,
+    black 55%,
+    rgba(0, 0, 0, 0.55) 78%,
+    transparent 100%
+  );
+}
+
+.moto-dotted-background--split::before {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    rgba(0, 0, 0, 0.55) 56px,
+    black 128px,
+    black calc(100% - 128px),
+    rgba(0, 0, 0, 0.55) calc(100% - 56px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    rgba(0, 0, 0, 0.55) 56px,
+    black 128px,
+    black calc(100% - 128px),
+    rgba(0, 0, 0, 0.55) calc(100% - 56px),
+    transparent 100%
+  );
+}
+
+.moto-content-surface {
+  border-color: #e5e7eb;
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.moto-select {
+  padding-right: 2.75rem;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239CA3AF' stroke-width='2'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.875rem center;
+  background-size: 1rem 1rem;
+}
+
+.moto-select::-ms-expand {
+  display: none;
+}
+
 /* Utility animations */
 @keyframes shimmer {
   0% {
@@ -271,7 +350,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.3;
     transform: scale(1);
   }

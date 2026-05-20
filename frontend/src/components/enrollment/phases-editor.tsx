@@ -1,7 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CalendarClock,
+  CalendarPlus,
+  CalendarRange,
+  Check,
+  ClipboardList,
+  Clock3,
+  MoreVertical,
+  Pencil,
+  Power,
+  Trash2,
+} from "lucide-react";
 import {
   type Phase,
   type PhaseInput,
@@ -17,6 +30,12 @@ import { listSchemas, type FormSchema } from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useToast } from "~/contexts/ToastContext";
+import {
+  DataTable,
+  DataTableStatusBadge,
+  type DataTableColumn,
+} from "~/components/ui/data-table";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -32,17 +51,12 @@ const OVERFLOW_LABELS: Record<PhaseCareOverflowMode, string> = {
   allow: "Ohne Hinweis akzeptieren",
 };
 
-// Schema-source mode:
-//   "base"   → form_schema_id = null (core fields only)
-//   "custom" → admin builds a brand-new schema in the form editor;
-//              after publishing they come back here and pick it from
-//              the dropdown — keeping that flow explicit avoids a
-//              tangled inline-create UX
-//   "reuse"  → pick an existing schema row (any version, any phase)
+// Schema-source mode.
+// "base" sets form_schema_id = null. "reuse" picks an existing schema row.
 type SchemaSource = "base" | "reuse";
 
 function blankInput(): PhaseInput {
-  // Pre-fill service dates with the next school year so admins don't
+  // Pre-fill service dates with the next school year so admins do not
   // start from "0001-01-01". They can edit before saving.
   const now = new Date();
   const startYear =
@@ -76,7 +90,7 @@ function phaseToInput(p: Phase): PhaseInput {
   };
 }
 
-// RFC3339 ↔ datetime-local "YYYY-MM-DDTHH:MM" helpers. The HTML
+// RFC3339 to datetime-local "YYYY-MM-DDTHH:MM" helpers. The HTML
 // datetime-local input always works in the browser's local zone,
 // which matches what an admin expects when they type "1. März 09:00".
 function toLocalInputValue(rfc?: string | null): string {
@@ -94,12 +108,29 @@ function fromLocalInputValue(local: string): string | null {
   return d.toISOString();
 }
 
+function formatDate(value: string): string {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value: string): string {
+  return new Date(value).toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function PhasesEditor() {
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PhaseInput | null>(null);
@@ -108,8 +139,9 @@ export function PhasesEditor() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
   const tenantSlug = useTenantSlugSafe();
+  const toast = useToast();
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -123,20 +155,20 @@ export function PhasesEditor() {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phases_load_failed", { error: message });
       setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     void loadAll();
-  }, []);
+  }, [loadAll]);
 
   const startCreate = () => {
     setEditingId("new");
     setDraft(blankInput());
     setSchemaSource("base");
-    setInfo(null);
     setError(null);
   };
 
@@ -144,7 +176,6 @@ export function PhasesEditor() {
     setEditingId(phase.id);
     setDraft(phaseToInput(phase));
     setSchemaSource(phase.form_schema_id ? "reuse" : "base");
-    setInfo(null);
     setError(null);
   };
 
@@ -158,15 +189,14 @@ export function PhasesEditor() {
     if (!draft) return;
     setSaving(true);
     setError(null);
-    setInfo(null);
     try {
-      // Normalise schema_source → form_schema_id.
+      // Normalise schema_source to form_schema_id.
       const payload: PhaseInput = {
         ...draft,
         form_schema_id: schemaSource === "base" ? null : draft.form_schema_id,
       };
       if (schemaSource === "reuse" && !payload.form_schema_id) {
-        throw new Error("Bitte ein Formular auswählen oder 'Basis' wählen.");
+        throw new Error("Bitte ein Formular auswählen oder Basis wählen.");
       }
       if (
         payload.service_start_date &&
@@ -189,10 +219,10 @@ export function PhasesEditor() {
       }
       if (editingId === "new") {
         const created = await createPhase(payload);
-        setInfo(`Phase „${created.name}" erstellt.`);
+        toast.success(`Anmeldephase „${created.name}" erstellt.`);
       } else if (editingId) {
         const updated = await updatePhase(editingId, payload);
-        setInfo(`Phase „${updated.name}" gespeichert.`);
+        toast.success(`Anmeldephase „${updated.name}" gespeichert.`);
       }
       cancelEdit();
       await loadAll();
@@ -200,43 +230,47 @@ export function PhasesEditor() {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phase_save_failed", { error: message });
       setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (phase: Phase) => {
-    if (
-      !window.confirm(
-        `Phase „${phase.name}" wirklich löschen? Diese Aktion ist nicht umkehrbar.`,
-      )
-    ) {
-      return;
-    }
-    setDeletingId(phase.id);
-    setError(null);
-    setInfo(null);
-    try {
-      await deletePhase(phase.id);
-      setInfo(`Phase „${phase.name}" gelöscht.`);
-      await loadAll();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("phase_delete_failed", { error: message });
-      // The backend returns 409 with a German hint when the phase has
-      // care offerings or submissions referencing it. The message
-      // already says "deactivate instead" — surface as-is.
-      setError(message);
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  const handleDelete = useCallback(
+    async (phase: Phase) => {
+      if (
+        !window.confirm(
+          `Anmeldephase „${phase.name}" wirklich löschen? Diese Aktion ist nicht umkehrbar.`,
+        )
+      ) {
+        return;
+      }
+      setDeletingId(phase.id);
+      setError(null);
+      try {
+        await deletePhase(phase.id);
+        toast.success(`Anmeldephase „${phase.name}" gelöscht.`);
+        await loadAll();
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unbekannter Fehler";
+        logger.error("phase_delete_failed", { error: message });
+        // The backend returns 409 with a German hint when the phase has
+        // care offerings or submissions referencing it. The message
+        // already says "deactivate instead", surface as-is.
+        setError(message);
+        toast.error(message);
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [loadAll, toast],
+  );
 
   const startRollover = (phase: Phase) => {
     setRolloverSource(phase);
     setEditingId(null);
     setDraft(null);
-    setInfo(null);
     setError(null);
   };
 
@@ -253,60 +287,159 @@ export function PhasesEditor() {
       summaryBits.push(`${result.summary.enqueued_emails} E-Mails verschickt`);
     }
     const detail = summaryBits.length > 0 ? ` (${summaryBits.join(", ")})` : "";
-    setInfo(`Anschlussphase „${result.phase.name}" wurde erstellt${detail}.`);
+    toast.success(
+      `Anschlussphase „${result.phase.name}" wurde erstellt${detail}.`,
+    );
     void loadAll();
   };
 
-  const handleToggleActive = async (phase: Phase) => {
-    setSaving(true);
-    setError(null);
-    setInfo(null);
-    try {
-      const updated = await updatePhase(phase.id, {
-        ...phaseToInput(phase),
-        is_active: !phase.is_active,
-      });
-      setInfo(
-        updated.is_active
-          ? `Phase „${updated.name}" ist jetzt aktiv.`
-          : `Phase „${updated.name}" wurde deaktiviert.`,
-      );
-      await loadAll();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("phase_toggle_active_failed", { error: message });
-      setError(message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  const handleToggleActive = useCallback(
+    async (phase: Phase) => {
+      setSaving(true);
+      setError(null);
+      try {
+        const updated = await updatePhase(phase.id, {
+          ...phaseToInput(phase),
+          is_active: !phase.is_active,
+        });
+        toast.success(
+          updated.is_active
+            ? `Anmeldephase „${updated.name}" ist jetzt aktiv.`
+            : `Anmeldephase „${updated.name}" wurde deaktiviert.`,
+        );
+        await loadAll();
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unbekannter Fehler";
+        logger.error("phase_toggle_active_failed", { error: message });
+        setError(message);
+        toast.error(message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [loadAll, toast],
+  );
+
+  const activePhaseCount = phases.filter((phase) => phase.is_active).length;
+  const columns = useMemo<DataTableColumn<Phase>[]>(
+    () => [
+      {
+        key: "name",
+        header: "Anmeldephase",
+        sortValue: (phase) => phase.name,
+        render: (phase) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium text-gray-900">{phase.name}</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              {KIND_LABELS[phase.kind]}
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: "service_period",
+        header: "Betreuungszeitraum",
+        sortValue: (phase) => phase.service_start_date,
+        render: (phase) => (
+          <span className="text-sm text-gray-700">
+            {formatDate(phase.service_start_date)} bis{" "}
+            {formatDate(phase.service_end_date)}
+          </span>
+        ),
+      },
+      {
+        key: "enrollment_window",
+        header: "Anmeldefenster",
+        sortValue: (phase) => phase.enrollment_open_at ?? "",
+        render: (phase) => (
+          <EnrollmentWindowCell
+            openAt={phase.enrollment_open_at}
+            closeAt={phase.enrollment_close_at}
+          />
+        ),
+      },
+      {
+        key: "status",
+        header: "Status",
+        sortValue: (phase) => (phase.is_active ? 1 : 0),
+        render: (phase) => <DataTableStatusBadge active={phase.is_active} />,
+      },
+      {
+        key: "actions",
+        header: "Aktionen",
+        align: "right",
+        render: (phase) => (
+          <PhaseActions
+            phase={phase}
+            tenantSlug={tenantSlug}
+            saving={saving}
+            deleting={deletingId === phase.id}
+            rolloverActive={!!rolloverSource}
+            onEdit={() => startEdit(phase)}
+            onRollover={() => startRollover(phase)}
+            onToggleActive={() => void handleToggleActive(phase)}
+            onDelete={() => void handleDelete(phase)}
+          />
+        ),
+      },
+    ],
+    [
+      deletingId,
+      handleDelete,
+      handleToggleActive,
+      rolloverSource,
+      saving,
+      tenantSlug,
+    ],
+  );
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Phasen werden geladen...</p>;
+    return (
+      <div className="moto-content-surface rounded-2xl border px-5 py-10 text-center text-sm text-gray-500 shadow-sm">
+        Anmeldephasen werden geladen...
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div
+          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]"
+          role="alert"
+          aria-live="polite"
+        >
           {error}
         </div>
       )}
-      {info && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-          {info}
-        </div>
-      )}
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Phasen</h2>
-        {!editingId && (
+      <div className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <div className="grid gap-2 sm:grid-cols-3">
+          <PhaseMetric
+            icon={<CalendarRange className="h-4 w-4" />}
+            label="Anmeldephasen"
+            value={phases.length}
+          />
+          <PhaseMetric
+            icon={<Clock3 className="h-4 w-4" />}
+            label="Aktiv"
+            value={activePhaseCount}
+          />
+          <PhaseMetric
+            icon={<CalendarClock className="h-4 w-4" />}
+            label="In Vorbereitung"
+            value={Math.max(phases.length - activePhaseCount, 0)}
+          />
+        </div>
+        {!editingId && !rolloverSource && (
           <button
             type="button"
             onClick={startCreate}
-            className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
-            + Neue Phase
+            <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+            Neue Anmeldephase
           </button>
         )}
       </div>
@@ -333,141 +466,17 @@ export function PhasesEditor() {
         />
       )}
 
-      {phases.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-          Noch keine Phasen angelegt. Klicke auf „Neue Phase", um mit der ersten
-          Anmeldephase (z. B. einem Schuljahr) zu starten.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">
-                  Name
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">
-                  Typ
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">
-                  Zeitraum
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">
-                  Anmeldefenster
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">
-                  Status
-                </th>
-                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">
-                  Aktionen
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {phases.map((p) => (
-                <tr key={p.id}>
-                  <td className="px-3 py-2 font-medium text-gray-900">
-                    {p.name}
-                  </td>
-                  <td className="px-3 py-2 text-gray-700">
-                    {KIND_LABELS[p.kind]}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-gray-600">
-                    {p.service_start_date} – {p.service_end_date}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-gray-600">
-                    {p.enrollment_open_at || p.enrollment_close_at ? (
-                      <>
-                        {p.enrollment_open_at
-                          ? new Date(p.enrollment_open_at).toLocaleString(
-                              "de-DE",
-                              {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )
-                          : "—"}
-                        {" – "}
-                        {p.enrollment_close_at
-                          ? new Date(p.enrollment_close_at).toLocaleString(
-                              "de-DE",
-                              {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )
-                          : "—"}
-                      </>
-                    ) : (
-                      <span className="text-gray-400">unbegrenzt</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {p.is_active ? (
-                      <span className="inline-flex items-center rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-xs font-medium text-[#5a8e1f]">
-                        Aktiv
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                        Inaktiv
-                      </span>
-                    )}
-                  </td>
-                  <td className="space-x-2 px-3 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => startEdit(p)}
-                      className="text-xs font-medium text-[#5080D8] hover:underline"
-                      disabled={saving}
-                    >
-                      Bearbeiten
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => startRollover(p)}
-                      className="text-xs font-medium text-[#83CD2D] hover:underline"
-                      disabled={saving || !!rolloverSource}
-                      title="Bestätigte Anmeldungen in eine Anschlussphase übernehmen"
-                    >
-                      Anschlussphase erstellen
-                    </button>
-                    {tenantSlug && p.rollover_source_phase_id && (
-                      <Link
-                        href={`/enrollment-phases/${encodeURIComponent(p.id)}/review`}
-                        className="text-xs font-medium text-[#F59E0B] hover:underline"
-                      >
-                        Prüfliste
-                      </Link>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => void handleToggleActive(p)}
-                      className="text-xs font-medium text-gray-700 hover:underline"
-                      disabled={saving}
-                    >
-                      {p.is_active ? "Deaktivieren" : "Aktivieren"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(p)}
-                      className="text-xs font-medium text-[#FF3130] hover:underline disabled:opacity-50"
-                      disabled={deletingId === p.id || saving}
-                    >
-                      {deletingId === p.id ? "Wird gelöscht..." : "Löschen"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {phases.length === 0 && !editingId && !rolloverSource ? (
+        <EmptyPhasesState onCreate={startCreate} />
+      ) : phases.length > 0 && !editingId && !rolloverSource ? (
+        <DataTable
+          columns={columns}
+          rows={phases}
+          getRowKey={(phase) => phase.id}
+          defaultSortKey="service_period"
+          defaultSortDirection="desc"
+        />
+      ) : null}
     </div>
   );
 }
@@ -482,6 +491,271 @@ interface PhaseFormProps {
   readonly saving: boolean;
   readonly onSubmit: (e: React.FormEvent) => void;
   readonly onCancel: () => void;
+}
+
+function PhaseMetric({
+  icon,
+  label,
+  value,
+}: Readonly<{
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+}>) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
+      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-gray-500 shadow-sm">
+        {icon}
+      </span>
+      <span>
+        <span className="block text-sm font-semibold text-gray-900">
+          {value}
+        </span>
+        <span className="block text-xs text-gray-500">{label}</span>
+      </span>
+    </div>
+  );
+}
+
+function EmptyPhasesState({ onCreate }: Readonly<{ onCreate: () => void }>) {
+  return (
+    <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#5080D8]/10 text-[#5080D8]">
+        <CalendarRange className="h-6 w-6" aria-hidden="true" />
+      </div>
+      <h2 className="mt-4 text-base font-semibold text-gray-900">
+        Noch keine Anmeldephase angelegt
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
+        Lege zuerst fest, für welchen Zeitraum Eltern anmelden können, zum
+        Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.
+      </p>
+      <button
+        type="button"
+        onClick={onCreate}
+        className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+        Erste Anmeldephase anlegen
+      </button>
+    </section>
+  );
+}
+
+function EnrollmentWindowCell({
+  openAt,
+  closeAt,
+}: Readonly<{ openAt?: string | null; closeAt?: string | null }>) {
+  if (!openAt && !closeAt) {
+    return <span className="text-sm text-gray-400">Jederzeit offen</span>;
+  }
+
+  return (
+    <span className="text-sm text-gray-700">
+      {openAt ? formatDateTime(openAt) : "Nicht gesetzt"}
+      <span className="text-gray-400"> bis </span>
+      {closeAt ? formatDateTime(closeAt) : "Nicht gesetzt"}
+    </span>
+  );
+}
+
+interface PhaseActionsProps {
+  readonly phase: Phase;
+  readonly tenantSlug?: string | null;
+  readonly saving: boolean;
+  readonly deleting: boolean;
+  readonly rolloverActive: boolean;
+  readonly onEdit: () => void;
+  readonly onRollover: () => void;
+  readonly onToggleActive: () => void;
+  readonly onDelete: () => void;
+}
+
+interface PhaseActionsMenuPosition {
+  top: number;
+  left: number;
+  alignRight: boolean;
+}
+
+function PhaseActions({
+  phase,
+  tenantSlug,
+  saving,
+  deleting,
+  rolloverActive,
+  onEdit,
+  onRollover,
+  onToggleActive,
+  onDelete,
+}: PhaseActionsProps) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState<PhaseActionsMenuPosition>({
+    top: 0,
+    left: 0,
+    alignRight: false,
+  });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !buttonRef.current) return;
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    const menuWidth = 240;
+    const alignRight = rect.left + menuWidth > window.innerWidth - 16;
+    setPosition({
+      top: rect.bottom + 6,
+      left: alignRight ? rect.right : rect.left,
+      alignRight,
+    });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        menuRef.current &&
+        event.target instanceof Node &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleScroll() {
+      setOpen(false);
+    }
+
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [open]);
+
+  const menu = open && mounted && (
+    <div
+      ref={menuRef}
+      role="menu"
+      tabIndex={-1}
+      aria-label={`Aktionen für ${phase.name}`}
+      className="fixed z-[9999] w-60 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 text-left shadow-lg"
+      style={{
+        top: position.top,
+        left: position.alignRight ? "auto" : position.left,
+        right: position.alignRight ? window.innerWidth - position.left : "auto",
+      }}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setOpen(false);
+          onEdit();
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={saving}
+      >
+        <Pencil className="h-4 w-4 text-gray-500" aria-hidden />
+        Bearbeiten
+      </button>
+
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setOpen(false);
+          onRollover();
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={saving || rolloverActive}
+      >
+        <CalendarPlus className="h-4 w-4 text-gray-500" aria-hidden />
+        Anschlussphase erstellen
+      </button>
+
+      {hasReviewList ? (
+        <Link
+          href={`/enrollment-phases/${encodeURIComponent(phase.id)}/review`}
+          role="menuitem"
+          tabIndex={0}
+          onClick={() => setOpen(false)}
+          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+        >
+          <ClipboardList className="h-4 w-4 text-gray-500" aria-hidden />
+          Prüfliste öffnen
+        </Link>
+      ) : null}
+
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setOpen(false);
+          onToggleActive();
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={saving}
+      >
+        <Power className="h-4 w-4 text-gray-500" aria-hidden />
+        {phase.is_active ? "Deaktivieren" : "Aktivieren"}
+      </button>
+
+      <div className="my-1 h-px bg-gray-100" />
+
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setOpen(false);
+          onDelete();
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={deleting || saving}
+      >
+        <Trash2 className="h-4 w-4" aria-hidden />
+        {deleting ? "Löscht..." : "Löschen"}
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="flex justify-end">
+      <div>
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-label={`Aktionen für ${phase.name}`}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          <MoreVertical className="h-4 w-4" aria-hidden="true" />
+        </button>
+        {mounted ? createPortal(menu, document.body) : null}
+      </div>
+    </div>
+  );
 }
 
 function PhaseForm(props: PhaseFormProps) {
@@ -503,31 +777,34 @@ function PhaseForm(props: PhaseFormProps) {
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+      noValidate
+      className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
     >
       <h3 className="text-base font-semibold text-gray-900">
-        {editing ? "Phase bearbeiten" : "Neue Phase"}
+        {editing ? "Anmeldephase bearbeiten" : "Neue Anmeldephase"}
       </h3>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-medium text-gray-700">Name</span>
           <input
+            name="name"
             type="text"
-            required
             value={draft.name}
             onChange={(e) => update({ name: e.target.value })}
             placeholder="z. B. Schuljahr 2026/27"
-            className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+            aria-required="true"
+            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           />
         </label>
 
         <label className="block">
           <span className="text-xs font-medium text-gray-700">Typ</span>
           <select
+            name="kind"
             value={draft.kind}
             onChange={(e) => update({ kind: e.target.value as PhaseKind })}
-            className="mt-1 h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm"
+            className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             <option value="school_year">{KIND_LABELS.school_year}</option>
             <option value="holiday">{KIND_LABELS.holiday}</option>
@@ -536,7 +813,7 @@ function PhaseForm(props: PhaseFormProps) {
         </label>
       </div>
 
-      <fieldset className="rounded-lg border border-gray-200 p-4">
+      <fieldset className="rounded-xl border border-gray-200 p-4">
         <legend className="px-1 text-xs font-medium text-gray-700">
           Betreuungszeitraum
         </legend>
@@ -544,8 +821,8 @@ function PhaseForm(props: PhaseFormProps) {
           <label className="block">
             <span className="text-xs text-gray-600">Beginn</span>
             <input
+              name="service_start_date"
               type="date"
-              required
               value={draft.service_start_date}
               onChange={(e) => {
                 const next = e.target.value;
@@ -564,37 +841,40 @@ function PhaseForm(props: PhaseFormProps) {
                   return { ...prev, ...patch };
                 });
               }}
-              className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+              aria-required="true"
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
           </label>
           <label className="block">
             <span className="text-xs text-gray-600">Ende</span>
             <input
+              name="service_end_date"
               key={draft.service_end_date === "" ? "empty" : "set"}
               type="date"
-              required
               min={draft.service_start_date || undefined}
               value={draft.service_end_date}
               onChange={(e) => update({ service_end_date: e.target.value })}
-              className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+              aria-required="true"
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
           </label>
         </div>
       </fieldset>
 
-      <fieldset className="rounded-lg border border-gray-200 p-4">
+      <fieldset className="rounded-xl border border-gray-200 p-4">
         <legend className="px-1 text-xs font-medium text-gray-700">
           Anmeldefenster (optional)
         </legend>
         <p className="mb-2 text-xs text-gray-500">
           Lass beide Felder leer, wenn das Anmeldeformular jederzeit erreichbar
-          sein soll. Sonst kann die Phase nur in diesem Zeitraum eingereicht
+          sein soll. Sonst kann die Anmeldung nur in diesem Zeitraum eingereicht
           werden.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="text-xs text-gray-600">Öffnung</span>
             <input
+              name="enrollment_open_at"
               type="datetime-local"
               value={toLocalInputValue(draft.enrollment_open_at)}
               onChange={(e) => {
@@ -614,12 +894,13 @@ function PhaseForm(props: PhaseFormProps) {
                   return { ...prev, ...patch };
                 });
               }}
-              className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
           </label>
           <label className="block">
             <span className="text-xs text-gray-600">Schließung</span>
             <input
+              name="enrollment_close_at"
               key={draft.enrollment_close_at == null ? "empty" : "set"}
               type="datetime-local"
               min={toLocalInputValue(draft.enrollment_open_at) || undefined}
@@ -629,13 +910,13 @@ function PhaseForm(props: PhaseFormProps) {
                   enrollment_close_at: fromLocalInputValue(e.target.value),
                 })
               }
-              className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm"
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
           </label>
         </div>
       </fieldset>
 
-      <fieldset className="rounded-lg border border-gray-200 p-4">
+      <fieldset className="rounded-xl border border-gray-200 p-4">
         <legend className="px-1 text-xs font-medium text-gray-700">
           Formular
         </legend>
@@ -657,7 +938,7 @@ function PhaseForm(props: PhaseFormProps) {
               className="mt-0.5"
             />
             <span>
-              <strong>Basis</strong> — nur die Standardfelder (Eltern, Kinder,
+              <strong>Basis</strong>: nur die Standardfelder (Eltern, Kinder,
               Geburtsdatum, Klasse).
             </span>
           </label>
@@ -678,23 +959,23 @@ function PhaseForm(props: PhaseFormProps) {
               disabled={schemas.length === 0}
             />
             <span className="flex-1">
-              <strong>Bestehendes Formular wählen</strong> — eigene Felder aus
-              einer anderen Phase übernehmen.
+              <strong>Bestehendes Formular wählen</strong>: eigene Felder aus
+              einer anderen Anmeldephase übernehmen.
               {schemaSource === "reuse" && (
                 <select
                   value={draft.form_schema_id ?? ""}
                   onChange={(e) =>
                     update({ form_schema_id: e.target.value || null })
                   }
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                  className="moto-select moto-content-surface mt-1 block w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   disabled={schemas.length === 0}
-                  required={schemaSource === "reuse"}
+                  aria-required={schemaSource === "reuse"}
                   aria-label="Formular auswählen"
                 >
-                  <option value="">— wählen —</option>
+                  <option value="">Wählen</option>
                   {schemas.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name || "Standardformular"} (v{s.version}) —{" "}
+                      {s.name || "Standardformular"} (v{s.version}),{" "}
                       {s.fields.length} Felder
                     </option>
                   ))}
@@ -703,7 +984,7 @@ function PhaseForm(props: PhaseFormProps) {
               {schemas.length === 0 && (
                 <p className="mt-1 text-xs text-gray-500">
                   Noch keine eigenen Formulare vorhanden. Erstelle zunächst
-                  eines auf der Seite „Anmeldeformular".
+                  eines auf der Seite „Anmeldeformulare“.
                 </p>
               )}
             </span>
@@ -717,13 +998,14 @@ function PhaseForm(props: PhaseFormProps) {
             Verhalten bei voller Betreuung
           </span>
           <select
+            name="care_overflow_mode"
             value={draft.care_overflow_mode}
             onChange={(e) =>
               update({
                 care_overflow_mode: e.target.value as PhaseCareOverflowMode,
               })
             }
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+            className="moto-select moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             <option value="waitlist">{OVERFLOW_LABELS.waitlist}</option>
             <option value="reject">{OVERFLOW_LABELS.reject}</option>
@@ -731,35 +1013,21 @@ function PhaseForm(props: PhaseFormProps) {
           </select>
         </label>
 
-        <div className="flex flex-col gap-2 pt-5 text-sm text-gray-700">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.show_status_reason_to_parent}
-              onChange={(e) =>
-                update({ show_status_reason_to_parent: e.target.checked })
-              }
-            />
-            <span>
-              Begründung für Eltern sichtbar
-              <span className="ml-1 text-xs text-gray-500">
-                (auf der Status-Seite + in Status-E-Mails)
-              </span>
-            </span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.is_active}
-              onChange={(e) => update({ is_active: e.target.checked })}
-            />
-            <span>
-              Aktiv
-              <span className="ml-1 text-xs text-gray-500">
-                (für Eltern sichtbar, sobald das Anmeldefenster offen ist)
-              </span>
-            </span>
-          </label>
+        <div className="flex flex-col gap-2 pt-5">
+          <PhaseCheckbox
+            checked={draft.show_status_reason_to_parent}
+            onChange={(checked) =>
+              update({ show_status_reason_to_parent: checked })
+            }
+            label="Begründung für Eltern sichtbar"
+            hint="(auf der Status-Seite und in Status-E-Mails)"
+          />
+          <PhaseCheckbox
+            checked={draft.is_active}
+            onChange={(checked) => update({ is_active: checked })}
+            label="Aktiv"
+            hint="(für Eltern sichtbar, sobald das Anmeldefenster offen ist)"
+          />
         </div>
       </div>
 
@@ -768,18 +1036,63 @@ function PhaseForm(props: PhaseFormProps) {
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
         >
           Abbrechen
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
         >
           {saving ? "Speichert..." : editing ? "Speichern" : "Erstellen"}
         </button>
       </div>
     </form>
+  );
+}
+
+function PhaseCheckbox({
+  checked,
+  onChange,
+  label,
+  hint,
+}: Readonly<{
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  hint: string;
+}>) {
+  return (
+    <label
+      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
+        checked
+          ? "border-gray-300 bg-gray-50"
+          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="sr-only"
+      />
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
+          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
+        }`}
+        aria-hidden="true"
+      >
+        <Check
+          className={`h-3.5 w-3.5 text-white transition-opacity ${
+            checked ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </span>
+      <span className="min-w-0 flex-1 leading-snug">
+        {label}
+        <span className="ml-1 text-xs font-normal text-gray-500">{hint}</span>
+      </span>
+    </label>
   );
 }

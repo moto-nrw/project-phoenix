@@ -215,7 +215,7 @@ export interface RolloverInput {
   rollover_bumps_grade?: boolean;
 }
 
-export interface RolloverSummary {
+interface RolloverSummary {
   source_child_count: number;
   rolled_count: number;
   review_count: number;
@@ -282,7 +282,7 @@ export async function listRolloverReview(
   return Array.isArray(list) ? list : [];
 }
 
-export type ReviewDecision = "keep" | "drop" | "defer";
+type ReviewDecision = "keep" | "drop" | "defer";
 
 export interface ReviewDecisionInput {
   decision: ReviewDecision;

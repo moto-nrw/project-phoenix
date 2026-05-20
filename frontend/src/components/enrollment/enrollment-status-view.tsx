@@ -220,7 +220,7 @@ export function EnrollmentStatusView({ token }: Props) {
 
   return (
     <div className="space-y-6">
-      <header className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <header className="moto-content-surface rounded-2xl border p-6 shadow-sm">
         <h1 className="text-2xl font-semibold text-gray-900">
           Status deiner Anmeldung
         </h1>
@@ -297,7 +297,7 @@ export function EnrollmentStatusView({ token }: Props) {
         </section>
       )}
 
-      <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900">Kinder</h2>
         </div>
@@ -354,7 +354,7 @@ export function EnrollmentStatusView({ token }: Props) {
         </ul>
       </section>
 
-      <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900">
             Kontaktdaten der Erziehungsberechtigten
@@ -462,7 +462,7 @@ export function EnrollmentStatusView({ token }: Props) {
       </section>
 
       {!allWithdrawn && (
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="moto-content-surface rounded-2xl border p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">
             Komplette Anmeldung zurückziehen
           </h2>

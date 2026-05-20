@@ -25,6 +25,11 @@ export function getPageTitle(pathname: string): string {
     return getDatabasePageTitle(pathname);
   }
 
+  if (pathname.startsWith("/admin/enrollments")) return "Anmeldungen";
+  if (pathname.startsWith("/enrollment-phases")) return "Anmeldephasen";
+  if (pathname.startsWith("/care-offerings")) return "Betreuungsangebote";
+  if (pathname.startsWith("/enrollment-form")) return "Anmeldeformulare";
+
   // Handle main routes
   return getMainRouteTitle(pathname);
 }
@@ -71,6 +76,10 @@ function getMainRouteTitle(pathname: string): string {
     "/settings": "Einstellungen",
     "/profile": "Profil",
     "/invitations": "Einladungen",
+    "/admin/enrollments": "Anmeldungen",
+    "/enrollment-phases": "Anmeldephasen",
+    "/care-offerings": "Betreuungsangebote",
+    "/enrollment-form": "Anmeldeformulare",
     "/time-tracking": "Zeiterfassung",
     "/borndal_feedback": "Borndal Feedback",
     "/operator/suggestions": "Vorschläge",

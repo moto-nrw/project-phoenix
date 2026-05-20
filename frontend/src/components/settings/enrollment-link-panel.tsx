@@ -106,7 +106,7 @@ export function EnrollmentLinkPanel({ tab }: Props) {
           Der Link ist öffentlich; ein Login ist nicht nötig.
         </p>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <code className="flex-1 truncate rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-xs text-gray-800">
+          <code className="moto-content-surface flex-1 truncate rounded-lg border px-3 py-2 font-mono text-xs text-gray-800">
             {enrollUrl}
           </code>
           <button
@@ -130,7 +130,7 @@ export function EnrollmentLinkPanel({ tab }: Props) {
             href={enrollUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-center text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="moto-content-surface shrink-0 rounded-lg border px-3 py-2 text-center text-xs font-medium text-gray-700 hover:bg-gray-50"
           >
             Öffnen
           </a>

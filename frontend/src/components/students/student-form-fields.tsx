@@ -161,7 +161,7 @@ function SelectInput({
           id={selectId}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+          className="moto-content-surface block w-full appearance-none rounded-lg border px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -215,7 +215,7 @@ function DateInput({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+        className="moto-content-surface block w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
       />
     </div>
   );
@@ -263,7 +263,7 @@ function TextareaField({
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="block w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] md:text-sm"
+        className="moto-content-surface block w-full resize-none rounded-lg border px-3 py-2 text-xs transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] md:text-sm"
         placeholder={placeholder}
         maxLength={2000}
       />
@@ -506,7 +506,7 @@ export function PickupStatusSection({
         <select
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value || null)}
-          className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+          className="moto-content-surface block w-full appearance-none rounded-lg border px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
         >
           <option value="">Nicht gesetzt</option>
           <option value="Geht alleine nach Hause">

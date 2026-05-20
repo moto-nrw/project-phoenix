@@ -10,7 +10,7 @@ interface PageProps {
 export default function EnrollmentStatusPage({ params }: PageProps) {
   const { token } = use(params);
   return (
-    <main className="mx-auto max-w-3xl p-4 sm:p-6">
+    <main className="mx-auto w-full max-w-3xl p-4 sm:p-6">
       <EnrollmentStatusView token={token} />
     </main>
   );

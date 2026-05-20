@@ -129,7 +129,7 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+      <div className="moto-content-surface overflow-x-auto rounded-2xl border shadow-sm backdrop-blur-md">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-xs font-medium text-gray-500">

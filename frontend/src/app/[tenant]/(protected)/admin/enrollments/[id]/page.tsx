@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { AdminEnrollmentDetail } from "~/components/enrollment/admin-enrollment-detail";
+import { MobileBackButton } from "~/components/ui/mobile-back-button";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; id: string }>;
@@ -10,7 +11,8 @@ interface PageProps {
 export default function AdminEnrollmentDetailPage({ params }: PageProps) {
   const { id } = use(params);
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <div className="w-full max-w-5xl">
+      <MobileBackButton />
       <AdminEnrollmentDetail requestId={id} />
     </div>
   );

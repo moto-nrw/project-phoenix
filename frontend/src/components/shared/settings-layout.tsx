@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 
@@ -110,9 +111,14 @@ interface SettingsLayoutProps {
 }
 
 export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
-  const [activeTab, setActiveTab] = useState<string | null>(
-    tabs[0]?.id ?? null,
-  );
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const requestedTabId = requestedTab ? `settings-${requestedTab}` : null;
+  const initialTab =
+    requestedTabId && tabs.some((tab) => tab.id === requestedTabId)
+      ? requestedTabId
+      : (tabs[0]?.id ?? null);
+  const [activeTab, setActiveTab] = useState<string | null>(initialTab);
   const [isMobile, setIsMobile] = useState(false);
 
   const handleBackToList = useCallback(() => {
@@ -135,6 +141,12 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [isMobile, activeTab, tabs]);
+
+  useEffect(() => {
+    if (!requestedTabId) return;
+    if (!tabs.some((tab) => tab.id === requestedTabId)) return;
+    setActiveTab(requestedTabId);
+  }, [requestedTabId, tabs]);
 
   return (
     <div className="-mt-1.5 w-full">

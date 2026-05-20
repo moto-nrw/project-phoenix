@@ -61,9 +61,11 @@ function validateLocally(
 }
 
 const AUTO_SAVE_DELAY_MS = 3000;
+const HIGHLIGHT_FLASH_MS = 2200;
 
 interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
+  readonly highlighted?: boolean;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
   // audience controls the "auch von {other side} änderbar" hint shown
@@ -77,6 +79,7 @@ interface SettingsFieldProps {
 
 export function SettingsField({
   setting,
+  highlighted = false,
   onSave,
   onReset,
   audience = "admin",
@@ -87,6 +90,7 @@ export function SettingsField({
   const [isDirty, setIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [showHighlight, setShowHighlight] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isResettingRef = useRef(false);
@@ -146,6 +150,7 @@ export function SettingsField({
   const enableConfig = CONFIRM_ON_ENABLE[setting.key];
   const disableConfig = CONFIRM_ON_DISABLE[setting.key];
   const pendingValueRef = useRef<unknown>(null);
+  const fieldRef = useRef<HTMLDivElement | null>(null);
   const activeConfirmConfig =
     enableConfig && pendingValueRef.current === true
       ? enableConfig
@@ -227,12 +232,38 @@ export function SettingsField({
     }
   }, [setting.key, onReset, toastSuccess, toastError]);
 
+  useEffect(() => {
+    if (!highlighted) return;
+    setShowHighlight(true);
+    const scrollTimeout = window.setTimeout(() => {
+      fieldRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 100);
+    const hideTimeout = window.setTimeout(() => {
+      setShowHighlight(false);
+    }, HIGHLIGHT_FLASH_MS);
+    return () => {
+      window.clearTimeout(scrollTimeout);
+      window.clearTimeout(hideTimeout);
+    };
+  }, [highlighted]);
+
   if (!setting.visible) {
     return null;
   }
 
+  const fieldAlignment =
+    setting.type === "boolean" ? "sm:items-center" : "sm:items-start";
+
   return (
-    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <div
+      ref={fieldRef}
+      id={settingsFieldId(setting.key)}
+      className={`flex scroll-mt-24 flex-col gap-3 rounded-xl border px-3 py-4 transition-[background-color,border-color,box-shadow] sm:flex-row sm:justify-between sm:gap-4 ${fieldAlignment} ${
+        showHighlight
+          ? "border-[#83CD2D]/35 bg-[#83CD2D]/10 shadow-sm duration-500"
+          : "border-transparent"
+      }`}
+    >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h4 className="text-sm font-medium text-gray-900">{setting.label}</h4>
@@ -274,7 +305,7 @@ export function SettingsField({
             <button
               type="button"
               onClick={handleReset}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
+              className="moto-content-surface inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
               title="Auf Standard zurücksetzen"
             >
               <svg
@@ -321,6 +352,10 @@ export function SettingsField({
       )}
     </div>
   );
+}
+
+function settingsFieldId(key: string) {
+  return `setting-${key.replaceAll(".", "-")}`;
 }
 
 function renderField(

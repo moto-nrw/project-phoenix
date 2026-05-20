@@ -10,6 +10,9 @@ import {
   getAdminRequest,
 } from "~/lib/enrollment-admin-api";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { Button } from "~/components/ui/button";
+import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
@@ -27,15 +30,15 @@ const STATUS_LABELS: Record<ChildStatus, string> = {
 };
 
 const STATUS_COLORS: Record<ChildStatus, { bg: string; text: string }> = {
-  submitted: { bg: "#5080D8", text: "#FFFFFF" },
-  under_review: { bg: "#5080D8", text: "#FFFFFF" },
-  approved: { bg: "#83CD2D", text: "#FFFFFF" },
-  waitlisted: { bg: "#F78C10", text: "#FFFFFF" },
-  rejected: { bg: "#FF3130", text: "#FFFFFF" },
-  withdrawn: { bg: "#6B7280", text: "#FFFFFF" },
-  pending_renewal: { bg: "#F59E0B", text: "#FFFFFF" },
-  auto_renewed: { bg: "#5080D8", text: "#FFFFFF" },
-  pending_admin_review: { bg: "#6B7280", text: "#FFFFFF" },
+  submitted: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
+  under_review: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
+  approved: { bg: LOCATION_COLORS.GROUP_ROOM, text: "#FFFFFF" },
+  waitlisted: { bg: LOCATION_COLORS.SCHOOLYARD, text: "#FFFFFF" },
+  rejected: { bg: LOCATION_COLORS.HOME, text: "#FFFFFF" },
+  withdrawn: { bg: LOCATION_COLORS.UNKNOWN, text: "#FFFFFF" },
+  pending_renewal: { bg: LOCATION_COLORS.SCHOOLYARD, text: "#FFFFFF" },
+  auto_renewed: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
+  pending_admin_review: { bg: LOCATION_COLORS.UNKNOWN, text: "#FFFFFF" },
 };
 
 const TERMINAL: ReadonlySet<ChildStatus> = new Set([
@@ -47,14 +50,14 @@ const TERMINAL: ReadonlySet<ChildStatus> = new Set([
 interface ActionDef {
   status: DecisionStatus;
   label: string;
-  bgColor: string;
+  variant: "primary" | "outline" | "danger" | "success";
 }
 
 const ACTIONS: ActionDef[] = [
-  { status: "approved", label: "Bestätigen", bgColor: "#83CD2D" },
-  { status: "waitlisted", label: "Warteliste", bgColor: "#F78C10" },
-  { status: "rejected", label: "Ablehnen", bgColor: "#FF3130" },
-  { status: "under_review", label: "Zur Prüfung", bgColor: "#5080D8" },
+  { status: "approved", label: "Bestätigen", variant: "success" },
+  { status: "waitlisted", label: "Warteliste", variant: "outline" },
+  { status: "rejected", label: "Ablehnen", variant: "danger" },
+  { status: "under_review", label: "Zur Prüfung", variant: "primary" },
 ];
 
 interface Props {
@@ -120,54 +123,54 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   }
   if (!data) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
         {error ?? "Anmeldung nicht gefunden."}
       </div>
     );
   }
 
   return (
-    <>
-      <header className="space-y-2">
-        <Link
-          href={
-            tenantSlug
-              ? `/${tenantSlug}/admin/enrollments`
-              : `/admin/enrollments`
-          }
-          className="text-sm text-[#5080D8] hover:underline"
-        >
-          ← Zur Übersicht
-        </Link>
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Anmeldung von {data.guardian_first_name} {data.guardian_last_name}
-        </h1>
-        <p className="text-sm text-gray-600">
-          Phase: <strong>{data.phase_name || "—"}</strong>
-          {" · "}
-          Eingegangen am{" "}
-          {new Date(data.submitted_at).toLocaleString("de-DE", {
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </p>
-      </header>
+    <div className="space-y-5">
+      <PageHeaderWithSearch
+        title={`Anmeldung von ${data.guardian_first_name} ${data.guardian_last_name}`}
+        actionButton={
+          <Link
+            href={
+              tenantSlug
+                ? `/${tenantSlug}/admin/enrollments`
+                : `/admin/enrollments`
+            }
+            className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            Zur Übersicht
+          </Link>
+        }
+      />
+      <p className="-mt-2 text-sm text-gray-600">
+        Phase: <strong>{data.phase_name || "Nicht zugeordnet"}</strong>
+        {" · "}
+        Eingegangen am{" "}
+        {new Date(data.submitted_at).toLocaleString("de-DE", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </p>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
           {error}
         </div>
       )}
       {info && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <div className="rounded-2xl border border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 text-sm text-[#5A8B1F]">
           {info}
         </div>
       )}
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
         <h2 className="text-base font-semibold text-gray-900">
           Erziehungsberechtigte/r
         </h2>
@@ -184,7 +187,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           </div>
           <div>
             <dt className="text-xs text-gray-500 uppercase">Telefon</dt>
-            <dd className="text-gray-900">{data.guardian_phone ?? "—"}</dd>
+            <dd className="text-gray-900">
+              {data.guardian_phone ?? "Nicht gesetzt"}
+            </dd>
           </div>
           <div>
             <dt className="text-xs text-gray-500 uppercase">Status-Link</dt>
@@ -200,12 +205,11 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-gray-900">Kinder</h2>
         {data.children.map((c) => {
-          const styles = STATUS_COLORS[c.status];
           const terminal = TERMINAL.has(c.status);
           return (
             <div
               key={c.id}
-              className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+              className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -239,19 +243,15 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                     </p>
                   )}
                 </div>
-                <span
-                  className="rounded-full px-3 py-1 text-xs font-medium"
-                  style={{ backgroundColor: styles.bg, color: styles.text }}
-                >
-                  {STATUS_LABELS[c.status]}
-                </span>
+                <StatusBadge status={c.status} />
               </div>
 
               {!terminal && (
                 <div className="mt-4 space-y-2">
                   <label className="block">
                     <span className="text-xs font-medium text-gray-700">
-                      Begründung (optional, sichtbar je nach Phaseneinstellung)
+                      Begründung (optional, sichtbar je nach
+                      Anmeldephaseneinstellung)
                     </span>
                     <textarea
                       value={reasons[c.id] ?? ""}
@@ -262,26 +262,27 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                         }))
                       }
                       rows={2}
-                      placeholder="z. B. Geschwisterkind bevorzugt, voll ausgebucht..."
-                      className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                      placeholder="z. B. Geschwisterkind bevorzugt, voll ausgebucht"
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                     />
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {ACTIONS.map((a) => {
                       const isCurrent = c.status === a.status;
                       return (
-                        <button
+                        <Button
                           key={a.status}
                           type="button"
                           disabled={busyChildId === c.id || isCurrent}
                           onClick={() => void handleDecide(c.id, a.status)}
-                          className="rounded-md px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                          style={{ backgroundColor: a.bgColor }}
+                          variant={a.variant}
+                          size="sm"
+                          className="px-3 py-1.5 text-xs shadow-none disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {busyChildId === c.id
                             ? "Wird gespeichert..."
                             : a.label}
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -290,7 +291,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               {terminal && (
                 <p className="mt-3 text-xs text-gray-500">
                   Diese Entscheidung ist final. Für Promotionen (z. B.
-                  Warteliste → Bestätigt) folgt die volle Workflow- Logik in
+                  Warteliste zu Bestätigt) folgt die volle Workflow-Logik in
                   einer kommenden Version.
                 </p>
               )}
@@ -298,6 +299,18 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           );
         })}
       </section>
-    </>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: Readonly<{ status: ChildStatus }>) {
+  const styles = STATUS_COLORS[status];
+  return (
+    <span
+      className="inline-flex rounded-full px-3 py-1 text-xs font-medium"
+      style={{ backgroundColor: styles.bg, color: styles.text }}
+    >
+      {STATUS_LABELS[status]}
+    </span>
   );
 }

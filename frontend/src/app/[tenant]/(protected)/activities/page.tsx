@@ -334,7 +334,7 @@ function ActivitiesPageContent() {
         {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
         <button
           onClick={() => setIsQuickCreateOpen(true)}
-          className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-150 hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
+          className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-sm transition-all duration-150 hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
           style={{
             background:
               "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
@@ -378,7 +378,7 @@ function ActivitiesPageContent() {
                   type="button"
                   key={activity.id}
                   onClick={handleClick}
-                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-red-300/50 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+                  className="group moto-content-surface relative w-full cursor-pointer overflow-hidden rounded-3xl border text-left shadow-sm backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-red-300/50 md:hover:bg-white md:hover:shadow-sm"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",

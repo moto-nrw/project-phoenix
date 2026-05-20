@@ -135,7 +135,7 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
             return (
               <li
                 key={item.child_id}
-                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+                className="moto-content-surface rounded-2xl border p-5 shadow-sm"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div>
