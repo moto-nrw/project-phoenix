@@ -77,18 +77,23 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const update = <K extends keyof RolloverInput>(
     key: K,
     value: RolloverInput[K],
   ) => {
     setDraft((d) => ({ ...d, [key]: value }));
+    if (key === "name" && nameError !== null) {
+      setNameError(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setNameError(null);
     try {
       const payload: RolloverInput = {
         ...draft,
@@ -98,8 +103,13 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       onSuccess(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("rollover_create_failed", { error: message });
-      setError(message);
+      const code = (err as { code?: string } | undefined)?.code;
+      logger.error("rollover_create_failed", { error: message, code });
+      if (code === "rollover.duplicate_name") {
+        setNameError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -141,8 +151,19 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
             required
             value={draft.name}
             onChange={(e) => update("name", e.target.value)}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            aria-invalid={nameError !== null}
+            aria-describedby={nameError ? "rollover-name-error" : undefined}
+            className={`mt-1 w-full rounded-md border px-3 py-2 text-sm ${
+              nameError !== null
+                ? "border-[#EF4444] focus:border-[#EF4444] focus:ring-[#EF4444]"
+                : "border-gray-300"
+            }`}
           />
+          {nameError !== null && (
+            <p id="rollover-name-error" className="mt-1 text-xs text-[#EF4444]">
+              {nameError}
+            </p>
+          )}
         </div>
         <div>
           <label

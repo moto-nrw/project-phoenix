@@ -62,6 +62,8 @@ const ROLLOVER_ERROR_MESSAGES: Record<string, string> = {
   "rollover.review_invalid": "Die Aktion ist in diesem Zustand nicht erlaubt.",
   "rollover.review_not_found":
     "Dieser Eintrag in der Prüfliste existiert nicht mehr.",
+  "rollover.duplicate_name":
+    "Es existiert bereits eine Phase mit diesem Namen. Bitte einen anderen Namen wählen.",
 };
 
 async function readJSON<T>(response: Response): Promise<T> {

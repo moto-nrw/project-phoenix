@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -22,7 +23,36 @@ var (
 	ErrRolloverInvalidRequest = errors.New("rollover request invalid")
 	ErrRolloverReviewNotFound = errors.New("rollover review item not found")
 	ErrRolloverReviewInvalid  = errors.New("rollover review decision invalid")
+	// ErrRolloverDuplicateName is returned when the new phase name
+	// collides with an existing phase for the same tenant. Driven by
+	// the enrollment_phases_unique_name UNIQUE(tenant_id, name)
+	// constraint — the admin sees a 409 with a clear message instead
+	// of a raw Postgres error.
+	ErrRolloverDuplicateName = errors.New("phase name already exists")
 )
+
+// phaseNameUniqueConstraint is the Postgres constraint name from
+// migration 1.15.67 — kept in sync via grep, not via import, because
+// the migration declares it inline.
+const phaseNameUniqueConstraint = "enrollment_phases_unique_name"
+
+// isPhaseDuplicateName reports whether err is a PostgreSQL 23505
+// raised by the unique(tenant_id, name) constraint on
+// enrollment.phases. Race-safe: we don't pre-check, we just translate
+// the DB error into the sentinel so the handler can return 409.
+func isPhaseDuplicateName(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr pgdriver.Error
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	if pgErr.Field('C') != "23505" {
+		return false
+	}
+	return pgErr.Field('n') == phaseNameUniqueConstraint
+}
 
 // RolloverService creates a new phase from a source phase, carrying
 // every approved enrollment forward into the new phase under one of
@@ -280,6 +310,9 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 		return fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
 	}
 	if err := s.phaseRepo.Create(ctx, newPhase); err != nil {
+		if isPhaseDuplicateName(err) {
+			return fmt.Errorf("%w: %q", ErrRolloverDuplicateName, req.Name)
+		}
 		return fmt.Errorf("rollover: create phase: %w", err)
 	}
 	result.Phase = newPhase

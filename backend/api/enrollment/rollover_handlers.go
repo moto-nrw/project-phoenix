@@ -323,6 +323,7 @@ const (
 	ErrCodeRolloverInvalidRequest = "rollover.invalid_request"
 	ErrCodeRolloverReviewInvalid  = "rollover.review_invalid"
 	ErrCodeRolloverReviewNotFound = "rollover.review_not_found"
+	ErrCodeRolloverDuplicateName  = "rollover.duplicate_name"
 )
 
 func (rs *Resource) mapRolloverError(w http.ResponseWriter, r *http.Request, err error) {
@@ -335,6 +336,8 @@ func (rs *Resource) mapRolloverError(w http.ResponseWriter, r *http.Request, err
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeRolloverReviewInvalid))
 	case errors.Is(err, enrollmentService.ErrRolloverReviewNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeRolloverReviewNotFound))
+	case errors.Is(err, enrollmentService.ErrRolloverDuplicateName):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeRolloverDuplicateName))
 	default:
 		rs.logger().Error("rollover handler failed", slog.String("error", err.Error()))
 		common.RenderError(w, r, common.ErrorInternalServer(err))
