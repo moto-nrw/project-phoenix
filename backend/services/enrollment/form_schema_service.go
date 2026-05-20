@@ -40,12 +40,28 @@ type FormSchemaService interface {
 	// version atomically. createdBy is the staff/admin account ID
 	// from the JWT.
 	//
-	// Validation: every field validates per FormField.Validate; no
-	// duplicate keys; no field shadows a CoreFieldKeys entry. The
-	// fields slice may be empty (a tenant can publish a "no custom
-	// fields" schema, in which case the parent form only collects
-	// the core fields).
+	// Deprecated: prefer CreateSchema (new schema) or UpdateSchema
+	// (new version of an existing schema). PublishVersion is kept for
+	// backward compatibility with the original single-schema flow —
+	// it now writes the row with name="Standardformular" and does NOT
+	// deactivate other names' rows, only siblings of the same name.
 	PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error)
+
+	// CreateSchema creates a new logical schema (version 1) under the
+	// given name. Use this when the admin clicks "Neues Formular" on
+	// the schema list page. Names are unique per tenant by convention
+	// but not by DB constraint — the service rejects an attempt to
+	// create a new schema with a name that already exists; callers
+	// must use UpdateSchema to add another version to an existing
+	// schema instead.
+	CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error)
+
+	// UpdateSchema publishes a new version of an existing schema,
+	// looked up by id. The new row inherits the source row's name,
+	// uses max(version)+1 for that name, and is marked active. Older
+	// versions stay around so previously-submitted requests keep
+	// their schema reference intact.
+	UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64) (*enrollmentModels.FormSchema, error)
 
 	// ValidateSubmission checks a parent's submission payload against
 	// a pinned schema version. PR 7's submit handler calls this. PR 5
@@ -98,34 +114,69 @@ func (s *formSchemaService) ListVersions(ctx context.Context) ([]*enrollmentMode
 	return s.repo.ListByTenant(ctx)
 }
 
+// defaultSchemaName is the name PublishVersion writes for legacy
+// callers that don't supply one. Matches the backfill string used by
+// migration 1.15.74 so older rows merge cleanly into the same logical
+// schema.
+const defaultSchemaName = "Standardformular"
+
 func (s *formSchemaService) PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error) {
+	return s.createOrVersion(ctx, defaultSchemaName, fields, createdBy)
+}
+
+func (s *formSchemaService) CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error) {
+	if name == "" {
+		return nil, fmt.Errorf("schema name is required")
+	}
+	// Refuse to overload an existing name — the admin should use
+	// UpdateSchema to add a new version instead. The
+	// "next version > 1" check is the lightweight uniqueness signal.
+	existing, err := s.repo.NextVersionForName(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("check existing name: %w", err)
+	}
+	if existing > 1 {
+		return nil, fmt.Errorf("schema with name %q already exists; use UpdateSchema to add a new version", name)
+	}
+	return s.createOrVersion(ctx, name, fields, createdBy)
+}
+
+func (s *formSchemaService) UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64) (*enrollmentModels.FormSchema, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("schema id must be positive")
+	}
+	source, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load source schema: %w", err)
+	}
+	return s.createOrVersion(ctx, source.Name, fields, updatedBy)
+}
+
+// createOrVersion is the shared internal: pick max(version)+1 for the
+// name, insert a new active row. Sibling rows with the same name stay
+// in place — admins can revert to an older version by binding the
+// phase to that row's id.
+func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error) {
 	if createdBy <= 0 {
 		return nil, fmt.Errorf("createdBy is required")
 	}
+	if name == "" {
+		name = defaultSchemaName
+	}
 
 	// Validate fields up front so we don't write a half-correct row.
-	// (FormSchema.Validate runs again inside the repo on Create - this
-	// is the early bail-out path so callers get a clean 400 before
-	// any DB roundtrip.)
-	tmp := &enrollmentModels.FormSchema{Version: 1, CreatedBy: createdBy, Fields: fields}
+	tmp := &enrollmentModels.FormSchema{Name: name, Version: 1, CreatedBy: createdBy, Fields: fields}
 	if err := tmp.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid schema: %w", err)
 	}
 
-	nextVersion, err := s.repo.NextVersion(ctx)
+	nextVersion, err := s.repo.NextVersionForName(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("compute next version: %w", err)
 	}
 
-	// Deactivate previous versions before inserting the new one. The
-	// partial unique index uq_form_schemas_one_active_per_tenant
-	// enforces the at-most-one-active invariant; this prevents a
-	// unique violation on the new INSERT.
-	if err := s.repo.DeactivatePrevious(ctx); err != nil {
-		return nil, fmt.Errorf("deactivate previous: %w", err)
-	}
-
 	schema := &enrollmentModels.FormSchema{
+		Name:      name,
 		Version:   nextVersion,
 		Fields:    fields,
 		IsActive:  true,
@@ -136,6 +187,7 @@ func (s *formSchemaService) PublishVersion(ctx context.Context, fields []enrollm
 	}
 
 	s.logger.Info("form schema published",
+		slog.String("name", schema.Name),
 		slog.Int("version", schema.Version),
 		slog.Int64("schema_id", schema.ID),
 		slog.Int64("created_by", createdBy),

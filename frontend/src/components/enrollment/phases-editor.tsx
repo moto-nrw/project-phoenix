@@ -641,8 +641,8 @@ function PhaseForm(props: PhaseFormProps) {
                   <option value="">— wählen —</option>
                   {schemas.map((s) => (
                     <option key={s.id} value={s.id}>
-                      Version {s.version}
-                      {s.is_active ? " (aktiv)" : ""} — {s.fields.length} Felder
+                      {s.name || "Standardformular"} (v{s.version}) —{" "}
+                      {s.fields.length} Felder
                     </option>
                   ))}
                 </select>

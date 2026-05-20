@@ -23,6 +23,7 @@ import (
 // stringified so the frontend can keep its int64-as-string convention.
 type FormSchemaResponse struct {
 	ID        string                       `json:"id"`
+	Name      string                       `json:"name"`
 	Version   int                          `json:"version"`
 	IsActive  bool                         `json:"is_active"`
 	Fields    []enrollmentModels.FormField `json:"fields"`
@@ -33,6 +34,7 @@ type FormSchemaResponse struct {
 func toFormSchemaResponse(s *enrollmentModels.FormSchema) FormSchemaResponse {
 	return FormSchemaResponse{
 		ID:        strconv.FormatInt(s.ID, 10),
+		Name:      s.Name,
 		Version:   s.Version,
 		IsActive:  s.IsActive,
 		Fields:    s.Fields,
@@ -41,14 +43,32 @@ func toFormSchemaResponse(s *enrollmentModels.FormSchema) FormSchemaResponse {
 	}
 }
 
-// PublishSchemaRequest is the wire shape POST /schema accepts.
+// PublishSchemaRequest is the wire shape POST /schema accepts. When
+// Name is set, the handler routes to CreateSchema (new named schema);
+// when empty it falls back to PublishVersion (legacy single-schema
+// flow that writes the row under the default name).
 type PublishSchemaRequest struct {
+	Name   string                       `json:"name"`
 	Fields []enrollmentModels.FormField `json:"fields"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
 // service so we don't duplicate it here.
 func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
+	if req.Fields == nil {
+		req.Fields = []enrollmentModels.FormField{}
+	}
+	return nil
+}
+
+// UpdateSchemaRequest is the wire shape PUT /schema/{id} accepts.
+// Only the fields are mutable — name is inherited from the source
+// schema so all versions of a logical schema share the same name.
+type UpdateSchemaRequest struct {
+	Fields []enrollmentModels.FormField `json:"fields"`
+}
+
+func (req *UpdateSchemaRequest) Bind(_ *http.Request) error {
 	if req.Fields == nil {
 		req.Fields = []enrollmentModels.FormField{}
 	}
@@ -218,8 +238,10 @@ func (rs *Resource) getSchemaByID(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, toFormSchemaResponse(schema), "Form schema retrieved")
 }
 
-// publishSchema creates a new version with the supplied fields, marks
-// it active, and deactivates any prior active version.
+// publishSchema creates a schema. When the request body carries a
+// name, this routes to CreateSchema (new named schema, version 1).
+// When the name is omitted, it falls back to PublishVersion for
+// backward compatibility with the original single-schema flow.
 func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 	if rs.FormSchemaService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("form schema service not configured")))
@@ -240,6 +262,11 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 
 	var schema *enrollmentModels.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		if req.Name != "" {
+			s, innerErr := rs.FormSchemaService.CreateSchema(ctx, req.Name, req.Fields, int64(claims.ID))
+			schema = s
+			return innerErr
+		}
 		s, innerErr := rs.FormSchemaService.PublishVersion(ctx, req.Fields, int64(claims.ID))
 		schema = s
 		return innerErr
@@ -252,10 +279,58 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 
 	slog.Default().Info("form schema published",
 		slog.Int64("schema_id", schema.ID),
+		slog.String("name", schema.Name),
 		slog.Int("version", schema.Version),
 		slog.Int64("actor_account_id", int64(claims.ID)))
 
 	common.Respond(w, r, http.StatusCreated, toFormSchemaResponse(schema), "Form schema published")
+}
+
+// updateSchema publishes a new version of an existing named schema.
+// PUT /schema/{id} — id refers to any prior version of the schema;
+// the new row inherits its name and is written with version+1.
+func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
+	if rs.FormSchemaService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("form schema service not configured")))
+		return
+	}
+
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schema id")))
+		return
+	}
+
+	req := &UpdateSchemaRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID <= 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("missing actor")))
+		return
+	}
+
+	var schema *enrollmentModels.FormSchema
+	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
+		s, innerErr := rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID))
+		schema = s
+		return innerErr
+	})
+	if txErr != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(txErr))
+		return
+	}
+
+	slog.Default().Info("form schema version added",
+		slog.Int64("schema_id", schema.ID),
+		slog.String("name", schema.Name),
+		slog.Int("version", schema.Version),
+		slog.Int64("actor_account_id", int64(claims.ID)))
+
+	common.Respond(w, r, http.StatusCreated, toFormSchemaResponse(schema), "Form schema version added")
 }
 
 // runInTenantTx wraps the request's tenant context in a tenant

@@ -36,6 +36,7 @@ export interface FormField {
 
 export interface FormSchema {
   id: string;
+  name: string;
   version: number;
   is_active: boolean;
   fields: FormField[];
@@ -151,6 +152,10 @@ export async function fetchPublicActiveSchema(
  * Publishes a new schema version with the given fields, marking it
  * active and deactivating the previous version. Returns the newly
  * created schema row.
+ *
+ * Deprecated: prefer createSchema (new named schema) or updateSchema
+ * (new version of an existing schema). Kept for any callers that
+ * still drive the legacy single-schema flow.
  */
 export async function publishSchema(fields: FormField[]): Promise<FormSchema> {
   const response = await fetch(SCHEMA_PATH, {
@@ -165,6 +170,65 @@ export async function publishSchema(fields: FormField[]): Promise<FormSchema> {
     const message =
       payload.error ?? payload.message ?? `HTTP ${response.status}`;
     logger.error("schema_publish_failed", {
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
+  return readJSON<FormSchema>(response);
+}
+
+/**
+ * Creates a new named schema (version 1). Backend rejects when a
+ * schema with the same name already exists — use updateSchema in
+ * that case.
+ */
+export async function createSchema(
+  name: string,
+  fields: FormField[],
+): Promise<FormSchema> {
+  const response = await fetch(SCHEMA_PATH, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, fields }),
+  });
+  if (!response.ok) {
+    const payload = (await response
+      .json()
+      .catch(() => ({}))) as BackendEnvelope<unknown>;
+    const message =
+      payload.error ?? payload.message ?? `HTTP ${response.status}`;
+    logger.error("schema_create_failed", {
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
+  return readJSON<FormSchema>(response);
+}
+
+/**
+ * Publishes a new version of an existing named schema. The new row
+ * inherits the source schema's name and uses max(version)+1 for that
+ * name. Older versions stay in place — already-bound phases keep
+ * their pinned schema_id.
+ */
+export async function updateSchema(
+  id: string,
+  fields: FormField[],
+): Promise<FormSchema> {
+  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields }),
+  });
+  if (!response.ok) {
+    const payload = (await response
+      .json()
+      .catch(() => ({}))) as BackendEnvelope<unknown>;
+    const message =
+      payload.error ?? payload.message ?? `HTTP ${response.status}`;
+    logger.error("schema_update_failed", {
       status: response.status,
       message,
     });

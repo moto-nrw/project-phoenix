@@ -94,7 +94,8 @@ func (r *FormSchemaRepository) ListByTenant(ctx context.Context) ([]*enrollment.
 }
 
 // NextVersion returns max(version)+1 for the tenant in context, or 1 if
-// no schemas exist yet.
+// no schemas exist yet. Counts across all names — used by the legacy
+// single-schema publish path. New code should prefer NextVersionForName.
 func (r *FormSchemaRepository) NextVersion(ctx context.Context) (int, error) {
 	var maxVersion int
 	err := base.GetDB(ctx, r.db).NewSelect().
@@ -103,6 +104,22 @@ func (r *FormSchemaRepository) NextVersion(ctx context.Context) (int, error) {
 		Scan(ctx, &maxVersion)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read max version: %w", err)
+	}
+	return maxVersion + 1, nil
+}
+
+// NextVersionForName returns max(version)+1 for rows with the given
+// name within the tenant in context. Returns 1 when no row exists yet
+// with that name — i.e. first version of a freshly created schema.
+func (r *FormSchemaRepository) NextVersionForName(ctx context.Context, name string) (int, error) {
+	var maxVersion int
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr(`COALESCE(MAX(version), 0)`).
+		TableExpr(`enrollment.form_schemas`).
+		Where(`name = ?`, name).
+		Scan(ctx, &maxVersion)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read max version for name %q: %w", name, err)
 	}
 	return maxVersion + 1, nil
 }

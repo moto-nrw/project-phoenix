@@ -41,14 +41,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
   try {
-    const body = (await request.json()) as { fields?: unknown };
+    const body = (await request.json()) as { name?: unknown; fields?: unknown };
     const response = await fetch(`${getServerApiUrl()}/api/enrollment/schema`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: authHeader,
       },
-      body: JSON.stringify({ fields: body.fields ?? [] }),
+      body: JSON.stringify({
+        name: typeof body.name === "string" ? body.name : "",
+        fields: body.fields ?? [],
+      }),
     });
     const payload = await response.json().catch(() => ({}));
     return NextResponse.json(payload, { status: response.status });

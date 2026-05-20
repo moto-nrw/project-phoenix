@@ -138,10 +138,13 @@ func (f *FormField) Validate() error {
 
 // FormSchema is a row in enrollment.form_schemas. Each save creates a new
 // version; submissions pin to a specific schema_id so editing the active
-// schema doesn't break already-submitted requests.
+// schema doesn't break already-submitted requests. Name groups versions
+// of the same logical schema (e.g. "Schuljahr", "Ferienbetreuung") so
+// admins can maintain multiple parallel form variants per tenant.
 type FormSchema struct {
 	base.Model `bun:"schema:enrollment,table:form_schemas"`
 	base.TenantModel
+	Name      string      `bun:"name,notnull,default:''" json:"name"`
 	Version   int         `bun:"version,notnull" json:"version"`
 	Fields    []FormField `bun:"fields,type:jsonb,notnull,default:'[]'" json:"fields"`
 	IsActive  bool        `bun:"is_active,notnull,default:false" json:"is_active"`
@@ -155,6 +158,9 @@ func (s *FormSchema) TableName() string {
 
 // Validate checks fields for duplicate keys + per-field validity.
 func (s *FormSchema) Validate() error {
+	if s.Name == "" {
+		return errors.New("form schema name is required")
+	}
 	if s.Version <= 0 {
 		return errors.New("form schema version must be positive")
 	}
@@ -181,6 +187,7 @@ type FormSchemaRepository interface {
 	FindActive(ctx context.Context) (*FormSchema, error)
 	ListByTenant(ctx context.Context) ([]*FormSchema, error)
 	NextVersion(ctx context.Context) (int, error)
+	NextVersionForName(ctx context.Context, name string) (int, error)
 	DeactivatePrevious(ctx context.Context) error
 	UpdateActiveFlag(ctx context.Context, id int64, isActive bool) error
 }
