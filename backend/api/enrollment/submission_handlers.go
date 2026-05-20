@@ -179,11 +179,14 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 	return out, nil
 }
 
-// ErrCodeEnrollmentCareOfferingMissing is the stable code returned with
-// 400 when the tenant requires a care-offering selection but a child has
-// none. Frontend maps it to a German message and highlights the affected
-// child card.
-const ErrCodeEnrollmentCareOfferingMissing = "enrollment.care_offering_missing"
+// Stable error codes returned in the JSON envelope so the frontend can
+// map to localized German messages without parsing free-form text. Keep
+// in sync with SUBMISSION_ERROR_MESSAGES in
+// frontend/src/lib/enrollment-submission-api.ts.
+const (
+	ErrCodeEnrollmentCareOfferingMissing = "enrollment.care_offering_missing"
+	ErrCodeEnrollmentCareOfferingFull    = "enrollment.care_offering_full"
+)
 
 // mapSubmitError translates service-layer sentinel errors into HTTP
 // status codes. Unknown errors fall through to 500.
@@ -200,8 +203,11 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrCareOfferingFull):
 		// 409 Conflict: the request is well-formed but a selected
 		// offering is at capacity and the tenant's overflow mode is
-		// 'reject'. Parents should re-pick or wait.
-		http.Error(w, err.Error(), http.StatusConflict)
+		// 'reject'. Return a JSON envelope with a stable code so the
+		// frontend can render a friendly German message; the previous
+		// http.Error() emitted plain text and the form fell back to
+		// "(HTTP 409)".
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeEnrollmentCareOfferingFull))
 	case errors.Is(err, enrollmentService.ErrDuplicateEnrollment):
 		// 409 Conflict: the same guardian email already has an active
 		// (non-rejected, non-withdrawn) enrollment for one of these

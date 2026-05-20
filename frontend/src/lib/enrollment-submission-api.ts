@@ -68,6 +68,8 @@ async function readJSON<T>(response: Response): Promise<T> {
 const SUBMISSION_ERROR_MESSAGES: Record<string, string> = {
   "enrollment.care_offering_missing":
     "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
+  "enrollment.care_offering_full":
+    "Eines der ausgewählten Betreuungsangebote ist bereits voll und kann derzeit keine weiteren Anmeldungen aufnehmen. Bitte wähle ein anderes Angebot oder wende dich an die Schule.",
 };
 
 async function readError(response: Response, fallback: string): Promise<Error> {

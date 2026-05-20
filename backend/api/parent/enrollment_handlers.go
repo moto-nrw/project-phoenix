@@ -352,7 +352,11 @@ func mapParentSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, enrollmentService.ErrCareOfferingFull):
-		http.Error(w, err.Error(), http.StatusConflict)
+		// Mirror the public submit handler: JSON envelope + stable code
+		// so the parent portal form renders the friendly German message
+		// instead of "(HTTP 409)". Code matches
+		// enrollment.ErrCodeEnrollmentCareOfferingFull.
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.care_offering_full"))
 	case errors.Is(err, enrollmentService.ErrDuplicateEnrollment):
 		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung vor."))
 	case errors.Is(err, enrollmentService.ErrRateLimited):
