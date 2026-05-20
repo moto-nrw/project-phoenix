@@ -1,7 +1,12 @@
+"use client";
+
+import { use } from "react";
 import Link from "next/link";
 import { RolloverReviewQueue } from "~/components/enrollment/rollover-review-queue";
+import { Loading } from "~/components/ui/loading";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; id: string }>;
@@ -11,8 +16,11 @@ interface PageProps {
  * Admin review queue for rolled-over enrollments that could not be
  * carried forward automatically (grade above cap, missing grade, etc).
  */
-export default async function RolloverReviewPage({ params }: PageProps) {
-  const { id } = await params;
+export default function RolloverReviewPage({ params }: PageProps) {
+  const { id } = use(params);
+  const { isReady } = useRequireAdmin();
+  if (!isReady) return <Loading fullPage={false} />;
+
   return (
     <div className="-mt-1.5 w-full">
       <MobileBackButton />
