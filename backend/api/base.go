@@ -569,5 +569,10 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// Parent (cross-tenant guardian portal). Mounted at the root level
 	// like /auth and /operator. Public /parent/auth/login + protected
 	// /parent/* routes (the protected ones get added in commit 5).
+	// Reuse the shared authRateLimiter so guardian login gets the same
+	// brute-force protection as tenant and operator login.
+	if rateLimitEnabled && authRateLimiter != nil {
+		a.Parent.SetAuthRateLimiter(authRateLimiter.Middleware())
+	}
 	a.Router.Mount("/parent", a.Parent.Router())
 }

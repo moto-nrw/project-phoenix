@@ -17,6 +17,8 @@
 package parent
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -31,11 +33,20 @@ import (
 
 // Resource bundles the parent-portal HTTP handlers + their deps.
 type Resource struct {
-	AuthService    authService.AuthService
-	ParentService  parentService.Service
-	RequestService enrollmentService.RequestService
-	SchoolRepo     platformModels.SchoolRepository
-	db             *bun.DB
+	AuthService     authService.AuthService
+	ParentService   parentService.Service
+	RequestService  enrollmentService.RequestService
+	SchoolRepo      platformModels.SchoolRepository
+	db              *bun.DB
+	authRateLimiter func(http.Handler) http.Handler
+}
+
+// SetAuthRateLimiter sets the rate limiter middleware for the public parent
+// login endpoint. Mirrors the tenant and operator wiring in api/base.go so
+// brute-force attempts return 429 — which the frontend NextAuth provider
+// translates into the localized "Zu viele Anmeldeversuche" error code.
+func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
+	rs.authRateLimiter = mw
 }
 
 // NewResource builds the parent-portal resource.
@@ -67,6 +78,9 @@ func (rs *Resource) Router() chi.Router {
 	// tenant resolution happens at downstream parent endpoints from
 	// the URL or the picked child.
 	r.Route("/auth", func(r chi.Router) {
+		if rs.authRateLimiter != nil {
+			r.Use(rs.authRateLimiter)
+		}
 		r.Post("/login", rs.login)
 	})
 
