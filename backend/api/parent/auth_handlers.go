@@ -61,14 +61,22 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 				errors.Is(authErr.Err, authService.ErrAccountNotFound):
 				// Mask the specific cause to prevent account
 				// enumeration. Same pattern as the tenant login.
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
+				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
+					authService.ErrInvalidCredentials, "invalid_credentials"))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
+				// Distinct code so the frontend can show
+				// "your account is disabled, contact the school"
+				// instead of a generic credentials error.
+				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
+					authService.ErrAccountInactive, "account_inactive"))
 			case errors.Is(authErr.Err, authService.ErrAccountNoGuardianRole):
-				// 403 with the sentinel — frontend turns this into
-				// "this email isn't registered as a parent; please
-				// log in via your school's tenant URL".
-				common.RenderError(w, r, common.ErrorForbidden(authService.ErrAccountNoGuardianRole))
+				// 403 with a stable code — frontend masks this as
+				// invalid_credentials in the user-facing copy (the
+				// German copy already includes a staff-login hint
+				// for this case) to avoid leaking that the email is
+				// a known staff account.
+				common.RenderError(w, r, common.ErrorForbiddenWithCode(
+					authService.ErrAccountNoGuardianRole, "not_a_guardian"))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

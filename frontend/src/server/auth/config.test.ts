@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { authConfig, _resetRefreshState, _testHelpers } from "./config";
 import { operatorAuthConfig } from "./operator-config";
+import { parentAuthConfig } from "./parent-config";
 import type { NextAuthConfig, User } from "next-auth";
 
 // Shared JWT token constants — decoded payloads documented inline
@@ -32,6 +33,19 @@ vi.mock("~/env", () => ({
     AUTH_JWT_REFRESH_EXPIRY: "1h",
     TENANT_DOMAIN: "moto-app.de",
   },
+}));
+
+// Mock next-auth's dynamic-import surface used by createOperatorLoginError.
+// In the vitest environment the ESM dynamic `import("next-auth")` inside
+// shared.ts fails with ERR_MODULE_NOT_FOUND because next-auth resolves
+// differently than at app runtime. A minimal CredentialsSignin stub lets
+// the import succeed and lets tests assert on the thrown error's `code`.
+class MockCredentialsSignin extends Error {
+  code = "credentials";
+  type = "CredentialsSignin";
+}
+vi.mock("next-auth", () => ({
+  CredentialsSignin: MockCredentialsSignin,
 }));
 
 // Mock fetch globally
@@ -935,6 +949,155 @@ describe("authConfig", () => {
     });
   });
 
+  describe("performParentLogin", () => {
+    it("should return tokens on successful login", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: "parent-access",
+            refresh_token: "parent-refresh",
+          },
+        }),
+      });
+
+      const result = await _testHelpers.performParentLogin(
+        "parent@test.com",
+        "pass",
+        false,
+      );
+
+      expect(result).toEqual({
+        access_token: "parent-access",
+        refresh_token: "parent-refresh",
+      });
+    });
+
+    it("should extract code from JSON error body on 401 account_inactive", async () => {
+      // This is the case the original bug missed: backend signals
+      // account_inactive distinct from invalid_credentials via the
+      // body code, but the old code path only read response.status
+      // and dropped the body entirely.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () =>
+          JSON.stringify({
+            status: "error",
+            error: "account is inactive",
+            code: "account_inactive",
+          }),
+      });
+
+      const result = await _testHelpers.performParentLogin(
+        "disabled@test.com",
+        "correct",
+        false,
+      );
+
+      expect(result).toEqual({
+        access_token: "",
+        refresh_token: "",
+        status: 401,
+        code: "account_inactive",
+      });
+    });
+
+    it("should extract code from JSON error body on 403 not_a_guardian", async () => {
+      // Staff-account-at-parent-portal. Frontend uses this code to
+      // mask the error as invalid_credentials at the UI layer, but
+      // the wire-level code MUST come through so future UX changes
+      // (e.g. unmasking for non-rate-limited cases) have something
+      // to switch on.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () =>
+          JSON.stringify({
+            status: "error",
+            error: "account is not a guardian at any school",
+            code: "not_a_guardian",
+          }),
+      });
+
+      const result = await _testHelpers.performParentLogin(
+        "staff@test.com",
+        "correct",
+        false,
+      );
+
+      expect(result).toEqual({
+        access_token: "",
+        refresh_token: "",
+        status: 403,
+        code: "not_a_guardian",
+      });
+    });
+
+    it("should leave code undefined when body has no code field", async () => {
+      // Defensive: if an older backend (pre-this-change) is hit, the
+      // body parses fine but has no `code`. Must not crash, must
+      // surface status so the provider can still pick rate_limited
+      // for 429s.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () =>
+          JSON.stringify({ status: "error", error: "invalid credentials" }),
+      });
+
+      const result = await _testHelpers.performParentLogin(
+        "parent@test.com",
+        "wrong",
+        false,
+      );
+
+      expect(result).toEqual({
+        access_token: "",
+        refresh_token: "",
+        status: 401,
+        code: undefined,
+      });
+    });
+
+    it("should leave code undefined on non-JSON body", async () => {
+      // Gateway/proxy error pages return HTML or plaintext. JSON.parse
+      // would throw — the parse must be wrapped so the login still
+      // surfaces a usable status.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        text: async () => "<html>Bad Gateway</html>",
+      });
+
+      const result = await _testHelpers.performParentLogin(
+        "parent@test.com",
+        "pass",
+        false,
+      );
+
+      expect(result).toEqual({
+        access_token: "",
+        refresh_token: "",
+        status: 502,
+        code: undefined,
+      });
+    });
+
+    it("should return null on network error", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+
+      const result = await _testHelpers.performParentLogin(
+        "parent@test.com",
+        "pass",
+        false,
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe("performLogin", () => {
     it("should return tokens on successful login", async () => {
       mockFetch.mockResolvedValueOnce({
@@ -1390,6 +1553,193 @@ describe("authConfig", () => {
         expect(result?.scope).toBe("platform");
         expect(mockFetch).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe("Credentials authorize - parent flow", () => {
+    // Mirrors the operator flow tests above. The parent provider lives
+    // in parentAuthConfig and translates backend body codes into
+    // user-facing CredentialsSignin error codes. This is the layer
+    // where the original "Konto deaktiviert" bug lived — these tests
+    // exist to nail down the mapping so the same class of bug can't
+    // silently regress.
+    function getParentAuthorize() {
+      const providers = parentAuthConfig.providers.filter(
+        (p) =>
+          typeof p === "object" &&
+          p !== null &&
+          "type" in p &&
+          p.type === "credentials",
+      );
+      const provider = providers[0] as unknown as
+        | Record<string, unknown>
+        | undefined;
+      const opts = provider?.options as Record<string, unknown> | undefined;
+      return opts?.authorize as (
+        credentials: Record<string, string> | undefined,
+        request: Request,
+      ) => Promise<User | null>;
+    }
+
+    // Reuse OPERATOR_JWT as a stand-in for any decodable JWT — the
+    // authorize path only cares that parseJwtPayload returns something
+    // non-null. The scope is set to "parent" by buildAuthUser, not
+    // by the token payload.
+    const PARENT_JWT = OPERATOR_JWT;
+
+    it("should return user with parent scope on successful login", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: PARENT_JWT,
+            refresh_token: "parent-refresh-token",
+          },
+        }),
+      });
+
+      const authorize = getParentAuthorize();
+      const result = await authorize(
+        { email: "parent@example.com", password: "correct" },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.scope).toBe("parent");
+    });
+
+    it("should return null for missing credentials", async () => {
+      const authorize = getParentAuthorize();
+      const result = await authorize({}, new Request("http://localhost:3000"));
+
+      expect(result).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should throw account_inactive when backend returns code account_inactive", async () => {
+      // This is the regression test for the second bug. Pre-fix the
+      // frontend dropped the body, so 401-inactive merged with 401-
+      // wrong-password and parents with deactivated accounts saw the
+      // generic "check your credentials" message. The test ensures
+      // the body code now wins over the bare status.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () =>
+          JSON.stringify({
+            status: "error",
+            error: "account is inactive",
+            code: "account_inactive",
+          }),
+      });
+
+      const authorize = getParentAuthorize();
+      await expect(
+        authorize(
+          { email: "disabled@example.com", password: "correct" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toMatchObject({ code: "account_inactive" });
+    });
+
+    it("should throw invalid_credentials when backend returns code not_a_guardian", async () => {
+      // This is the regression test for the ORIGINAL reported bug:
+      // staff account hitting the parent portal. The code MUST be
+      // masked to invalid_credentials at this layer so the UI
+      // doesn't confirm the email is a known staff account.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () =>
+          JSON.stringify({
+            status: "error",
+            error: "account is not a guardian at any school",
+            code: "not_a_guardian",
+          }),
+      });
+
+      const authorize = getParentAuthorize();
+      await expect(
+        authorize(
+          { email: "staff@example.com", password: "correct" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toMatchObject({ code: "invalid_credentials" });
+    });
+
+    it("should throw invalid_credentials when backend returns code invalid_credentials", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () =>
+          JSON.stringify({
+            status: "error",
+            error: "invalid credentials",
+            code: "invalid_credentials",
+          }),
+      });
+
+      const authorize = getParentAuthorize();
+      await expect(
+        authorize(
+          { email: "parent@example.com", password: "wrong" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toMatchObject({ code: "invalid_credentials" });
+    });
+
+    it("should throw rate_limited on 429", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: async () => "Too Many Requests",
+      });
+
+      const authorize = getParentAuthorize();
+      await expect(
+        authorize(
+          { email: "parent@example.com", password: "anything" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toMatchObject({ code: "rate_limited" });
+    });
+
+    it("should throw invalid_credentials when backend returns no code (legacy)", async () => {
+      // If a pre-this-change backend is hit, body has no code. The
+      // provider falls back to invalid_credentials, which still shows
+      // a sensible message (the German copy covers wrong-password
+      // and includes the staff-login hint). This is the safety net.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () =>
+          JSON.stringify({ status: "error", error: "invalid credentials" }),
+      });
+
+      const authorize = getParentAuthorize();
+      await expect(
+        authorize(
+          { email: "parent@example.com", password: "wrong" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toMatchObject({ code: "invalid_credentials" });
+    });
+
+    it("should handle internal refresh with parent scope", async () => {
+      const authorize = getParentAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: PARENT_JWT,
+          refreshToken: "parent-refresh",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.scope).toBe("parent");
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 
