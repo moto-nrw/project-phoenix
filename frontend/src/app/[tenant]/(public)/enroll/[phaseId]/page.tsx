@@ -1,10 +1,22 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public page; tenant-router not needed
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { CalendarDays, Check, Mail, ShieldCheck } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import {
+  PublicEnrollmentBackLink,
+  PublicEnrollmentBrand,
+  PublicEnrollmentPageShell,
+  PublicEnrollmentSteps,
+  PublicInfoCard,
+} from "~/components/enrollment/public-enrollment-shell";
+import { useTenant } from "~/components/tenant/tenant-provider";
+import {
+  fetchPublicPhases,
+  type PublicPhase,
+} from "~/lib/enrollment-submission-api";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; phaseId: string }>;
@@ -23,6 +35,28 @@ interface PageProps {
 export default function EnrollPhaseFormPage({ params }: PageProps) {
   const { phaseId } = use(params);
   const router = useRouter();
+  const { tenantSlug, tenant } = useTenant();
+  const [phases, setPhases] = useState<PublicPhase[]>([]);
+  const [phaseLoadFailed, setPhaseLoadFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPublicPhases(tenantSlug)
+      .then((result) => {
+        if (!cancelled) setPhases(result);
+      })
+      .catch(() => {
+        if (!cancelled) setPhaseLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantSlug]);
+
+  const phase = useMemo(
+    () => phases.find((item) => item.id === phaseId) ?? null,
+    [phaseId, phases],
+  );
 
   const handleSubmitted = (statusURL: string) => {
     try {
@@ -34,29 +68,116 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-6 p-4 sm:p-6">
-      <header className="space-y-2">
-        <Link
-          href="/enroll"
-          className="inline-flex rounded-lg px-2 py-1 text-sm font-medium text-[#5080D8] transition-colors hover:bg-[#5080D8]/10 focus-visible:ring-2 focus-visible:ring-[#5080D8]/40 focus-visible:outline-none"
-        >
-          Andere Phase wählen
-        </Link>
-        <h1 className="text-2xl font-semibold text-pretty text-gray-900">
-          Anmeldung
-        </h1>
-        <p className="text-sm text-gray-600">
-          Bitte fülle das Formular vollständig aus. Du erhältst nach dem
-          Absenden eine Bestätigungs-E-Mail mit einem Link, über den du den
-          Status deiner Anmeldung jederzeit einsehen kannst.
-        </p>
-      </header>
+    <PublicEnrollmentPageShell>
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <PublicEnrollmentBrand tenant={tenant} />
+        <PublicEnrollmentSteps current="form" />
+      </div>
 
-      <EnrollmentForm
-        phaseID={phaseId}
-        gradeLevelMax={4}
-        onSubmitted={handleSubmitted}
-      />
-    </main>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <section className="space-y-5">
+          <div className="moto-content-surface rounded-3xl border p-5 shadow-sm sm:p-8">
+            <PublicEnrollmentBackLink href="/enroll">
+              Andere Anmeldung wählen
+            </PublicEnrollmentBackLink>
+            <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+              Formular ausfüllen
+            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              {phase?.name ?? "Anmeldung"}
+            </h1>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
+              Bitte füllen Sie die Angaben vollständig aus. Nach dem Absenden
+              erhalten Sie eine Bestätigung mit einem persönlichen Status-Link.
+            </p>
+          </div>
+
+          <EnrollmentForm
+            phaseID={phaseId}
+            gradeLevelMax={4}
+            onSubmitted={handleSubmitted}
+          />
+        </section>
+
+        <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
+          <section className="moto-content-surface rounded-3xl border p-5 shadow-sm">
+            <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+              Ihre Anmeldung
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-gray-900">
+              {phase?.name ?? "Anmeldeformular"}
+            </h2>
+            {phase ? (
+              <dl className="mt-4 space-y-3 text-sm text-gray-600">
+                <div>
+                  <dt className="font-semibold text-gray-900">
+                    Betreuungszeitraum
+                  </dt>
+                  <dd>
+                    {formatDate(phase.service_start_date)} bis{" "}
+                    {formatDate(phase.service_end_date)}
+                  </dd>
+                </div>
+                {phase.enrollment_close_at && (
+                  <div>
+                    <dt className="font-semibold text-gray-900">
+                      Anmeldefrist
+                    </dt>
+                    <dd>{formatDateTime(phase.enrollment_close_at)}</dd>
+                  </div>
+                )}
+              </dl>
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                {phaseLoadFailed
+                  ? "Die Detaildaten konnten nicht geladen werden. Das Formular kann trotzdem ausgefüllt werden."
+                  : "Die Detaildaten werden geladen."}
+              </p>
+            )}
+          </section>
+
+          <PublicInfoCard
+            icon={<CalendarDays className="h-5 w-5" />}
+            title="Ein Formular pro Zeitraum"
+          >
+            Wenn Sie mehrere Kinder anmelden, können Sie sie in diesem Formular
+            gemeinsam erfassen.
+          </PublicInfoCard>
+          <PublicInfoCard icon={<Mail className="h-5 w-5" />} title="E-Mail">
+            Die E-Mail-Adresse wird für Bestätigung und Statusbenachrichtigung
+            verwendet.
+          </PublicInfoCard>
+          <PublicInfoCard
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="Prüfung durch die OGS"
+          >
+            Nach dem Absenden prüft die OGS Ihre Angaben und meldet sich bei
+            Rückfragen.
+          </PublicInfoCard>
+          <PublicInfoCard icon={<Check className="h-5 w-5" />} title="Status">
+            Den aktuellen Stand sehen Sie später über den persönlichen
+            Status-Link.
+          </PublicInfoCard>
+        </aside>
+      </div>
+    </PublicEnrollmentPageShell>
   );
+}
+
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value: string): string {
+  return new Date(value).toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

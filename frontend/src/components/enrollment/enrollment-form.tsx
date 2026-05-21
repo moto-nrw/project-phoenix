@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
   fetchMyEnrollmentProfile,
@@ -292,14 +293,18 @@ export function EnrollmentForm({
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Wird geladen...</p>;
+    return (
+      <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
+        Formular wird geladen...
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-8">
+    <form onSubmit={handleSubmit} noValidate className="space-y-5">
       {error && (
         <div
-          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]"
+          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm font-medium text-[#CC2626]"
           role="alert"
           aria-live="polite"
         >
@@ -307,13 +312,12 @@ export function EnrollmentForm({
         </div>
       )}
 
-      <section className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm backdrop-blur-md">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Erziehungsberechtigte/r
-        </h2>
-        <p className="text-sm text-gray-600">
-          Diese Angaben nutzen wir für Rückfragen und Statusbenachrichtigungen.
-        </p>
+      <section className="moto-content-surface space-y-5 rounded-2xl border p-5 shadow-sm">
+        <SectionHeading
+          kicker="Schritt 1"
+          title="Erziehungsberechtigte Person"
+          description="Diese Angaben nutzen wir für Rückfragen und Statusbenachrichtigungen."
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input
             label="Vorname *"
@@ -353,10 +357,12 @@ export function EnrollmentForm({
       </section>
 
       {schema?.fields.some((f) => !f.applies_to_child) && (
-        <section className="moto-content-surface space-y-3 rounded-2xl border p-6 shadow-sm backdrop-blur-md">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Weitere Angaben
-          </h2>
+        <section className="moto-content-surface space-y-4 rounded-2xl border p-5 shadow-sm">
+          <SectionHeading
+            kicker="Zusatzfragen"
+            title="Weitere Angaben"
+            description="Diese Fragen wurden von der OGS für diese Anmeldung ergänzt."
+          />
           {schema.fields
             .filter((f) => !f.applies_to_child)
             .map((f) => (
@@ -372,13 +378,17 @@ export function EnrollmentForm({
         </section>
       )}
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Kind(er)</h2>
+      <section className="moto-content-surface space-y-5 rounded-2xl border p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <SectionHeading
+            kicker="Schritt 2"
+            title="Kind oder Kinder"
+            description="Sie können mehrere Kinder in einer Anmeldung erfassen."
+          />
           <button
             type="button"
             onClick={addChild}
-            className="moto-content-surface rounded-lg border px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className="moto-content-surface h-9 rounded-lg border px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             + Weiteres Kind
           </button>
@@ -418,10 +428,10 @@ export function EnrollmentForm({
         {children.map((child, i) => (
           <div
             key={i}
-            className="moto-content-surface space-y-3 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
+            className="space-y-5 rounded-xl border border-gray-200 bg-white p-4"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-700">
+              <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
                 Kind {i + 1}
               </h3>
               {children.length > 1 && (
@@ -452,7 +462,7 @@ export function EnrollmentForm({
                 required
               />
               <div>
-                <span className="block text-xs font-medium text-gray-600">
+                <span className="block text-sm font-semibold text-gray-700">
                   Geburtsdatum *
                 </span>
                 <DateOfBirthPicker
@@ -461,7 +471,7 @@ export function EnrollmentForm({
                 />
               </div>
               <label className="block">
-                <span className="block text-xs font-medium text-gray-600">
+                <span className="block text-sm font-semibold text-gray-700">
                   Klassenstufe *
                 </span>
                 <select
@@ -471,7 +481,7 @@ export function EnrollmentForm({
                   onChange={(e) =>
                     updateChild(i, { target_grade_level: e.target.value })
                   }
-                  className="moto-select moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 >
                   <option value="" disabled>
                     Bitte wählen
@@ -489,7 +499,7 @@ export function EnrollmentForm({
 
             {offerings.length > 0 && (
               <div>
-                <p className="mb-2 text-xs font-medium text-gray-600">
+                <p className="mb-2 text-sm font-semibold text-gray-700">
                   Betreuungsangebote
                   {careRequired && (
                     <span className="ml-1 text-[#EF4444]">*</span>
@@ -507,28 +517,35 @@ export function EnrollmentForm({
                     return (
                       <label
                         key={o.id}
-                        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors ${
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
                           checked
-                            ? "border-gray-900 bg-gray-50"
+                            ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
                             : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
-                        <input
-                          name={`children_${i}_offering_${o.id}`}
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            toggleOffering(i, o.id);
-                            if (childOfferingErrors[i]) {
-                              setChildOfferingErrors((prev) => {
-                                const next = { ...prev };
-                                delete next[i];
-                                return next;
-                              });
-                            }
-                          }}
-                          className="mt-1"
-                        />
+                        <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
+                          <input
+                            name={`children_${i}_offering_${o.id}`}
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              toggleOffering(i, o.id);
+                              if (childOfferingErrors[i]) {
+                                setChildOfferingErrors((prev) => {
+                                  const next = { ...prev };
+                                  delete next[i];
+                                  return next;
+                                });
+                              }
+                            }}
+                            className="absolute inset-0 cursor-pointer opacity-0"
+                          />
+                          {checked && (
+                            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+                              <Check className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                        </span>
                         <div>
                           <div className="font-medium text-gray-900">
                             {o.name}
@@ -576,8 +593,12 @@ export function EnrollmentForm({
         ))}
       </section>
 
-      <section className="moto-content-surface space-y-3 rounded-2xl border p-6 shadow-sm backdrop-blur-md">
-        <h2 className="text-lg font-semibold text-gray-900">Zustimmungen</h2>
+      <section className="moto-content-surface space-y-4 rounded-2xl border p-5 shadow-sm">
+        <SectionHeading
+          kicker="Schritt 3"
+          title="Zustimmungen"
+          description="Die markierten Zustimmungen sind erforderlich, damit die Anmeldung abgesendet werden kann."
+        />
         <Consent
           name="consent_agb"
           label="Ich akzeptiere die AGB der Schule."
@@ -630,7 +651,7 @@ export function EnrollmentForm({
       <button
         type="submit"
         disabled={submitting}
-        className="w-full rounded-xl bg-gray-900 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
+        className="h-10 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400"
       >
         {submitting ? "Wird übermittelt..." : "Anmeldung absenden"}
       </button>
@@ -671,7 +692,7 @@ function Input({
   const id = `enrollment-${name}`;
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-gray-600">{label}</span>
+      <span className="block text-sm font-semibold text-gray-700">{label}</span>
       <input
         id={id}
         name={name}
@@ -682,9 +703,29 @@ function Input({
         autoComplete={autoComplete}
         inputMode={inputMode}
         spellCheck={type === "email" ? false : undefined}
-        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        className="moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       />
     </label>
+  );
+}
+
+function SectionHeading({
+  kicker,
+  title,
+  description,
+}: {
+  readonly kicker: string;
+  readonly title: string;
+  readonly description: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+        {kicker}
+      </p>
+      <h2 className="mt-1 text-lg font-semibold text-gray-900">{title}</h2>
+      <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
+    </div>
   );
 }
 
@@ -702,16 +743,29 @@ function Consent({
   readonly required?: boolean;
 }) {
   return (
-    <label className="flex items-start gap-3 text-sm">
-      <input
-        name={name}
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        aria-required={required}
-        className="mt-1"
-      />
-      <span className="text-gray-700">
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
+        checked
+          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
+          : "border-gray-200 bg-white hover:border-gray-300"
+      }`}
+    >
+      <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
+        <input
+          name={name}
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          aria-required={required}
+          className="absolute inset-0 cursor-pointer opacity-0"
+        />
+        {checked && (
+          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+            <Check className="h-3.5 w-3.5" />
+          </span>
+        )}
+      </span>
+      <span className="leading-6 font-medium text-gray-700">
         {label} {required && <span className="text-red-500">*</span>}
       </span>
     </label>
@@ -726,7 +780,7 @@ interface CustomFieldInputProps {
 
 function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
   const labelEl = (
-    <span className="block text-xs font-medium text-gray-600">
+    <span className="block text-sm font-semibold text-gray-700">
       {field.label}
       {field.required && <span className="text-red-500"> *</span>}
     </span>
@@ -775,7 +829,7 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
           onChange={(e) => onChange(e.target.value)}
           rows={3}
           name={field.key}
-          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           aria-required={field.required}
         />
       </label>
@@ -790,7 +844,7 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
           value={valueStr}
           onChange={(e) => onChange(e.target.value)}
           aria-required={field.required}
-          className="moto-select mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <option value="">Bitte wählen</option>
           {(field.options ?? []).map((o) => (
@@ -818,7 +872,7 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
         value={valueStr}
         onChange={(e) => onChange(e.target.value)}
         aria-required={field.required}
-        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        className="moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       />
     </label>
   );
@@ -980,7 +1034,7 @@ function DateOfBirthPicker({
       <select
         value={day}
         onChange={(e) => handleDay(e.target.value)}
-        className="moto-select rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
+        className="moto-select moto-content-surface h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         aria-label="Tag"
       >
         <option value="">Tag</option>
@@ -993,7 +1047,7 @@ function DateOfBirthPicker({
       <select
         value={month}
         onChange={(e) => handleMonth(e.target.value)}
-        className="moto-select rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
+        className="moto-select moto-content-surface h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         aria-label="Monat"
       >
         <option value="">Monat</option>
@@ -1006,7 +1060,7 @@ function DateOfBirthPicker({
       <select
         value={year}
         onChange={(e) => handleYear(e.target.value)}
-        className="moto-select rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
+        className="moto-select moto-content-surface h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         aria-label="Jahr"
       >
         <option value="">Jahr</option>
