@@ -49,6 +49,16 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		SchoolSlug       string     `bun:"school_slug"`
 	}
 
+	// Two-pronged match:
+	//   - primary: req.guardian_account_id = ? (set on parent-auth
+	//     submits, or backfilled by the guardian-invite-accept flow)
+	//   - fallback: req.guardian_account_id IS NULL AND the request's
+	//     guardian_email matches the account's email (case- and
+	//     trim-insensitive)
+	// The fallback covers the edge case where the invite-accept
+	// backfill failed silently (e.g. a transient FK race) — without
+	// it, "Meine Anmeldungen" silently disappears for parents whose
+	// submissions never got stamped.
 	const requestQuery = `
 		SELECT
 			req.id              AS request_id,
@@ -65,13 +75,21 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		FROM enrollment.requests AS req
 		JOIN enrollment.phases AS ph ON ph.id = req.phase_id
 		JOIN platform.schools AS sch ON sch.id = req.tenant_id
-		WHERE req.guardian_account_id = ?
+		LEFT JOIN auth.accounts AS acc ON acc.id = ?
+		WHERE (
+		    req.guardian_account_id = ?
+		    OR (
+		      req.guardian_account_id IS NULL
+		      AND acc.email IS NOT NULL
+		      AND LOWER(TRIM(req.guardian_email)) = LOWER(TRIM(acc.email))
+		    )
+		  )
 		  AND sch.deleted_at IS NULL
 		ORDER BY req.submitted_at DESC, req.id DESC
 	`
 
 	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(requestQuery, accountID).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(requestQuery, accountID, accountID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: list enrollment requests: %w", err)
 	}
 	if len(rows) == 0 {
