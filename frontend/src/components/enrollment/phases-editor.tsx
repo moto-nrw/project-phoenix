@@ -552,8 +552,7 @@ function EnrollmentWindowCell({
 
   return (
     <span className="text-sm text-gray-700">
-      {openAt ? formatDateTime(openAt) : "Nicht gesetzt"}
-      <span className="text-gray-400"> bis </span>
+      {openAt ? formatDateTime(openAt) : "Nicht gesetzt"} bis{" "}
       {closeAt ? formatDateTime(closeAt) : "Nicht gesetzt"}
     </span>
   );
@@ -576,6 +575,8 @@ interface PhaseActionsMenuPosition {
   left: number;
   alignRight: boolean;
 }
+
+const PHASE_ACTIONS_MENU_HEIGHT = 220;
 
 function PhaseActions({
   phase,
@@ -608,9 +609,17 @@ function PhaseActions({
 
     const rect = buttonRef.current.getBoundingClientRect();
     const menuWidth = 240;
+    const measuredHeight = menuRef.current?.offsetHeight ?? 0;
+    const menuHeight =
+      measuredHeight > 0 ? measuredHeight : PHASE_ACTIONS_MENU_HEIGHT;
     const alignRight = rect.left + menuWidth > window.innerWidth - 16;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placeAbove = spaceBelow < menuHeight + 16 && rect.top > spaceBelow;
+    const top = placeAbove
+      ? Math.max(8, rect.top - 6 - menuHeight)
+      : rect.bottom + 6;
     setPosition({
-      top: rect.bottom + 6,
+      top,
       left: alignRight ? rect.right : rect.left,
       alignRight,
     });
