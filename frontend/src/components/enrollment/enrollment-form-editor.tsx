@@ -248,9 +248,7 @@ export function EnrollmentFormEditor() {
       const stillThere = refreshed.find((s) => s.id === result.id);
       selectSchema(stillThere ?? result, "detail");
       toast.success(
-        isCreating
-          ? "Formularvorlage erstellt."
-          : "Neue Formularversion gespeichert.",
+        isCreating ? "Formularvorlage erstellt." : "Änderungen gespeichert.",
       );
     } catch (err) {
       const message =
@@ -394,7 +392,7 @@ export function EnrollmentFormEditor() {
                     ? "Speichert..."
                     : isCreating
                       ? "Formularvorlage erstellen"
-                      : "Neue Version speichern"}
+                      : "Änderungen speichern"}
                 </button>
               </div>
             </section>
@@ -404,7 +402,6 @@ export function EnrollmentFormEditor() {
             <FormPreview
               fields={fields}
               templateName={name}
-              currentVersion={currentSchema?.version ?? null}
               isActive={currentSchema?.is_active ?? false}
               isSaved={currentSchema !== null}
               assignedPhaseCount={
@@ -560,7 +557,7 @@ function BaseTemplateOverviewRow() {
         </p>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
           <UsageLine title="Standard" status="base" />
-          <span>Systemversion</span>
+          <span>Systemformular</span>
           <span>Keine Zusatzfragen</span>
         </div>
       </div>
@@ -923,8 +920,8 @@ function FormTemplateDetail({
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               <FormMetric
                 icon={<FileText className="h-4 w-4" aria-hidden="true" />}
-                value={`V${schema.version}`}
-                label="Version"
+                value={formatSchemaDate(schema.created_at)}
+                label="Zuletzt gespeichert"
               />
               <FormMetric
                 icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
@@ -946,7 +943,6 @@ function FormTemplateDetail({
             <FormPreview
               fields={schema.fields}
               templateName={schema.name}
-              currentVersion={schema.version}
               isActive={schema.is_active}
               isSaved
               assignedPhaseCount={assignedPhases.length}
@@ -991,10 +987,10 @@ function FormTemplateDetail({
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-gray-900">
-                    Echte Elternansicht öffnen
+                    Vorschau öffnen
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                    Öffnet die öffentliche Anmeldung in einem neuen Tab.
+                    Öffnet die Elternansicht in einem neuen Tab.
                   </span>
                 </span>
               </a>
@@ -1135,7 +1131,7 @@ function BuilderTemplateSummary({
           <p className="mt-1 max-w-2xl text-sm text-gray-600">
             {isCreating
               ? "Gib der Vorlage einen eindeutigen Namen. Danach kannst du Zusatzfragen anlegen."
-              : "Beim Speichern entsteht eine neue Version dieser Vorlage."}
+              : "Beim Speichern bleiben bestehende Anmeldungen nachvollziehbar."}
           </p>
         </div>
 
@@ -1155,9 +1151,6 @@ function BuilderTemplateSummary({
           </label>
         ) : (
           <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              Version {currentSchema?.version ?? 1}
-            </span>
             <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
               {fields.length} Zusatzfragen
             </span>
@@ -1498,7 +1491,6 @@ function FormChoice({
 function FormPreview({
   fields,
   templateName,
-  currentVersion,
   isActive,
   isSaved,
   assignedPhaseCount = 0,
@@ -1506,7 +1498,6 @@ function FormPreview({
 }: Readonly<{
   fields: FormField[];
   templateName: string;
-  currentVersion: number | null;
   isActive: boolean;
   isSaved: boolean;
   assignedPhaseCount?: number;
@@ -1559,10 +1550,10 @@ function FormPreview({
         </span>
         <span className="min-w-0">
           <span className="block text-sm font-semibold text-gray-900">
-            Echte Elternansicht öffnen
+            Vorschau öffnen
           </span>
           <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-            Öffnet die öffentliche Anmeldung in einem neuen Tab.
+            Öffnet die Elternansicht in einem neuen Tab.
           </span>
         </span>
       </a>
@@ -1575,8 +1566,8 @@ function FormPreview({
           <h3 className="mt-1 text-lg font-semibold text-gray-900">
             {templateName.trim() || "Basisformular"}
           </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {currentVersion ? `Version ${currentVersion}` : "Neue Vorlage"}
+          <p className="mt-1 text-sm leading-6 text-gray-500">
+            Bitte füllen Sie das Formular vollständig aus.
           </p>
         </div>
 
@@ -1743,7 +1734,7 @@ function getPreviewStatus({
   if (isActive) {
     return {
       label: "Bereit zur Zuordnung",
-      hint: "Eltern sehen diese Version erst, wenn sie einer Anmeldephase zugeordnet ist.",
+      hint: "Eltern sehen diese Vorlage erst, wenn sie einer Anmeldephase zugeordnet ist.",
       className: "bg-[#83CD2D]/10 text-[#5F9F20]",
       dotClassName: "bg-[#83CD2D]",
     };
