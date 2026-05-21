@@ -11,7 +11,7 @@ export default function AdminEnrollmentsPage() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Anmeldungen" />
+      <PageHeaderWithSearch title="Prozess" />
       <AdminEnrollmentsList />
     </div>
   );

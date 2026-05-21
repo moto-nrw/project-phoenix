@@ -193,6 +193,24 @@ export function InvitationsBreadcrumb() {
   );
 }
 
+interface EnrollmentBreadcrumbProps {
+  readonly current: string;
+  readonly isScrolled?: boolean;
+}
+
+export function EnrollmentBreadcrumb({
+  current,
+  isScrolled = false,
+}: EnrollmentBreadcrumbProps) {
+  return (
+    <BreadcrumbNav isScrolled={isScrolled}>
+      <BreadcrumbLink href="/admin/enrollments">Anmeldungen</BreadcrumbLink>
+      <BreadcrumbSeparator />
+      <BreadcrumbCurrent>{current}</BreadcrumbCurrent>
+    </BreadcrumbNav>
+  );
+}
+
 /**
  * Activity detail breadcrumb
  */

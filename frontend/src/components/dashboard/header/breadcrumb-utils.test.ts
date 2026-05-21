@@ -135,6 +135,13 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/invitations")).toBe("Einladungen");
       });
 
+      it("should return enrollment sub-page titles", () => {
+        expect(getPageTitle("/admin/enrollments")).toBe("Prozess");
+        expect(getPageTitle("/enrollment-phases")).toBe("Anmeldephasen");
+        expect(getPageTitle("/care-offerings")).toBe("Betreuungsangebote");
+        expect(getPageTitle("/enrollment-form")).toBe("Anmeldeformulare");
+      });
+
       it("should return 'Borndal Feedback' for /borndal_feedback", () => {
         expect(getPageTitle("/borndal_feedback")).toBe("Borndal Feedback");
       });
@@ -211,7 +218,7 @@ describe("breadcrumb-utils", () => {
     });
 
     it("should return 'Räume' for /rooms?room={id} referrer (drill-in from modal)", () => {
-      // Modal flow at /rooms?room={id} (#1374) — same room context as the
+      // Modal flow at /rooms?room={id} (#1374), same room context as the
       // legacy subpage drill-in, must produce the same breadcrumb label.
       expect(getBreadcrumbLabel("/rooms?room=42")).toBe("Räume");
     });
@@ -367,6 +374,7 @@ describe("breadcrumb-utils", () => {
           isActivityDetailPage: false,
           isDatabaseSubPage: false,
           isDatabaseDeepPage: false,
+          isEnrollmentPage: false,
         };
         expect(result).toEqual(expected);
       });
@@ -379,6 +387,18 @@ describe("breadcrumb-utils", () => {
         expect(result.isActivityDetailPage).toBe(false);
         expect(result.isDatabaseSubPage).toBe(false);
         expect(result.isDatabaseDeepPage).toBe(false);
+        expect(result.isEnrollmentPage).toBe(false);
+      });
+
+      it("should identify enrollment pages", () => {
+        expect(getPageTypeInfo("/admin/enrollments").isEnrollmentPage).toBe(
+          true,
+        );
+        expect(getPageTypeInfo("/enrollment-phases").isEnrollmentPage).toBe(
+          true,
+        );
+        expect(getPageTypeInfo("/care-offerings").isEnrollmentPage).toBe(true);
+        expect(getPageTypeInfo("/enrollment-form").isEnrollmentPage).toBe(true);
       });
 
       it("should correctly identify multiple database segments", () => {

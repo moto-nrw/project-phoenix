@@ -24,7 +24,7 @@ export function RefreshButton() {
     try {
       await mutate(() => true);
     } finally {
-      // Signal stop — animation will finish current rotation first
+      // Signal stop, animation will finish current rotation first
       pendingStopRef.current = true;
     }
   }, [state, mutate]);

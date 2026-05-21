@@ -19,6 +19,7 @@ import {
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   InvitationsBreadcrumb,
+  EnrollmentBreadcrumb,
   ActivityBreadcrumb,
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
@@ -256,6 +257,10 @@ function HeaderBreadcrumb({
   // Invitations page
   if (pathname === "/invitations") {
     return <InvitationsBreadcrumb />;
+  }
+
+  if (pageTypeInfo.isEnrollmentPage) {
+    return <EnrollmentBreadcrumb current={pageTitle} isScrolled={isScrolled} />;
   }
 
   // Activity detail page
