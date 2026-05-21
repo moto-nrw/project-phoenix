@@ -20,7 +20,7 @@ export interface SubmitChildPayload {
   first_name: string;
   last_name: string;
   date_of_birth: string; // YYYY-MM-DD
-  target_grade_level?: number;
+  target_grade_level: number;
   custom_data?: Record<string, unknown>;
   offering_ids?: number[];
 }

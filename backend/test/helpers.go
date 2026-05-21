@@ -300,5 +300,8 @@ func UniqueTestTenantID(tb testing.TB) int64 {
 // IntPtr returns a pointer to the given int value.
 func IntPtr(i int) *int { return &i }
 
+// Int16Ptr returns a pointer to the given int16 value.
+func Int16Ptr(i int16) *int16 { return &i }
+
 // StrPtr returns a pointer to the given string value.
 func StrPtr(s string) *string { return &s }

@@ -213,9 +213,14 @@ export function EnrollmentForm({
     const payloadChildren: SubmitChildPayload[] = [];
     const missingCareIndexes: number[] = [];
     for (const [i, c] of children.entries()) {
-      if (!c.first_name || !c.last_name || !c.date_of_birth) {
+      if (
+        !c.first_name ||
+        !c.last_name ||
+        !c.date_of_birth ||
+        !c.target_grade_level
+      ) {
         setError(
-          `Kind ${i + 1}: Vorname, Nachname und Geburtsdatum sind Pflichtfelder.`,
+          `Kind ${i + 1}: Vorname, Nachname, Geburtsdatum und Klassenstufe sind Pflichtfelder.`,
         );
         return;
       }
@@ -226,9 +231,7 @@ export function EnrollmentForm({
         first_name: c.first_name.trim(),
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
-        target_grade_level: c.target_grade_level
-          ? Number(c.target_grade_level)
-          : undefined,
+        target_grade_level: Number(c.target_grade_level),
         custom_data: c.custom,
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
       });
@@ -459,17 +462,20 @@ export function EnrollmentForm({
               </div>
               <label className="block">
                 <span className="block text-xs font-medium text-gray-600">
-                  Klassenstufe
+                  Klassenstufe *
                 </span>
                 <select
                   name={`children_${i}_target_grade_level`}
                   value={child.target_grade_level}
+                  required
                   onChange={(e) =>
                     updateChild(i, { target_grade_level: e.target.value })
                   }
                   className="moto-select moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 >
-                  <option value="">Bitte wählen</option>
+                  <option value="" disabled>
+                    Bitte wählen
+                  </option>
                   {Array.from({ length: gradeLevelMax }, (_, n) => n + 1).map(
                     (g) => (
                       <option key={g} value={g}>
