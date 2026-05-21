@@ -734,16 +734,36 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
   const valueStr = typeof value === "string" ? value : "";
 
   if (field.type === "boolean") {
+    const selectedValue = value === true ? "yes" : value === false ? "no" : "";
     return (
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          name={field.key}
-          type="checkbox"
-          checked={Boolean(value)}
-          onChange={(e) => onChange(e.target.checked)}
-        />
+      <fieldset>
         {labelEl}
-      </label>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {[
+            { label: "Ja", value: "yes", raw: true },
+            { label: "Nein", value: "no", raw: false },
+          ].map((option) => (
+            <label
+              key={option.value}
+              className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors ${
+                selectedValue === option.value
+                  ? "border-gray-900 bg-gray-900 text-white"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <input
+                type="radio"
+                name={field.key}
+                value={option.value}
+                checked={selectedValue === option.value}
+                onChange={() => onChange(option.raw)}
+                className="sr-only"
+              />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
     );
   }
   if (field.type === "textarea") {

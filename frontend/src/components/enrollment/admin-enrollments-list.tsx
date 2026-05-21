@@ -253,6 +253,11 @@ export function AdminEnrollmentsList() {
         enrollmentEnabled={enrollmentEnabled}
         phaseCount={phases.length}
         activePhaseCount={phases.filter((phase) => phase.is_active).length}
+        activePhaseWithFormCount={
+          phases.filter(
+            (phase) => phase.is_active && phase.form_schema_id != null,
+          ).length
+        }
         schemaCount={schemas.length}
         careOfferingCount={careOfferingStats.total}
         activeCareOfferingCount={careOfferingStats.activeInActivePhases}
@@ -354,6 +359,7 @@ interface EnrollmentSetupGuideProps {
   readonly enrollmentEnabled: boolean | null;
   readonly phaseCount: number;
   readonly activePhaseCount: number;
+  readonly activePhaseWithFormCount: number;
   readonly schemaCount: number;
   readonly careOfferingCount: number;
   readonly activeCareOfferingCount: number;
@@ -364,6 +370,7 @@ function EnrollmentSetupGuide({
   enrollmentEnabled,
   phaseCount,
   activePhaseCount,
+  activePhaseWithFormCount,
   schemaCount,
   careOfferingCount,
   activeCareOfferingCount,
@@ -422,11 +429,31 @@ function EnrollmentSetupGuide({
     {
       title: "Anmeldeformular festlegen",
       description:
-        "Das Basisformular reicht oft aus. Zusatzfelder sind optional.",
-      href: "/enrollment-form",
-      action: schemaCount > 0 ? "Formular prüfen" : "Basisformular prüfen",
-      status: schemaCount > 0 ? "done" : "optional",
-      meta: schemaCount === 0 ? "Basisformular" : `${schemaCount} Versionen`,
+        schemaCount === 0
+          ? "Das Basisformular reicht oft aus. Zusatzfragen sind optional."
+          : "Wähle deine Vorlage in der Anmeldephase aus.",
+      href:
+        schemaCount > 0 && activePhaseWithFormCount === 0
+          ? "/enrollment-phases"
+          : "/enrollment-form",
+      action:
+        schemaCount === 0
+          ? "Basisformular prüfen"
+          : activePhaseWithFormCount > 0
+            ? "Formular prüfen"
+            : "In Phase auswählen",
+      status:
+        schemaCount === 0
+          ? "optional"
+          : activePhaseWithFormCount > 0
+            ? "done"
+            : "todo",
+      meta:
+        schemaCount === 0
+          ? "Basisformular"
+          : activePhaseWithFormCount > 0
+            ? `${activePhaseWithFormCount} zugeordnet`
+            : "Nicht zugeordnet",
       icon: FileText,
       requiredForPublish: false,
     },
@@ -598,8 +625,9 @@ function EnrollmentSetupGuide({
 
             <div className="text-xs leading-relaxed text-gray-500">
               Für den Elternlink sind Aktivierung, Anmeldephase und
-              Betreuungsangebote entscheidend. Das Basisformular ist schon
-              vorhanden, danach kannst du die Elternansicht testen.
+              Betreuungsangebote entscheidend. Das Basisformular ist schon da.
+              Eigene Formularvorlagen musst du zusätzlich in der passenden
+              Anmeldephase auswählen.
             </div>
           </div>
         </aside>
