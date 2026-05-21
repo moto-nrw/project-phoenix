@@ -48,4 +48,7 @@ export const navigationIcons = {
   // Simple person silhouette — used for Operator "Personen"
   userSingle:
     "M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z",
+  // Document with lines — used for Anmeldungen (mirrors desktop sidebar)
+  enrollments:
+    "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
 } as const;
