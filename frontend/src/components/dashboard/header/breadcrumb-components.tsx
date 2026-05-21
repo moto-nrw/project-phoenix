@@ -195,18 +195,34 @@ export function InvitationsBreadcrumb() {
 
 interface EnrollmentBreadcrumbProps {
   readonly current: string;
+  readonly pathname?: string;
   readonly isScrolled?: boolean;
 }
 
 export function EnrollmentBreadcrumb({
   current,
+  pathname,
   isScrolled = false,
 }: EnrollmentBreadcrumbProps) {
+  const nestedCurrent =
+    pathname?.startsWith("/admin/enrollments/phases/") ||
+    pathname?.startsWith("/admin/enrollments/")
+      ? current
+      : null;
+
   return (
     <BreadcrumbNav isScrolled={isScrolled}>
       <BreadcrumbLink href="/admin/enrollments">Anmeldungen</BreadcrumbLink>
       <BreadcrumbSeparator />
-      <BreadcrumbCurrent>{current}</BreadcrumbCurrent>
+      {nestedCurrent ? (
+        <>
+          <BreadcrumbLink href="/admin/enrollments">Überblick</BreadcrumbLink>
+          <BreadcrumbSeparator />
+          <BreadcrumbCurrent>{nestedCurrent}</BreadcrumbCurrent>
+        </>
+      ) : (
+        <BreadcrumbCurrent>{current}</BreadcrumbCurrent>
+      )}
     </BreadcrumbNav>
   );
 }

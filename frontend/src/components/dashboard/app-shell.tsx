@@ -16,13 +16,21 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   return (
     <div className="relative min-h-screen">
+      <div
+        className="moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0"
+        aria-hidden="true"
+      />
+      <div
+        className="pointer-events-none fixed inset-x-0 top-0 z-30 h-20 bg-white/95 backdrop-blur-md lg:hidden"
+        aria-hidden="true"
+      />
       {/* Header - sticky positioning */}
       <div className="sticky top-0 z-40">
         <Header />
       </div>
 
       {/* Main content */}
-      <div className="flex">
+      <div className="relative z-10 flex">
         {/* Desktop sidebar - only visible on lg+ screens */}
         <Sidebar className="hidden lg:block" />
 

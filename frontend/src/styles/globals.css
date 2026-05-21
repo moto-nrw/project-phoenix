@@ -268,19 +268,35 @@
   background-size: 14px 14px;
 }
 
+.moto-dotted-background--fixed {
+  position: fixed;
+  inset: 0;
+}
+
+.moto-dotted-background--app-fixed {
+  position: fixed;
+  inset: 3.5rem 0 0;
+}
+
+@media (min-width: 1024px) {
+  .moto-dotted-background--app-fixed {
+    inset: 0;
+  }
+}
+
 .moto-dotted-background--fullscreen::before {
   mask-image: radial-gradient(
     circle at center,
     black 0,
-    black 55%,
-    rgba(0, 0, 0, 0.55) 78%,
+    black 58%,
+    rgba(0, 0, 0, 0.62) 80%,
     transparent 100%
   );
   -webkit-mask-image: radial-gradient(
     circle at center,
     black 0,
-    black 55%,
-    rgba(0, 0, 0, 0.55) 78%,
+    black 58%,
+    rgba(0, 0, 0, 0.62) 80%,
     transparent 100%
   );
 }

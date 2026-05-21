@@ -73,7 +73,7 @@ function getMainRouteTitle(pathname: string): string {
     "/settings": "Einstellungen",
     "/profile": "Profil",
     "/invitations": "Einladungen",
-    "/admin/enrollments": "Prozess",
+    "/admin/enrollments": "Überblick",
     "/enrollment-phases": "Anmeldephasen",
     "/care-offerings": "Betreuungsangebote",
     "/enrollment-form": "Anmeldeformulare",
@@ -195,7 +195,13 @@ function isEnrollmentPath(pathname: string): boolean {
 }
 
 function getEnrollmentPageTitle(pathname: string): string {
-  if (pathname.startsWith("/admin/enrollments")) return "Prozess";
+  if (pathname.startsWith("/admin/enrollments/phases/")) {
+    return "Anmeldephase";
+  }
+  if (pathname.startsWith("/admin/enrollments/")) {
+    return "Anmeldung";
+  }
+  if (pathname.startsWith("/admin/enrollments")) return "Überblick";
   if (pathname.startsWith("/enrollment-phases")) return "Anmeldephasen";
   if (pathname.startsWith("/care-offerings")) return "Betreuungsangebote";
   if (pathname.startsWith("/enrollment-form")) return "Anmeldeformulare";

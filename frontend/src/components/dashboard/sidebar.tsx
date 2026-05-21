@@ -265,10 +265,9 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/permissions", label: "Berechtigungen" },
 ];
 
-// Static sub-pages for Anmeldungen accordion (admin only). The overview is the
-// setup hub, followed by enrollment periods, care offers and enrollment forms.
+// Static sub-pages for Anmeldungen accordion (admin only).
 const ENROLLMENTS_SUB_PAGES = [
-  { href: "/admin/enrollments", label: "Prozess" },
+  { href: "/admin/enrollments", label: "Überblick" },
   { href: "/enrollment-phases", label: "Anmeldephasen" },
   { href: "/care-offerings", label: "Betreuungsangebote" },
   { href: "/enrollment-form", label: "Anmeldeformulare" },

@@ -14,7 +14,7 @@ export default function AdminEnrollmentsPage() {
     <div className="-mt-1.5 w-full">
       <DesktopOnlyNotice />
       <div className="hidden lg:block">
-        <PageHeaderWithSearch title="Prozess" />
+        <PageHeaderWithSearch title="Überblick" />
         <AdminEnrollmentsList />
       </div>
     </div>

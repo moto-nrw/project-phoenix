@@ -173,6 +173,19 @@ describe("EnrollmentBreadcrumb", () => {
     const link = screen.getByRole("link", { name: "Anmeldungen" });
     expect(link).toHaveAttribute("href", "/admin/enrollments");
   });
+
+  it("renders nested enrollment detail breadcrumbs", () => {
+    render(
+      <EnrollmentBreadcrumb
+        current="Schuljahr 2026/2027"
+        pathname="/admin/enrollments/phases/phase-1"
+      />,
+    );
+
+    expect(screen.getByText("Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("Überblick")).toBeInTheDocument();
+    expect(screen.getByText("Schuljahr 2026/2027")).toBeInTheDocument();
+  });
 });
 
 describe("ActivityBreadcrumb", () => {
