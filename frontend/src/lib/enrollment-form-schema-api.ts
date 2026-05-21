@@ -89,6 +89,24 @@ export async function listSchemas(): Promise<FormSchema[]> {
   return Array.isArray(list) ? list : [];
 }
 
+export function latestSchemasByName(schemas: FormSchema[]): FormSchema[] {
+  const latest = new Map<string, FormSchema>();
+  for (const schema of schemas) {
+    const existing = latest.get(schema.name);
+    if (
+      !existing ||
+      schema.version > existing.version ||
+      (schema.version === existing.version &&
+        schema.created_at > existing.created_at)
+    ) {
+      latest.set(schema.name, schema);
+    }
+  }
+  return [...latest.values()].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  );
+}
+
 /**
  * Public variant of fetchActiveSchema for the parent enrollment form.
  * Slug-gated, no JWT — backend resolves the tenant from the URL param

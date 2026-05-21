@@ -20,7 +20,11 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { listCareOfferings } from "~/lib/care-offering-api";
-import { listSchemas, type FormSchema } from "~/lib/enrollment-form-schema-api";
+import {
+  latestSchemasByName,
+  listSchemas,
+  type FormSchema,
+} from "~/lib/enrollment-form-schema-api";
 import { fetchSettingsSchema } from "~/lib/settings-api";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -87,6 +91,7 @@ export function AdminEnrollmentsList() {
   const [statusFilter, setStatusFilter] = useState<string>(ALL_FILTER_VALUE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
 
   useEffect(() => {
     let cancelled = false;
@@ -254,11 +259,9 @@ export function AdminEnrollmentsList() {
         phaseCount={phases.length}
         activePhaseCount={phases.filter((phase) => phase.is_active).length}
         activePhaseWithFormCount={
-          phases.filter(
-            (phase) => phase.is_active && phase.form_schema_id != null,
-          ).length
+          phases.filter((phase) => phase.is_active).length
         }
-        schemaCount={schemas.length}
+        schemaCount={latestSchemas.length}
         careOfferingCount={careOfferingStats.total}
         activeCareOfferingCount={careOfferingStats.activeInActivePhases}
         requestCount={requests.length}
@@ -431,29 +434,12 @@ function EnrollmentSetupGuide({
       description:
         schemaCount === 0
           ? "Das Basisformular reicht oft aus. Zusatzfragen sind optional."
-          : "Wähle deine Vorlage in der Anmeldephase aus.",
-      href:
-        schemaCount > 0 && activePhaseWithFormCount === 0
-          ? "/enrollment-phases"
-          : "/enrollment-form",
-      action:
-        schemaCount === 0
-          ? "Basisformular prüfen"
-          : activePhaseWithFormCount > 0
-            ? "Formular prüfen"
-            : "In Phase auswählen",
+          : "Eigene Vorlagen sind optional. Eine Anmeldephase kann auch mit dem Basisformular live gehen.",
+      href: "/enrollment-form",
+      action: "Formulare prüfen",
       status:
-        schemaCount === 0
-          ? "optional"
-          : activePhaseWithFormCount > 0
-            ? "done"
-            : "todo",
-      meta:
-        schemaCount === 0
-          ? "Basisformular"
-          : activePhaseWithFormCount > 0
-            ? `${activePhaseWithFormCount} zugeordnet`
-            : "Nicht zugeordnet",
+        activePhaseWithFormCount > 0 || schemaCount === 0 ? "optional" : "todo",
+      meta: activePhaseWithFormCount > 0 ? "Basisformular" : "Optional",
       icon: FileText,
       requiredForPublish: false,
     },

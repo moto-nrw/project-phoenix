@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -10,6 +11,7 @@ import {
   Check,
   ClipboardList,
   Clock3,
+  FileText,
   MoreVertical,
   Pencil,
   Power,
@@ -26,7 +28,11 @@ import {
   listPhases,
   updatePhase,
 } from "~/lib/enrollment-phase-api";
-import { listSchemas, type FormSchema } from "~/lib/enrollment-form-schema-api";
+import {
+  latestSchemasByName,
+  listSchemas,
+  type FormSchema,
+} from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
@@ -127,6 +133,7 @@ function formatDateTime(value: string): string {
 }
 
 export function PhasesEditor() {
+  const searchParams = useSearchParams();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,8 +145,23 @@ export function PhasesEditor() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
+  const [highlightFormSection, setHighlightFormSection] = useState(false);
+  const [highlightActions, setHighlightActions] = useState(false);
   const tenantSlug = useTenantSlugSafe();
   const toast = useToast();
+  const assignFormId = searchParams.get("assignForm");
+  const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
+  const assignSchema = useMemo(
+    () => latestSchemas.find((schema) => schema.id === assignFormId) ?? null,
+    [assignFormId, latestSchemas],
+  );
+  const schemaNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const schema of schemas) {
+      names.set(schema.id, schema.name || "Formularvorlage");
+    }
+    return names;
+  }, [schemas]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -165,19 +187,47 @@ export function PhasesEditor() {
     void loadAll();
   }, [loadAll]);
 
-  const startCreate = () => {
-    setEditingId("new");
-    setDraft(blankInput());
-    setSchemaSource("base");
-    setError(null);
-  };
+  useEffect(() => {
+    if (!highlightFormSection) return;
+    const timeout = window.setTimeout(() => {
+      setHighlightFormSection(false);
+    }, 2600);
+    return () => window.clearTimeout(timeout);
+  }, [highlightFormSection]);
 
-  const startEdit = (phase: Phase) => {
-    setEditingId(phase.id);
-    setDraft(phaseToInput(phase));
-    setSchemaSource(phase.form_schema_id ? "reuse" : "base");
+  useEffect(() => {
+    if (!assignSchema || editingId || rolloverSource) return;
+    setHighlightActions(true);
+    const timeout = window.setTimeout(() => {
+      setHighlightActions(false);
+    }, 2600);
+    return () => window.clearTimeout(timeout);
+  }, [assignSchema, editingId, rolloverSource]);
+
+  const startCreate = useCallback(() => {
+    setEditingId("new");
+    setDraft({
+      ...blankInput(),
+      form_schema_id: assignSchema?.id ?? null,
+    });
+    setSchemaSource(assignSchema ? "reuse" : "base");
+    setHighlightFormSection(Boolean(assignSchema));
     setError(null);
-  };
+  }, [assignSchema]);
+
+  const startEdit = useCallback(
+    (phase: Phase, forceFormHighlight = false) => {
+      setEditingId(phase.id);
+      setDraft({
+        ...phaseToInput(phase),
+        form_schema_id: assignSchema?.id ?? phase.form_schema_id ?? null,
+      });
+      setSchemaSource(assignSchema || phase.form_schema_id ? "reuse" : "base");
+      setHighlightFormSection(Boolean(assignSchema) || forceFormHighlight);
+      setError(null);
+    },
+    [assignSchema],
+  );
 
   const cancelEdit = () => {
     setEditingId(null);
@@ -360,6 +410,23 @@ export function PhasesEditor() {
         ),
       },
       {
+        key: "form",
+        header: "Formular",
+        sortValue: (phase) =>
+          phase.form_schema_id
+            ? (schemaNameById.get(phase.form_schema_id) ?? "")
+            : "Basisformular",
+        render: (phase) => (
+          <FormSchemaCell
+            schemaName={
+              phase.form_schema_id
+                ? (schemaNameById.get(phase.form_schema_id) ?? "Eigene Vorlage")
+                : null
+            }
+          />
+        ),
+      },
+      {
         key: "status",
         header: "Status",
         sortValue: (phase) => (phase.is_active ? 1 : 0),
@@ -376,7 +443,9 @@ export function PhasesEditor() {
             saving={saving}
             deleting={deletingId === phase.id}
             rolloverActive={!!rolloverSource}
+            highlight={highlightActions}
             onEdit={() => startEdit(phase)}
+            onAssignForm={() => startEdit(phase, true)}
             onRollover={() => startRollover(phase)}
             onToggleActive={() => void handleToggleActive(phase)}
             onDelete={() => void handleDelete(phase)}
@@ -388,8 +457,11 @@ export function PhasesEditor() {
       deletingId,
       handleDelete,
       handleToggleActive,
+      highlightActions,
       rolloverSource,
       saving,
+      schemaNameById,
+      startEdit,
       tenantSlug,
     ],
   );
@@ -456,11 +528,12 @@ export function PhasesEditor() {
         <PhaseForm
           draft={draft}
           setDraft={setDraft}
-          schemas={schemas}
+          schemas={latestSchemas}
           schemaSource={schemaSource}
           setSchemaSource={setSchemaSource}
           editing={editingId !== "new"}
           saving={saving}
+          highlightFormSection={highlightFormSection}
           onSubmit={handleSave}
           onCancel={cancelEdit}
         />
@@ -489,6 +562,7 @@ interface PhaseFormProps {
   readonly setSchemaSource: React.Dispatch<React.SetStateAction<SchemaSource>>;
   readonly editing: boolean;
   readonly saving: boolean;
+  readonly highlightFormSection: boolean;
   readonly onSubmit: (e: React.FormEvent) => void;
   readonly onCancel: () => void;
 }
@@ -558,13 +632,42 @@ function EnrollmentWindowCell({
   );
 }
 
+function FormSchemaCell({
+  schemaName,
+}: Readonly<{ schemaName: string | null }>) {
+  return (
+    <span className="inline-flex items-center gap-2 text-sm text-gray-700">
+      <span
+        className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+          schemaName
+            ? "bg-[#5080D8]/10 text-[#4070C8]"
+            : "bg-gray-100 text-gray-500"
+        }`}
+        aria-hidden="true"
+      >
+        <FileText className="h-4 w-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate font-medium text-gray-900">
+          {schemaName ?? "Basisformular"}
+        </span>
+        <span className="block text-xs text-gray-500">
+          {schemaName ? "Eigene Vorlage" : "Standard"}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 interface PhaseActionsProps {
   readonly phase: Phase;
   readonly tenantSlug?: string | null;
   readonly saving: boolean;
   readonly deleting: boolean;
   readonly rolloverActive: boolean;
+  readonly highlight: boolean;
   readonly onEdit: () => void;
+  readonly onAssignForm: () => void;
   readonly onRollover: () => void;
   readonly onToggleActive: () => void;
   readonly onDelete: () => void;
@@ -584,7 +687,9 @@ function PhaseActions({
   saving,
   deleting,
   rolloverActive,
+  highlight,
   onEdit,
+  onAssignForm,
   onRollover,
   onToggleActive,
   onDelete,
@@ -693,6 +798,20 @@ function PhaseActions({
         role="menuitem"
         onClick={() => {
           setOpen(false);
+          onAssignForm();
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={saving}
+      >
+        <FileText className="h-4 w-4 text-gray-500" aria-hidden />
+        Formular zuweisen
+      </button>
+
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setOpen(false);
           onRollover();
         }}
         className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -757,7 +876,11 @@ function PhaseActions({
           aria-label={`Aktionen für ${phase.name}`}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+            highlight
+              ? "border-[#83CD2D] bg-[#83CD2D]/10 text-[#5F9F20] shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
+              : "border-gray-200"
+          }`}
         >
           <MoreVertical className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -776,12 +899,22 @@ function PhaseForm(props: PhaseFormProps) {
     setSchemaSource,
     editing,
     saving,
+    highlightFormSection,
     onSubmit,
     onCancel,
   } = props;
+  const formSectionRef = useRef<HTMLFieldSetElement>(null);
 
   const update = (patch: Partial<PhaseInput>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+
+  useEffect(() => {
+    if (!highlightFormSection) return;
+    formSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }, [highlightFormSection]);
 
   return (
     <form
@@ -925,7 +1058,14 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </fieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
+      <fieldset
+        ref={formSectionRef}
+        className={`rounded-xl border p-4 transition-colors duration-300 ${
+          highlightFormSection
+            ? "border-[#83CD2D] bg-[#83CD2D]/8 shadow-[0_0_0_4px_rgba(131,205,45,0.12)]"
+            : "border-gray-200"
+        }`}
+      >
         <legend className="px-1 text-xs font-medium text-gray-700">
           Formular
         </legend>
@@ -947,8 +1087,8 @@ function PhaseForm(props: PhaseFormProps) {
               className="mt-0.5"
             />
             <span>
-              <strong>Basis</strong>: nur die Standardfelder (Eltern, Kinder,
-              Geburtsdatum, Klasse).
+              <strong>Basisformular</strong>: Elternteil, Kind, Klassenstufe und
+              gewünschtes Betreuungsangebot.
             </span>
           </label>
           <label
@@ -968,8 +1108,8 @@ function PhaseForm(props: PhaseFormProps) {
               disabled={schemas.length === 0}
             />
             <span className="flex-1">
-              <strong>Bestehendes Formular wählen</strong>: eigene Felder aus
-              einer anderen Anmeldephase übernehmen.
+              <strong>Eigene Vorlage wählen</strong>: Eltern sehen zusätzlich
+              die Fragen aus dieser Formularvorlage.
               {schemaSource === "reuse" && (
                 <select
                   value={draft.form_schema_id ?? ""}
@@ -984,8 +1124,7 @@ function PhaseForm(props: PhaseFormProps) {
                   <option value="">Wählen</option>
                   {schemas.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name || "Standardformular"} (v{s.version}),{" "}
-                      {s.fields.length} Felder
+                      {s.name || "Formularvorlage"}
                     </option>
                   ))}
                 </select>

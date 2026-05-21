@@ -32,6 +32,7 @@ import { useToast } from "~/contexts/ToastContext";
 import {
   blankField,
   createSchema,
+  latestSchemasByName,
   listSchemas,
   updateSchema,
   type FormField,
@@ -134,18 +135,10 @@ export function EnrollmentFormEditor() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<EditorMode>("overview");
 
-  const latestByName = useMemo<FormSchema[]>(() => {
-    const seen = new Map<string, FormSchema>();
-    for (const s of allSchemas) {
-      const prior = seen.get(s.name);
-      if (!prior || s.version > prior.version) {
-        seen.set(s.name, s);
-      }
-    }
-    return Array.from(seen.values()).sort((a, b) =>
-      a.name.localeCompare(b.name, "de"),
-    );
-  }, [allSchemas]);
+  const latestByName = useMemo(
+    () => latestSchemasByName(allSchemas),
+    [allSchemas],
+  );
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -882,72 +875,75 @@ function FormTemplateDetail({
 
   return (
     <div className="space-y-5">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Zurück zur Übersicht
-      </button>
-
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="space-y-5 p-5 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-                  Formular prüfen
-                </p>
-                <h2 className="mt-1 text-xl font-semibold text-gray-900">
-                  {schema.name}
-                </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                  Prüfe die Elternansicht und ordne diese Vorlage einer
-                  Anmeldephase zu, wenn Eltern die Zusatzfragen sehen sollen.
-                </p>
-              </div>
+          <div>
+            <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
               <button
                 type="button"
-                onClick={onEdit}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium whitespace-nowrap text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                onClick={onBack}
+                className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
-                <Pencil className="h-4 w-4" aria-hidden="true" />
-                Bearbeiten
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Zurück zur Übersicht
               </button>
             </div>
+            <div className="space-y-5 p-5 sm:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                    Formular prüfen
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold text-gray-900">
+                    {schema.name}
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                    Prüfe die Elternansicht und ordne diese Vorlage einer
+                    Anmeldephase zu, wenn Eltern die Zusatzfragen sehen sollen.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium whitespace-nowrap text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                  Bearbeiten
+                </button>
+              </div>
 
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-              <FormMetric
-                icon={<FileText className="h-4 w-4" aria-hidden="true" />}
-                value={formatSchemaDate(schema.created_at)}
-                label="Zuletzt gespeichert"
-              />
-              <FormMetric
-                icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
-                value={schema.fields.length.toString()}
-                label="Zusatzfragen"
-              />
-              <FormMetric
-                icon={<Check className="h-4 w-4" aria-hidden="true" />}
-                value={requiredCount.toString()}
-                label="Pflichtfragen"
-              />
-              <FormMetric
-                icon={<FileText className="h-4 w-4" aria-hidden="true" />}
-                value={childFieldCount.toString()}
-                label="Pro Kind"
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                <FormMetric
+                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
+                  value={formatSchemaDate(schema.created_at)}
+                  label="Zuletzt gespeichert"
+                />
+                <FormMetric
+                  icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
+                  value={schema.fields.length.toString()}
+                  label="Zusatzfragen"
+                />
+                <FormMetric
+                  icon={<Check className="h-4 w-4" aria-hidden="true" />}
+                  value={requiredCount.toString()}
+                  label="Pflichtfragen"
+                />
+                <FormMetric
+                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
+                  value={childFieldCount.toString()}
+                  label="Pro Kind"
+                />
+              </div>
+
+              <FormPreview
+                fields={schema.fields}
+                templateName={schema.name}
+                isActive={schema.is_active}
+                isSaved
+                assignedPhaseCount={assignedPhases.length}
+                sticky={false}
               />
             </div>
-
-            <FormPreview
-              fields={schema.fields}
-              templateName={schema.name}
-              isActive={schema.is_active}
-              isSaved
-              assignedPhaseCount={assignedPhases.length}
-              sticky={false}
-            />
           </div>
 
           <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
@@ -969,11 +965,17 @@ function FormTemplateDetail({
               </div>
 
               <Link
-                href="/enrollment-phases"
+                href={
+                  assignedPhases.length > 0
+                    ? "/enrollment-phases"
+                    : `/enrollment-phases?assignForm=${encodeURIComponent(schema.id)}`
+                }
                 className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
                 <CalendarClock className="h-4 w-4" aria-hidden="true" />
-                Anmeldephasen öffnen
+                {assignedPhases.length > 0
+                  ? "Anmeldephasen öffnen"
+                  : "In Anmeldephase auswählen"}
               </Link>
 
               <a
@@ -1012,7 +1014,7 @@ function FormTemplateDetail({
                     icon={
                       <CalendarClock className="h-4 w-4" aria-hidden="true" />
                     }
-                    title="Phase auswählen"
+                    title="In Anmeldephase auswählen"
                     done={assignedPhases.length > 0}
                   />
                 </div>
