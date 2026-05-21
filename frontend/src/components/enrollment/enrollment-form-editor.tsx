@@ -1,6 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  ArrowLeft,
+  CalendarClock,
+  Check,
+  Eye,
+  ExternalLink,
+  FileText,
+  GripVertical,
+  HelpCircle,
+  ListPlus,
+  Lock,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
+import { useToast } from "~/contexts/ToastContext";
 import {
   blankField,
   createSchema,
@@ -23,15 +46,9 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   select: "Auswahl",
 };
 
-// Sentinel for the "new schema" entry in the picker. Anything that
-// isn't this value is the id of an existing schema row.
 const NEW_SCHEMA_VALUE = "__new__";
+type EditorMode = "overview" | "builder";
 
-// CORE_FIELDS mirrors backend/models/enrollment/form_schema.go's
-// CoreFieldKeys. These are always rendered on the parent form by
-// dedicated columns on enrollment.requests / .request_children, so
-// the schema editor must never declare them — but admins should see
-// them here for a complete picture of what parents will fill in.
 interface CoreField {
   readonly key: string;
   readonly label: string;
@@ -99,21 +116,8 @@ const CORE_FIELDS: ReadonlyArray<CoreField> = [
   },
 ];
 
-/**
- * Admin form-schema editor.
- *
- * Top-of-component picker lists every existing schema (one entry per
- * latest version of each name) plus a "+ Neues Formular" option that
- * unlocks the name input. Save dispatches:
- *   - createSchema(name, fields) when creating a fresh one
- *   - updateSchema(id, fields)   when editing an existing one (the
- *     row's name is inherited from the source on the backend, so the
- *     name input is read-only in edit mode)
- *
- * Core fields (guardian name/email/phone, child name/dob/grade) are
- * NOT shown here — they're hardcoded into the form on the parent side.
- */
 export function EnrollmentFormEditor() {
+  const toast = useToast();
   const [allSchemas, setAllSchemas] = useState<FormSchema[]>([]);
   const [selectedKey, setSelectedKey] = useState<string>(NEW_SCHEMA_VALUE);
   const [name, setName] = useState("");
@@ -121,12 +125,8 @@ export function EnrollmentFormEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [mode, setMode] = useState<EditorMode>("overview");
 
-  // Group by name — keep only the latest version per name for the
-  // picker. Older versions are still on the backend and bound phases
-  // keep their pinned schema_id, but the editor only ever writes new
-  // versions on top of the latest.
   const latestByName = useMemo<FormSchema[]>(() => {
     const seen = new Map<string, FormSchema>();
     for (const s of allSchemas) {
@@ -158,19 +158,7 @@ export function EnrollmentFormEditor() {
   }, []);
 
   useEffect(() => {
-    void (async () => {
-      const list = await loadAll();
-      // Auto-select the most recently created schema so reopening the
-      // page lands on something meaningful. Empty list → "Neues
-      // Formular" stays the default.
-      if (list.length > 0) {
-        const newest = list.reduce((a, b) =>
-          new Date(a.created_at) > new Date(b.created_at) ? a : b,
-        );
-        applySchema(newest);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadAll();
   }, [loadAll]);
 
   const applySchema = (schema: FormSchema) => {
@@ -178,7 +166,7 @@ export function EnrollmentFormEditor() {
     setName(schema.name);
     setFields(schema.fields);
     setError(null);
-    setSavedAt(null);
+    setMode("builder");
   };
 
   const startNew = () => {
@@ -186,16 +174,12 @@ export function EnrollmentFormEditor() {
     setName("");
     setFields([]);
     setError(null);
-    setSavedAt(null);
+    setMode("builder");
   };
 
-  const handlePickerChange = (value: string) => {
-    if (value === NEW_SCHEMA_VALUE) {
-      startNew();
-      return;
-    }
-    const picked = latestByName.find((s) => s.id === value);
-    if (picked) applySchema(picked);
+  const backToOverview = () => {
+    setError(null);
+    setMode("overview");
   };
 
   const updateField = (index: number, patch: Partial<FormField>) => {
@@ -233,7 +217,6 @@ export function EnrollmentFormEditor() {
   const handleSave = async () => {
     setSaving(true);
     setError(null);
-    setSavedAt(null);
     try {
       let result: FormSchema;
       if (isCreating) {
@@ -246,17 +229,22 @@ export function EnrollmentFormEditor() {
       } else {
         result = await updateSchema(selectedKey, fields);
       }
-      // Refresh list so the picker shows the new row, then jump to it.
+      // Refresh list so the overview shows the new row, then jump to it.
       const refreshed = await loadAll();
       const stillThere = refreshed.find((s) => s.id === result.id);
       if (stillThere) applySchema(stillThere);
       else applySchema(result);
-      setSavedAt(new Date().toLocaleTimeString("de-DE"));
+      toast.success(
+        isCreating
+          ? "Formularvorlage erstellt."
+          : "Neue Formularversion gespeichert.",
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Speichern fehlgeschlagen";
       logger.error("schema_save_failed", { error: message });
       setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -270,185 +258,689 @@ export function EnrollmentFormEditor() {
     ? null
     : (latestByName.find((s) => s.id === selectedKey) ?? null);
 
+  if (mode === "overview") {
+    return (
+      <EnrollmentFormsOverview
+        templates={latestByName}
+        onCreate={startNew}
+        onEdit={applySchema}
+        error={error}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <label className="block">
-          <span className="block text-xs font-medium text-gray-600">
-            Formular auswählen
-          </span>
-          <select
-            value={selectedKey}
-            onChange={(e) => handlePickerChange(e.target.value)}
-            disabled={saving}
-            className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-500 focus:ring-gray-500"
-          >
-            <option value={NEW_SCHEMA_VALUE}>+ Neues Formular erstellen</option>
-            {latestByName.length > 0 && (
-              <optgroup label="Bestehende Formulare">
-                {latestByName.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} (v{s.version})
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </label>
+    <div className="space-y-5">
+      <button
+        type="button"
+        onClick={backToOverview}
+        disabled={saving}
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Zurück zur Übersicht
+      </button>
+      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
+          <div className="space-y-6 p-5 sm:p-6">
+            <FormBuilderIntro />
 
-        <label className="mt-3 block">
-          <span className="block text-xs font-medium text-gray-600">
-            Name des Formulars
-          </span>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="z.B. Schuljahr, Ferienbetreuung"
-            disabled={saving || !isCreating}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:ring-gray-500 disabled:bg-gray-100 disabled:text-gray-600"
-          />
-          {!isCreating && (
-            <p className="mt-1 text-xs text-gray-500">
-              Beim Speichern wird eine neue Version unter dem gleichen Namen
-              angelegt. Bestehende Anmeldungen behalten ihre alte Version.
-            </p>
-          )}
-        </label>
-
-        {currentSchema && (
-          <p className="mt-3 text-xs text-gray-600">
-            Aktuelle Version:{" "}
-            <span className="font-medium">v{currentSchema.version}</span>
-            {" · "}
-            {currentSchema.fields.length} benutzerdefinierte Felder{" · "}
-            zuletzt gespeichert{" "}
-            {new Date(currentSchema.created_at).toLocaleString("de-DE")}
-          </p>
-        )}
-      </div>
-
-      <CoreFieldsSection />
-
-      <div className="border-t border-gray-200 pt-4">
-        <h2 className="text-sm font-semibold text-gray-900">
-          Benutzerdefinierte Felder
-        </h2>
-        <p className="mt-0.5 text-xs text-gray-600">
-          Eigene Felder, die zusätzlich zu den Kernfeldern abgefragt werden.
-        </p>
-      </div>
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {error}
-        </div>
-      )}
-      {savedAt && !error && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-          Gespeichert ({savedAt}).
-        </div>
-      )}
-
-      {fields.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-          Keine benutzerdefinierten Felder. Klicke auf "Feld hinzufügen", um zu
-          beginnen.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {fields.map((field, index) => (
-            <FieldEditorRow
-              key={index}
-              field={field}
-              index={index}
-              total={fields.length}
-              onChange={(patch) => updateField(index, patch)}
-              onRemove={() => removeField(index)}
-              onMoveUp={() => moveField(index, -1)}
-              onMoveDown={() => moveField(index, 1)}
-              disabled={saving}
+            <BuilderTemplateSummary
+              name={name}
+              isCreating={isCreating}
+              saving={saving}
+              currentSchema={currentSchema}
+              onNameChange={setName}
+              fields={fields}
             />
-          ))}
-        </div>
-      )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={addField}
-          disabled={saving}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          + Feld hinzufügen
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving
-            ? "Speichern..."
-            : isCreating
-              ? "Formular erstellen"
-              : "Neue Version speichern"}
-        </button>
-      </div>
+            <CoreFieldsSection />
+
+            <section className="space-y-4">
+              <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                    Zusatzfragen
+                  </p>
+                  <h2 className="mt-1 text-base font-semibold text-gray-900">
+                    Was Eltern zusätzlich beantworten sollen
+                  </h2>
+                  <p className="mt-1 max-w-2xl text-sm text-gray-600">
+                    Lege nur Fragen an, die du wirklich für diese Anmeldung
+                    brauchst. Das Basisformular bleibt immer enthalten.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addField}
+                  disabled={saving}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Zusatzfrage
+                </button>
+              </div>
+
+              {error ? (
+                <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+                  {error}
+                </div>
+              ) : null}
+
+              {fields.length === 0 ? (
+                <EmptyCustomFields onAdd={addField} disabled={saving} />
+              ) : (
+                <div className="space-y-3">
+                  {fields.map((field, index) => (
+                    <FieldEditorRow
+                      key={`${field.key || "field"}-${index}`}
+                      field={field}
+                      index={index}
+                      total={fields.length}
+                      onChange={(patch) => updateField(index, patch)}
+                      onRemove={() => removeField(index)}
+                      onMoveUp={() => moveField(index, -1)}
+                      onMoveDown={() => moveField(index, 1)}
+                      disabled={saving}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  onClick={startNew}
+                  disabled={saving}
+                  className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                >
+                  Zurücksetzen
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving
+                    ? "Speichert..."
+                    : isCreating
+                      ? "Formularvorlage erstellen"
+                      : "Neue Version speichern"}
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+            <FormPreview
+              fields={fields}
+              templateName={name}
+              currentVersion={currentSchema?.version ?? null}
+              isActive={currentSchema?.is_active ?? false}
+              isSaved={currentSchema !== null}
+            />
+          </aside>
+        </div>
+      </section>
     </div>
   );
 }
 
-// CoreFieldsSection renders the always-present core fields (read-only)
-// so admins see the full parent form at a glance. Two groups: Eltern,
-// Kind. Each row mirrors the FieldEditorRow shape so the visual
-// rhythm carries over from the custom fields below.
+function EnrollmentFormsOverview({
+  templates,
+  onCreate,
+  onEdit,
+  error,
+}: Readonly<{
+  templates: FormSchema[];
+  onCreate: () => void;
+  onEdit: (schema: FormSchema) => void;
+  error: string | null;
+}>) {
+  const activeTemplates = templates.filter((schema) => schema.is_active).length;
+  const totalQuestions = templates.reduce(
+    (sum, schema) => sum + schema.fields.length,
+    0,
+  );
+  const requiredQuestions = templates.reduce(
+    (sum, schema) =>
+      sum + schema.fields.filter((field) => Boolean(field.required)).length,
+    0,
+  );
+
+  return (
+    <div className="space-y-5">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+          <div className="space-y-6 p-5 sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                  Formularübersicht
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-gray-900">
+                  Anmeldeformulare verwalten
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                  Das Basisformular ist immer vorhanden. Eigene Vorlagen nutzt
+                  du nur, wenn eine Anmeldephase zusätzliche Fragen braucht.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onCreate}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium whitespace-nowrap text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Neue Vorlage
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <FormMetric
+                icon={<Lock className="h-4 w-4" aria-hidden="true" />}
+                value="1"
+                label="Basisformular"
+              />
+              <FormMetric
+                icon={<FileText className="h-4 w-4" aria-hidden="true" />}
+                value={templates.length.toString()}
+                label="Vorlagen"
+              />
+              <FormMetric
+                icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
+                value={totalQuestions.toString()}
+                label="Zusatzfragen"
+              />
+              <FormMetric
+                icon={<Check className="h-4 w-4" aria-hidden="true" />}
+                value={requiredQuestions.toString()}
+                label="Pflichtfragen"
+              />
+            </div>
+
+            {error ? (
+              <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+                {error}
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+              <BasisFormCard />
+              <section className="space-y-3">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">
+                      Eigene Vorlagen
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Vorlagen werden später einer Anmeldephase zugeordnet.
+                    </p>
+                  </div>
+                </div>
+
+                {templates.length === 0 ? (
+                  <EmptyTemplateState onCreate={onCreate} />
+                ) : (
+                  <div className="grid gap-3">
+                    {templates.map((schema) => (
+                      <TemplateOverviewCard
+                        key={schema.id}
+                        schema={schema}
+                        onEdit={() => onEdit(schema)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+
+          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+            <OverviewGuide
+              templateCount={templates.length}
+              activeTemplates={activeTemplates}
+              onCreate={onCreate}
+            />
+          </aside>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function BasisFormCard() {
+  return (
+    <article className="moto-content-surface flex h-full flex-col rounded-2xl border p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
+          <Lock className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+          Immer vorhanden
+        </span>
+      </div>
+      <div className="mt-4 flex-1">
+        <h3 className="text-base font-semibold text-gray-900">Basisformular</h3>
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Fragt Elternteil, Kind, Klassenstufe und gewünschtes Betreuungsangebot
+          ab. Für viele Anmeldungen reicht das bereits.
+        </p>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600">
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+          Gesperrt
+        </span>
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+          Systemformular
+        </span>
+      </div>
+      <a
+        href="/enroll"
+        target="_blank"
+        rel="noreferrer"
+        className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        Elternansicht öffnen
+      </a>
+    </article>
+  );
+}
+
+function EmptyTemplateState({ onCreate }: Readonly<{ onCreate: () => void }>) {
+  return (
+    <button
+      type="button"
+      onClick={onCreate}
+      className="group flex min-h-[210px] w-full flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white/70 px-6 py-10 text-center shadow-sm transition-colors hover:border-gray-400 hover:bg-white focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100 text-gray-600 transition-colors group-hover:bg-gray-900 group-hover:text-white">
+        <Plus className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="mt-3 text-sm font-semibold text-gray-900">
+        Noch keine eigenen Formularvorlagen
+      </span>
+      <span className="mt-1 max-w-md text-sm leading-6 text-gray-500">
+        Starte mit dem Basisformular oder erstelle eine Vorlage für zusätzliche
+        Fragen, etwa für Ferienbetreuung oder spezielle Hinweise.
+      </span>
+    </button>
+  );
+}
+
+function TemplateOverviewCard({
+  schema,
+  onEdit,
+}: Readonly<{ schema: FormSchema; onEdit: () => void }>) {
+  const requiredCount = schema.fields.filter((field) =>
+    Boolean(field.required),
+  ).length;
+  const childFieldCount = schema.fields.filter((field) =>
+    Boolean(field.applies_to_child),
+  ).length;
+
+  return (
+    <article className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-base font-semibold text-gray-900">
+              {schema.name}
+            </h4>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                schema.is_active
+                  ? "bg-[#83CD2D]/10 text-[#5F9F20]"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  schema.is_active ? "bg-[#83CD2D]" : "bg-gray-300"
+                }`}
+                aria-hidden="true"
+              />
+              {schema.is_active ? "Aktiv" : "Gespeichert"}
+            </span>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            Version {schema.version}, erstellt am{" "}
+            {formatSchemaDate(schema.created_at)}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+              {schema.fields.length} Zusatzfragen
+            </span>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+              {requiredCount} Pflichtfragen
+            </span>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+              {childFieldCount} pro Kind
+            </span>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <a
+            href="/enroll"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            Vorschau
+          </a>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            Bearbeiten
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function OverviewGuide({
+  templateCount,
+  activeTemplates,
+  onCreate,
+}: Readonly<{
+  templateCount: number;
+  activeTemplates: number;
+  onCreate: () => void;
+}>) {
+  return (
+    <div className="sticky top-6 space-y-4">
+      <div>
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          Startpunkt
+        </p>
+        <h2 className="mt-1 text-base font-semibold text-gray-900">
+          Erst prüfen, dann erweitern
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Lege nur dann eine eigene Vorlage an, wenn das Basisformular nicht
+          reicht. So bleibt die Elternansicht kurz und verständlich.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onCreate}
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        <Plus className="h-4 w-4" aria-hidden="true" />
+        Vorlage erstellen
+      </button>
+
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-gray-900">
+          Nächste Schritte
+        </h3>
+        <div className="mt-4 space-y-3">
+          <GuideStep
+            icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+            title="Basisformular prüfen"
+            done
+          />
+          <GuideStep
+            icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
+            title="Zusatzfragen nur bei Bedarf"
+            done={templateCount > 0}
+          />
+          <GuideStep
+            icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
+            title="Vorlage in Anmeldephase wählen"
+            done={activeTemplates > 0}
+          />
+        </div>
+      </div>
+
+      <p className="text-sm leading-6 text-gray-500">
+        Für eine neue Halbjahresanmeldung brauchst du oft keine eigene
+        Formularvorlage. Anmeldephase und Betreuungsangebote steuern den
+        eigentlichen Ablauf.
+      </p>
+    </div>
+  );
+}
+
+function GuideStep({
+  icon,
+  title,
+  done,
+}: Readonly<{ icon: ReactNode; title: string; done: boolean }>) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+          done ? "bg-[#83CD2D]/15 text-[#5F9F20]" : "bg-gray-100 text-gray-500"
+        }`}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 text-sm font-medium text-gray-700">
+        {title}
+      </span>
+      <span
+        className={`h-2 w-2 rounded-full ${
+          done ? "bg-[#83CD2D]" : "bg-gray-300"
+        }`}
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
+function FormBuilderIntro() {
+  return (
+    <header>
+      <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+        Formular-Konfigurator
+      </p>
+      <h2 className="mt-1 text-xl font-semibold text-gray-900">
+        Zusatzfragen bearbeiten
+      </h2>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+        Ergänze hier nur Fragen, die über das Basisformular hinausgehen. Die
+        Auswahl der Vorlage passiert in der Übersicht, dieser Bereich ist nur
+        zum Bearbeiten da.
+      </p>
+    </header>
+  );
+}
+
+function FormMetric({
+  icon,
+  value,
+  label,
+}: Readonly<{
+  icon: ReactNode;
+  value: string;
+  label: string;
+}>) {
+  return (
+    <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm">
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
+        {icon}
+      </span>
+      <span>
+        <span className="block text-lg leading-none font-semibold text-gray-900">
+          {value}
+        </span>
+        <span className="mt-1 block text-xs font-medium text-gray-500">
+          {label}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function BuilderTemplateSummary({
+  name,
+  isCreating,
+  saving,
+  currentSchema,
+  onNameChange,
+  fields,
+}: Readonly<{
+  name: string;
+  isCreating: boolean;
+  saving: boolean;
+  currentSchema: FormSchema | null;
+  onNameChange: (value: string) => void;
+  fields: FormField[];
+}>) {
+  const requiredCount = fields.filter((field) =>
+    Boolean(field.required),
+  ).length;
+  const childFieldCount = fields.filter((field) =>
+    Boolean(field.applies_to_child),
+  ).length;
+
+  return (
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Vorlage
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-gray-900">
+            {isCreating ? "Neue Formularvorlage" : name}
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-gray-600">
+            {isCreating
+              ? "Gib der Vorlage einen eindeutigen Namen. Danach kannst du Zusatzfragen anlegen."
+              : "Beim Speichern entsteht eine neue Version dieser Vorlage."}
+          </p>
+        </div>
+
+        {isCreating ? (
+          <label className="block">
+            <span className="text-xs font-medium text-gray-700">
+              Name der Vorlage
+            </span>
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => onNameChange(event.target.value)}
+              placeholder="z. B. Ferienbetreuung Sommer 2026"
+              disabled={saving}
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
+            />
+          </label>
+        ) : (
+          <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+              Version {currentSchema?.version ?? 1}
+            </span>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+              {fields.length} Zusatzfragen
+            </span>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+              {requiredCount} Pflichtfragen
+            </span>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+              {childFieldCount} pro Kind
+            </span>
+          </div>
+        )}
+      </div>
+
+      {currentSchema ? (
+        <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600">
+          <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+            {new Date(currentSchema.created_at).toLocaleString("de-DE")}
+          </span>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function CoreFieldsSection() {
   const guardian = CORE_FIELDS.filter((f) => !f.appliesToChild);
   const child = CORE_FIELDS.filter((f) => f.appliesToChild);
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <h2 className="text-sm font-semibold text-gray-900">Kernfelder</h2>
-      <p className="mt-0.5 text-xs text-gray-600">
-        Diese Felder werden immer abgefragt und können hier nicht bearbeitet
-        werden.
-      </p>
-
-      <div className="mt-3">
-        <h3 className="text-xs font-medium text-gray-700">Eltern</h3>
-        <ul className="mt-1.5 space-y-1.5">
-          {guardian.map((f) => (
-            <CoreFieldRow key={f.key} field={f} />
-          ))}
-        </ul>
+    <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
+          <Lock className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">Basisformular</h2>
+          <p className="mt-0.5 text-xs leading-5 text-gray-600">
+            Diese Angaben sind immer Teil der Online-Anmeldung und werden hier
+            nur als Orientierung angezeigt.
+          </p>
+        </div>
       </div>
 
-      <div className="mt-4">
-        <h3 className="text-xs font-medium text-gray-700">Kind</h3>
-        <ul className="mt-1.5 space-y-1.5">
-          {child.map((f) => (
-            <CoreFieldRow key={f.key} field={f} />
-          ))}
-        </ul>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <CoreFieldGroup title="Eltern" fields={guardian} />
+        <CoreFieldGroup title="Kind" fields={child} />
       </div>
+    </section>
+  );
+}
+
+function CoreFieldGroup({
+  title,
+  fields,
+}: Readonly<{ title: string; fields: CoreField[] }>) {
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-gray-700">{title}</h3>
+      <ul className="mt-2 space-y-1.5">
+        {fields.map((field) => (
+          <CoreFieldRow key={field.key} field={field} />
+        ))}
+      </ul>
     </div>
   );
 }
 
 function CoreFieldRow({ field }: { readonly field: CoreField }) {
   return (
-    <li className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs">
-      <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-700">
-        {field.key}
-      </code>
+    <li className="moto-content-surface flex items-center gap-2 rounded-lg border px-3 py-2 text-xs shadow-sm">
       <span className="flex-1 font-medium text-gray-900">{field.label}</span>
       <span className="text-gray-500">{fieldTypeLabels[field.type]}</span>
       {field.required && (
-        <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-[10px] font-medium text-[#FF3130]">
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
           Pflicht
         </span>
       )}
     </li>
+  );
+}
+
+function EmptyCustomFields({
+  onAdd,
+  disabled,
+}: Readonly<{ onAdd: () => void; disabled: boolean }>) {
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      disabled={disabled}
+      className="group flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white/70 px-6 py-10 text-center shadow-sm transition-colors hover:border-gray-400 hover:bg-white focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100 text-gray-600 transition-colors group-hover:bg-gray-900 group-hover:text-white">
+        <Plus className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="mt-3 text-sm font-semibold text-gray-900">
+        Keine Zusatzfragen
+      </span>
+      <span className="mt-1 max-w-md text-sm leading-6 text-gray-500">
+        Das ist für viele Anmeldungen genau richtig. Füge nur Fragen hinzu, wenn
+        Eltern wirklich zusätzliche Angaben machen sollen.
+      </span>
+    </button>
   );
 }
 
@@ -473,101 +965,468 @@ function FieldEditorRow({
   onMoveDown,
   disabled,
 }: FieldEditorRowProps) {
+  const optionsText = (field.options ?? [])
+    .map((option) => option.label)
+    .join("\n");
+  const updateOptions = (value: string) => {
+    const options = value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => ({
+        label: line,
+        value: normalizeFieldKey(line),
+      }));
+    onChange({ options });
+  };
+
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <label className="block">
-          <span className="block text-xs font-medium text-gray-600">
-            Schlüssel (intern)
-          </span>
-          <input
-            type="text"
-            value={field.key}
-            onChange={(e) => onChange({ key: e.target.value })}
-            placeholder="z.B. allergies"
-            disabled={disabled}
-            className="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:ring-gray-500"
-          />
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-gray-600">
-            Bezeichnung (sichtbar)
-          </span>
-          <input
-            type="text"
-            value={field.label}
-            onChange={(e) => onChange({ label: e.target.value })}
-            placeholder="z.B. Allergien"
-            disabled={disabled}
-            className="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:ring-gray-500"
-          />
-        </label>
-        <label className="block">
-          <span className="block text-xs font-medium text-gray-600">Typ</span>
-          <select
-            value={field.type}
-            onChange={(e) =>
-              onChange({ type: e.target.value as FormFieldType })
-            }
-            disabled={disabled}
-            className="mt-1 block w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:ring-gray-500"
-          >
-            {Object.entries(fieldTypeLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
+    <article className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span className="mt-1 hidden text-gray-300 sm:block">
+          <GripVertical className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                Frage {index + 1}
+              </p>
+              <h3 className="mt-1 text-sm font-semibold text-gray-900">
+                {field.label.trim() || "Neue Zusatzfrage"}
+              </h3>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={onMoveUp}
+                disabled={disabled || index === 0}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Frage nach oben verschieben"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                onClick={onMoveDown}
+                disabled={disabled || index === total - 1}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Frage nach unten verschieben"
+              >
+                ↓
+              </button>
+              <button
+                type="button"
+                onClick={onRemove}
+                disabled={disabled}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:border-[#FF3130]/30 hover:bg-[#FF3130]/10 hover:text-[#CC2626] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Frage entfernen"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">
+                Frage im Elternformular
+              </span>
+              <input
+                type="text"
+                value={field.label}
+                onChange={(event) => {
+                  const nextLabel = event.target.value;
+                  const currentAutoKey = normalizeFieldKey(field.label);
+                  const shouldUpdateKey =
+                    field.key.trim() === "" || field.key === currentAutoKey;
+                  onChange({
+                    label: nextLabel,
+                    key: shouldUpdateKey
+                      ? normalizeFieldKey(nextLabel)
+                      : field.key,
+                  });
+                }}
+                placeholder="z. B. Allergien oder Hinweise"
+                disabled={disabled}
+                className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">Typ</span>
+              <select
+                value={field.type}
+                onChange={(event) =>
+                  onChange({ type: event.target.value as FormFieldType })
+                }
+                disabled={disabled}
+                className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                {Object.entries(fieldTypeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="text-xs font-medium text-gray-700">
+              Hilfetext für Eltern
+            </span>
+            <input
+              type="text"
+              value={field.help_text ?? ""}
+              onChange={(event) => onChange({ help_text: event.target.value })}
+              placeholder="Optionaler kurzer Hinweis unter der Frage"
+              disabled={disabled}
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            />
+          </label>
+
+          {field.type === "select" ? (
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">
+                Auswahloptionen
+              </span>
+              <textarea
+                value={optionsText}
+                onChange={(event) => updateOptions(event.target.value)}
+                placeholder={"Eine Option pro Zeile\nz. B. Ja\nz. B. Nein"}
+                disabled={disabled}
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              />
+            </label>
+          ) : null}
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <FormChoice
+              checked={Boolean(field.required)}
+              onChange={(checked) => onChange({ required: checked })}
+              label="Pflichtfrage"
+              hint="Eltern müssen diese Frage beantworten."
+              disabled={disabled}
+            />
+            <FormChoice
+              checked={Boolean(field.applies_to_child)}
+              onChange={(checked) => onChange({ applies_to_child: checked })}
+              label="Pro Kind abfragen"
+              hint="Die Frage erscheint für jedes angemeldete Kind."
+              disabled={disabled}
+            />
+          </div>
+
+          <details className="rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2 text-xs text-gray-500">
+            <summary className="cursor-pointer font-medium text-gray-600">
+              Technischer Schlüssel
+            </summary>
+            <label className="mt-2 block">
+              <span className="sr-only">Technischer Schlüssel</span>
+              <input
+                type="text"
+                value={field.key}
+                onChange={(event) => onChange({ key: event.target.value })}
+                placeholder="z. B. allergies"
+                disabled={disabled}
+                className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 font-mono text-xs shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              />
+            </label>
+          </details>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function FormChoice({
+  checked,
+  onChange,
+  label,
+  hint,
+  disabled,
+}: Readonly<{
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  hint: string;
+  disabled: boolean;
+}>) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      disabled={disabled}
+      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+        checked
+          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
+          : "border-gray-200 bg-white hover:bg-gray-50"
+      } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
+    >
+      <span
+        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+          checked
+            ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+            : "border-gray-300 bg-white"
+        }`}
+        aria-hidden="true"
+      >
+        {checked ? <Check className="h-3.5 w-3.5" /> : null}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-gray-900">{label}</span>
+        <span className="mt-0.5 block text-xs text-gray-500">{hint}</span>
+      </span>
+    </button>
+  );
+}
+
+function FormPreview({
+  fields,
+  templateName,
+  currentVersion,
+  isActive,
+  isSaved,
+}: Readonly<{
+  fields: FormField[];
+  templateName: string;
+  currentVersion: number | null;
+  isActive: boolean;
+  isSaved: boolean;
+}>) {
+  return (
+    <div className="sticky top-6 space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Vorschau
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-gray-900">
+            Elternformular
+          </h2>
+        </div>
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
+          <Eye className="h-4 w-4" aria-hidden="true" />
+        </span>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={Boolean(field.required)}
-            onChange={(e) => onChange({ required: e.target.checked })}
-            disabled={disabled}
-          />
-          <span className="text-gray-700">Pflichtfeld</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={Boolean(field.applies_to_child)}
-            onChange={(e) => onChange({ applies_to_child: e.target.checked })}
-            disabled={disabled}
-          />
-          <span className="text-gray-700">Pro Kind</span>
-        </label>
+      <a
+        href="/enroll"
+        target="_blank"
+        rel="noreferrer"
+        className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-gray-900">
+            Echte Elternansicht öffnen
+          </span>
+          <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+            Öffnet die öffentliche Anmeldung in einem neuen Tab.
+          </span>
+        </span>
+      </a>
 
-        <div className="ml-auto flex gap-2">
+      <div
+        className={`moto-content-surface rounded-2xl border p-3 shadow-sm ${
+          isActive
+            ? "border-[#83CD2D]/30 bg-[#83CD2D]/10"
+            : "border-gray-200 bg-white"
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+              isActive ? "bg-[#83CD2D]" : "bg-gray-300"
+            }`}
+            aria-hidden="true"
+          />
+          <div>
+            <p className="text-sm font-semibold text-gray-900">
+              {isActive
+                ? "Dieses Formular ist aktiv"
+                : isSaved
+                  ? "Dieses Formular ist gespeichert"
+                  : "Dieses Formular ist noch nicht gespeichert"}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-gray-500">
+              {isActive
+                ? "Eltern sehen diese Version, wenn sie der aktiven Anmeldephase zugeordnet ist."
+                : isSaved
+                  ? "Ordne die Vorlage in einer Anmeldephase zu, damit Eltern sie verwenden."
+                  : "Speichere die Vorlage zuerst. Danach kannst du sie in einer Anmeldephase auswählen."}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+        <div className="border-b border-gray-100 px-4 py-4">
+          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            Online-Anmeldung
+          </p>
+          <h3 className="mt-1 text-lg font-semibold text-gray-900">
+            {templateName.trim() || "Basisformular"}
+          </h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {currentVersion ? `Version ${currentVersion}` : "Neue Vorlage"}
+          </p>
+        </div>
+
+        <div className="space-y-5 p-4">
+          <PreviewSection
+            title="Elternteil"
+            fields={["Vorname", "Nachname", "E-Mail", "Telefonnummer"]}
+          />
+          <PreviewSection
+            title="Kind"
+            fields={["Vorname", "Nachname", "Geburtsdatum", "Klassenstufe"]}
+          />
+          <PreviewSection
+            title="Betreuungsangebot"
+            fields={["Gewünschtes Angebot", "Betreuungstage"]}
+          />
+
+          <section>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="text-sm font-semibold text-gray-900">
+                Zusatzfragen
+              </h4>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                {fields.length}
+              </span>
+            </div>
+            {fields.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-4 py-5 text-center">
+                <HelpCircle className="mx-auto h-5 w-5 text-gray-400" />
+                <p className="mt-2 text-sm font-medium text-gray-700">
+                  Keine Zusatzfragen
+                </p>
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  Eltern sehen nur das Basisformular.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {fields.map((field, index) => (
+                  <PreviewCustomField
+                    key={`${field.key || "preview"}-${index}`}
+                    field={field}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
           <button
             type="button"
-            onClick={onMoveUp}
-            disabled={disabled || index === 0}
-            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-9 w-full rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm"
           >
-            ↑
-          </button>
-          <button
-            type="button"
-            onClick={onMoveDown}
-            disabled={disabled || index === total - 1}
-            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={disabled}
-            className="rounded border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Entfernen
+            Anmeldung absenden
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+function PreviewSection({
+  title,
+  fields,
+}: Readonly<{ title: string; fields: string[] }>) {
+  return (
+    <section>
+      <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
+      <div className="mt-3 grid gap-2">
+        {fields.map((field) => (
+          <div
+            key={field}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2"
+          >
+            <span className="block text-[11px] font-medium text-gray-500">
+              {field}
+            </span>
+            <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PreviewCustomField({ field }: Readonly<{ field: FormField }>) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-sm font-medium text-gray-900">
+          {field.label.trim() || "Neue Zusatzfrage"}
+        </span>
+        {field.required ? (
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+            Pflicht
+          </span>
+        ) : null}
+      </div>
+      {field.help_text ? (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      ) : null}
+      <PreviewInput field={field} />
+    </div>
+  );
+}
+
+function PreviewInput({ field }: Readonly<{ field: FormField }>) {
+  if (field.type === "boolean") {
+    return (
+      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+        <span className="h-4 w-4 rounded border border-gray-300 bg-white" />
+        Ja
+      </div>
+    );
+  }
+
+  if (field.type === "select") {
+    const firstOption = field.options?.[0]?.label ?? "Bitte wählen";
+    return (
+      <div className="mt-3 flex h-9 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs text-gray-500">
+        {firstOption}
+        <span>⌄</span>
+      </div>
+    );
+  }
+
+  if (field.type === "textarea") {
+    return (
+      <div className="mt-3 h-16 rounded-lg border border-gray-200 bg-gray-50" />
+    );
+  }
+
+  return (
+    <div className="mt-3 h-9 rounded-lg border border-gray-200 bg-gray-50" />
+  );
+}
+
+function normalizeFieldKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function formatSchemaDate(value: string): string {
+  return new Date(value).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }

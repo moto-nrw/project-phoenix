@@ -16,6 +16,14 @@ var (
 	ErrPhaseNotFound      = errors.New("phase not found")
 	ErrInvalidPhase       = errors.New("invalid phase")
 	ErrPhaseHasReferences = errors.New("phase still referenced by submissions or care offerings")
+	// ErrPhaseHasRequests is returned when the phase still has one or
+	// more enrollment.requests rows. Wraps ErrPhaseHasReferences so
+	// callers using errors.Is(_, ErrPhaseHasReferences) still match.
+	ErrPhaseHasRequests = fmt.Errorf("%w: phase has enrollment requests", ErrPhaseHasReferences)
+	// ErrPhaseHasOfferings is returned when the phase still has one or
+	// more enrollment.care_offerings rows. Wraps ErrPhaseHasReferences
+	// for backward compat.
+	ErrPhaseHasOfferings = fmt.Errorf("%w: phase has care offerings", ErrPhaseHasReferences)
 )
 
 // PhaseService manages the per-tenant catalog of enrollment phases.
@@ -129,14 +137,14 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("phase delete: check requests: %w", err)
 	}
 	if hasRequests {
-		return fmt.Errorf("%w: deactivate it instead", ErrPhaseHasReferences)
+		return ErrPhaseHasRequests
 	}
 	hasOfferings, err := s.phaseHasOfferings(ctx, id)
 	if err != nil {
 		return fmt.Errorf("phase delete: check care offerings: %w", err)
 	}
 	if hasOfferings {
-		return fmt.Errorf("%w: remove or move offerings first", ErrPhaseHasReferences)
+		return ErrPhaseHasOfferings
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
@@ -147,17 +155,10 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 }
 
 func (s *phaseService) phaseHasRequests(ctx context.Context, phaseID int64) (bool, error) {
-	// Cheap path: a small repo helper would be cleaner, but PR A keeps
-	// the surface tight - we already have the offering join repo. Future
-	// PRs can add a dedicated count method on RequestRepository if this
-	// shows up in a hot path.
 	if s.requestRepo == nil {
 		return false, nil
 	}
-	// We can't peek without an interface change; punt to "false" and
-	// lean on the FK ON DELETE CASCADE for now. Admin UI in PR B will
-	// surface a usage hint before the destructive call.
-	return false, nil
+	return s.requestRepo.ExistsByPhaseID(ctx, phaseID)
 }
 
 func (s *phaseService) phaseHasOfferings(ctx context.Context, phaseID int64) (bool, error) {

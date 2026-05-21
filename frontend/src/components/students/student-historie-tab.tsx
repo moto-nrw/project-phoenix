@@ -199,7 +199,7 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
           {daysWithData.map((day) => (
             <li
               key={day.date}
-              className="rounded-lg border border-gray-200 bg-white p-4"
+              className="moto-content-surface rounded-lg border p-4"
             >
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-gray-900">

@@ -193,6 +193,35 @@ func TestPhaseService_Delete_RefusesWhenOfferingsReference(t *testing.T) {
 		"phase with care offerings must not be deletable; got %v", err)
 }
 
+func TestPhaseService_Delete_RefusesWhenRequestsReference(t *testing.T) {
+	svc, repoFactory, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phase, err := svc.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+
+	// Seed one request on the phase so delete must refuse with the
+	// requests-specific sentinel.
+	req := &enrollmentModels.Request{
+		PhaseID:           phase.ID,
+		GuardianFirstName: "Test",
+		GuardianLastName:  "Guardian",
+		GuardianEmail:     "test@example.com",
+		StatusToken:       "test-token-" + t.Name(),
+		SubmittedAt:       time.Now(),
+	}
+	req.SetTenantID(1)
+	require.NoError(t, repoFactory.Request.Create(ctx, req))
+
+	err = svc.Delete(ctx, phase.ID)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseHasRequests),
+		"phase with requests must return ErrPhaseHasRequests; got %v", err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseHasReferences),
+		"ErrPhaseHasRequests must also satisfy ErrPhaseHasReferences for backward compat; got %v", err)
+}
+
 func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
 	svc, _, cleanup := setupPhaseTest(t)
 	defer cleanup()

@@ -223,7 +223,7 @@ export function ArrivalScheduleManager({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
@@ -342,7 +342,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
       className={
         day.isToday
           ? "rounded-lg border border-[#83CD2D] bg-[#83CD2D]/5 px-3 py-2"
-          : "rounded-lg border border-gray-200 bg-white px-3 py-2"
+          : "moto-content-surface rounded-lg border px-3 py-2"
       }
     >
       <div className="flex items-center gap-3">
@@ -420,7 +420,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
       className={
         day.isToday
           ? "group relative rounded-lg border border-[#83CD2D] bg-[#83CD2D]/5 p-2 text-center"
-          : "group relative rounded-lg border border-gray-200 bg-white p-2 text-center"
+          : "group moto-content-surface relative rounded-lg border p-2 text-center"
       }
     >
       <div className="flex items-center justify-center gap-1">

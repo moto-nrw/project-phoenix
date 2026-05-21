@@ -19,6 +19,7 @@ import {
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   InvitationsBreadcrumb,
+  EnrollmentBreadcrumb,
   ActivityBreadcrumb,
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
@@ -98,13 +99,13 @@ export function Header() {
 
   return (
     <header
-      className={`sticky top-0 z-50 w-full bg-white transition-all duration-300 ${
+      className={`sticky top-0 z-50 w-full border-b border-gray-200/70 bg-white/95 backdrop-blur-md transition-[background-color,border-color,box-shadow] duration-300 ${
         isScrolled ? "shadow-sm" : ""
       }`}
     >
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div
-          className={`flex w-full items-center transition-all duration-300 ${
+          className={`flex w-full items-center transition-[height] duration-300 ${
             isScrolled ? "h-12 lg:h-16" : "h-14 lg:h-16"
           }`}
         >
@@ -256,6 +257,10 @@ function HeaderBreadcrumb({
   // Invitations page
   if (pathname === "/invitations") {
     return <InvitationsBreadcrumb />;
+  }
+
+  if (pageTypeInfo.isEnrollmentPage) {
+    return <EnrollmentBreadcrumb current={pageTitle} isScrolled={isScrolled} />;
   }
 
   // Activity detail page

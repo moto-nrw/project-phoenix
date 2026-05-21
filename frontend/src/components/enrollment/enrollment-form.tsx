@@ -48,7 +48,7 @@ interface Props {
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
   /**
-   * Optional overrides for the autofill fetcher and submitter — used
+   * Optional overrides for the autofill fetcher and submitter, used
    * by the parents portal to swap in parent-scope endpoints
    * (/api/parent/...) instead of the default tenant-scope ones. When
    * unset, the form falls back to the public path.
@@ -69,11 +69,11 @@ interface Props {
  * Public enrollment form. Loads the active schema + open care offerings,
  * collects guardian info + 1..n children + offering selections, and
  * submits to /api/enrollment/{tenantSlug}/submit. The captcha widget is
- * inlined when enrollment.captcha_site_key is present in the payload —
+ * inlined when enrollment.captcha_site_key is present in the payload,
  * captcha verification happens server-side.
  *
  * The form intentionally renders core fields (guardian + child names,
- * email, DOB, grade) hardcoded — the form_schemas.fields JSONB only
+ * email, DOB, grade) hardcoded. The form_schemas.fields JSONB only
  * adds custom fields on top. PR 5 enforced this distinction in the
  * model's CoreFieldKeys map.
  */
@@ -88,9 +88,13 @@ export function EnrollmentForm({
   const { tenantSlug } = useTenant();
   const [schema, setSchema] = useState<PublicFormSchema | null>(null);
   const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
+  const [careRequired, setCareRequired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [childOfferingErrors, setChildOfferingErrors] = useState<
+    Record<number, boolean>
+  >({});
 
   const [guardianFirstName, setGuardianFirstName] = useState("");
   const [guardianLastName, setGuardianLastName] = useState("");
@@ -126,7 +130,8 @@ export function EnrollmentForm({
           ]);
         if (cancelled) return;
         setSchema(schemaResult);
-        setOfferings(offeringsResult);
+        setOfferings(offeringsResult.offerings);
+        setCareRequired(offeringsResult.careRequired);
         // Prefill guardian fields from the profile when present. We
         // only fill empty fields so an admin testing the form on a
         // teacher session can still type their own values.
@@ -184,19 +189,38 @@ export function EnrollmentForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setChildOfferingErrors({});
 
+    if (!guardianFirstName.trim()) {
+      setError("Bitte gib den Vornamen der erziehungsberechtigten Person ein.");
+      return;
+    }
+    if (!guardianLastName.trim()) {
+      setError(
+        "Bitte gib den Nachnamen der erziehungsberechtigten Person ein.",
+      );
+      return;
+    }
+    if (!guardianEmail.trim()) {
+      setError("Bitte gib eine E-Mail-Adresse ein.");
+      return;
+    }
     if (!agbConsent || !dataConsent || !emailConsent) {
       setError("Bitte bestätige alle erforderlichen Zustimmungen.");
       return;
     }
 
     const payloadChildren: SubmitChildPayload[] = [];
+    const missingCareIndexes: number[] = [];
     for (const [i, c] of children.entries()) {
       if (!c.first_name || !c.last_name || !c.date_of_birth) {
         setError(
           `Kind ${i + 1}: Vorname, Nachname und Geburtsdatum sind Pflichtfelder.`,
         );
         return;
+      }
+      if (careRequired && c.offering_ids.size === 0) {
+        missingCareIndexes.push(i);
       }
       payloadChildren.push({
         first_name: c.first_name.trim(),
@@ -208,6 +232,15 @@ export function EnrollmentForm({
         custom_data: c.custom,
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
       });
+    }
+    if (missingCareIndexes.length > 0) {
+      setChildOfferingErrors(
+        Object.fromEntries(missingCareIndexes.map((i) => [i, true])),
+      );
+      setError(
+        "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
+      );
+      return;
     }
 
     setSubmitting(true);
@@ -234,7 +267,21 @@ export function EnrollmentForm({
       onSubmitted(result.status_url);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("enrollment_submit_failed", { error: message });
+      const code = (err as { code?: string } | undefined)?.code;
+      logger.error("enrollment_submit_failed", { error: message, code });
+      if (code === "enrollment.care_offering_missing") {
+        // Backend re-checked the setting (defense-in-depth). Mark every
+        // child without an offering — the server doesn't tell us which
+        // one, so we highlight all that are empty.
+        const empties = children.reduce<Record<number, boolean>>(
+          (acc, c, i) => {
+            if (c.offering_ids.size === 0) acc[i] = true;
+            return acc;
+          },
+          {},
+        );
+        setChildOfferingErrors(empties);
+      }
       setError(message);
     } finally {
       setSubmitting(false);
@@ -246,39 +293,56 @@ export function EnrollmentForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} noValidate className="space-y-8">
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div
+          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]"
+          role="alert"
+          aria-live="polite"
+        >
           {error}
         </div>
       )}
 
-      <section className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm backdrop-blur-md">
         <h2 className="text-lg font-semibold text-gray-900">
           Erziehungsberechtigte/r
         </h2>
+        <p className="text-sm text-gray-600">
+          Diese Angaben nutzen wir für Rückfragen und Statusbenachrichtigungen.
+        </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input
             label="Vorname *"
+            name="guardian_first_name"
+            autoComplete="given-name"
             value={guardianFirstName}
             onChange={setGuardianFirstName}
             required
           />
           <Input
             label="Nachname *"
+            name="guardian_last_name"
+            autoComplete="family-name"
             value={guardianLastName}
             onChange={setGuardianLastName}
             required
           />
           <Input
             label="E-Mail *"
+            name="guardian_email"
             type="email"
+            autoComplete="email"
             value={guardianEmail}
             onChange={setGuardianEmail}
             required
           />
           <Input
             label="Telefon"
+            name="guardian_phone"
+            type="tel"
+            autoComplete="tel"
+            inputMode="tel"
             value={guardianPhone}
             onChange={setGuardianPhone}
           />
@@ -286,7 +350,7 @@ export function EnrollmentForm({
       </section>
 
       {schema?.fields.some((f) => !f.applies_to_child) && (
-        <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <section className="moto-content-surface space-y-3 rounded-2xl border p-6 shadow-sm backdrop-blur-md">
           <h2 className="text-lg font-semibold text-gray-900">
             Weitere Angaben
           </h2>
@@ -311,7 +375,7 @@ export function EnrollmentForm({
           <button
             type="button"
             onClick={addChild}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="moto-content-surface rounded-lg border px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             + Weiteres Kind
           </button>
@@ -351,7 +415,7 @@ export function EnrollmentForm({
         {children.map((child, i) => (
           <div
             key={i}
-            className="space-y-3 rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+            className="moto-content-surface space-y-3 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-700">
@@ -361,7 +425,7 @@ export function EnrollmentForm({
                 <button
                   type="button"
                   onClick={() => removeChild(i)}
-                  className="text-xs text-red-600 hover:text-red-800"
+                  className="rounded-lg px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
                 >
                   Entfernen
                 </button>
@@ -370,12 +434,16 @@ export function EnrollmentForm({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 label="Vorname *"
+                name={`children_${i}_first_name`}
+                autoComplete="given-name"
                 value={child.first_name}
                 onChange={(v) => updateChild(i, { first_name: v })}
                 required
               />
               <Input
                 label="Nachname *"
+                name={`children_${i}_last_name`}
+                autoComplete="family-name"
                 value={child.last_name}
                 onChange={(v) => updateChild(i, { last_name: v })}
                 required
@@ -394,13 +462,14 @@ export function EnrollmentForm({
                   Klassenstufe
                 </span>
                 <select
+                  name={`children_${i}_target_grade_level`}
                   value={child.target_grade_level}
                   onChange={(e) =>
                     updateChild(i, { target_grade_level: e.target.value })
                   }
-                  className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
+                  className="moto-select moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 >
-                  <option value="">– bitte wählen –</option>
+                  <option value="">Bitte wählen</option>
                   {Array.from({ length: gradeLevelMax }, (_, n) => n + 1).map(
                     (g) => (
                       <option key={g} value={g}>
@@ -416,19 +485,42 @@ export function EnrollmentForm({
               <div>
                 <p className="mb-2 text-xs font-medium text-gray-600">
                   Betreuungsangebote
+                  {careRequired && (
+                    <span className="ml-1 text-[#EF4444]">*</span>
+                  )}
                 </p>
-                <div className="space-y-2">
+                <div
+                  className={`space-y-2 ${
+                    childOfferingErrors[i]
+                      ? "rounded-md border border-[#EF4444] bg-red-50 p-2"
+                      : ""
+                  }`}
+                >
                   {offerings.map((o) => {
                     const checked = child.offering_ids.has(o.id);
                     return (
                       <label
                         key={o.id}
-                        className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm ${checked ? "border-gray-900 bg-gray-50" : "border-gray-200"}`}
+                        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors ${
+                          checked
+                            ? "border-gray-900 bg-gray-50"
+                            : "border-gray-200 bg-white hover:border-gray-300"
+                        }`}
                       >
                         <input
+                          name={`children_${i}_offering_${o.id}`}
                           type="checkbox"
                           checked={checked}
-                          onChange={() => toggleOffering(i, o.id)}
+                          onChange={() => {
+                            toggleOffering(i, o.id);
+                            if (childOfferingErrors[i]) {
+                              setChildOfferingErrors((prev) => {
+                                const next = { ...prev };
+                                delete next[i];
+                                return next;
+                              });
+                            }
+                          }}
                           className="mt-1"
                         />
                         <div>
@@ -454,6 +546,11 @@ export function EnrollmentForm({
                     );
                   })}
                 </div>
+                {childOfferingErrors[i] && (
+                  <p className="mt-1 text-xs text-[#EF4444]">
+                    Bitte mindestens ein Betreuungsangebot auswählen.
+                  </p>
+                )}
               </div>
             )}
 
@@ -473,27 +570,31 @@ export function EnrollmentForm({
         ))}
       </section>
 
-      <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="moto-content-surface space-y-3 rounded-2xl border p-6 shadow-sm backdrop-blur-md">
         <h2 className="text-lg font-semibold text-gray-900">Zustimmungen</h2>
         <Consent
+          name="consent_agb"
           label="Ich akzeptiere die AGB der Schule."
           checked={agbConsent}
           onChange={setAgbConsent}
           required
         />
         <Consent
+          name="consent_data_processing"
           label="Ich willige in die Verarbeitung der angegebenen Daten gemäß DSGVO ein."
           checked={dataConsent}
           onChange={setDataConsent}
           required
         />
         <Consent
+          name="consent_email_contact"
           label="Die Schule darf mich per E-Mail kontaktieren (Rückfragen, Statusbenachrichtigungen)."
           checked={emailConsent}
           onChange={setEmailConsent}
           required
         />
         <Consent
+          name="consent_photo"
           label="Mein Kind darf bei Schulveranstaltungen fotografiert werden (optional)."
           checked={photoConsent}
           onChange={setPhotoConsent}
@@ -516,7 +617,7 @@ export function EnrollmentForm({
         with the token, which a small companion component picks up.
         Until that wiring lands, captcha can be disabled per-tenant
         via enrollment.require_captcha=false for development/testing.
-        skipCaptcha=true skips the widget entirely — set by callers
+        skipCaptcha=true skips the widget entirely, set by callers
         that have already authenticated the user (parent JWT path).
       */}
 
@@ -544,37 +645,51 @@ function blankChild(): ChildDraft {
 
 function Input({
   label,
+  name,
   value,
   onChange,
   type = "text",
   required = false,
+  autoComplete,
+  inputMode,
 }: {
   readonly label: string;
+  readonly name: string;
   readonly value: string;
   readonly onChange: (v: string) => void;
   readonly type?: string;
   readonly required?: boolean;
+  readonly autoComplete?: string;
+  readonly inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
+  const id = `enrollment-${name}`;
   return (
     <label className="block">
       <span className="block text-xs font-medium text-gray-600">{label}</span>
       <input
+        id={id}
+        name={name}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        required={required}
-        className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm shadow-sm"
+        aria-required={required}
+        autoComplete={autoComplete}
+        inputMode={inputMode}
+        spellCheck={type === "email" ? false : undefined}
+        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       />
     </label>
   );
 }
 
 function Consent({
+  name,
   label,
   checked,
   onChange,
   required = false,
 }: {
+  readonly name: string;
   readonly label: string;
   readonly checked: boolean;
   readonly onChange: (v: boolean) => void;
@@ -583,10 +698,11 @@ function Consent({
   return (
     <label className="flex items-start gap-3 text-sm">
       <input
+        name={name}
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        required={required}
+        aria-required={required}
         className="mt-1"
       />
       <span className="text-gray-700">
@@ -615,6 +731,7 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
     return (
       <label className="flex items-center gap-2 text-sm">
         <input
+          name={field.key}
           type="checkbox"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
@@ -631,8 +748,9 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
           value={valueStr}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
-          className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
-          required={field.required}
+          name={field.key}
+          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          aria-required={field.required}
         />
       </label>
     );
@@ -642,12 +760,13 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
       <label className="block">
         {labelEl}
         <select
+          name={field.key}
           value={valueStr}
           onChange={(e) => onChange(e.target.value)}
-          required={field.required}
-          className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
+          aria-required={field.required}
+          className="moto-select mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
-          <option value="">– bitte wählen –</option>
+          <option value="">Bitte wählen</option>
           {(field.options ?? []).map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -668,11 +787,12 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
     <label className="block">
       {labelEl}
       <input
+        name={field.key}
         type={inputType}
         value={valueStr}
         onChange={(e) => onChange(e.target.value)}
-        required={field.required}
-        className="mt-1 w-full rounded-md border-gray-300 px-3 py-2 text-sm"
+        aria-required={field.required}
+        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       />
     </label>
   );
@@ -688,7 +808,7 @@ interface ExistingChildrenPanelProps {
  * Surfaced only when the parent is logged in and has linked students.
  * Each row offers a one-click "Übernehmen" that drops the child into
  * the next blank slot. Dates of birth aren't on users.students, so
- * the parent still types those — the panel just saves the names + the
+ * the parent still types those. The panel just saves the names + the
  * grade-level guess from school_class.
  */
 function ExistingChildrenPanel({
@@ -710,14 +830,14 @@ function ExistingChildrenPanel({
           return (
             <li
               key={c.id}
-              className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2"
+              className="moto-content-surface flex items-center justify-between gap-3 rounded-md border px-3 py-2"
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-gray-900">
                   {c.first_name} {c.last_name}
                 </p>
                 <p className="truncate text-xs text-gray-500">
-                  Klasse: {c.school_class || "—"}
+                  Klasse: {c.school_class || "Nicht gesetzt"}
                 </p>
               </div>
               <button
@@ -736,7 +856,7 @@ function ExistingChildrenPanel({
   );
 }
 
-// DateOfBirthPicker — three-dropdown picker (Tag / Monat / Jahr).
+// DateOfBirthPicker uses three dropdowns (Tag / Monat / Jahr).
 // Calendar widgets are awkward for DOB because parents need to jump
 // 5-10 years back; native <input type="date"> auto-validates partial
 // year input and snaps back. Three <select>s let parents pick fast
@@ -795,7 +915,7 @@ function DateOfBirthPicker({
 
   const emit = (d: string, m: string, y: string) => {
     if (!d || !m || !y) {
-      // Don't blank the parent on partial selections — wait until all
+      // Don't blank the parent on partial selections. Wait until all
       // three are picked. The parent's `value` may already be empty;
       // that's fine.
       onChange("");
@@ -834,7 +954,7 @@ function DateOfBirthPicker({
       <select
         value={day}
         onChange={(e) => handleDay(e.target.value)}
-        className="rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
+        className="moto-select rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
         aria-label="Tag"
       >
         <option value="">Tag</option>
@@ -847,7 +967,7 @@ function DateOfBirthPicker({
       <select
         value={month}
         onChange={(e) => handleMonth(e.target.value)}
-        className="rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
+        className="moto-select rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
         aria-label="Monat"
       >
         <option value="">Monat</option>
@@ -860,7 +980,7 @@ function DateOfBirthPicker({
       <select
         value={year}
         onChange={(e) => handleYear(e.target.value)}
-        className="rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
+        className="moto-select rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"
         aria-label="Jahr"
       >
         <option value="">Jahr</option>

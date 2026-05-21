@@ -62,6 +62,16 @@ const ROLLOVER_ERROR_MESSAGES: Record<string, string> = {
   "rollover.review_invalid": "Die Aktion ist in diesem Zustand nicht erlaubt.",
   "rollover.review_not_found":
     "Dieser Eintrag in der Prüfliste existiert nicht mehr.",
+  "rollover.duplicate_name":
+    "Es existiert bereits eine Phase mit diesem Namen. Bitte einen anderen Namen wählen.",
+  "rollover.source_already_rolled":
+    "Aus dieser Phase wurde bereits eine Anschlussphase erstellt. Bitte zuerst die bestehende Anschlussphase löschen, bevor du eine neue anlegst.",
+  "enrollment.phase_has_requests":
+    "Diese Phase enthält bereits Anmeldungen und kann nicht gelöscht werden. Bitte deaktiviere sie stattdessen, damit die Anmeldungen und der Verlauf erhalten bleiben.",
+  "enrollment.phase_has_offerings":
+    "Dieser Phase sind noch Betreuungsangebote zugeordnet. Bitte entferne oder verschiebe die Angebote, bevor du die Phase löschst.",
+  "enrollment.phase_has_references":
+    "Diese Phase wird noch an anderer Stelle verwendet und kann nicht gelöscht werden. Bitte deaktiviere sie stattdessen.",
 };
 
 async function readJSON<T>(response: Response): Promise<T> {
@@ -205,7 +215,7 @@ export interface RolloverInput {
   rollover_bumps_grade?: boolean;
 }
 
-export interface RolloverSummary {
+interface RolloverSummary {
   source_child_count: number;
   rolled_count: number;
   review_count: number;
@@ -272,7 +282,7 @@ export async function listRolloverReview(
   return Array.isArray(list) ? list : [];
 }
 
-export type ReviewDecision = "keep" | "drop" | "defer";
+type ReviewDecision = "keep" | "drop" | "defer";
 
 export interface ReviewDecisionInput {
   decision: ReviewDecision;

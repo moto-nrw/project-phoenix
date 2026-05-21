@@ -209,6 +209,12 @@ type PhaseRepository interface {
 	// phases owning the schema must be repointed first.
 	ExistsByFormSchemaID(ctx context.Context, schemaID int64) (bool, error)
 
+	// ExistsByRolloverSourcePhaseID reports whether any phase already
+	// names the given phase as its rollover source. Used by the
+	// rollover service to refuse creating a second follow-up from the
+	// same source — each source phase can be rolled forward once.
+	ExistsByRolloverSourcePhaseID(ctx context.Context, sourcePhaseID int64) (bool, error)
+
 	// ListWithExpiredRolloverDeadline returns every phase in the
 	// tenant whose rollover_deadline is set and not yet in the
 	// future. Powers the rollover deadline worker.

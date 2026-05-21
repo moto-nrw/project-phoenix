@@ -137,6 +137,21 @@ func (r *RequestRepository) FindActiveDuplicate(ctx context.Context, phaseID int
 	return out, nil
 }
 
+// ExistsByPhaseID returns true if any request row references the given
+// phase. Powers the phase-delete safety check — admin sees a 409 instead
+// of cascading every parent submission into oblivion.
+func (r *RequestRepository) ExistsByPhaseID(ctx context.Context, phaseID int64) (bool, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Request)(nil)).
+		ModelTableExpr(requestTableExpr).
+		Where(`"request".phase_id = ?`, phaseID).
+		Count(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check phase references in requests: %w", err)
+	}
+	return count > 0, nil
+}
+
 // FindByStatusToken looks up a request by its status_token. Used by the
 // public status/edit page (PR 7). Public route — caller must wrap in
 // WithAdminTx because the token is the only auth signal.

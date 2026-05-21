@@ -291,13 +291,20 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 		return rs.PhaseService.Delete(ctx, id)
 	})
 	if err != nil {
-		// ErrPhaseHasReferences → 409 Conflict so the frontend can
-		// surface "deactivate instead" inline. Other errors → 500/404.
-		if errors.Is(err, enrollmentService.ErrPhaseHasReferences) {
-			http.Error(w, err.Error(), http.StatusConflict)
+		// 409 Conflict so the frontend can surface a "deaktivieren
+		// statt löschen" hint inline. Two specific sentinels so the
+		// admin sees a precise message (requests vs care offerings).
+		switch {
+		case errors.Is(err, enrollmentService.ErrPhaseHasRequests):
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodePhaseHasRequests))
 			return
-		}
-		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
+		case errors.Is(err, enrollmentService.ErrPhaseHasOfferings):
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodePhaseHasOfferings))
+			return
+		case errors.Is(err, enrollmentService.ErrPhaseHasReferences):
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodePhaseHasReferences))
+			return
+		case errors.Is(err, enrollmentService.ErrPhaseNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -306,3 +313,11 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 	}
 	common.RespondNoContent(w, r)
 }
+
+// Stable error codes for phase delete conflicts. Keep in sync with the
+// matching map in frontend/src/lib/enrollment-phase-api.ts.
+const (
+	ErrCodePhaseHasRequests   = "enrollment.phase_has_requests"
+	ErrCodePhaseHasOfferings  = "enrollment.phase_has_offerings"
+	ErrCodePhaseHasReferences = "enrollment.phase_has_references"
+)

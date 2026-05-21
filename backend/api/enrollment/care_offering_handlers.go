@@ -309,7 +309,10 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var offerings []*enrollmentModels.CareOffering
+	var (
+		offerings    []*enrollmentModels.CareOffering
+		careRequired bool
+	)
 	err = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
 		if schoolErr != nil || school == nil || school.IsDeleted() {
@@ -322,19 +325,57 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 			}
 			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
 			offerings = list
+			if listErr == nil && rs.RequestService != nil {
+				careRequired = rs.RequestService.IsCareOfferingsRequired(txCtx)
+			}
 			return listErr
 		})
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		renderPublicEnrollmentError(w, r, err)
 		return
 	}
 
-	out := make([]CareOfferingResponse, 0, len(offerings))
+	items := make([]CareOfferingResponse, 0, len(offerings))
 	for _, o := range offerings {
-		out = append(out, toCareOfferingResponse(o))
+		items = append(items, toCareOfferingResponse(o))
 	}
-	common.Respond(w, r, http.StatusOK, out, "Public care offerings retrieved")
+	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
+		Offerings:    items,
+		CareRequired: careRequired,
+	}, "Public care offerings retrieved")
+}
+
+// ErrCodeEnrollmentDisabled is the stable code returned by every public
+// enrollment-data endpoint (phases, schema, care offerings) when the
+// tenant has toggled "Anmeldung aktiv" off. The frontend maps it to a
+// friendly German notice and suppresses generic error banners. Keep in
+// sync with the matching entry in
+// frontend/src/lib/enrollment-submission-api.ts.
+const ErrCodeEnrollmentDisabled = "enrollment.disabled"
+
+// renderPublicEnrollmentError renders the error chain returned from a
+// public enrollment endpoint. Disabled-tenant errors get a 404 with a
+// stable code so the parent landing page can render the localized
+// "Anmeldung aktuell deaktiviert" notice instead of the raw English
+// service sentinel. Anything else falls through to the generic 404
+// path so the existing "tenant not found" / "phase not found" messages
+// still work.
+func renderPublicEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, enrollmentService.ErrEnrollmentDisabled) {
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentDisabled))
+		return
+	}
+	common.RenderError(w, r, common.ErrorNotFound(err))
+}
+
+// PublicCareOfferingsResponse wraps the public care-offering catalog with
+// the tenant's "verpflichtend" flag so the parent form can render the
+// hint and validate before submit. The flag is server-authoritative — the
+// submission service re-checks it in defense-in-depth.
+type PublicCareOfferingsResponse struct {
+	Offerings    []CareOfferingResponse `json:"offerings"`
+	CareRequired bool                   `json:"care_required"`
 }
 
 // We deliberately don't expose enrollmentService here — it is already
@@ -386,11 +427,7 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 		})
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrEnrollmentDisabled) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
-			return
-		}
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		renderPublicEnrollmentError(w, r, err)
 		return
 	}
 

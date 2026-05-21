@@ -67,26 +67,6 @@ async function readJSON<T>(response: Response): Promise<T> {
 }
 
 /**
- * Fetches the currently active form schema for the tenant in session.
- * Returns null when no active schema has been published yet (404).
- */
-export async function fetchActiveSchema(): Promise<FormSchema | null> {
-  const response = await fetch(SCHEMA_PATH, { cache: "no-store" });
-  if (response.status === 404) {
-    return null;
-  }
-  if (!response.ok) {
-    const errorText = await response.text();
-    logger.error("schema_fetch_failed", {
-      status: response.status,
-      error: errorText,
-    });
-    throw new Error(`Failed to load form schema (HTTP ${response.status})`);
-  }
-  return readJSON<FormSchema>(response);
-}
-
-/**
  * Lists every schema version for the current tenant (newest first).
  * The Phasen admin page uses this to populate the "use schema X for
  * this phase" dropdown.
@@ -146,36 +126,6 @@ export async function fetchPublicActiveSchema(
     );
   }
   return readJSON<PublicFormSchema>(response);
-}
-
-/**
- * Publishes a new schema version with the given fields, marking it
- * active and deactivating the previous version. Returns the newly
- * created schema row.
- *
- * Deprecated: prefer createSchema (new named schema) or updateSchema
- * (new version of an existing schema). Kept for any callers that
- * still drive the legacy single-schema flow.
- */
-export async function publishSchema(fields: FormField[]): Promise<FormSchema> {
-  const response = await fetch(SCHEMA_PATH, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fields }),
-  });
-  if (!response.ok) {
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as BackendEnvelope<unknown>;
-    const message =
-      payload.error ?? payload.message ?? `HTTP ${response.status}`;
-    logger.error("schema_publish_failed", {
-      status: response.status,
-      message,
-    });
-    throw new Error(message);
-  }
-  return readJSON<FormSchema>(response);
 }
 
 /**

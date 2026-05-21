@@ -10,7 +10,7 @@ interface AppShellProps {
 
 /**
  * Persistent application shell rendered once in the (protected) layout.
- * Header, Sidebar, and MobileBottomNav stay mounted across navigations —
+ * Header, Sidebar, and MobileBottomNav stay mounted across navigations,
  * only the children (page content) swap.
  */
 export function AppShell({ children }: AppShellProps) {
@@ -27,8 +27,8 @@ export function AppShell({ children }: AppShellProps) {
         <Sidebar className="hidden lg:block" />
 
         {/* Main content with bottom padding on mobile for bottom navigation */}
-        <main className="min-w-0 flex-1 p-4 pb-24 md:p-8 lg:pb-8">
-          {children}
+        <main className="moto-dotted-background moto-dotted-background--fullscreen min-w-0 flex-1 p-4 pb-24 md:p-8 lg:pb-8">
+          <div className="relative z-10">{children}</div>
         </main>
       </div>
 

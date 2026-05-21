@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import { createLogger } from "~/lib/logger";
 import {
@@ -33,11 +33,17 @@ const logger = createLogger({ component: "SettingsPage" });
 
 interface SettingsTabContentProps {
   readonly tab: SchemaTab;
+  readonly highlightKey?: string | null;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
 }
 
-function SettingsTabContent({ tab, onSave, onReset }: SettingsTabContentProps) {
+function SettingsTabContent({
+  tab,
+  highlightKey,
+  onSave,
+  onReset,
+}: SettingsTabContentProps) {
   return (
     <div className="space-y-6">
       {tab.key === "enrollment" && <EnrollmentLinkPanel tab={tab} />}
@@ -45,6 +51,7 @@ function SettingsTabContent({ tab, onSave, onReset }: SettingsTabContentProps) {
         <SettingsCategory
           key={category.key}
           category={category}
+          highlightKey={highlightKey}
           onSave={onSave}
           onReset={onReset}
         />
@@ -59,7 +66,7 @@ function SettingsSkeleton() {
       {Array.from({ length: 2 }).map((_, catIdx) => (
         <div
           key={catIdx}
-          className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6"
+          className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6"
         >
           <Skeleton className="mb-4 h-5 w-32 rounded" />
           <div className="divide-y divide-gray-100">
@@ -84,6 +91,7 @@ function SettingsSkeleton() {
 
 interface SettingsContentProps {
   readonly tabKey: string;
+  readonly highlightKey?: string | null;
 }
 
 // useSettingsSchemaSWR is the single read path. The bridge mounted in the
@@ -99,7 +107,7 @@ function useSettingsSchemaSWR() {
   );
 }
 
-function SettingsContent({ tabKey }: SettingsContentProps) {
+function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   const { refresh: refreshSupervision } = useOptionalSupervision();
   const router = useRouter();
   const {
@@ -238,7 +246,12 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
           </button>
         </div>
       )}
-      <SettingsTabContent tab={tab} onSave={handleSave} onReset={handleReset} />
+      <SettingsTabContent
+        tab={tab}
+        highlightKey={highlightKey}
+        onSave={handleSave}
+        onReset={handleReset}
+      />
     </>
   );
 }
@@ -252,6 +265,7 @@ export function useSettingsTabs(): {
   tabs: { id: string; label: string; icon: string }[];
   renderTab: (tabId: string) => React.ReactNode;
 } | null {
+  const searchParams = useSearchParams();
   const {
     data: schema,
     error: schemaError,
@@ -312,13 +326,14 @@ export function useSettingsTabs(): {
   };
 
   const tabs = [...schemaTabs, personalizationTab];
+  const highlightKey = searchParams.get("highlight");
 
   const renderTab = (tabId: string) => {
     if (tabId === "settings-personalisierung") {
       return <PersonalizationTab />;
     }
     const settingsKey = tabId.replace("settings-", "");
-    return <SettingsContent tabKey={settingsKey} />;
+    return <SettingsContent tabKey={settingsKey} highlightKey={highlightKey} />;
   };
 
   return { tabs, renderTab };

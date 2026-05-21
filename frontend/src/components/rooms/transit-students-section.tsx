@@ -20,7 +20,7 @@ import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const DETAIL_CARD_CLASS =
-  "rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6";
+  "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
 
 function buildSessionLabel(group: ActiveGroup): string {
@@ -183,7 +183,7 @@ export function TransitStudentsSection({
       <div
         className={`mt-4 mb-4 rounded-2xl border p-3 transition-shadow ${
           selectedVisibleCount > 0
-            ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-[0_12px_40px_rgb(0,0,0,0.12)] backdrop-blur"
+            ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
             : "border-transparent bg-gray-50/80 shadow-none"
         }`}
       >
@@ -255,7 +255,7 @@ export function TransitStudentsSection({
 
       <div className="mt-4 flex flex-col gap-2">
         {studentsLoading && students.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">
+          <div className="moto-content-surface rounded-xl border px-4 py-6 text-center text-sm text-gray-500">
             Kinder werden geladen...
           </div>
         ) : students.length === 0 ? (

@@ -16,7 +16,7 @@ interface PageProps {
  * phase. The form fetches its own schema + offerings using the phaseId,
  * and posts to /api/enrollment/{tenantSlug}/submit with phase_id set.
  *
- * Grade-level cap is hardcoded to 4 (OGS default) — same as the
+ * Grade-level cap is hardcoded to 4 (OGS default), same as the
  * pre-phase page. PR D autofill or per-phase grade-cap settings can
  * promote this later.
  */
@@ -34,12 +34,17 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
   };
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto w-full max-w-3xl space-y-6 p-4 sm:p-6">
       <header className="space-y-2">
-        <Link href="/enroll" className="text-sm text-[#5080D8] hover:underline">
-          ← Andere Phase wählen
+        <Link
+          href="/enroll"
+          className="inline-flex rounded-lg px-2 py-1 text-sm font-medium text-[#5080D8] transition-colors hover:bg-[#5080D8]/10 focus-visible:ring-2 focus-visible:ring-[#5080D8]/40 focus-visible:outline-none"
+        >
+          Andere Phase wählen
         </Link>
-        <h1 className="text-2xl font-semibold text-gray-900">Anmeldung</h1>
+        <h1 className="text-2xl font-semibold text-pretty text-gray-900">
+          Anmeldung
+        </h1>
         <p className="text-sm text-gray-600">
           Bitte fülle das Formular vollständig aus. Du erhältst nach dem
           Absenden eine Bestätigungs-E-Mail mit einem Link, über den du den

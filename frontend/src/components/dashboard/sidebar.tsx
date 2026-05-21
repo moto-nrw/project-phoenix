@@ -167,7 +167,7 @@ interface OperatorNavSection {
   readonly items: readonly NavItem[];
 }
 
-// Operator navigation — grouped into static labeled sections. Icons sourced
+// Operator navigation, grouped into static labeled sections. Icons sourced
 // from ~/lib/navigation-icons so the desktop sidebar and the mobile bottom
 // nav/overflow drawer stay visually consistent per page.
 const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
@@ -265,15 +265,13 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/permissions", label: "Berechtigungen" },
 ];
 
-// Static sub-pages for Anmeldungen accordion (admin only). Order is
-// most-used first: review queue → setup pages. The first sub-item
-// is labeled "Übersicht" rather than "Anmeldungen" to avoid clashing
-// with the parent section label.
+// Static sub-pages for Anmeldungen accordion (admin only). The overview is the
+// setup hub, followed by enrollment periods, care offers and enrollment forms.
 const ENROLLMENTS_SUB_PAGES = [
-  { href: "/admin/enrollments", label: "Übersicht" },
-  { href: "/enrollment-phases", label: "Phasen" },
+  { href: "/admin/enrollments", label: "Prozess" },
+  { href: "/enrollment-phases", label: "Anmeldephasen" },
   { href: "/care-offerings", label: "Betreuungsangebote" },
-  { href: "/enrollment-form", label: "Formular" },
+  { href: "/enrollment-form", label: "Anmeldeformulare" },
 ];
 
 /** Determine if a group sub-item should be highlighted as active */
@@ -341,7 +339,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
 
-  // Accordion state — pass `from` param so child pages (e.g. student detail)
+  // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
   const fromParam = searchParams.get("from");
   const { expanded, toggle } = useSidebarAccordion(pathname, fromParam);
@@ -396,7 +394,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!from) return "/students/search";
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
-    // Drill-in from a room ("Kinder im Raum") — both the legacy subpage
+    // Drill-in from a room ("Kinder im Raum"), both the legacy subpage
     // /rooms/{id} and the modal URL /rooms?room={id} count, so the
     // sidebar reflects the actual entry path in either flow.
     if (from.startsWith("/rooms/") || from.startsWith("/rooms?"))
@@ -409,8 +407,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // The sidebar reflects WHERE in the tree the user is, not which tab they
   // happen to have open. Tabs scope a view; they don't change the section.
   //
-  // - Anywhere under /organizations or /organizations/{slug}      → Träger
-  // - Anywhere under /organizations/{slug}/schools/{schoolSlug}   → Schulen
+  // - Anywhere under /organizations or /organizations/{slug}: Träger
+  // - Anywhere under /organizations/{slug}/schools/{schoolSlug}: Schulen
   //
   // Pathname may include or omit the /operator prefix depending on host
   // (operator subdomain strips it via operatorPath; tenant subdomains keep
@@ -546,7 +544,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
   );
 
   // Determine which flat items come before / after the accordion insertion points
-  // Order: Home (admin) → [Groups accordion] → [Supervisions accordion] → Kindersuche → Aktivitaten → Raume → Mitarbeiter → Vertretungen (admin) → [Database accordion] → coming soon → bottom pinned
+  // Order: Home, groups, supervisions, search, activities, rooms, staff,
+  // substitutions, database, coming soon, bottom pinned.
   const beforeAccordionItems = mainNavItems.filter(
     (item) =>
       item.href === "/dashboard" ||
@@ -660,14 +659,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const handleDatabaseToggle = useCallback(() => {
     if (!pathname.startsWith("/database")) {
-      // Not on any database page → expand accordion + navigate to hub
+      // Not on any database page, expand accordion and navigate to hub
       toggle("database");
       router.push("/database");
     } else if (pathname === "/database") {
-      // On hub page → just toggle (collapse/expand)
+      // On hub page, just toggle collapse or expand
       toggle("database");
     } else {
-      // On a sub-page like /database/rooms → navigate back to hub (accordion stays open)
+      // On a sub-page like /database/rooms, navigate back to hub
       router.push("/database");
     }
   }, [toggle, pathname, router]);
@@ -759,7 +758,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
     return (
       <aside
-        className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
       >
         <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
           <nav className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
@@ -786,13 +785,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   }
 
-  // Parent mode: minimal sidebar — Übersicht (dashboard) + bottom
+  // Parent mode: minimal sidebar with Übersicht and bottom
   // logout. The dashboard itself surfaces the "Neue Anmeldung" CTA
   // and the per-child links, so the sidebar is intentionally tiny.
   if (mode === "parent") {
     return (
       <aside
-        className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
       >
         <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
           <nav className="flex-1 space-y-1 p-3 lg:p-4 xl:p-3">
@@ -820,10 +819,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   return (
     <aside
-      className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+      className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
     >
       <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-        {/* Main navigation — scrollable */}
+        {/* Main navigation, scrollable */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
           {/* Home (admin only) */}
           {beforeAccordionItems
@@ -963,10 +962,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
-          {/* Anmeldungen accordion (admin only). Bundles the four
-              enrollment-management surfaces — request review queue,
-              phases, care offerings, and form schema — that admins
-              use across the parent enrollment lifecycle. */}
+          {/* Anmeldungen accordion (admin only). Bundles the setup hub,
+              enrollment periods, offers and enrollment forms for admins. */}
           {userIsAdmin && (
             <SidebarAccordionSection
               icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
@@ -1009,7 +1006,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
     <Suspense
       fallback={
         <aside
-          className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+          className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
         >
           <div className="sticky top-[73px] p-3">
             <nav className="space-y-0.5">

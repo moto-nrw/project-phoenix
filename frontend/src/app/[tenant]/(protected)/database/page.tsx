@@ -298,7 +298,7 @@ function DatabaseContent() {
               <Link
                 key={section.id}
                 href={section.href}
-                className="group relative min-h-[44px] touch-manipulation overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 hover:scale-[1.01] hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] active:scale-[0.98]"
+                className="group moto-content-surface relative min-h-[44px] touch-manipulation overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150 hover:scale-[1.01] hover:shadow-sm active:scale-[0.98]"
               >
                 <div
                   className={`absolute inset-0 bg-gradient-to-br ${section.overlayColor} pointer-events-none rounded-3xl opacity-[0.03]`}

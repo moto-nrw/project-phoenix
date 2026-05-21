@@ -380,7 +380,7 @@ function SubstitutionPageContent() {
               type="button"
               key={teacher.id}
               onClick={() => openSubstitutionPopup(teacher)}
-              className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-blue-300/50 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+              className="group moto-content-surface relative w-full cursor-pointer overflow-hidden rounded-3xl border text-left shadow-sm backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-blue-300/50 md:hover:bg-white md:hover:shadow-sm"
             >
               {/* Modern gradient overlay */}
               <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
@@ -864,7 +864,7 @@ function SubstitutionPageContent() {
                 id="substitution-group-select"
                 value={selectedGroup}
                 onChange={(e) => setSelectedGroup(e.target.value)}
-                className="block w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white py-3 pr-10 pl-4 text-lg text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                className="moto-content-surface block w-full cursor-pointer appearance-none rounded-lg border py-3 pr-10 pl-4 text-lg text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
               >
                 <option value="">Gruppe auswählen...</option>
                 {groups.map((group) => (

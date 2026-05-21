@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 import {
   createRollover,
   type Phase,
@@ -77,18 +78,23 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const update = <K extends keyof RolloverInput>(
     key: K,
     value: RolloverInput[K],
   ) => {
     setDraft((d) => ({ ...d, [key]: value }));
+    if (key === "name" && nameError !== null) {
+      setNameError(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setNameError(null);
     try {
       const payload: RolloverInput = {
         ...draft,
@@ -98,8 +104,13 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       onSuccess(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("rollover_create_failed", { error: message });
-      setError(message);
+      const code = (err as { code?: string } | undefined)?.code;
+      logger.error("rollover_create_failed", { error: message, code });
+      if (code === "rollover.duplicate_name") {
+        setNameError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -108,10 +119,13 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+      className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
     >
-      <header>
-        <h2 className="text-lg font-semibold text-gray-900">
+      <header className="border-b border-gray-100 pb-4">
+        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          Anschlussphase
+        </p>
+        <h2 className="mt-1 text-base font-semibold text-gray-900">
           Anschlussphase für „{source.name}" erstellen
         </h2>
         <p className="mt-1 text-sm text-gray-600">
@@ -122,175 +136,208 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       </header>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
           {error}
         </div>
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label
-            htmlFor="rollover-name"
-            className="block text-xs font-semibold text-gray-700"
-          >
+        <label className="block">
+          <span className="block text-xs font-semibold text-gray-700">
             Name der neuen Phase
-          </label>
+          </span>
           <input
             id="rollover-name"
             type="text"
             required
             value={draft.name}
             onChange={(e) => update("name", e.target.value)}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            aria-invalid={nameError !== null}
+            aria-describedby={nameError ? "rollover-name-error" : undefined}
+            className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+              nameError !== null
+                ? "border-[#EF4444] focus:border-[#EF4444] focus:ring-[#EF4444]"
+                : "border-gray-200"
+            }`}
           />
-        </div>
-        <div>
-          <label
-            htmlFor="rollover-kind"
-            className="block text-xs font-semibold text-gray-700"
-          >
-            Typ
-          </label>
+          {nameError !== null && (
+            <p id="rollover-name-error" className="mt-1 text-xs text-[#EF4444]">
+              {nameError}
+            </p>
+          )}
+        </label>
+        <label className="block">
+          <span className="block text-xs font-semibold text-gray-700">Typ</span>
           <select
             id="rollover-kind"
             value={draft.kind}
             onChange={(e) =>
               update("kind", e.target.value as RolloverInput["kind"])
             }
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             <option value="school_year">Schuljahr</option>
             <option value="holiday">Ferienbetreuung</option>
             <option value="custom">Sonstiges</option>
           </select>
-        </div>
-        <div>
-          <label
-            htmlFor="rollover-service-start"
-            className="block text-xs font-semibold text-gray-700"
-          >
-            Betreuung von
-          </label>
-          <input
-            id="rollover-service-start"
-            type="date"
-            required
-            value={draft.service_start_date}
-            onChange={(e) => update("service_start_date", e.target.value)}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="rollover-service-end"
-            className="block text-xs font-semibold text-gray-700"
-          >
-            Betreuung bis
-          </label>
-          <input
-            id="rollover-service-end"
-            type="date"
-            required
-            value={draft.service_end_date}
-            onChange={(e) => update("service_end_date", e.target.value)}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="rollover-mode"
-            className="block text-xs font-semibold text-gray-700"
-          >
-            Modus
-          </label>
-          <select
-            id="rollover-mode"
-            value={draft.rollover_mode}
-            onChange={(e) =>
-              update("rollover_mode", e.target.value as RolloverMode)
-            }
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="opt_out">Opt-Out — Eltern müssen abmelden</option>
-            <option value="opt_in">
-              Opt-In — Eltern müssen aktiv bestätigen
-            </option>
-          </select>
-          <p className="mt-1 text-xs text-gray-500">
-            {draft.rollover_mode === "opt_out"
-              ? "Anmeldungen werden automatisch übernommen. Ohne aktive Abmeldung bis zur Frist landet die Anmeldung in der Prüfung."
-              : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."}
-          </p>
-        </div>
-        <div>
-          <label
-            htmlFor="rollover-deadline"
-            className="block text-xs font-semibold text-gray-700"
-          >
-            Frist für die Eltern-Antwort
-          </label>
-          <input
-            id="rollover-deadline"
-            type="datetime-local"
-            required
-            value={deadlineLocal}
-            onChange={(e) => setDeadlineLocal(e.target.value)}
-            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
+        </label>
       </div>
 
+      <fieldset className="rounded-xl border border-gray-200 p-4">
+        <legend className="px-1 text-xs font-medium text-gray-700">
+          Betreuungszeitraum
+        </legend>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="block text-xs font-semibold text-gray-700">
+              Betreuung von
+            </span>
+            <input
+              id="rollover-service-start"
+              type="date"
+              required
+              value={draft.service_start_date}
+              onChange={(e) => update("service_start_date", e.target.value)}
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-xs font-semibold text-gray-700">
+              Betreuung bis
+            </span>
+            <input
+              id="rollover-service-end"
+              type="date"
+              required
+              value={draft.service_end_date}
+              onChange={(e) => update("service_end_date", e.target.value)}
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            />
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="rounded-xl border border-gray-200 p-4">
+        <legend className="px-1 text-xs font-medium text-gray-700">
+          Elternrückmeldung
+        </legend>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="block text-xs font-semibold text-gray-700">
+              Modus
+            </span>
+            <select
+              id="rollover-mode"
+              value={draft.rollover_mode}
+              onChange={(e) =>
+                update("rollover_mode", e.target.value as RolloverMode)
+              }
+              className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              <option value="opt_out">Opt-Out: Eltern müssen abmelden</option>
+              <option value="opt_in">
+                Opt-In: Eltern müssen aktiv bestätigen
+              </option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              {draft.rollover_mode === "opt_out"
+                ? "Anmeldungen werden automatisch übernommen. Ohne aktive Abmeldung bis zur Frist landet die Anmeldung in der Prüfung."
+                : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."}
+            </p>
+          </label>
+          <label className="block">
+            <span className="block text-xs font-semibold text-gray-700">
+              Frist für die Eltern-Antwort
+            </span>
+            <input
+              id="rollover-deadline"
+              type="datetime-local"
+              required
+              value={deadlineLocal}
+              onChange={(e) => setDeadlineLocal(e.target.value)}
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            />
+          </label>
+        </div>
+      </fieldset>
+
       <div className="space-y-2">
-        <label className="flex items-start gap-2 text-sm text-gray-700">
-          <input
-            type="checkbox"
-            checked={draft.rollover_bumps_grade ?? true}
-            onChange={(e) => update("rollover_bumps_grade", e.target.checked)}
-            className="mt-1"
-          />
-          <span>
-            Klassenstufe automatisch um 1 erhöhen
-            <span className="block text-xs text-gray-500">
-              Aktivieren für jährliche Phasen; deaktivieren für Halbjahre oder
-              andere Zeiträume innerhalb eines Schuljahres.
-            </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 text-sm text-gray-700">
-          <input
-            type="checkbox"
-            checked={draft.rollover_auto_approve}
-            onChange={(e) => update("rollover_auto_approve", e.target.checked)}
-            className="mt-1"
-          />
-          <span>
-            Vorgemerkte Anmeldungen automatisch genehmigen
-            <span className="block text-xs text-gray-500">
-              Nur für Opt-Out-Modus sinnvoll. Nach Ablauf der Frist werden
-              vorgemerkte Anmeldungen direkt bestätigt, ohne erneute Prüfung
-              durch die Schulleitung.
-            </span>
-          </span>
-        </label>
+        <RolloverCheckbox
+          checked={draft.rollover_bumps_grade ?? true}
+          onChange={(checked) => update("rollover_bumps_grade", checked)}
+          label="Klassenstufe automatisch um 1 erhöhen"
+          hint="Für jährliche Anmeldephasen aktivieren. Für Halbjahre oder Zeiträume innerhalb eines Schuljahres deaktivieren."
+        />
+        <RolloverCheckbox
+          checked={draft.rollover_auto_approve}
+          onChange={(checked) => update("rollover_auto_approve", checked)}
+          label="Vorgemerkte Anmeldungen automatisch genehmigen"
+          hint="Nur für Opt-Out sinnvoll. Nach Ablauf der Frist werden vorgemerkte Anmeldungen direkt bestätigt."
+        />
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
           disabled={submitting}
         >
           Abbrechen
         </button>
         <button
           type="submit"
-          className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
           disabled={submitting}
         >
           {submitting ? "Wird erstellt..." : "Anschlussphase erstellen"}
         </button>
       </div>
     </form>
+  );
+}
+
+function RolloverCheckbox({
+  checked,
+  onChange,
+  label,
+  hint,
+}: Readonly<{
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  hint: string;
+}>) {
+  return (
+    <label
+      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
+        checked
+          ? "border-gray-300 bg-gray-50"
+          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="sr-only"
+      />
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
+          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
+        }`}
+        aria-hidden="true"
+      >
+        <Check
+          className={`h-3.5 w-3.5 text-white transition-opacity ${
+            checked ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </span>
+      <span className="min-w-0 flex-1 leading-snug">
+        {label}
+        <span className="ml-1 text-xs font-normal text-gray-500">{hint}</span>
+      </span>
+    </label>
   );
 }

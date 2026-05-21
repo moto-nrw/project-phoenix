@@ -2,6 +2,9 @@
 
 import { use } from "react";
 import { AdminEnrollmentDetail } from "~/components/enrollment/admin-enrollment-detail";
+import { Loading } from "~/components/ui/loading";
+import { MobileBackButton } from "~/components/ui/mobile-back-button";
+import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; id: string }>;
@@ -9,8 +12,12 @@ interface PageProps {
 
 export default function AdminEnrollmentDetailPage({ params }: PageProps) {
   const { id } = use(params);
+  const { isReady } = useRequireAdmin();
+  if (!isReady) return <Loading fullPage={false} />;
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <div className="w-full max-w-5xl">
+      <MobileBackButton />
       <AdminEnrollmentDetail requestId={id} />
     </div>
   );

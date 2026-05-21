@@ -319,10 +319,12 @@ func (rs *Resource) adminAccountID(r *http.Request) int64 {
 // `error` string. Keep in sync with the matching map in
 // `frontend/src/lib/enrollment-phase-api.ts`.
 const (
-	ErrCodeRolloverSourceNotFound = "rollover.source_not_found"
-	ErrCodeRolloverInvalidRequest = "rollover.invalid_request"
-	ErrCodeRolloverReviewInvalid  = "rollover.review_invalid"
-	ErrCodeRolloverReviewNotFound = "rollover.review_not_found"
+	ErrCodeRolloverSourceNotFound      = "rollover.source_not_found"
+	ErrCodeRolloverInvalidRequest      = "rollover.invalid_request"
+	ErrCodeRolloverReviewInvalid       = "rollover.review_invalid"
+	ErrCodeRolloverReviewNotFound      = "rollover.review_not_found"
+	ErrCodeRolloverDuplicateName       = "rollover.duplicate_name"
+	ErrCodeRolloverSourceAlreadyRolled = "rollover.source_already_rolled"
 )
 
 func (rs *Resource) mapRolloverError(w http.ResponseWriter, r *http.Request, err error) {
@@ -335,6 +337,10 @@ func (rs *Resource) mapRolloverError(w http.ResponseWriter, r *http.Request, err
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeRolloverReviewInvalid))
 	case errors.Is(err, enrollmentService.ErrRolloverReviewNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeRolloverReviewNotFound))
+	case errors.Is(err, enrollmentService.ErrRolloverDuplicateName):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeRolloverDuplicateName))
+	case errors.Is(err, enrollmentService.ErrRolloverSourceAlreadyRolled):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeRolloverSourceAlreadyRolled))
 	default:
 		rs.logger().Error("rollover handler failed", slog.String("error", err.Error()))
 		common.RenderError(w, r, common.ErrorInternalServer(err))

@@ -141,7 +141,7 @@ export function StudentCard({
       aria-busy={isCheckinPending}
       data-checkin-mode={checkinMode || undefined}
       data-checkin-state={checkinMode ? checkinState : undefined}
-      className={`group relative w-full cursor-pointer overflow-hidden rounded-3xl bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none disabled:cursor-wait disabled:opacity-70 md:hover:-translate-y-0.5 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)] ${
+      className={`group moto-content-surface relative w-full cursor-pointer overflow-hidden rounded-3xl border text-left transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none disabled:cursor-wait disabled:opacity-70 md:hover:-translate-y-0.5 md:hover:shadow-sm ${
         // Click-time scale skipped in check-in mode: sub-pixel aliasing
         // during the scale animation flashes a 1px white seam at the
         // body→tap-strip boundary. Pending spinner gives the click feedback.

@@ -25,6 +25,8 @@ export function getPageTitle(pathname: string): string {
     return getDatabasePageTitle(pathname);
   }
 
+  if (isEnrollmentPath(pathname)) return getEnrollmentPageTitle(pathname);
+
   // Handle main routes
   return getMainRouteTitle(pathname);
 }
@@ -71,6 +73,10 @@ function getMainRouteTitle(pathname: string): string {
     "/settings": "Einstellungen",
     "/profile": "Profil",
     "/invitations": "Einladungen",
+    "/admin/enrollments": "Prozess",
+    "/enrollment-phases": "Anmeldephasen",
+    "/care-offerings": "Betreuungsangebote",
+    "/enrollment-form": "Anmeldeformulare",
     "/time-tracking": "Zeiterfassung",
     "/borndal_feedback": "Borndal Feedback",
     "/operator/suggestions": "Vorschläge",
@@ -109,7 +115,7 @@ export function getBreadcrumbLabel(referrer: string): string {
   if (referrer.startsWith("/ogs-groups")) return "Meine Gruppe";
   if (referrer.startsWith("/active-supervisions")) return "Aktuelle Aufsicht";
   // Drill-in from a room detail (legacy /rooms/{id} subpage OR the new
-  // /rooms?room={id} modal flow — see #1374). The breadcrumb has to
+  // /rooms?room={id} modal flow, see #1374). The breadcrumb has to
   // point back to the entry path in both cases so the header label and
   // the active sidebar entry agree with how the user actually got here.
   if (referrer.startsWith("/rooms/") || referrer.startsWith("/rooms?"))
@@ -137,6 +143,7 @@ export interface PageTypeInfo {
   isActivityDetailPage: boolean;
   isDatabaseSubPage: boolean;
   isDatabaseDeepPage: boolean;
+  isEnrollmentPage: boolean;
 }
 
 export function getPageTypeInfo(pathname: string): PageTypeInfo {
@@ -165,6 +172,7 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     pathname.startsWith("/database/") && pathname !== "/database";
 
   const isDatabaseDeepPage = pathname.split("/").length > 3;
+  const isEnrollmentPage = isEnrollmentPath(pathname);
 
   return {
     isStudentDetailPage,
@@ -173,5 +181,23 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     isActivityDetailPage,
     isDatabaseSubPage,
     isDatabaseDeepPage,
+    isEnrollmentPage,
   };
+}
+
+function isEnrollmentPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/admin/enrollments") ||
+    pathname.startsWith("/enrollment-phases") ||
+    pathname.startsWith("/care-offerings") ||
+    pathname.startsWith("/enrollment-form")
+  );
+}
+
+function getEnrollmentPageTitle(pathname: string): string {
+  if (pathname.startsWith("/admin/enrollments")) return "Prozess";
+  if (pathname.startsWith("/enrollment-phases")) return "Anmeldephasen";
+  if (pathname.startsWith("/care-offerings")) return "Betreuungsangebote";
+  if (pathname.startsWith("/enrollment-form")) return "Anmeldeformulare";
+  return "Anmeldungen";
 }
