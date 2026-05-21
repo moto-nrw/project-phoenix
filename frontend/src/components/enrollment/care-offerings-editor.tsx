@@ -456,7 +456,7 @@ function CareOfferingToolbar({
 }>) {
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
         <div className="grid gap-2 sm:grid-cols-4">
           <CareOfferingMetric
             icon={<ClipboardList className="h-4 w-4" />}
