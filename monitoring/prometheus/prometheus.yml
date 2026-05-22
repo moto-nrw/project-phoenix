@@ -1,0 +1,61 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["localhost:9100"]
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["localhost:8082"]
+
+  - job_name: caddy
+    static_configs:
+      - targets: ["localhost:2019"]
+    metrics_path: /metrics
+
+  - job_name: phoenix-backend-prod
+    metrics_path: /internal/metrics
+    authorization:
+      credentials: __METRICS_BEARER_TOKEN__
+    static_configs:
+      - targets: ["localhost:8080"]
+        labels:
+          env: prod
+          service: server
+
+  - job_name: phoenix-backend-staging
+    metrics_path: /internal/metrics
+    authorization:
+      credentials: __METRICS_BEARER_TOKEN__
+    static_configs:
+      - targets: ["localhost:8081"]
+        labels:
+          env: staging
+          service: server
+
+  - job_name: phoenix-frontend-prod
+    metrics_path: /api/internal/metrics
+    authorization:
+      credentials: __METRICS_BEARER_TOKEN__
+    static_configs:
+      - targets: ["localhost:3000"]
+        labels:
+          env: prod
+          service: frontend
+
+  - job_name: phoenix-frontend-staging
+    metrics_path: /api/internal/metrics
+    authorization:
+      credentials: __METRICS_BEARER_TOKEN__
+    static_configs:
+      - targets: ["localhost:3001"]
+        labels:
+          env: staging
+          service: frontend

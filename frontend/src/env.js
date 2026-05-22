@@ -12,6 +12,7 @@ export const env = createEnv({
     AUTH_SECRET: z.string().optional(),
     AUTH_JWT_EXPIRY: z.string().default("1h"),
     AUTH_JWT_REFRESH_EXPIRY: z.string().default("168h"),
+    METRICS_BEARER_TOKEN: z.string().min(32),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -48,6 +49,7 @@ export const env = createEnv({
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_JWT_EXPIRY: process.env.AUTH_JWT_EXPIRY,
     AUTH_JWT_REFRESH_EXPIRY: process.env.AUTH_JWT_REFRESH_EXPIRY,
+    METRICS_BEARER_TOKEN: process.env.METRICS_BEARER_TOKEN,
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,

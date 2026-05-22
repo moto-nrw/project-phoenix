@@ -52,6 +52,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -61,6 +62,7 @@ type API struct {
 	Router   chi.Router
 	db       *bun.DB
 	repos    *repositories.Factory
+	Metrics  *observability.HTTPMetrics
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -114,17 +116,21 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	observability.RegisterDBStatsProvider(db.DB)
+	observability.RegisterSSEStatsProvider(serviceFactory.RealtimeHub)
 
 	// Create API instance
+	httpMetrics := observability.NewHTTPMetrics()
 	api := &API{
 		Services: serviceFactory,
 		Router:   chi.NewRouter(),
 		db:       db,
 		repos:    repoFactory,
+		Metrics:  httpMetrics,
 	}
 
 	// Setup router middleware
-	setupBasicMiddleware(api.Router, logger)
+	setupBasicMiddleware(api.Router, logger, httpMetrics)
 
 	// Setup CORS, security logging, and rate limiting
 	if enableCORS {
@@ -143,10 +149,13 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 }
 
 // setupBasicMiddleware configures basic router middleware
-func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
+func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *observability.HTTPMetrics) {
 	router.Use(middleware.RequestID)
 	router.Use(middleware.ClientIPFromXFF())
 	router.Use(syncClientIPToRemoteAddr)
+	if httpMetrics != nil {
+		router.Use(httpMetrics.Middleware)
+	}
 	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
@@ -530,6 +539,8 @@ func (a *API) registerRoutesWithRateLimiting() {
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
 	})
+
+	a.Router.With(observability.MetricsAuthMiddleware).Handle("/internal/metrics", observability.MetricsHandler())
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations

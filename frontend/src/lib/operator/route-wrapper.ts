@@ -45,22 +45,78 @@ async function operatorServerFetch<T>(
 ): Promise<T> {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   const url = `${getServerApiUrl()}${endpoint}`;
+  const startedAt = Date.now();
+  let responseStatus = 0;
+  let outcome: "success" | "backend_error" | "network_error" = "success";
 
-  const response = await fetch(url, {
-    method: options.method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  try {
+    const response = await fetch(url, {
+      method: options.method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    responseStatus = response.status;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
+    if (!response.ok) {
+      outcome = "backend_error";
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    return parseResponse<T>(response);
+  } catch (error) {
+    if (outcome === "success") {
+      outcome = "network_error";
+    }
+    throw error;
+  } finally {
+    await recordOperatorBackendProxyMetric({
+      method: options.method,
+      endpoint,
+      status: responseStatus,
+      durationMs: Date.now() - startedAt,
+      outcome,
+    });
   }
+}
 
-  return parseResponse<T>(response);
+async function recordOperatorBackendProxyMetric(args: {
+  method: string;
+  endpoint: string;
+  status: number;
+  durationMs: number;
+  outcome: string;
+}) {
+  try {
+    const { recordBackendProxyMetric } = await import("~/lib/server-metrics");
+    recordBackendProxyMetric({
+      method: args.method,
+      backendEndpoint: sanitizeEndpoint(args.endpoint),
+      status: args.status,
+      durationMs: args.durationMs,
+      outcome: args.outcome,
+      scope: "operator",
+    });
+  } catch {
+    // Metrics must never alter request behavior.
+  }
+}
+
+function sanitizeEndpoint(endpoint: string): string {
+  const [path = ""] = endpoint.split("?");
+  return path
+    .split("/")
+    .map((segment) => {
+      if (!segment) return segment;
+      if (/^\d+$/.test(segment)) return "{id}";
+      if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(segment)) return "{uuid}";
+      if (/^[A-Za-z0-9_-]{16,}$/.test(segment)) return "{token}";
+      return segment;
+    })
+    .join("/");
 }
 
 function parseResponse<T>(response: Response): Promise<T> {
@@ -297,6 +353,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
       const { getClientForwardHeaders } = await import("~/lib/client-headers");
       const url = `${getServerApiUrl()}${backendEndpoint}`;
       const forwardHeaders = getClientForwardHeaders(request);
+      const startedAt = Date.now();
 
       const makeRequest = async (token: string) =>
         fetch(url, {
@@ -319,6 +376,13 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
         if (retried) response = retried;
       }
 
+      await recordOperatorBackendProxyMetric({
+        method: "POST",
+        endpoint: backendEndpoint,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        outcome: response.ok ? "success" : "backend_error",
+      });
       return forwardBackendResponse(response);
     } catch (error) {
       return handleApiError(error);
@@ -350,6 +414,7 @@ export function createOperatorPublicProxyPostHandler(backendEndpoint: string) {
     try {
       const { getServerApiUrl } = await import("~/lib/server-api-url");
       const { getClientForwardHeaders } = await import("~/lib/client-headers");
+      const startedAt = Date.now();
       const response = await fetch(`${getServerApiUrl()}${backendEndpoint}`, {
         method: "POST",
         headers: {
@@ -359,8 +424,22 @@ export function createOperatorPublicProxyPostHandler(backendEndpoint: string) {
         body: JSON.stringify(body),
       });
 
+      await recordOperatorBackendProxyMetric({
+        method: "POST",
+        endpoint: backendEndpoint,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        outcome: response.ok ? "success" : "backend_error",
+      });
       return forwardBackendResponse(response);
     } catch {
+      await recordOperatorBackendProxyMetric({
+        method: "POST",
+        endpoint: backendEndpoint,
+        status: 0,
+        durationMs: 0,
+        outcome: "network_error",
+      });
       return NextResponse.json(
         { message: "Ein interner Fehler ist aufgetreten" },
         { status: 500 },
@@ -400,8 +479,10 @@ export function createOperatorProxyMethodHandler(
       const params = await extractParams(request, context);
       const { getServerApiUrl } = await import("~/lib/server-api-url");
       const { getClientForwardHeaders } = await import("~/lib/client-headers");
-      const url = `${getServerApiUrl()}${endpointBuilder(params)}`;
+      const backendEndpoint = endpointBuilder(params);
+      const url = `${getServerApiUrl()}${backendEndpoint}`;
       const forwardHeaders = getClientForwardHeaders(request);
+      const startedAt = Date.now();
 
       const makeRequest = async (token: string) =>
         fetch(url, {
@@ -430,6 +511,13 @@ export function createOperatorProxyMethodHandler(
         );
       }
 
+      await recordOperatorBackendProxyMetric({
+        method,
+        endpoint: backendEndpoint,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        outcome: response.ok ? "success" : "backend_error",
+      });
       return forwardBackendResponse(response);
     } catch (error) {
       return handleApiError(error);

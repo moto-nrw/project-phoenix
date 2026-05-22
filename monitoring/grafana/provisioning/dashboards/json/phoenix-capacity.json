@@ -1,0 +1,113 @@
+{
+  "title": "Phoenix Capacity",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Host CPU Load",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        { "expr": "node_load1", "legendFormat": "load1" },
+        { "expr": "node_load5", "legendFormat": "load5" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Host Memory Used",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "legendFormat": "memory used"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Container CPU",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\".*phoenix.*|.*production.*|.*staging.*\"}[5m]))",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Backend HTTP p95",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, route, env) (rate(phoenix_backend_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{env}} {{route}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB Pool",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "phoenix_db_open_connections",
+          "legendFormat": "{{env}} open"
+        },
+        {
+          "expr": "phoenix_db_in_use_connections",
+          "legendFormat": "{{env}} in use"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "SSE Clients by Tenant",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "phoenix_sse_clients",
+          "legendFormat": "{{env}} tenant {{tenant_id}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "IoT Requests",
+      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (env, tenant_id, outcome) (rate(phoenix_iot_requests_total[5m]))",
+          "legendFormat": "{{env}} tenant {{tenant_id}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Frontend Event Loop Lag",
+      "gridPos": { "x": 8, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, env) (rate(phoenix_frontend_nodejs_eventloop_lag_seconds_bucket[5m])))",
+          "legendFormat": "{{env}} p95"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Caddy Upstream Latency p95",
+      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(caddy_http_reverse_proxy_upstream_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{handler}}"
+        }
+      ]
+    }
+  ]
+}

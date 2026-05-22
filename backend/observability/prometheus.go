@@ -1,0 +1,295 @@
+package observability
+
+import (
+	"database/sql"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+type SSEStats struct {
+	ClientsByTenant map[int64]int
+}
+
+type SSEStatsProvider interface {
+	SnapshotStats() SSEStats
+}
+
+var (
+	appHTTPRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_backend_http_requests_total",
+			Help: "Backend HTTP requests by route and status class.",
+		},
+		[]string{"method", "route", "status_class"},
+	)
+	appHTTPDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_backend_http_request_duration_seconds",
+			Help:    "Backend HTTP request duration by route.",
+			Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		},
+		[]string{"method", "route"},
+	)
+	appHTTPActive = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "phoenix_backend_http_active_requests",
+			Help: "Currently active backend HTTP requests.",
+		},
+	)
+	tenantHTTPRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_tenant_http_requests_total",
+			Help: "Tenant-scoped backend requests by tenant, route, and status class.",
+		},
+		[]string{"tenant_id", "scope", "method", "route", "status_class", "tx_outcome"},
+	)
+	tenantHTTPDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_tenant_http_request_duration_seconds",
+			Help:    "Tenant-scoped backend request duration.",
+			Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		},
+		[]string{"tenant_id", "scope", "method", "route"},
+	)
+	iotRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_iot_requests_total",
+			Help: "IoT requests by tenant, route, device type, and outcome.",
+		},
+		[]string{"tenant_id", "method", "route", "status_class", "device_type", "outcome"},
+	)
+	iotDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_iot_request_duration_seconds",
+			Help:    "IoT request duration by tenant, route, and device type.",
+			Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		},
+		[]string{"tenant_id", "method", "route", "device_type"},
+	)
+	sseBroadcasts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_sse_broadcasts_total",
+			Help: "SSE broadcasts by tenant, event type, and target.",
+		},
+		[]string{"tenant_id", "event_type", "target"},
+	)
+	sseDropped = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_sse_dropped_events_total",
+			Help: "SSE events dropped because a client channel was full.",
+		},
+		[]string{"tenant_id", "event_type", "target"},
+	)
+	sseConnections = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_sse_connections_total",
+			Help: "SSE connection lifecycle events.",
+		},
+		[]string{"tenant_id", "event"},
+	)
+	sseClients = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_sse_clients",
+			Help: "Currently connected SSE clients by tenant.",
+		},
+		[]string{"tenant_id"},
+	)
+
+	dbStatsMu        sync.RWMutex
+	dbStatsProvider  DBStatsProvider
+	sseStatsMu       sync.RWMutex
+	sseStatsProvider SSEStatsProvider
+)
+
+func init() {
+	prometheus.MustRegister(
+		appHTTPRequests,
+		appHTTPDuration,
+		appHTTPActive,
+		tenantHTTPRequests,
+		tenantHTTPDuration,
+		iotRequests,
+		iotDuration,
+		sseBroadcasts,
+		sseDropped,
+		sseConnections,
+		sseClients,
+		dbStatsCollector{},
+	)
+}
+
+func MetricsHandler() http.Handler {
+	handler := promhttp.Handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		refreshSSEGauges()
+		handler.ServeHTTP(w, r)
+	})
+}
+
+func MetricsAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := os.Getenv("METRICS_BEARER_TOKEN")
+		if token == "" {
+			http.Error(w, "metrics are not configured", http.StatusServiceUnavailable)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func RegisterDBStatsProvider(provider DBStatsProvider) {
+	dbStatsMu.Lock()
+	defer dbStatsMu.Unlock()
+	dbStatsProvider = provider
+}
+
+func RegisterSSEStatsProvider(provider SSEStatsProvider) {
+	sseStatsMu.Lock()
+	defer sseStatsMu.Unlock()
+	sseStatsProvider = provider
+}
+
+func IncActiveHTTPRequests() {
+	appHTTPActive.Inc()
+}
+
+func DecActiveHTTPRequests() {
+	appHTTPActive.Dec()
+}
+
+func ObserveHTTPRequest(method, route string, status int, duration time.Duration) {
+	statusClass := StatusClass(status)
+	appHTTPRequests.WithLabelValues(method, route, statusClass).Inc()
+	appHTTPDuration.WithLabelValues(method, route).Observe(duration.Seconds())
+}
+
+func ObserveTenantRequest(tenantID int64, scope, method, route string, status int, duration time.Duration, txOutcome string) {
+	tenant := strconv.FormatInt(tenantID, 10)
+	statusClass := StatusClass(status)
+	tenantHTTPRequests.WithLabelValues(tenant, scope, method, route, statusClass, txOutcome).Inc()
+	tenantHTTPDuration.WithLabelValues(tenant, scope, method, route).Observe(duration.Seconds())
+}
+
+func ObserveIoTRequest(tenantID int64, method, route string, status int, duration time.Duration, deviceType string) {
+	tenant := strconv.FormatInt(tenantID, 10)
+	if tenantID <= 0 {
+		tenant = "unknown"
+	}
+	if deviceType == "" {
+		deviceType = "unknown"
+	}
+	statusClass := StatusClass(status)
+	iotRequests.WithLabelValues(tenant, method, route, statusClass, sanitizeLabel(deviceType), outcomeForStatus(status)).Inc()
+	iotDuration.WithLabelValues(tenant, method, route, sanitizeLabel(deviceType)).Observe(duration.Seconds())
+}
+
+func RecordSSEConnection(tenantID int64, event string) {
+	sseConnections.WithLabelValues(strconv.FormatInt(tenantID, 10), event).Inc()
+}
+
+func RecordSSEBroadcast(tenantID int64, eventType, target string, dropped int) {
+	tenant := strconv.FormatInt(tenantID, 10)
+	if tenantID == 0 {
+		tenant = "all"
+	}
+	sseBroadcasts.WithLabelValues(tenant, sanitizeLabel(eventType), sanitizeLabel(target)).Inc()
+	if dropped > 0 {
+		sseDropped.WithLabelValues(tenant, sanitizeLabel(eventType), sanitizeLabel(target)).Add(float64(dropped))
+	}
+}
+
+func StatusClass(status int) string {
+	if status <= 0 {
+		return "unknown"
+	}
+	return strconv.Itoa(status/100) + "xx"
+}
+
+func RoutePattern(r *http.Request) string {
+	if routeCtx := chi.RouteContext(r.Context()); routeCtx != nil {
+		if pattern := routeCtx.RoutePattern(); pattern != "" {
+			return pattern
+		}
+	}
+	return "unmatched"
+}
+
+func sanitizeLabel(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "unknown"
+	}
+	if len(value) > 64 {
+		return value[:64]
+	}
+	return value
+}
+
+func outcomeForStatus(status int) string {
+	switch {
+	case status >= 500:
+		return "server_error"
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return "auth_error"
+	case status >= 400:
+		return "validation_error"
+	case status >= 200 && status < 300:
+		return "success"
+	default:
+		return "other"
+	}
+}
+
+type dbStatsCollector struct{}
+
+func (dbStatsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- prometheus.NewDesc("phoenix_db_open_connections", "Open DB connections.", nil, nil)
+}
+
+func (dbStatsCollector) Collect(ch chan<- prometheus.Metric) {
+	dbStatsMu.RLock()
+	provider := dbStatsProvider
+	dbStatsMu.RUnlock()
+	if provider == nil {
+		return
+	}
+	stats := provider.Stats()
+	emitDBGauge(ch, "phoenix_db_open_connections", "Open DB connections.", float64(stats.OpenConnections))
+	emitDBGauge(ch, "phoenix_db_in_use_connections", "DB connections currently in use.", float64(stats.InUse))
+	emitDBGauge(ch, "phoenix_db_idle_connections", "Idle DB connections.", float64(stats.Idle))
+	emitDBGauge(ch, "phoenix_db_wait_count_total", "Total waits for a DB connection.", float64(stats.WaitCount))
+	emitDBGauge(ch, "phoenix_db_wait_duration_seconds_total", "Total wait time for DB connections.", stats.WaitDuration.Seconds())
+	emitDBGauge(ch, "phoenix_db_max_idle_closed_total", "DB connections closed due to max idle.", float64(stats.MaxIdleClosed))
+	emitDBGauge(ch, "phoenix_db_max_lifetime_closed_total", "DB connections closed due to max lifetime.", float64(stats.MaxLifetimeClosed))
+}
+
+func emitDBGauge(ch chan<- prometheus.Metric, name, help string, value float64) {
+	ch <- prometheus.MustNewConstMetric(prometheus.NewDesc(name, help, nil, nil), prometheus.GaugeValue, value)
+}
+
+func refreshSSEGauges() {
+	sseStatsMu.RLock()
+	provider := sseStatsProvider
+	sseStatsMu.RUnlock()
+	if provider == nil {
+		return
+	}
+	stats := provider.SnapshotStats()
+	for tenantID, count := range stats.ClientsByTenant {
+		sseClients.WithLabelValues(strconv.FormatInt(tenantID, 10)).Set(float64(count))
+	}
+}
+
+var _ DBStatsProvider = (*sql.DB)(nil)
