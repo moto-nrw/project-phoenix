@@ -33,8 +33,8 @@ func isValidTimeFormat(s string) bool {
 	return timeRegex.MatchString(s)
 }
 
-// mapRelationshipType converts German relationship types to valid English types
-func mapRelationshipType(germanType string) string {
+// MapRelationshipType converts German relationship types to valid English types
+func MapRelationshipType(germanType string) string {
 	normalized := strings.ToLower(strings.TrimSpace(germanType))
 
 	// Map German terms to English types
@@ -516,7 +516,7 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 	relationship := &users.StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianID,
-		RelationshipType:   mapRelationshipType(guardianData.RelationshipType),
+		RelationshipType:   MapRelationshipType(guardianData.RelationshipType),
 		IsPrimary:          guardianData.IsPrimary,
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,

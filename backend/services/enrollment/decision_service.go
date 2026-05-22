@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,7 +14,9 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	importsvc "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -126,10 +129,14 @@ type DecisionServiceConfig struct {
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
+	FormSchemaRepo           enrollmentModels.FormSchemaRepository // needed to look up FormField.Target for each submitted answer
 	PersonRepo               users.PersonRepository
 	StudentRepo              users.StudentRepository
 	StudentGuardianRepo      users.StudentGuardianRepository
 	GuardianProfileRepo      users.GuardianProfileRepository
+	GuardianPhoneRepo        users.GuardianPhoneNumberRepository             // target: guardian.phone_numbers / contact.phone_numbers
+	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository  // target: schedule.pickup
+	ArrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
 	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
 	AccountRepo              authModels.AccountRepository
 	AccountTenantRepo        authModels.AccountTenantRepository
@@ -147,10 +154,14 @@ type decisionService struct {
 	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	careOfferingRepo         enrollmentModels.CareOfferingRepository
 	phaseRepo                enrollmentModels.PhaseRepository
+	formSchemaRepo           enrollmentModels.FormSchemaRepository
 	personRepo               users.PersonRepository
 	studentRepo              users.StudentRepository
 	studentGuardianRepo      users.StudentGuardianRepository
 	guardianProfileRepo      users.GuardianProfileRepository
+	guardianPhoneRepo        users.GuardianPhoneNumberRepository
+	pickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository
+	arrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository
 	studentEnrollmentRepo    activities.StudentEnrollmentRepository
 	accountRepo              authModels.AccountRepository
 	accountTenantRepo        authModels.AccountTenantRepository
@@ -173,10 +184,14 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
 		careOfferingRepo:         cfg.CareOfferingRepo,
 		phaseRepo:                cfg.PhaseRepo,
+		formSchemaRepo:           cfg.FormSchemaRepo,
 		personRepo:               cfg.PersonRepo,
 		studentRepo:              cfg.StudentRepo,
 		studentGuardianRepo:      cfg.StudentGuardianRepo,
 		guardianProfileRepo:      cfg.GuardianProfileRepo,
+		guardianPhoneRepo:        cfg.GuardianPhoneRepo,
+		pickupScheduleRepo:       cfg.PickupScheduleRepo,
+		arrivalScheduleRepo:      cfg.ArrivalScheduleRepo,
 		studentEnrollmentRepo:    cfg.StudentEnrollmentRepo,
 		accountRepo:              cfg.AccountRepo,
 		accountTenantRepo:        cfg.AccountTenantRepo,
@@ -480,6 +495,22 @@ func (s *decisionService) applyApproval(
 	}
 	if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
 		return nil, fmt.Errorf("decision: create student_guardian: %w", err)
+	}
+
+	// 4b. Dispatch every targeted form field onto the right downstream
+	// record. Scalar targets (health_info, extra_info, bus, photo_
+	// consent, pickup_status) update the Student row in place;
+	// structured targets (phone_list, weekday_schedule, contact_list)
+	// create association rows. Failures inside one field don't abort
+	// the approval — the targeted-field path is best-effort, the same
+	// philosophy the invitation-email enqueue uses elsewhere in this
+	// service.
+	if err := s.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy); err != nil {
+		s.logger.Warn("decision: targeted-field dispatch had errors",
+			slog.Int64("request_id", request.ID),
+			slog.Int64("child_id", child.ID),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	// 5. Materialize per-care-offering enrollments. Every offering the
@@ -955,6 +986,309 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 	}
 	if err := s.accountRoleRepo.Create(ctx, assignment); err != nil {
 		return fmt.Errorf("attach: create account_role: %w", err)
+	}
+	return nil
+}
+
+// applyTargetedFields walks the request's pinned schema and dispatches
+// every field carrying a non-empty Target onto the appropriate
+// downstream record. The student row may be mutated in place for
+// scalar targets and persisted at the end via studentRepo.Update.
+//
+// Best-effort overall: per-field errors are collected and returned in
+// one combined error string but never abort the approval. The student
+// + per-child records have already been written by the caller.
+func (s *decisionService) applyTargetedFields(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	child *enrollmentModels.RequestChild,
+	student *users.Student,
+	guardian *users.GuardianProfile,
+	reviewedBy int64,
+) error {
+	if s.formSchemaRepo == nil || request.SchemaID == nil {
+		return nil
+	}
+	schema, err := s.formSchemaRepo.FindByID(ctx, *request.SchemaID)
+	if err != nil || schema == nil {
+		return nil
+	}
+
+	var errs []string
+	studentDirty := false
+
+	for i := range schema.Fields {
+		field := schema.Fields[i]
+		if field.Target == "" {
+			continue
+		}
+		raw := s.readFieldValue(request, child, &field)
+		if raw == nil {
+			continue
+		}
+
+		switch field.Target {
+		case enrollmentModels.TargetStudentHealthInfo:
+			if str := stringValue(raw); str != "" {
+				student.HealthInfo = &str
+				studentDirty = true
+			}
+		case enrollmentModels.TargetStudentExtraInfo:
+			if str := stringValue(raw); str != "" {
+				student.ExtraInfo = &str
+				studentDirty = true
+			}
+		case enrollmentModels.TargetStudentBus:
+			if b, ok := raw.(bool); ok {
+				student.Bus = &b
+				studentDirty = true
+			}
+		case enrollmentModels.TargetStudentPickupStatus:
+			if str := stringValue(raw); str != "" {
+				student.PickupStatus = &str
+				studentDirty = true
+			}
+		case enrollmentModels.TargetSchedulePickup:
+			if err := s.dispatchWeekdaySchedule(ctx, raw, student.ID, reviewedBy, true); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			}
+		case enrollmentModels.TargetScheduleArrival:
+			if err := s.dispatchWeekdaySchedule(ctx, raw, student.ID, reviewedBy, false); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			}
+		case enrollmentModels.TargetStudentContacts:
+			if err := s.dispatchContactList(ctx, raw, student.ID); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			}
+		}
+	}
+
+	// Auto-flow from core base-form fields. These don't appear in the
+	// Stammdaten-target picker (photo consent + guardian_phone are
+	// already collected by the public base form via consent_flags.photo
+	// and the dedicated guardian_phone input), but their values still
+	// need to land in the right downstream rows on approval.
+	if request.ConsentFlags != nil {
+		if photo, ok := request.ConsentFlags["photo"].(bool); ok && photo {
+			now := time.Now()
+			student.PhotoConsentGivenAt = &now
+			if reviewedBy > 0 {
+				rb := reviewedBy
+				student.PhotoConsentGivenBy = &rb
+			}
+			studentDirty = true
+		}
+	}
+	if request.GuardianPhone != nil && s.guardianPhoneRepo != nil {
+		phone := strings.TrimSpace(*request.GuardianPhone)
+		if phone != "" {
+			row := &users.GuardianPhoneNumber{
+				GuardianProfileID: guardian.ID,
+				PhoneNumber:       phone,
+				PhoneType:         users.PhoneType("mobile"),
+				IsPrimary:         true,
+			}
+			if err := s.guardianPhoneRepo.Create(ctx, row); err != nil {
+				// Unique-violation = guardian already had this number
+				// on file from a previous enrollment — benign.
+				if !strings.Contains(err.Error(), "unique") && !strings.Contains(err.Error(), "duplicate") {
+					errs = append(errs, fmt.Sprintf("auto guardian_phone: %v", err))
+				}
+			}
+		}
+	}
+
+	if studentDirty {
+		if err := s.studentRepo.Update(ctx, student); err != nil {
+			errs = append(errs, fmt.Sprintf("update student: %v", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// readFieldValue pulls the submission value for a field. Guardian-level
+// fields live on request.CustomData; per-child fields on
+// request_children.custom_data.
+func (s *decisionService) readFieldValue(
+	request *enrollmentModels.Request,
+	child *enrollmentModels.RequestChild,
+	field *enrollmentModels.FormField,
+) any {
+	if field.AppliesToCh {
+		if child == nil || child.CustomData == nil {
+			return nil
+		}
+		return child.CustomData[field.Key]
+	}
+	if request.CustomData == nil {
+		return nil
+	}
+	return request.CustomData[field.Key]
+}
+
+// stringValue extracts a trimmed string from a raw any value. Returns
+// "" for non-string or whitespace-only inputs.
+func stringValue(v any) string {
+	if s, ok := v.(string); ok {
+		return strings.TrimSpace(s)
+	}
+	return ""
+}
+
+// decodeStructured marshals raw → JSON → out so we can read interface{}
+// values pulled out of a JSONB column into the typed structs declared
+// in models/enrollment/form_schema.go without writing per-type
+// destructuring code.
+func decodeStructured(raw any, out any) error {
+	bs, err := json.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(bs, out)
+}
+
+// dispatchWeekdaySchedule inserts one pickup or arrival schedule row
+// per non-empty weekday entry. isPickup=true targets pickup_schedules,
+// false targets arrival_schedules.
+func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, studentID int64, reviewedBy int64, isPickup bool) error {
+	if (isPickup && s.pickupScheduleRepo == nil) || (!isPickup && s.arrivalScheduleRepo == nil) {
+		return nil
+	}
+	var sched enrollmentModels.WeekdaySchedule
+	if err := decodeStructured(raw, &sched); err != nil {
+		return fmt.Errorf("decode weekday_schedule: %w", err)
+	}
+	if err := sched.Validate(); err != nil {
+		return err
+	}
+	weekdayInt := map[string]int{
+		"mon": scheduleModels.WeekdayMonday,
+		"tue": scheduleModels.WeekdayTuesday,
+		"wed": scheduleModels.WeekdayWednesday,
+		"thu": scheduleModels.WeekdayThursday,
+		"fri": scheduleModels.WeekdayFriday,
+	}
+	createdBy := reviewedBy
+	if createdBy <= 0 {
+		createdBy = 1 // fallback for legacy tests with no actor
+	}
+	for day, hhmm := range sched {
+		hhmm = strings.TrimSpace(hhmm)
+		if hhmm == "" {
+			continue
+		}
+		t, err := time.Parse("15:04", hhmm)
+		if err != nil {
+			return fmt.Errorf("parse %s time %q: %w", day, hhmm, err)
+		}
+		if isPickup {
+			row := &scheduleModels.StudentPickupSchedule{
+				StudentID:  studentID,
+				Weekday:    weekdayInt[day],
+				PickupTime: t,
+				CreatedBy:  createdBy,
+			}
+			if err := s.pickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
+				return fmt.Errorf("upsert pickup %s: %w", day, err)
+			}
+		} else {
+			row := &scheduleModels.StudentArrivalSchedule{
+				StudentID:       studentID,
+				Weekday:         weekdayInt[day],
+				ExpectedArrival: t,
+				CreatedBy:       createdBy,
+			}
+			if err := s.arrivalScheduleRepo.Create(ctx, row); err != nil {
+				return fmt.Errorf("create arrival %s: %w", day, err)
+			}
+		}
+	}
+	return nil
+}
+
+// dispatchContactList creates one additional guardian_profile (or
+// reuses an existing one matched by email) per submitted contact,
+// links it to the student via users.students_guardians, and inserts
+// any submitted phone numbers. Mirrors the dedup-by-email behaviour
+// of the CSV importer at services/import/student_import_config.go.
+func (s *decisionService) dispatchContactList(ctx context.Context, raw any, studentID int64) error {
+	if s.guardianProfileRepo == nil || s.studentGuardianRepo == nil {
+		return nil
+	}
+	var entries []enrollmentModels.ContactEntry
+	if err := decodeStructured(raw, &entries); err != nil {
+		return fmt.Errorf("decode contact_list: %w", err)
+	}
+	for i := range entries {
+		c := entries[i]
+		if err := c.Validate(); err != nil {
+			return err
+		}
+
+		var profile *users.GuardianProfile
+		emailLC := strings.ToLower(strings.TrimSpace(c.Email))
+		if emailLC != "" {
+			existing, _ := s.guardianProfileRepo.FindByEmail(ctx, emailLC)
+			profile = existing
+		}
+		if profile == nil {
+			profile = &users.GuardianProfile{
+				FirstName:              c.FirstName,
+				LastName:               c.LastName,
+				PreferredContactMethod: "phone",
+				LanguagePreference:     "de",
+			}
+			if emailLC != "" {
+				profile.Email = &emailLC
+			}
+			if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+				return fmt.Errorf("create contact profile %s %s: %w", c.FirstName, c.LastName, err)
+			}
+		}
+
+		// Phone numbers — append, dedup by unique index.
+		if s.guardianPhoneRepo != nil {
+			for j := range c.PhoneNumbers {
+				p := c.PhoneNumbers[j]
+				label := p.Label
+				phone := &users.GuardianPhoneNumber{
+					GuardianProfileID: profile.ID,
+					PhoneNumber:       p.PhoneNumber,
+					PhoneType:         users.PhoneType(p.PhoneType),
+					IsPrimary:         p.IsPrimary,
+				}
+				if label != "" {
+					phone.Label = &label
+				}
+				if err := s.guardianPhoneRepo.Create(ctx, phone); err != nil {
+					if !strings.Contains(err.Error(), "unique") && !strings.Contains(err.Error(), "duplicate") {
+						return fmt.Errorf("create contact phone: %w", err)
+					}
+				}
+			}
+		}
+
+		// students_guardians link with the parent-submitted flags.
+		// Relationship type goes through the same German→enum mapping
+		// the CSV importer uses; unknown values land on "other".
+		rel := &users.StudentGuardian{
+			StudentID:          studentID,
+			GuardianProfileID:  profile.ID,
+			RelationshipType:   importsvc.MapRelationshipType(c.RelationshipType),
+			IsPrimary:          false,
+			IsEmergencyContact: c.IsEmergencyContact,
+			CanPickup:          c.CanPickup,
+		}
+		if c.EmergencyPriority > 0 {
+			rel.EmergencyPriority = c.EmergencyPriority
+		}
+		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+			return fmt.Errorf("link contact to student: %w", err)
+		}
 	}
 	return nil
 }

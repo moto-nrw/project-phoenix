@@ -776,6 +776,17 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
       </label>
     );
   }
+  if (field.type === "phone_list") {
+    return <PhoneListInput field={field} value={value} onChange={onChange} />;
+  }
+  if (field.type === "weekday_schedule") {
+    return (
+      <WeekdayScheduleInput field={field} value={value} onChange={onChange} />
+    );
+  }
+  if (field.type === "contact_list") {
+    return <ContactListInput field={field} value={value} onChange={onChange} />;
+  }
 
   const inputType =
     field.type === "number"
@@ -795,6 +806,335 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
         className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       />
     </label>
+  );
+}
+
+// ---- Structured field renderers ----------------------------------------
+//
+// The shapes here mirror the Go types in
+// backend/models/enrollment/form_schema.go (PhoneEntry, WeekdaySchedule,
+// ContactEntry). The decision service consumes whatever JSON these
+// components emit, so the field names must match exactly.
+
+interface PhoneEntry {
+  phone_number: string;
+  phone_type: "mobile" | "home" | "work" | "other";
+  label?: string;
+  is_primary?: boolean;
+}
+
+const PHONE_TYPE_LABELS: Record<PhoneEntry["phone_type"], string> = {
+  mobile: "Mobil",
+  home: "Privat",
+  work: "Arbeit",
+  other: "Sonstige",
+};
+
+function asPhoneArray(v: unknown): PhoneEntry[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((row): row is PhoneEntry => {
+    if (!row || typeof row !== "object") return false;
+    const r = row as Record<string, unknown>;
+    return typeof r.phone_number === "string";
+  });
+}
+
+function PhoneListInput({ field, value, onChange }: CustomFieldInputProps) {
+  const phones = asPhoneArray(value);
+  const update = (next: PhoneEntry[]) => onChange(next);
+  const setRow = (idx: number, patch: Partial<PhoneEntry>) =>
+    update(phones.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+  return (
+    <fieldset className="rounded-lg border border-gray-200 p-3">
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        {field.label}
+        {field.required && <span className="text-red-500"> *</span>}
+      </legend>
+      {phones.length === 0 && (
+        <p className="text-xs text-gray-500">Noch keine Nummer eingetragen.</p>
+      )}
+      <ul className="space-y-2">
+        {phones.map((p, idx) => (
+          <li
+            key={idx}
+            className="flex flex-col gap-2 rounded-md border border-gray-100 bg-gray-50 p-2 sm:flex-row sm:items-end"
+          >
+            <label className="flex-1 text-xs">
+              <span className="block text-gray-600">Nummer</span>
+              <input
+                type="tel"
+                value={p.phone_number}
+                onChange={(e) => setRow(idx, { phone_number: e.target.value })}
+                className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+              />
+            </label>
+            <label className="text-xs sm:w-32">
+              <span className="block text-gray-600">Typ</span>
+              <select
+                value={p.phone_type}
+                onChange={(e) =>
+                  setRow(idx, {
+                    phone_type: e.target.value as PhoneEntry["phone_type"],
+                  })
+                }
+                className="moto-select mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+              >
+                {(
+                  Object.keys(PHONE_TYPE_LABELS) as PhoneEntry["phone_type"][]
+                ).map((k) => (
+                  <option key={k} value={k}>
+                    {PHONE_TYPE_LABELS[k]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-gray-600">
+              <input
+                type="radio"
+                name={`${field.key}-primary`}
+                checked={Boolean(p.is_primary)}
+                onChange={() =>
+                  update(
+                    phones.map((row, i) => ({
+                      ...row,
+                      is_primary: i === idx,
+                    })),
+                  )
+                }
+              />
+              Hauptnummer
+            </label>
+            <button
+              type="button"
+              onClick={() => update(phones.filter((_, i) => i !== idx))}
+              className="text-xs text-[#CC2626] hover:underline"
+              aria-label="Nummer entfernen"
+            >
+              Entfernen
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={() =>
+          update([
+            ...phones,
+            { phone_number: "", phone_type: "mobile" } satisfies PhoneEntry,
+          ])
+        }
+        className="mt-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+      >
+        + Telefonnummer hinzufügen
+      </button>
+    </fieldset>
+  );
+}
+
+const WEEKDAYS = [
+  { key: "mon", label: "Montag" },
+  { key: "tue", label: "Dienstag" },
+  { key: "wed", label: "Mittwoch" },
+  { key: "thu", label: "Donnerstag" },
+  { key: "fri", label: "Freitag" },
+] as const;
+
+function asScheduleObject(v: unknown): Record<string, string> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, string> = {};
+  for (const w of WEEKDAYS) {
+    const raw = (v as Record<string, unknown>)[w.key];
+    if (typeof raw === "string") out[w.key] = raw;
+  }
+  return out;
+}
+
+function WeekdayScheduleInput({
+  field,
+  value,
+  onChange,
+}: CustomFieldInputProps) {
+  const sched = asScheduleObject(value);
+  return (
+    <fieldset className="rounded-lg border border-gray-200 p-3">
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        {field.label}
+        {field.required && <span className="text-red-500"> *</span>}
+      </legend>
+      <p className="text-xs text-gray-500">
+        Leere Felder bedeuten: an diesem Tag keine Angabe.
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-5">
+        {WEEKDAYS.map((w) => (
+          <label key={w.key} className="block text-xs">
+            <span className="block text-gray-600">{w.label}</span>
+            <input
+              type="time"
+              value={sched[w.key] ?? ""}
+              onChange={(e) => onChange({ ...sched, [w.key]: e.target.value })}
+              className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+            />
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+interface ContactEntryValue {
+  first_name: string;
+  last_name: string;
+  email?: string;
+  relationship_type?: string;
+  phone_numbers?: PhoneEntry[];
+  can_pickup?: boolean;
+  is_emergency_contact?: boolean;
+  emergency_priority?: number;
+}
+
+function asContactArray(v: unknown): ContactEntryValue[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((row): row is ContactEntryValue => {
+    if (!row || typeof row !== "object") return false;
+    const r = row as Record<string, unknown>;
+    return typeof r.first_name === "string" && typeof r.last_name === "string";
+  });
+}
+
+function blankContact(): ContactEntryValue {
+  return {
+    first_name: "",
+    last_name: "",
+    relationship_type: "",
+    phone_numbers: [],
+    can_pickup: false,
+    is_emergency_contact: false,
+  };
+}
+
+function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
+  const contacts = asContactArray(value);
+  const update = (next: ContactEntryValue[]) => onChange(next);
+  const setRow = (idx: number, patch: Partial<ContactEntryValue>) =>
+    update(contacts.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  return (
+    <fieldset className="rounded-lg border border-gray-200 p-3">
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        {field.label}
+        {field.required && <span className="text-red-500"> *</span>}
+      </legend>
+      {contacts.length === 0 && (
+        <p className="text-xs text-gray-500">
+          Noch kein zusätzlicher Kontakt eingetragen.
+        </p>
+      )}
+      <ul className="space-y-3">
+        {contacts.map((c, idx) => (
+          <li
+            key={idx}
+            className="rounded-md border border-gray-200 bg-gray-50 p-3"
+          >
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="text-xs">
+                <span className="block text-gray-600">Vorname</span>
+                <input
+                  type="text"
+                  value={c.first_name}
+                  onChange={(e) => setRow(idx, { first_name: e.target.value })}
+                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                />
+              </label>
+              <label className="text-xs">
+                <span className="block text-gray-600">Nachname</span>
+                <input
+                  type="text"
+                  value={c.last_name}
+                  onChange={(e) => setRow(idx, { last_name: e.target.value })}
+                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                />
+              </label>
+              <label className="text-xs">
+                <span className="block text-gray-600">
+                  Beziehung (z. B. Oma, Onkel, Nachbarin)
+                </span>
+                <input
+                  type="text"
+                  value={c.relationship_type ?? ""}
+                  onChange={(e) =>
+                    setRow(idx, { relationship_type: e.target.value })
+                  }
+                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                />
+              </label>
+              <label className="text-xs">
+                <span className="block text-gray-600">E-Mail (optional)</span>
+                <input
+                  type="email"
+                  value={c.email ?? ""}
+                  onChange={(e) => setRow(idx, { email: e.target.value })}
+                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3">
+              <PhoneListInput
+                field={{
+                  ...field,
+                  key: `${field.key}_${idx}_phones`,
+                  label: "Telefonnummern",
+                  type: "phone_list",
+                  required: false,
+                }}
+                value={c.phone_numbers ?? []}
+                onChange={(v) =>
+                  setRow(idx, {
+                    phone_numbers: Array.isArray(v) ? (v as PhoneEntry[]) : [],
+                  })
+                }
+              />
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-700">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={Boolean(c.can_pickup)}
+                  onChange={(e) =>
+                    setRow(idx, { can_pickup: e.target.checked })
+                  }
+                />
+                Abholberechtigt
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={Boolean(c.is_emergency_contact)}
+                  onChange={(e) =>
+                    setRow(idx, { is_emergency_contact: e.target.checked })
+                  }
+                />
+                Notfallkontakt
+              </label>
+              <button
+                type="button"
+                onClick={() => update(contacts.filter((_, i) => i !== idx))}
+                className="ml-auto text-xs text-[#CC2626] hover:underline"
+              >
+                Kontakt entfernen
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={() => update([...contacts, blankContact()])}
+        className="mt-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+      >
+        + Kontakt hinzufügen
+      </button>
+    </fieldset>
   );
 }
 

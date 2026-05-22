@@ -29,7 +29,9 @@ import {
   createSchema,
   listSchemas,
   updateSchema,
+  RESERVED_TARGETS,
   type FormField,
+  type FormFieldTarget,
   type FormFieldType,
   type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
@@ -44,7 +46,34 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   textarea: "Mehrzeiliger Text",
   date: "Datum",
   select: "Auswahl",
+  phone_list: "Telefonliste",
+  weekday_schedule: "Wochenzeiten",
+  contact_list: "Kontaktliste",
 };
+
+// Labels for the "Verknüpfung mit Stammdatenfeld" picker. Pre-filled
+// suggestions per target — admin can still rename the displayed
+// question; the target is what wires the value to the Student column
+// / association table at approval time.
+const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
+  "student.health_info": "Gesundheitsinformationen (→ Schüler·in)",
+  "student.extra_info": "Hinweise an die Betreuung (→ Schüler·in)",
+  "student.bus": "Buskind (→ Schüler·in)",
+  "student.pickup_status": "Abholregelung (→ Schüler·in)",
+  "schedule.pickup": "Abholzeiten (→ Stundenplan)",
+  "schedule.arrival": "Ankunftszeiten (→ Stundenplan)",
+  "student.contacts":
+    "Weitere Kontakte / Abholberechtigte / Notfallkontakte (→ Stammdaten)",
+};
+
+// Targets sorted alphabetically by label for the picker — keeps the
+// dropdown stable across renders even if the underlying map order
+// changes.
+const TARGET_PICKER_ORDER: Array<Exclude<FormFieldTarget, "">> = (
+  Object.keys(targetPickerLabels) as Array<Exclude<FormFieldTarget, "">>
+).sort((a, b) =>
+  targetPickerLabels[a].localeCompare(targetPickerLabels[b], "de"),
+);
 
 const NEW_SCHEMA_VALUE = "__new__";
 type EditorMode = "overview" | "builder";
@@ -1027,6 +1056,64 @@ function FieldEditorRow({
             </div>
           </div>
 
+          <label className="block">
+            <span className="text-xs font-medium text-gray-700">
+              Verknüpfung mit Stammdatenfeld
+            </span>
+            <select
+              value={field.target ?? ""}
+              onChange={(event) => {
+                const next = event.target.value as FormFieldTarget;
+                if (next === "") {
+                  onChange({ target: "", options: [] });
+                  return;
+                }
+                const spec = RESERVED_TARGETS[next];
+                // pickup_status is a select with known canonical
+                // options — seed them so admins don't have to type
+                // them (and to keep values aligned with what the
+                // existing student detail modal accepts).
+                const seededOptions =
+                  next === "student.pickup_status"
+                    ? [
+                        { label: "Geht alleine nach Hause", value: "alone" },
+                        { label: "Wird abgeholt", value: "picked_up" },
+                      ]
+                    : spec.type === "select"
+                      ? (field.options ?? [])
+                      : [];
+                // Derive a stable, schema-unique key from the target
+                // (dots → underscores). Decision service dispatches by
+                // target, not key, but the backend still requires a
+                // non-empty unique key on every field.
+                const derivedKey = next.replace(/\./g, "_");
+                onChange({
+                  target: next,
+                  type: spec.type,
+                  applies_to_child: spec.appliesToChild,
+                  key: derivedKey,
+                  // Auto-fill label only if admin hasn't customised it
+                  label: field.label.trim() === "" ? spec.label : field.label,
+                  options: seededOptions,
+                });
+              }}
+              disabled={disabled}
+              className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              <option value="">Keine — freies Zusatzfeld</option>
+              {TARGET_PICKER_ORDER.map((target) => (
+                <option key={target} value={target}>
+                  {targetPickerLabels[target]}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-gray-500">
+              Verknüpfte Felder werden bei Bestätigung automatisch in die
+              Stammdaten übernommen. Freie Felder bleiben in den Eingangsdaten
+              der Anmeldung.
+            </p>
+          </label>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="text-xs font-medium text-gray-700">
@@ -1053,14 +1140,21 @@ function FieldEditorRow({
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Typ</span>
+              <span className="text-xs font-medium text-gray-700">
+                Typ
+                {field.target ? (
+                  <span className="ml-1 text-[11px] font-normal text-gray-500">
+                    (durch Verknüpfung festgelegt)
+                  </span>
+                ) : null}
+              </span>
               <select
                 value={field.type}
                 onChange={(event) =>
                   onChange({ type: event.target.value as FormFieldType })
                 }
-                disabled={disabled}
-                className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                disabled={disabled || Boolean(field.target)}
+                className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
               >
                 {Object.entries(fieldTypeLabels).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -1114,13 +1208,18 @@ function FieldEditorRow({
               onChange={(checked) => onChange({ applies_to_child: checked })}
               label="Pro Kind abfragen"
               hint="Die Frage erscheint für jedes angemeldete Kind."
-              disabled={disabled}
+              disabled={disabled || Boolean(field.target)}
             />
           </div>
 
           <details className="rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2 text-xs text-gray-500">
             <summary className="cursor-pointer font-medium text-gray-600">
               Technischer Schlüssel
+              {field.target ? (
+                <span className="ml-1 font-normal text-gray-400">
+                  (durch Verknüpfung festgelegt)
+                </span>
+              ) : null}
             </summary>
             <label className="mt-2 block">
               <span className="sr-only">Technischer Schlüssel</span>
@@ -1129,8 +1228,8 @@ function FieldEditorRow({
                 value={field.key}
                 onChange={(event) => onChange({ key: event.target.value })}
                 placeholder="z. B. allergies"
-                disabled={disabled}
-                className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 font-mono text-xs shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                disabled={disabled || Boolean(field.target)}
+                className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 font-mono text-xs shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
               />
             </label>
           </details>

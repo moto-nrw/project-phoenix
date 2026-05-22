@@ -9,7 +9,79 @@ export type FormFieldType =
   | "text"
   | "textarea"
   | "date"
-  | "select";
+  | "select"
+  | "phone_list"
+  | "weekday_schedule"
+  | "contact_list";
+
+/**
+ * Reserved targets that link a form field to a downstream Stammdaten
+ * column / association table. Empty string (or absent) keeps the
+ * field as free custom_data only. Keep in sync with
+ * backend/models/enrollment/form_schema.go ReservedTargets.
+ *
+ * Photo consent and guardian phone number are NOT picker options:
+ * the public base form already collects them (consent_flags.photo
+ * checkbox + guardian_phone input). The decision service writes
+ * them onto the Student / guardian_phone_numbers automatically.
+ */
+export type FormFieldTarget =
+  | ""
+  | "student.health_info"
+  | "student.extra_info"
+  | "student.bus"
+  | "student.pickup_status"
+  | "schedule.pickup"
+  | "schedule.arrival"
+  | "student.contacts";
+
+export interface ReservedTargetSpec {
+  type: FormFieldType;
+  appliesToChild: boolean;
+  label: string;
+}
+
+/** Mirror of the backend ReservedTargets map, for the admin editor. */
+export const RESERVED_TARGETS: Record<
+  Exclude<FormFieldTarget, "">,
+  ReservedTargetSpec
+> = {
+  "student.health_info": {
+    type: "textarea",
+    appliesToChild: true,
+    label: "Gesundheitsinformationen",
+  },
+  "student.extra_info": {
+    type: "textarea",
+    appliesToChild: true,
+    label: "Hinweise an die Betreuung",
+  },
+  "student.bus": {
+    type: "boolean",
+    appliesToChild: true,
+    label: "Buskind",
+  },
+  "student.pickup_status": {
+    type: "select",
+    appliesToChild: true,
+    label: "Abholregelung",
+  },
+  "schedule.pickup": {
+    type: "weekday_schedule",
+    appliesToChild: true,
+    label: "Abholzeiten",
+  },
+  "schedule.arrival": {
+    type: "weekday_schedule",
+    appliesToChild: true,
+    label: "Ankunftszeiten",
+  },
+  "student.contacts": {
+    type: "contact_list",
+    appliesToChild: true,
+    label: "Weitere Kontakte / Abholberechtigte / Notfallkontakte",
+  },
+};
 
 interface FormFieldOption {
   label: string;
@@ -32,6 +104,13 @@ export interface FormField {
   validation?: FormFieldValidation | null;
   sort_order: number;
   applies_to_child?: boolean;
+  /**
+   * Optional link to a Stammdaten column / association table. When
+   * set, the decision service copies the value onto the matching
+   * downstream record at approval time. Empty/undefined = free
+   * custom field, stays in custom_data.
+   */
+  target?: FormFieldTarget;
 }
 
 export interface FormSchema {
