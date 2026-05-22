@@ -118,7 +118,7 @@ async function serverFetchWithRetry<T>(
   try {
     const response = await executeRequest(token);
     responseStatus = response.status;
-    responseBytes = parseContentLength(response.headers.get("content-length"));
+    responseBytes = parseResponseContentLength(response);
 
     if (!response.ok) {
       outcome = "backend_error";
@@ -143,19 +143,6 @@ async function serverFetchWithRetry<T>(
   } finally {
     const durationMs = Date.now() - startedAt;
     const backendEndpoint = sanitizeEndpoint(endpoint);
-    try {
-      const { recordBackendProxyMetric } = await import("~/lib/server-metrics");
-      recordBackendProxyMetric({
-        method: options.method,
-        backendEndpoint,
-        status: responseStatus,
-        durationMs,
-        outcome,
-        scope: tokenContext.scope,
-      });
-    } catch {
-      // Metrics must never alter request behavior.
-    }
 
     logger.info("frontend backend proxy request completed", {
       method: options.method,
@@ -185,6 +172,10 @@ function parseContentLength(value: string | null): number | null {
   if (!value) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseResponseContentLength(response: Response): number | null {
+  return parseContentLength(response.headers?.get?.("content-length") ?? null);
 }
 
 function sanitizeEndpoint(endpoint: string): string {
