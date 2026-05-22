@@ -30,6 +30,22 @@ export interface AdminRequestChild {
   reviewed_at?: string | null;
   reviewed_by?: number | null;
   activation_mode: string;
+  custom_data?: Record<string, unknown>;
+}
+
+/** Slim form-field shape, only what the admin detail UI needs. */
+export interface AdminRequestSchemaField {
+  key: string;
+  label: string;
+  type: string;
+  applies_to_child: boolean;
+  target?: string;
+  /**
+   * For select-type fields: the {label, value} pairs the admin
+   * defined. The renderer turns the stored value back into the
+   * label (e.g. "picked_up" → "Wird abgeholt").
+   */
+  options?: Array<{ label: string; value: string }>;
 }
 
 export interface AdminRequestSummary {
@@ -43,6 +59,19 @@ export interface AdminRequestSummary {
   submitted_at: string;
   withdrawn_at?: string | null;
   status_token: string;
+  /**
+   * Request-level custom field answers (everything where
+   * applies_to_child=false). Populated only on the detail endpoint.
+   */
+  custom_data?: Record<string, unknown>;
+  /** AGB / Datenschutz / Foto consents collected on the base form. */
+  consent_flags?: Record<string, unknown>;
+  /**
+   * The form schema's field definitions, used to render custom_data
+   * with their original labels. Populated only on the detail endpoint;
+   * empty when the phase didn't pin a schema.
+   */
+  schema_fields?: AdminRequestSchemaField[];
   children: AdminRequestChild[];
 }
 

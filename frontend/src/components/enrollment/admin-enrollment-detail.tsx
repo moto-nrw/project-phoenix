@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  type AdminRequestChild,
+  type AdminRequestSchemaField,
   type AdminRequestSummary,
   type ChildStatus,
   type DecisionStatus,
@@ -202,6 +204,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         </dl>
       </section>
 
+      <RequestExtraSection request={data} />
+
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-gray-900">Kinder</h2>
         {data.children.map((c) => {
@@ -245,6 +249,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                 </div>
                 <StatusBadge status={c.status} />
               </div>
+
+              <ChildExtraFields child={c} schemaFields={data.schema_fields} />
 
               {!terminal && (
                 <div className="mt-4 space-y-2">
@@ -313,4 +319,239 @@ function StatusBadge({ status }: Readonly<{ status: ChildStatus }>) {
       {STATUS_LABELS[status]}
     </span>
   );
+}
+
+// ---- extra-info rendering ---------------------------------------------
+//
+// RequestExtraSection shows the AGB/photo consent block + every
+// request-level custom field (applies_to_child=false) the parent
+// filled in. ChildExtraFields does the same per child for per-child
+// (applies_to_child=true) fields. Together they surface every answer
+// the parent gave beyond the core form so the admin has full context
+// when deciding.
+
+const CONSENT_LABELS: Record<string, string> = {
+  agb: "AGB der Schule",
+  data_processing: "Datenverarbeitung (DSGVO)",
+  email_contact: "E-Mail-Kontakt",
+  photo: "Fotos bei Schulveranstaltungen",
+};
+
+function RequestExtraSection({
+  request,
+}: Readonly<{ request: AdminRequestSummary }>) {
+  const guardianFields = (request.schema_fields ?? []).filter(
+    (f) => !f.applies_to_child,
+  );
+  const hasCustom = guardianFields.some(
+    (f) => formatCustomValue(request.custom_data?.[f.key], f) !== null,
+  );
+  const hasConsents = Object.keys(request.consent_flags ?? {}).length > 0;
+
+  if (!hasCustom && !hasConsents) return null;
+
+  return (
+    <section className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm">
+      <h2 className="text-base font-semibold text-gray-900">
+        Zusätzliche Angaben
+      </h2>
+
+      {hasConsents && (
+        <div>
+          <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+            Zustimmungen
+          </h3>
+          <ul className="mt-1.5 space-y-1 text-sm">
+            {Object.entries(request.consent_flags ?? {}).map(([key, val]) => (
+              <li key={key} className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{
+                    backgroundColor: val === true ? "#83CD2D" : "#6B7280",
+                  }}
+                />
+                <span className="text-gray-700">
+                  {CONSENT_LABELS[key] ?? key}:
+                </span>
+                <span className="font-medium text-gray-900">
+                  {val === true ? "Ja" : val === false ? "Nein" : String(val)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {hasCustom && (
+        <div>
+          <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+            Zusatzfragen (Eltern)
+          </h3>
+          <dl className="mt-1.5 space-y-2 text-sm">
+            {guardianFields.map((f) => {
+              const formatted = formatCustomValue(
+                request.custom_data?.[f.key],
+                f,
+              );
+              if (formatted === null) return null;
+              return (
+                <div key={f.key}>
+                  <dt className="text-xs font-medium text-gray-600">
+                    {f.label}
+                  </dt>
+                  <dd className="mt-0.5 text-gray-900">{formatted}</dd>
+                </div>
+              );
+            })}
+          </dl>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ChildExtraFields({
+  child,
+  schemaFields,
+}: Readonly<{
+  child: AdminRequestChild;
+  schemaFields?: AdminRequestSchemaField[];
+}>) {
+  const childFields = (schemaFields ?? []).filter((f) => f.applies_to_child);
+  const filled = childFields
+    .map((f) => ({
+      field: f,
+      value: formatCustomValue(child.custom_data?.[f.key], f),
+    }))
+    .filter((row) => row.value !== null);
+  if (filled.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+      <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+        Zusätzliche Angaben zum Kind
+      </h4>
+      <dl className="mt-1.5 space-y-1.5 text-sm">
+        {filled.map(({ field, value }) => (
+          <div key={field.key}>
+            <dt className="text-xs font-medium text-gray-600">{field.label}</dt>
+            <dd className="mt-0.5 text-gray-900">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+// formatCustomValue produces a German-friendly display string for any
+// JSON-ish value pulled out of custom_data. Returns null when the
+// value is effectively empty so callers can hide the row.
+//
+// When a field definition is supplied and it's a select, the raw
+// stored value (e.g. "picked_up") is mapped back to its option label
+// (e.g. "Wird abgeholt"). Unknown values fall back to the raw string.
+function formatCustomValue(
+  v: unknown,
+  field?: AdminRequestSchemaField,
+): React.ReactNode | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "boolean") return v ? "Ja" : "Nein";
+  if (typeof v === "string") {
+    const trimmed = v.trim();
+    if (trimmed === "") return null;
+    if (field?.type === "select" && field.options) {
+      const opt = field.options.find((o) => o.value === trimmed);
+      if (opt) return opt.label;
+    }
+    return trimmed;
+  }
+  if (typeof v === "number") return String(v);
+
+  // Structured types ----------------------------------------------------
+  if (Array.isArray(v)) {
+    if (v.length === 0) return null;
+    return (
+      <ul className="space-y-1 text-sm">
+        {v.map((row, i) => (
+          <li key={i} className="text-gray-800">
+            {formatStructuredEntry(row)}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (typeof v === "object") {
+    // weekday_schedule { mon: "15:00", tue: "...", ... }
+    const o = v as Record<string, unknown>;
+    const weekdays = [
+      ["mon", "Mo"],
+      ["tue", "Di"],
+      ["wed", "Mi"],
+      ["thu", "Do"],
+      ["fri", "Fr"],
+    ] as const;
+    const cells = weekdays
+      .map(([key, label]) => ({ label, value: o[key] }))
+      .filter(
+        (c) => typeof c.value === "string" && (c.value as string).trim() !== "",
+      );
+    if (cells.length === 0) return null;
+    return (
+      <span>
+        {cells.map((c, i) => (
+          <span key={c.label} className="mr-3 inline-block">
+            <span className="text-gray-500">{c.label}:</span>{" "}
+            <span className="font-medium">{c.value as string}</span>
+            {i < cells.length - 1 ? "" : ""}
+          </span>
+        ))}
+      </span>
+    );
+  }
+  return String(v);
+}
+
+function formatStructuredEntry(row: unknown): React.ReactNode {
+  if (!row || typeof row !== "object") return String(row);
+  const r = row as Record<string, unknown>;
+
+  // contact_list entry → "Vorname Nachname (Beziehung) · E-Mail · Tel … [Notfall] [Abholberechtigt]"
+  if (typeof r.first_name === "string" || typeof r.last_name === "string") {
+    const parts: string[] = [];
+    const fullName = `${typeof r.first_name === "string" ? r.first_name : ""} ${
+      typeof r.last_name === "string" ? r.last_name : ""
+    }`.trim();
+    if (fullName) parts.push(fullName);
+    if (typeof r.relationship_type === "string" && r.relationship_type) {
+      parts[parts.length - 1] += ` (${r.relationship_type})`;
+    }
+    if (typeof r.email === "string" && r.email) parts.push(r.email);
+    if (Array.isArray(r.phone_numbers)) {
+      const phones = (r.phone_numbers as Array<Record<string, unknown>>)
+        .map((p) => (typeof p.phone_number === "string" ? p.phone_number : ""))
+        .filter(Boolean);
+      if (phones.length > 0) parts.push(phones.join(", "));
+    }
+    if (r.can_pickup === true) parts.push("Abholberechtigt");
+    if (r.is_emergency_contact === true) parts.push("Notfallkontakt");
+    return parts.join(" · ");
+  }
+
+  // phone_list entry
+  if (typeof r.phone_number === "string") {
+    const labelMap: Record<string, string> = {
+      mobile: "Mobil",
+      home: "Privat",
+      work: "Arbeit",
+      other: "Sonstige",
+    };
+    const t =
+      typeof r.phone_type === "string" && r.phone_type in labelMap
+        ? labelMap[r.phone_type as string]
+        : null;
+    return `${r.phone_number}${t ? ` (${t})` : ""}${
+      r.is_primary === true ? " ★" : ""
+    }`;
+  }
+
+  return JSON.stringify(r);
 }
