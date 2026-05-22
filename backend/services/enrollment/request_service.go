@@ -451,10 +451,11 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 		if child.DateOfBirth.IsZero() {
 			return fmt.Errorf("%w: child %d missing date_of_birth", ErrInvalidSubmission, i)
 		}
-		if child.TargetGradeLevel != nil {
-			if *child.TargetGradeLevel < 1 || int(*child.TargetGradeLevel) > gradeMax {
-				return fmt.Errorf("%w: child %d grade out of range 1..%d", ErrInvalidSubmission, i, gradeMax)
-			}
+		if child.TargetGradeLevel == nil {
+			return fmt.Errorf("%w: child %d missing target_grade_level", ErrInvalidSubmission, i)
+		}
+		if *child.TargetGradeLevel < 1 || int(*child.TargetGradeLevel) > gradeMax {
+			return fmt.Errorf("%w: child %d grade out of range 1..%d", ErrInvalidSubmission, i, gradeMax)
 		}
 		if careRequired && len(child.OfferingIDs) == 0 {
 			return fmt.Errorf("%w: child %d", ErrCareOfferingMissing, i)

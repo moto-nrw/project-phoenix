@@ -159,9 +159,26 @@ func ErrorUnauthorized(err error) render.Renderer {
 	return newErrResponse(http.StatusUnauthorized, err)
 }
 
+// ErrorUnauthorizedWithCode returns a 401 Unauthorized with a stable error
+// code for frontend disambiguation (e.g. distinguishing wrong-password from
+// account-inactive without leaking the difference in the human-readable
+// message).
+func ErrorUnauthorizedWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusUnauthorized, err)
+	resp.Code = code
+	return resp
+}
+
 // ErrorForbidden returns a 403 Forbidden error response
 func ErrorForbidden(err error) render.Renderer {
 	return newErrResponse(http.StatusForbidden, err)
+}
+
+// ErrorForbiddenWithCode returns a 403 Forbidden with a stable error code.
+func ErrorForbiddenWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusForbidden, err)
+	resp.Code = code
+	return resp
 }
 
 // ErrorNotFound returns a 404 Not Found error response

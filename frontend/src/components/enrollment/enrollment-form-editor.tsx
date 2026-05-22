@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
+import { createPortal } from "react-dom";
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -11,6 +14,7 @@ import {
   ArrowLeft,
   CalendarClock,
   Check,
+  ChevronDown,
   Eye,
   ExternalLink,
   FileText,
@@ -18,6 +22,7 @@ import {
   HelpCircle,
   ListPlus,
   Lock,
+  MoreVertical,
   Pencil,
   Plus,
   ShieldCheck,
@@ -27,6 +32,7 @@ import { useToast } from "~/contexts/ToastContext";
 import {
   blankField,
   createSchema,
+  latestSchemasByName,
   listSchemas,
   updateSchema,
   RESERVED_TARGETS,
@@ -35,6 +41,7 @@ import {
   type FormFieldType,
   type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
+import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
@@ -76,7 +83,7 @@ const TARGET_PICKER_ORDER: Array<Exclude<FormFieldTarget, "">> = (
 );
 
 const NEW_SCHEMA_VALUE = "__new__";
-type EditorMode = "overview" | "builder";
+type EditorMode = "overview" | "builder" | "detail";
 
 interface CoreField {
   readonly key: string;
@@ -148,6 +155,7 @@ const CORE_FIELDS: ReadonlyArray<CoreField> = [
 export function EnrollmentFormEditor() {
   const toast = useToast();
   const [allSchemas, setAllSchemas] = useState<FormSchema[]>([]);
+  const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedKey, setSelectedKey] = useState<string>(NEW_SCHEMA_VALUE);
   const [name, setName] = useState("");
   const [fields, setFields] = useState<FormField[]>([]);
@@ -156,25 +164,21 @@ export function EnrollmentFormEditor() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<EditorMode>("overview");
 
-  const latestByName = useMemo<FormSchema[]>(() => {
-    const seen = new Map<string, FormSchema>();
-    for (const s of allSchemas) {
-      const prior = seen.get(s.name);
-      if (!prior || s.version > prior.version) {
-        seen.set(s.name, s);
-      }
-    }
-    return Array.from(seen.values()).sort((a, b) =>
-      a.name.localeCompare(b.name, "de"),
-    );
-  }, [allSchemas]);
+  const latestByName = useMemo(
+    () => latestSchemasByName(allSchemas),
+    [allSchemas],
+  );
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const list = await listSchemas();
+      const [list, phaseList] = await Promise.all([
+        listSchemas(),
+        listPhases().catch(() => [] as Phase[]),
+      ]);
       setAllSchemas(list);
+      setPhases(phaseList);
       return list;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
@@ -190,13 +194,17 @@ export function EnrollmentFormEditor() {
     void loadAll();
   }, [loadAll]);
 
-  const applySchema = (schema: FormSchema) => {
+  const selectSchema = (schema: FormSchema, nextMode: EditorMode) => {
     setSelectedKey(schema.id);
     setName(schema.name);
     setFields(schema.fields);
     setError(null);
-    setMode("builder");
+    setMode(nextMode);
   };
+
+  const editSchema = (schema: FormSchema) => selectSchema(schema, "builder");
+
+  const previewSchema = (schema: FormSchema) => selectSchema(schema, "detail");
 
   const startNew = () => {
     setSelectedKey(NEW_SCHEMA_VALUE);
@@ -258,15 +266,11 @@ export function EnrollmentFormEditor() {
       } else {
         result = await updateSchema(selectedKey, fields);
       }
-      // Refresh list so the overview shows the new row, then jump to it.
       const refreshed = await loadAll();
       const stillThere = refreshed.find((s) => s.id === result.id);
-      if (stillThere) applySchema(stillThere);
-      else applySchema(result);
+      selectSchema(stillThere ?? result, "detail");
       toast.success(
-        isCreating
-          ? "Formularvorlage erstellt."
-          : "Neue Formularversion gespeichert.",
+        isCreating ? "Formularvorlage erstellt." : "Änderungen gespeichert.",
       );
     } catch (err) {
       const message =
@@ -291,9 +295,24 @@ export function EnrollmentFormEditor() {
     return (
       <EnrollmentFormsOverview
         templates={latestByName}
+        phases={phases}
         onCreate={startNew}
-        onEdit={applySchema}
+        onEdit={editSchema}
+        onPreview={previewSchema}
         error={error}
+      />
+    );
+  }
+
+  if (mode === "detail" && currentSchema) {
+    return (
+      <FormTemplateDetail
+        schema={currentSchema}
+        onBack={backToOverview}
+        onEdit={() => editSchema(currentSchema)}
+        assignedPhases={phases.filter(
+          (phase) => phase.form_schema_id === currentSchema.id,
+        )}
       />
     );
   }
@@ -362,7 +381,7 @@ export function EnrollmentFormEditor() {
                 <div className="space-y-3">
                   {fields.map((field, index) => (
                     <FieldEditorRow
-                      key={`${field.key || "field"}-${index}`}
+                      key={`custom-field-${index}`}
                       field={field}
                       index={index}
                       total={fields.length}
@@ -395,7 +414,7 @@ export function EnrollmentFormEditor() {
                     ? "Speichert..."
                     : isCreating
                       ? "Formularvorlage erstellen"
-                      : "Neue Version speichern"}
+                      : "Änderungen speichern"}
                 </button>
               </div>
             </section>
@@ -405,9 +424,15 @@ export function EnrollmentFormEditor() {
             <FormPreview
               fields={fields}
               templateName={name}
-              currentVersion={currentSchema?.version ?? null}
               isActive={currentSchema?.is_active ?? false}
               isSaved={currentSchema !== null}
+              assignedPhaseCount={
+                currentSchema
+                  ? phases.filter(
+                      (phase) => phase.form_schema_id === currentSchema.id,
+                    ).length
+                  : 0
+              }
             />
           </aside>
         </div>
@@ -418,25 +443,22 @@ export function EnrollmentFormEditor() {
 
 function EnrollmentFormsOverview({
   templates,
+  phases,
   onCreate,
   onEdit,
+  onPreview,
   error,
 }: Readonly<{
   templates: FormSchema[];
+  phases: Phase[];
   onCreate: () => void;
   onEdit: (schema: FormSchema) => void;
+  onPreview: (schema: FormSchema) => void;
   error: string | null;
 }>) {
-  const activeTemplates = templates.filter((schema) => schema.is_active).length;
-  const totalQuestions = templates.reduce(
-    (sum, schema) => sum + schema.fields.length,
-    0,
-  );
-  const requiredQuestions = templates.reduce(
-    (sum, schema) =>
-      sum + schema.fields.filter((field) => Boolean(field.required)).length,
-    0,
-  );
+  const assignedTemplateCount = templates.filter((schema) =>
+    phases.some((phase) => phase.form_schema_id === schema.id),
+  ).length;
 
   return (
     <div className="space-y-5">
@@ -466,71 +488,38 @@ function EnrollmentFormsOverview({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-              <FormMetric
-                icon={<Lock className="h-4 w-4" aria-hidden="true" />}
-                value="1"
-                label="Basisformular"
-              />
-              <FormMetric
-                icon={<FileText className="h-4 w-4" aria-hidden="true" />}
-                value={templates.length.toString()}
-                label="Vorlagen"
-              />
-              <FormMetric
-                icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
-                value={totalQuestions.toString()}
-                label="Zusatzfragen"
-              />
-              <FormMetric
-                icon={<Check className="h-4 w-4" aria-hidden="true" />}
-                value={requiredQuestions.toString()}
-                label="Pflichtfragen"
-              />
-            </div>
-
             {error ? (
               <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
                 {error}
               </div>
             ) : null}
 
-            <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-              <BasisFormCard />
-              <section className="space-y-3">
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-900">
-                      Eigene Vorlagen
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-600">
-                      Vorlagen werden später einer Anmeldephase zugeordnet.
-                    </p>
-                  </div>
+            <section className="space-y-3">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Formularvorlagen
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Jede Anmeldephase nutzt entweder das Basisformular oder eine
+                    eigene Vorlage mit Zusatzfragen.
+                  </p>
                 </div>
+              </div>
 
-                {templates.length === 0 ? (
-                  <EmptyTemplateState onCreate={onCreate} />
-                ) : (
-                  <div className="grid gap-3">
-                    {templates.map((schema) => (
-                      <TemplateOverviewCard
-                        key={schema.id}
-                        schema={schema}
-                        onEdit={() => onEdit(schema)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
+              <TemplateOverviewList
+                templates={templates}
+                phases={phases}
+                onEdit={onEdit}
+                onPreview={onPreview}
+              />
+            </section>
           </div>
 
           <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
             <OverviewGuide
               templateCount={templates.length}
-              activeTemplates={activeTemplates}
-              onCreate={onCreate}
+              assignedTemplateCount={assignedTemplateCount}
             />
           </aside>
         </div>
@@ -539,149 +528,314 @@ function EnrollmentFormsOverview({
   );
 }
 
-function BasisFormCard() {
+function TemplateOverviewList({
+  templates,
+  phases,
+  onEdit,
+  onPreview,
+}: Readonly<{
+  templates: FormSchema[];
+  phases: Phase[];
+  onEdit: (schema: FormSchema) => void;
+  onPreview: (schema: FormSchema) => void;
+}>) {
   return (
-    <article className="moto-content-surface flex h-full flex-col rounded-2xl border p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-          <Lock className="h-4 w-4" aria-hidden="true" />
-        </span>
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          Immer vorhanden
-        </span>
+    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+      <div className="divide-y divide-gray-100">
+        <BaseTemplateOverviewRow />
+        {templates.map((schema) => (
+          <TemplateOverviewRow
+            key={schema.id}
+            schema={schema}
+            onEdit={() => onEdit(schema)}
+            onPreview={() => onPreview(schema)}
+            isAssigned={phases.some(
+              (phase) => phase.form_schema_id === schema.id,
+            )}
+          />
+        ))}
       </div>
-      <div className="mt-4 flex-1">
-        <h3 className="text-base font-semibold text-gray-900">Basisformular</h3>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Fragt Elternteil, Kind, Klassenstufe und gewünschtes Betreuungsangebot
-          ab. Für viele Anmeldungen reicht das bereits.
+    </div>
+  );
+}
+
+function BaseTemplateOverviewRow() {
+  return (
+    <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
+            <Lock className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <h4 className="truncate text-sm font-semibold text-gray-900">
+            Basisformular
+          </h4>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+            System
+          </span>
+        </div>
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          Elternteil, Kind, Klassenstufe und gewünschtes Betreuungsangebot.
         </p>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+          <UsageLine title="Standard" status="base" />
+          <span>Systemformular</span>
+          <span>Keine Zusatzfragen</span>
+        </div>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600">
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-          Gesperrt
-        </span>
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-          Systemformular
-        </span>
+      <div className="flex justify-start gap-2 md:justify-end">
+        <a
+          href="/enroll"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          Elternansicht
+        </a>
       </div>
-      <a
-        href="/enroll"
-        target="_blank"
-        rel="noreferrer"
-        className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        Elternansicht öffnen
-      </a>
     </article>
   );
 }
 
-function EmptyTemplateState({ onCreate }: Readonly<{ onCreate: () => void }>) {
-  return (
-    <button
-      type="button"
-      onClick={onCreate}
-      className="group flex min-h-[210px] w-full flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white/70 px-6 py-10 text-center shadow-sm transition-colors hover:border-gray-400 hover:bg-white focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100 text-gray-600 transition-colors group-hover:bg-gray-900 group-hover:text-white">
-        <Plus className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <span className="mt-3 text-sm font-semibold text-gray-900">
-        Noch keine eigenen Formularvorlagen
-      </span>
-      <span className="mt-1 max-w-md text-sm leading-6 text-gray-500">
-        Starte mit dem Basisformular oder erstelle eine Vorlage für zusätzliche
-        Fragen, etwa für Ferienbetreuung oder spezielle Hinweise.
-      </span>
-    </button>
-  );
-}
-
-function TemplateOverviewCard({
+function TemplateOverviewRow({
   schema,
   onEdit,
-}: Readonly<{ schema: FormSchema; onEdit: () => void }>) {
+  onPreview,
+  isAssigned,
+}: Readonly<{
+  schema: FormSchema;
+  onEdit: () => void;
+  onPreview: () => void;
+  isAssigned: boolean;
+}>) {
   const requiredCount = schema.fields.filter((field) =>
     Boolean(field.required),
   ).length;
-  const childFieldCount = schema.fields.filter((field) =>
-    Boolean(field.applies_to_child),
-  ).length;
+  const usageStatus = isAssigned ? "assigned" : "ready";
+  const questionLabel =
+    schema.fields.length === 1 ? "1 Frage" : `${schema.fields.length} Fragen`;
+  const usageTitle = isAssigned ? "In Phase verwendet" : "Nicht verwendet";
 
   return (
-    <article className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h4 className="text-base font-semibold text-gray-900">
-              {schema.name}
-            </h4>
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-                schema.is_active
-                  ? "bg-[#83CD2D]/10 text-[#5F9F20]"
-                  : "bg-gray-100 text-gray-600"
-              }`}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  schema.is_active ? "bg-[#83CD2D]" : "bg-gray-300"
-                }`}
-                aria-hidden="true"
-              />
-              {schema.is_active ? "Aktiv" : "Gespeichert"}
-            </span>
-          </div>
-          <p className="mt-2 text-sm leading-6 text-gray-600">
-            Version {schema.version}, erstellt am{" "}
-            {formatSchemaDate(schema.created_at)}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {schema.fields.length} Zusatzfragen
-            </span>
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {requiredCount} Pflichtfragen
-            </span>
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {childFieldCount} pro Kind
-            </span>
-          </div>
+    <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
+            <FileText className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <h4 className="truncate text-sm font-semibold text-gray-900">
+            {schema.name}
+          </h4>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <a
-            href="/enroll"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            Vorschau
-          </a>
-          <button
-            type="button"
-            onClick={onEdit}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-            Bearbeiten
-          </button>
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          Eigene Vorlage für zusätzliche Fragen.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+          <UsageLine title={usageTitle} status={usageStatus} />
+          <span>Erstellt {formatSchemaDate(schema.created_at)}</span>
+          <span>{questionLabel}</span>
+          {requiredCount > 0 ? <span>{requiredCount} Pflicht</span> : null}
         </div>
       </div>
+      <div className="flex justify-start gap-2 md:justify-end">
+        <TemplateActionsMenu
+          label={`Aktionen für ${schema.name}`}
+          items={[
+            {
+              label: "Prüfen",
+              icon: <Eye className="h-4 w-4" aria-hidden />,
+              onClick: onPreview,
+            },
+            {
+              label: "Bearbeiten",
+              icon: <Pencil className="h-4 w-4" aria-hidden />,
+              onClick: onEdit,
+            },
+          ]}
+        />
+      </div>
     </article>
+  );
+}
+
+interface TemplateActionItem {
+  readonly label: string;
+  readonly icon: ReactNode;
+  readonly onClick: () => void;
+}
+
+interface TemplateActionsMenuPosition {
+  top: number;
+  left: number;
+  alignRight: boolean;
+}
+
+function TemplateActionsMenu({
+  label,
+  items,
+}: Readonly<{
+  label: string;
+  items: TemplateActionItem[];
+}>) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState<TemplateActionsMenuPosition>({
+    top: 0,
+    left: 0,
+    alignRight: false,
+  });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const menuWidth = 224;
+    const alignRight = rect.left + menuWidth > window.innerWidth - 16;
+    setPosition({
+      top: rect.bottom + 6,
+      left: alignRight ? rect.right : rect.left,
+      alignRight,
+    });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        menuRef.current &&
+        event.target instanceof Node &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleScroll() {
+      setOpen(false);
+    }
+
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [open]);
+
+  const menu = open && mounted && (
+    <div
+      ref={menuRef}
+      role="menu"
+      tabIndex={-1}
+      aria-label={label}
+      className="fixed z-[9999] w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 text-left shadow-lg"
+      style={{
+        top: position.top,
+        left: position.alignRight ? "auto" : position.left,
+        right: position.alignRight ? window.innerWidth - position.left : "auto",
+      }}
+    >
+      {items.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            setOpen(false);
+            item.onClick();
+          }}
+          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+        >
+          <span className="h-4 w-4 text-gray-500">{item.icon}</span>
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="flex justify-end">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        <MoreVertical className="h-4 w-4" aria-hidden="true" />
+      </button>
+      {mounted ? createPortal(menu, document.body) : null}
+    </div>
+  );
+}
+
+type TemplateStatus = "base" | "assigned" | "ready";
+
+function UsageLine({
+  title,
+  status,
+}: Readonly<{
+  title: string;
+  status: TemplateStatus;
+}>) {
+  const statusMap: Record<
+    TemplateStatus,
+    { dotClassName: string; textClassName: string }
+  > = {
+    base: {
+      dotClassName: "bg-gray-300",
+      textClassName: "text-gray-700",
+    },
+    assigned: {
+      dotClassName: "bg-[#83CD2D]",
+      textClassName: "text-[#5F9F20]",
+    },
+    ready: {
+      dotClassName: "bg-gray-300",
+      textClassName: "text-gray-700",
+    },
+  };
+  const config = statusMap[status];
+
+  return (
+    <span
+      className={`inline-flex items-center gap-2 font-medium ${config.textClassName}`}
+    >
+      <span
+        className={`h-2 w-2 shrink-0 rounded-full ${config.dotClassName}`}
+        aria-hidden="true"
+      />
+      {title}
+    </span>
   );
 }
 
 function OverviewGuide({
   templateCount,
-  activeTemplates,
-  onCreate,
+  assignedTemplateCount,
 }: Readonly<{
   templateCount: number;
-  activeTemplates: number;
-  onCreate: () => void;
+  assignedTemplateCount: number;
 }>) {
   return (
     <div className="sticky top-6 space-y-4">
@@ -697,15 +851,6 @@ function OverviewGuide({
           reicht. So bleibt die Elternansicht kurz und verständlich.
         </p>
       </div>
-
-      <button
-        type="button"
-        onClick={onCreate}
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <Plus className="h-4 w-4" aria-hidden="true" />
-        Vorlage erstellen
-      </button>
 
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-gray-900">
@@ -725,7 +870,7 @@ function OverviewGuide({
           <GuideStep
             icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
             title="Vorlage in Anmeldephase wählen"
-            done={activeTemplates > 0}
+            done={assignedTemplateCount > 0}
           />
         </div>
       </div>
@@ -735,6 +880,178 @@ function OverviewGuide({
         Formularvorlage. Anmeldephase und Betreuungsangebote steuern den
         eigentlichen Ablauf.
       </p>
+    </div>
+  );
+}
+
+function FormTemplateDetail({
+  schema,
+  onBack,
+  onEdit,
+  assignedPhases,
+}: Readonly<{
+  schema: FormSchema;
+  onBack: () => void;
+  onEdit: () => void;
+  assignedPhases: Phase[];
+}>) {
+  const requiredCount = schema.fields.filter((field) =>
+    Boolean(field.required),
+  ).length;
+  const childFieldCount = schema.fields.filter((field) =>
+    Boolean(field.applies_to_child),
+  ).length;
+
+  return (
+    <div className="space-y-5">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+          <div>
+            <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Zurück zur Übersicht
+              </button>
+            </div>
+            <div className="space-y-5 p-5 sm:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                    Formular prüfen
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold text-gray-900">
+                    {schema.name}
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                    Prüfe die Elternansicht und ordne diese Vorlage einer
+                    Anmeldephase zu, wenn Eltern die Zusatzfragen sehen sollen.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium whitespace-nowrap text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                  Bearbeiten
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                <FormMetric
+                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
+                  value={formatSchemaDate(schema.created_at)}
+                  label="Zuletzt gespeichert"
+                />
+                <FormMetric
+                  icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
+                  value={schema.fields.length.toString()}
+                  label="Zusatzfragen"
+                />
+                <FormMetric
+                  icon={<Check className="h-4 w-4" aria-hidden="true" />}
+                  value={requiredCount.toString()}
+                  label="Pflichtfragen"
+                />
+                <FormMetric
+                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
+                  value={childFieldCount.toString()}
+                  label="Pro Kind"
+                />
+              </div>
+
+              <FormPreview
+                fields={schema.fields}
+                templateName={schema.name}
+                isActive={schema.is_active}
+                isSaved
+                assignedPhaseCount={assignedPhases.length}
+                sticky={false}
+              />
+            </div>
+          </div>
+
+          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+            <div className="sticky top-6 space-y-4">
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  Nächster Schritt
+                </p>
+                <h2 className="mt-1 text-base font-semibold text-gray-900">
+                  {assignedPhases.length > 0
+                    ? "In Anmeldephase verwendet"
+                    : "In Anmeldephase verwenden"}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-gray-600">
+                  {assignedPhases.length > 0
+                    ? `Diese Vorlage ist in ${assignedPhases.length} Anmeldephase ausgewählt.`
+                    : "Eine Vorlage wird erst für Eltern relevant, wenn sie in einer Anmeldephase ausgewählt ist. Ohne Auswahl nutzt die Phase das Basisformular."}
+                </p>
+              </div>
+
+              <Link
+                href={
+                  assignedPhases.length > 0
+                    ? "/enrollment-phases"
+                    : `/enrollment-phases?assignForm=${encodeURIComponent(schema.id)}`
+                }
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                {assignedPhases.length > 0
+                  ? "Anmeldephasen öffnen"
+                  : "In Anmeldephase auswählen"}
+              </Link>
+
+              <a
+                href="/enroll"
+                target="_blank"
+                rel="noreferrer"
+                className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-gray-900">
+                    Vorschau öffnen
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+                    Öffnet die Elternansicht in einem neuen Tab.
+                  </span>
+                </span>
+              </a>
+
+              <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+                <h3 className="text-sm font-semibold text-gray-900">Status</h3>
+                <div className="mt-4 space-y-3">
+                  <GuideStep
+                    icon={<Check className="h-4 w-4" aria-hidden="true" />}
+                    title="Vorlage gespeichert"
+                    done
+                  />
+                  <GuideStep
+                    icon={<Eye className="h-4 w-4" aria-hidden="true" />}
+                    title="Vorschau prüfen"
+                    done
+                  />
+                  <GuideStep
+                    icon={
+                      <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                    }
+                    title="In Anmeldephase auswählen"
+                    done={assignedPhases.length > 0}
+                  />
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
     </div>
   );
 }
@@ -845,7 +1162,7 @@ function BuilderTemplateSummary({
           <p className="mt-1 max-w-2xl text-sm text-gray-600">
             {isCreating
               ? "Gib der Vorlage einen eindeutigen Namen. Danach kannst du Zusatzfragen anlegen."
-              : "Beim Speichern entsteht eine neue Version dieser Vorlage."}
+              : "Beim Speichern bleiben bestehende Anmeldungen nachvollziehbar."}
           </p>
         </div>
 
@@ -865,9 +1182,6 @@ function BuilderTemplateSummary({
           </label>
         ) : (
           <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              Version {currentSchema?.version ?? 1}
-            </span>
             <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
               {fields.length} Zusatzfragen
             </span>
@@ -994,10 +1308,19 @@ function FieldEditorRow({
   onMoveDown,
   disabled,
 }: FieldEditorRowProps) {
-  const optionsText = (field.options ?? [])
-    .map((option) => option.label)
-    .join("\n");
+  const optionSignature = useMemo(
+    () => (field.options ?? []).map((option) => option.label).join("\n"),
+    [field.options],
+  );
+  const [optionsDraft, setOptionsDraft] = useState(optionSignature);
+
+  useEffect(() => {
+    setOptionsDraft(optionSignature);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field.key, field.type]);
+
   const updateOptions = (value: string) => {
+    setOptionsDraft(value);
     const options = value
       .split("\n")
       .map((line) => line.trim())
@@ -1185,7 +1508,7 @@ function FieldEditorRow({
                 Auswahloptionen
               </span>
               <textarea
-                value={optionsText}
+                value={optionsDraft}
                 onChange={(event) => updateOptions(event.target.value)}
                 placeholder={"Eine Option pro Zeile\nz. B. Ja\nz. B. Nein"}
                 disabled={disabled}
@@ -1211,7 +1534,6 @@ function FieldEditorRow({
               disabled={disabled || Boolean(field.target)}
             />
           </div>
-
           <details className="rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2 text-xs text-gray-500">
             <summary className="cursor-pointer font-medium text-gray-600">
               Technischer Schlüssel
@@ -1286,26 +1608,48 @@ function FormChoice({
 function FormPreview({
   fields,
   templateName,
-  currentVersion,
   isActive,
   isSaved,
+  assignedPhaseCount = 0,
+  sticky = true,
 }: Readonly<{
   fields: FormField[];
   templateName: string;
-  currentVersion: number | null;
   isActive: boolean;
   isSaved: boolean;
+  assignedPhaseCount?: number;
+  sticky?: boolean;
 }>) {
+  const previewStatus = getPreviewStatus({
+    assignedPhaseCount,
+    isActive,
+    isSaved,
+  });
+
   return (
-    <div className="sticky top-6 space-y-4">
+    <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
             Vorschau
           </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
-            Elternformular
-          </h2>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold text-gray-900">
+              Elternformular
+            </h2>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${previewStatus.className}`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${previewStatus.dotClassName}`}
+                aria-hidden="true"
+              />
+              {previewStatus.label}
+            </span>
+          </div>
+          <p className="mt-1 max-w-sm text-xs leading-5 text-gray-500">
+            {previewStatus.hint}
+          </p>
         </div>
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
           <Eye className="h-4 w-4" aria-hidden="true" />
@@ -1323,46 +1667,13 @@ function FormPreview({
         </span>
         <span className="min-w-0">
           <span className="block text-sm font-semibold text-gray-900">
-            Echte Elternansicht öffnen
+            Vorschau öffnen
           </span>
           <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-            Öffnet die öffentliche Anmeldung in einem neuen Tab.
+            Öffnet die Elternansicht in einem neuen Tab.
           </span>
         </span>
       </a>
-
-      <div
-        className={`moto-content-surface rounded-2xl border p-3 shadow-sm ${
-          isActive
-            ? "border-[#83CD2D]/30 bg-[#83CD2D]/10"
-            : "border-gray-200 bg-white"
-        }`}
-      >
-        <div className="flex items-start gap-3">
-          <span
-            className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
-              isActive ? "bg-[#83CD2D]" : "bg-gray-300"
-            }`}
-            aria-hidden="true"
-          />
-          <div>
-            <p className="text-sm font-semibold text-gray-900">
-              {isActive
-                ? "Dieses Formular ist aktiv"
-                : isSaved
-                  ? "Dieses Formular ist gespeichert"
-                  : "Dieses Formular ist noch nicht gespeichert"}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-gray-500">
-              {isActive
-                ? "Eltern sehen diese Version, wenn sie der aktiven Anmeldephase zugeordnet ist."
-                : isSaved
-                  ? "Ordne die Vorlage in einer Anmeldephase zu, damit Eltern sie verwenden."
-                  : "Speichere die Vorlage zuerst. Danach kannst du sie in einer Anmeldephase auswählen."}
-            </p>
-          </div>
-        </div>
-      </div>
 
       <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-4">
@@ -1372,8 +1683,8 @@ function FormPreview({
           <h3 className="mt-1 text-lg font-semibold text-gray-900">
             {templateName.trim() || "Basisformular"}
           </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {currentVersion ? `Version ${currentVersion}` : "Neue Vorlage"}
+          <p className="mt-1 text-sm leading-6 text-gray-500">
+            Bitte füllen Sie das Formular vollständig aus.
           </p>
         </div>
 
@@ -1484,9 +1795,13 @@ function PreviewCustomField({ field }: Readonly<{ field: FormField }>) {
 function PreviewInput({ field }: Readonly<{ field: FormField }>) {
   if (field.type === "boolean") {
     return (
-      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
-        <span className="h-4 w-4 rounded border border-gray-300 bg-white" />
-        Ja
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <span className="flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-xs font-medium text-gray-500">
+          Ja
+        </span>
+        <span className="flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-xs font-medium text-gray-500">
+          Nein
+        </span>
       </div>
     );
   }
@@ -1494,9 +1809,12 @@ function PreviewInput({ field }: Readonly<{ field: FormField }>) {
   if (field.type === "select") {
     const firstOption = field.options?.[0]?.label ?? "Bitte wählen";
     return (
-      <div className="mt-3 flex h-9 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs text-gray-500">
-        {firstOption}
-        <span>⌄</span>
+      <div className="mt-3 flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-500 shadow-sm">
+        <span className="min-w-0 truncate">{firstOption}</span>
+        <ChevronDown
+          className="h-4 w-4 shrink-0 text-gray-400"
+          aria-hidden="true"
+        />
       </div>
     );
   }
@@ -1510,6 +1828,50 @@ function PreviewInput({ field }: Readonly<{ field: FormField }>) {
   return (
     <div className="mt-3 h-9 rounded-lg border border-gray-200 bg-gray-50" />
   );
+}
+
+function getPreviewStatus({
+  assignedPhaseCount,
+  isActive,
+  isSaved,
+}: Readonly<{
+  assignedPhaseCount: number;
+  isActive: boolean;
+  isSaved: boolean;
+}>) {
+  if (assignedPhaseCount > 0) {
+    return {
+      label: "In Phase verwendet",
+      hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
+      className: "bg-[#83CD2D]/10 text-[#5F9F20]",
+      dotClassName: "bg-[#83CD2D]",
+    };
+  }
+
+  if (isActive) {
+    return {
+      label: "Bereit zur Zuordnung",
+      hint: "Eltern sehen diese Vorlage erst, wenn sie einer Anmeldephase zugeordnet ist.",
+      className: "bg-[#83CD2D]/10 text-[#5F9F20]",
+      dotClassName: "bg-[#83CD2D]",
+    };
+  }
+
+  if (isSaved) {
+    return {
+      label: "Gespeichert",
+      hint: "Ordne die Vorlage in einer Anmeldephase zu, damit Eltern sie verwenden.",
+      className: "bg-gray-100 text-gray-600",
+      dotClassName: "bg-gray-300",
+    };
+  }
+
+  return {
+    label: "Entwurf",
+    hint: "Speichere die Vorlage zuerst. Danach kannst du sie in einer Anmeldephase auswählen.",
+    className: "bg-gray-100 text-gray-600",
+    dotClassName: "bg-gray-300",
+  };
 }
 
 function normalizeFieldKey(value: string): string {

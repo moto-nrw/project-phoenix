@@ -6,6 +6,7 @@ import {
   ArrowRight,
   CalendarRange,
   Check,
+  ChevronDown,
   ClipboardList,
   Eye,
   FileText,
@@ -20,40 +21,17 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { listCareOfferings } from "~/lib/care-offering-api";
-import { listSchemas, type FormSchema } from "~/lib/enrollment-form-schema-api";
+import {
+  latestSchemasByName,
+  listSchemas,
+  type FormSchema,
+} from "~/lib/enrollment-form-schema-api";
 import { fetchSettingsSchema } from "~/lib/settings-api";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
-import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
 
-const STATUS_LABELS: Record<ChildStatus, string> = {
-  submitted: "Eingegangen",
-  under_review: "In Prüfung",
-  approved: "Bestätigt",
-  waitlisted: "Warteliste",
-  rejected: "Abgelehnt",
-  withdrawn: "Zurückgezogen",
-  pending_renewal: "Wartet auf Verlängerung",
-  auto_renewed: "Vorgemerkt",
-  pending_admin_review: "Manuelle Prüfung",
-};
-
-const STATUS_COLORS: Record<ChildStatus, { bg: string; text: string }> = {
-  submitted: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
-  under_review: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
-  approved: { bg: LOCATION_COLORS.GROUP_ROOM, text: "#FFFFFF" },
-  waitlisted: { bg: LOCATION_COLORS.SCHOOLYARD, text: "#FFFFFF" },
-  rejected: { bg: LOCATION_COLORS.HOME, text: "#FFFFFF" },
-  withdrawn: { bg: LOCATION_COLORS.UNKNOWN, text: "#FFFFFF" },
-  pending_renewal: { bg: LOCATION_COLORS.SCHOOLYARD, text: "#FFFFFF" },
-  auto_renewed: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
-  pending_admin_review: { bg: LOCATION_COLORS.UNKNOWN, text: "#FFFFFF" },
-};
-
-const ALL_FILTER_VALUE = "all";
 type SetupStepStatus = "done" | "todo" | "optional" | "blocked";
 
 interface SetupStep {
@@ -73,7 +51,6 @@ interface CareOfferingStats {
 }
 
 export function AdminEnrollmentsList() {
-  const tenantSlug = useTenantSlugSafe();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [careOfferingStats, setCareOfferingStats] = useState<CareOfferingStats>(
@@ -82,11 +59,10 @@ export function AdminEnrollmentsList() {
   const [enrollmentEnabled, setEnrollmentEnabled] = useState<boolean | null>(
     null,
   );
-  const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
-  const [phaseFilter, setPhaseFilter] = useState<string>(ALL_FILTER_VALUE);
-  const [statusFilter, setStatusFilter] = useState<string>(ALL_FILTER_VALUE);
+  const [allRequests, setAllRequests] = useState<AdminRequestSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,17 +70,10 @@ export function AdminEnrollmentsList() {
       setLoading(true);
       setError(null);
       try {
-        const [phasesData, requestsData, schemasData, settingsData] =
+        const [phasesData, allRequestsData, schemasData, settingsData] =
           await Promise.all([
             listPhases(),
-            listAdminRequests({
-              phaseId:
-                phaseFilter !== ALL_FILTER_VALUE ? phaseFilter : undefined,
-              childStatus:
-                statusFilter !== ALL_FILTER_VALUE
-                  ? (statusFilter as ChildStatus)
-                  : undefined,
-            }),
+            listAdminRequests(),
             listSchemas().catch(() => [] as FormSchema[]),
             fetchSettingsSchema().catch(() => null),
           ]);
@@ -115,7 +84,7 @@ export function AdminEnrollmentsList() {
         );
         if (cancelled) return;
         setPhases(phasesData);
-        setRequests(requestsData);
+        setAllRequests(allRequestsData);
         setSchemas(schemasData);
         const activePhaseIds = new Set(
           phasesData
@@ -145,101 +114,7 @@ export function AdminEnrollmentsList() {
     return () => {
       cancelled = true;
     };
-  }, [phaseFilter, statusFilter]);
-
-  const totals = useMemo(() => {
-    const counts: Partial<Record<ChildStatus, number>> = {};
-    for (const r of requests) {
-      for (const c of r.children) {
-        counts[c.status] = (counts[c.status] ?? 0) + 1;
-      }
-    }
-    return counts;
-  }, [requests]);
-
-  const columns: DataTableColumn<AdminRequestSummary>[] = useMemo(
-    () => [
-      {
-        key: "guardian",
-        header: "Eltern",
-        sortValue: (request) =>
-          `${request.guardian_last_name} ${request.guardian_first_name}`,
-        render: (request) => (
-          <div className="min-w-0">
-            <p className="truncate font-medium text-gray-900">
-              {request.guardian_first_name} {request.guardian_last_name}
-            </p>
-            <p className="truncate text-xs text-gray-500">
-              {request.guardian_email}
-            </p>
-          </div>
-        ),
-      },
-      {
-        key: "phase",
-        header: "Anmeldephase",
-        sortValue: (request) => request.phase_name || "",
-        render: (request) => (
-          <span className="text-sm text-gray-700">
-            {request.phase_name || "Nicht zugeordnet"}
-          </span>
-        ),
-      },
-      {
-        key: "submitted",
-        header: "Eingegangen",
-        sortValue: (request) => new Date(request.submitted_at).getTime(),
-        render: (request) => (
-          <span className="text-xs text-gray-600">
-            {new Date(request.submitted_at).toLocaleString("de-DE", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-        ),
-      },
-      {
-        key: "children",
-        header: "Kinder",
-        render: (request) => (
-          <ul className="space-y-1.5">
-            {request.children.map((child) => (
-              <li
-                key={child.id}
-                className="flex min-w-0 flex-wrap items-center gap-2 text-xs"
-              >
-                <span className="truncate text-gray-900">
-                  {child.first_name} {child.last_name}
-                </span>
-                <StatusBadge status={child.status} />
-              </li>
-            ))}
-          </ul>
-        ),
-      },
-      {
-        key: "actions",
-        header: "Aktionen",
-        align: "right",
-        render: (request) => (
-          <Link
-            href={
-              tenantSlug
-                ? `/${tenantSlug}/admin/enrollments/${request.id}`
-                : `/admin/enrollments/${request.id}`
-            }
-            className="inline-flex rounded-lg px-2 py-1 text-xs font-medium text-[#5080D8] transition-colors hover:bg-[#5080D8]/10 focus-visible:ring-2 focus-visible:ring-[#5080D8]/40 focus-visible:outline-none"
-          >
-            Details
-          </Link>
-        ),
-      },
-    ],
-    [tenantSlug],
-  );
+  }, []);
 
   if (loading) {
     return (
@@ -253,10 +128,13 @@ export function AdminEnrollmentsList() {
         enrollmentEnabled={enrollmentEnabled}
         phaseCount={phases.length}
         activePhaseCount={phases.filter((phase) => phase.is_active).length}
-        schemaCount={schemas.length}
+        activePhaseWithFormCount={
+          phases.filter((phase) => phase.is_active).length
+        }
+        schemaCount={latestSchemas.length}
         careOfferingCount={careOfferingStats.total}
         activeCareOfferingCount={careOfferingStats.activeInActivePhases}
-        requestCount={requests.length}
+        requestCount={allRequests.length}
       />
 
       {error && (
@@ -265,70 +143,7 @@ export function AdminEnrollmentsList() {
         </div>
       )}
 
-      <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-        <label className="text-sm" htmlFor="enrollment-phase-filter">
-          <span className="mr-2 font-medium text-gray-700">Anmeldephase</span>
-          <select
-            id="enrollment-phase-filter"
-            name="phase"
-            value={phaseFilter}
-            onChange={(e) => setPhaseFilter(e.target.value)}
-            className="moto-select moto-content-surface rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value={ALL_FILTER_VALUE}>Alle Anmeldephasen</option>
-            {phases.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm" htmlFor="enrollment-status-filter">
-          <span className="mr-2 font-medium text-gray-700">Status</span>
-          <select
-            id="enrollment-status-filter"
-            name="status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="moto-select moto-content-surface rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value={ALL_FILTER_VALUE}>Alle</option>
-            {(Object.keys(STATUS_LABELS) as ChildStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="ml-auto flex flex-wrap gap-2 text-xs text-gray-600">
-          {(Object.keys(STATUS_LABELS) as ChildStatus[]).map((s) => {
-            const count = totals[s] ?? 0;
-            if (count === 0) return null;
-            return (
-              <span
-                key={s}
-                className="rounded-full px-2 py-0.5 font-medium"
-                style={{
-                  backgroundColor: STATUS_COLORS[s].bg,
-                  color: STATUS_COLORS[s].text,
-                }}
-              >
-                {STATUS_LABELS[s]}: {count}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-
-      <DataTable
-        columns={columns}
-        rows={requests}
-        getRowKey={(request) => request.id}
-        emptyState="Keine Anmeldungen für diese Filter."
-        defaultSortKey="submitted"
-        defaultSortDirection="desc"
-      />
+      <EnrollmentPhaseOverview phases={phases} requests={allRequests} />
     </div>
   );
 }
@@ -350,10 +165,169 @@ function readEnrollmentEnabled(
   return null;
 }
 
+function formatPhaseDate(value: string): string {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+const OPEN_STATUSES = new Set<ChildStatus>([
+  "submitted",
+  "under_review",
+  "pending_admin_review",
+]);
+
+function EnrollmentPhaseOverview({
+  phases,
+  requests,
+}: Readonly<{
+  phases: Phase[];
+  requests: AdminRequestSummary[];
+}>) {
+  const phaseStats = useMemo(() => {
+    const stats = new Map<
+      string,
+      { total: number; open: number; approved: number; rejected: number }
+    >();
+    for (const phase of phases) {
+      stats.set(phase.id, { total: 0, open: 0, approved: 0, rejected: 0 });
+    }
+    for (const request of requests) {
+      const entry = stats.get(request.phase_id);
+      if (!entry) continue;
+      for (const child of request.children) {
+        entry.total += 1;
+        if (OPEN_STATUSES.has(child.status)) entry.open += 1;
+        if (child.status === "approved") entry.approved += 1;
+        if (child.status === "rejected") entry.rejected += 1;
+      }
+    }
+    return stats;
+  }, [phases, requests]);
+
+  const sortedPhases = useMemo(
+    () =>
+      [...phases].sort((a, b) => {
+        if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+        return b.service_start_date.localeCompare(a.service_start_date);
+      }),
+    [phases],
+  );
+
+  if (phases.length === 0) {
+    return (
+      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          Überblick
+        </p>
+        <h2 className="mt-1 text-base font-semibold text-gray-900">
+          Noch keine Anmeldephase
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Lege zuerst eine Anmeldephase an. Danach siehst du hier, welche Phasen
+          laufen und wie viele Anmeldungen eingegangen sind.
+        </p>
+        <Link
+          href="/enrollment-phases"
+          className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          Anmeldephase anlegen
+        </Link>
+      </section>
+    );
+  }
+
+  return (
+    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            Überblick
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-gray-900">
+            Anmeldephasen und Eingänge
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+            Wähle eine Phase aus, um die eingegangenen Anmeldungen zu prüfen und
+            zu bearbeiten.
+          </p>
+        </div>
+        <Link
+          href="/enrollment-phases"
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          Anmeldephasen verwalten
+        </Link>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        {sortedPhases.map((phase) => {
+          const stats = phaseStats.get(phase.id) ?? {
+            total: 0,
+            open: 0,
+            approved: 0,
+            rejected: 0,
+          };
+          return (
+            <article
+              key={phase.id}
+              className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-sm font-semibold text-gray-900">
+                      {phase.name}
+                    </h3>
+                    <DataTableStatusBadge active={phase.is_active} />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formatPhaseDate(phase.service_start_date)} bis{" "}
+                    {formatPhaseDate(phase.service_end_date)}
+                  </p>
+                </div>
+                <Link
+                  href={`/admin/enrollments/phases/${phase.id}`}
+                  className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                >
+                  Anmeldungen ansehen
+                </Link>
+              </div>
+              <div className="mt-4 grid grid-cols-4 gap-2">
+                <PhaseStat label="Gesamt" value={stats.total} />
+                <PhaseStat label="Offen" value={stats.open} />
+                <PhaseStat label="Bestätigt" value={stats.approved} />
+                <PhaseStat label="Abgelehnt" value={stats.rejected} />
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function PhaseStat({
+  label,
+  value,
+}: Readonly<{ label: string; value: number }>) {
+  return (
+    <div className="rounded-xl bg-gray-50 px-3 py-2">
+      <span className="block text-sm font-semibold text-gray-900">{value}</span>
+      <span className="block text-[11px] font-medium text-gray-500">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 interface EnrollmentSetupGuideProps {
   readonly enrollmentEnabled: boolean | null;
   readonly phaseCount: number;
   readonly activePhaseCount: number;
+  readonly activePhaseWithFormCount: number;
   readonly schemaCount: number;
   readonly careOfferingCount: number;
   readonly activeCareOfferingCount: number;
@@ -364,6 +338,7 @@ function EnrollmentSetupGuide({
   enrollmentEnabled,
   phaseCount,
   activePhaseCount,
+  activePhaseWithFormCount,
   schemaCount,
   careOfferingCount,
   activeCareOfferingCount,
@@ -373,6 +348,12 @@ function EnrollmentSetupGuide({
     enrollmentEnabled === true &&
     activePhaseCount > 0 &&
     activeCareOfferingCount > 0;
+  const setupComplete = readyForPreview;
+  const [expanded, setExpanded] = useState(!setupComplete);
+
+  useEffect(() => {
+    if (!setupComplete) setExpanded(true);
+  }, [setupComplete]);
 
   const steps = [
     {
@@ -422,11 +403,14 @@ function EnrollmentSetupGuide({
     {
       title: "Anmeldeformular festlegen",
       description:
-        "Das Basisformular reicht oft aus. Zusatzfelder sind optional.",
+        schemaCount === 0
+          ? "Das Basisformular reicht oft aus. Zusatzfragen sind optional."
+          : "Eigene Vorlagen sind optional. Eine Anmeldephase kann auch mit dem Basisformular live gehen.",
       href: "/enrollment-form",
-      action: schemaCount > 0 ? "Formular prüfen" : "Basisformular prüfen",
-      status: schemaCount > 0 ? "done" : "optional",
-      meta: schemaCount === 0 ? "Basisformular" : `${schemaCount} Versionen`,
+      action: "Formulare prüfen",
+      status:
+        activePhaseWithFormCount > 0 || schemaCount === 0 ? "optional" : "todo",
+      meta: activePhaseWithFormCount > 0 ? "Basisformular" : "Optional",
       icon: FileText,
       requiredForPublish: false,
     },
@@ -453,18 +437,83 @@ function EnrollmentSetupGuide({
     steps.find((step) => step.status === "blocked") ??
     steps[steps.length - 1];
 
+  if (setupComplete && !expanded) {
+    return (
+      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-expanded={false}
+          className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          <span className="flex min-w-0 items-center gap-3.5">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#83CD2D]"
+              aria-hidden="true"
+            />
+            <span className="min-w-0">
+              <span className="block text-xs font-medium tracking-wide text-gray-500 uppercase">
+                Einrichtung
+              </span>
+              <span className="mt-0.5 block text-base font-semibold text-gray-900">
+                Erste Schritte abgeschlossen
+              </span>
+            </span>
+          </span>
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700"
+            aria-hidden="true"
+          >
+            <ChevronDown className="h-4 w-4" aria-hidden="true" />
+          </span>
+        </button>
+      </section>
+    );
+  }
+
   return (
     <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      {setupComplete && (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          aria-expanded={true}
+          className="group flex w-full items-center justify-between gap-4 border-b border-gray-100 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          <span className="flex min-w-0 items-center gap-3.5">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#83CD2D]"
+              aria-hidden="true"
+            />
+            <span className="min-w-0">
+              <span className="block text-xs font-medium tracking-wide text-gray-500 uppercase">
+                Einrichtung
+              </span>
+              <span className="mt-0.5 block text-base font-semibold text-gray-900">
+                Erste Schritte abgeschlossen
+              </span>
+            </span>
+          </span>
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700"
+            aria-hidden="true"
+          >
+            <ChevronDown className="h-4 w-4 rotate-180" aria-hidden="true" />
+          </span>
+        </button>
+      )}
       <div className="grid lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="p-4 sm:p-5">
           <div className="border-b border-gray-100 pb-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-                  Konfigurator
+                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  Einrichtung
                 </p>
                 <h2 className="mt-1 text-base font-semibold text-gray-900">
-                  Online-Anmeldung vorbereiten
+                  {setupComplete
+                    ? "Online-Anmeldung ist bereit"
+                    : "Online-Anmeldung vorbereiten"}
                 </h2>
                 <p className="mt-1 max-w-2xl text-sm text-gray-600">
                   Starte hier, wenn du neue Halbjahresanmeldungen,
@@ -598,8 +647,9 @@ function EnrollmentSetupGuide({
 
             <div className="text-xs leading-relaxed text-gray-500">
               Für den Elternlink sind Aktivierung, Anmeldephase und
-              Betreuungsangebote entscheidend. Das Basisformular ist schon
-              vorhanden, danach kannst du die Elternansicht testen.
+              Betreuungsangebote entscheidend. Das Basisformular ist schon da.
+              Eigene Formularvorlagen musst du zusätzlich in der passenden
+              Anmeldephase auswählen.
             </div>
           </div>
         </aside>
@@ -665,18 +715,6 @@ function StepMeta({
         aria-hidden="true"
       />
       {label}
-    </span>
-  );
-}
-
-function StatusBadge({ status }: Readonly<{ status: ChildStatus }>) {
-  const styles = STATUS_COLORS[status];
-  return (
-    <span
-      className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
-      style={{ backgroundColor: styles.bg, color: styles.text }}
-    >
-      {STATUS_LABELS[status]}
     </span>
   );
 }

@@ -268,8 +268,10 @@ func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testi
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
-	// Submit with no target_grade_level via a manual insert — the
-	// public Submit path always requires a grade, so we bypass it.
+	// The public Submit path now requires a grade level (form-level
+	// invariant). To simulate legacy / migrated data that landed in
+	// the table without a grade we submit with a grade, then null it
+	// out via direct UPDATE before triggering the rollover scan.
 	res, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
 		TenantID:          1,
 		PhaseID:           env.sourcePhase.ID,
@@ -278,13 +280,20 @@ func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testi
 		GuardianEmail:     "anna@example.com",
 		Children: []enrollmentService.SubmitChild{
 			{
-				FirstName:   "Lina",
-				LastName:    "Beispiel",
-				DateOfBirth: time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				FirstName:        "Lina",
+				LastName:         "Beispiel",
+				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				TargetGradeLevel: testpkg.Int16Ptr(1),
 			},
 		},
 	})
 	require.NoError(t, err)
+	_, err = env.db.NewUpdate().
+		Table("enrollment.request_children").
+		Set("target_grade_level = NULL").
+		Where("id = ?", res.Children[0].ID).
+		Exec(ctx)
+	require.NoError(t, err, "manual NULL of target_grade_level for legacy-data simulation")
 	require.NoError(t, env.repos.RequestChild.UpdateStatus(
 		ctx, res.Children[0].ID, enrollmentModels.ChildStatusApproved, nil, env.creatorID,
 	))

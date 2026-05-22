@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  AlertTriangle,
+  Check,
+  Clock,
+  Mail,
+  Pencil,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+import {
   confirmRenewal,
   fetchStatus,
   patchStatus,
@@ -25,22 +34,19 @@ const STATUS_LABELS: Record<StatusChild["status"], string> = {
   pending_admin_review: "In Prüfung",
 };
 
-// MOTO brand hex codes via LOCATION_COLORS — see CLAUDE.md §0.
 const STATUS_STYLES: Record<
   StatusChild["status"],
-  { bg: string; text: string; border: string }
+  { dot: string; text: string; bg: string }
 > = {
-  submitted: { bg: "#5080D8", text: "#FFFFFF", border: "#5080D8" },
-  under_review: { bg: "#5080D8", text: "#FFFFFF", border: "#5080D8" },
-  approved: { bg: "#83CD2D", text: "#FFFFFF", border: "#83CD2D" },
-  waitlisted: { bg: "#F78C10", text: "#FFFFFF", border: "#F78C10" },
-  rejected: { bg: "#FF3130", text: "#FFFFFF", border: "#FF3130" },
-  withdrawn: { bg: "#6B7280", text: "#FFFFFF", border: "#6B7280" },
-  // Renewal states use amber (opt-in needs action) and a softer blue
-  // (opt-out is "we have you on the list").
-  pending_renewal: { bg: "#F59E0B", text: "#FFFFFF", border: "#F59E0B" },
-  auto_renewed: { bg: "#5080D8", text: "#FFFFFF", border: "#5080D8" },
-  pending_admin_review: { bg: "#6B7280", text: "#FFFFFF", border: "#6B7280" },
+  submitted: { dot: "#5080D8", text: "#374151", bg: "#F3F4F6" },
+  under_review: { dot: "#5080D8", text: "#374151", bg: "#F3F4F6" },
+  approved: { dot: "#83CD2D", text: "#5A8E1F", bg: "#83CD2D1A" },
+  waitlisted: { dot: "#F78C10", text: "#7C4A03", bg: "#F78C101A" },
+  rejected: { dot: "#FF3130", text: "#9F1F1E", bg: "#FF31301A" },
+  withdrawn: { dot: "#6B7280", text: "#374151", bg: "#F3F4F6" },
+  pending_renewal: { dot: "#F78C10", text: "#7C4A03", bg: "#F78C101A" },
+  auto_renewed: { dot: "#5080D8", text: "#374151", bg: "#F3F4F6" },
+  pending_admin_review: { dot: "#6B7280", text: "#374151", bg: "#F3F4F6" },
 };
 
 const TERMINAL_STATUSES = new Set<StatusChild["status"]>([
@@ -51,9 +57,10 @@ const TERMINAL_STATUSES = new Set<StatusChild["status"]>([
 
 interface Props {
   readonly token: string;
+  readonly justSubmitted?: boolean;
 }
 
-export function EnrollmentStatusView({ token }: Props) {
+export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -175,12 +182,16 @@ export function EnrollmentStatusView({ token }: Props) {
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Status wird geladen...</p>;
+    return (
+      <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
+        Status wird geladen…
+      </div>
+    );
   }
 
   if (notFound) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
+      <div className="moto-content-surface rounded-3xl border border-red-200 bg-red-50 p-6 text-center shadow-sm">
         <h1 className="text-xl font-semibold text-red-800">
           Status-Link ungültig
         </h1>
@@ -194,7 +205,7 @@ export function EnrollmentStatusView({ token }: Props) {
 
   if (!status) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
+      <div className="moto-content-surface rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 shadow-sm">
         {error ?? "Status konnte nicht geladen werden."}
       </div>
     );
@@ -208,6 +219,7 @@ export function EnrollmentStatusView({ token }: Props) {
   const allWithdrawn =
     !!status.withdrawn_at ||
     status.children.every((c) => c.status === "withdrawn");
+  const hasMultipleChildren = status.children.length > 1;
 
   const pendingRenewalCount = status.children.filter(
     (c) => c.status === "pending_renewal",
@@ -219,29 +231,97 @@ export function EnrollmentStatusView({ token }: Props) {
   const showOptOutBanner = !showOptInBanner && autoRenewedCount > 0;
 
   return (
-    <div className="space-y-6">
-      <header className="moto-content-surface rounded-2xl border p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Status deiner Anmeldung
-        </h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Eingegangen am {submittedDate}
-        </p>
-      </header>
+    <div className="mx-auto max-w-5xl space-y-6">
+      {justSubmitted ? (
+        <section className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+            <div className="p-6 sm:p-8 lg:p-10">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-[#5A8E1F]">
+                <Check className="h-7 w-7" aria-hidden="true" />
+              </div>
+              <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+                Anmeldung eingegangen
+              </p>
+              <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                Danke. Ihre Anmeldung wurde übermittelt.
+              </h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
+                Die OGS prüft die Angaben. Den aktuellen Stand sehen Sie auf
+                dieser Seite. Speichern Sie den Link am besten direkt ab.
+              </p>
+            </div>
+            <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-6 sm:p-8 lg:border-t-0 lg:border-l">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Was jetzt passiert
+              </h2>
+              <ol className="mt-5 space-y-4 text-sm text-gray-600">
+                <li className="flex gap-3">
+                  <StepNumber>1</StepNumber>
+                  <span>Die Anmeldung liegt der OGS zur Prüfung vor.</span>
+                </li>
+                <li className="flex gap-3">
+                  <StepNumber>2</StepNumber>
+                  <span>
+                    Bei Rückfragen meldet sich die OGS über die angegebene
+                    E-Mail-Adresse.
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <StepNumber>3</StepNumber>
+                  <span>
+                    Sobald eine Entscheidung getroffen wurde, erscheint sie im
+                    Statusbereich unten.
+                  </span>
+                </li>
+              </ol>
+            </aside>
+          </div>
+        </section>
+      ) : (
+        <header className="moto-content-surface rounded-3xl border p-6 shadow-sm">
+          <p className="text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+            Status
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900">
+            Status Ihrer Anmeldung
+          </h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Eingegangen am {submittedDate}
+          </p>
+        </header>
+      )}
+
+      <section className="grid gap-3 sm:grid-cols-3">
+        <StatusSummaryCard
+          icon={<Clock className="h-5 w-5" aria-hidden="true" />}
+          label="Eingegangen"
+          value={submittedDate}
+        />
+        <StatusSummaryCard
+          icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
+          label="Kinder"
+          value={String(status.children.length)}
+        />
+        <StatusSummaryCard
+          icon={<Mail className="h-5 w-5" aria-hidden="true" />}
+          label="Kontakt"
+          value={status.guardian_email}
+        />
+      </section>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {error}
         </div>
       )}
       {info && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
           {info}
         </div>
       )}
 
       {showOptInBanner && (
-        <section className="rounded-2xl border border-[#F59E0B] bg-[#FEF3C7] p-6 shadow-sm">
+        <section className="moto-content-surface rounded-3xl border p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">
             Bestätigung erforderlich
           </h2>
@@ -255,25 +335,25 @@ export function EnrollmentStatusView({ token }: Props) {
               type="button"
               onClick={() => void handleConfirmRenewal()}
               disabled={confirmingRenewal}
-              className="rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white shadow hover:bg-[#76b829] disabled:opacity-50"
+              className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 disabled:opacity-50"
             >
-              {confirmingRenewal ? "Wird bestätigt..." : "Anmeldung bestätigen"}
+              {confirmingRenewal ? "Wird bestätigt…" : "Anmeldung bestätigen"}
             </button>
             <button
               type="button"
               onClick={() => void handleWithdraw()}
               disabled={withdrawingChild === "__all__"}
-              className="rounded-lg border border-[#FF3130] px-4 py-2 text-sm font-medium text-[#FF3130] hover:bg-[#FF3130]/10 disabled:opacity-50"
+              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
             >
               {withdrawingChild === "__all__"
-                ? "Wird abgelehnt..."
+                ? "Wird abgelehnt…"
                 : "Anmeldung ablehnen"}
             </button>
           </div>
         </section>
       )}
       {showOptOutBanner && (
-        <section className="rounded-2xl border border-[#5080D8] bg-[#EFF6FF] p-6 shadow-sm">
+        <section className="moto-content-surface rounded-3xl border p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">
             Anmeldung wurde verlängert
           </h2>
@@ -287,110 +367,130 @@ export function EnrollmentStatusView({ token }: Props) {
               type="button"
               onClick={() => void handleWithdraw()}
               disabled={withdrawingChild === "__all__"}
-              className="rounded-lg border border-[#FF3130] px-4 py-2 text-sm font-medium text-[#FF3130] hover:bg-[#FF3130]/10 disabled:opacity-50"
+              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
             >
-              {withdrawingChild === "__all__"
-                ? "Wird abgemeldet..."
-                : "Abmelden"}
+              {withdrawingChild === "__all__" ? "Wird abgemeldet…" : "Abmelden"}
             </button>
           </div>
         </section>
       )}
 
-      <section className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm">
+      <section className="moto-content-surface space-y-4 rounded-3xl border p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-gray-900">Kinder</h2>
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Anmeldungen
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-gray-900">Kinder</h2>
+          </div>
         </div>
         <ul className="space-y-3">
           {status.children.map((c) => {
-            const styles = STATUS_STYLES[c.status];
-            const canWithdraw = !TERMINAL_STATUSES.has(c.status);
+            const canWithdraw =
+              hasMultipleChildren && !TERMINAL_STATUSES.has(c.status);
             return (
-              <li key={c.id} className="rounded-lg border border-gray-200 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {c.first_name} {c.last_name}
-                    </p>
-                    {c.status_reason && (
-                      <p className="mt-1 text-sm text-gray-600">
-                        {c.status_reason}
+              <li
+                key={c.id}
+                className="rounded-2xl border border-gray-200 bg-white p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-gray-600 shadow-sm">
+                      <UserRound className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {c.first_name} {c.last_name}
                       </p>
-                    )}
+                      {c.status_reason && (
+                        <p className="mt-1 text-sm text-gray-600">
+                          {c.status_reason}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <span
-                    className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
-                    style={{
-                      backgroundColor: styles.bg,
-                      color: styles.text,
-                    }}
-                  >
-                    {STATUS_LABELS[c.status]}
-                  </span>
+                  <StatusPill status={c.status} />
                 </div>
-                {canWithdraw && (
-                  <div className="mt-3 flex justify-end">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3">
+                  <p className="text-sm text-gray-500">
+                    {c.status === "approved"
+                      ? "Diese Anmeldung wurde bereits bestätigt."
+                      : canWithdraw
+                        ? "Noch keine endgültige Entscheidung getroffen."
+                        : "Diese Anmeldung kann nicht mehr online geändert werden."}
+                  </p>
+                  {canWithdraw && (
                     <button
                       type="button"
                       onClick={() => void handleWithdraw(c.id)}
                       disabled={withdrawingChild === c.id}
-                      className="text-sm font-medium text-[#FF3130] hover:underline disabled:opacity-50"
+                      className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
                     >
                       {withdrawingChild === c.id
-                        ? "Wird zurückgezogen..."
-                        : "Anmeldung zurückziehen"}
+                        ? "Wird zurückgezogen…"
+                        : "Dieses Kind zurückziehen"}
                     </button>
-                  </div>
-                )}
-                {c.status === "approved" && (
-                  <p className="mt-3 text-xs text-gray-500">
-                    Diese Anmeldung wurde bereits bestätigt. Für Änderungen
-                    wende dich bitte direkt an die OGS.
-                  </p>
-                )}
+                  )}
+                </div>
               </li>
             );
           })}
         </ul>
       </section>
 
-      <section className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Kontaktdaten der Erziehungsberechtigten
-          </h2>
+      <section className="moto-content-surface space-y-4 rounded-3xl border p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Kontakt
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+              Erziehungsberechtigte
+            </h2>
+          </div>
           {allEditable && !editing && (
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="text-sm font-medium text-[#5080D8] hover:underline"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
             >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
               Bearbeiten
             </button>
           )}
         </div>
         {!editing ? (
-          <dl className="space-y-2 text-sm text-gray-700">
-            <div>
-              <dt className="text-xs text-gray-500 uppercase">Name</dt>
-              <dd>
+          <dl className="grid gap-3 text-sm text-gray-700 sm:grid-cols-3">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                Name
+              </dt>
+              <dd className="mt-1 font-semibold text-gray-900">
                 {status.guardian_first_name} {status.guardian_last_name}
               </dd>
             </div>
-            <div>
-              <dt className="text-xs text-gray-500 uppercase">E-Mail</dt>
-              <dd>{status.guardian_email}</dd>
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                E-Mail
+              </dt>
+              <dd className="mt-1 truncate font-semibold text-gray-900">
+                {status.guardian_email}
+              </dd>
             </div>
-            <div>
-              <dt className="text-xs text-gray-500 uppercase">Telefon</dt>
-              <dd>{status.guardian_phone ?? "—"}</dd>
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                Telefon
+              </dt>
+              <dd className="mt-1 font-semibold text-gray-900">
+                {status.guardian_phone ?? "Nicht angegeben"}
+              </dd>
             </div>
           </dl>
         ) : (
-          <form onSubmit={handleEdit} className="space-y-3 text-sm">
-            <div className="grid gap-3 sm:grid-cols-2">
+          <form onSubmit={handleEdit} className="space-y-4 text-sm">
+            <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">
+                <span className="text-sm font-semibold text-gray-700">
                   Vorname
                 </span>
                 <input
@@ -398,11 +498,11 @@ export function EnrollmentStatusView({ token }: Props) {
                   value={editFirstName}
                   onChange={(e) => setEditFirstName(e.target.value)}
                   required
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+                  className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-gray-700">
+                <span className="text-sm font-semibold text-gray-700">
                   Nachname
                 </span>
                 <input
@@ -410,32 +510,32 @@ export function EnrollmentStatusView({ token }: Props) {
                   value={editLastName}
                   onChange={(e) => setEditLastName(e.target.value)}
                   required
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+                  className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300"
                 />
               </label>
             </div>
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">
-                Telefon (optional)
+              <span className="text-sm font-semibold text-gray-700">
+                Telefon, optional
               </span>
               <input
                 type="tel"
                 value={editPhone}
                 onChange={(e) => setEditPhone(e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+                className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300"
               />
             </label>
-            <p className="text-xs text-gray-500">
+            <p className="text-sm text-gray-500">
               Die E-Mail-Adresse kann hier nicht geändert werden. Wende dich
               dafür bitte direkt an die OGS.
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-3">
               <button
                 type="submit"
                 disabled={savingEdit}
-                className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 disabled:opacity-50"
               >
-                {savingEdit ? "Speichert..." : "Speichern"}
+                {savingEdit ? "Speichert…" : "Speichern"}
               </button>
               <button
                 type="button"
@@ -446,7 +546,7 @@ export function EnrollmentStatusView({ token }: Props) {
                   setEditPhone(status.guardian_phone ?? "");
                 }}
                 disabled={savingEdit}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
               >
                 Abbrechen
               </button>
@@ -454,7 +554,7 @@ export function EnrollmentStatusView({ token }: Props) {
           </form>
         )}
         {!allEditable && !editing && (
-          <p className="text-xs text-gray-500">
+          <p className="text-sm text-gray-500">
             Änderungen sind nur möglich, solange noch keine Entscheidung
             getroffen wurde. Für Änderungen wende dich bitte an die OGS.
           </p>
@@ -462,27 +562,98 @@ export function EnrollmentStatusView({ token }: Props) {
       </section>
 
       {!allWithdrawn && (
-        <section className="moto-content-surface rounded-2xl border p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Komplette Anmeldung zurückziehen
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Du kannst die gesamte Anmeldung zurückziehen, solange noch keine
-            Entscheidung getroffen wurde. Bereits bestätigte Kinder bleiben
-            davon unberührt — wende dich dafür an die OGS.
-          </p>
-          <button
-            type="button"
-            onClick={() => void handleWithdraw()}
-            disabled={withdrawingChild === "__all__"}
-            className="mt-4 rounded-md border border-[#FF3130] px-4 py-2 text-sm font-medium text-[#FF3130] hover:bg-red-50 disabled:opacity-50"
-          >
-            {withdrawingChild === "__all__"
-              ? "Wird zurückgezogen..."
-              : "Anmeldung zurückziehen"}
-          </button>
+        <section className="moto-content-surface rounded-3xl border p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-gray-600 shadow-sm">
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  Anmeldung verwalten
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-gray-900">
+                  {hasMultipleChildren
+                    ? "Gesamte Anmeldung zurückziehen"
+                    : "Anmeldung zurückziehen"}
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                  Du kannst die Anmeldung zurückziehen, solange noch keine
+                  Entscheidung getroffen wurde. Bereits bestätigte Kinder
+                  bleiben unverändert. Wende dich dafür bitte direkt an die OGS.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleWithdraw()}
+              disabled={withdrawingChild === "__all__"}
+              className="h-10 shrink-0 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:border-[#FF3130]/40 hover:bg-[#FF3130]/5 hover:text-[#9F1F1E] disabled:opacity-50"
+            >
+              {withdrawingChild === "__all__"
+                ? "Wird zurückgezogen…"
+                : hasMultipleChildren
+                  ? "Gesamte Anmeldung zurückziehen"
+                  : "Anmeldung zurückziehen"}
+            </button>
+          </div>
         </section>
       )}
+    </div>
+  );
+}
+
+function StepNumber({ children }: { readonly children: React.ReactNode }) {
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">
+      {children}
+    </span>
+  );
+}
+
+function StatusPill({ status }: { readonly status: StatusChild["status"] }) {
+  const styles = STATUS_STYLES[status];
+  return (
+    <span
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+      style={{
+        backgroundColor: styles.bg,
+        color: styles.text,
+      }}
+    >
+      <span
+        className="h-2 w-2 rounded-full"
+        style={{ backgroundColor: styles.dot }}
+      />
+      {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+function StatusSummaryCard({
+  icon,
+  label,
+  value,
+}: {
+  readonly icon: React.ReactNode;
+  readonly label: string;
+  readonly value: string;
+}) {
+  return (
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-gray-600 shadow-sm">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            {label}
+          </p>
+          <p className="truncate text-sm font-semibold text-gray-900">
+            {value}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

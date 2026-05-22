@@ -1,41 +1,24 @@
+import { Check } from "lucide-react";
+import { PublicEnrollmentPageShell } from "~/components/enrollment/public-enrollment-shell";
+
 export default function EnrollSubmittedPage() {
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 sm:p-6">
-      <div className="rounded-2xl border border-gray-100/50 bg-white/90 p-8 text-center shadow-sm backdrop-blur-md">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#83CD2D]/10">
-          <svg
-            className="h-6 w-6 text-[#5A8B1F]"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
+    <PublicEnrollmentPageShell>
+      <section className="moto-content-surface mx-auto max-w-4xl rounded-3xl border p-6 text-center shadow-sm sm:p-10">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-[#5A8E1F]">
+          <Check className="h-7 w-7" />
         </div>
-        <h1 className="text-2xl font-semibold text-gray-900">
+        <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
           Anmeldung eingegangen
+        </p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+          Danke. Ihre Anmeldung wurde übermittelt.
         </h1>
-        <p className="mt-3 text-sm text-gray-600">
-          Vielen Dank! Wir haben deine Anmeldung erfolgreich erhalten. Eine
-          Bestätigungs-E-Mail mit dem Status-Link ist unterwegs zu der von dir
-          angegebenen Adresse.
+        <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-gray-600">
+          Eine Bestätigungs-E-Mail mit dem Status-Link ist unterwegs. Über den
+          Link können Sie jederzeit den aktuellen Stand einsehen.
         </p>
-        <p className="mt-3 text-sm text-gray-600">
-          Über den Status-Link kannst du jederzeit den aktuellen Stand einsehen
-          und solange noch keine Entscheidung getroffen wurde, dort auch
-          Änderungen vornehmen oder einzelne Kinder zurückziehen.
-        </p>
-        <p className="mt-6 text-xs text-gray-500">
-          Bitte überprüfe ggf. deinen Spam-Ordner, wenn die E-Mail nicht
-          innerhalb weniger Minuten ankommt.
-        </p>
-      </div>
-    </main>
+      </section>
+    </PublicEnrollmentPageShell>
   );
 }

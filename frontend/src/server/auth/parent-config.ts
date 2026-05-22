@@ -83,10 +83,19 @@ export const parentAuthConfig = {
 
         if (!loginResult || (loginResult.status && !loginResult.access_token)) {
           const status = loginResult?.status;
-          if (status === 403)
-            throw await createOperatorLoginError("account_inactive");
+          const code = loginResult?.code;
           if (status === 429)
             throw await createOperatorLoginError("rate_limited");
+          // Backend body codes:
+          //   "invalid_credentials" → wrong password OR unknown email (masked)
+          //   "account_inactive"    → parent account disabled by the school
+          //   "not_a_guardian"      → staff account hitting the parent portal;
+          //                           we mask this as invalid_credentials so we
+          //                           don't confirm the email belongs to staff.
+          //                           The German copy includes a staff-login
+          //                           hint, so the legit case still gets help.
+          if (code === "account_inactive")
+            throw await createOperatorLoginError("account_inactive");
           throw await createOperatorLoginError("invalid_credentials");
         }
 

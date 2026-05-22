@@ -276,6 +276,7 @@ export async function performParentLogin(
   access_token: string;
   refresh_token: string;
   status?: number;
+  code?: string;
 } | null> {
   const apiUrl = getServerApiUrl();
 
@@ -300,11 +301,26 @@ export async function performParentLogin(
 
     if (!response.ok) {
       const text = await response.text();
+      // Backend sends { status, error, code } on failures. The code field
+      // disambiguates 401-invalid-credentials from 401-account-inactive and
+      // identifies the 403-not-a-guardian (staff-in-parent-portal) case.
+      let code: string | undefined;
+      try {
+        const parsed = JSON.parse(text) as { code?: unknown };
+        if (typeof parsed.code === "string") code = parsed.code;
+      } catch {
+        // Non-JSON body (e.g. gateway error page) — leave code undefined.
+      }
       logger.error("parent login failed", {
         status: response.status,
         error: text,
       });
-      return { access_token: "", refresh_token: "", status: response.status };
+      return {
+        access_token: "",
+        refresh_token: "",
+        status: response.status,
+        code,
+      };
     }
 
     const envelope = (await response.json()) as {
@@ -437,6 +453,7 @@ export const _testHelpers = {
   buildAuthUser,
   performLogin,
   performOperatorLogin,
+  performParentLogin,
   parseDurationToMs,
 } as const;
 

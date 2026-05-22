@@ -1,0 +1,34 @@
+"use client";
+
+interface DesktopOnlyNoticeProps {
+  readonly title?: string;
+}
+
+export function DesktopOnlyNotice({
+  title = "Bitte am Computer öffnen",
+}: DesktopOnlyNoticeProps) {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center lg:hidden">
+      <div className="mb-6 rounded-full bg-[#5080D8]/10 p-5">
+        <svg
+          className="h-10 w-10 text-[#5080D8]"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.8}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+          />
+        </svg>
+      </div>
+      <h2 className="mb-3 text-xl font-semibold text-gray-900">{title}</h2>
+      <p className="max-w-md text-base text-gray-600">
+        Die Anmeldungsverwaltung ist für die Arbeit am Computer optimiert. Bitte
+        öffne diese Seite auf einem Laptop oder Desktop-Rechner.
+      </p>
+    </div>
+  );
+}

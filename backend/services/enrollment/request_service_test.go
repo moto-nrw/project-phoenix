@@ -227,9 +227,10 @@ func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
 		GuardianEmail:     "anna@example.com",
 		Children: []enrollmentService.SubmitChild{
 			{
-				FirstName:   "Lina",
-				LastName:    "Beispiel",
-				DateOfBirth: time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				FirstName:        "Lina",
+				LastName:         "Beispiel",
+				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				TargetGradeLevel: testpkg.Int16Ptr(1),
 			},
 		},
 	}
@@ -315,6 +316,25 @@ func TestRequestService_Submit_RejectsNoChildren(t *testing.T) {
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
+}
+
+// TestRequestService_Submit_RejectsMissingTargetGradeLevel verifies the
+// public form contract: every child submission must carry a grade
+// level. Allowing nil here used to leave admins unable to approve the
+// resulting student because users.Student.Validate() rejects empty
+// school_class downstream.
+func TestRequestService_Submit_RejectsMissingTargetGradeLevel(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	req := validSubmission(env.phaseID)
+	req.Children[0].TargetGradeLevel = nil
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission),
+		"missing target_grade_level must return ErrInvalidSubmission; got %v", err)
+	assert.Contains(t, err.Error(), "target_grade_level")
 }
 
 func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
@@ -449,9 +469,10 @@ func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {
 	// Two children so we can withdraw one and confirm the other survives.
 	req := validSubmission(env.phaseID)
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
-		FirstName:   "Tom",
-		LastName:    "Beispiel",
-		DateOfBirth: time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC),
+		FirstName:        "Tom",
+		LastName:         "Beispiel",
+		DateOfBirth:      time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
 	})
 	result, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
@@ -758,10 +779,11 @@ func TestRequestService_Submit_CapacityIntraSubmissionCounting(t *testing.T) {
 	req := validSubmission(env.phaseID)
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
-		FirstName:   "Tom",
-		LastName:    "Beispiel",
-		DateOfBirth: time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC),
-		OfferingIDs: []int64{offering.ID},
+		FirstName:        "Tom",
+		LastName:         "Beispiel",
+		DateOfBirth:      time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+		OfferingIDs:      []int64{offering.ID},
 	})
 
 	_, err := env.svc.Submit(ctx, req)

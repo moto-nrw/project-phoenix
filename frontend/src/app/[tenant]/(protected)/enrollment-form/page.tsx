@@ -3,6 +3,7 @@
 import { EnrollmentFormEditor } from "~/components/enrollment/enrollment-form-editor";
 import { Loading } from "~/components/ui/loading";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 export default function EnrollmentFormPage() {
@@ -11,8 +12,11 @@ export default function EnrollmentFormPage() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Anmeldeformulare" />
-      <EnrollmentFormEditor />
+      <DesktopOnlyNotice />
+      <div className="hidden lg:block">
+        <PageHeaderWithSearch title="Anmeldeformulare" />
+        <EnrollmentFormEditor />
+      </div>
     </div>
   );
 }

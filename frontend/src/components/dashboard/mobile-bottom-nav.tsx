@@ -220,6 +220,18 @@ const additionalNavItems: AdditionalNavItem[] = [
     requiresAdmin: true,
   },
   {
+    href: "/admin/enrollments",
+    label: "Anmeldungen",
+    iconKey: "enrollments",
+    requiresAdmin: true,
+    activePaths: [
+      "/admin/enrollments",
+      "/enrollment-phases",
+      "/care-offerings",
+      "/enrollment-form",
+    ],
+  },
+  {
     href: "/time-tracking",
     label: "Zeiterfassung",
     iconKey: "clock",
@@ -530,7 +542,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
             <div className="px-4 pt-6 pb-4">
               <div className="space-y-2">
                 {displayAdditionalItems.map((item) => {
-                  const isActive = isActiveRoute(item.href);
+                  const isActive = isActiveRoute(item.href, item.activePaths);
 
                   // Coming soon items are not clickable
                   if (item.comingSoon) {

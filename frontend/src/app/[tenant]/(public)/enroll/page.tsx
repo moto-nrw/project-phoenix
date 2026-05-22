@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { CalendarDays, Check, Clock, ShieldCheck } from "lucide-react";
 import { useTenant } from "~/components/tenant/tenant-provider";
+import {
+  PublicEnrollmentBrand,
+  PublicEnrollmentPageShell,
+  PublicEnrollmentSteps,
+  PublicInfoCard,
+} from "~/components/enrollment/public-enrollment-shell";
 import {
   fetchPublicPhases,
   type PublicPhase,
@@ -64,27 +71,26 @@ export default function EnrollPhasePickerPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto w-full max-w-3xl p-4 text-sm text-gray-500 sm:p-6">
-        Wird geladen...
-      </main>
+      <PublicEnrollmentPageShell>
+        <div className="flex min-h-[70vh] items-center justify-center">
+          <div className="moto-content-surface rounded-2xl border px-5 py-4 text-sm font-medium text-gray-600 shadow-sm">
+            Anmeldung wird geladen...
+          </div>
+        </div>
+      </PublicEnrollmentPageShell>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-6 p-4 sm:p-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-pretty text-gray-900">
-          Anmeldung an der {tenant?.name ?? "Schule"}
-        </h1>
-        <p className="text-sm text-gray-600">
-          Wähle aus, wofür du dein Kind anmelden möchtest. Du kannst pro Phase
-          eine eigene Anmeldung absenden.
-        </p>
-      </header>
+    <PublicEnrollmentPageShell>
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <PublicEnrollmentBrand tenant={tenant} />
+        <PublicEnrollmentSteps current="phase" />
+      </div>
 
       {error && (
         <div
-          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]"
+          className="mb-6 rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]"
           role="alert"
           aria-live="polite"
         >
@@ -92,55 +98,116 @@ export default function EnrollPhasePickerPage() {
         </div>
       )}
 
-      {!phases || phases.length === 0 ? (
-        <div className="rounded-2xl border border-[#F78C10]/20 bg-[#F78C10]/10 p-4 text-sm text-[#C56F0D]">
-          {enrollmentDisabled
-            ? "Die Online-Anmeldung ist für diese Schule aktuell nicht freigeschaltet. Bitte wende dich an die Schulleitung."
-            : "Aktuell ist keine Anmeldephase geöffnet. Bitte komm später wieder oder wende dich an die Schulleitung."}
-        </div>
-      ) : (
-        <ul className="grid gap-3">
-          {phases.map((p) => (
-            <li
-              key={p.id}
-              className="rounded-2xl border border-gray-100/50 bg-white/90 p-5 shadow-sm backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:border-gray-200 hover:bg-white hover:shadow-sm"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-medium text-[#5a8e1f] uppercase">
-                    {KIND_LABELS[p.kind]}
-                  </p>
-                  <h2 className="mt-1 text-lg font-semibold text-gray-900">
-                    {p.name}
-                  </h2>
-                  <p className="mt-2 text-sm text-gray-600">
-                    Betreuungszeitraum: {p.service_start_date} bis{" "}
-                    {p.service_end_date}
-                  </p>
-                  {p.enrollment_close_at && (
-                    <p className="text-xs text-gray-500">
-                      Anmeldungen möglich bis{" "}
-                      {new Date(p.enrollment_close_at).toLocaleString("de-DE", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  )}
+      <section className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <div className="p-5 sm:p-8 lg:p-10">
+            <div className="max-w-3xl">
+              <p className="text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+                Anmeldung starten
+              </p>
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                Wofür möchten Sie Ihr Kind anmelden?
+              </h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
+                Wählen Sie zuerst den passenden Zeitraum. Danach füllen Sie das
+                Formular aus und erhalten einen Link, über den Sie den Status
+                der Anmeldung ansehen können.
+              </p>
+            </div>
+
+            <div className="mt-8">
+              {!phases || phases.length === 0 ? (
+                <div className="rounded-2xl border border-[#F78C10]/20 bg-[#F78C10]/10 p-5 text-sm leading-6 text-[#9A570A]">
+                  {enrollmentDisabled
+                    ? "Die Online-Anmeldung ist aktuell nicht freigeschaltet. Bitte wenden Sie sich an die OGS."
+                    : "Aktuell ist keine Anmeldephase geöffnet. Bitte schauen Sie später wieder vorbei oder wenden Sie sich an die OGS."}
                 </div>
-                <Link
-                  href={`/enroll/${encodeURIComponent(p.id)}`}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                >
-                  Anmelden
-                </Link>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
+              ) : (
+                <ul className="space-y-3">
+                  {phases.map((phase) => (
+                    <li key={phase.id}>
+                      <Link
+                        href={`/enroll/${encodeURIComponent(phase.id)}`}
+                        className="group moto-content-surface flex flex-col gap-4 rounded-2xl border p-5 text-left shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                              {KIND_LABELS[phase.kind]}
+                            </span>
+                            {phase.enrollment_close_at && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#5A8E1F]">
+                                <Clock className="h-3.5 w-3.5" />
+                                Offen bis{" "}
+                                {formatDateTime(phase.enrollment_close_at)}
+                              </span>
+                            )}
+                          </div>
+                          <h2 className="mt-3 text-xl font-semibold text-gray-900">
+                            {phase.name}
+                          </h2>
+                          <p className="mt-1 text-sm text-gray-600">
+                            Betreuungszeitraum:{" "}
+                            {formatDate(phase.service_start_date)} bis{" "}
+                            {formatDate(phase.service_end_date)}
+                          </p>
+                        </div>
+                        <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white transition-colors group-hover:bg-gray-800">
+                          Anmeldung starten
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
+            <div className="space-y-4 lg:sticky lg:top-8">
+              <PublicInfoCard
+                icon={<CalendarDays className="h-5 w-5" />}
+                title="Zeitraum wählen"
+              >
+                Jede Anmeldung gehört zu einer Anmeldephase, zum Beispiel einem
+                Schuljahr oder einer Ferienbetreuung.
+              </PublicInfoCard>
+              <PublicInfoCard
+                icon={<Check className="h-5 w-5" />}
+                title="Formular absenden"
+              >
+                Sie geben Ihre Kontaktdaten, die Angaben zum Kind und die
+                gewünschten Betreuungsangebote an.
+              </PublicInfoCard>
+              <PublicInfoCard
+                icon={<ShieldCheck className="h-5 w-5" />}
+                title="Status verfolgen"
+              >
+                Nach dem Absenden erhalten Sie einen persönlichen Status-Link
+                für Ihre Anmeldung.
+              </PublicInfoCard>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </PublicEnrollmentPageShell>
   );
+}
+
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value: string): string {
+  return new Date(value).toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

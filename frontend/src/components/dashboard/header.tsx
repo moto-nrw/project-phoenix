@@ -260,7 +260,13 @@ function HeaderBreadcrumb({
   }
 
   if (pageTypeInfo.isEnrollmentPage) {
-    return <EnrollmentBreadcrumb current={pageTitle} isScrolled={isScrolled} />;
+    return (
+      <EnrollmentBreadcrumb
+        current={pageTitle}
+        pathname={pathname}
+        isScrolled={isScrolled}
+      />
+    );
   }
 
   // Activity detail page

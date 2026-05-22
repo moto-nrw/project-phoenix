@@ -136,7 +136,11 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should return enrollment sub-page titles", () => {
-        expect(getPageTitle("/admin/enrollments")).toBe("Prozess");
+        expect(getPageTitle("/admin/enrollments")).toBe("Überblick");
+        expect(getPageTitle("/admin/enrollments/phases/phase-1")).toBe(
+          "Anmeldephase",
+        );
+        expect(getPageTitle("/admin/enrollments/request-1")).toBe("Anmeldung");
         expect(getPageTitle("/enrollment-phases")).toBe("Anmeldephasen");
         expect(getPageTitle("/care-offerings")).toBe("Betreuungsangebote");
         expect(getPageTitle("/enrollment-form")).toBe("Anmeldeformulare");
