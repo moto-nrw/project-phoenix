@@ -130,6 +130,7 @@ type DecisionServiceConfig struct {
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository // needed to look up FormField.Target for each submitted answer
+	SchoolRepo               platformModels.SchoolRepository
 	PersonRepo               users.PersonRepository
 	StudentRepo              users.StudentRepository
 	StudentGuardianRepo      users.StudentGuardianRepository
@@ -155,6 +156,7 @@ type decisionService struct {
 	careOfferingRepo         enrollmentModels.CareOfferingRepository
 	phaseRepo                enrollmentModels.PhaseRepository
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
+	schoolRepo               platformModels.SchoolRepository
 	personRepo               users.PersonRepository
 	studentRepo              users.StudentRepository
 	studentGuardianRepo      users.StudentGuardianRepository
@@ -185,6 +187,7 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		careOfferingRepo:         cfg.CareOfferingRepo,
 		phaseRepo:                cfg.PhaseRepo,
 		formSchemaRepo:           cfg.FormSchemaRepo,
+		schoolRepo:               cfg.SchoolRepo,
 		personRepo:               cfg.PersonRepo,
 		studentRepo:              cfg.StudentRepo,
 		studentGuardianRepo:      cfg.StudentGuardianRepo,
@@ -766,7 +769,8 @@ func (s *decisionService) enqueueDecisionEmail(
 		return
 	}
 
-	logoURL := s.parentsURL + "/images/moto_transparent.png"
+	schoolName, logoURL := emailBrandForSchool(ctx, s.schoolRepo, request.TenantID, s.parentsURL)
+	footerLogoURL := motoLogoURL(s.parentsURL)
 	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.parentsURL, request.StatusToken)
 	phaseName := ""
 	if phase != nil {
@@ -777,8 +781,10 @@ func (s *decisionService) enqueueDecisionEmail(
 		EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
 		EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
 		EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
+		EnrollmentPayloadSchoolName:        schoolName,
 		EnrollmentPayloadStatusURL:         statusURL,
 		EnrollmentPayloadLogoURL:           logoURL,
+		EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 		EnrollmentPayloadChildNames:        []string{child.FirstName + " " + child.LastName},
 		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
 		"phase_name":                       phaseName,

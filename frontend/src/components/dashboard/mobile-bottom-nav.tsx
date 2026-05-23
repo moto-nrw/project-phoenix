@@ -57,7 +57,7 @@ interface NavItem {
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
   // Additional pathname prefixes that should highlight this nav entry as
-  // active — used when one bottom-nav slot represents a group of related
+  // active, used when one bottom-nav slot represents a group of related
   // routes (e.g. the five Verwaltung pages).
   activePaths?: string[];
 }
@@ -154,7 +154,7 @@ interface AdditionalNavItem {
   activePaths?: string[];
 }
 
-// Operator-mode overflow items — everything reachable from the sidebar on
+// Operator-mode overflow items, everything reachable from the sidebar on
 // desktop that isn't already a main bottom-nav slot. The 4 sibling Verwaltung
 // pages (Schulen/Konten/Geräte/Personen) belong here since the bottom nav has
 // only one "Verwaltung" slot that lands on /operator/organizations, and
@@ -190,6 +190,13 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
     iconKey: "settings",
     alwaysShow: true,
   },
+];
+
+const PARENT_MOBILE_ITEMS: readonly NavItem[] = [
+  { href: "/parents", label: "Übersicht", iconKey: "home", alwaysShow: true },
+  { href: "#", label: "Kalender", iconKey: "calendar", alwaysShow: true },
+  { href: "#", label: "Nachrichten", iconKey: "chat", alwaysShow: true },
+  { href: "#", label: "Mehr", iconKey: "more", alwaysShow: true },
 ];
 
 const additionalNavItems: AdditionalNavItem[] = [
@@ -321,11 +328,52 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Get shell auth mode
   const { mode } = useShellAuth();
 
-  // Parent mode renders a header-only shell — no bottom nav. The
-  // dashboard surfaces the only nav target ("Übersicht") and per-
-  // child links directly, so a 4-tab bottom bar would be empty.
   if (mode === "parent") {
-    return null;
+    return (
+      <>
+        <div className="h-16 lg:hidden" />
+        <nav
+          className={`fixed right-0 bottom-0 left-0 z-50 border-t border-gray-200 bg-white/95 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.375rem)] shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md lg:hidden ${className}`}
+          aria-label="Elternportal Navigation"
+        >
+          <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
+            {PARENT_MOBILE_ITEMS.map((item) => {
+              const active = item.href !== "#" && pathname === item.href;
+              const iconPath =
+                navigationIcons[item.iconKey] ?? navigationIcons.home;
+              if (item.href === "#") {
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    disabled
+                    className="flex min-w-0 flex-col items-center gap-1 rounded-xl px-2 py-2 text-xs font-medium text-gray-400 disabled:cursor-not-allowed"
+                    aria-label={`${item.label} bald verfügbar`}
+                  >
+                    <Icon path={iconPath} className="h-5 w-5" />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                );
+              }
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex min-w-0 flex-col items-center gap-1 rounded-xl px-2 py-2 text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                    active
+                      ? "bg-gray-100 text-gray-900"
+                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                  }`}
+                >
+                  <Icon path={iconPath} className="h-5 w-5" />
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      </>
+    );
   }
 
   // Check if current path matches nav item
@@ -354,7 +402,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   };
 
   // Compute main navigation items per role and mode
-  // operatorPath is deterministic for the page lifetime — memoize to avoid per-render churn.
+  // operatorPath is deterministic for the page lifetime, memoize to avoid per-render churn.
   // activePaths must also go through operatorPath: on the operator subdomain pathname is
   // the clean URL (e.g. /schools), so comparing against /operator/schools would never match.
   const resolvedOperatorMainItems = useMemo(
@@ -386,7 +434,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
   // than just isSupervising so a synthetic Schulhof entry does not surface
   // the admin tab when the setting is off. Dual-role teacher-admins see the
-  // tab too — the tenant setting is the explicit opt-in signal.
+  // tab too, the tenant setting is the explicit opt-in signal.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
   // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.

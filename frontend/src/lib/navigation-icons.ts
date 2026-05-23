@@ -40,15 +40,17 @@ export const navigationIcons = {
     "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
   lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
   bell: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9", // Bell for Erinnerungen
+  health:
+    "M12 21s-6.75-4.35-9.15-8.4C.75 9.05 2.7 4.5 6.75 4.5c2.1 0 3.45 1.2 4.05 2.1.6-.9 1.95-2.1 4.05-2.1 4.05 0 6 4.55 3.9 8.1C16.35 16.65 12 21 12 21z",
   buildingOffice:
     "M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21",
-  // Device/tablet silhouette — used for Operator "Geräte" (RFID readers etc.)
+  // Device/tablet silhouette, used for Operator "Geräte" (RFID readers etc.)
   device:
     "M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z",
-  // Simple person silhouette — used for Operator "Personen"
+  // Simple person silhouette, used for Operator "Personen"
   userSingle:
     "M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z",
-  // Document with lines — used for Anmeldungen (mirrors desktop sidebar)
+  // Document with lines, used for Anmeldungen (mirrors desktop sidebar)
   enrollments:
     "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
 } as const;

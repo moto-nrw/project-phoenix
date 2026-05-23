@@ -273,6 +273,39 @@ const ENROLLMENTS_SUB_PAGES = [
   { href: "/enrollment-form", label: "Anmeldeformulare" },
 ];
 
+const PARENT_PREVIEW_ITEMS: readonly NavItem[] = [
+  {
+    href: "#",
+    label: "Kalender",
+    icon: navigationIcons.calendar,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Krankmeldung",
+    icon: navigationIcons.health,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Abholzeiten",
+    icon: navigationIcons.clock,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Nachrichten",
+    icon: navigationIcons.chat,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Erinnerungen",
+    icon: navigationIcons.bell,
+    comingSoon: true,
+  },
+];
+
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
   childGroupId: string | null,
@@ -784,16 +817,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   }
 
-  // Parent mode: minimal sidebar with Übersicht and bottom
-  // logout. The dashboard itself surfaces the "Neue Anmeldung" CTA
-  // and the per-child links, so the sidebar is intentionally tiny.
   if (mode === "parent") {
     return (
       <aside
         className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
       >
         <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-          <nav className="flex-1 space-y-1 p-3 lg:p-4 xl:p-3">
+          <nav className="flex-1 p-3 lg:p-4 xl:p-3">
             <Link href="/parents" className={getLinkClasses("/parents")}>
               <svg
                 className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
@@ -810,6 +840,41 @@ function SidebarContent({ className = "" }: SidebarProps) {
               </svg>
               <span>Übersicht</span>
             </Link>
+            <div className="mt-5">
+              <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
+                Bald im Elternportal
+              </p>
+              <div className="space-y-1">
+                {PARENT_PREVIEW_ITEMS.map((item) => (
+                  <div
+                    key={item.label}
+                    className={getLinkClasses(item.href, true)}
+                    aria-disabled="true"
+                  >
+                    <svg
+                      className="mr-3 h-5 w-5 shrink-0 text-gray-300"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d={item.icon}
+                      />
+                    </svg>
+                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                      <span className="truncate">{item.label}</span>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                        Bald
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </nav>
         </div>
       </aside>

@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -22,6 +23,7 @@ const (
 	EnrollmentPayloadStatusURL         = "status_url"
 	EnrollmentPayloadAdminURL          = "admin_url"
 	EnrollmentPayloadLogoURL           = "logo_url"
+	EnrollmentPayloadMotoLogoURL       = "moto_logo_url"
 	EnrollmentPayloadChildNames        = "child_names"
 	EnrollmentPayloadRecipientEmail    = "recipient_email"
 )
@@ -50,6 +52,7 @@ func NewEnrollmentSubmittedRenderer(cfg EmailRendererConfig) func(context.Contex
 		guardianFirst, _ := row.Payload[EnrollmentPayloadGuardianFirstName].(string)
 		guardianLast, _ := row.Payload[EnrollmentPayloadGuardianLastName].(string)
 		logoURL, _ := row.Payload[EnrollmentPayloadLogoURL].(string)
+		motoLogoURL, _ := row.Payload[EnrollmentPayloadMotoLogoURL].(string)
 		childNames := payloadStringSlice(row.Payload, EnrollmentPayloadChildNames)
 
 		subject := "Anmeldung eingegangen"
@@ -58,7 +61,7 @@ func NewEnrollmentSubmittedRenderer(cfg EmailRendererConfig) func(context.Contex
 		}
 
 		return &email.Message{
-			From:     cfg.DefaultFrom,
+			From:     schoolEmailFrom(cfg.DefaultFrom, schoolName),
 			To:       email.NewEmail("", recipient),
 			Subject:  subject,
 			Template: "enrollment-submitted.html",
@@ -68,6 +71,7 @@ func NewEnrollmentSubmittedRenderer(cfg EmailRendererConfig) func(context.Contex
 				"SchoolName":        schoolName,
 				"StatusURL":         statusURL,
 				"LogoURL":           logoURL,
+				"MotoLogoURL":       motoLogoURL,
 				"ChildNames":        childNames,
 			},
 		}, nil
@@ -95,6 +99,7 @@ func NewEnrollmentAdminNotificationRenderer(cfg EmailRendererConfig) func(contex
 		guardianEmail, _ := row.Payload[EnrollmentPayloadGuardianEmail].(string)
 		guardianPhone, _ := row.Payload[EnrollmentPayloadGuardianPhone].(string)
 		logoURL, _ := row.Payload[EnrollmentPayloadLogoURL].(string)
+		motoLogoURL, _ := row.Payload[EnrollmentPayloadMotoLogoURL].(string)
 		childNames := payloadStringSlice(row.Payload, EnrollmentPayloadChildNames)
 
 		subject := "Neue Anmeldung eingegangen"
@@ -103,7 +108,7 @@ func NewEnrollmentAdminNotificationRenderer(cfg EmailRendererConfig) func(contex
 		}
 
 		return &email.Message{
-			From:     cfg.DefaultFrom,
+			From:     schoolEmailFrom(cfg.DefaultFrom, schoolName),
 			To:       email.NewEmail("", recipient),
 			Subject:  subject,
 			Template: "enrollment-admin-notification.html",
@@ -115,13 +120,14 @@ func NewEnrollmentAdminNotificationRenderer(cfg EmailRendererConfig) func(contex
 				"SchoolName":        schoolName,
 				"AdminURL":          adminURL,
 				"LogoURL":           logoURL,
+				"MotoLogoURL":       motoLogoURL,
 				"ChildNames":        childNames,
 			},
 		}, nil
 	}
 }
 
-// Rollover payload key — phase name reuses the existing constant in
+// Rollover payload key: phase name reuses the existing constant in
 // decision_renderers.go (the value is identical: "phase_name").
 const (
 	EnrollmentPayloadRolloverDeadline = "rollover_deadline"
@@ -131,9 +137,6 @@ const (
 // "please confirm next year's enrollment" email. Sent when an admin
 // triggers an opt_in rollover; the parent must click through and
 // confirm before the deadline or their child is dropped.
-//
-// Slice 1: uses the existing enrollment-submitted.html template as a
-// placeholder — proper opt-in branding lands in a follow-up.
 func NewEnrollmentRolloverOptInRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
 	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
 		recipient, _ := row.Payload[EnrollmentPayloadRecipientEmail].(string)
@@ -150,6 +153,7 @@ func NewEnrollmentRolloverOptInRenderer(cfg EmailRendererConfig) func(context.Co
 		guardianFirst, _ := row.Payload[EnrollmentPayloadGuardianFirstName].(string)
 		guardianLast, _ := row.Payload[EnrollmentPayloadGuardianLastName].(string)
 		logoURL, _ := row.Payload[EnrollmentPayloadLogoURL].(string)
+		motoLogoURL, _ := row.Payload[EnrollmentPayloadMotoLogoURL].(string)
 		deadline, _ := row.Payload[EnrollmentPayloadRolloverDeadline].(string)
 		childNames := payloadStringSlice(row.Payload, EnrollmentPayloadChildNames)
 
@@ -158,11 +162,11 @@ func NewEnrollmentRolloverOptInRenderer(cfg EmailRendererConfig) func(context.Co
 			subject = fmt.Sprintf("Bitte bestätigen: Anmeldung %s", phaseName)
 		}
 		if schoolName != "" && phaseName != "" {
-			subject = fmt.Sprintf("Bitte bestätigen: Anmeldung %s – %s", phaseName, schoolName)
+			subject = fmt.Sprintf("Bitte bestätigen: Anmeldung %s - %s", phaseName, schoolName)
 		}
 
 		return &email.Message{
-			From:     cfg.DefaultFrom,
+			From:     schoolEmailFrom(cfg.DefaultFrom, schoolName),
 			To:       email.NewEmail("", recipient),
 			Subject:  subject,
 			Template: "enrollment-rollover-opt-in.html",
@@ -173,6 +177,7 @@ func NewEnrollmentRolloverOptInRenderer(cfg EmailRendererConfig) func(context.Co
 				"PhaseName":         phaseName,
 				"StatusURL":         statusURL,
 				"LogoURL":           logoURL,
+				"MotoLogoURL":       motoLogoURL,
 				"ChildNames":        childNames,
 				"RolloverDeadline":  deadline,
 			},
@@ -199,6 +204,7 @@ func NewEnrollmentRolloverOptOutRenderer(cfg EmailRendererConfig) func(context.C
 		guardianFirst, _ := row.Payload[EnrollmentPayloadGuardianFirstName].(string)
 		guardianLast, _ := row.Payload[EnrollmentPayloadGuardianLastName].(string)
 		logoURL, _ := row.Payload[EnrollmentPayloadLogoURL].(string)
+		motoLogoURL, _ := row.Payload[EnrollmentPayloadMotoLogoURL].(string)
 		deadline, _ := row.Payload[EnrollmentPayloadRolloverDeadline].(string)
 		childNames := payloadStringSlice(row.Payload, EnrollmentPayloadChildNames)
 
@@ -207,11 +213,11 @@ func NewEnrollmentRolloverOptOutRenderer(cfg EmailRendererConfig) func(context.C
 			subject = fmt.Sprintf("Anmeldung verlängert: %s", phaseName)
 		}
 		if schoolName != "" && phaseName != "" {
-			subject = fmt.Sprintf("Anmeldung verlängert: %s – %s", phaseName, schoolName)
+			subject = fmt.Sprintf("Anmeldung verlängert: %s - %s", phaseName, schoolName)
 		}
 
 		return &email.Message{
-			From:     cfg.DefaultFrom,
+			From:     schoolEmailFrom(cfg.DefaultFrom, schoolName),
 			To:       email.NewEmail("", recipient),
 			Subject:  subject,
 			Template: "enrollment-rollover-opt-out.html",
@@ -222,11 +228,20 @@ func NewEnrollmentRolloverOptOutRenderer(cfg EmailRendererConfig) func(context.C
 				"PhaseName":         phaseName,
 				"StatusURL":         statusURL,
 				"LogoURL":           logoURL,
+				"MotoLogoURL":       motoLogoURL,
 				"ChildNames":        childNames,
 				"RolloverDeadline":  deadline,
 			},
 		}, nil
 	}
+}
+
+func schoolEmailFrom(defaultFrom email.Email, schoolName string) email.Email {
+	schoolName = strings.TrimSpace(schoolName)
+	if schoolName == "" {
+		return defaultFrom
+	}
+	return email.NewEmail(schoolName, defaultFrom.Address)
 }
 
 // payloadStringSlice extracts a string slice from a JSONB roundtrip.

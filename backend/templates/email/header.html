@@ -16,3 +16,17 @@
 <div class="email-container">
 
 {{end}}
+
+{{define "school-brand"}}
+<div class="school-brand">
+    {{if .LogoURL}}
+    <img class="school-logo" src="{{.LogoURL}}" alt="{{if .SchoolName}}{{.SchoolName}}{{else}}Logo der Schule{{end}}" />
+    {{else}}
+    <div class="school-logo-fallback">OGS</div>
+    {{end}}
+    <div class="school-brand-copy">
+        <p class="school-kicker">Online-Anmeldung</p>
+        <p class="school-name">{{if .SchoolName}}{{.SchoolName}}{{else}}Ihre OGS{{end}}</p>
+    </div>
+</div>
+{{end}}

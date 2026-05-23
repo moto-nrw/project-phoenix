@@ -645,8 +645,8 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 		return
 	}
 
-	schoolName := s.lookupSchoolName(ctx, tenantID)
-	logoURL := s.parentsURL + "/images/moto_transparent.png"
+	schoolName, logoURL := emailBrandForSchool(ctx, s.schoolRepo, tenantID, s.parentsURL)
+	footerLogoURL := motoLogoURL(s.parentsURL)
 	childNames := make([]string, 0, len(children))
 	for _, c := range children {
 		childNames = append(childNames, fmt.Sprintf("%s %s", c.FirstName, c.LastName))
@@ -659,6 +659,7 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 		EnrollmentPayloadSchoolName:        schoolName,
 		EnrollmentPayloadStatusURL:         statusURL,
 		EnrollmentPayloadLogoURL:           logoURL,
+		EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 		EnrollmentPayloadChildNames:        childNames,
 		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
 	}
@@ -681,6 +682,7 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 			EnrollmentPayloadSchoolName:        schoolName,
 			EnrollmentPayloadAdminURL:          fmt.Sprintf("%s/enrollments/%d", s.frontendURL, request.ID),
 			EnrollmentPayloadLogoURL:           logoURL,
+			EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 			EnrollmentPayloadChildNames:        childNames,
 			EnrollmentPayloadRecipientEmail:    admin,
 		}

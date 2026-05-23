@@ -37,26 +37,37 @@ func renderDecisionMessage(
 
 	guardianFirst, _ := row.Payload[EnrollmentPayloadGuardianFirstName].(string)
 	guardianLast, _ := row.Payload[EnrollmentPayloadGuardianLastName].(string)
+	schoolName, _ := row.Payload[EnrollmentPayloadSchoolName].(string)
 	logoURL, _ := row.Payload[EnrollmentPayloadLogoURL].(string)
+	motoLogoURL, _ := row.Payload[EnrollmentPayloadMotoLogoURL].(string)
 	phaseName, _ := row.Payload[EnrollmentPayloadPhaseName].(string)
 	statusReason, _ := row.Payload[EnrollmentPayloadStatusReason].(string)
 	childNames := payloadStringSlice(row.Payload, EnrollmentPayloadChildNames)
 
 	return &email.Message{
-		From:     cfg.DefaultFrom,
+		From:     schoolEmailFrom(cfg.DefaultFrom, schoolName),
 		To:       email.NewEmail("", recipient),
-		Subject:  subject,
+		Subject:  decisionSubject(subject, schoolName),
 		Template: templateName,
 		Content: map[string]any{
 			"GuardianFirstName": guardianFirst,
 			"GuardianLastName":  guardianLast,
+			"SchoolName":        schoolName,
 			"PhaseName":         phaseName,
 			"StatusURL":         statusURL,
 			"LogoURL":           logoURL,
+			"MotoLogoURL":       motoLogoURL,
 			"ChildNames":        childNames,
 			"StatusReason":      statusReason,
 		},
 	}, nil
+}
+
+func decisionSubject(subject string, schoolName string) string {
+	if schoolName == "" {
+		return subject
+	}
+	return fmt.Sprintf("%s - %s", subject, schoolName)
 }
 
 // NewEnrollmentApprovedRenderer renders the "your child is in" email.
