@@ -53,11 +53,11 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
     <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
       <header className="space-y-2">
         <Link
-          href="/parents/enroll"
+          href="/parents"
           className="inline-flex items-center gap-2 text-sm font-semibold text-[#5080D8] hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Andere Schule wählen
+          Zurück zum Elternportal
         </Link>
         <h1 className="text-2xl font-semibold text-wrap text-gray-900">
           Anmeldung ausfüllen

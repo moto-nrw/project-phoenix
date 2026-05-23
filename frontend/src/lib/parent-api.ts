@@ -32,20 +32,6 @@ export interface Child {
   readonly school_slug: string;
 }
 
-export interface EnrollablePhase {
-  readonly school_id: string;
-  readonly school_name: string;
-  readonly school_slug: string;
-  readonly phase_id: string;
-  readonly phase_name: string;
-  readonly phase_kind: string;
-  readonly service_start_date: string; // ISO date
-  readonly service_end_date: string; // ISO date
-  readonly enrollment_open_at?: string; // ISO timestamp
-  readonly enrollment_close_at?: string; // ISO timestamp
-  readonly already_linked: boolean;
-}
-
 // Per-child status values exposed on the enrollment-requests list.
 // Mirrors models/enrollment ChildStatus* constants.
 export type EnrollmentChildStatus =
@@ -125,16 +111,6 @@ async function getJson<T>(url: string): Promise<T> {
  */
 export async function listMyChildren(): Promise<Child[]> {
   return getJson<Child[]>("/api/parent/me/children");
-}
-
-/**
- * Fetches every (school, open phase) pair the parent could enroll a
- * new child at. The backend sorts schools the parent is already linked
- * to first, then by school name. Used by the school picker on the
- * Neue Anmeldung flow.
- */
-export async function listEnrollableSchools(): Promise<EnrollablePhase[]> {
-  return getJson<EnrollablePhase[]>("/api/parent/me/enrollable-schools");
 }
 
 /**
