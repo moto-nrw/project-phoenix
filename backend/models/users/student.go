@@ -57,6 +57,16 @@ type Student struct {
 	PhotoConsentGivenAt *time.Time `bun:"photo_consent_given_at" json:"photo_consent_given_at,omitempty"`
 	PhotoConsentGivenBy *int64     `bun:"photo_consent_given_by" json:"photo_consent_given_by,omitempty"`
 
+	// Other consents the parent ticked at enrollment time. Populated
+	// by the decision service on approval from request.consent_flags.
+	// NULL = no consent recorded (parent either declined or the row
+	// predates the consent capture). Timestamp = consent given on
+	// that date. Mirrors the photo_consent_given_at shape so the
+	// student detail page can render all four uniformly.
+	AGBAcceptedAt            *time.Time `bun:"agb_accepted_at" json:"agb_accepted_at,omitempty"`
+	DataProcessingAcceptedAt *time.Time `bun:"data_processing_accepted_at" json:"data_processing_accepted_at,omitempty"`
+	EmailContactAcceptedAt   *time.Time `bun:"email_contact_accepted_at" json:"email_contact_accepted_at,omitempty"`
+
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
 	// Group relation is loaded dynamically to avoid import cycle

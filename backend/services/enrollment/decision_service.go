@@ -1068,14 +1068,34 @@ func (s *decisionService) applyTargetedFields(
 	// already collected by the public base form via consent_flags.photo
 	// and the dedicated guardian_phone input), but their values still
 	// need to land in the right downstream rows on approval.
+	//
+	// All four consent flags get copied onto the student row so staff
+	// looking at a single child see the consent state without joining
+	// back to enrollment.requests. AGB / Datenschutz / E-Mail are
+	// required at submission and will always be true here; photo is
+	// optional. Each stamp records the approval moment, not the parent
+	// submission moment — the parent submission timestamp lives on
+	// enrollment.requests if a more precise audit is ever needed.
 	if request.ConsentFlags != nil {
+		now := time.Now()
 		if photo, ok := request.ConsentFlags["photo"].(bool); ok && photo {
-			now := time.Now()
 			student.PhotoConsentGivenAt = &now
 			if reviewedBy > 0 {
 				rb := reviewedBy
 				student.PhotoConsentGivenBy = &rb
 			}
+			studentDirty = true
+		}
+		if agb, ok := request.ConsentFlags["agb"].(bool); ok && agb {
+			student.AGBAcceptedAt = &now
+			studentDirty = true
+		}
+		if dp, ok := request.ConsentFlags["data_processing"].(bool); ok && dp {
+			student.DataProcessingAcceptedAt = &now
+			studentDirty = true
+		}
+		if email, ok := request.ConsentFlags["email_contact"].(bool); ok && email {
+			student.EmailContactAcceptedAt = &now
 			studentDirty = true
 		}
 	}
