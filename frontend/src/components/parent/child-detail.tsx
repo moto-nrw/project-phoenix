@@ -193,26 +193,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             </div>
           </div>
           <div className="moto-dotted-background moto-dotted-background--split border-t border-gray-200 p-5 sm:p-6 lg:border-t-0 lg:border-l">
-            <div className="relative z-10">
-              <dl className="space-y-4">
-                <div>
-                  <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Betreuungszeitraum
-                  </dt>
-                  <dd className="mt-1 text-sm font-semibold text-gray-900">
-                    {getServiceRange(child)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Klasse
-                  </dt>
-                  <dd className="mt-1 text-sm font-semibold text-gray-900">
-                    {child.school_class || "Noch nicht hinterlegt"}
-                  </dd>
-                </div>
-              </dl>
-            </div>
+            <TodayPanel />
           </div>
         </div>
       </section>
@@ -384,6 +365,67 @@ function DesktopQuickAction({
         </span>
       </span>
     </button>
+  );
+}
+
+function TodayPanel() {
+  const items = [
+    {
+      label: "Tagesmeldung",
+      value: "Keine Krankmeldung",
+      icon: HeartPulse,
+      tone: "text-[#D6373E] bg-[#D6373E]/10",
+    },
+    {
+      label: "Abholung",
+      value: "Reguläre Abholung",
+      icon: CalendarClock,
+      tone: "text-[#5080D8] bg-[#5080D8]/10",
+    },
+    {
+      label: "Nachrichten",
+      value: "Keine neuen Nachrichten",
+      icon: MessageCircle,
+      tone: "text-[#F78C10] bg-[#F78C10]/10",
+    },
+  ] as const;
+
+  return (
+    <div className="relative z-10 space-y-4">
+      <div>
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          Heute
+        </p>
+        <p className="mt-1 text-sm leading-6 text-gray-600">
+          Aktuelle Hinweise für dieses Kind.
+        </p>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div
+              key={item.label}
+              className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm"
+            >
+              <span
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${item.tone}`}
+              >
+                <Icon className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  {item.label}
+                </p>
+                <p className="mt-0.5 text-sm font-semibold text-gray-900">
+                  {item.value}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
