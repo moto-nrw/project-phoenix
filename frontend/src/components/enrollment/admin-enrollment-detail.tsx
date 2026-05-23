@@ -3,6 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowLeft,
+  CalendarClock,
+  Check,
+  ClipboardList,
+  ExternalLink,
+  type LucideIcon,
+  Mail,
+  Phone,
+  ShieldCheck,
+  UserRound,
+  X,
+} from "lucide-react";
+import {
   type AdminRequestChild,
   type AdminRequestSchemaField,
   type AdminRequestSummary,
@@ -12,9 +25,6 @@ import {
   getAdminRequest,
 } from "~/lib/enrollment-admin-api";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
-import { Button } from "~/components/ui/button";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
@@ -31,16 +41,23 @@ const STATUS_LABELS: Record<ChildStatus, string> = {
   pending_admin_review: "Manuelle Prüfung",
 };
 
-const STATUS_COLORS: Record<ChildStatus, { bg: string; text: string }> = {
-  submitted: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
-  under_review: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
-  approved: { bg: LOCATION_COLORS.GROUP_ROOM, text: "#FFFFFF" },
-  waitlisted: { bg: LOCATION_COLORS.SCHOOLYARD, text: "#FFFFFF" },
-  rejected: { bg: LOCATION_COLORS.HOME, text: "#FFFFFF" },
-  withdrawn: { bg: LOCATION_COLORS.UNKNOWN, text: "#FFFFFF" },
-  pending_renewal: { bg: LOCATION_COLORS.SCHOOLYARD, text: "#FFFFFF" },
-  auto_renewed: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
-  pending_admin_review: { bg: LOCATION_COLORS.UNKNOWN, text: "#FFFFFF" },
+const STATUS_COLORS: Record<
+  ChildStatus,
+  { bg: string; dot: string; text: string }
+> = {
+  submitted: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
+  under_review: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
+  approved: { bg: "#83CD2D1A", dot: "#83CD2D", text: "#5A8B1F" },
+  waitlisted: { bg: "#FFF4E6", dot: "#F78C10", text: "#8A5600" },
+  rejected: { bg: "#FF31301A", dot: "#FF3130", text: "#9F1F1E" },
+  withdrawn: { bg: "#F3F4F6", dot: "#9CA3AF", text: "#4B5563" },
+  pending_renewal: { bg: "#FFF4E6", dot: "#F78C10", text: "#8A5600" },
+  auto_renewed: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
+  pending_admin_review: {
+    bg: "#F3F4F6",
+    dot: "#9CA3AF",
+    text: "#4B5563",
+  },
 };
 
 const TERMINAL: ReadonlySet<ChildStatus> = new Set([
@@ -52,14 +69,14 @@ const TERMINAL: ReadonlySet<ChildStatus> = new Set([
 interface ActionDef {
   status: DecisionStatus;
   label: string;
-  variant: "primary" | "outline" | "danger" | "success";
+  tone: "primary" | "outline" | "danger" | "success";
 }
 
 const ACTIONS: ActionDef[] = [
-  { status: "approved", label: "Bestätigen", variant: "success" },
-  { status: "waitlisted", label: "Warteliste", variant: "outline" },
-  { status: "rejected", label: "Ablehnen", variant: "danger" },
-  { status: "under_review", label: "Zur Prüfung", variant: "primary" },
+  { status: "approved", label: "Bestätigen", tone: "success" },
+  { status: "waitlisted", label: "Warteliste", tone: "outline" },
+  { status: "rejected", label: "Ablehnen", tone: "danger" },
+  { status: "under_review", label: "Zur Prüfung", tone: "primary" },
 ];
 
 interface Props {
@@ -131,179 +148,101 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     );
   }
 
+  const submittedAt = formatDateTime(data.submitted_at, {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const childStats = summarizeChildren(data.children);
+  const phaseHref = tenantSlug
+    ? `/${tenantSlug}/admin/enrollments/phases/${data.phase_id}`
+    : `/admin/enrollments/phases/${data.phase_id}`;
+  const statusHref = tenantSlug
+    ? `/${tenantSlug}/enroll/status/${data.status_token}`
+    : `/enroll/status/${data.status_token}`;
+
   return (
     <div className="space-y-5">
-      <PageHeaderWithSearch
-        title={`Anmeldung von ${data.guardian_first_name} ${data.guardian_last_name}`}
-        actionButton={
+      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
           <Link
-            href={
-              tenantSlug
-                ? `/${tenantSlug}/admin/enrollments`
-                : `/admin/enrollments`
-            }
-            className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            href={phaseHref}
+            className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
-            Zur Übersicht
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Zurück zur Anmeldephase
           </Link>
-        }
-      />
-      <p className="-mt-2 text-sm text-gray-600">
-        Phase: <strong>{data.phase_name || "Nicht zugeordnet"}</strong>
-        {" · "}
-        Eingegangen am{" "}
-        {new Date(data.submitted_at).toLocaleString("de-DE", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
-      </p>
-
-      {error && (
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
-          {error}
         </div>
-      )}
-      {info && (
-        <div className="rounded-2xl border border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 text-sm text-[#5A8B1F]">
-          {info}
-        </div>
-      )}
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
+          <div className="space-y-6 p-5 sm:p-6">
+            <header>
+              <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                Anmeldung prüfen
+              </p>
+              <h1 className="mt-1 text-xl font-semibold text-gray-900">
+                {data.guardian_first_name} {data.guardian_last_name}
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                Prüfe die Angaben der Anmeldung, bevor du eine Entscheidung
+                speicherst. Die Entscheidung wird pro Kind gesetzt.
+              </p>
+            </header>
 
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <h2 className="text-base font-semibold text-gray-900">
-          Erziehungsberechtigte/r
-        </h2>
-        <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-xs text-gray-500 uppercase">Name</dt>
-            <dd className="text-gray-900">
-              {data.guardian_first_name} {data.guardian_last_name}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 uppercase">E-Mail</dt>
-            <dd className="text-gray-900">{data.guardian_email}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 uppercase">Telefon</dt>
-            <dd className="text-gray-900">
-              {data.guardian_phone ?? "Nicht gesetzt"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-gray-500 uppercase">Status-Link</dt>
-            <dd>
-              <code className="rounded bg-gray-100 px-2 py-1 text-xs break-all">
-                /enroll/status/{data.status_token}
-              </code>
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <RequestExtraSection request={data} />
-
-      <section className="space-y-3">
-        <h2 className="text-base font-semibold text-gray-900">Kinder</h2>
-        {data.children.map((c) => {
-          const terminal = TERMINAL.has(c.status);
-          return (
-            <div
-              key={c.id}
-              className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-semibold text-gray-900">
-                    {c.first_name} {c.last_name}
-                  </h3>
-                  <p className="mt-1 text-xs text-gray-600">
-                    Geburtsdatum: {c.date_of_birth}
-                    {c.target_grade_level
-                      ? ` · ${c.target_grade_level}. Klasse`
-                      : ""}
-                  </p>
-                  {c.status_reason && (
-                    <p className="mt-2 text-sm text-gray-700">
-                      <span className="text-xs font-medium text-gray-500">
-                        Begründung:{" "}
-                      </span>
-                      {c.status_reason}
-                    </p>
-                  )}
-                  {c.reviewed_at && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Letzte Entscheidung:{" "}
-                      {new Date(c.reviewed_at).toLocaleString("de-DE", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  )}
-                </div>
-                <StatusBadge status={c.status} />
+            {error && (
+              <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+                {error}
               </div>
+            )}
+            {info && (
+              <div className="rounded-lg border border-[#83CD2D]/20 bg-[#83CD2D]/10 p-3 text-sm text-[#5A8B1F]">
+                {info}
+              </div>
+            )}
 
-              <ChildExtraFields child={c} schemaFields={data.schema_fields} />
+            <EnrollmentSummary data={data} submittedAt={submittedAt} />
 
-              {!terminal && (
-                <div className="mt-4 space-y-2">
-                  <label className="block">
-                    <span className="text-xs font-medium text-gray-700">
-                      Begründung (optional, sichtbar je nach
-                      Anmeldephaseneinstellung)
-                    </span>
-                    <textarea
-                      value={reasons[c.id] ?? ""}
-                      onChange={(e) =>
-                        setReasons((prev) => ({
-                          ...prev,
-                          [c.id]: e.target.value,
-                        }))
-                      }
-                      rows={2}
-                      placeholder="z. B. Geschwisterkind bevorzugt, voll ausgebucht"
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                    />
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {ACTIONS.map((a) => {
-                      const isCurrent = c.status === a.status;
-                      return (
-                        <Button
-                          key={a.status}
-                          type="button"
-                          disabled={busyChildId === c.id || isCurrent}
-                          onClick={() => void handleDecide(c.id, a.status)}
-                          variant={a.variant}
-                          size="sm"
-                          className="px-3 py-1.5 text-xs shadow-none disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          {busyChildId === c.id
-                            ? "Wird gespeichert..."
-                            : a.label}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {terminal && (
-                <p className="mt-3 text-xs text-gray-500">
-                  Diese Entscheidung ist final. Für Promotionen (z. B.
-                  Warteliste zu Bestätigt) folgt die volle Workflow-Logik in
-                  einer kommenden Version.
+            <RequestExtraSection request={data} />
+
+            <section className="space-y-3">
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                  Kinder
                 </p>
-              )}
-            </div>
-          );
-        })}
+                <h2 className="mt-1 text-base font-semibold text-gray-900">
+                  Angaben der Kinder
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Zusatzfragen und Stammdaten-Antworten werden pro Kind
+                  angezeigt.
+                </p>
+              </div>
+              {data.children.map((child) => (
+                <ChildInformationCard
+                  key={child.id}
+                  child={child}
+                  busy={busyChildId === child.id}
+                  reason={reasons[child.id] ?? ""}
+                  schemaFields={data.schema_fields}
+                  onReasonChange={(value) =>
+                    setReasons((prev) => ({ ...prev, [child.id]: value }))
+                  }
+                  onDecide={(status) => void handleDecide(child.id, status)}
+                />
+              ))}
+            </section>
+          </div>
+
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+            <ReviewSidebar
+              childStats={childStats}
+              data={data}
+              statusHref={statusHref}
+              submittedAt={submittedAt}
+            />
+          </aside>
+        </div>
       </section>
     </div>
   );
@@ -313,22 +252,377 @@ function StatusBadge({ status }: Readonly<{ status: ChildStatus }>) {
   const styles = STATUS_COLORS[status];
   return (
     <span
-      className="inline-flex rounded-full px-3 py-1 text-xs font-medium"
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
       style={{ backgroundColor: styles.bg, color: styles.text }}
     >
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: styles.dot }}
+        aria-hidden="true"
+      />
       {STATUS_LABELS[status]}
     </span>
   );
 }
 
-// ---- extra-info rendering ---------------------------------------------
-//
-// RequestExtraSection shows the AGB/photo consent block + every
-// request-level custom field (applies_to_child=false) the parent
-// filled in. ChildExtraFields does the same per child for per-child
-// (applies_to_child=true) fields. Together they surface every answer
-// the parent gave beyond the core form so the admin has full context
-// when deciding.
+function EnrollmentSummary({
+  data,
+  submittedAt,
+}: Readonly<{
+  data: AdminRequestSummary;
+  submittedAt: string;
+}>) {
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
+          <UserRound className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Erziehungsberechtigte Person
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-gray-900">
+            {data.guardian_first_name} {data.guardian_last_name}
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            {data.phase_name || "Nicht zugeordnet"}
+          </p>
+        </div>
+      </div>
+
+      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+        <InfoItem icon={Mail} label="E-Mail" value={data.guardian_email} />
+        <InfoItem
+          icon={Phone}
+          label="Telefon"
+          value={data.guardian_phone ?? "Nicht gesetzt"}
+        />
+        <InfoItem
+          icon={CalendarClock}
+          label="Eingegangen"
+          value={submittedAt}
+        />
+      </dl>
+    </section>
+  );
+}
+
+function InfoItem({
+  icon: Icon,
+  label,
+  mono,
+  value,
+}: Readonly<{
+  icon: LucideIcon;
+  label: string;
+  mono?: boolean;
+  value: string;
+}>) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3">
+      <dt className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase">
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        {label}
+      </dt>
+      <dd
+        className={`mt-1 text-sm text-gray-900 ${mono ? "font-mono break-all" : ""}`}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function ChildInformationCard({
+  busy,
+  child,
+  onDecide,
+  onReasonChange,
+  reason,
+  schemaFields,
+}: Readonly<{
+  busy: boolean;
+  child: AdminRequestChild;
+  onDecide: (status: DecisionStatus) => void;
+  onReasonChange: (value: string) => void;
+  reason: string;
+  schemaFields?: AdminRequestSchemaField[];
+}>) {
+  const terminal = TERMINAL.has(child.status);
+  return (
+    <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900">
+            {child.first_name} {child.last_name}
+          </h3>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+              Geburtsdatum: {formatPlainDate(child.date_of_birth)}
+            </span>
+            {child.target_grade_level ? (
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                {child.target_grade_level}. Klasse
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <StatusBadge status={child.status} />
+      </div>
+      <div className="space-y-4 p-4">
+        {child.status_reason ? (
+          <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-700">
+            <span className="text-xs font-medium text-gray-500">
+              Begründung:{" "}
+            </span>
+            {child.status_reason}
+          </div>
+        ) : null}
+        {child.reviewed_at ? (
+          <p className="text-xs text-gray-500">
+            Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
+          </p>
+        ) : null}
+        <ChildExtraFields child={child} schemaFields={schemaFields} />
+        {terminal ? (
+          <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
+            Diese Entscheidung ist final.
+          </div>
+        ) : (
+          <DecisionPanel
+            child={child}
+            busy={busy}
+            reason={reason}
+            onReasonChange={onReasonChange}
+            onDecide={onDecide}
+          />
+        )}
+      </div>
+    </article>
+  );
+}
+
+function ReviewSidebar({
+  childStats,
+  data,
+  statusHref,
+  submittedAt,
+}: Readonly<{
+  childStats: ReturnType<typeof summarizeChildren>;
+  data: AdminRequestSummary;
+  statusHref: string;
+  submittedAt: string;
+}>) {
+  return (
+    <div className="space-y-4 lg:sticky lg:top-6">
+      <section>
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          Prüfung
+        </p>
+        <h2 className="mt-1 text-base font-semibold text-gray-900">
+          Status der Anmeldung
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Alle Kinder werden einzeln geprüft. Die Statusseite zeigt Eltern den
+          aktuellen Stand der Anmeldung.
+        </p>
+      </section>
+
+      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+        <div className="grid grid-cols-3 gap-2">
+          <SidebarMetric label="Kinder" value={data.children.length} />
+          <SidebarMetric label="Offen" value={childStats.open} />
+          <SidebarMetric label="Bestätigt" value={childStats.approved} />
+        </div>
+        <dl className="mt-4 space-y-3 text-sm">
+          <div>
+            <dt className="text-xs font-medium text-gray-500 uppercase">
+              Phase
+            </dt>
+            <dd className="mt-0.5 font-medium text-gray-900">
+              {data.phase_name || "Nicht zugeordnet"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-gray-500 uppercase">
+              Eingegangen
+            </dt>
+            <dd className="mt-0.5 text-gray-900">{submittedAt}</dd>
+          </div>
+        </dl>
+        <a
+          href={statusHref}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          Statusseite öffnen
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </a>
+      </section>
+
+      {data.children.map((child) => {
+        return (
+          <section
+            key={child.id}
+            className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="truncate text-sm font-semibold text-gray-900">
+                  {child.first_name} {child.last_name}
+                </h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  {child.target_grade_level
+                    ? `${child.target_grade_level}. Klasse`
+                    : "Keine Klassenstufe"}
+                </p>
+              </div>
+              <StatusBadge status={child.status} />
+            </div>
+            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
+              {TERMINAL.has(child.status)
+                ? "Entscheidung abgeschlossen"
+                : "Entscheidung ausstehend"}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function SidebarMetric({
+  label,
+  value,
+}: Readonly<{ label: string; value: number }>) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2">
+      <span className="block text-lg leading-none font-semibold text-gray-900">
+        {value}
+      </span>
+      <span className="mt-1 block text-xs font-medium text-gray-500">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function DecisionPanel({
+  busy,
+  child,
+  onDecide,
+  onReasonChange,
+  reason,
+}: Readonly<{
+  busy: boolean;
+  child: AdminRequestChild;
+  onDecide: (status: DecisionStatus) => void;
+  onReasonChange: (value: string) => void;
+  reason: string;
+}>) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
+          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div>
+          <h4 className="text-sm font-semibold text-gray-900">
+            Entscheidung speichern
+          </h4>
+          <p className="mt-1 text-xs leading-5 text-gray-600">
+            Optional kann eine Begründung ergänzt werden. Je nach Einstellung
+            der Anmeldephase ist sie für Eltern sichtbar.
+          </p>
+        </div>
+      </div>
+
+      <label className="mt-4 block">
+        <span className="text-xs font-medium text-gray-700">Begründung</span>
+        <textarea
+          value={reason}
+          onChange={(event) => onReasonChange(event.target.value)}
+          rows={2}
+          placeholder="z. B. Geschwisterkind bevorzugt, voll ausgebucht"
+          className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        />
+      </label>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {ACTIONS.map((action) => {
+          const isCurrent = child.status === action.status;
+          return (
+            <button
+              key={action.status}
+              type="button"
+              disabled={busy || isCurrent}
+              onClick={() => onDecide(action.status)}
+              className={getDecisionButtonClass(action.tone)}
+            >
+              {getDecisionIcon(action.status)}
+              {busy ? "Speichert..." : action.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function getDecisionButtonClass(tone: ActionDef["tone"]): string {
+  const base =
+    "inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45";
+  if (tone === "success") {
+    return `${base} border border-gray-200 bg-white text-gray-700 hover:border-[#83CD2D]/60 hover:bg-[#83CD2D]/10 hover:text-[#5A8B1F]`;
+  }
+  if (tone === "danger") {
+    return `${base} border border-[#FF3130]/20 bg-white text-[#CC2626] hover:bg-[#FF3130]/10`;
+  }
+  if (tone === "primary") {
+    return `${base} border border-gray-900 bg-gray-900 text-white hover:bg-gray-700`;
+  }
+  return `${base} border border-gray-200 bg-white text-gray-700 hover:bg-gray-50`;
+}
+
+function getDecisionIcon(status: DecisionStatus): React.ReactNode {
+  if (status === "approved") {
+    return <Check className="h-4 w-4" aria-hidden="true" />;
+  }
+  if (status === "rejected") {
+    return <X className="h-4 w-4" aria-hidden="true" />;
+  }
+  if (status === "under_review") {
+    return <ClipboardList className="h-4 w-4" aria-hidden="true" />;
+  }
+  return <CalendarClock className="h-4 w-4" aria-hidden="true" />;
+}
+
+function summarizeChildren(children: AdminRequestChild[]) {
+  let open = 0;
+  let approved = 0;
+  for (const child of children) {
+    if (!TERMINAL.has(child.status)) open += 1;
+    if (child.status === "approved") approved += 1;
+  }
+  return { open, approved };
+}
+
+function formatDateTime(
+  value: string,
+  options?: Intl.DateTimeFormatOptions,
+): string {
+  return new Date(value).toLocaleString("de-DE", options);
+}
+
+function formatPlainDate(value: string): string {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
 
 const CONSENT_LABELS: Record<string, string> = {
   agb: "AGB der Schule",
@@ -442,13 +736,6 @@ function ChildExtraFields({
   );
 }
 
-// formatCustomValue produces a German-friendly display string for any
-// JSON-ish value pulled out of custom_data. Returns null when the
-// value is effectively empty so callers can hide the row.
-//
-// When a field definition is supplied and it's a select, the raw
-// stored value (e.g. "picked_up") is mapped back to its option label
-// (e.g. "Wird abgeholt"). Unknown values fall back to the raw string.
 function formatCustomValue(
   v: unknown,
   field?: AdminRequestSchemaField,
@@ -466,7 +753,6 @@ function formatCustomValue(
   }
   if (typeof v === "number") return String(v);
 
-  // Structured types ----------------------------------------------------
   if (Array.isArray(v)) {
     if (v.length === 0) return null;
     return (
@@ -480,7 +766,6 @@ function formatCustomValue(
     );
   }
   if (typeof v === "object") {
-    // weekday_schedule { mon: "15:00", tue: "...", ... }
     const o = v as Record<string, unknown>;
     const weekdays = [
       ["mon", "Mo"],
@@ -514,7 +799,6 @@ function formatStructuredEntry(row: unknown): React.ReactNode {
   if (!row || typeof row !== "object") return String(row);
   const r = row as Record<string, unknown>;
 
-  // contact_list entry → "Vorname Nachname (Beziehung) · E-Mail · Tel … [Notfall] [Abholberechtigt]"
   if (typeof r.first_name === "string" || typeof r.last_name === "string") {
     const parts: string[] = [];
     const fullName = `${typeof r.first_name === "string" ? r.first_name : ""} ${
@@ -533,10 +817,9 @@ function formatStructuredEntry(row: unknown): React.ReactNode {
     }
     if (r.can_pickup === true) parts.push("Abholberechtigt");
     if (r.is_emergency_contact === true) parts.push("Notfallkontakt");
-    return parts.join(" · ");
+    return parts.join(", ");
   }
 
-  // phone_list entry
   if (typeof r.phone_number === "string") {
     const labelMap: Record<string, string> = {
       mobile: "Mobil",
@@ -549,7 +832,7 @@ function formatStructuredEntry(row: unknown): React.ReactNode {
         ? labelMap[r.phone_type as string]
         : null;
     return `${r.phone_number}${t ? ` (${t})` : ""}${
-      r.is_primary === true ? " ★" : ""
+      r.is_primary === true ? " (Hauptnummer)" : ""
     }`;
   }
 

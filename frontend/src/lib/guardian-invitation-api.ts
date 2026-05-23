@@ -8,6 +8,9 @@ export interface GuardianInvitationValidation {
   firstName?: string;
   lastName?: string;
   expiresAt: string;
+  schoolName?: string;
+  tenantSlug?: string;
+  schoolLogoUrl?: string;
 }
 
 interface BackendGuardianInvitationValidation {
@@ -15,6 +18,9 @@ interface BackendGuardianInvitationValidation {
   first_name?: string;
   last_name?: string;
   expires_at: string;
+  school_name?: string;
+  tenant_slug?: string;
+  school_logo_url?: string;
 }
 
 export interface GuardianInvitationAcceptRequest {
@@ -85,6 +91,9 @@ const mapValidation = (
   firstName: data.first_name,
   lastName: data.last_name,
   expiresAt: data.expires_at,
+  schoolName: data.school_name,
+  tenantSlug: data.tenant_slug,
+  schoolLogoUrl: data.school_logo_url,
 });
 
 export async function validateGuardianInvitation(

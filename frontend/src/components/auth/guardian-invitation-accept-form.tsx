@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
+import { AlertCircle, Check, Circle } from "lucide-react";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { Input } from "~/components/ui";
+import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import {
   acceptGuardianInvitation,
   type GuardianInvitationValidation,
@@ -101,12 +103,8 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         confirmPassword,
       });
 
-      // Redirect to the parents-portal login. The accept-invite page
-      // is unauth, so there's no NextAuth session to clear here — the
-      // earlier signOut() round-trip occasionally left the cookie in
-      // an in-between state where the next signIn looked stale and
-      // the dashboard stuck on its loading skeleton until the user
-      // logged in a second time. Just navigate.
+      // Redirect to the parents portal login. The accept invite page
+      // is unauth, so there is no NextAuth session to clear here.
       let redirectUrl: string | null = null;
       if (globalThis.window !== undefined) {
         const parentsHostname = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
@@ -189,53 +187,38 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-6">
+    <form onSubmit={handleSubmit} noValidate className="space-y-5 sm:space-y-6">
       {error && (
         <div
           ref={errorRef}
-          className="rounded-xl border border-red-200/50 bg-red-50/50 p-4"
+          className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4"
         >
-          <p className="text-sm text-red-700">{error}</p>
+          <div className="flex items-start gap-3">
+            <AlertCircle
+              className="mt-0.5 h-5 w-5 shrink-0 text-[#CC2626]"
+              aria-hidden="true"
+            />
+            <p className="text-sm text-[#CC2626]">{error}</p>
+          </div>
         </div>
       )}
 
-      <div className="mb-4">
-        <p className="text-sm text-gray-600">
+      <section className="rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-3 text-sm lg:hidden">
+        <p className="font-medium text-gray-700">
           Einladung für{" "}
-          <span className="font-medium text-gray-900">{invitation.email}</span>
-          {guardianFullName && (
-            <>
-              {" "}
-              als{" "}
-              <span className="font-medium text-gray-900">
-                {guardianFullName}
-              </span>
-            </>
-          )}
-        </p>
-      </div>
-
-      <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
-        <div>
-          <span className="block text-xs font-medium text-gray-600">
-            Gültig bis
+          <span className="font-semibold text-gray-900">
+            {guardianFullName || invitation.email}
           </span>
-          <p className="mt-0.5 text-sm font-semibold text-gray-900">
-            {new Date(invitation.expiresAt).toLocaleDateString("de-DE", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-        </div>
-      </div>
+        </p>
+        {guardianFullName && (
+          <p className="mt-1 text-gray-500">{invitation.email}</p>
+        )}
+      </section>
 
       <div>
         <label
           htmlFor="password"
-          className={`mb-1 block text-sm font-medium ${errorFieldName === "password" ? "text-red-600" : "text-gray-700"}`}
+          className={`mb-2 block text-sm font-medium ${errorFieldName === "password" ? "text-[#CC2626]" : "text-gray-700"}`}
         >
           Passwort
         </label>
@@ -248,26 +231,20 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`w-full pr-10 ${errorFieldName === "password" ? "ring-red-400" : ""}`}
+            className={`w-full pr-12 ${errorFieldName === "password" ? "ring-[#FF3130]" : ""}`}
             required
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-700"
-            aria-label={
-              showPassword ? "Passwort verbergen" : "Passwort anzeigen"
-            }
-          >
-            {showPassword ? "verbergen" : "anzeigen"}
-          </button>
+          <PasswordToggleButton
+            showPassword={showPassword}
+            onToggle={() => setShowPassword(!showPassword)}
+          />
         </div>
       </div>
 
       <div>
         <label
           htmlFor="confirmPassword"
-          className={`mb-1 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-red-600" : "text-gray-700"}`}
+          className={`mb-2 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-[#CC2626]" : "text-gray-700"}`}
         >
           Passwort bestätigen
         </label>
@@ -280,41 +257,39 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`w-full pr-10 ${errorFieldName === "confirmPassword" ? "ring-red-400" : ""}`}
+            className={`w-full pr-12 ${errorFieldName === "confirmPassword" ? "ring-[#FF3130]" : ""}`}
             required
           />
-          <button
-            type="button"
-            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-700"
-            aria-label={
-              showConfirmPassword ? "Passwort verbergen" : "Passwort anzeigen"
-            }
-          >
-            {showConfirmPassword ? "verbergen" : "anzeigen"}
-          </button>
+          <PasswordToggleButton
+            showPassword={showConfirmPassword}
+            onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
+          />
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-        <p className="mb-2 text-xs font-medium text-gray-700">
+      <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+        <p className="text-sm font-semibold text-gray-900">
           Passwortanforderungen
         </p>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+        <div className="mt-3 grid gap-1.5 sm:grid-cols-2 sm:gap-2">
           {requirementStatus.map((requirement) => (
             <div
               key={requirement.label}
-              className="flex items-center gap-1.5 text-xs"
+              className="flex items-center gap-2 text-sm"
             >
               <span
-                className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                   requirement.met
-                    ? "border-green-400 bg-green-100 text-green-700"
+                    ? "border-[#83CD2D] bg-[#83CD2D]/10 text-[#5A8B1F]"
                     : "border-gray-300 bg-white text-gray-400"
                 }`}
                 aria-hidden="true"
               >
-                {requirement.met ? "✓" : ""}
+                {requirement.met ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Circle className="h-3.5 w-3.5" />
+                )}
               </span>
               <span
                 className={requirement.met ? "text-gray-700" : "text-gray-500"}
@@ -329,7 +304,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full rounded-xl bg-gray-900 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:bg-gray-800 hover:shadow-xl disabled:cursor-not-allowed disabled:bg-gray-400"
+        className="h-11 w-full rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:bg-gray-800 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400 sm:h-12"
       >
         {isSubmitting ? "Wird übernommen..." : "Einladung akzeptieren"}
       </button>

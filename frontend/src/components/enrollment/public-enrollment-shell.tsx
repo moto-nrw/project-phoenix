@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Check, ChevronRight } from "lucide-react";
-import type { TenantInfo } from "~/lib/tenant-api";
+import { loginImageSrc, type TenantInfo } from "~/lib/tenant-api";
 
 export function PublicEnrollmentBrand({
   tenant,
@@ -11,10 +11,7 @@ export function PublicEnrollmentBrand({
   readonly tenant: TenantInfo | null;
 }) {
   const schoolName = tenant?.name ?? "Ihre OGS";
-  const logoUrl =
-    typeof tenant?.settings.logoUrl === "string" && tenant.settings.logoUrl
-      ? tenant.settings.logoUrl
-      : null;
+  const logoUrl = getTenantLogoUrl(tenant);
   const initials = schoolName
     .split(/\s+/)
     .filter(Boolean)
@@ -50,6 +47,29 @@ export function PublicEnrollmentBrand({
       </div>
     </div>
   );
+}
+
+function getTenantLogoUrl(tenant: TenantInfo | null): string | null {
+  const explicitLogo =
+    typeof tenant?.settings.logoUrl === "string" && tenant.settings.logoUrl
+      ? tenant.settings.logoUrl
+      : null;
+  if (explicitLogo) {
+    return explicitLogo;
+  }
+
+  const loginImage =
+    typeof tenant?.settings.loginImageUrl === "string" &&
+    tenant.settings.loginImageUrl
+      ? tenant.settings.loginImageUrl
+      : null;
+  if (!loginImage) {
+    return null;
+  }
+  if (loginImage.startsWith("/uploads/login-images/")) {
+    return loginImageSrc(loginImage);
+  }
+  return loginImage;
 }
 
 export function PublicEnrollmentSteps({

@@ -494,16 +494,18 @@ export function EnrollmentFormEditor() {
 
   return (
     <div className="space-y-5">
-      <button
-        type="button"
-        onClick={requestBackToOverview}
-        disabled={saving}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Zurück zur Übersicht
-      </button>
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+          <button
+            type="button"
+            onClick={requestBackToOverview}
+            disabled={saving}
+            className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Zurück zur Übersicht
+          </button>
+        </div>
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-5 sm:p-6">
             <FormBuilderIntro />
