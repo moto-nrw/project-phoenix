@@ -232,65 +232,67 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
-      {justSubmitted ? (
-        <section className="moto-content-surface overflow-hidden rounded-xl border shadow-sm">
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
-            <div className="p-5 sm:p-8 lg:p-10">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#83CD2D]/15 text-[#5A8E1F] sm:h-14 sm:w-14">
+      <section className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="p-5 sm:p-8 lg:p-10">
+            <div
+              className={`flex h-12 w-12 items-center justify-center rounded-xl sm:h-14 sm:w-14 ${
+                justSubmitted
+                  ? "bg-[#83CD2D]/15 text-[#5A8E1F]"
+                  : "moto-content-surface border text-gray-600 shadow-sm"
+              }`}
+            >
+              {justSubmitted ? (
                 <Check className="h-7 w-7" aria-hidden="true" />
-              </div>
-              <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
-                Anmeldung eingegangen
-              </p>
-              <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
-                Danke. Ihre Anmeldung wurde übermittelt.
-              </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
-                Die OGS prüft die Angaben. Den aktuellen Stand sehen Sie auf
-                dieser Seite. Speichern Sie den Link am besten direkt oder
-                bewahren Sie die Bestätigungs-E-Mail auf.
-              </p>
+              ) : (
+                <Clock className="h-7 w-7" aria-hidden="true" />
+              )}
             </div>
-            <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Was jetzt passiert
-              </h2>
-              <ol className="mt-5 space-y-4 text-sm text-gray-600">
-                <li className="flex gap-3">
-                  <StepNumber>1</StepNumber>
-                  <span>Die OGS sieht Ihre Anmeldung in der Verwaltung.</span>
-                </li>
-                <li className="flex gap-3">
-                  <StepNumber>2</StepNumber>
-                  <span>
-                    Bei Rückfragen meldet sich die OGS über die angegebene
-                    E-Mail-Adresse.
-                  </span>
-                </li>
-                <li className="flex gap-3">
-                  <StepNumber>3</StepNumber>
-                  <span>
-                    Sobald eine Entscheidung vorliegt, sehen Sie diese im
-                    Bereich „Kinder“ und erhalten eine E-Mail.
-                  </span>
-                </li>
-              </ol>
-            </aside>
+            <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+              {justSubmitted ? "Anmeldung eingegangen" : "Status"}
+            </p>
+            <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
+              {justSubmitted
+                ? "Danke. Ihre Anmeldung wurde übermittelt."
+                : "Status Ihrer Anmeldung"}
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
+              {justSubmitted
+                ? "Die OGS prüft die Angaben. Den aktuellen Stand sehen Sie auf dieser Seite. Speichern Sie den Link am besten direkt oder bewahren Sie die Bestätigungs-E-Mail auf."
+                : `Ihre Anmeldung ist am ${submittedDate} eingegangen. Hier sehen Sie den aktuellen Stand, Ihre Kontaktdaten und die angemeldeten Kinder.`}
+            </p>
           </div>
-        </section>
-      ) : (
-        <header className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
-          <p className="text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
-            Status
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900">
-            Status Ihrer Anmeldung
-          </h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Eingegangen am {submittedDate}
-          </p>
-        </header>
-      )}
+          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {justSubmitted ? "Was jetzt passiert" : "Aktueller Stand"}
+            </h2>
+            <ol className="mt-5 space-y-4 text-sm text-gray-600">
+              <li className="flex gap-3">
+                <StepNumber>1</StepNumber>
+                <span>
+                  {justSubmitted
+                    ? "Die OGS sieht Ihre Anmeldung in der Verwaltung."
+                    : "Die Anmeldung liegt der OGS vor."}
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <StepNumber>2</StepNumber>
+                <span>
+                  Bei Rückfragen meldet sich die OGS über die angegebene
+                  E-Mail-Adresse.
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <StepNumber>3</StepNumber>
+                <span>
+                  Sobald eine Entscheidung vorliegt, sehen Sie diese im Bereich
+                  „Kinder“ und erhalten eine E-Mail.
+                </span>
+              </li>
+            </ol>
+          </aside>
+        </div>
+      </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
         <StatusSummaryCard

@@ -2,24 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  ArrowRight,
-  CalendarDays,
-  ClipboardList,
-  Clock3,
-  FileText,
-  MessageCircle,
-  Plus,
-  ShieldCheck,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowRight, Users } from "lucide-react";
 import {
   type Child,
   type ChildStatus,
   type EnrollmentChildStatus,
   type EnrollmentRequest,
-  groupBySchool,
   listMyChildren,
   listMyEnrollments,
 } from "~/lib/parent-api";
@@ -59,6 +47,16 @@ const statusTone: Record<
   alumnus: { bg: "#6B7280", text: "#FFFFFF", dot: "#6B7280" },
 };
 
+interface ChildOverviewItem {
+  readonly key: string;
+  readonly name: string;
+  readonly schoolName: string;
+  readonly detail: string;
+  readonly status: EnrollmentChildStatus | ChildStatus;
+  readonly statusLabel: string;
+  readonly href?: string;
+}
+
 function formatDate(iso: string | undefined): string {
   if (!iso) return "Nicht gesetzt";
   return new Intl.DateTimeFormat("de-DE", {
@@ -78,6 +76,62 @@ function formatServiceRange(
 
 function pluralize(count: number, one: string, many: string): string {
   return count === 1 ? `1 ${one}` : `${count} ${many}`;
+}
+
+function normalizeChildIdentity(name: string, schoolName: string): string {
+  return `${name.trim().toLowerCase()}::${schoolName.trim().toLowerCase()}`;
+}
+
+function getEnrollmentOverviewStatus(status: EnrollmentChildStatus): string {
+  if (status === "submitted") return "Anmeldung abgesendet";
+  if (status === "under_review") return "Wartet auf Rückmeldung";
+  return enrollmentStatusLabel[status] ?? status;
+}
+
+function buildChildOverviewItems(
+  children: readonly Child[],
+  requests: readonly EnrollmentRequest[],
+): ChildOverviewItem[] {
+  const items: ChildOverviewItem[] = children.map((child) => {
+    const name = `${child.first_name} ${child.last_name}`;
+    return {
+      key: `child-${child.tenant_id}-${child.student_id}`,
+      name,
+      schoolName: child.school_name,
+      detail: child.enrolled_from
+        ? `${child.school_class ? `${child.school_class} · ` : ""}Betreuung ${formatServiceRange(child.enrolled_from, child.enrolled_until)}`
+        : child.school_class || "Betreuung bestätigt",
+      status: child.status,
+      statusLabel: childStatusLabel[child.status],
+      href: `/parents/children/${child.student_id}`,
+    };
+  });
+
+  const seen = new Set(
+    items.map((item) => normalizeChildIdentity(item.name, item.schoolName)),
+  );
+
+  for (const request of requests) {
+    for (const child of request.children) {
+      const name = `${child.first_name} ${child.last_name}`;
+      const identity = normalizeChildIdentity(name, request.school_name);
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      items.push({
+        key: `request-${request.request_id}-${child.child_id}`,
+        name,
+        schoolName: request.school_name,
+        detail: `${request.phase_name} · ${formatServiceRange(
+          request.service_start_date,
+          request.service_end_date,
+        )}`,
+        status: child.status,
+        statusLabel: getEnrollmentOverviewStatus(child.status),
+      });
+    }
+  }
+
+  return items;
 }
 
 export function ParentDashboard() {
@@ -109,7 +163,10 @@ export function ParentDashboard() {
     void load();
   }, [load]);
 
-  const childGroups = useMemo(() => groupBySchool(children), [children]);
+  const childOverviewItems = useMemo(
+    () => buildChildOverviewItems(children, requests),
+    [children, requests],
+  );
   const openEnrollmentCount = useMemo(
     () =>
       requests.reduce(
@@ -144,87 +201,42 @@ export function ParentDashboard() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(21rem,0.65fr)]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)]">
           <div className="p-5 sm:p-6 lg:p-8">
             <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
               Elternportal
             </p>
-            <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0">
-                <h1 className="max-w-3xl text-2xl font-semibold text-balance text-gray-900 sm:text-3xl">
-                  Übersicht für Anmeldung und Betreuung
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 sm:text-base">
-                  Sehen Sie den Status Ihrer Anmeldungen, behalten Sie Ihre
-                  Kinder im Blick und starten Sie neue Anmeldungen an passenden
-                  Schulen.
-                </p>
-              </div>
-              <Link
-                href="/parents/enroll"
-                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Neue Anmeldung
-              </Link>
+            <div className="mt-2 max-w-3xl">
+              <h1 className="text-2xl font-semibold text-balance text-gray-900 sm:text-3xl">
+                Übersicht für Anmeldung und Betreuung
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 sm:text-base">
+                Ein ruhiger Einstieg in alles, was Eltern hier gerade brauchen:
+                den aktuellen Stand sehen und die Kinder im Portal wiederfinden.
+              </p>
             </div>
           </div>
-          <div className="border-t border-gray-200 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
-            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-              <MetricTile
-                icon={FileText}
-                label="Anmeldungen"
-                value={requests.length.toString()}
-                hint={
-                  requests.length === 1
-                    ? "1 Vorgang im Portal"
-                    : `${requests.length} Vorgänge im Portal`
-                }
-              />
-              <MetricTile
-                icon={Users}
-                label="Kinder"
-                value={children.length.toString()}
-                hint={pluralize(approvedChildCount, "bestätigt", "bestätigt")}
-              />
-              <MetricTile
-                icon={Clock3}
-                label="Offen"
-                value={openEnrollmentCount.toString()}
-                hint="Warten auf Rückmeldung"
-              />
+          <div className="moto-dotted-background moto-dotted-background--split border-t border-gray-200 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+            <div className="relative z-10 space-y-4">
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  Aktueller Stand
+                </p>
+                <p className="mt-1 text-sm leading-6 text-gray-600">
+                  Das Elternportal ist als schlanker Startpunkt gedacht. Weitere
+                  Funktionen kommen nach und nach dazu.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <StatusSummary label="Offen" value={openEnrollmentCount} />
+                <StatusSummary label="Kinder" value={approvedChildCount} />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <QuickActionCard
-          icon={ClipboardList}
-          title="Anmeldung starten"
-          description="Wählen Sie eine Schule und reichen Sie eine neue Anmeldung ein."
-          href="/parents/enroll"
-          action="Neue Anmeldung"
-          active
-        />
-        <QuickActionCard
-          icon={CalendarDays}
-          title="Abholzeiten"
-          description="Regelmäßige Abholzeiten je Kind verwalten."
-          action="Bald verfügbar"
-        />
-        <QuickActionCard
-          icon={MessageCircle}
-          title="Nachrichten"
-          description="Direkte Rückfragen und Mitteilungen mit der OGS austauschen."
-          action="Bald verfügbar"
-        />
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
-        <EnrollmentsPanel requests={requests} />
-        <ChildrenPanel groups={childGroups} />
-      </div>
+      <ChildrenOverviewPanel items={childOverviewItems} />
     </div>
   );
 }
@@ -246,83 +258,92 @@ function ParentDashboardSkeleton() {
   );
 }
 
-function MetricTile({
-  icon: Icon,
+function StatusSummary({
   label,
   value,
-  hint,
 }: Readonly<{
-  icon: LucideIcon;
   label: string;
-  value: string;
-  hint: string;
+  value: number;
 }>) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {label}
-          </p>
-          <p className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">
-            {value}
-          </p>
-        </div>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-white">
-          <Icon className="h-4.5 w-4.5" aria-hidden="true" />
-        </span>
-      </div>
-      <p className="mt-2 text-sm text-gray-500">{hint}</p>
+    <div className="rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm backdrop-blur-sm">
+      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">
+        {value}
+      </p>
     </div>
   );
 }
 
-function QuickActionCard({
-  icon: Icon,
-  title,
-  description,
-  href,
-  action,
-  active = false,
-}: Readonly<{
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  href?: string;
-  action: string;
-  active?: boolean;
-}>) {
+function ChildrenOverviewPanel({
+  items,
+}: Readonly<{ items: readonly ChildOverviewItem[] }>) {
+  return (
+    <section
+      id="children"
+      className="scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
+    >
+      <PanelHeader
+        eyebrow="Kinder"
+        title="Kinderübersicht"
+        description={
+          items.length === 0
+            ? "Sobald eine Anmeldung vorliegt, erscheint das Kind hier."
+            : pluralize(items.length, "Kind im Portal", "Kinder im Portal")
+        }
+      />
+
+      {items.length === 0 ? (
+        <ChildEmptyState />
+      ) : (
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          {items.map((item) => (
+            <ChildOverviewCard key={item.key} item={item} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ChildOverviewCard({ item }: Readonly<{ item: ChildOverviewItem }>) {
+  const tone = statusTone[item.status] ?? statusTone.submitted;
   const content = (
-    <>
-      <div className="flex items-start gap-3">
-        <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}
-        >
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
+    <div className="flex min-w-0 items-start gap-3">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-[#4A7A15]">
+        <Users className="h-6 w-6" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold break-words text-gray-900">
+              {item.name}
+            </h3>
+            <p className="text-sm break-words text-gray-600">
+              {item.schoolName}
+            </p>
+          </div>
+          <span
+            className="w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
+            style={{ backgroundColor: tone.bg, color: tone.text }}
+          >
+            {item.statusLabel}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <p className="mt-2 text-sm leading-5 break-words text-gray-500">
+            {item.detail}
+          </p>
         </div>
       </div>
-      <div className="mt-4 flex items-center justify-between gap-3 text-sm font-semibold">
-        <span className={active ? "text-gray-900" : "text-gray-400"}>
-          {action}
-        </span>
-        {active ? (
-          <ArrowRight className="h-4 w-4 text-gray-700" aria-hidden="true" />
-        ) : (
-          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-500">
-            Geplant
-          </span>
-        )}
-      </div>
-    </>
+    </div>
   );
 
-  if (!href) {
+  if (!item.href) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 opacity-80 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
         {content}
       </div>
     );
@@ -330,214 +351,17 @@ function QuickActionCard({
 
   return (
     <Link
-      href={href}
-      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      href={item.href}
+      className="group rounded-2xl border border-gray-200 bg-gray-50/70 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
     >
-      {content}
-    </Link>
-  );
-}
-
-function EnrollmentsPanel({
-  requests,
-}: Readonly<{ requests: EnrollmentRequest[] }>) {
-  return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-      <PanelHeader
-        eyebrow="Anmeldungen"
-        title="Meine Anmeldungen"
-        description={
-          requests.length === 0
-            ? "Noch keine Anmeldung eingereicht."
-            : "Öffnen Sie eine Anmeldung, um Status und Details einzusehen."
-        }
-      />
-
-      {requests.length === 0 ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="Noch keine Anmeldung"
-          description="Starten Sie eine neue Anmeldung, sobald ein Zeitraum geöffnet ist."
-          href="/parents/enroll"
-          action="Anmeldung starten"
-        />
-      ) : (
-        <div className="mt-5 space-y-3">
-          {requests.map((request) => (
-            <EnrollmentRequestCard key={request.request_id} request={request} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function EnrollmentRequestCard({
-  request,
-}: Readonly<{ request: EnrollmentRequest }>) {
-  return (
-    <Link
-      href={`/parents/enroll/status/${encodeURIComponent(request.status_token)}`}
-      className="group block rounded-xl border border-gray-200 bg-gray-50/60 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900">
-            {request.school_name}
-          </p>
-          <p className="mt-1 text-sm text-gray-600">
-            {request.phase_name} ·{" "}
-            {formatServiceRange(
-              request.service_start_date,
-              request.service_end_date,
-            )}
-          </p>
-          <p className="mt-2 text-xs text-gray-500">
-            Eingereicht am {formatDate(request.submitted_at)}
-          </p>
-        </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-gray-700 transition-colors group-hover:text-gray-900">
-          Öffnen
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </span>
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {request.children.map((child) => (
-          <StatusRow
-            key={child.child_id}
-            title={`${child.first_name} ${child.last_name}`}
-            subtitle={child.status_reason || "Status der Anmeldung"}
-            label={enrollmentStatusLabel[child.status] ?? child.status}
-            status={child.status}
-          />
-        ))}
-      </div>
-    </Link>
-  );
-}
-
-function ChildrenPanel({
-  groups,
-}: Readonly<{
-  groups: ReturnType<typeof groupBySchool>;
-}>) {
-  const childCount = groups.reduce(
-    (sum, group) => sum + group.children.length,
-    0,
-  );
-
-  return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-      <PanelHeader
-        eyebrow="Kinder"
-        title="Übersicht Ihrer Kinder"
-        description={
-          childCount === 0
-            ? "Bestätigte Kinder erscheinen hier."
-            : pluralize(childCount, "Kind im Portal", "Kinder im Portal")
-        }
-      />
-
-      {groups.length === 0 ? (
-        <EmptyState
-          icon={Users}
-          title="Noch keine Kinder"
-          description="Sobald eine Anmeldung bestätigt wurde, sehen Sie Ihr Kind hier."
-        />
-      ) : (
-        <div className="mt-5 space-y-4">
-          {groups.map((group) => (
-            <SchoolChildrenGroup
-              key={group.schoolSlug}
-              schoolName={group.schoolName}
-              childItems={group.children}
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function SchoolChildrenGroup({
-  schoolName,
-  childItems,
-}: Readonly<{
-  schoolName: string;
-  childItems: Child[];
-}>) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-gray-900">
-            {schoolName}
-          </p>
-          <p className="text-xs text-gray-500">
-            {pluralize(childItems.length, "Kind", "Kinder")}
-          </p>
-        </div>
-        <ShieldCheck className="h-5 w-5 text-[#83CD2D]" aria-hidden="true" />
-      </div>
-      <div className="mt-3 space-y-2">
-        {childItems.map((child) => (
-          <Link
-            key={`${child.tenant_id}-${child.student_id}`}
-            href={`/parents/children/${child.student_id}`}
-            className="block rounded-xl border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <StatusRow
-              title={`${child.first_name} ${child.last_name}`}
-              subtitle={
-                child.enrolled_from
-                  ? `${child.school_class ? `${child.school_class} · ` : ""}Betreuung ${formatServiceRange(child.enrolled_from, child.enrolled_until)}`
-                  : child.school_class || "Anmeldung läuft"
-              }
-              label={childStatusLabel[child.status]}
-              status={child.status}
-            />
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function StatusRow({
-  title,
-  subtitle,
-  label,
-  status,
-}: Readonly<{
-  title: string;
-  subtitle: string;
-  label: string;
-  status: EnrollmentChildStatus | ChildStatus;
-}>) {
-  const tone = statusTone[status] ?? statusTone.submitted;
-  return (
-    <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <div className="flex min-w-0 items-center gap-3 self-stretch">
-        <span
-          className="h-2.5 w-2.5 shrink-0 rounded-full"
-          style={{ backgroundColor: tone.dot }}
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">{content}</div>
+        <ArrowRight
+          className="hidden h-4 w-4 shrink-0 text-gray-400 transition-colors group-hover:text-gray-700 sm:block"
           aria-hidden="true"
         />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-gray-900">
-            {title}
-          </p>
-          <p className="truncate text-xs text-gray-500">{subtitle}</p>
-        </div>
       </div>
-      <span
-        className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold sm:self-auto"
-        style={{ backgroundColor: tone.bg, color: tone.text }}
-      >
-        {label}
-      </span>
-    </div>
+    </Link>
   );
 }
 
@@ -563,35 +387,19 @@ function PanelHeader({
   );
 }
 
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  href,
-  action,
-}: Readonly<{
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  href?: string;
-  action?: string;
-}>) {
+function ChildEmptyState() {
   return (
     <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
       <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-        <Icon className="h-5 w-5" aria-hidden="true" />
+        <Users className="h-5 w-5" aria-hidden="true" />
       </span>
-      <h3 className="mt-3 text-sm font-semibold text-gray-900">{title}</h3>
-      <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
-      {href && action && (
-        <Link
-          href={href}
-          className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {action}
-        </Link>
-      )}
+      <h3 className="mt-3 text-sm font-semibold text-gray-900">
+        Noch keine Kinder
+      </h3>
+      <p className="mt-1 text-sm leading-6 text-gray-600">
+        Sobald eine Anmeldung abgesendet oder bestätigt wurde, sehen Sie das
+        Kind hier.
+      </p>
     </div>
   );
 }
