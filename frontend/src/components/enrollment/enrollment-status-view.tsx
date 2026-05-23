@@ -183,7 +183,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
 
   if (loading) {
     return (
-      <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
+      <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 shadow-sm sm:p-6">
         Status wird geladen…
       </div>
     );
@@ -191,13 +191,13 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
 
   if (notFound) {
     return (
-      <div className="moto-content-surface rounded-3xl border border-red-200 bg-red-50 p-6 text-center shadow-sm">
+      <div className="moto-content-surface rounded-xl border border-red-200 bg-red-50 p-5 text-center shadow-sm sm:p-6">
         <h1 className="text-xl font-semibold text-red-800">
           Status-Link ungültig
         </h1>
         <p className="mt-2 text-sm text-red-700">
-          Der Link ist abgelaufen oder ungültig. Bitte überprüfe die URL aus
-          deiner Bestätigungs-E-Mail oder wende dich an die OGS.
+          Der Link ist abgelaufen oder ungültig. Bitte prüfen Sie die URL aus
+          Ihrer Bestätigungs-E-Mail oder wenden Sie sich an die OGS.
         </p>
       </div>
     );
@@ -205,7 +205,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
 
   if (!status) {
     return (
-      <div className="moto-content-surface rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 shadow-sm">
+      <div className="moto-content-surface rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800 shadow-sm sm:p-6">
         {error ?? "Status konnte nicht geladen werden."}
       </div>
     );
@@ -231,33 +231,34 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   const showOptOutBanner = !showOptInBanner && autoRenewedCount > 0;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
       {justSubmitted ? (
-        <section className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+        <section className="moto-content-surface overflow-hidden rounded-xl border shadow-sm">
           <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
-            <div className="p-6 sm:p-8 lg:p-10">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-[#5A8E1F]">
+            <div className="p-5 sm:p-8 lg:p-10">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#83CD2D]/15 text-[#5A8E1F] sm:h-14 sm:w-14">
                 <Check className="h-7 w-7" aria-hidden="true" />
               </div>
               <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
                 Anmeldung eingegangen
               </p>
-              <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
                 Danke. Ihre Anmeldung wurde übermittelt.
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
                 Die OGS prüft die Angaben. Den aktuellen Stand sehen Sie auf
-                dieser Seite. Speichern Sie den Link am besten direkt ab.
+                dieser Seite. Speichern Sie den Link am besten direkt oder
+                bewahren Sie die Bestätigungs-E-Mail auf.
               </p>
             </div>
-            <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-6 sm:p-8 lg:border-t-0 lg:border-l">
+            <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
               <h2 className="text-lg font-semibold text-gray-900">
                 Was jetzt passiert
               </h2>
               <ol className="mt-5 space-y-4 text-sm text-gray-600">
                 <li className="flex gap-3">
                   <StepNumber>1</StepNumber>
-                  <span>Die Anmeldung liegt der OGS zur Prüfung vor.</span>
+                  <span>Die OGS sieht Ihre Anmeldung in der Verwaltung.</span>
                 </li>
                 <li className="flex gap-3">
                   <StepNumber>2</StepNumber>
@@ -269,8 +270,8 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                 <li className="flex gap-3">
                   <StepNumber>3</StepNumber>
                   <span>
-                    Sobald eine Entscheidung getroffen wurde, erscheint sie im
-                    Statusbereich unten.
+                    Sobald eine Entscheidung vorliegt, sehen Sie diese im
+                    Bereich „Kinder“ und erhalten eine E-Mail.
                   </span>
                 </li>
               </ol>
@@ -278,11 +279,11 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
           </div>
         </section>
       ) : (
-        <header className="moto-content-surface rounded-3xl border p-6 shadow-sm">
+        <header className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
           <p className="text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
             Status
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900">
             Status Ihrer Anmeldung
           </h1>
           <p className="mt-2 text-sm text-gray-600">
@@ -321,7 +322,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
       )}
 
       {showOptInBanner && (
-        <section className="moto-content-surface rounded-3xl border p-6 shadow-sm">
+        <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
             Bestätigung erforderlich
           </h2>
@@ -330,12 +331,12 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
             Damit Ihr Kind dabei sein kann, bestätigen Sie bitte aktiv die
             Anmeldung. Ohne Bestätigung läuft die Anmeldung zur Frist ab.
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
               type="button"
               onClick={() => void handleConfirmRenewal()}
               disabled={confirmingRenewal}
-              className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 disabled:opacity-50"
+              className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
               {confirmingRenewal ? "Wird bestätigt…" : "Anmeldung bestätigen"}
             </button>
@@ -343,7 +344,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               type="button"
               onClick={() => void handleWithdraw()}
               disabled={withdrawingChild === "__all__"}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
               {withdrawingChild === "__all__"
                 ? "Wird abgelehnt…"
@@ -353,7 +354,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
         </section>
       )}
       {showOptOutBanner && (
-        <section className="moto-content-surface rounded-3xl border p-6 shadow-sm">
+        <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
             Anmeldung wurde verlängert
           </h2>
@@ -367,7 +368,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               type="button"
               onClick={() => void handleWithdraw()}
               disabled={withdrawingChild === "__all__"}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+              className="h-10 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
             >
               {withdrawingChild === "__all__" ? "Wird abgemeldet…" : "Abmelden"}
             </button>
@@ -375,7 +376,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
         </section>
       )}
 
-      <section className="moto-content-surface space-y-4 rounded-3xl border p-6 shadow-sm">
+      <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -391,15 +392,15 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
             return (
               <li
                 key={c.id}
-                className="rounded-2xl border border-gray-200 bg-white p-4"
+                className="rounded-xl border border-gray-200 bg-white p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-gray-600 shadow-sm">
+                    <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
                       <UserRound className="h-5 w-5" aria-hidden="true" />
                     </span>
-                    <div>
-                      <p className="font-semibold text-gray-900">
+                    <div className="min-w-0">
+                      <p className="font-semibold break-words text-gray-900">
                         {c.first_name} {c.last_name}
                       </p>
                       {c.status_reason && (
@@ -411,7 +412,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                   </div>
                   <StatusPill status={c.status} />
                 </div>
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3">
+                <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-gray-500">
                     {c.status === "approved"
                       ? "Diese Anmeldung wurde bereits bestätigt."
@@ -424,7 +425,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                       type="button"
                       onClick={() => void handleWithdraw(c.id)}
                       disabled={withdrawingChild === c.id}
-                      className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                      className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
                     >
                       {withdrawingChild === c.id
                         ? "Wird zurückgezogen…"
@@ -438,8 +439,8 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
         </ul>
       </section>
 
-      <section className="moto-content-surface space-y-4 rounded-3xl border p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
+      <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
               Kontakt
@@ -452,7 +453,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
             >
               <Pencil className="h-4 w-4" aria-hidden="true" />
               Bearbeiten
@@ -461,7 +462,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
         </div>
         {!editing ? (
           <dl className="grid gap-3 text-sm text-gray-700 sm:grid-cols-3">
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
               <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                 Name
               </dt>
@@ -469,15 +470,15 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                 {status.guardian_first_name} {status.guardian_last_name}
               </dd>
             </div>
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
               <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                 E-Mail
               </dt>
-              <dd className="mt-1 truncate font-semibold text-gray-900">
+              <dd className="mt-1 font-semibold break-all text-gray-900">
                 {status.guardian_email}
               </dd>
             </div>
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
               <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                 Telefon
               </dt>
@@ -498,7 +499,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                   value={editFirstName}
                   onChange={(e) => setEditFirstName(e.target.value)}
                   required
-                  className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300"
+                  className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
                 />
               </label>
               <label className="block">
@@ -510,7 +511,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                   value={editLastName}
                   onChange={(e) => setEditLastName(e.target.value)}
                   required
-                  className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300"
+                  className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
                 />
               </label>
             </div>
@@ -522,18 +523,18 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                 type="tel"
                 value={editPhone}
                 onChange={(e) => setEditPhone(e.target.value)}
-                className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300"
+                className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
               />
             </label>
             <p className="text-sm text-gray-500">
-              Die E-Mail-Adresse kann hier nicht geändert werden. Wende dich
-              dafür bitte direkt an die OGS.
+              Die E-Mail-Adresse kann hier nicht geändert werden. Bitte wenden
+              Sie sich dafür direkt an die OGS.
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <button
                 type="submit"
                 disabled={savingEdit}
-                className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 disabled:opacity-50"
+                className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
               >
                 {savingEdit ? "Speichert…" : "Speichern"}
               </button>
@@ -546,7 +547,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                   setEditPhone(status.guardian_phone ?? "");
                 }}
                 disabled={savingEdit}
-                className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
               >
                 Abbrechen
               </button>
@@ -562,10 +563,10 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
       </section>
 
       {!allWithdrawn && (
-        <section className="moto-content-surface rounded-3xl border p-6 shadow-sm">
+        <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex gap-3">
-              <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-gray-600 shadow-sm">
+              <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
                 <AlertTriangle className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
@@ -578,9 +579,10 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                     : "Anmeldung zurückziehen"}
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                  Du kannst die Anmeldung zurückziehen, solange noch keine
+                  Sie können die Anmeldung zurückziehen, solange noch keine
                   Entscheidung getroffen wurde. Bereits bestätigte Kinder
-                  bleiben unverändert. Wende dich dafür bitte direkt an die OGS.
+                  bleiben unverändert. Wenden Sie sich dafür bitte direkt an die
+                  OGS.
                 </p>
               </div>
             </div>
@@ -588,7 +590,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               type="button"
               onClick={() => void handleWithdraw()}
               disabled={withdrawingChild === "__all__"}
-              className="h-10 shrink-0 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:border-[#FF3130]/40 hover:bg-[#FF3130]/5 hover:text-[#9F1F1E] disabled:opacity-50"
+              className="h-10 w-full shrink-0 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:border-[#FF3130]/40 hover:bg-[#FF3130]/5 hover:text-[#9F1F1E] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
             >
               {withdrawingChild === "__all__"
                 ? "Wird zurückgezogen…"
@@ -640,9 +642,9 @@ function StatusSummaryCard({
   readonly value: string;
 }) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
       <div className="flex items-center gap-3">
-        <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-gray-600 shadow-sm">
+        <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
           {icon}
         </span>
         <div className="min-w-0">

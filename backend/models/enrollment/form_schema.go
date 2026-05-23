@@ -393,6 +393,7 @@ type FormSchemaRepository interface {
 	NextVersionForName(ctx context.Context, name string) (int, error)
 	DeactivatePrevious(ctx context.Context) error
 	UpdateActiveFlag(ctx context.Context, id int64, isActive bool) error
+	DeleteByName(ctx context.Context, name string) error
 }
 
 // SubmissionData is the shape submitted by parents. PR 7 will validate

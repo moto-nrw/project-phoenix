@@ -743,8 +743,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
-		Repo:   repos.FormSchema,
-		Logger: logger.With("service", "enrollment-form-schema"),
+		Repo:        repos.FormSchema,
+		PhaseRepo:   repos.Phase,
+		RequestRepo: repos.Request,
+		Logger:      logger.With("service", "enrollment-form-schema"),
 	})
 
 	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{

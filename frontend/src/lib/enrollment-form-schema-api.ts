@@ -2,6 +2,13 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
 
+const SCHEMA_ERROR_MESSAGES: Record<string, string> = {
+  "enrollment.schema_has_phases":
+    "Diese Formularvorlage wird noch in einer Anmeldephase verwendet.",
+  "enrollment.schema_has_requests":
+    "Diese Formularvorlage wurde bereits für Anmeldungen verwendet und kann nicht gelöscht werden.",
+};
+
 /** Field types accepted by the backend FormFieldType enum. */
 export type FormFieldType =
   | "boolean"
@@ -128,6 +135,7 @@ interface BackendEnvelope<T> {
   data?: T;
   message?: string;
   error?: string;
+  code?: string;
 }
 
 const SCHEMA_PATH = "/api/enrollment/schema";
@@ -166,6 +174,21 @@ export async function listSchemas(): Promise<FormSchema[]> {
   }
   const list = await readJSON<FormSchema[]>(response);
   return Array.isArray(list) ? list : [];
+}
+
+export async function fetchSchemaById(id: string): Promise<FormSchema> {
+  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    logger.error("schema_fetch_by_id_failed", {
+      status: response.status,
+      error: errorText,
+    });
+    throw new Error(`Failed to load form schema (HTTP ${response.status})`);
+  }
+  return readJSON<FormSchema>(response);
 }
 
 export function latestSchemasByName(schemas: FormSchema[]): FormSchema[] {
@@ -282,6 +305,29 @@ export async function updateSchema(
     throw new Error(message);
   }
   return readJSON<FormSchema>(response);
+}
+
+export async function deleteSchema(id: string): Promise<void> {
+  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (response.status === 204) return;
+  if (!response.ok) {
+    const payload = (await response
+      .json()
+      .catch(() => ({}))) as BackendEnvelope<unknown>;
+    const message =
+      (payload.code ? SCHEMA_ERROR_MESSAGES[payload.code] : undefined) ??
+      payload.error ??
+      payload.message ??
+      `HTTP ${response.status}`;
+    logger.error("schema_delete_failed", {
+      status: response.status,
+      message,
+      code: payload.code,
+    });
+    throw new Error(message);
+  }
 }
 
 /** Convenience: returns a fresh, blank field with sensible defaults. */

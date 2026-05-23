@@ -159,3 +159,21 @@ func (r *FormSchemaRepository) UpdateActiveFlag(ctx context.Context, id int64, i
 	}
 	return nil
 }
+
+// DeleteByName removes every version of a logical schema. Callers must
+// check phase and request references first.
+func (r *FormSchemaRepository) DeleteByName(ctx context.Context, name string) error {
+	res, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*enrollment.FormSchema)(nil)).
+		ModelTableExpr(formSchemaTableExpr).
+		Where(`"form_schema".name = ?`, name).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete form schema %q: %w", name, err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("form schema %q not found", name)
+	}
+	return nil
+}

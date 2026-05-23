@@ -4,6 +4,7 @@ import { use, useCallback } from "react";
 import Link from "next/link";
 // eslint-disable-next-line no-restricted-imports -- parent portal uses bare paths, no tenant-router
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { TenantProvider } from "~/components/tenant/tenant-provider";
 import {
@@ -18,7 +19,7 @@ interface PageProps {
 /**
  * Embedded enrollment form for logged-in parents. Reuses the exact
  * same EnrollmentForm component as the public per-phase page. The
- * form internally calls useTenant() — the parents subdomain has no
+ * form internally calls useTenant(), but the parents subdomain has no
  * tenant context of its own, so we supply a minimal TenantProvider
  * keyed off the URL slug. tenant metadata is null here (the parents
  * shell never resolves a tenant), but the form only reads tenantSlug.
@@ -49,19 +50,22 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
   );
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
       <header className="space-y-2">
         <Link
           href="/parents/enroll"
-          className="text-sm text-[#5080D8] hover:underline"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#5080D8] hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
-          ← Andere Schule wählen
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Andere Schule wählen
         </Link>
-        <h1 className="text-2xl font-semibold text-gray-900">Anmeldung</h1>
-        <p className="text-sm text-gray-600">
-          Bitte füllen Sie das Formular vollständig aus. Sie erhalten nach dem
-          Absenden eine Bestätigungs-E-Mail mit einem Link, über den Sie den
-          Status der Anmeldung jederzeit einsehen können.
+        <h1 className="text-2xl font-semibold text-wrap text-gray-900">
+          Anmeldung ausfüllen
+        </h1>
+        <p className="max-w-3xl text-sm leading-6 text-gray-600">
+          Prüfen Sie die vorausgefüllten Daten und ergänzen Sie fehlende
+          Angaben. Nach dem Absenden sehen Sie den Status direkt im
+          Eltern-Portal und erhalten zusätzlich eine Bestätigung per E-Mail.
         </p>
       </header>
 

@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ClipboardList,
   Eye,
+  ExternalLink,
   FileText,
   LockKeyhole,
   type LucideIcon,
@@ -254,12 +255,23 @@ function EnrollmentPhaseOverview({
             zu bearbeiten.
           </p>
         </div>
-        <Link
-          href="/enrollment-phases"
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          Anmeldephasen verwalten
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="/enroll"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            Elternansicht öffnen
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </a>
+          <Link
+            href="/enrollment-phases"
+            className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            Anmeldephasen verwalten
+          </Link>
+        </div>
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -288,12 +300,23 @@ function EnrollmentPhaseOverview({
                     {formatPhaseDate(phase.service_end_date)}
                   </p>
                 </div>
-                <Link
-                  href={`/admin/enrollments/phases/${phase.id}`}
-                  className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                >
-                  Anmeldungen ansehen
-                </Link>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  <a
+                    href={`/enroll/${encodeURIComponent(phase.id)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  >
+                    Phase ansehen
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                  </a>
+                  <Link
+                    href={`/admin/enrollments/phases/${phase.id}`}
+                    className="inline-flex h-8 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  >
+                    Anmeldungen ansehen
+                  </Link>
+                </div>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2">
                 <PhaseStat label="Gesamt" value={stats.total} />

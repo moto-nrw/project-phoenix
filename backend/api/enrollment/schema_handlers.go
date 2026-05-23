@@ -328,6 +328,44 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, toFormSchemaResponse(schema), "Form schema version added")
 }
 
+func (rs *Resource) deleteSchema(w http.ResponseWriter, r *http.Request) {
+	if rs.FormSchemaService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("form schema service not configured")))
+		return
+	}
+
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schema id")))
+		return
+	}
+
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		return rs.FormSchemaService.DeleteSchema(ctx, id)
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, enrollmentService.ErrFormSchemaHasPhases):
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSchemaHasPhases))
+			return
+		case errors.Is(err, enrollmentService.ErrFormSchemaHasRequests):
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSchemaHasRequests))
+			return
+		case errors.Is(err, enrollmentService.ErrFormSchemaNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.RespondNoContent(w, r)
+}
+
+const (
+	ErrCodeSchemaHasPhases   = "enrollment.schema_has_phases"
+	ErrCodeSchemaHasRequests = "enrollment.schema_has_requests"
+)
+
 // runInTenantTx wraps the request's tenant context in a tenant
 // transaction so the service's repo calls hit the right RLS scope.
 // Tests use a nil DB and skip the transaction wrap.

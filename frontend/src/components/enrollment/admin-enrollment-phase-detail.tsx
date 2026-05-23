@@ -10,10 +10,14 @@ import {
   Inbox,
   type LucideIcon,
   Users,
+  X,
 } from "lucide-react";
 import {
+  type AdminRequestChild,
   type AdminRequestSummary,
   type ChildStatus,
+  type DecisionStatus,
+  decideAdminChild,
   listAdminRequests,
 } from "~/lib/enrollment-admin-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
@@ -23,8 +27,8 @@ import {
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
@@ -43,16 +47,55 @@ const STATUS_LABELS: Record<ChildStatus, string> = {
   pending_admin_review: "Manuelle Prüfung",
 };
 
-const STATUS_COLORS: Record<ChildStatus, { bg: string; text: string }> = {
-  submitted: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
-  under_review: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
-  approved: { bg: LOCATION_COLORS.GROUP_ROOM, text: "#FFFFFF" },
-  waitlisted: { bg: LOCATION_COLORS.SCHOOLYARD, text: "#FFFFFF" },
-  rejected: { bg: LOCATION_COLORS.HOME, text: "#FFFFFF" },
-  withdrawn: { bg: LOCATION_COLORS.UNKNOWN, text: "#FFFFFF" },
-  pending_renewal: { bg: LOCATION_COLORS.SCHOOLYARD, text: "#FFFFFF" },
-  auto_renewed: { bg: LOCATION_COLORS.OTHER_ROOM, text: "#FFFFFF" },
-  pending_admin_review: { bg: LOCATION_COLORS.UNKNOWN, text: "#FFFFFF" },
+const STATUS_COLORS: Record<
+  ChildStatus,
+  { bg: string; dot: string; text: string }
+> = {
+  submitted: {
+    bg: "#EEF3FF",
+    dot: "#5080D8",
+    text: "#355A9A",
+  },
+  under_review: {
+    bg: "#EEF3FF",
+    dot: "#5080D8",
+    text: "#355A9A",
+  },
+  approved: {
+    bg: "#83CD2D1A",
+    dot: "#83CD2D",
+    text: "#5A8B1F",
+  },
+  waitlisted: {
+    bg: "#FFF4E6",
+    dot: "#F78C10",
+    text: "#8A5600",
+  },
+  rejected: {
+    bg: "#FF31301A",
+    dot: "#FF3130",
+    text: "#9F1F1E",
+  },
+  withdrawn: {
+    bg: "#F3F4F6",
+    dot: "#9CA3AF",
+    text: "#4B5563",
+  },
+  pending_renewal: {
+    bg: "#FFF4E6",
+    dot: "#F78C10",
+    text: "#8A5600",
+  },
+  auto_renewed: {
+    bg: "#EEF3FF",
+    dot: "#5080D8",
+    text: "#355A9A",
+  },
+  pending_admin_review: {
+    bg: "#F3F4F6",
+    dot: "#9CA3AF",
+    text: "#4B5563",
+  },
 };
 
 const OPEN_STATUSES = new Set<ChildStatus>([
@@ -72,8 +115,20 @@ interface PhaseRequestStats {
   readonly rejected: number;
 }
 
+interface PhaseChildRow {
+  readonly request: AdminRequestSummary;
+  readonly child: AdminRequestChild;
+}
+
+const TERMINAL_STATUSES = new Set<ChildStatus>([
+  "approved",
+  "rejected",
+  "withdrawn",
+]);
+
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const tenantSlug = useTenantSlugSafe();
+  const toast = useToast();
   const [phase, setPhase] = useState<Phase | null>(null);
   const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
   const [statusFilter, setStatusFilter] = useState<
@@ -81,6 +136,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   >(ALL_STATUS_FILTER);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [busyChildId, setBusyChildId] = useState<string | null>(null);
   useSetBreadcrumb({ pageTitle: phase?.name ?? "Anmeldephase" });
 
   const overviewHref = tenantSlug
@@ -95,9 +151,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [tenantSlug],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
+  const loadData = useCallback(
+    async (isCancelled?: () => boolean) => {
       setLoading(true);
       setError(null);
       try {
@@ -105,11 +160,11 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           listPhases(),
           listAdminRequests({ phaseId }),
         ]);
-        if (cancelled) return;
+        if (isCancelled?.()) return;
         setPhase(phasesData.find((item) => item.id === phaseId) ?? null);
         setRequests(requestsData);
       } catch (err) {
-        if (cancelled) return;
+        if (isCancelled?.()) return;
         const message =
           err instanceof Error ? err.message : "Unbekannter Fehler";
         logger.error("admin_enrollment_phase_detail_load_failed", {
@@ -118,79 +173,125 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         });
         setError(message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!isCancelled?.()) setLoading(false);
       }
-    }
-    void load();
+    },
+    [phaseId],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadData(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [phaseId]);
+  }, [loadData]);
 
   const stats = useMemo(() => calculateRequestStats(requests), [requests]);
 
-  const filteredRequests = useMemo(() => {
-    if (statusFilter === ALL_STATUS_FILTER) return requests;
-    return requests.filter((request) =>
-      request.children.some((child) => child.status === statusFilter),
-    );
-  }, [requests, statusFilter]);
+  const childRows = useMemo(
+    () =>
+      requests.flatMap((request) =>
+        request.children.map((child) => ({ request, child })),
+      ),
+    [requests],
+  );
 
-  const columns = useMemo<DataTableColumn<AdminRequestSummary>[]>(
+  const filteredChildRows = useMemo(() => {
+    if (statusFilter === ALL_STATUS_FILTER) return childRows;
+    return childRows.filter((row) => row.child.status === statusFilter);
+  }, [childRows, statusFilter]);
+
+  const handleQuickDecision = useCallback(
+    async (row: PhaseChildRow, status: DecisionStatus) => {
+      setBusyChildId(row.child.id);
+      setError(null);
+      try {
+        await decideAdminChild(row.request.id, row.child.id, status);
+        toast.success(
+          `Entscheidung gespeichert: ${STATUS_LABELS[status as ChildStatus]}`,
+        );
+        await loadData();
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unbekannter Fehler";
+        logger.error("admin_enrollment_phase_quick_decision_failed", {
+          error: message,
+          request_id: row.request.id,
+          child_id: row.child.id,
+          status,
+        });
+        setError(message);
+        toast.error(message);
+      } finally {
+        setBusyChildId(null);
+      }
+    },
+    [loadData, toast],
+  );
+
+  const columns = useMemo<DataTableColumn<PhaseChildRow>[]>(
     () => [
       {
         key: "guardian",
         header: "Eltern",
-        render: (request) => (
+        render: (row) => (
           <div>
             <p className="font-semibold text-gray-900">
-              {request.guardian_first_name} {request.guardian_last_name}
+              {row.request.guardian_first_name} {row.request.guardian_last_name}
             </p>
-            <p className="text-xs text-gray-500">{request.guardian_email}</p>
+            <p className="text-xs text-gray-500">
+              {row.request.guardian_email}
+            </p>
           </div>
         ),
-        sortValue: (request) =>
-          `${request.guardian_last_name} ${request.guardian_first_name}`,
+        sortValue: (row) =>
+          `${row.request.guardian_last_name} ${row.request.guardian_first_name}`,
       },
       {
         key: "submitted",
         header: "Eingegangen",
-        render: (request) => formatDateTime(request.submitted_at),
-        sortValue: (request) => new Date(request.submitted_at).getTime(),
+        render: (row) => formatDateTime(row.request.submitted_at),
+        sortValue: (row) => new Date(row.request.submitted_at).getTime(),
       },
       {
-        key: "children",
-        header: "Kinder",
-        render: (request) => (
-          <div className="space-y-1">
-            {request.children.map((child) => (
-              <div key={child.id} className="flex items-center gap-2">
-                <span className="text-gray-900">
-                  {child.first_name} {child.last_name}
-                </span>
-                <StatusBadge status={child.status} />
-              </div>
-            ))}
+        key: "child",
+        header: "Kind",
+        render: (row) => (
+          <div>
+            <p className="font-medium text-gray-900">
+              {row.child.first_name} {row.child.last_name}
+            </p>
+            <p className="text-xs text-gray-500">
+              {row.child.target_grade_level
+                ? `${row.child.target_grade_level}. Klasse`
+                : "Keine Klassenstufe"}
+            </p>
           </div>
         ),
+        sortValue: (row) => `${row.child.last_name} ${row.child.first_name}`,
+      },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => <StatusBadge status={row.child.status} />,
+        sortValue: (row) => STATUS_LABELS[row.child.status],
       },
       {
         key: "actions",
         header: "Aktionen",
         align: "right",
-        render: (request) => (
-          <Link
-            href={requestHref(request.id)}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            onClick={(event) => event.stopPropagation()}
-          >
-            Öffnen
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          </Link>
+        render: (row) => (
+          <PhaseChildActions
+            row={row}
+            href={requestHref(row.request.id)}
+            busy={busyChildId === row.child.id}
+            onDecide={(status) => void handleQuickDecision(row, status)}
+          />
         ),
       },
     ],
-    [requestHref],
+    [busyChildId, handleQuickDecision, requestHref],
   );
 
   if (loading) {
@@ -255,12 +356,23 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               {formatPhaseDate(phase.service_end_date)}
             </p>
           </div>
-          <Link
-            href="/enrollment-phases"
-            className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            Phase bearbeiten
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={`/enroll/${encodeURIComponent(phase.id)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              Elternansicht öffnen
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+            <Link
+              href="/enrollment-phases"
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              Phase bearbeiten
+            </Link>
+          </div>
         </div>
 
         <div className="grid gap-3 px-5 pb-5 sm:px-6 sm:pb-6 md:grid-cols-4">
@@ -309,8 +421,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
       <DataTable
         columns={columns}
-        rows={filteredRequests}
-        getRowKey={(request) => request.id}
+        rows={filteredChildRows}
+        getRowKey={(row) => row.child.id}
         defaultSortKey="submitted"
         defaultSortDirection="desc"
         emptyState={
@@ -370,13 +482,72 @@ function formatDateTime(value: string): string {
   });
 }
 
+function PhaseChildActions({
+  row,
+  href,
+  busy,
+  onDecide,
+}: Readonly<{
+  row: PhaseChildRow;
+  href: string;
+  busy: boolean;
+  onDecide: (status: DecisionStatus) => void;
+}>) {
+  const terminal = TERMINAL_STATUSES.has(row.child.status);
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      {!terminal ? (
+        <>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDecide("approved");
+            }}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-[#83CD2D]/50 hover:bg-[#83CD2D]/10 hover:text-[#5A8B1F] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Check className="h-3.5 w-3.5 text-[#83CD2D]" aria-hidden="true" />
+            {busy ? "Speichert..." : "Bestätigen"}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDecide("rejected");
+            }}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-[#FF3130]/40 hover:bg-[#FF3130]/10 hover:text-[#CC2626] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <X className="h-3.5 w-3.5 text-[#FF3130]" aria-hidden="true" />
+            Ablehnen
+          </button>
+        </>
+      ) : null}
+      <Link
+        href={href}
+        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        onClick={(event) => event.stopPropagation()}
+      >
+        Öffnen
+        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      </Link>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: Readonly<{ status: ChildStatus }>) {
   const styles = STATUS_COLORS[status];
   return (
     <span
-      className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
       style={{ backgroundColor: styles.bg, color: styles.text }}
     >
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: styles.dot }}
+        aria-hidden="true"
+      />
       {STATUS_LABELS[status]}
     </span>
   );
