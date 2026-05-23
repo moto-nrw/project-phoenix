@@ -16,6 +16,11 @@ export interface PublicCareOffering {
   is_active: boolean;
 }
 
+export interface SubmitOfferingDays {
+  offering_id: number;
+  selected_days: string[];
+}
+
 export interface SubmitChildPayload {
   first_name: string;
   last_name: string;
@@ -23,6 +28,12 @@ export interface SubmitChildPayload {
   target_grade_level: number;
   custom_data?: Record<string, unknown>;
   offering_ids?: number[];
+  /**
+   * Per-offering day picks for offerings whose days_of_week_mode is
+   * "parent_choice". Omitted entirely when no such offerings are
+   * selected. Each entry's offering_id must also be in offering_ids.
+   */
+  offering_days?: SubmitOfferingDays[];
 }
 
 export interface SubmitEnrollmentPayload {

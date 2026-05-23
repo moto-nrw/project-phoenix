@@ -115,6 +115,24 @@ type DecisionService interface {
 	List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error)
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
 	Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error)
+
+	// ListChildOfferings returns the request_child_offerings rows for
+	// every child under requestID, joined to the offering's name +
+	// description so the admin detail page can render labels without
+	// a second per-offering fetch. Map key is request_child_id.
+	ListChildOfferings(ctx context.Context, requestID int64) (map[int64][]ChildOfferingRow, error)
+}
+
+// ChildOfferingRow is one care-offering selection for a child, as
+// surfaced by ListChildOfferings. SelectedDays mirrors the DB column
+// — nil when the offering runs in admin-fixed mode, non-nil only when
+// the parent picked specific days.
+type ChildOfferingRow struct {
+	OfferingID     int64
+	OfferingName   string
+	DaysOfWeekMode string
+	SelectedDays   []string
+	AvailableDays  []string
 }
 
 // DecisionServiceConfig is the dep-injection bundle. The auth-side
@@ -254,6 +272,45 @@ func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Re
 		return nil, fmt.Errorf("decision: list children for request %d: %w", req.ID, err)
 	}
 	return &RequestSummary{Request: req, Phase: phase, Children: children}, nil
+}
+
+// ListChildOfferings returns the offerings each child in this request
+// picked. Per-child rows are keyed by request_child_id; offerings
+// missing a parent_choice day picker land with SelectedDays == nil.
+// Used by the admin detail endpoint to render the Betreuungsangebote
+// next to each child for the decision UI.
+func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int64) (map[int64][]ChildOfferingRow, error) {
+	if requestID <= 0 {
+		return nil, fmt.Errorf("decision: request_id required")
+	}
+	children, err := s.requestChildRepo.ListByRequestID(ctx, requestID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
+	}
+	out := make(map[int64][]ChildOfferingRow, len(children))
+	for _, child := range children {
+		links, lerr := s.requestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
+		if lerr != nil {
+			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
+		}
+		rows := make([]ChildOfferingRow, 0, len(links))
+		for _, link := range links {
+			row := ChildOfferingRow{
+				OfferingID:   link.CareOfferingID,
+				SelectedDays: link.SelectedDays,
+			}
+			if s.careOfferingRepo != nil {
+				if off, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID); err == nil && off != nil {
+					row.OfferingName = off.Name
+					row.DaysOfWeekMode = off.DaysOfWeekMode
+					row.AvailableDays = off.AvailableDays
+				}
+			}
+			rows = append(rows, row)
+		}
+		out[child.ID] = rows
+	}
+	return out, nil
 }
 
 // Decide updates a single child's status. When status==approved the

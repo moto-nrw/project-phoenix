@@ -79,6 +79,22 @@ type AdminRequestChild struct {
 	ReviewedBy       *int64         `json:"reviewed_by,omitempty"`
 	ActivationMode   string         `json:"activation_mode"`
 	CustomData       map[string]any `json:"custom_data,omitempty"`
+	// Offerings is the per-child Betreuungsangebote selection.
+	// Populated only on the detail endpoint (listing endpoints leave
+	// it empty to keep the payload small).
+	Offerings []AdminRequestChildOffering `json:"offerings,omitempty"`
+}
+
+// AdminRequestChildOffering is one care-offering pick for a child.
+// SelectedDays is non-empty only for offerings whose
+// days_of_week_mode is "parent_choice"; otherwise it's omitted and
+// the offering's AvailableDays describes the (admin-fixed) schedule.
+type AdminRequestChildOffering struct {
+	OfferingID     string   `json:"offering_id"`
+	OfferingName   string   `json:"offering_name"`
+	DaysOfWeekMode string   `json:"days_of_week_mode"`
+	SelectedDays   []string `json:"selected_days,omitempty"`
+	AvailableDays  []string `json:"available_days,omitempty"`
 }
 
 func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSummary {
@@ -167,12 +183,19 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 
 	var summary *enrollmentService.RequestSummary
 	var schemaFields []AdminRequestSchemaField
+	var childOfferings map[int64][]enrollmentService.ChildOfferingRow
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)
 		if e != nil {
 			return e
 		}
 		summary = s
+		// Per-child offerings — best-effort; failure here doesn't kill
+		// the detail response, the admin just sees no Betreuungsangebote
+		// section.
+		if off, oerr := rs.DecisionService.ListChildOfferings(ctx, id); oerr == nil {
+			childOfferings = off
+		}
 		// Pull the form schema so the response can carry labels +
 		// targets alongside the raw custom_data values. Best-effort:
 		// a missing schema falls back to rendering raw keys on the
@@ -211,6 +234,30 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 	detail.CustomData = summary.Request.CustomData
 	detail.ConsentFlags = summary.Request.ConsentFlags
 	detail.SchemaFields = schemaFields
+	// Stitch per-child offerings onto the detail-response children.
+	// childOfferings is keyed by request_child.id as a raw int64; the
+	// summary's children carry their id as the original int64 too —
+	// just need to format it the same way the DTO stringifies the id.
+	if childOfferings != nil {
+		for i := range detail.Children {
+			cid := summary.Children[i].ID
+			rows := childOfferings[cid]
+			if len(rows) == 0 {
+				continue
+			}
+			out := make([]AdminRequestChildOffering, 0, len(rows))
+			for _, row := range rows {
+				out = append(out, AdminRequestChildOffering{
+					OfferingID:     strconv.FormatInt(row.OfferingID, 10),
+					OfferingName:   row.OfferingName,
+					DaysOfWeekMode: row.DaysOfWeekMode,
+					SelectedDays:   row.SelectedDays,
+					AvailableDays:  row.AvailableDays,
+				})
+			}
+			detail.Children[i].Offerings = out
+		}
+	}
 	common.Respond(w, r, http.StatusOK, detail, "Admin request retrieved")
 }
 

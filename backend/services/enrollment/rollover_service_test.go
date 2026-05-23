@@ -589,6 +589,10 @@ func (f *fakeApproveDecisionService) Get(_ context.Context, _ int64) (*enrollmen
 	return nil, nil
 }
 
+func (f *fakeApproveDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64][]enrollmentService.ChildOfferingRow, error) {
+	return nil, nil
+}
+
 func (f *fakeApproveDecisionService) Decide(ctx context.Context, input enrollmentService.DecideInput) (*enrollmentService.DecideOutcome, error) {
 	f.calls++
 	if err := f.repo.UpdateStatus(ctx, input.ChildID, string(input.Status), nil, 0); err != nil {

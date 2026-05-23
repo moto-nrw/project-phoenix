@@ -24,13 +24,32 @@ import (
 // SubmitChildRequest is the wire shape for a single child within the
 // public submit body. Dates are ISO YYYY-MM-DD strings — the handler
 // parses them.
+//
+// OfferingDays is an optional parallel array to OfferingIDs that
+// carries the parent's per-day selections for offerings whose
+// days_of_week_mode is "parent_choice". When omitted, the offering
+// runs in its default (admin-fixed) day set. The service enforces
+// that any entry here references an id from OfferingIDs and that
+// selected_days is a non-empty subset of the offering's
+// available_days.
 type SubmitChildRequest struct {
-	FirstName        string         `json:"first_name"`
-	LastName         string         `json:"last_name"`
-	DateOfBirth      string         `json:"date_of_birth"`
-	TargetGradeLevel *int16         `json:"target_grade_level,omitempty"`
-	CustomData       map[string]any `json:"custom_data,omitempty"`
-	OfferingIDs      []int64        `json:"offering_ids,omitempty"`
+	FirstName        string                  `json:"first_name"`
+	LastName         string                  `json:"last_name"`
+	DateOfBirth      string                  `json:"date_of_birth"`
+	TargetGradeLevel *int16                  `json:"target_grade_level,omitempty"`
+	CustomData       map[string]any          `json:"custom_data,omitempty"`
+	OfferingIDs      []int64                 `json:"offering_ids,omitempty"`
+	OfferingDays     []SubmitOfferingDaysRow `json:"offering_days,omitempty"`
+}
+
+// SubmitOfferingDaysRow is one row of SubmitChildRequest.OfferingDays.
+// OfferingID must also appear in the sibling OfferingIDs list — the
+// service uses OfferingIDs as the authoritative "this parent picked
+// these offerings" set; OfferingDays only refines the day selection
+// for parent_choice offerings.
+type SubmitOfferingDaysRow struct {
+	OfferingID   int64    `json:"offering_id"`
+	SelectedDays []string `json:"selected_days"`
 }
 
 // SubmitEnrollmentRequest is the public submit body. PhaseID identifies
@@ -167,6 +186,13 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		if err != nil {
 			return out, fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i)
 		}
+		offeringDays := make([]enrollmentService.SubmitOfferingDays, 0, len(c.OfferingDays))
+		for _, row := range c.OfferingDays {
+			offeringDays = append(offeringDays, enrollmentService.SubmitOfferingDays{
+				OfferingID:   row.OfferingID,
+				SelectedDays: row.SelectedDays,
+			})
+		}
 		out.Children = append(out.Children, enrollmentService.SubmitChild{
 			FirstName:        c.FirstName,
 			LastName:         c.LastName,
@@ -174,6 +200,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 			TargetGradeLevel: c.TargetGradeLevel,
 			CustomData:       c.CustomData,
 			OfferingIDs:      c.OfferingIDs,
+			OfferingDays:     offeringDays,
 		})
 	}
 	return out, nil

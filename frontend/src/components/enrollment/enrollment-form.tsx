@@ -26,6 +26,14 @@ interface ChildDraft {
   date_of_birth: string;
   target_grade_level: string;
   offering_ids: Set<string>;
+  /**
+   * Per-offering day picks for offerings whose days_of_week_mode is
+   * "parent_choice". Keyed by offering id (same shape as in offering_ids).
+   * Absent when the offering uses fixed days — the form submits no days
+   * entry for it. For parent_choice offerings the form REQUIRES at
+   * least one day before allowing submit.
+   */
+  offering_days: Record<string, Set<string>>;
   custom: Record<string, unknown>;
 }
 
@@ -175,10 +183,38 @@ export function EnrollmentForm({
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
-        const next = new Set(c.offering_ids);
-        if (next.has(offeringID)) next.delete(offeringID);
-        else next.add(offeringID);
-        return { ...c, offering_ids: next };
+        const nextIDs = new Set(c.offering_ids);
+        const nextDays = { ...c.offering_days };
+        if (nextIDs.has(offeringID)) {
+          nextIDs.delete(offeringID);
+          delete nextDays[offeringID];
+        } else {
+          nextIDs.add(offeringID);
+        }
+        return { ...c, offering_ids: nextIDs, offering_days: nextDays };
+      }),
+    );
+  };
+
+  // toggleOfferingDay flips one day in an offering's selected-day set.
+  // Only meaningful when the offering's days_of_week_mode is "parent_choice"
+  // — callers pre-check that.
+  const toggleOfferingDay = (
+    childIndex: number,
+    offeringID: string,
+    day: string,
+  ) => {
+    setChildren((prev) =>
+      prev.map((c, i) => {
+        if (i !== childIndex) return c;
+        const current = c.offering_days[offeringID] ?? new Set<string>();
+        const next = new Set(current);
+        if (next.has(day)) next.delete(day);
+        else next.add(day);
+        return {
+          ...c,
+          offering_days: { ...c.offering_days, [offeringID]: next },
+        };
       }),
     );
   };
@@ -228,6 +264,36 @@ export function EnrollmentForm({
       if (careRequired && c.offering_ids.size === 0) {
         missingCareIndexes.push(i);
       }
+
+      // Build the optional offering_days payload: one entry per
+      // parent_choice offering the parent picked. Fixed offerings get
+      // no entry (backend treats absence as "use the admin-fixed
+      // days"). Reject submit when a parent_choice offering is picked
+      // but has no day selected — the message names the offending row.
+      const offeringDaysPayload: Array<{
+        offering_id: number;
+        selected_days: string[];
+      }> = [];
+      for (const id of c.offering_ids) {
+        const offering = offerings.find((o) => o.id === id);
+        if (!offering) continue;
+        if (offering.days_of_week_mode !== "parent_choice") continue;
+        const picked = c.offering_days[id];
+        if (!picked || picked.size === 0) {
+          setError(
+            `Kind ${i + 1}: Beim Angebot „${offering.name}" muss mindestens ein Tag ausgewählt werden.`,
+          );
+          return;
+        }
+        offeringDaysPayload.push({
+          offering_id: Number(id),
+          // Preserve the admin-defined order from available_days so
+          // the wire payload doesn't fluctuate with the parent's click
+          // order; deterministic ordering helps idempotency / dedup.
+          selected_days: offering.available_days.filter((d) => picked.has(d)),
+        });
+      }
+
       payloadChildren.push({
         first_name: c.first_name.trim(),
         last_name: c.last_name.trim(),
@@ -235,6 +301,8 @@ export function EnrollmentForm({
         target_grade_level: Number(c.target_grade_level),
         custom_data: c.custom,
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
+        offering_days:
+          offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
       });
     }
     if (missingCareIndexes.length > 0) {
@@ -546,7 +614,7 @@ export function EnrollmentForm({
                             </span>
                           )}
                         </span>
-                        <div>
+                        <div className="flex-1">
                           <div className="font-medium text-gray-900">
                             {o.name}
                           </div>
@@ -556,7 +624,9 @@ export function EnrollmentForm({
                             </div>
                           )}
                           <div className="mt-1 text-xs text-gray-500">
-                            Tage:{" "}
+                            {o.days_of_week_mode === "parent_choice"
+                              ? "Wählbare Tage: "
+                              : "Tage: "}
                             {o.available_days
                               .map((d) => DAY_LABELS[d] ?? d)
                               .join(", ")}
@@ -564,6 +634,38 @@ export function EnrollmentForm({
                               " · inkl. Ferienbetreuung"}
                             {o.includes_lunch && " · inkl. Mittagessen"}
                           </div>
+                          {checked &&
+                            o.days_of_week_mode === "parent_choice" && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {o.available_days.map((day) => {
+                                  const picked =
+                                    child.offering_days[o.id]?.has(day) ??
+                                    false;
+                                  return (
+                                    <button
+                                      key={day}
+                                      type="button"
+                                      onClick={(e) => {
+                                        // The card's outer <label> would
+                                        // otherwise treat this as a click on
+                                        // the offering checkbox itself.
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleOfferingDay(i, o.id, day);
+                                      }}
+                                      className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors ${
+                                        picked
+                                          ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                                      }`}
+                                      aria-pressed={picked}
+                                    >
+                                      {DAY_LABELS[day] ?? day}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
                         </div>
                       </label>
                     );
@@ -666,6 +768,7 @@ function blankChild(): ChildDraft {
     date_of_birth: "",
     target_grade_level: "",
     offering_ids: new Set(),
+    offering_days: {},
     custom: {},
   };
 }

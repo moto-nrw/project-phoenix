@@ -83,6 +83,13 @@ type SubmitRequest struct {
 }
 
 // SubmitChild is one child within a SubmitRequest.
+//
+// OfferingDays is the optional per-offering day-selection refinement
+// for offerings whose days_of_week_mode is "parent_choice". Entries
+// in OfferingDays MUST also appear in OfferingIDs; missing entries
+// inherit the offering's default (admin-fixed) day set, written as
+// NULL on the resulting request_child_offerings row. The service
+// validates subset/non-empty before inserting.
 type SubmitChild struct {
 	FirstName        string
 	LastName         string
@@ -90,6 +97,13 @@ type SubmitChild struct {
 	TargetGradeLevel *int16
 	CustomData       map[string]any
 	OfferingIDs      []int64
+	OfferingDays     []SubmitOfferingDays
+}
+
+// SubmitOfferingDays is one row of SubmitChild.OfferingDays.
+type SubmitOfferingDays struct {
+	OfferingID   int64
+	SelectedDays []string
 }
 
 // SubmitResult bundles what the handler needs after Submit returns.
@@ -381,13 +395,26 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				return fmt.Errorf("submit: create request child %d: %w", i, err)
 			}
 
+			// Index the parent's per-offering day picks (if any) by
+			// offering id so we can resolve each offering link in O(1).
+			daysByOffering := make(map[int64][]string, len(child.OfferingDays))
+			for _, row := range child.OfferingDays {
+				daysByOffering[row.OfferingID] = row.SelectedDays
+			}
+
 			for _, offeringID := range child.OfferingIDs {
-				if _, ok := openByID[offeringID]; !ok {
+				offering, ok := openByID[offeringID]
+				if !ok {
 					return fmt.Errorf("submit: offering %d disappeared mid-submit", offeringID)
+				}
+				selected, err := resolveSelectedDays(offering, daysByOffering[offeringID])
+				if err != nil {
+					return fmt.Errorf("submit: offering %d: %w", offeringID, err)
 				}
 				link := &enrollmentModels.RequestChildOffering{
 					RequestChildID: row.ID,
 					CareOfferingID: offeringID,
+					SelectedDays:   selected,
 				}
 				if err := s.requestChildOfferingRepo.Create(txCtx, link); err != nil {
 					return fmt.Errorf("submit: create child-offering link: %w", err)
@@ -1027,4 +1054,49 @@ func (s *requestService) enforceRateLimit(ctx context.Context, req SubmitRequest
 	}
 
 	return nil
+}
+
+// resolveSelectedDays computes the SelectedDays value for a
+// request_child_offerings row given the offering's days_of_week_mode
+// + available_days and any parent-supplied day picks.
+//
+//   - fixed offerings: parent picks are ignored and the row stores
+//     NULL — semantics "use the offering's current available_days".
+//     If the admin later changes the offering's day set, the link
+//     reflects the new value automatically. Sending parent picks for
+//     a fixed offering is a 400, not a silent overwrite.
+//   - parent_choice offerings: picks must be a non-empty subset of
+//     the offering's available_days. Missing picks → 400; subset
+//     violation → 400.
+func resolveSelectedDays(offering *enrollmentModels.CareOffering, picks []string) ([]string, error) {
+	switch offering.DaysOfWeekMode {
+	case enrollmentModels.DaysOfWeekModeFixed:
+		if len(picks) > 0 {
+			return nil, fmt.Errorf("offering does not allow parent day selection (days_of_week_mode=fixed)")
+		}
+		return nil, nil
+	case enrollmentModels.DaysOfWeekModeParentChoice:
+		if len(picks) == 0 {
+			return nil, fmt.Errorf("offering requires the parent to pick at least one day")
+		}
+		allowed := make(map[string]bool, len(offering.AvailableDays))
+		for _, d := range offering.AvailableDays {
+			allowed[d] = true
+		}
+		seen := make(map[string]bool, len(picks))
+		dedup := make([]string, 0, len(picks))
+		for _, d := range picks {
+			if !allowed[d] {
+				return nil, fmt.Errorf("day %q is not in the offering's available_days", d)
+			}
+			if seen[d] {
+				continue
+			}
+			seen[d] = true
+			dedup = append(dedup, d)
+		}
+		return dedup, nil
+	default:
+		return nil, fmt.Errorf("offering has unknown days_of_week_mode %q", offering.DaysOfWeekMode)
+	}
 }

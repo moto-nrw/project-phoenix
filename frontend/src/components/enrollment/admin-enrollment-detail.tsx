@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   type AdminRequestChild,
+  type AdminRequestChildOffering,
   type AdminRequestSchemaField,
   type AdminRequestSummary,
   type ChildStatus,
@@ -250,6 +251,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                 <StatusBadge status={c.status} />
               </div>
 
+              <ChildOfferings offerings={c.offerings} />
               <ChildExtraFields child={c} schemaFields={data.schema_fields} />
 
               {!terminal && (
@@ -407,6 +409,62 @@ function RequestExtraSection({
         </div>
       )}
     </section>
+  );
+}
+
+// ChildOfferings renders the per-child Betreuungsangebote selection.
+// For fixed offerings the day badge shows the offering's full
+// schedule (Mo, Di, …). For parent_choice offerings the badge marks
+// only the days the parent picked, prefixed with the picked count
+// so admins can spot half-week selections at a glance.
+const DAY_LABEL_DE: Record<string, string> = {
+  mon: "Mo",
+  tue: "Di",
+  wed: "Mi",
+  thu: "Do",
+  fri: "Fr",
+  sat: "Sa",
+  sun: "So",
+};
+
+function ChildOfferings({
+  offerings,
+}: Readonly<{ offerings?: AdminRequestChildOffering[] }>) {
+  if (!offerings || offerings.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+      <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+        Betreuungsangebote
+      </h4>
+      <ul className="mt-1.5 space-y-2 text-sm">
+        {offerings.map((o) => {
+          const parentChoice = o.days_of_week_mode === "parent_choice";
+          const displayDays = parentChoice
+            ? (o.selected_days ?? [])
+            : (o.available_days ?? []);
+          return (
+            <li
+              key={o.offering_id}
+              className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+            >
+              <span className="font-medium text-gray-900">
+                {o.offering_name || `Angebot #${o.offering_id}`}
+              </span>
+              {displayDays.length > 0 ? (
+                <span className="text-xs text-gray-600">
+                  {parentChoice ? "Elternauswahl: " : "Tage: "}
+                  {displayDays.map((d) => DAY_LABEL_DE[d] ?? d).join(", ")}
+                </span>
+              ) : parentChoice ? (
+                <span className="text-xs text-[#CC2626] italic">
+                  Keine Tage gewählt
+                </span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

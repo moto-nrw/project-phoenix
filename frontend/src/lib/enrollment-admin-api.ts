@@ -19,6 +19,19 @@ export type DecisionStatus =
   | "rejected"
   | "under_review";
 
+export interface AdminRequestChildOffering {
+  offering_id: string;
+  offering_name: string;
+  days_of_week_mode: string; // "fixed" | "parent_choice"
+  /** Parent's day picks. Present only for parent_choice offerings. */
+  selected_days?: string[];
+  /**
+   * Offering's full day catalogue. For fixed offerings this is the
+   * authoritative schedule; for parent_choice it bounds the picker.
+   */
+  available_days?: string[];
+}
+
 export interface AdminRequestChild {
   id: string;
   first_name: string;
@@ -31,6 +44,8 @@ export interface AdminRequestChild {
   reviewed_by?: number | null;
   activation_mode: string;
   custom_data?: Record<string, unknown>;
+  /** Per-child Betreuungsangebote selection — detail endpoint only. */
+  offerings?: AdminRequestChildOffering[];
 }
 
 /** Slim form-field shape, only what the admin detail UI needs. */

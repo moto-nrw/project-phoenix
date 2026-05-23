@@ -194,12 +194,19 @@ func parseLeadingGrade(schoolClass string) int {
 // duplicate (vs. importing the public type) so the parent route stays
 // independent of the public API package.
 type submitParentChildRequest struct {
-	FirstName        string         `json:"first_name"`
-	LastName         string         `json:"last_name"`
-	DateOfBirth      string         `json:"date_of_birth"`
-	TargetGradeLevel *int16         `json:"target_grade_level,omitempty"`
-	CustomData       map[string]any `json:"custom_data,omitempty"`
-	OfferingIDs      []int64        `json:"offering_ids,omitempty"`
+	FirstName        string                          `json:"first_name"`
+	LastName         string                          `json:"last_name"`
+	DateOfBirth      string                          `json:"date_of_birth"`
+	TargetGradeLevel *int16                          `json:"target_grade_level,omitempty"`
+	CustomData       map[string]any                  `json:"custom_data,omitempty"`
+	OfferingIDs      []int64                         `json:"offering_ids,omitempty"`
+	OfferingDays     []submitParentOfferingDaysEntry `json:"offering_days,omitempty"`
+}
+
+// submitParentOfferingDaysEntry mirrors api/enrollment.SubmitOfferingDaysRow.
+type submitParentOfferingDaysEntry struct {
+	OfferingID   int64    `json:"offering_id"`
+	SelectedDays []string `json:"selected_days"`
 }
 
 // submitParentEnrollmentRequest is the parent-authenticated submit
@@ -329,6 +336,13 @@ func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID,
 		if err != nil {
 			return out, fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i)
 		}
+		offeringDays := make([]enrollmentService.SubmitOfferingDays, 0, len(c.OfferingDays))
+		for _, row := range c.OfferingDays {
+			offeringDays = append(offeringDays, enrollmentService.SubmitOfferingDays{
+				OfferingID:   row.OfferingID,
+				SelectedDays: row.SelectedDays,
+			})
+		}
 		out.Children = append(out.Children, enrollmentService.SubmitChild{
 			FirstName:        c.FirstName,
 			LastName:         c.LastName,
@@ -336,6 +350,7 @@ func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID,
 			TargetGradeLevel: c.TargetGradeLevel,
 			CustomData:       c.CustomData,
 			OfferingIDs:      c.OfferingIDs,
+			OfferingDays:     offeringDays,
 		})
 	}
 	return out, nil
