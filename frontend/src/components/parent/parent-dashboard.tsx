@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Users } from "lucide-react";
+import { ArrowRight, Newspaper, Users } from "lucide-react";
 import {
   type Child,
   type ChildStatus,
@@ -18,33 +18,26 @@ const logger = createLogger({ component: "ParentDashboard" });
 const enrollmentStatusLabel: Record<EnrollmentChildStatus, string> = {
   submitted: "Eingereicht",
   under_review: "In Prüfung",
-  approved: "Bestätigt",
+  approved: "Freigeschaltet",
   waitlisted: "Warteliste",
   rejected: "Abgelehnt",
   withdrawn: "Zurückgezogen",
-};
-
-const childStatusLabel: Record<ChildStatus, string> = {
-  pending: "Bestätigt",
-  active: "Aktiv",
-  inactive: "Beendet",
-  alumnus: "Ehemalig",
 };
 
 const statusTone: Record<
   EnrollmentChildStatus | ChildStatus,
   { bg: string; text: string; dot: string }
 > = {
-  submitted: { bg: "#5080D8", text: "#FFFFFF", dot: "#5080D8" },
-  under_review: { bg: "#5080D8", text: "#FFFFFF", dot: "#5080D8" },
-  approved: { bg: "#83CD2D", text: "#FFFFFF", dot: "#83CD2D" },
-  waitlisted: { bg: "#F78C10", text: "#FFFFFF", dot: "#F78C10" },
-  rejected: { bg: "#D6373E", text: "#FFFFFF", dot: "#D6373E" },
-  withdrawn: { bg: "#6B7280", text: "#FFFFFF", dot: "#6B7280" },
-  pending: { bg: "#5080D8", text: "#FFFFFF", dot: "#5080D8" },
-  active: { bg: "#83CD2D", text: "#FFFFFF", dot: "#83CD2D" },
-  inactive: { bg: "#6B7280", text: "#FFFFFF", dot: "#6B7280" },
-  alumnus: { bg: "#6B7280", text: "#FFFFFF", dot: "#6B7280" },
+  submitted: { bg: "#EEF2FF", text: "#3558A8", dot: "#5080D8" },
+  under_review: { bg: "#FFF7ED", text: "#9A5B0A", dot: "#F78C10" },
+  approved: { bg: "#83CD2D1F", text: "#4A7A15", dot: "#83CD2D" },
+  waitlisted: { bg: "#FFF7ED", text: "#9A5B0A", dot: "#F78C10" },
+  rejected: { bg: "#FEF2F2", text: "#B4232A", dot: "#D6373E" },
+  withdrawn: { bg: "#F3F4F6", text: "#4B5563", dot: "#6B7280" },
+  pending: { bg: "#83CD2D1F", text: "#4A7A15", dot: "#83CD2D" },
+  active: { bg: "#83CD2D1F", text: "#4A7A15", dot: "#83CD2D" },
+  inactive: { bg: "#F3F4F6", text: "#4B5563", dot: "#6B7280" },
+  alumnus: { bg: "#F3F4F6", text: "#4B5563", dot: "#6B7280" },
 };
 
 interface ChildOverviewItem {
@@ -53,7 +46,7 @@ interface ChildOverviewItem {
   readonly schoolName: string;
   readonly detail: string;
   readonly status: EnrollmentChildStatus | ChildStatus;
-  readonly statusLabel: string;
+  readonly statusLabel?: string;
   readonly href?: string;
 }
 
@@ -74,17 +67,14 @@ function formatServiceRange(
   return `${formatDate(from)} bis ${formatDate(until)}`;
 }
 
-function pluralize(count: number, one: string, many: string): string {
-  return count === 1 ? `1 ${one}` : `${count} ${many}`;
-}
-
 function normalizeChildIdentity(name: string, schoolName: string): string {
   return `${name.trim().toLowerCase()}::${schoolName.trim().toLowerCase()}`;
 }
 
 function getEnrollmentOverviewStatus(status: EnrollmentChildStatus): string {
-  if (status === "submitted") return "Anmeldung abgesendet";
-  if (status === "under_review") return "Wartet auf Rückmeldung";
+  if (status === "submitted" || status === "under_review") {
+    return "Wartet auf Bestätigung oder Rückmeldung";
+  }
   return enrollmentStatusLabel[status] ?? status;
 }
 
@@ -100,9 +90,8 @@ function buildChildOverviewItems(
       schoolName: child.school_name,
       detail: child.enrolled_from
         ? `${child.school_class ? `${child.school_class} · ` : ""}Betreuung ${formatServiceRange(child.enrolled_from, child.enrolled_until)}`
-        : child.school_class || "Betreuung bestätigt",
+        : child.school_class || "Betreuung hinterlegt",
       status: child.status,
-      statusLabel: childStatusLabel[child.status],
       href: `/parents/children/${child.student_id}`,
     };
   });
@@ -152,7 +141,7 @@ export function ParentDashboard() {
       setChildren(childList);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("parent_dashboard_load_failed", { error: message });
+      logger.warn("parent_dashboard_load_failed", { error: message });
       setError(message);
     } finally {
       setLoading(false);
@@ -167,22 +156,6 @@ export function ParentDashboard() {
     () => buildChildOverviewItems(children, requests),
     [children, requests],
   );
-  const openEnrollmentCount = useMemo(
-    () =>
-      requests.reduce(
-        (sum, request) =>
-          sum +
-          request.children.filter((child) =>
-            ["submitted", "under_review", "waitlisted"].includes(child.status),
-          ).length,
-        0,
-      ),
-    [requests],
-  );
-  const approvedChildCount = children.filter(
-    (child) => child.status === "active" || child.status === "pending",
-  ).length;
-
   if (loading) {
     return <ParentDashboardSkeleton />;
   }
@@ -208,11 +181,11 @@ export function ParentDashboard() {
             </p>
             <div className="mt-2 max-w-3xl">
               <h1 className="text-2xl font-semibold text-balance text-gray-900 sm:text-3xl">
-                Übersicht für Anmeldung und Betreuung
+                Willkommen im Elternportal
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 sm:text-base">
-                Ein ruhiger Einstieg in alles, was Eltern hier gerade brauchen:
-                den aktuellen Stand sehen und die Kinder im Portal wiederfinden.
+                Hier sehen Sie Ihre Kinder und öffnen die wichtigsten Bereiche
+                rund um Betreuung, Nachrichten und Termine.
               </p>
             </div>
           </div>
@@ -220,23 +193,19 @@ export function ParentDashboard() {
             <div className="relative z-10 space-y-4">
               <div>
                 <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Aktueller Stand
+                  Meine Kinder
                 </p>
                 <p className="mt-1 text-sm leading-6 text-gray-600">
-                  Das Elternportal ist als schlanker Startpunkt gedacht. Weitere
-                  Funktionen kommen nach und nach dazu.
+                  Direkt zur Kind-Ansicht wechseln.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <StatusSummary label="Offen" value={openEnrollmentCount} />
-                <StatusSummary label="Kinder" value={approvedChildCount} />
-              </div>
+              <HeroChildrenList items={childOverviewItems} />
             </div>
           </div>
         </div>
       </section>
 
-      <ChildrenOverviewPanel items={childOverviewItems} />
+      <StartNewsPanel />
     </div>
   );
 }
@@ -258,92 +227,68 @@ function ParentDashboardSkeleton() {
   );
 }
 
-function StatusSummary({
-  label,
-  value,
-}: Readonly<{
-  label: string;
-  value: number;
-}>) {
+function HeroChildrenList({
+  items,
+}: Readonly<{ items: readonly ChildOverviewItem[] }>) {
+  const previewItems = items.slice(0, 3);
+
+  if (previewItems.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-gray-300 bg-white/75 p-4 text-sm leading-6 text-gray-600 shadow-sm">
+        Sobald ein Kind freigeschaltet ist, erscheint es hier.
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-xl border border-gray-200 bg-white/85 p-4 shadow-sm backdrop-blur-sm">
-      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-semibold text-gray-900 tabular-nums">
-        {value}
-      </p>
+    <div className="space-y-2">
+      {previewItems.map((item) => (
+        <HeroChildItem key={item.key} item={item} />
+      ))}
+      {items.length > previewItems.length ? (
+        <Link
+          href="/parents/children"
+          className="inline-flex h-9 items-center rounded-lg px-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-white/80 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          Alle Kinder anzeigen
+        </Link>
+      ) : null}
     </div>
   );
 }
 
-function ChildrenOverviewPanel({
-  items,
-}: Readonly<{ items: readonly ChildOverviewItem[] }>) {
-  return (
-    <section
-      id="children"
-      className="scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
-    >
-      <PanelHeader
-        eyebrow="Kinder"
-        title="Kinderübersicht"
-        description={
-          items.length === 0
-            ? "Sobald eine Anmeldung vorliegt, erscheint das Kind hier."
-            : pluralize(items.length, "Kind im Portal", "Kinder im Portal")
-        }
-      />
-
-      {items.length === 0 ? (
-        <ChildEmptyState />
-      ) : (
-        <div className="mt-5 grid gap-3 lg:grid-cols-2">
-          {items.map((item) => (
-            <ChildOverviewCard key={item.key} item={item} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ChildOverviewCard({ item }: Readonly<{ item: ChildOverviewItem }>) {
+function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
   const tone = statusTone[item.status] ?? statusTone.submitted;
   const content = (
-    <div className="flex min-w-0 items-start gap-3">
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-[#4A7A15]">
-        <Users className="h-6 w-6" aria-hidden="true" />
+    <div className="flex min-w-0 items-center gap-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#83CD2D]/15 text-[#4A7A15]">
+        <Users className="h-5 w-5" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h3 className="text-base font-semibold break-words text-gray-900">
-              {item.name}
-            </h3>
-            <p className="text-sm break-words text-gray-600">
-              {item.schoolName}
-            </p>
-          </div>
-          <span
-            className="w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
-            style={{ backgroundColor: tone.bg, color: tone.text }}
-          >
-            {item.statusLabel}
-          </span>
-        </div>
-        <div className="min-w-0">
-          <p className="mt-2 text-sm leading-5 break-words text-gray-500">
-            {item.detail}
-          </p>
-        </div>
+        <p className="truncate text-sm font-semibold text-gray-900">
+          {item.name}
+        </p>
+        <p className="truncate text-sm text-gray-600">{item.schoolName}</p>
       </div>
+      {item.statusLabel ? (
+        <span
+          className="shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold"
+          style={{ backgroundColor: tone.bg, color: tone.text }}
+        >
+          Offen
+        </span>
+      ) : (
+        <ArrowRight
+          className="h-4 w-4 shrink-0 text-gray-400"
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 
   if (!item.href) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+      <div className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm">
         {content}
       </div>
     );
@@ -352,16 +297,42 @@ function ChildOverviewCard({ item }: Readonly<{ item: ChildOverviewItem }>) {
   return (
     <Link
       href={item.href}
-      className="group rounded-2xl border border-gray-200 bg-gray-50/70 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      className="block rounded-xl border border-gray-200 bg-white/90 p-3 shadow-sm transition-colors hover:bg-white focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
     >
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">{content}</div>
-        <ArrowRight
-          className="hidden h-4 w-4 shrink-0 text-gray-400 transition-colors group-hover:text-gray-700 sm:block"
-          aria-hidden="true"
-        />
-      </div>
+      {content}
     </Link>
+  );
+}
+
+function StartNewsPanel() {
+  return (
+    <section
+      id="news"
+      className="scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
+    >
+      <PanelHeader
+        eyebrow="Aktuelles"
+        title="Neuigkeiten"
+        description="Meldungen aus Betreuung und Elternportal erscheinen hier."
+      />
+
+      <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6">
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
+            <Newspaper className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-gray-900">
+              Keine Neuigkeiten vorhanden
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-gray-600">
+              Sobald es neue Hinweise gibt, sehen Sie diese direkt auf der
+              Startseite.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -384,22 +355,5 @@ function PanelHeader({
       </h2>
       <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
     </header>
-  );
-}
-
-function ChildEmptyState() {
-  return (
-    <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-      <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-        <Users className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <h3 className="mt-3 text-sm font-semibold text-gray-900">
-        Noch keine Kinder
-      </h3>
-      <p className="mt-1 text-sm leading-6 text-gray-600">
-        Sobald eine Anmeldung abgesendet oder bestätigt wurde, sehen Sie das
-        Kind hier.
-      </p>
-    </div>
   );
 }

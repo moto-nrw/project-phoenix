@@ -21,7 +21,7 @@ export function AppShell({ children }: AppShellProps) {
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 z-30 h-20 bg-white/95 backdrop-blur-md lg:hidden"
+        className="pointer-events-none fixed inset-x-0 top-0 z-30 h-14 bg-white/95 backdrop-blur-md lg:hidden"
         aria-hidden="true"
       />
       {/* Header - sticky positioning */}

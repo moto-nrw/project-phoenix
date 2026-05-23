@@ -282,26 +282,14 @@ const PARENT_PREVIEW_ITEMS: readonly NavItem[] = [
   },
   {
     href: "#",
-    label: "Krankmeldung",
-    icon: navigationIcons.health,
-    comingSoon: true,
-  },
-  {
-    href: "#",
-    label: "Abholzeiten",
-    icon: navigationIcons.clock,
-    comingSoon: true,
-  },
-  {
-    href: "#",
     label: "Nachrichten",
     icon: navigationIcons.chat,
     comingSoon: true,
   },
   {
     href: "#",
-    label: "Erinnerungen",
-    icon: navigationIcons.bell,
+    label: "Kontaktdaten",
+    icon: navigationIcons.profile,
     comingSoon: true,
   },
 ];
@@ -472,6 +460,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
       return href === operatorDrillInHref;
     }
     if (href === "/dashboard") return pathname === "/dashboard";
+    if (href === "/parents") return pathname === "/parents" || pathname === "/";
     return pathname.startsWith(href);
   };
 
@@ -838,7 +827,26 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
                 />
               </svg>
-              <span>Übersicht</span>
+              <span>Start</span>
+            </Link>
+            <Link
+              href="/parents/children"
+              className={getLinkClasses("/parents/children")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.group}
+                />
+              </svg>
+              <span>Meine Kinder</span>
             </Link>
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">

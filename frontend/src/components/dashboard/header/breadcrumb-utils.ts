@@ -27,6 +27,10 @@ export function getPageTitle(pathname: string): string {
 
   if (isEnrollmentPath(pathname)) return getEnrollmentPageTitle(pathname);
 
+  if (pathname.startsWith("/parents/children")) {
+    return pathname === "/parents/children" ? "Meine Kinder" : "Kinderprofil";
+  }
+
   // Handle main routes
   return getMainRouteTitle(pathname);
 }
@@ -60,6 +64,7 @@ function getMainRouteTitle(pathname: string): string {
   const mainRoutes: Record<string, string> = {
     "/dashboard": "Home",
     "/": "Home",
+    "/parents": "Start",
     "/ogs-groups": "Meine Gruppe",
     "/active-supervisions": "Aktuelle Aufsicht",
     "/staff": "Mitarbeiter",

@@ -261,6 +261,24 @@ export function RoomBreadcrumb({ roomName }: RoomBreadcrumbProps) {
   );
 }
 
+interface ParentChildBreadcrumbProps {
+  readonly childName: string;
+  readonly isScrolled?: boolean;
+}
+
+export function ParentChildBreadcrumb({
+  childName,
+  isScrolled = false,
+}: ParentChildBreadcrumbProps) {
+  return (
+    <BreadcrumbNav isScrolled={isScrolled}>
+      <BreadcrumbLink href="/parents/children">Meine Kinder</BreadcrumbLink>
+      <BreadcrumbSeparator />
+      <BreadcrumbCurrent>{childName}</BreadcrumbCurrent>
+    </BreadcrumbNav>
+  );
+}
+
 /**
  * Student history breadcrumb (3-level)
  */
