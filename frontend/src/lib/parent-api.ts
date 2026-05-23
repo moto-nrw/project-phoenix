@@ -226,32 +226,3 @@ export async function submitParentEnrollment(
     status_url: json.status_url ?? "",
   };
 }
-
-/**
- * Groups a flat children list by school_slug. Used by the dashboard
- * to render one card per school. Insertion order matches the input,
- * which is already sorted by school_name on the backend.
- */
-export function groupBySchool(children: readonly Child[]): {
-  schoolName: string;
-  schoolSlug: string;
-  children: Child[];
-}[] {
-  const groups = new Map<
-    string,
-    { schoolName: string; schoolSlug: string; children: Child[] }
-  >();
-  for (const child of children) {
-    const existing = groups.get(child.school_slug);
-    if (existing) {
-      existing.children.push(child);
-      continue;
-    }
-    groups.set(child.school_slug, {
-      schoolName: child.school_name,
-      schoolSlug: child.school_slug,
-      children: [child],
-    });
-  }
-  return [...groups.values()];
-}

@@ -107,7 +107,7 @@ func TestService_ListEnrollmentsForAccount_PropagatesRepoError(t *testing.T) {
 
 func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		EnrollmentRequestRepo: nil,
 		DB:                    db,

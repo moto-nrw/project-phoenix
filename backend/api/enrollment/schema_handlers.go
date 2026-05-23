@@ -262,7 +262,27 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 			schema = s
 			return innerErr
 		}
-		s, innerErr := rs.FormSchemaService.PublishVersion(ctx, req.Fields, int64(claims.ID))
+		active, innerErr := rs.FormSchemaService.GetActive(ctx)
+		if errors.Is(innerErr, enrollmentService.ErrNoActiveSchema) {
+			versions, listErr := rs.FormSchemaService.ListVersions(ctx)
+			if listErr != nil {
+				return listErr
+			}
+			for _, version := range versions {
+				if version.Name == "Standardformular" {
+					s, updateErr := rs.FormSchemaService.UpdateSchema(ctx, version.ID, req.Fields, int64(claims.ID))
+					schema = s
+					return updateErr
+				}
+			}
+			s, createErr := rs.FormSchemaService.CreateSchema(ctx, "Standardformular", req.Fields, int64(claims.ID))
+			schema = s
+			return createErr
+		}
+		if innerErr != nil {
+			return innerErr
+		}
+		s, innerErr := rs.FormSchemaService.UpdateSchema(ctx, active.ID, req.Fields, int64(claims.ID))
 		schema = s
 		return innerErr
 	})

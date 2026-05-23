@@ -891,17 +891,6 @@ func (s *requestService) resolveAdminEmails(ctx context.Context) []string {
 	return out
 }
 
-func (s *requestService) lookupSchoolName(ctx context.Context, tenantID int64) string {
-	if s.schoolRepo == nil || tenantID == 0 {
-		return ""
-	}
-	school, err := s.schoolRepo.FindByID(ctx, tenantID)
-	if err != nil || school == nil || school.IsDeleted() {
-		return ""
-	}
-	return school.Name
-}
-
 // applyCapacityOverflow inspects each selected offering's capacity vs
 // current claimants. Per the phase's care_overflow_mode it either
 // rejects the whole submission, returns per-child status overrides
