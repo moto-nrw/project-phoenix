@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
@@ -25,6 +25,12 @@ const logger = createLogger({ component: "EnrollmentForm" });
 // 7..15 chars of digits/spaces/hyphens. Kept in sync so a value the form
 // accepts can't later be rejected at student creation on approval.
 const GUARDIAN_PHONE_PATTERN = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
+
+// Mirror of the backend canonical email format
+// (backend/models/users/email_validation.go) — the single rule enforced both
+// at enrollment submit AND at student creation on approval. Kept in sync so a
+// value the form accepts can never be rejected later at approval.
+const GUARDIAN_EMAIL_PATTERN = /^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
 
 interface ChildDraft {
   first_name: string;
@@ -114,6 +120,26 @@ export function EnrollmentForm({
   const [childOfferingErrors, setChildOfferingErrors] = useState<
     Record<number, boolean>
   >({});
+  // Per-field validation errors, keyed by each input's `name`
+  // (guardian_email, children_0_first_name, ...). Drives the red border +
+  // inline message on the offending input; rebuilt on every submit.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // Scroll the top error banner into view on every submit attempt that
+  // leaves an error showing. The form is long (guardian + N children +
+  // offerings) with the submit button at the bottom, so an error rendered
+  // only at the top is easy to miss. Keyed on a per-attempt counter rather
+  // than the error string (the app's shared useScrollToError hook) so a
+  // repeated submit with the *same* unchanged message still scrolls back
+  // up. On a successful submit the banner isn't rendered, so the ref is
+  // null and the scroll is a no-op.
+  const errorRef = useRef<HTMLDivElement>(null);
+  const [submitAttempt, setSubmitAttempt] = useState(0);
+
+  useEffect(() => {
+    if (submitAttempt > 0) {
+      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [submitAttempt]);
 
   const [guardianFirstName, setGuardianFirstName] = useState("");
   const [guardianLastName, setGuardianLastName] = useState("");
@@ -243,6 +269,12 @@ export function EnrollmentForm({
     e.preventDefault();
     setError(null);
     setChildOfferingErrors({});
+    setFieldErrors({});
+    // Bump per attempt so the scroll-to-error effect re-runs even when this
+    // submit produces the same error message as the previous one. Covers
+    // every synchronous validation failure below (error is set in the same
+    // batch). On success no error is set, so the scroll is a no-op.
+    setSubmitAttempt((n) => n + 1);
 
     if (previewMode) {
       setError(
@@ -255,47 +287,84 @@ export function EnrollmentForm({
       return;
     }
 
+    // Collect every missing/invalid required field in one pass so they all
+    // get marked at once (red border + inline message) instead of bailing
+    // on the first. Keys match each input's `name` attribute.
+    const newFieldErrors: Record<string, string> = {};
     if (!guardianFirstName.trim()) {
-      setError("Bitte gib den Vornamen der erziehungsberechtigten Person ein.");
-      return;
+      newFieldErrors.guardian_first_name = "Bitte Vornamen angeben.";
     }
     if (!guardianLastName.trim()) {
-      setError(
-        "Bitte gib den Nachnamen der erziehungsberechtigten Person ein.",
-      );
-      return;
+      newFieldErrors.guardian_last_name = "Bitte Nachnamen angeben.";
     }
-    if (!guardianEmail.trim()) {
-      setError("Bitte gib eine E-Mail-Adresse ein.");
-      return;
+    const trimmedEmail = guardianEmail.trim();
+    if (!trimmedEmail) {
+      newFieldErrors.guardian_email = "Bitte E-Mail-Adresse angeben.";
+    } else if (!GUARDIAN_EMAIL_PATTERN.test(trimmedEmail)) {
+      newFieldErrors.guardian_email = "Bitte gültige E-Mail-Adresse angeben.";
     }
     // Phone is optional, but reject an invalid format before submit so the
     // parent fixes their own typo instead of producing a request that can
     // never be approved (the backend enforces the same rule).
     const trimmedPhone = guardianPhone.trim();
     if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
-      setError("Bitte gib eine gültige Telefonnummer ein.");
-      return;
+      newFieldErrors.guardian_phone = "Bitte gültige Telefonnummer angeben.";
     }
-    if (!agbConsent || !dataConsent || !emailConsent) {
-      setError("Bitte bestätige alle erforderlichen Zustimmungen.");
+    for (const [i, c] of children.entries()) {
+      if (!c.first_name.trim()) {
+        newFieldErrors[`children_${i}_first_name`] = "Bitte Vornamen angeben.";
+      }
+      if (!c.last_name.trim()) {
+        newFieldErrors[`children_${i}_last_name`] = "Bitte Nachnamen angeben.";
+      }
+      if (!c.date_of_birth) {
+        newFieldErrors[`children_${i}_date_of_birth`] =
+          "Bitte Geburtsdatum angeben.";
+      }
+      if (!c.target_grade_level) {
+        newFieldErrors[`children_${i}_target_grade_level`] =
+          "Bitte Klassenstufe angeben.";
+      }
+    }
+    // Required consents are collected into the same pass so a missing one is
+    // marked (red checkbox) together with any other missing field, instead of
+    // only showing in the banner.
+    if (!agbConsent) {
+      newFieldErrors.consent_agb = "Bitte den AGB zustimmen.";
+    }
+    if (!dataConsent) {
+      newFieldErrors.consent_data_processing =
+        "Bitte der Datenverarbeitung zustimmen.";
+    }
+    if (!emailConsent) {
+      newFieldErrors.consent_email_contact =
+        "Bitte dem E-Mail-Kontakt zustimmen.";
+    }
+    const errorKeys = Object.keys(newFieldErrors);
+    if (errorKeys.length > 0) {
+      setFieldErrors(newFieldErrors);
+      // Banner text:
+      //  - only consents missing (1+)  → the dedicated consent message
+      //  - exactly one other field     → that field's specific message
+      //  - anything else / mixed       → a generic summary
+      // (the per-field red marking always shows which inputs are affected).
+      const onlyConsents = errorKeys.every((key) => key.startsWith("consent_"));
+      const [firstMessage] = Object.values(newFieldErrors);
+      let banner = "Bitte korrigiere die rot markierten Felder.";
+      if (onlyConsents) {
+        banner = "Bitte bestätige alle erforderlichen Zustimmungen.";
+      } else if (errorKeys.length === 1 && firstMessage) {
+        banner = firstMessage;
+      }
+      setError(banner);
       return;
     }
 
     const payloadChildren: SubmitChildPayload[] = [];
     const missingCareIndexes: number[] = [];
     for (const [i, c] of children.entries()) {
-      if (
-        !c.first_name ||
-        !c.last_name ||
-        !c.date_of_birth ||
-        !c.target_grade_level
-      ) {
-        setError(
-          `Kind ${i + 1}: Vorname, Nachname, Geburtsdatum und Klassenstufe sind Pflichtfelder.`,
-        );
-        return;
-      }
+      // Core fields are already guaranteed present by the field-collection
+      // pass above; this loop only builds the payload + validates offerings.
       if (careRequired && c.offering_ids.size === 0) {
         missingCareIndexes.push(i);
       }
@@ -390,6 +459,9 @@ export function EnrollmentForm({
         setChildOfferingErrors(empties);
       }
       setError(message);
+      // A server-side rejection resolves after the synchronous attempt bump
+      // above, so bump again to scroll the late-arriving error into view.
+      setSubmitAttempt((n) => n + 1);
     } finally {
       setSubmitting(false);
     }
@@ -407,6 +479,7 @@ export function EnrollmentForm({
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
       {error && (
         <div
+          ref={errorRef}
           className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm font-medium text-[#CC2626]"
           role="alert"
           aria-live="polite"
@@ -429,6 +502,7 @@ export function EnrollmentForm({
             value={guardianFirstName}
             onChange={setGuardianFirstName}
             required
+            error={fieldErrors.guardian_first_name}
           />
           <Input
             label="Nachname *"
@@ -437,6 +511,7 @@ export function EnrollmentForm({
             value={guardianLastName}
             onChange={setGuardianLastName}
             required
+            error={fieldErrors.guardian_last_name}
           />
           <Input
             label="E-Mail *"
@@ -446,6 +521,7 @@ export function EnrollmentForm({
             value={guardianEmail}
             onChange={setGuardianEmail}
             required
+            error={fieldErrors.guardian_email}
           />
           <Input
             label="Telefon"
@@ -455,6 +531,7 @@ export function EnrollmentForm({
             inputMode="tel"
             value={guardianPhone}
             onChange={setGuardianPhone}
+            error={fieldErrors.guardian_phone}
           />
         </div>
       </section>
@@ -556,6 +633,7 @@ export function EnrollmentForm({
                 value={child.first_name}
                 onChange={(v) => updateChild(i, { first_name: v })}
                 required
+                error={fieldErrors[`children_${i}_first_name`]}
               />
               <Input
                 label="Nachname *"
@@ -564,6 +642,7 @@ export function EnrollmentForm({
                 value={child.last_name}
                 onChange={(v) => updateChild(i, { last_name: v })}
                 required
+                error={fieldErrors[`children_${i}_last_name`]}
               />
               <div>
                 <span className="block text-sm font-semibold text-gray-700">
@@ -572,33 +651,16 @@ export function EnrollmentForm({
                 <DateOfBirthPicker
                   value={child.date_of_birth}
                   onChange={(v) => updateChild(i, { date_of_birth: v })}
+                  error={fieldErrors[`children_${i}_date_of_birth`]}
                 />
               </div>
-              <label className="block">
-                <span className="block text-sm font-semibold text-gray-700">
-                  Klassenstufe *
-                </span>
-                <select
-                  name={`children_${i}_target_grade_level`}
-                  value={child.target_grade_level}
-                  required
-                  onChange={(e) =>
-                    updateChild(i, { target_grade_level: e.target.value })
-                  }
-                  className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                >
-                  <option value="" disabled>
-                    Bitte wählen
-                  </option>
-                  {Array.from({ length: gradeLevelMax }, (_, n) => n + 1).map(
-                    (g) => (
-                      <option key={g} value={g}>
-                        {g}. Klasse
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
+              <GradeLevelSelect
+                name={`children_${i}_target_grade_level`}
+                value={child.target_grade_level}
+                onChange={(v) => updateChild(i, { target_grade_level: v })}
+                max={gradeLevelMax}
+                error={fieldErrors[`children_${i}_target_grade_level`]}
+              />
             </div>
 
             {offerings.length > 0 && (
@@ -749,6 +811,7 @@ export function EnrollmentForm({
           checked={agbConsent}
           onChange={setAgbConsent}
           required
+          error={!!fieldErrors.consent_agb}
         />
         <Consent
           name="consent_data_processing"
@@ -756,6 +819,7 @@ export function EnrollmentForm({
           checked={dataConsent}
           onChange={setDataConsent}
           required
+          error={!!fieldErrors.consent_data_processing}
         />
         <Consent
           name="consent_email_contact"
@@ -763,6 +827,7 @@ export function EnrollmentForm({
           checked={emailConsent}
           onChange={setEmailConsent}
           required
+          error={!!fieldErrors.consent_email_contact}
         />
         <Consent
           name="consent_photo"
@@ -828,6 +893,7 @@ function Input({
   required = false,
   autoComplete,
   inputMode,
+  error,
 }: {
   readonly label: string;
   readonly name: string;
@@ -837,6 +903,7 @@ function Input({
   readonly required?: boolean;
   readonly autoComplete?: string;
   readonly inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  readonly error?: string;
 }) {
   const id = `enrollment-${name}`;
   return (
@@ -849,11 +916,61 @@ function Input({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-required={required}
+        aria-invalid={error ? true : undefined}
         autoComplete={autoComplete}
         inputMode={inputMode}
         spellCheck={type === "email" ? false : undefined}
-        className="moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+          error
+            ? "border-[#EF4444] bg-red-50"
+            : "moto-content-surface hover:border-gray-300"
+        }`}
       />
+      {error && <p className="mt-1 text-xs text-[#EF4444]">{error}</p>}
+    </label>
+  );
+}
+
+function GradeLevelSelect({
+  name,
+  value,
+  onChange,
+  max,
+  error,
+}: {
+  readonly name: string;
+  readonly value: string;
+  readonly onChange: (v: string) => void;
+  readonly max: number;
+  readonly error?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-sm font-semibold text-gray-700">
+        Klassenstufe *
+      </span>
+      <select
+        name={name}
+        value={value}
+        required
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={error ? true : undefined}
+        className={`moto-select mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+          error
+            ? "border-[#EF4444] bg-red-50"
+            : "moto-content-surface hover:border-gray-300"
+        }`}
+      >
+        <option value="" disabled>
+          Bitte wählen
+        </option>
+        {Array.from({ length: max }, (_, n) => n + 1).map((g) => (
+          <option key={g} value={g}>
+            {g}. Klasse
+          </option>
+        ))}
+      </select>
+      {error && <p className="mt-1 text-xs text-[#EF4444]">{error}</p>}
     </label>
   );
 }
@@ -884,19 +1001,23 @@ function Consent({
   checked,
   onChange,
   required = false,
+  error = false,
 }: {
   readonly name: string;
   readonly label: string;
   readonly checked: boolean;
   readonly onChange: (v: boolean) => void;
   readonly required?: boolean;
+  readonly error?: boolean;
 }) {
   return (
     <label
       className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
         checked
           ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
-          : "border-gray-200 bg-white hover:border-gray-300"
+          : error
+            ? "border-[#EF4444] bg-red-50"
+            : "border-gray-200 bg-white hover:border-gray-300"
       }`}
     >
       <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
@@ -906,6 +1027,7 @@ function Consent({
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
           aria-required={required}
+          aria-invalid={error ? true : undefined}
           className="absolute inset-0 cursor-pointer opacity-0"
         />
         {checked && (
@@ -1496,9 +1618,11 @@ const MONTH_LABELS = [
 function DateOfBirthPicker({
   value,
   onChange,
+  error,
 }: {
   readonly value: string;
   readonly onChange: (v: string) => void;
+  readonly error?: string;
 }) {
   // Internal state so partial selections (only day picked, only month
   // picked, etc.) survive between renders. We sync from `value` when
@@ -1566,48 +1690,60 @@ function DateOfBirthPicker({
     emit(day, month, v);
   };
 
+  const selectClass = `moto-select h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+    error
+      ? "border-[#EF4444] bg-red-50"
+      : "moto-content-surface hover:border-gray-300"
+  }`;
+
   return (
-    <div className="mt-1 grid grid-cols-3 gap-2">
-      <select
-        value={day}
-        onChange={(e) => handleDay(e.target.value)}
-        className="moto-select moto-content-surface h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        aria-label="Tag"
-      >
-        <option value="">Tag</option>
-        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-          <option key={d} value={String(d)}>
-            {d}
-          </option>
-        ))}
-      </select>
-      <select
-        value={month}
-        onChange={(e) => handleMonth(e.target.value)}
-        className="moto-select moto-content-surface h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        aria-label="Monat"
-      >
-        <option value="">Monat</option>
-        {MONTH_LABELS.map((label, idx) => (
-          <option key={label} value={String(idx + 1)}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <select
-        value={year}
-        onChange={(e) => handleYear(e.target.value)}
-        className="moto-select moto-content-surface h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        aria-label="Jahr"
-      >
-        <option value="">Jahr</option>
-        {years.map((y) => (
-          <option key={y} value={String(y)}>
-            {y}
-          </option>
-        ))}
-      </select>
-    </div>
+    <>
+      <div className="mt-1 grid grid-cols-3 gap-2">
+        <select
+          value={day}
+          onChange={(e) => handleDay(e.target.value)}
+          className={selectClass}
+          aria-label="Tag"
+          aria-invalid={error ? true : undefined}
+        >
+          <option value="">Tag</option>
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
+            <option key={d} value={String(d)}>
+              {d}
+            </option>
+          ))}
+        </select>
+        <select
+          value={month}
+          onChange={(e) => handleMonth(e.target.value)}
+          className={selectClass}
+          aria-label="Monat"
+          aria-invalid={error ? true : undefined}
+        >
+          <option value="">Monat</option>
+          {MONTH_LABELS.map((label, idx) => (
+            <option key={label} value={String(idx + 1)}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={year}
+          onChange={(e) => handleYear(e.target.value)}
+          className={selectClass}
+          aria-label="Jahr"
+          aria-invalid={error ? true : undefined}
+        >
+          <option value="">Jahr</option>
+          {years.map((y) => (
+            <option key={y} value={String(y)}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="mt-1 text-xs text-[#EF4444]">{error}</p>}
+    </>
   );
 }
 
