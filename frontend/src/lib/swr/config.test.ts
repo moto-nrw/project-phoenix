@@ -57,6 +57,26 @@ describe("swrConfig.onError", () => {
       error: "[object Object]",
     });
   });
+
+  it("logs 429 errors as rate-limit warnings", () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    swrConfig.onError?.(
+      new Error("Error fetching students: API error: 429"),
+      "tenant-slug:ogs-students-3",
+      stubConfig,
+    );
+
+    expect(consoleWarn).toHaveBeenCalledWith("swr_fetch_rate_limited", {
+      key: "tenant-slug:ogs-students-3",
+      error: "Error fetching students: API error: 429",
+      rate_limited: true,
+    });
+    expect(consoleError).not.toHaveBeenCalled();
+  });
 });
 
 describe("swrConfig defaults", () => {

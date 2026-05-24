@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
+import { suppressConsole } from "~/test/helpers/console";
 
 // ============================================================================
 // Types
@@ -37,7 +38,9 @@ vi.mock("~/lib/api-helpers", () => ({
       ? 401
       : message.includes("(404)")
         ? 404
-        : 500;
+        : message.includes("(429)")
+          ? 429
+          : 500;
     return new Response(JSON.stringify({ error: message }), { status });
   }),
 }));
@@ -123,6 +126,8 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 // ============================================================================
 
 describe("GET /api/students", () => {
+  const consoleSpies = suppressConsole("warn");
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
@@ -239,6 +244,21 @@ describe("GET /api/students", () => {
       "test-token",
     );
     expect(response.status).toBe(200);
+  });
+
+  it("logs rate-limited fetch failures as warnings", async () => {
+    mockApiGet.mockRejectedValueOnce(
+      new Error("API error (429): Rate limit exceeded"),
+    );
+
+    const request = createMockRequest("/api/students");
+    const response = await GET(request, createMockContext());
+
+    expect(response.status).toBe(429);
+    expect(consoleSpies.warn).toHaveBeenCalledWith("students fetch failed", {
+      error: "API error (429): Rate limit exceeded",
+      rate_limited: true,
+    });
   });
 });
 

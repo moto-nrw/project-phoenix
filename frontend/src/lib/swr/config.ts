@@ -19,10 +19,20 @@ const logger = createLogger({ component: "useSWRAuth" });
  * failures by domain (e.g., "tenant-slug:database-devices-list").
  */
 function logSWRError(error: unknown, key: string): void {
-  logger.error("swr_fetch_failed", {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const isRateLimited = errorMessage.includes("API error: 429");
+  const logContext = {
     key,
-    error: error instanceof Error ? error.message : String(error),
-  });
+    error: errorMessage,
+    ...(isRateLimited && { rate_limited: true }),
+  };
+
+  if (isRateLimited) {
+    logger.warn("swr_fetch_rate_limited", logContext);
+    return;
+  }
+
+  logger.error("swr_fetch_failed", logContext);
 }
 
 /**

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
 	slogchi "github.com/samber/slog-chi"
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
@@ -44,6 +47,7 @@ import (
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 
+	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
@@ -250,10 +254,41 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	generalBurst := parsePositiveInt("RATE_LIMIT_BURST", 10)
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+	if tokenAuth, err := projectJWT.NewTokenAuth(); err == nil {
+		generalRateLimiter.SetKeyFunc(tokenAwareRateLimitKey(tokenAuth))
+	}
 	if securityLogger != nil {
 		generalRateLimiter.SetLogger(securityLogger)
 	}
 	router.Use(generalRateLimiter.Middleware())
+}
+
+func tokenAwareRateLimitKey(tokenAuth *projectJWT.TokenAuth) func(*http.Request) string {
+	return func(r *http.Request) string {
+		tokenString := extractBearerToken(r.Header.Get("Authorization"))
+		if tokenString == "" || tokenAuth == nil || tokenAuth.JwtAuth == nil {
+			return ""
+		}
+
+		token, err := tokenAuth.JwtAuth.Decode(tokenString)
+		if err != nil {
+			return ""
+		}
+		if err := jwxjwt.Validate(token); err != nil {
+			return ""
+		}
+
+		sum := sha256.Sum256([]byte(tokenString))
+		return "token:" + hex.EncodeToString(sum[:])
+	}
+}
+
+func extractBearerToken(authHeader string) string {
+	const bearerPrefix = "Bearer "
+	if len(authHeader) <= len(bearerPrefix) || !strings.HasPrefix(authHeader, bearerPrefix) {
+		return ""
+	}
+	return strings.TrimSpace(authHeader[len(bearerPrefix):])
 }
 
 // parsePositiveInt parses a positive integer from environment variable with a default value

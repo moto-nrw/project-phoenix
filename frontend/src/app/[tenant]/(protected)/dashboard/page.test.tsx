@@ -69,6 +69,8 @@ const mockDashboardData = {
   studentsInRooms: 120,
   studentsInTransit: 20,
   studentsOnPlayground: 10,
+  studentsSick: 4,
+  studentsExcused: 3,
   activeOGSGroups: 8,
   activeActivities: 5,
   freeRooms: 12,
@@ -191,6 +193,8 @@ describe("DashboardPage", () => {
       expect(screen.getByText("150")).toBeInTheDocument(); // studentsPresent
       expect(screen.getByText("120")).toBeInTheDocument(); // studentsInRooms
       expect(screen.getByText("20")).toBeInTheDocument(); // studentsInTransit
+      expect(screen.getByText("4")).toBeInTheDocument(); // studentsSick
+      expect(screen.getByText("3")).toBeInTheDocument(); // studentsExcused
       // 10 appears multiple times (studentsOnPlayground and supervisorsToday)
       expect(screen.getAllByText("10")).toHaveLength(2);
     });
@@ -204,6 +208,8 @@ describe("DashboardPage", () => {
       expect(screen.getByText("In Räumen")).toBeInTheDocument();
       expect(screen.getByText("Unterwegs")).toBeInTheDocument();
       expect(screen.getByText("Schulhof")).toBeInTheDocument();
+      expect(screen.getByText("Krank")).toBeInTheDocument();
+      expect(screen.getByText("Entschuldigt")).toBeInTheDocument();
       // "Aktive Gruppen" appears both as stat card title and info card title
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
       expect(screen.getByText("Aktive Aktivitäten")).toBeInTheDocument();
