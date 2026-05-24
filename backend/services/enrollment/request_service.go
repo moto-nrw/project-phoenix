@@ -38,6 +38,10 @@ var (
 	ErrRateLimited          = errors.New("too many submission attempts; please retry later")
 	ErrRequestNotFound      = errors.New("enrollment request not found")
 	ErrInvalidGuardianPhone = errors.New("guardian phone number has an invalid format")
+	// ErrInvalidGuardianEmail wraps ErrInvalidSubmission so callers that match
+	// the broad category keep working, while the HTTP layer maps the specific
+	// case to a stable code (enrollment.invalid_email) for per-field marking.
+	ErrInvalidGuardianEmail = fmt.Errorf("%w: guardian email has an invalid format", ErrInvalidSubmission)
 	ErrEditNotAllowed       = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed   = errors.New("child cannot be withdrawn in its current state")
 	ErrDuplicateEnrollment  = errors.New("an active enrollment already exists for this parent and child in this phase")
@@ -465,8 +469,12 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 	if emailAddr == "" {
 		return fmt.Errorf("%w: guardian email is required", ErrInvalidSubmission)
 	}
-	if _, err := mail.ParseAddress(emailAddr); err != nil {
-		return fmt.Errorf("%w: invalid email address", ErrInvalidSubmission)
+	// Validate against the shared canonical pattern (same rule student
+	// creation enforces at approval) so a submittable email can never get
+	// stuck at the approval step. mail.ParseAddress was too lenient here
+	// (it accepts e.g. "a@b" / "test@localhost" that approval rejects).
+	if err := users.ValidateOptionalEmail(emailAddr); err != nil {
+		return ErrInvalidGuardianEmail
 	}
 	// Guardian phone is optional, but when present it must match the same
 	// canonical format student creation enforces on approval. Validating
