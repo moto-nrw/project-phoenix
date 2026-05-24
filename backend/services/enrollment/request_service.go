@@ -17,6 +17,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -33,12 +34,13 @@ var (
 	// enrollment.care_offerings_required is true but a child in the
 	// submission has no offering selected. Mapped to 400 with a stable
 	// code so the parent form can highlight the right child.
-	ErrCareOfferingMissing = errors.New("care offering selection is required for every child")
-	ErrRateLimited         = errors.New("too many submission attempts; please retry later")
-	ErrRequestNotFound     = errors.New("enrollment request not found")
-	ErrEditNotAllowed      = errors.New("request can no longer be edited")
-	ErrWithdrawNotAllowed  = errors.New("child cannot be withdrawn in its current state")
-	ErrDuplicateEnrollment = errors.New("an active enrollment already exists for this parent and child in this phase")
+	ErrCareOfferingMissing  = errors.New("care offering selection is required for every child")
+	ErrRateLimited          = errors.New("too many submission attempts; please retry later")
+	ErrRequestNotFound      = errors.New("enrollment request not found")
+	ErrInvalidGuardianPhone = errors.New("guardian phone number has an invalid format")
+	ErrEditNotAllowed       = errors.New("request can no longer be edited")
+	ErrWithdrawNotAllowed   = errors.New("child cannot be withdrawn in its current state")
+	ErrDuplicateEnrollment  = errors.New("an active enrollment already exists for this parent and child in this phase")
 )
 
 // Rate-limit thresholds. Hardcoded for now - if individual schools
@@ -466,6 +468,15 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 	if _, err := mail.ParseAddress(emailAddr); err != nil {
 		return fmt.Errorf("%w: invalid email address", ErrInvalidSubmission)
 	}
+	// Guardian phone is optional, but when present it must match the same
+	// canonical format student creation enforces on approval. Validating
+	// here stops an invalid value (e.g. "12345") from being stored and
+	// then permanently blocking approval with a 500.
+	if req.GuardianPhone != nil {
+		if err := users.ValidateOptionalPhone(*req.GuardianPhone); err != nil {
+			return ErrInvalidGuardianPhone
+		}
+	}
 	if len(req.Children) == 0 {
 		return fmt.Errorf("%w: at least one child is required", ErrInvalidSubmission)
 	}
@@ -554,6 +565,11 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 	}
 	if patch.GuardianPhone != nil {
 		v := strings.TrimSpace(*patch.GuardianPhone)
+		// Same canonical phone check as submit — an admin/parent edit must
+		// not be able to reintroduce a value approval would later reject.
+		if err := users.ValidateOptionalPhone(v); err != nil {
+			return ErrInvalidGuardianPhone
+		}
 		req.GuardianPhone = &v
 	}
 	if patch.ConsentFlags != nil {

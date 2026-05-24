@@ -311,7 +311,8 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 			errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		case errors.Is(err, enrollmentService.ErrDecisionInvalidStatus),
-			errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal):
+			errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal),
+			errors.Is(err, enrollmentService.ErrDecisionInvalidData):
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
