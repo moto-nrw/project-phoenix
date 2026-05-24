@@ -17,6 +17,12 @@ import (
 // PR 7) should treat this as "feature not configured yet".
 var ErrNoActiveSchema = errors.New("no active form schema for tenant")
 
+var (
+	ErrFormSchemaNotFound    = errors.New("form schema not found")
+	ErrFormSchemaHasPhases   = errors.New("form schema has enrollment phases")
+	ErrFormSchemaHasRequests = errors.New("form schema has enrollment requests")
+)
+
 // FormSchemaService manages form-schema versioning. The two key
 // operations are GetActive (consumed by PR 7's public form renderer
 // + admin editor pre-fill) and PublishVersion (called by the admin
@@ -63,6 +69,11 @@ type FormSchemaService interface {
 	// their schema reference intact.
 	UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64) (*enrollmentModels.FormSchema, error)
 
+	// DeleteSchema removes every version of the logical schema selected
+	// by id. It refuses deletion when any version is used by a phase or
+	// historical request.
+	DeleteSchema(ctx context.Context, id int64) error
+
 	// ValidateSubmission checks a parent's submission payload against
 	// a pinned schema version. PR 7's submit handler calls this. PR 5
 	// ships the helper; PR 7 wires it.
@@ -71,13 +82,17 @@ type FormSchemaService interface {
 
 // FormSchemaServiceConfig is the dependency-injection bundle.
 type FormSchemaServiceConfig struct {
-	Repo   enrollmentModels.FormSchemaRepository
-	Logger *slog.Logger
+	Repo        enrollmentModels.FormSchemaRepository
+	PhaseRepo   enrollmentModels.PhaseRepository
+	RequestRepo enrollmentModels.RequestRepository
+	Logger      *slog.Logger
 }
 
 type formSchemaService struct {
-	repo   enrollmentModels.FormSchemaRepository
-	logger *slog.Logger
+	repo        enrollmentModels.FormSchemaRepository
+	phaseRepo   enrollmentModels.PhaseRepository
+	requestRepo enrollmentModels.RequestRepository
+	logger      *slog.Logger
 }
 
 // NewFormSchemaService builds the service. Nil logger falls back to
@@ -88,8 +103,10 @@ func NewFormSchemaService(cfg FormSchemaServiceConfig) FormSchemaService {
 		logger = slog.Default()
 	}
 	return &formSchemaService{
-		repo:   cfg.Repo,
-		logger: logger,
+		repo:        cfg.Repo,
+		phaseRepo:   cfg.PhaseRepo,
+		requestRepo: cfg.RequestRepo,
+		logger:      logger,
 	}
 }
 
@@ -150,6 +167,59 @@ func (s *formSchemaService) UpdateSchema(ctx context.Context, id int64, fields [
 		return nil, fmt.Errorf("load source schema: %w", err)
 	}
 	return s.createOrVersion(ctx, source.Name, fields, updatedBy)
+}
+
+func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return ErrFormSchemaNotFound
+	}
+	if s.phaseRepo == nil || s.requestRepo == nil {
+		return fmt.Errorf("schema delete dependencies not configured")
+	}
+
+	source, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return ErrFormSchemaNotFound
+	}
+
+	schemas, err := s.repo.ListByTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("list schema versions: %w", err)
+	}
+	found := false
+	for _, schema := range schemas {
+		if schema.Name != source.Name {
+			continue
+		}
+		found = true
+
+		phaseUsesSchema, phaseErr := s.phaseRepo.ExistsByFormSchemaID(ctx, schema.ID)
+		if phaseErr != nil {
+			return fmt.Errorf("check schema phase references: %w", phaseErr)
+		}
+		if phaseUsesSchema {
+			return ErrFormSchemaHasPhases
+		}
+
+		requestUsesSchema, requestErr := s.requestRepo.ExistsBySchemaID(ctx, schema.ID)
+		if requestErr != nil {
+			return fmt.Errorf("check schema request references: %w", requestErr)
+		}
+		if requestUsesSchema {
+			return ErrFormSchemaHasRequests
+		}
+	}
+	if !found {
+		return ErrFormSchemaNotFound
+	}
+
+	if err := s.repo.DeleteByName(ctx, source.Name); err != nil {
+		return fmt.Errorf("delete schema: %w", err)
+	}
+	s.logger.Info("form schema deleted",
+		slog.String("name", source.Name),
+		slog.Int64("schema_id", id))
+	return nil
 }
 
 // createOrVersion is the shared internal: pick max(version)+1 for the

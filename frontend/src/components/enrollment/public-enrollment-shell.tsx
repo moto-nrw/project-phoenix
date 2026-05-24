@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Check, ChevronRight } from "lucide-react";
-import type { TenantInfo } from "~/lib/tenant-api";
+import { loginImageSrc, type TenantInfo } from "~/lib/tenant-api";
 
 export function PublicEnrollmentBrand({
   tenant,
@@ -11,10 +11,7 @@ export function PublicEnrollmentBrand({
   readonly tenant: TenantInfo | null;
 }) {
   const schoolName = tenant?.name ?? "Ihre OGS";
-  const logoUrl =
-    typeof tenant?.settings.logoUrl === "string" && tenant.settings.logoUrl
-      ? tenant.settings.logoUrl
-      : null;
+  const logoUrl = getTenantLogoUrl(tenant);
   const initials = schoolName
     .split(/\s+/)
     .filter(Boolean)
@@ -23,8 +20,8 @@ export function PublicEnrollmentBrand({
     .join("");
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="moto-content-surface flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border shadow-sm">
+    <div className="flex min-w-0 items-center gap-3">
+      <div className="moto-content-surface flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border shadow-sm sm:h-12 sm:w-12">
         {logoUrl ? (
           <Image
             src={logoUrl}
@@ -40,7 +37,7 @@ export function PublicEnrollmentBrand({
           </span>
         )}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           Online-Anmeldung
         </p>
@@ -50,6 +47,29 @@ export function PublicEnrollmentBrand({
       </div>
     </div>
   );
+}
+
+function getTenantLogoUrl(tenant: TenantInfo | null): string | null {
+  const explicitLogo =
+    typeof tenant?.settings.logoUrl === "string" && tenant.settings.logoUrl
+      ? tenant.settings.logoUrl
+      : null;
+  if (explicitLogo) {
+    return explicitLogo;
+  }
+
+  const loginImage =
+    typeof tenant?.settings.loginImageUrl === "string" &&
+    tenant.settings.loginImageUrl
+      ? tenant.settings.loginImageUrl
+      : null;
+  if (!loginImage) {
+    return null;
+  }
+  if (loginImage.startsWith("/uploads/login-images/")) {
+    return loginImageSrc(loginImage);
+  }
+  return loginImage;
 }
 
 export function PublicEnrollmentSteps({
@@ -65,14 +85,17 @@ export function PublicEnrollmentSteps({
   const currentIndex = steps.findIndex((step) => step.id === current);
 
   return (
-    <ol className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+    <ol
+      className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-gray-500 sm:gap-2"
+      aria-label="Fortschritt der Anmeldung"
+    >
       {steps.map((step, index) => {
         const done = index < currentIndex || current === "done";
         const active = index === currentIndex && current !== "done";
         return (
           <li key={step.id} className="flex items-center gap-2">
             <span
-              className={`flex h-8 w-8 items-center justify-center rounded-full border ${
+              className={`flex h-7 w-7 items-center justify-center rounded-full border sm:h-8 sm:w-8 ${
                 done
                   ? "border-[#83CD2D]/30 bg-[#83CD2D]/15 text-[#5A8E1F]"
                   : active
@@ -80,7 +103,11 @@ export function PublicEnrollmentSteps({
                     : "border-gray-200 bg-white text-gray-400"
               }`}
             >
-              {done ? <Check className="h-4 w-4" /> : index + 1}
+              {done ? (
+                <Check className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                index + 1
+              )}
             </span>
             <span
               className={
@@ -92,7 +119,10 @@ export function PublicEnrollmentSteps({
               {step.label}
             </span>
             {index < steps.length - 1 && (
-              <ChevronRight className="h-4 w-4 text-gray-300" />
+              <ChevronRight
+                className="h-3.5 w-3.5 text-gray-300 sm:h-4 sm:w-4"
+                aria-hidden="true"
+              />
             )}
           </li>
         );
@@ -113,7 +143,7 @@ export function PublicEnrollmentBackLink({
       href={href}
       className="inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
     >
-      <ArrowLeft className="h-4 w-4" />
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       {children}
     </Link>
   );
@@ -125,8 +155,8 @@ export function PublicEnrollmentPageShell({
   readonly children: React.ReactNode;
 }) {
   return (
-    <main className="moto-dotted-background moto-dotted-background--fullscreen min-h-screen">
-      <div className="relative mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <main className="moto-dotted-background moto-dotted-background--fullscreen min-h-screen overflow-x-hidden">
+      <div className="relative mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         {children}
       </div>
     </main>
@@ -143,14 +173,19 @@ export function PublicInfoCard({
   readonly children: React.ReactNode;
 }) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
       <div className="flex items-start gap-3">
-        <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-gray-600 shadow-sm">
+        <span
+          className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm"
+          aria-hidden="true"
+        >
           {icon}
         </span>
-        <div>
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-          <div className="mt-1 text-sm leading-6 text-gray-600">{children}</div>
+          <div className="mt-1 text-sm leading-6 break-words text-gray-600">
+            {children}
+          </div>
         </div>
       </div>
     </div>

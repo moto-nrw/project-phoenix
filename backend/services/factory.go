@@ -743,8 +743,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
-		Repo:   repos.FormSchema,
-		Logger: logger.With("service", "enrollment-form-schema"),
+		Repo:        repos.FormSchema,
+		PhaseRepo:   repos.Phase,
+		RequestRepo: repos.Request,
+		Logger:      logger.With("service", "enrollment-form-schema"),
 	})
 
 	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
@@ -788,6 +790,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CareOfferingRepo:         repos.CareOffering,
 		PhaseRepo:                repos.Phase,
 		FormSchemaRepo:           repos.FormSchema,
+		SchoolRepo:               repos.School,
 		PersonRepo:               repos.Person,
 		StudentRepo:              repos.Student,
 		StudentGuardianRepo:      repos.StudentGuardian,
@@ -813,6 +816,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
+		SchoolRepo:               repos.School,
 		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
 		Settings:                 settingsService,
 		DecisionService:          enrollmentDecisionService,

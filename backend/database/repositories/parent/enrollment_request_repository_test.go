@@ -158,7 +158,7 @@ func readGuardianAccountID(t *testing.T, db *bun.DB, requestID int64) *int64 {
 
 func TestEnrollmentRequestRepository_ListByAccount_BasicHappyPath(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-basic")
@@ -193,7 +193,7 @@ func TestEnrollmentRequestRepository_ListByAccount_BasicHappyPath(t *testing.T) 
 
 func TestEnrollmentRequestRepository_ListByAccount_OrdersBySubmittedAtDesc(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-order")
@@ -249,7 +249,7 @@ func TestEnrollmentRequestRepository_ListByAccount_OrdersBySubmittedAtDesc(t *te
 
 func TestEnrollmentRequestRepository_ListByAccount_CrossTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 	testpkg.EnsureTestTenant(t, db, 2)
 
@@ -295,7 +295,7 @@ func TestEnrollmentRequestRepository_ListByAccount_CrossTenant(t *testing.T) {
 
 func TestEnrollmentRequestRepository_ListByAccount_IgnoresOtherAccounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	mine := testpkg.CreateTestAccount(t, db, "parentlist-mine")
@@ -345,7 +345,7 @@ func TestEnrollmentRequestRepository_ListByAccount_IgnoresOtherAccounts(t *testi
 
 func TestEnrollmentRequestRepository_ListByAccount_EmptyForUnknownAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	// Don't insert any requests for this account.
@@ -361,7 +361,7 @@ func TestEnrollmentRequestRepository_ListByAccount_EmptyForUnknownAccount(t *tes
 
 func TestEnrollmentRequestRepository_ListByAccount_GroupsMultipleChildren(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-multikid")
@@ -404,7 +404,7 @@ func TestEnrollmentRequestRepository_ListByAccount_GroupsMultipleChildren(t *tes
 
 func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 
 	repo := parentRepo.NewEnrollmentRequestRepository(db)
 	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
@@ -419,7 +419,7 @@ func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing
 
 func TestEnrollmentRequestRepository_Backfill_HappyPath(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-happy")
@@ -450,7 +450,7 @@ func TestEnrollmentRequestRepository_Backfill_HappyPath(t *testing.T) {
 
 func TestEnrollmentRequestRepository_Backfill_CaseInsensitive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-case")
@@ -482,7 +482,7 @@ func TestEnrollmentRequestRepository_Backfill_CaseInsensitive(t *testing.T) {
 
 func TestEnrollmentRequestRepository_Backfill_SkipsAlreadyStamped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	owner := testpkg.CreateTestAccount(t, db, "backfill-owner")
@@ -515,7 +515,7 @@ func TestEnrollmentRequestRepository_Backfill_SkipsAlreadyStamped(t *testing.T) 
 
 func TestEnrollmentRequestRepository_Backfill_DoesNotTouchOtherEmails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-other")
@@ -558,7 +558,7 @@ func TestEnrollmentRequestRepository_Backfill_DoesNotTouchOtherEmails(t *testing
 
 func TestEnrollmentRequestRepository_Backfill_EmptyEmailIsNoop(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-empty")
@@ -590,7 +590,7 @@ func TestEnrollmentRequestRepository_Backfill_EmptyEmailIsNoop(t *testing.T) {
 
 func TestEnrollmentRequestRepository_Backfill_CrossTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 	testpkg.EnsureTestTenant(t, db, 1)
 	testpkg.EnsureTestTenant(t, db, 2)
 
@@ -634,7 +634,7 @@ func TestEnrollmentRequestRepository_Backfill_CrossTenant(t *testing.T) {
 
 func TestEnrollmentRequestRepository_Backfill_RejectsZeroAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { require.NoError(t, db.Close()) }()
 
 	repo := parentRepo.NewEnrollmentRequestRepository(db)
 	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {

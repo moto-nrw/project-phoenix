@@ -1,7 +1,9 @@
 {{define "styles"}}
 <style type="text/css">
 body {
-    background-color: #f9fafb;
+    background-color: #f8fafc;
+    background-image: radial-gradient(#d9dee8 1px, transparent 1px);
+    background-size: 18px 18px;
     margin: 0;
     padding: 20px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -12,8 +14,8 @@ body {
     margin: 0 auto;
     background-color: #ffffff;
     border-radius: 16px;
-    border: 1px solid rgba(229, 231, 235, 0.5);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
     overflow: hidden;
 }
 
@@ -33,7 +35,62 @@ h1 {
     margin: 24px 0 20px 0;
     font-size: 24px;
     font-weight: 600;
-    letter-spacing: -0.025em;
+    letter-spacing: 0;
+}
+
+.school-brand {
+    display: block;
+    width: 100%;
+    margin-bottom: 36px;
+}
+
+.school-logo,
+.school-logo-fallback {
+    display: inline-block;
+    width: 48px;
+    height: 48px;
+    vertical-align: middle;
+}
+
+.school-logo {
+    object-fit: contain;
+    border-radius: 999px;
+}
+
+.school-logo-fallback {
+    background-color: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    box-sizing: border-box;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 48px;
+    text-align: center;
+}
+
+.school-brand-copy {
+    display: inline-block;
+    padding-left: 14px;
+    vertical-align: middle;
+}
+
+.school-kicker {
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    margin: 0 0 4px 0;
+    text-transform: uppercase;
+}
+
+.school-name {
+    color: #111827;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
 }
 
 .brand {
@@ -58,11 +115,12 @@ h1 {
 }
 
 .highlight-box {
-    background-color: rgba(243, 244, 246, 0.5);
-    border: 1px dashed #d1d5db;
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
     border-radius: 12px;
     padding: 16px 24px;
     margin: 24px 0;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
 .highlight-box p {
@@ -101,15 +159,39 @@ a {
 }
 
 #footer {
-    background-color: #f9fafb;
+    background-color: #f8fafc;
     padding: 24px 40px;
-    border-top: 1px solid #f3f4f6;
+    border-top: 1px solid #e5e7eb;
 }
 
 #footer p {
     color: #9ca3af;
     font-size: 13px;
     margin: 0;
+}
+
+.powered-by {
+    color: #9ca3af;
+    font-size: 12px;
+    margin-top: 12px;
+}
+
+.powered-by span,
+.powered-by strong {
+    vertical-align: middle;
+}
+
+.powered-by strong {
+    color: #6b7280;
+    font-weight: 700;
+}
+
+.powered-by img {
+    display: inline-block;
+    height: 18px;
+    margin-left: 6px;
+    vertical-align: middle;
+    width: auto;
 }
 
 #footer hr {

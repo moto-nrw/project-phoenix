@@ -22,7 +22,7 @@ export default function EnrollmentStatusPage({ params }: PageProps) {
 
   return (
     <PublicEnrollmentPageShell>
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 sm:mb-8">
         <PublicEnrollmentBrand tenant={tenant} />
         <PublicEnrollmentSteps current="done" />
       </div>

@@ -27,14 +27,17 @@ const errGuardianInvitationServiceUnavailable = "guardian invitation service una
 // invitation. Pre-fills the accept page so the parent doesn't have to re-enter
 // their email or name.
 type GuardianInvitationValidateResponse struct {
-	Email     string    `json:"email"`
-	FirstName string    `json:"first_name,omitempty"`
-	LastName  string    `json:"last_name,omitempty"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Email         string    `json:"email"`
+	FirstName     string    `json:"first_name,omitempty"`
+	LastName      string    `json:"last_name,omitempty"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	SchoolName    string    `json:"school_name,omitempty"`
+	TenantSlug    string    `json:"tenant_slug,omitempty"`
+	SchoolLogoURL string    `json:"school_logo_url,omitempty"`
 }
 
 // AcceptGuardianInvitationRequest is the form payload submitted on the
-// accept-guardian-invite page. First/last name are NOT collected — they come
+// accept-guardian-invite page. First/last name are NOT collected. They come
 // from the GuardianProfile and are shown read-only on the page.
 type AcceptGuardianInvitationRequest struct {
 	Password        string `json:"password"`
@@ -88,10 +91,13 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 	}
 
 	resp := GuardianInvitationValidateResponse{
-		Email:     result.Email,
-		FirstName: result.FirstName,
-		LastName:  result.LastName,
-		ExpiresAt: result.ExpiresAt,
+		Email:         result.Email,
+		FirstName:     result.FirstName,
+		LastName:      result.LastName,
+		ExpiresAt:     result.ExpiresAt,
+		SchoolName:    result.SchoolName,
+		TenantSlug:    result.TenantSlug,
+		SchoolLogoURL: result.SchoolLogoURL,
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Guardian invitation validated successfully")
 }

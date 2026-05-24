@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
   fetchMyEnrollmentProfile,
@@ -53,9 +53,11 @@ import type {
 } from "~/lib/enrollment-submission-api";
 
 interface Props {
-  readonly phaseID: string;
+  readonly phaseID?: string;
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
+  readonly previewMode?: boolean;
+  readonly previewSchema?: PublicFormSchema | null;
   /**
    * Optional overrides for the autofill fetcher and submitter, used
    * by the parents portal to swap in parent-scope endpoints
@@ -90,6 +92,8 @@ export function EnrollmentForm({
   phaseID,
   gradeLevelMax,
   onSubmitted,
+  previewMode = false,
+  previewSchema,
   profileFetcher,
   submitter,
   skipCaptcha,
@@ -133,8 +137,14 @@ export function EnrollmentForm({
         const profileLoader = profileFetcher ?? fetchMyEnrollmentProfile;
         const [schemaResult, offeringsResult, profileResult] =
           await Promise.all([
-            fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null),
-            fetchPublicCareOfferings(tenantSlug, phaseID),
+            previewSchema !== undefined
+              ? Promise.resolve(previewSchema)
+              : phaseID
+                ? fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null)
+                : Promise.resolve(null),
+            phaseID
+              ? fetchPublicCareOfferings(tenantSlug, phaseID)
+              : Promise.resolve({ offerings: [], careRequired: false }),
             profileLoader().catch(() => null),
           ]);
         if (cancelled) return;
@@ -171,7 +181,7 @@ export function EnrollmentForm({
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug, phaseID, profileFetcher]);
+  }, [tenantSlug, phaseID, previewSchema, profileFetcher]);
 
   const updateChild = (index: number, patch: Partial<ChildDraft>) => {
     setChildren((prev) =>
@@ -227,6 +237,17 @@ export function EnrollmentForm({
     e.preventDefault();
     setError(null);
     setChildOfferingErrors({});
+
+    if (previewMode) {
+      setError(
+        "Dies ist eine Vorschau. Aus dieser Ansicht wird keine Anmeldung abgeschickt.",
+      );
+      return;
+    }
+    if (!phaseID) {
+      setError("Für diese Anmeldung fehlt der Anmeldezeitraum.");
+      return;
+    }
 
     if (!guardianFirstName.trim()) {
       setError("Bitte gib den Vornamen der erziehungsberechtigten Person ein.");
@@ -343,7 +364,7 @@ export function EnrollmentForm({
       logger.error("enrollment_submit_failed", { error: message, code });
       if (code === "enrollment.care_offering_missing") {
         // Backend re-checked the setting (defense-in-depth). Mark every
-        // child without an offering — the server doesn't tell us which
+        // child without an offering. The server doesn't tell us which
         // one, so we highlight all that are empty.
         const empties = children.reduce<Record<number, boolean>>(
           (acc, c, i) => {
@@ -362,8 +383,8 @@ export function EnrollmentForm({
 
   if (loading) {
     return (
-      <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
-        Formular wird geladen...
+      <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 shadow-sm sm:p-6">
+        Formular wird geladen…
       </div>
     );
   }
@@ -380,11 +401,11 @@ export function EnrollmentForm({
         </div>
       )}
 
-      <section className="moto-content-surface space-y-5 rounded-2xl border p-5 shadow-sm">
+      <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
         <SectionHeading
           kicker="Schritt 1"
           title="Erziehungsberechtigte Person"
-          description="Diese Angaben nutzen wir für Rückfragen und Statusbenachrichtigungen."
+          description="Geben Sie die Person an, die Rückfragen beantworten kann und den Status-Link erhalten soll."
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input
@@ -425,11 +446,11 @@ export function EnrollmentForm({
       </section>
 
       {schema?.fields.some((f) => !f.applies_to_child) && (
-        <section className="moto-content-surface space-y-4 rounded-2xl border p-5 shadow-sm">
+        <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
           <SectionHeading
             kicker="Zusatzfragen"
             title="Weitere Angaben"
-            description="Diese Fragen wurden von der OGS für diese Anmeldung ergänzt."
+            description="Die OGS benötigt diese Angaben zusätzlich zu den Basisdaten. Pflichtfragen sind mit einem Stern markiert."
           />
           {schema.fields
             .filter((f) => !f.applies_to_child)
@@ -446,19 +467,20 @@ export function EnrollmentForm({
         </section>
       )}
 
-      <section className="moto-content-surface space-y-5 rounded-2xl border p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <SectionHeading
             kicker="Schritt 2"
             title="Kind oder Kinder"
-            description="Sie können mehrere Kinder in einer Anmeldung erfassen."
+            description="Erfassen Sie jedes Kind einzeln. Für Geschwister können Sie über die Schaltfläche weitere Kind-Daten hinzufügen."
           />
           <button
             type="button"
             onClick={addChild}
-            className="moto-content-surface h-9 rounded-lg border px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
           >
-            + Weiteres Kind
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Weiteres Kind
           </button>
         </div>
 
@@ -496,9 +518,9 @@ export function EnrollmentForm({
         {children.map((child, i) => (
           <div
             key={i}
-            className="space-y-5 rounded-xl border border-gray-200 bg-white p-4"
+            className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
                 Kind {i + 1}
               </h3>
@@ -567,12 +589,18 @@ export function EnrollmentForm({
 
             {offerings.length > 0 && (
               <div>
-                <p className="mb-2 text-sm font-semibold text-gray-700">
-                  Betreuungsangebote
-                  {careRequired && (
-                    <span className="ml-1 text-[#EF4444]">*</span>
-                  )}
-                </p>
+                <div className="mb-2">
+                  <p className="text-sm font-semibold text-gray-700">
+                    Betreuungsangebote
+                    {careRequired && (
+                      <span className="ml-1 text-[#EF4444]">*</span>
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    Wählen Sie die Angebote aus, die für dieses Kind gewünscht
+                    sind. Die OGS prüft freie Plätze nach dem Absenden.
+                  </p>
+                </div>
                 <div
                   className={`space-y-2 ${
                     childOfferingErrors[i]
@@ -614,12 +642,12 @@ export function EnrollmentForm({
                             </span>
                           )}
                         </span>
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">
+                        <div className="min-w-0">
+                          <div className="font-medium break-words text-gray-900">
                             {o.name}
                           </div>
                           {o.description && (
-                            <div className="text-xs text-gray-600">
+                            <div className="text-xs break-words text-gray-600">
                               {o.description}
                             </div>
                           )}
@@ -695,11 +723,11 @@ export function EnrollmentForm({
         ))}
       </section>
 
-      <section className="moto-content-surface space-y-4 rounded-2xl border p-5 shadow-sm">
+      <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
         <SectionHeading
           kicker="Schritt 3"
           title="Zustimmungen"
-          description="Die markierten Zustimmungen sind erforderlich, damit die Anmeldung abgesendet werden kann."
+          description="Bitte lesen Sie die Zustimmungen sorgfältig. Erforderliche Zustimmungen müssen aktiv ausgewählt werden."
         />
         <Consent
           name="consent_agb"
@@ -752,10 +780,14 @@ export function EnrollmentForm({
 
       <button
         type="submit"
-        disabled={submitting}
-        className="h-10 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400"
+        disabled={submitting || previewMode}
+        className="h-11 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400"
       >
-        {submitting ? "Wird übermittelt..." : "Anmeldung absenden"}
+        {previewMode
+          ? "Vorschau, nicht absenden"
+          : submitting
+            ? "Wird übermittelt…"
+            : "Anmeldung absenden"}
       </button>
     </form>
   );
@@ -1028,31 +1060,33 @@ function PhoneListInput({ field, value, onChange }: CustomFieldInputProps) {
   const setRow = (idx: number, patch: Partial<PhoneEntry>) =>
     update(phones.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
   return (
-    <fieldset className="rounded-lg border border-gray-200 p-3">
-      <legend className="px-1 text-xs font-medium text-gray-700">
+    <fieldset className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+      <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
         {field.required && <span className="text-red-500"> *</span>}
       </legend>
       {phones.length === 0 && (
-        <p className="text-xs text-gray-500">Noch keine Nummer eingetragen.</p>
+        <p className="mt-2 text-sm text-gray-500">
+          Noch keine Nummer eingetragen.
+        </p>
       )}
       <ul className="space-y-2">
         {phones.map((p, idx) => (
           <li
             key={idx}
-            className="flex flex-col gap-2 rounded-md border border-gray-100 bg-gray-50 p-2 sm:flex-row sm:items-end"
+            className="moto-content-surface grid items-end gap-3 rounded-xl border p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_180px_auto_auto]"
           >
-            <label className="flex-1 text-xs">
-              <span className="block text-gray-600">Nummer</span>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">Nummer</span>
               <input
                 type="tel"
                 value={p.phone_number}
                 onChange={(e) => setRow(idx, { phone_number: e.target.value })}
-                className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
             </label>
-            <label className="text-xs sm:w-32">
-              <span className="block text-gray-600">Typ</span>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-700">Typ</span>
               <select
                 value={p.phone_type}
                 onChange={(e) =>
@@ -1060,7 +1094,7 @@ function PhoneListInput({ field, value, onChange }: CustomFieldInputProps) {
                     phone_type: e.target.value as PhoneEntry["phone_type"],
                   })
                 }
-                className="moto-select mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                className="moto-select mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
                 {(
                   Object.keys(PHONE_TYPE_LABELS) as PhoneEntry["phone_type"][]
@@ -1071,29 +1105,27 @@ function PhoneListInput({ field, value, onChange }: CustomFieldInputProps) {
                 ))}
               </select>
             </label>
-            <label className="flex items-center gap-1.5 text-xs text-gray-600">
-              <input
-                type="radio"
-                name={`${field.key}-primary`}
-                checked={Boolean(p.is_primary)}
-                onChange={() =>
-                  update(
-                    phones.map((row, i) => ({
-                      ...row,
-                      is_primary: i === idx,
-                    })),
-                  )
-                }
-              />
-              Hauptnummer
-            </label>
+            <StructuredToggle
+              checked={Boolean(p.is_primary)}
+              onChange={() =>
+                update(
+                  phones.map((row, i) => ({
+                    ...row,
+                    is_primary: i === idx,
+                  })),
+                )
+              }
+              label="Hauptnummer"
+              name={`${field.key}-primary`}
+              type="radio"
+            />
             <button
               type="button"
               onClick={() => update(phones.filter((_, i) => i !== idx))}
-              className="text-xs text-[#CC2626] hover:underline"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
               aria-label="Nummer entfernen"
             >
-              Entfernen
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
             </button>
           </li>
         ))}
@@ -1106,9 +1138,10 @@ function PhoneListInput({ field, value, onChange }: CustomFieldInputProps) {
             { phone_number: "", phone_type: "mobile" } satisfies PhoneEntry,
           ])
         }
-        className="mt-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+        className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
-        + Telefonnummer hinzufügen
+        <Plus className="h-4 w-4" aria-hidden="true" />
+        Telefonnummer hinzufügen
       </button>
     </fieldset>
   );
@@ -1201,13 +1234,13 @@ function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
   const setRow = (idx: number, patch: Partial<ContactEntryValue>) =>
     update(contacts.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
   return (
-    <fieldset className="rounded-lg border border-gray-200 p-3">
-      <legend className="px-1 text-xs font-medium text-gray-700">
+    <fieldset className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+      <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
         {field.required && <span className="text-red-500"> *</span>}
       </legend>
       {contacts.length === 0 && (
-        <p className="text-xs text-gray-500">
+        <p className="mt-2 text-sm text-gray-500">
           Noch kein zusätzlicher Kontakt eingetragen.
         </p>
       )}
@@ -1215,29 +1248,33 @@ function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
         {contacts.map((c, idx) => (
           <li
             key={idx}
-            className="rounded-md border border-gray-200 bg-gray-50 p-3"
+            className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4"
           >
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <label className="text-xs">
-                <span className="block text-gray-600">Vorname</span>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">
+                  Vorname
+                </span>
                 <input
                   type="text"
                   value={c.first_name}
                   onChange={(e) => setRow(idx, { first_name: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 />
               </label>
-              <label className="text-xs">
-                <span className="block text-gray-600">Nachname</span>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">
+                  Nachname
+                </span>
                 <input
                   type="text"
                   value={c.last_name}
                   onChange={(e) => setRow(idx, { last_name: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 />
               </label>
-              <label className="text-xs">
-                <span className="block text-gray-600">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">
                   Beziehung (z. B. Oma, Onkel, Nachbarin)
                 </span>
                 <input
@@ -1246,16 +1283,18 @@ function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
                   onChange={(e) =>
                     setRow(idx, { relationship_type: e.target.value })
                   }
-                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 />
               </label>
-              <label className="text-xs">
-                <span className="block text-gray-600">E-Mail (optional)</span>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">
+                  E-Mail (optional)
+                </span>
                 <input
                   type="email"
                   value={c.email ?? ""}
                   onChange={(e) => setRow(idx, { email: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 />
               </label>
             </div>
@@ -1278,32 +1317,27 @@ function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
               />
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-700">
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="checkbox"
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <StructuredToggle
                   checked={Boolean(c.can_pickup)}
-                  onChange={(e) =>
-                    setRow(idx, { can_pickup: e.target.checked })
-                  }
+                  onChange={(checked) => setRow(idx, { can_pickup: checked })}
+                  label="Abholberechtigt"
                 />
-                Abholberechtigt
-              </label>
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="checkbox"
+                <StructuredToggle
                   checked={Boolean(c.is_emergency_contact)}
-                  onChange={(e) =>
-                    setRow(idx, { is_emergency_contact: e.target.checked })
+                  onChange={(checked) =>
+                    setRow(idx, { is_emergency_contact: checked })
                   }
+                  label="Notfallkontakt"
                 />
-                Notfallkontakt
-              </label>
+              </div>
               <button
                 type="button"
                 onClick={() => update(contacts.filter((_, i) => i !== idx))}
-                className="ml-auto text-xs text-[#CC2626] hover:underline"
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#FF3130]/20 bg-white px-3 text-sm font-medium text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
               >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Kontakt entfernen
               </button>
             </div>
@@ -1313,11 +1347,57 @@ function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
       <button
         type="button"
         onClick={() => update([...contacts, blankContact()])}
-        className="mt-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+        className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
-        + Kontakt hinzufügen
+        <Plus className="h-4 w-4" aria-hidden="true" />
+        Kontakt hinzufügen
       </button>
     </fieldset>
+  );
+}
+
+function StructuredToggle({
+  checked,
+  label,
+  name,
+  onChange,
+  type = "checkbox",
+}: Readonly<{
+  checked: boolean;
+  label: string;
+  name?: string;
+  onChange: (checked: boolean) => void;
+  type?: "checkbox" | "radio";
+}>) {
+  return (
+    <label
+      className={`flex h-9 cursor-pointer items-center gap-2.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+        checked
+          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10 text-gray-900"
+          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+      }`}
+    >
+      <input
+        type={type}
+        name={name}
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="sr-only"
+      />
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center border ${
+          type === "radio" ? "rounded-full" : "rounded-md"
+        } ${
+          checked
+            ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+            : "border-gray-300 bg-white"
+        }`}
+        aria-hidden="true"
+      >
+        {checked ? <Check className="h-3.5 w-3.5" /> : null}
+      </span>
+      {label}
+    </label>
   );
 }
 

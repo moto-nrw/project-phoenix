@@ -74,7 +74,7 @@ export default function EnrollPhasePickerPage() {
       <PublicEnrollmentPageShell>
         <div className="flex min-h-[70vh] items-center justify-center">
           <div className="moto-content-surface rounded-2xl border px-5 py-4 text-sm font-medium text-gray-600 shadow-sm">
-            Anmeldung wird geladen...
+            Anmeldung wird geladen…
           </div>
         </div>
       </PublicEnrollmentPageShell>
@@ -105,13 +105,13 @@ export default function EnrollPhasePickerPage() {
               <p className="text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
                 Anmeldung starten
               </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
                 Wofür möchten Sie Ihr Kind anmelden?
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
-                Wählen Sie zuerst den passenden Zeitraum. Danach füllen Sie das
-                Formular aus und erhalten einen Link, über den Sie den Status
-                der Anmeldung ansehen können.
+                Wählen Sie den Zeitraum aus, zu dem Ihr Kind betreut werden
+                soll. Im nächsten Schritt erfassen Sie die Kontaktdaten, die
+                Angaben zum Kind und die gewünschten Betreuungsangebote.
               </p>
             </div>
 
@@ -119,8 +119,8 @@ export default function EnrollPhasePickerPage() {
               {!phases || phases.length === 0 ? (
                 <div className="rounded-2xl border border-[#F78C10]/20 bg-[#F78C10]/10 p-5 text-sm leading-6 text-[#9A570A]">
                   {enrollmentDisabled
-                    ? "Die Online-Anmeldung ist aktuell nicht freigeschaltet. Bitte wenden Sie sich an die OGS."
-                    : "Aktuell ist keine Anmeldephase geöffnet. Bitte schauen Sie später wieder vorbei oder wenden Sie sich an die OGS."}
+                    ? "Die Online-Anmeldung ist aktuell nicht freigeschaltet. Bitte wenden Sie sich an die OGS, wenn Sie eine Anmeldung abgeben möchten."
+                    : "Aktuell ist keine Anmeldephase geöffnet. Bitte schauen Sie später wieder vorbei oder wenden Sie sich an die OGS, wenn Sie eine Frist erwartet haben."}
                 </div>
               ) : (
                 <ul className="space-y-3">
@@ -128,7 +128,7 @@ export default function EnrollPhasePickerPage() {
                     <li key={phase.id}>
                       <Link
                         href={`/enroll/${encodeURIComponent(phase.id)}`}
-                        className="group moto-content-surface flex flex-col gap-4 rounded-2xl border p-5 text-left shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between"
+                        className="group moto-content-surface flex flex-col gap-4 rounded-xl border p-4 text-left shadow-sm transition-[border-color,background-color,box-shadow,transform] duration-150 hover:border-gray-300 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:p-5 md:hover:-translate-y-0.5"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -143,7 +143,7 @@ export default function EnrollPhasePickerPage() {
                               </span>
                             )}
                           </div>
-                          <h2 className="mt-3 text-xl font-semibold text-gray-900">
+                          <h2 className="mt-3 text-lg font-semibold break-words text-gray-900 sm:text-xl">
                             {phase.name}
                           </h2>
                           <p className="mt-1 text-sm text-gray-600">
@@ -152,7 +152,7 @@ export default function EnrollPhasePickerPage() {
                             {formatDate(phase.service_end_date)}
                           </p>
                         </div>
-                        <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white transition-colors group-hover:bg-gray-800">
+                        <span className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white transition-colors group-hover:bg-gray-800 sm:w-auto">
                           Anmeldung starten
                         </span>
                       </Link>
@@ -167,24 +167,26 @@ export default function EnrollPhasePickerPage() {
             <div className="space-y-4 lg:sticky lg:top-8">
               <PublicInfoCard
                 icon={<CalendarDays className="h-5 w-5" />}
-                title="Zeitraum wählen"
+                title="Angebot wählen"
               >
-                Jede Anmeldung gehört zu einer Anmeldephase, zum Beispiel einem
-                Schuljahr oder einer Ferienbetreuung.
+                Wählen Sie das passende Betreuungsangebot für Ihr Kind. Prüfen
+                Sie dabei den Betreuungszeitraum und die Anmeldefrist.
               </PublicInfoCard>
               <PublicInfoCard
                 icon={<Check className="h-5 w-5" />}
                 title="Formular absenden"
               >
-                Sie geben Ihre Kontaktdaten, die Angaben zum Kind und die
-                gewünschten Betreuungsangebote an.
+                Halten Sie Kontaktdaten, Geburtsdatum, Klassenstufe und
+                gewünschte Betreuungsangebote bereit. Pflichtfelder sind im
+                Formular markiert.
               </PublicInfoCard>
               <PublicInfoCard
                 icon={<ShieldCheck className="h-5 w-5" />}
                 title="Status verfolgen"
               >
-                Nach dem Absenden erhalten Sie einen persönlichen Status-Link
-                für Ihre Anmeldung.
+                Nach dem Absenden öffnet sich Ihre Statusseite. Speichern Sie
+                den Link oder die Bestätigungs-E-Mail, damit Sie später wieder
+                darauf zugreifen können.
               </PublicInfoCard>
             </div>
           </aside>

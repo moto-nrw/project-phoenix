@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -22,7 +23,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Guardian invitation operation names — used in AuthError wrapping for callers
+// Guardian invitation operation names, used in AuthError wrapping for callers
 // that match on Op.
 const (
 	opGuardianInviteCreate   = "create guardian invitation"
@@ -46,6 +47,9 @@ const guardianTokenExpiryFallback = 48 * time.Hour
 // should configure the registry setting per tenant; the env var stays for
 // dev parity.
 const guardianTokenEnvVar = "GUARDIAN_INVITATION_TOKEN_EXPIRY_HOURS"
+
+const schoolLogoURLKey = "logoUrl"
+const schoolLoginImageURLKey = "loginImageUrl"
 
 // OutboxEnqueuer is the narrow contract the guardian invitation service
 // needs from the platform outbox. Defined here so services/auth doesn't
@@ -101,7 +105,7 @@ type GuardianInvitationServiceConfig struct {
 
 // EnrollmentBackfiller is the narrow contract the accept flow needs
 // from the parent enrollment repo. Defined here so this package
-// doesn't take a hard dependency on models/parent — any repo that
+// doesn't take a hard dependency on models/parent. Any repo that
 // satisfies this method shape works.
 type EnrollmentBackfiller interface {
 	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
@@ -251,7 +255,7 @@ func (s *guardianInvitationService) Create(ctx context.Context, req GuardianInvi
 }
 
 // Validate returns the public-safe view of an invitation if its token is
-// still usable. Public route — caller is responsible for using WithAdminTx.
+// still usable. Public route, caller is responsible for using WithAdminTx.
 func (s *guardianInvitationService) Validate(ctx context.Context, token string) (*GuardianInvitationValidation, error) {
 	invitation, err := s.fetchValidInvitation(ctx, token)
 	if err != nil {
@@ -271,12 +275,44 @@ func (s *guardianInvitationService) Validate(ctx context.Context, token string) 
 	if profile.Email != nil {
 		result.Email = strings.TrimSpace(*profile.Email)
 	}
+	s.applySchoolBranding(ctx, invitation.TenantID, result)
 	return result, nil
+}
+
+func (s *guardianInvitationService) applySchoolBranding(ctx context.Context, tenantID int64, result *GuardianInvitationValidation) {
+	if tenantID <= 0 || s.schoolRepo == nil || result == nil {
+		return
+	}
+	school, err := s.schoolRepo.FindByID(ctx, tenantID)
+	if err != nil || school == nil || school.IsDeleted() {
+		return
+	}
+	result.SchoolName = strings.TrimSpace(school.Name)
+	result.TenantSlug = strings.TrimSpace(school.Slug)
+	result.SchoolLogoURL = schoolLogoURLFromSettings(school.Settings)
+}
+
+func schoolLogoURLFromSettings(settingsJSON string) string {
+	settingsJSON = strings.TrimSpace(settingsJSON)
+	if settingsJSON == "" {
+		return ""
+	}
+	var settings map[string]any
+	if err := json.Unmarshal([]byte(settingsJSON), &settings); err != nil {
+		return ""
+	}
+	for _, key := range []string{schoolLogoURLKey, schoolLoginImageURLKey} {
+		value, ok := settings[key].(string)
+		if ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 // Accept consumes a token, creating the auth.accounts row, account_tenants
 // mapping, and guardian role assignment. Updates the GuardianProfile to
-// link to the new account. Public route — caller wraps in WithAdminTx.
+// link to the new account. Public route, caller wraps in WithAdminTx.
 func (s *guardianInvitationService) Accept(ctx context.Context, token string, data GuardianInvitationAcceptData) (*authModels.Account, error) {
 	if data.Password != data.ConfirmPassword {
 		return nil, &AuthError{Op: opGuardianInviteAccept, Err: ErrPasswordMismatch}
@@ -344,7 +380,7 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 
 	// Backfill guardian_account_id on every pre-account
 	// enrollment.requests row matching this email (case-insensitive,
-	// cross-tenant). Best-effort — the accept itself stays committed
+	// cross-tenant). Best-effort, the accept itself stays committed
 	// even if this fails. Runs in its own admin tx; the parent's
 	// /me/enrollments query reads via guardian_account_id, so without
 	// this step legacy submissions wouldn't surface in the dashboard.
@@ -374,7 +410,7 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 }
 
 // createOrFindAccount returns the existing auth.accounts row for this email
-// (cross-tenant — guardians may be invited to multiple schools) or creates a
+// (cross-tenant, guardians may be invited to multiple schools) or creates a
 // new one. When reusing an existing account we update the password hash so
 // the parent gets to set their own.
 func (s *guardianInvitationService) createOrFindAccount(ctx context.Context, emailAddress, passwordHash string) (*authModels.Account, error) {
@@ -436,7 +472,7 @@ func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, pr
 }
 
 // Resend invalidates the email-tracking columns and re-dispatches a fresh
-// email. Does NOT issue a new token — same token, same expiry. If the
+// email. Does NOT issue a new token, same token, same expiry. If the
 // invitation has expired, callers should issue a new one via Create.
 func (s *guardianInvitationService) Resend(ctx context.Context, invitationID int64, actorAccountID int64) error {
 	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
@@ -512,7 +548,7 @@ func (s *guardianInvitationService) fetchValidInvitation(ctx context.Context, to
 }
 
 // lookupSchoolName resolves the tenant display name for inclusion in the
-// invitation email subject. Best-effort — empty string on failure.
+// invitation email subject. Best-effort, empty string on failure.
 func (s *guardianInvitationService) lookupSchoolName(ctx context.Context, tenantID int64) string {
 	if tenantID == 0 || s.schoolRepo == nil {
 		return ""
@@ -619,7 +655,7 @@ func (s *guardianInvitationService) dispatchEmail(invitation *authModels.Guardia
 
 	subject := "Einladung zum Eltern-Portal"
 	if schoolName != "" {
-		subject = fmt.Sprintf("Einladung zum Eltern-Portal – %s", schoolName)
+		subject = fmt.Sprintf("Einladung zum Eltern-Portal: %s", schoolName)
 	}
 
 	recipientEmail := ""
@@ -683,7 +719,7 @@ func (s *guardianInvitationService) persistDeliveryResult(ctx context.Context, m
 
 	updateCtx := ctx
 	if s.db != nil {
-		// Persist via admin tx — the dispatcher's callback runs detached from
+		// Persist via admin tx, the dispatcher's callback runs detached from
 		// the request context, so it has no tenant transaction available.
 		err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
 			return s.invitationRepo.UpdateEmailStatus(adminCtx, meta.ReferenceID, sentAt, errText, retryCount)

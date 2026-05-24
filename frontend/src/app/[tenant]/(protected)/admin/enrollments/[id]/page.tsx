@@ -16,7 +16,7 @@ export default function AdminEnrollmentDetailPage({ params }: PageProps) {
   if (!isReady) return <Loading fullPage={false} />;
 
   return (
-    <div className="w-full max-w-5xl">
+    <div className="w-full">
       <MobileBackButton />
       <AdminEnrollmentDetail requestId={id} />
     </div>

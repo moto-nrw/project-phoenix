@@ -83,12 +83,13 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
             <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
               Formular ausfüllen
             </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
               {phase?.name ?? "Anmeldung"}
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
-              Bitte füllen Sie die Angaben vollständig aus. Nach dem Absenden
-              erhalten Sie eine Bestätigung mit einem persönlichen Status-Link.
+              Bitte füllen Sie alle Pflichtfelder aus. Wenn Sie mehrere Kinder
+              anmelden möchten, können Sie sie direkt in diesem Formular
+              hinzufügen.
             </p>
           </div>
 
@@ -99,7 +100,7 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
           />
         </section>
 
-        <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
+        <aside className="hidden space-y-4 lg:sticky lg:top-8 lg:block lg:self-start">
           <section className="moto-content-surface rounded-3xl border p-5 shadow-sm">
             <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
               Ihre Anmeldung
@@ -140,23 +141,24 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
             icon={<CalendarDays className="h-5 w-5" />}
             title="Ein Formular pro Zeitraum"
           >
-            Wenn Sie mehrere Kinder anmelden, können Sie sie in diesem Formular
-            gemeinsam erfassen.
+            Diese Anmeldung gilt nur für den angezeigten Betreuungszeitraum. Für
+            einen anderen Zeitraum starten Sie bitte eine weitere Anmeldung.
           </PublicInfoCard>
           <PublicInfoCard icon={<Mail className="h-5 w-5" />} title="E-Mail">
-            Die E-Mail-Adresse wird für Bestätigung und Statusbenachrichtigung
-            verwendet.
+            Verwenden Sie eine E-Mail-Adresse, die Sie zuverlässig erreichen.
+            Dorthin gehen Rückfragen, Entscheidungen und der Status-Link.
           </PublicInfoCard>
           <PublicInfoCard
             icon={<ShieldCheck className="h-5 w-5" />}
             title="Prüfung durch die OGS"
           >
-            Nach dem Absenden prüft die OGS Ihre Angaben und meldet sich bei
-            Rückfragen.
+            Die OGS prüft Ihre Angaben nach dem Absenden. Eine Online-Anmeldung
+            ist deshalb noch keine endgültige Platzzusage.
           </PublicInfoCard>
           <PublicInfoCard icon={<Check className="h-5 w-5" />} title="Status">
-            Den aktuellen Stand sehen Sie später über den persönlichen
-            Status-Link.
+            Nach dem Absenden wechseln Sie automatisch zur Statusseite. Dort
+            sehen Sie, ob die Anmeldung eingegangen ist, geprüft wird oder
+            entschieden wurde.
           </PublicInfoCard>
         </aside>
       </div>

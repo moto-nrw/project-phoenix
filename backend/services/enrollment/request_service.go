@@ -672,8 +672,8 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 		return
 	}
 
-	schoolName := s.lookupSchoolName(ctx, tenantID)
-	logoURL := s.parentsURL + "/images/moto_transparent.png"
+	schoolName, logoURL := emailBrandForSchool(ctx, s.schoolRepo, tenantID, s.parentsURL)
+	footerLogoURL := motoLogoURL(s.parentsURL)
 	childNames := make([]string, 0, len(children))
 	for _, c := range children {
 		childNames = append(childNames, fmt.Sprintf("%s %s", c.FirstName, c.LastName))
@@ -686,6 +686,7 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 		EnrollmentPayloadSchoolName:        schoolName,
 		EnrollmentPayloadStatusURL:         statusURL,
 		EnrollmentPayloadLogoURL:           logoURL,
+		EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 		EnrollmentPayloadChildNames:        childNames,
 		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
 	}
@@ -708,6 +709,7 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 			EnrollmentPayloadSchoolName:        schoolName,
 			EnrollmentPayloadAdminURL:          fmt.Sprintf("%s/enrollments/%d", s.frontendURL, request.ID),
 			EnrollmentPayloadLogoURL:           logoURL,
+			EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 			EnrollmentPayloadChildNames:        childNames,
 			EnrollmentPayloadRecipientEmail:    admin,
 		}
@@ -914,17 +916,6 @@ func (s *requestService) resolveAdminEmails(ctx context.Context) []string {
 		out = append(out, trimmed)
 	}
 	return out
-}
-
-func (s *requestService) lookupSchoolName(ctx context.Context, tenantID int64) string {
-	if s.schoolRepo == nil || tenantID == 0 {
-		return ""
-	}
-	school, err := s.schoolRepo.FindByID(ctx, tenantID)
-	if err != nil || school == nil || school.IsDeleted() {
-		return ""
-	}
-	return school.Name
 }
 
 // applyCapacityOverflow inspects each selected offering's capacity vs

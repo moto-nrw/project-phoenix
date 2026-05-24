@@ -1,0 +1,205 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Eye, Info, ShieldCheck } from "lucide-react";
+import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import {
+  PublicEnrollmentBackLink,
+  PublicEnrollmentBrand,
+  PublicEnrollmentPageShell,
+  PublicEnrollmentSteps,
+  PublicInfoCard,
+} from "~/components/enrollment/public-enrollment-shell";
+import { useTenant } from "~/components/tenant/tenant-provider";
+import {
+  fetchSchemaById,
+  type FormSchema,
+  type PublicFormSchema,
+} from "~/lib/enrollment-form-schema-api";
+import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
+
+export default function EnrollmentPreviewPage() {
+  const searchParams = useSearchParams();
+  const schemaId = searchParams.get("schemaId");
+  const isBasePreview = searchParams.get("base") === "1";
+  const { tenant } = useTenant();
+  const [schema, setSchema] = useState<FormSchema | null>(null);
+  const [phases, setPhases] = useState<Phase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!schemaId) {
+        if (!isBasePreview) {
+          setError("Keine Formularvorlage ausgewählt.");
+          setLoading(false);
+          return;
+        }
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const [schemaResult, phaseResult] = await Promise.all([
+          schemaId ? fetchSchemaById(schemaId) : Promise.resolve(null),
+          listPhases().catch(() => []),
+        ]);
+        if (cancelled) return;
+        setSchema(schemaResult);
+        setPhases(phaseResult);
+      } catch (err) {
+        if (cancelled) return;
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Die Vorschau konnte nicht geladen werden.",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [isBasePreview, schemaId]);
+
+  const previewSchema = useMemo<PublicFormSchema | null>(() => {
+    if (!schema) return null;
+    return {
+      id: schema.id,
+      version: schema.version,
+      fields: schema.fields,
+    };
+  }, [schema]);
+
+  const assignedPhases = useMemo(() => {
+    if (schema) {
+      return phases.filter((phase) => phase.form_schema_id === schema.id);
+    }
+    if (isBasePreview) {
+      return phases.filter((phase) => !phase.form_schema_id);
+    }
+    return [];
+  }, [isBasePreview, phases, schema]);
+
+  const activeAssignedPhaseCount = assignedPhases.filter(
+    (phase) => phase.is_active,
+  ).length;
+  const previewStatus =
+    activeAssignedPhaseCount > 0
+      ? {
+          label: "Aktiv in Anmeldephase",
+          hint: `Diese Vorlage wird in ${activeAssignedPhaseCount} aktiver Anmeldephase verwendet.`,
+          className: "bg-[#83CD2D]/10 text-[#5F9F20]",
+          dotClassName: "bg-[#83CD2D]",
+        }
+      : assignedPhases.length > 0
+        ? {
+            label: "In Phase verwendet",
+            hint: `Diese Vorlage ist in ${assignedPhases.length} Anmeldephase ausgewählt.`,
+            className: "bg-[#83CD2D]/10 text-[#5F9F20]",
+            dotClassName: "bg-[#83CD2D]",
+          }
+        : {
+            label: "Nicht live",
+            hint: "Diese Formularvorschau ist nicht an eine aktive Anmeldephase gebunden.",
+            className: "bg-gray-100 text-gray-600",
+            dotClassName: "bg-gray-300",
+          };
+
+  return (
+    <PublicEnrollmentPageShell>
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <PublicEnrollmentBrand tenant={tenant} />
+        <PublicEnrollmentSteps current="form" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <section className="space-y-5">
+          <div className="moto-content-surface rounded-3xl border p-5 shadow-sm sm:p-8">
+            <PublicEnrollmentBackLink href="/enrollment-form">
+              Zurück zu Anmeldeformularen
+            </PublicEnrollmentBackLink>
+            <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+              Formularvorschau
+            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              {schema?.name ?? "Basisformular"}
+            </h1>
+            <span
+              className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ${previewStatus.className}`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${previewStatus.dotClassName}`}
+                aria-hidden="true"
+              />
+              {previewStatus.label}
+            </span>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
+              Diese Ansicht zeigt nur das Formular mit Basisfeldern und
+              Zusatzfragen. Zeitraum und Betreuungsangebote gehören zur
+              Elternansicht einer Anmeldephase.
+            </p>
+          </div>
+
+          {loading ? (
+            <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
+              Vorschau wird geladen…
+            </div>
+          ) : error ? (
+            <div className="moto-content-surface rounded-3xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-6 text-sm font-medium text-[#9F1F1E] shadow-sm">
+              {error}
+            </div>
+          ) : (
+            <EnrollmentForm
+              gradeLevelMax={4}
+              onSubmitted={() => undefined}
+              previewMode
+              previewSchema={previewSchema}
+              skipCaptcha
+            />
+          )}
+        </section>
+
+        <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
+          <section className="moto-content-surface rounded-3xl border p-5 shadow-sm">
+            <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+              Vorschau
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-gray-900">
+              {previewStatus.label}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-gray-600">
+              {previewStatus.hint} Diese Seite dient nur zur Prüfung des
+              Formulars.
+            </p>
+          </section>
+
+          <PublicInfoCard
+            icon={<Eye className="h-5 w-5" />}
+            title="Direktes Formular"
+          >
+            Du siehst hier das Formular selbst, nicht die öffentliche
+            Auswahlseite für Eltern.
+          </PublicInfoCard>
+          <PublicInfoCard
+            icon={<Info className="h-5 w-5" />}
+            title="Ohne Phase"
+          >
+            Zeitraum und Betreuungsangebote werden erst in der
+            Live-Elternansicht oder in einer Phasenvorschau sichtbar.
+          </PublicInfoCard>
+          <PublicInfoCard
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="Sichere Vorschau"
+          >
+            Der Absenden-Button ist in dieser Ansicht deaktiviert.
+          </PublicInfoCard>
+        </aside>
+      </div>
+    </PublicEnrollmentPageShell>
+  );
+}

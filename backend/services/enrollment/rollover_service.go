@@ -208,6 +208,7 @@ type rolloverService struct {
 	requestRepo              enrollmentModels.RequestRepository
 	requestChildRepo         enrollmentModels.RequestChildRepository
 	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	schoolRepo               platformModels.SchoolRepository
 	outboxEnqueuer           OutboxEnqueuer
 	settings                 RequestSettingsResolver
 	// Used only by RunDeadlineWorker when a phase has
@@ -226,6 +227,7 @@ type RolloverServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	SchoolRepo               platformModels.SchoolRepository
 	OutboxEnqueuer           OutboxEnqueuer
 	Settings                 RequestSettingsResolver
 	// DecisionService is consumed by RunDeadlineWorker only when a
@@ -250,6 +252,7 @@ func NewRolloverService(cfg RolloverServiceConfig) RolloverService {
 		requestRepo:              cfg.RequestRepo,
 		requestChildRepo:         cfg.RequestChildRepo,
 		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
+		schoolRepo:               cfg.SchoolRepo,
 		outboxEnqueuer:           cfg.OutboxEnqueuer,
 		settings:                 cfg.Settings,
 		decisionService:          cfg.DecisionService,
@@ -515,7 +518,8 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enr
 		kind = platformModels.EmailKindEnrollmentRolloverOptIn
 	}
 
-	logoURL := s.parentsURL + "/images/moto_transparent.png"
+	schoolName, logoURL := emailBrandForSchool(ctx, s.schoolRepo, req.TenantID, s.parentsURL)
+	footerLogoURL := motoLogoURL(s.parentsURL)
 	deadlineStr := ""
 	if newPhase.RolloverDeadline != nil {
 		deadlineStr = newPhase.RolloverDeadline.Format("02.01.2006")
@@ -525,10 +529,11 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enr
 		EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
 		EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
 		EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		EnrollmentPayloadSchoolName:        "", // resolved later if needed
+		EnrollmentPayloadSchoolName:        schoolName,
 		EnrollmentPayloadPhaseName:         newPhase.Name,
 		EnrollmentPayloadStatusURL:         s.parentStatusURL(req.StatusToken),
 		EnrollmentPayloadLogoURL:           logoURL,
+		EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 		EnrollmentPayloadChildNames:        childNames,
 		EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
 		EnrollmentPayloadRolloverDeadline:  deadlineStr,

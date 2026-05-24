@@ -2,9 +2,7 @@
 {{template "header" .}}
 
 <div class="email-body">
-    <div class="brand">
-        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
-    </div>
+    {{template "school-brand" .}}
     <h1>Anmeldung bestätigt</h1>
 
     <p>Sehr geehrte/r {{.GuardianFirstName}} {{.GuardianLastName}},</p>
@@ -12,7 +10,7 @@
     <p>wir freuen uns, Ihnen mitteilen zu können, dass die Anmeldung erfolgreich bestätigt wurde.{{if .PhaseName}} Phase: <strong>{{.PhaseName}}</strong>.{{end}}</p>
 
     {{if .ChildNames}}
-    <div class="highlight-box" style="background-color: #ecfdf5; border-left: 4px solid #83CD2D;">
+    <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{if eq (len .ChildNames) 1}}Bestätigtes Kind:{{else}}Bestätigte Kinder:{{end}}</strong></p>
         <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
             {{range .ChildNames}}

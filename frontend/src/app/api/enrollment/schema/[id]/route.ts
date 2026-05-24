@@ -93,3 +93,41 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  context: {
+    params: Promise<Record<string, string | string[] | undefined>>;
+  },
+) {
+  const id = await resolveId(context);
+  if (!id) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
+  const authHeader = await bearerHeader();
+  if (!authHeader) {
+    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  }
+  try {
+    const response = await fetch(
+      `${getServerApiUrl()}/api/enrollment/schema/${id}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: authHeader },
+      },
+    );
+    if (response.status === 204) {
+      return new NextResponse(null, { status: 204 });
+    }
+    const payload = await response.json().catch(() => ({}));
+    return NextResponse.json(payload, { status: response.status });
+  } catch (error) {
+    logger.error("schema_delete_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}

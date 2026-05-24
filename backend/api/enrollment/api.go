@@ -98,6 +98,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("config:read")).Get("/{id}", rs.getSchemaByID)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.publishSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Put("/{id}", rs.updateSchema)
+			r.With(authorize.RequiresPermission("config:manage")).Delete("/{id}", rs.deleteSchema)
 		})
 
 		r.Route("/care-offerings", func(r chi.Router) {

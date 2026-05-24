@@ -90,4 +90,9 @@ type RequestRepository interface {
 	// given phase. The phase delete path uses this to refuse a destructive
 	// delete and surface "deaktivieren statt löschen" to the admin.
 	ExistsByPhaseID(ctx context.Context, phaseID int64) (bool, error)
+
+	// ExistsBySchemaID reports whether any request row references the
+	// given schema version. The schema delete path uses this to preserve
+	// historical submissions.
+	ExistsBySchemaID(ctx context.Context, schemaID int64) (bool, error)
 }

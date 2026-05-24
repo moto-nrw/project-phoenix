@@ -132,7 +132,7 @@ func (r *RequestChildRepository) ListByPhaseAndStatuses(ctx context.Context, pha
 		ModelTableExpr(requestChildTableExpr).
 		Join(`INNER JOIN enrollment.requests AS "request" ON "request".id = "request_child".request_id`).
 		Where(`"request".phase_id = ?`, phaseID).
-		Where(`"request_child".status IN (?)`, bun.In(statuses)).
+		Where(`"request_child".status IN (?)`, bun.List(statuses)).
 		OrderExpr(`"request_child".request_id, "request_child".sort_order, "request_child".id`).
 		Scan(ctx)
 	if err != nil {

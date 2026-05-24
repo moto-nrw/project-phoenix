@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ClipboardList,
   Eye,
+  ExternalLink,
   FileText,
   LockKeyhole,
   type LucideIcon,
@@ -240,7 +241,10 @@ function EnrollmentPhaseOverview({
   }
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+    <section
+      id="enrollment-phase-overview"
+      className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
@@ -254,12 +258,23 @@ function EnrollmentPhaseOverview({
             zu bearbeiten.
           </p>
         </div>
-        <Link
-          href="/enrollment-phases"
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          Anmeldephasen verwalten
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="/enroll"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            Elternansicht öffnen
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </a>
+          <Link
+            href="/enrollment-phases"
+            className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            Anmeldephasen verwalten
+          </Link>
+        </div>
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -288,12 +303,23 @@ function EnrollmentPhaseOverview({
                     {formatPhaseDate(phase.service_end_date)}
                   </p>
                 </div>
-                <Link
-                  href={`/admin/enrollments/phases/${phase.id}`}
-                  className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                >
-                  Anmeldungen ansehen
-                </Link>
+                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                  <a
+                    href={`/enroll/${encodeURIComponent(phase.id)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  >
+                    Phase ansehen
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                  </a>
+                  <Link
+                    href={`/admin/enrollments/phases/${phase.id}`}
+                    className="inline-flex h-8 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  >
+                    Anmeldungen ansehen
+                  </Link>
+                </div>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2">
                 <PhaseStat label="Gesamt" value={stats.total} />
@@ -431,19 +457,21 @@ function EnrollmentSetupGuide({
     isStepComplete(step.status),
   ).length;
   const progressPercent = Math.round((completedSteps / steps.length) * 100);
+  const setupSummary = `${completedSteps} von ${steps.length} Schritten abgeschlossen`;
 
   const nextActionStep =
     steps.find((step) => step.status === "todo") ??
     steps.find((step) => step.status === "blocked") ??
     steps[steps.length - 1];
+  const contentExpanded = !setupComplete || expanded;
 
-  if (setupComplete && !expanded) {
-    return (
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+  return (
+    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      {setupComplete && (
         <button
           type="button"
-          onClick={() => setExpanded(true)}
-          aria-expanded={false}
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
           className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <span className="flex min-w-0 items-center gap-3.5">
@@ -456,7 +484,11 @@ function EnrollmentSetupGuide({
                 Einrichtung
               </span>
               <span className="mt-0.5 block text-base font-semibold text-gray-900">
-                Erste Schritte abgeschlossen
+                Online-Anmeldung eingerichtet
+              </span>
+              <span className="mt-0.5 block text-sm text-gray-500">
+                {setupSummary}. Für neue Zeiträume arbeitest du unten mit
+                Anmeldephasen.
               </span>
             </span>
           </span>
@@ -464,195 +496,189 @@ function EnrollmentSetupGuide({
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700"
             aria-hidden="true"
           >
-            <ChevronDown className="h-4 w-4" aria-hidden="true" />
-          </span>
-        </button>
-      </section>
-    );
-  }
-
-  return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-      {setupComplete && (
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          aria-expanded={true}
-          className="group flex w-full items-center justify-between gap-4 border-b border-gray-100 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <span className="flex min-w-0 items-center gap-3.5">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#83CD2D]"
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
               aria-hidden="true"
             />
-            <span className="min-w-0">
-              <span className="block text-xs font-medium tracking-wide text-gray-500 uppercase">
-                Einrichtung
-              </span>
-              <span className="mt-0.5 block text-base font-semibold text-gray-900">
-                Erste Schritte abgeschlossen
-              </span>
-            </span>
-          </span>
-          <span
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700"
-            aria-hidden="true"
-          >
-            <ChevronDown className="h-4 w-4 rotate-180" aria-hidden="true" />
           </span>
         </button>
       )}
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="p-4 sm:p-5">
-          <div className="border-b border-gray-100 pb-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Einrichtung
-                </p>
-                <h2 className="mt-1 text-base font-semibold text-gray-900">
-                  {setupComplete
-                    ? "Online-Anmeldung ist bereit"
-                    : "Online-Anmeldung vorbereiten"}
-                </h2>
-                <p className="mt-1 max-w-2xl text-sm text-gray-600">
-                  Starte hier, wenn du neue Halbjahresanmeldungen,
-                  Ferienbetreuung oder andere Anmeldezeiträume konfigurieren
-                  möchtest. Das Basisformular ist immer vorhanden.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 text-xs">
-                <StatusPill
-                  label={
-                    readyForPreview ? "Bereit für Test" : "In Vorbereitung"
-                  }
-                  tone={readyForPreview ? "success" : "neutral"}
-                />
-                <StatusPill
-                  label={`${requestCount} Anmeldungen`}
-                  tone={requestCount > 0 ? "info" : "neutral"}
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between gap-3 text-xs text-gray-500">
-                <span>
-                  {completedSteps} von {steps.length} Schritten erledigt
-                </span>
-                <span>{progressPercent}%</span>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-                <div
-                  className="h-full rounded-full bg-gray-900 transition-[width]"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <ol className="mt-2 divide-y divide-gray-100">
-            {steps.map((step) => {
-              const StepIcon = step.icon;
-              return (
-                <li key={step.title}>
-                  <Link
-                    href={step.href}
-                    className="group grid gap-3 py-3 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:grid-cols-[2.25rem_1fr_auto] sm:items-center sm:px-2"
-                  >
-                    <span
-                      className={`flex h-9 w-9 items-center justify-center rounded-full border ${getStepIconClass(step.status)}`}
-                      aria-hidden="true"
-                    >
-                      {isStepComplete(step.status) ? (
-                        <Check className="h-4 w-4" />
-                      ) : step.status === "blocked" ? (
-                        <LockKeyhole className="h-4 w-4" />
-                      ) : (
-                        <StepIcon className="h-4 w-4" />
-                      )}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-gray-900">
-                        {step.title}
-                      </span>
-                      <span className="mt-0.5 block text-sm text-gray-600">
-                        {step.description}
-                      </span>
-                    </span>
-                    <span className="flex flex-wrap items-center gap-2 sm:justify-end">
-                      <StepMeta label={step.meta} status={step.status} />
-                      <span className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-gray-700 transition-colors group-hover:bg-gray-100">
-                        {step.action}
-                        <ArrowRight className="h-3 w-3" aria-hidden="true" />
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-
-        <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-4 sm:p-5 lg:border-t-0 lg:border-l">
-          <div className="relative z-10 space-y-4">
-            <div>
-              <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Startpunkt
-              </p>
-              <h3 className="mt-1 text-base font-semibold text-gray-900">
-                {nextActionStep?.status === "blocked"
-                  ? "Voraussetzungen fehlen"
-                  : nextActionStep?.title}
-              </h3>
-              <p className="mt-1 text-sm text-gray-600">
-                {nextActionStep?.status === "blocked"
-                  ? "Lege zuerst eine aktive Anmeldephase und ein Betreuungsangebot an."
-                  : nextActionStep?.description}
-              </p>
-            </div>
-
-            {nextActionStep && (
-              <Link
-                href={nextActionStep.href}
-                className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                {nextActionStep.status === "blocked"
-                  ? "Setup prüfen"
-                  : nextActionStep.action}
-              </Link>
-            )}
-
-            <div className="moto-content-surface rounded-xl border p-3">
-              <p className="text-xs font-semibold text-gray-900">
-                Prozessstatus
-              </p>
-              <div className="mt-3 space-y-2">
-                {steps.map((step) => (
-                  <Link
-                    key={step.title}
-                    href={step.href}
-                    className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    <span className="min-w-0 truncate text-gray-700">
-                      {step.title}
-                    </span>
-                    <span
-                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${getStepDotClass(step.status)}`}
-                      aria-hidden="true"
+      <div
+        className="grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none"
+        style={{ gridTemplateRows: contentExpanded ? "1fr" : "0fr" }}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div
+            className={`h-px bg-gray-100 transition-opacity duration-150 ${setupComplete && expanded ? "opacity-100" : "opacity-0"}`}
+            aria-hidden="true"
+          />
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="p-4 sm:p-5">
+              <div className="border-b border-gray-100 pb-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                      Einrichtung
+                    </p>
+                    <h2 className="mt-1 text-base font-semibold text-gray-900">
+                      {setupComplete
+                        ? "Einrichtung abgeschlossen"
+                        : "Online-Anmeldung vorbereiten"}
+                    </h2>
+                    <p className="mt-1 max-w-2xl text-sm text-gray-600">
+                      {setupComplete
+                        ? "Die grundlegende Online-Anmeldung ist eingerichtet. Für neue Halbjahre, Ferienbetreuung oder andere Zeiträume legst du unten eine neue Anmeldephase an oder bearbeitest eine bestehende."
+                        : "Starte hier, wenn du neue Halbjahresanmeldungen, Ferienbetreuung oder andere Anmeldezeiträume konfigurieren möchtest. Das Basisformular ist immer vorhanden."}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <StatusPill
+                      label={
+                        readyForPreview ? "Eingerichtet" : "In Vorbereitung"
+                      }
+                      tone={readyForPreview ? "success" : "neutral"}
                     />
-                  </Link>
-                ))}
+                    <StatusPill
+                      label={`${requestCount} Anmeldungen`}
+                      tone={requestCount > 0 ? "info" : "neutral"}
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="flex items-center justify-between gap-3 text-xs text-gray-500">
+                    <span>
+                      {completedSteps} von {steps.length} Schritten erledigt
+                    </span>
+                    <span>{progressPercent}%</span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      className="h-full rounded-full bg-gray-900 transition-[width]"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                </div>
               </div>
+
+              <ol className="mt-2 divide-y divide-gray-100">
+                {steps.map((step) => {
+                  const StepIcon = step.icon;
+                  return (
+                    <li key={step.title}>
+                      <Link
+                        href={step.href}
+                        className="group grid gap-3 py-3 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:grid-cols-[2.25rem_1fr_auto] sm:items-center sm:px-2"
+                      >
+                        <span
+                          className={`flex h-9 w-9 items-center justify-center rounded-full border ${getStepIconClass(step.status)}`}
+                          aria-hidden="true"
+                        >
+                          {isStepComplete(step.status) ? (
+                            <Check className="h-4 w-4" />
+                          ) : step.status === "blocked" ? (
+                            <LockKeyhole className="h-4 w-4" />
+                          ) : (
+                            <StepIcon className="h-4 w-4" />
+                          )}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-gray-900">
+                            {step.title}
+                          </span>
+                          <span className="mt-0.5 block text-sm text-gray-600">
+                            {step.description}
+                          </span>
+                        </span>
+                        <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                          <StepMeta label={step.meta} status={step.status} />
+                          <span className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-gray-700 transition-colors group-hover:bg-gray-100">
+                            {step.action}
+                            <ArrowRight
+                              className="h-3 w-3"
+                              aria-hidden="true"
+                            />
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
 
-            <div className="text-xs leading-relaxed text-gray-500">
-              Für den Elternlink sind Aktivierung, Anmeldephase und
-              Betreuungsangebote entscheidend. Das Basisformular ist schon da.
-              Eigene Formularvorlagen musst du zusätzlich in der passenden
-              Anmeldephase auswählen.
-            </div>
+            <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-4 sm:p-5 lg:border-t-0 lg:border-l">
+              <div className="relative z-10 space-y-4">
+                <div>
+                  <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                    Startpunkt
+                  </p>
+                  <h3 className="mt-1 text-base font-semibold text-gray-900">
+                    {setupComplete
+                      ? "Mit Anmeldephasen arbeiten"
+                      : nextActionStep?.status === "blocked"
+                        ? "Voraussetzungen fehlen"
+                        : nextActionStep?.title}
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {setupComplete
+                      ? "Die Einrichtung bleibt als Referenz erhalten. Der laufende Alltag passiert unten in der Phasenübersicht."
+                      : nextActionStep?.status === "blocked"
+                        ? "Lege zuerst eine aktive Anmeldephase und ein Betreuungsangebot an."
+                        : nextActionStep?.description}
+                  </p>
+                </div>
+
+                {setupComplete ? (
+                  <a
+                    href="#enrollment-phase-overview"
+                    className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  >
+                    Zur Phasenübersicht
+                  </a>
+                ) : nextActionStep ? (
+                  <Link
+                    href={nextActionStep.href}
+                    className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  >
+                    {nextActionStep.status === "blocked"
+                      ? "Setup prüfen"
+                      : nextActionStep.action}
+                  </Link>
+                ) : null}
+
+                <div className="moto-content-surface rounded-xl border p-3">
+                  <p className="text-xs font-semibold text-gray-900">
+                    Prozessstatus
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {steps.map((step) => (
+                      <Link
+                        key={step.title}
+                        href={step.href}
+                        className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                      >
+                        <span className="min-w-0 truncate text-gray-700">
+                          {step.title}
+                        </span>
+                        <span
+                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${getStepDotClass(step.status)}`}
+                          aria-hidden="true"
+                        />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="text-xs leading-relaxed text-gray-500">
+                  Für den Elternlink sind Aktivierung, Anmeldephase und
+                  Betreuungsangebote entscheidend. Das Basisformular ist schon
+                  da. Eigene Formularvorlagen musst du zusätzlich in der
+                  passenden Anmeldephase auswählen.
+                </div>
+              </div>
+            </aside>
           </div>
-        </aside>
+        </div>
       </div>
     </section>
   );

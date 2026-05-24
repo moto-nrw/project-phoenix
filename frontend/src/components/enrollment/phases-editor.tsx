@@ -11,6 +11,7 @@ import {
   Check,
   ClipboardList,
   Clock3,
+  ExternalLink,
   FileText,
   MoreVertical,
   Pencil,
@@ -792,6 +793,19 @@ function PhaseActions({
         <Pencil className="h-4 w-4 text-gray-500" aria-hidden />
         Bearbeiten
       </button>
+
+      <a
+        href={`/enroll/${encodeURIComponent(phase.id)}`}
+        target="_blank"
+        rel="noreferrer"
+        role="menuitem"
+        tabIndex={0}
+        onClick={() => setOpen(false)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+      >
+        <ExternalLink className="h-4 w-4 text-gray-500" aria-hidden />
+        Phase ansehen
+      </a>
 
       <button
         type="button"

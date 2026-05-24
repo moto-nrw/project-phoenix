@@ -29,9 +29,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
+import { ConfirmationModal } from "~/components/ui/modal";
 import {
   blankField,
   createSchema,
+  deleteSchema,
   latestSchemasByName,
   listSchemas,
   updateSchema,
@@ -58,22 +60,21 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   contact_list: "Kontaktliste",
 };
 
-// Labels for the "Verknüpfung mit Stammdatenfeld" picker. Pre-filled
-// suggestions per target — admin can still rename the displayed
-// question; the target is what wires the value to the Student column
-// / association table at approval time.
+// Labels for the answer storage picker. Admins can still rename the
+// displayed question; the target decides whether the answer is copied
+// into student data, schedule data, or contacts at approval time.
 const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
-  "student.health_info": "Gesundheitsinformationen (→ Schüler·in)",
-  "student.extra_info": "Hinweise an die Betreuung (→ Schüler·in)",
-  "student.bus": "Buskind (→ Schüler·in)",
-  "student.pickup_status": "Abholregelung (→ Schüler·in)",
-  "schedule.pickup": "Abholzeiten (→ Stundenplan)",
-  "schedule.arrival": "Ankunftszeiten (→ Stundenplan)",
+  "student.health_info": "Gesundheitsinformationen beim Kind speichern",
+  "student.extra_info": "Hinweise für die Betreuung beim Kind speichern",
+  "student.bus": "Buskind beim Kind speichern",
+  "student.pickup_status": "Abholregelung beim Kind speichern",
+  "schedule.pickup": "Abholzeiten im Stundenplan speichern",
+  "schedule.arrival": "Ankunftszeiten im Stundenplan speichern",
   "student.contacts":
-    "Weitere Kontakte / Abholberechtigte / Notfallkontakte (→ Stammdaten)",
+    "Weitere Kontakte, Abholberechtigte und Notfallkontakte speichern",
 };
 
-// Targets sorted alphabetically by label for the picker — keeps the
+// Targets sorted alphabetically by label for the picker, keeps the
 // dropdown stable across renders even if the underlying map order
 // changes.
 const TARGET_PICKER_ORDER: Array<Exclude<FormFieldTarget, "">> = (
@@ -82,8 +83,26 @@ const TARGET_PICKER_ORDER: Array<Exclude<FormFieldTarget, "">> = (
   targetPickerLabels[a].localeCompare(targetPickerLabels[b], "de"),
 );
 
+const targetSuggestionDescriptions: Record<
+  Exclude<FormFieldTarget, "">,
+  string
+> = {
+  "student.health_info":
+    "Für Allergien, Medikamente oder andere Gesundheitsangaben.",
+  "student.extra_info":
+    "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
+  "student.bus": "Für die Information, ob ein Kind mit dem Bus fährt.",
+  "student.pickup_status":
+    "Für die grundsätzliche Regelung, ob ein Kind abgeholt wird oder alleine geht.",
+  "schedule.pickup": "Für regelmäßige Abholzeiten je Wochentag.",
+  "schedule.arrival": "Für regelmäßige Ankunftszeiten je Wochentag.",
+  "student.contacts":
+    "Für weitere Kontakte, Abholberechtigte oder Notfallkontakte.",
+};
+
 const NEW_SCHEMA_VALUE = "__new__";
 type EditorMode = "overview" | "builder" | "detail";
+type PendingNavigation = "overview" | "new" | "preview";
 
 interface CoreField {
   readonly key: string;
@@ -163,6 +182,10 @@ export function EnrollmentFormEditor() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<EditorMode>("overview");
+  const [pendingNavigation, setPendingNavigation] =
+    useState<PendingNavigation | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FormSchema | null>(null);
+  const [deletingSchemaId, setDeletingSchemaId] = useState<string | null>(null);
 
   const latestByName = useMemo(
     () => latestSchemasByName(allSchemas),
@@ -206,6 +229,33 @@ export function EnrollmentFormEditor() {
 
   const previewSchema = (schema: FormSchema) => selectSchema(schema, "detail");
 
+  const requestRemoveSchema = (schema: FormSchema) => {
+    setDeleteTarget(schema);
+  };
+
+  const confirmRemoveSchema = async () => {
+    if (!deleteTarget) return;
+    setError(null);
+    setDeletingSchemaId(deleteTarget.id);
+    try {
+      await deleteSchema(deleteTarget.id);
+      await loadAll();
+      toast.success("Formularvorlage gelöscht.");
+      if (selectedKey === deleteTarget.id) {
+        backToOverview();
+      }
+      setDeleteTarget(null);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Löschen fehlgeschlagen";
+      logger.error("schema_delete_failed", { error: message });
+      setError(message);
+      toast.error(message);
+    } finally {
+      setDeletingSchemaId(null);
+    }
+  };
+
   const startNew = () => {
     setSelectedKey(NEW_SCHEMA_VALUE);
     setName("");
@@ -229,6 +279,13 @@ export function EnrollmentFormEditor() {
     setFields((prev) => [...prev, blankField(prev.length)]);
   };
 
+  const addTargetField = (target: Exclude<FormFieldTarget, "">) => {
+    setFields((prev) => {
+      if (prev.some((field) => field.target === target)) return prev;
+      return [...prev, createTargetField(target, prev.length)];
+    });
+  };
+
   const removeField = (index: number) => {
     setFields((prev) =>
       prev
@@ -250,36 +307,149 @@ export function EnrollmentFormEditor() {
   };
 
   const isCreating = selectedKey === NEW_SCHEMA_VALUE;
+  const currentSchema = isCreating
+    ? null
+    : (latestByName.find((s) => s.id === selectedKey) ?? null);
+  const savedFieldSignature = useMemo(
+    () => JSON.stringify(currentSchema?.fields ?? []),
+    [currentSchema?.fields],
+  );
+  const currentFieldSignature = useMemo(() => JSON.stringify(fields), [fields]);
+  const hasUnsavedChanges =
+    mode === "builder" &&
+    (isCreating
+      ? name.trim() !== "" || fields.length > 0
+      : currentFieldSignature !== savedFieldSignature);
+  const saveBlockedMessage = getSchemaDraftValidationMessage({
+    fields,
+    isCreating,
+    name,
+  });
 
-  const handleSave = async () => {
+  const saveSchema = async (
+    nextMode: EditorMode = "detail",
+  ): Promise<FormSchema | null> => {
     setSaving(true);
     setError(null);
     try {
+      const validationMessage = getSchemaDraftValidationMessage({
+        fields,
+        isCreating,
+        name,
+      });
+      if (validationMessage) {
+        setError(validationMessage);
+        toast.error(validationMessage);
+        return null;
+      }
+
+      const fieldsForSave = prepareFieldsForSave(fields);
       let result: FormSchema;
       if (isCreating) {
-        if (name.trim() === "") {
-          setError("Bitte einen Namen für das Formular vergeben.");
-          setSaving(false);
-          return;
-        }
-        result = await createSchema(name.trim(), fields);
+        result = await createSchema(name.trim(), fieldsForSave);
       } else {
-        result = await updateSchema(selectedKey, fields);
+        result = await updateSchema(selectedKey, fieldsForSave);
       }
       const refreshed = await loadAll();
       const stillThere = refreshed.find((s) => s.id === result.id);
-      selectSchema(stillThere ?? result, "detail");
+      const savedSchema = stillThere ?? result;
+      selectSchema(savedSchema, nextMode);
       toast.success(
         isCreating ? "Formularvorlage erstellt." : "Änderungen gespeichert.",
       );
+      return savedSchema;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Speichern fehlgeschlagen";
       logger.error("schema_save_failed", { error: message });
       setError(message);
       toast.error(message);
+      return null;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    await saveSchema("detail");
+  };
+
+  const requestBackToOverview = () => {
+    if (hasUnsavedChanges) {
+      setPendingNavigation("overview");
+      return;
+    }
+    backToOverview();
+  };
+
+  const requestStartNew = () => {
+    if (hasUnsavedChanges) {
+      setPendingNavigation("new");
+      return;
+    }
+    startNew();
+  };
+
+  const openPreviewWindow = (schemaId: string) => {
+    window.open(
+      `/enroll/preview?schemaId=${encodeURIComponent(schemaId)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
+  const requestExternalPreview = () => {
+    if (!hasUnsavedChanges && currentSchema) {
+      openPreviewWindow(currentSchema.id);
+      return;
+    }
+    setPendingNavigation("preview");
+  };
+
+  const discardPendingNavigation = () => {
+    const pending = pendingNavigation;
+    setPendingNavigation(null);
+    if (pending === "overview") {
+      backToOverview();
+      return;
+    }
+    if (pending === "new") startNew();
+  };
+
+  const savePendingNavigation = async () => {
+    const pending = pendingNavigation;
+    if (!pending) return;
+
+    let previewWindow: Window | null = null;
+    if (pending === "preview") {
+      previewWindow = window.open("about:blank", "_blank");
+      if (previewWindow) {
+        previewWindow.opener = null;
+        previewWindow.document.title = "Vorschau wird geöffnet";
+        previewWindow.document.body.textContent = "Vorschau wird geöffnet...";
+      }
+    }
+
+    const savedSchema = await saveSchema(
+      pending === "overview" ? "overview" : "detail",
+    );
+    if (!savedSchema) {
+      previewWindow?.close();
+      return;
+    }
+
+    setPendingNavigation(null);
+    if (pending === "new") {
+      startNew();
+      return;
+    }
+    if (pending === "preview") {
+      const href = `/enroll/preview?schemaId=${encodeURIComponent(savedSchema.id)}`;
+      if (previewWindow) {
+        previewWindow.location.href = href;
+      } else {
+        window.open(href, "_blank", "noopener,noreferrer");
+      }
     }
   };
 
@@ -287,20 +457,25 @@ export function EnrollmentFormEditor() {
     return <p className="text-sm text-gray-500">Wird geladen...</p>;
   }
 
-  const currentSchema = isCreating
-    ? null
-    : (latestByName.find((s) => s.id === selectedKey) ?? null);
-
   if (mode === "overview") {
     return (
-      <EnrollmentFormsOverview
-        templates={latestByName}
-        phases={phases}
-        onCreate={startNew}
-        onEdit={editSchema}
-        onPreview={previewSchema}
-        error={error}
-      />
+      <>
+        <EnrollmentFormsOverview
+          templates={latestByName}
+          phases={phases}
+          onCreate={startNew}
+          onEdit={editSchema}
+          onPreview={previewSchema}
+          onDelete={requestRemoveSchema}
+          error={error}
+        />
+        <DeleteSchemaDialog
+          schema={deleteTarget}
+          deleting={deletingSchemaId === deleteTarget?.id}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={confirmRemoveSchema}
+        />
+      </>
     );
   }
 
@@ -319,16 +494,18 @@ export function EnrollmentFormEditor() {
 
   return (
     <div className="space-y-5">
-      <button
-        type="button"
-        onClick={backToOverview}
-        disabled={saving}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Zurück zur Übersicht
-      </button>
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+          <button
+            type="button"
+            onClick={requestBackToOverview}
+            disabled={saving}
+            className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Zurück zur Übersicht
+          </button>
+        </div>
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-5 sm:p-6">
             <FormBuilderIntro />
@@ -354,8 +531,9 @@ export function EnrollmentFormEditor() {
                     Was Eltern zusätzlich beantworten sollen
                   </h2>
                   <p className="mt-1 max-w-2xl text-sm text-gray-600">
-                    Lege nur Fragen an, die du wirklich für diese Anmeldung
-                    brauchst. Das Basisformular bleibt immer enthalten.
+                    Wähle feste Vorschläge, wenn die Antwort später in den
+                    Stammdaten stehen soll. Freie Zusatzfragen bleiben nur bei
+                    der Anmeldung.
                   </p>
                 </div>
                 <button
@@ -365,7 +543,7 @@ export function EnrollmentFormEditor() {
                   className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
-                  Zusatzfrage
+                  Freie Zusatzfrage
                 </button>
               </div>
 
@@ -375,9 +553,13 @@ export function EnrollmentFormEditor() {
                 </div>
               ) : null}
 
-              {fields.length === 0 ? (
-                <EmptyCustomFields onAdd={addField} disabled={saving} />
-              ) : (
+              <TargetSuggestions
+                fields={fields}
+                onAdd={addTargetField}
+                disabled={saving}
+              />
+
+              {fields.length > 0 ? (
                 <div className="space-y-3">
                   {fields.map((field, index) => (
                     <FieldEditorRow
@@ -393,12 +575,12 @@ export function EnrollmentFormEditor() {
                     />
                   ))}
                 </div>
-              )}
+              ) : null}
 
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
                 <button
                   type="button"
-                  onClick={startNew}
+                  onClick={requestStartNew}
                   disabled={saving}
                   className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
                 >
@@ -426,6 +608,12 @@ export function EnrollmentFormEditor() {
               templateName={name}
               isActive={currentSchema?.is_active ?? false}
               isSaved={currentSchema !== null}
+              previewHref={
+                currentSchema && !hasUnsavedChanges
+                  ? `/enroll/preview?schemaId=${encodeURIComponent(currentSchema.id)}`
+                  : undefined
+              }
+              onPreviewClick={requestExternalPreview}
               assignedPhaseCount={
                 currentSchema
                   ? phases.filter(
@@ -437,6 +625,14 @@ export function EnrollmentFormEditor() {
           </aside>
         </div>
       </section>
+      <UnsavedChangesDialog
+        pendingNavigation={pendingNavigation}
+        saving={saving}
+        saveBlockedMessage={saveBlockedMessage}
+        onCancel={() => setPendingNavigation(null)}
+        onDiscard={discardPendingNavigation}
+        onSave={savePendingNavigation}
+      />
     </div>
   );
 }
@@ -447,6 +643,7 @@ function EnrollmentFormsOverview({
   onCreate,
   onEdit,
   onPreview,
+  onDelete,
   error,
 }: Readonly<{
   templates: FormSchema[];
@@ -454,6 +651,7 @@ function EnrollmentFormsOverview({
   onCreate: () => void;
   onEdit: (schema: FormSchema) => void;
   onPreview: (schema: FormSchema) => void;
+  onDelete: (schema: FormSchema) => void;
   error: string | null;
 }>) {
   const assignedTemplateCount = templates.filter((schema) =>
@@ -512,6 +710,7 @@ function EnrollmentFormsOverview({
                 phases={phases}
                 onEdit={onEdit}
                 onPreview={onPreview}
+                onDelete={onDelete}
               />
             </section>
           </div>
@@ -533,11 +732,13 @@ function TemplateOverviewList({
   phases,
   onEdit,
   onPreview,
+  onDelete,
 }: Readonly<{
   templates: FormSchema[];
   phases: Phase[];
   onEdit: (schema: FormSchema) => void;
   onPreview: (schema: FormSchema) => void;
+  onDelete: (schema: FormSchema) => void;
 }>) {
   return (
     <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
@@ -549,6 +750,7 @@ function TemplateOverviewList({
             schema={schema}
             onEdit={() => onEdit(schema)}
             onPreview={() => onPreview(schema)}
+            onDelete={() => onDelete(schema)}
             isAssigned={phases.some(
               (phase) => phase.form_schema_id === schema.id,
             )}
@@ -585,13 +787,13 @@ function BaseTemplateOverviewRow() {
       </div>
       <div className="flex justify-start gap-2 md:justify-end">
         <a
-          href="/enroll"
+          href="/enroll/preview?base=1"
           target="_blank"
           rel="noreferrer"
           className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          Elternansicht
+          Vorschau
         </a>
       </div>
     </article>
@@ -602,11 +804,13 @@ function TemplateOverviewRow({
   schema,
   onEdit,
   onPreview,
+  onDelete,
   isAssigned,
 }: Readonly<{
   schema: FormSchema;
   onEdit: () => void;
   onPreview: () => void;
+  onDelete: () => void;
   isAssigned: boolean;
 }>) {
   const requiredCount = schema.fields.filter((field) =>
@@ -648,9 +852,26 @@ function TemplateOverviewRow({
               onClick: onPreview,
             },
             {
+              label: "Vorschau",
+              icon: <ExternalLink className="h-4 w-4" aria-hidden />,
+              onClick: () => {
+                window.open(
+                  `/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`,
+                  "_blank",
+                  "noopener,noreferrer",
+                );
+              },
+            },
+            {
               label: "Bearbeiten",
               icon: <Pencil className="h-4 w-4" aria-hidden />,
               onClick: onEdit,
+            },
+            {
+              label: "Löschen",
+              icon: <Trash2 className="h-4 w-4" aria-hidden />,
+              onClick: onDelete,
+              variant: "danger",
             },
           ]}
         />
@@ -663,6 +884,7 @@ interface TemplateActionItem {
   readonly label: string;
   readonly icon: ReactNode;
   readonly onClick: () => void;
+  readonly variant?: "default" | "danger";
 }
 
 interface TemplateActionsMenuPosition {
@@ -764,7 +986,13 @@ function TemplateActionsMenu({
           }}
           className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
         >
-          <span className="h-4 w-4 text-gray-500">{item.icon}</span>
+          <span
+            className={`h-4 w-4 ${
+              item.variant === "danger" ? "text-[#FF3130]" : "text-gray-500"
+            }`}
+          >
+            {item.icon}
+          </span>
           {item.label}
         </button>
       ))}
@@ -927,7 +1155,7 @@ function FormTemplateDetail({
                     {schema.name}
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                    Prüfe die Elternansicht und ordne diese Vorlage einer
+                    Prüfe die Formularvorschau und ordne diese Vorlage einer
                     Anmeldephase zu, wenn Eltern die Zusatzfragen sehen sollen.
                   </p>
                 </div>
@@ -969,6 +1197,7 @@ function FormTemplateDetail({
                 templateName={schema.name}
                 isActive={schema.is_active}
                 isSaved
+                previewHref={`/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`}
                 assignedPhaseCount={assignedPhases.length}
                 sticky={false}
               />
@@ -1008,7 +1237,7 @@ function FormTemplateDetail({
               </Link>
 
               <a
-                href="/enroll"
+                href={`/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
@@ -1021,7 +1250,7 @@ function FormTemplateDetail({
                     Vorschau öffnen
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                    Öffnet die Elternansicht in einem neuen Tab.
+                    Öffnet die Formularvorschau in einem neuen Tab.
                   </span>
                 </span>
               </a>
@@ -1081,6 +1310,148 @@ function GuideStep({
       />
     </div>
   );
+}
+
+function DeleteSchemaDialog({
+  schema,
+  deleting,
+  onClose,
+  onConfirm,
+}: Readonly<{
+  schema: FormSchema | null;
+  deleting: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}>) {
+  return (
+    <ConfirmationModal
+      isOpen={schema !== null}
+      onClose={onClose}
+      onConfirm={onConfirm}
+      title="Formularvorlage löschen?"
+      confirmText="Löschen"
+      cancelText="Abbrechen"
+      isConfirmLoading={deleting}
+      confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
+    >
+      <div className="space-y-3 text-sm leading-6 text-gray-600">
+        <p>
+          Die Vorlage{" "}
+          <span className="font-semibold text-gray-900">{schema?.name}</span>{" "}
+          wird dauerhaft gelöscht.
+        </p>
+        <p>
+          Dabei werden alle Versionen dieser Vorlage entfernt. Bereits
+          verwendete Vorlagen können nicht gelöscht werden.
+        </p>
+      </div>
+    </ConfirmationModal>
+  );
+}
+
+function UnsavedChangesDialog({
+  pendingNavigation,
+  saving,
+  saveBlockedMessage,
+  onCancel,
+  onDiscard,
+  onSave,
+}: Readonly<{
+  pendingNavigation: PendingNavigation | null;
+  saving: boolean;
+  saveBlockedMessage: string | null;
+  onCancel: () => void;
+  onDiscard: () => void;
+  onSave: () => void;
+}>) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingNavigation) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onCancel();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel, pendingNavigation]);
+
+  if (!mounted || !pendingNavigation) return null;
+
+  const isPreview = pendingNavigation === "preview";
+  const dialog = (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-950/35 p-4 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="unsaved-form-dialog-title"
+        className="moto-content-surface w-full max-w-lg rounded-2xl border p-5 shadow-xl"
+      >
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          Ungespeicherte Änderungen
+        </p>
+        <h2
+          id="unsaved-form-dialog-title"
+          className="mt-1 text-lg font-semibold text-gray-900"
+        >
+          Änderungen speichern?
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          {isPreview
+            ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
+            : "Du hast Änderungen an dieser Vorlage. Speichere sie, bevor du den Bereich verlässt, oder verwirf sie bewusst."}
+        </p>
+        {saveBlockedMessage ? (
+          <div className="mt-4 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm font-medium text-[#9F1F1E]">
+            {saveBlockedMessage}
+          </div>
+        ) : null}
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Abbrechen
+          </button>
+          {!isPreview ? (
+            <button
+              type="button"
+              onClick={onDiscard}
+              disabled={saving}
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Verwerfen
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || Boolean(saveBlockedMessage)}
+            className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving
+              ? "Speichert..."
+              : isPreview
+                ? "Speichern und Vorschau öffnen"
+                : "Speichern und fortfahren"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+
+  return createPortal(dialog, document.body);
 }
 
 function FormBuilderIntro() {
@@ -1262,28 +1633,82 @@ function CoreFieldRow({ field }: { readonly field: CoreField }) {
   );
 }
 
-function EmptyCustomFields({
+function TargetSuggestions({
+  fields,
   onAdd,
   disabled,
-}: Readonly<{ onAdd: () => void; disabled: boolean }>) {
+}: Readonly<{
+  fields: FormField[];
+  onAdd: (target: Exclude<FormFieldTarget, "">) => void;
+  disabled: boolean;
+}>) {
+  const selectedTargets = useMemo(
+    () => new Set(fields.map((field) => field.target).filter(Boolean)),
+    [fields],
+  );
+
   return (
-    <button
-      type="button"
-      onClick={onAdd}
-      disabled={disabled}
-      className="group flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white/70 px-6 py-10 text-center shadow-sm transition-colors hover:border-gray-400 hover:bg-white focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100 text-gray-600 transition-colors group-hover:bg-gray-900 group-hover:text-white">
-        <Plus className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <span className="mt-3 text-sm font-semibold text-gray-900">
-        Keine Zusatzfragen
-      </span>
-      <span className="mt-1 max-w-md text-sm leading-6 text-gray-500">
-        Das ist für viele Anmeldungen genau richtig. Füge nur Fragen hinzu, wenn
-        Eltern wirklich zusätzliche Angaben machen sollen.
-      </span>
-    </button>
+    <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">
+            Feste Vorschläge
+          </h3>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-600">
+            Diese Fragen sind mit vorhandenen Stammdaten verbunden. Du kannst
+            sie hinzufügen oder entfernen, der Inhalt ist fest vorgegeben.
+          </p>
+        </div>
+        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-sm">
+          <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+          Gesperrt
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-2 md:grid-cols-2">
+        {TARGET_PICKER_ORDER.map((target) => {
+          const selected = selectedTargets.has(target);
+          return (
+            <button
+              key={target}
+              type="button"
+              onClick={() => onAdd(target)}
+              disabled={disabled || selected}
+              className={`flex min-h-24 items-start gap-3 rounded-xl border p-3 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-default ${
+                selected
+                  ? "border-gray-200 bg-white text-gray-500"
+                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              <span
+                className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                  selected
+                    ? "bg-gray-100 text-gray-500"
+                    : "bg-gray-900 text-white"
+                }`}
+              >
+                {selected ? (
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-gray-900">
+                  {RESERVED_TARGETS[target].label}
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-gray-500">
+                  {targetSuggestionDescriptions[target]}
+                </span>
+                <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                  {selected ? "Ist drin" : "Hinzufügen"}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -1308,6 +1733,11 @@ function FieldEditorRow({
   onMoveDown,
   disabled,
 }: FieldEditorRowProps) {
+  const target = field.target || null;
+  const isTargetField = target !== null;
+  const displayLabel = target
+    ? RESERVED_TARGETS[target].label
+    : field.label.trim() || "Neue Zusatzfrage";
   const optionSignature = useMemo(
     () => (field.options ?? []).map((option) => option.label).join("\n"),
     [field.options],
@@ -1341,11 +1771,23 @@ function FieldEditorRow({
         <div className="min-w-0 flex-1 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Frage {index + 1}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  Frage {index + 1}
+                </p>
+                {isTargetField ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                    <Lock className="h-3 w-3" aria-hidden="true" />
+                    Fester Vorschlag
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                    Freie Zusatzfrage
+                  </span>
+                )}
+              </div>
               <h3 className="mt-1 text-sm font-semibold text-gray-900">
-                {field.label.trim() || "Neue Zusatzfrage"}
+                {displayLabel}
               </h3>
             </div>
             <div className="flex gap-1.5">
@@ -1379,63 +1821,27 @@ function FieldEditorRow({
             </div>
           </div>
 
-          <label className="block">
-            <span className="text-xs font-medium text-gray-700">
-              Verknüpfung mit Stammdatenfeld
-            </span>
-            <select
-              value={field.target ?? ""}
-              onChange={(event) => {
-                const next = event.target.value as FormFieldTarget;
-                if (next === "") {
-                  onChange({ target: "", options: [] });
-                  return;
-                }
-                const spec = RESERVED_TARGETS[next];
-                // pickup_status is a select with known canonical
-                // options — seed them so admins don't have to type
-                // them (and to keep values aligned with what the
-                // existing student detail modal accepts).
-                const seededOptions =
-                  next === "student.pickup_status"
-                    ? [
-                        { label: "Geht alleine nach Hause", value: "alone" },
-                        { label: "Wird abgeholt", value: "picked_up" },
-                      ]
-                    : spec.type === "select"
-                      ? (field.options ?? [])
-                      : [];
-                // Derive a stable, schema-unique key from the target
-                // (dots → underscores). Decision service dispatches by
-                // target, not key, but the backend still requires a
-                // non-empty unique key on every field.
-                const derivedKey = next.replace(/\./g, "_");
-                onChange({
-                  target: next,
-                  type: spec.type,
-                  applies_to_child: spec.appliesToChild,
-                  key: derivedKey,
-                  // Auto-fill label only if admin hasn't customised it
-                  label: field.label.trim() === "" ? spec.label : field.label,
-                  options: seededOptions,
-                });
-              }}
-              disabled={disabled}
-              className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            >
-              <option value="">Keine — freies Zusatzfeld</option>
-              {TARGET_PICKER_ORDER.map((target) => (
-                <option key={target} value={target}>
-                  {targetPickerLabels[target]}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] text-gray-500">
-              Verknüpfte Felder werden bei Bestätigung automatisch in die
-              Stammdaten übernommen. Freie Felder bleiben in den Eingangsdaten
-              der Anmeldung.
-            </p>
-          </label>
+          {isTargetField ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs leading-5 text-gray-600">
+              <p className="font-medium text-gray-800">
+                Wird bei bestätigter Anmeldung in die Stammdaten übernommen.
+              </p>
+              <p className="mt-0.5">
+                Dieser Vorschlag ist fest vorgegeben. Entferne ihn, wenn diese
+                Angabe nicht abgefragt werden soll.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs leading-5 text-gray-600">
+              <p className="font-medium text-gray-800">
+                Bleibt nur als Zusatzangabe bei der Anmeldung.
+              </p>
+              <p className="mt-0.5">
+                Für Angaben, die nicht automatisch in die Stammdaten übernommen
+                werden sollen.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
@@ -1444,7 +1850,7 @@ function FieldEditorRow({
               </span>
               <input
                 type="text"
-                value={field.label}
+                value={displayLabel}
                 onChange={(event) => {
                   const nextLabel = event.target.value;
                   const currentAutoKey = normalizeFieldKey(field.label);
@@ -1458,7 +1864,7 @@ function FieldEditorRow({
                   });
                 }}
                 placeholder="z. B. Allergien oder Hinweise"
-                disabled={disabled}
+                disabled={disabled || isTargetField}
                 className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
             </label>
@@ -1467,7 +1873,7 @@ function FieldEditorRow({
                 Typ
                 {field.target ? (
                   <span className="ml-1 text-[11px] font-normal text-gray-500">
-                    (durch Verknüpfung festgelegt)
+                    (automatisch festgelegt)
                   </span>
                 ) : null}
               </span>
@@ -1476,7 +1882,7 @@ function FieldEditorRow({
                 onChange={(event) =>
                   onChange({ type: event.target.value as FormFieldType })
                 }
-                disabled={disabled || Boolean(field.target)}
+                disabled={disabled || isTargetField}
                 className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
               >
                 {Object.entries(fieldTypeLabels).map(([value, label]) => (
@@ -1497,7 +1903,7 @@ function FieldEditorRow({
               value={field.help_text ?? ""}
               onChange={(event) => onChange({ help_text: event.target.value })}
               placeholder="Optionaler kurzer Hinweis unter der Frage"
-              disabled={disabled}
+              disabled={disabled || isTargetField}
               className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
           </label>
@@ -1511,7 +1917,7 @@ function FieldEditorRow({
                 value={optionsDraft}
                 onChange={(event) => updateOptions(event.target.value)}
                 placeholder={"Eine Option pro Zeile\nz. B. Ja\nz. B. Nein"}
-                disabled={disabled}
+                disabled={disabled || isTargetField}
                 rows={3}
                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
@@ -1524,37 +1930,16 @@ function FieldEditorRow({
               onChange={(checked) => onChange({ required: checked })}
               label="Pflichtfrage"
               hint="Eltern müssen diese Frage beantworten."
-              disabled={disabled}
+              disabled={disabled || isTargetField}
             />
             <FormChoice
               checked={Boolean(field.applies_to_child)}
               onChange={(checked) => onChange({ applies_to_child: checked })}
               label="Pro Kind abfragen"
               hint="Die Frage erscheint für jedes angemeldete Kind."
-              disabled={disabled || Boolean(field.target)}
+              disabled={disabled || isTargetField}
             />
           </div>
-          <details className="rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2 text-xs text-gray-500">
-            <summary className="cursor-pointer font-medium text-gray-600">
-              Technischer Schlüssel
-              {field.target ? (
-                <span className="ml-1 font-normal text-gray-400">
-                  (durch Verknüpfung festgelegt)
-                </span>
-              ) : null}
-            </summary>
-            <label className="mt-2 block">
-              <span className="sr-only">Technischer Schlüssel</span>
-              <input
-                type="text"
-                value={field.key}
-                onChange={(event) => onChange({ key: event.target.value })}
-                placeholder="z. B. allergies"
-                disabled={disabled || Boolean(field.target)}
-                className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 font-mono text-xs shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
-              />
-            </label>
-          </details>
         </div>
       </div>
     </article>
@@ -1610,6 +1995,8 @@ function FormPreview({
   templateName,
   isActive,
   isSaved,
+  previewHref,
+  onPreviewClick,
   assignedPhaseCount = 0,
   sticky = true,
 }: Readonly<{
@@ -1617,6 +2004,8 @@ function FormPreview({
   templateName: string;
   isActive: boolean;
   isSaved: boolean;
+  previewHref?: string;
+  onPreviewClick?: () => void;
   assignedPhaseCount?: number;
   sticky?: boolean;
 }>) {
@@ -1656,24 +2045,58 @@ function FormPreview({
         </span>
       </div>
 
-      <a
-        href="/enroll"
-        target="_blank"
-        rel="noreferrer"
-        className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold text-gray-900">
-            Vorschau öffnen
+      {previewHref ? (
+        <a
+          href={previewHref}
+          target="_blank"
+          rel="noreferrer"
+          className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
           </span>
-          <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-            Öffnet die Elternansicht in einem neuen Tab.
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-gray-900">
+              Vorschau öffnen
+            </span>
+            <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+              Öffnet diese Formularvorlage in einem neuen Tab.
+            </span>
           </span>
-        </span>
-      </a>
+        </a>
+      ) : onPreviewClick ? (
+        <button
+          type="button"
+          onClick={onPreviewClick}
+          className="moto-content-surface flex w-full items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-gray-900">
+              Vorschau öffnen
+            </span>
+            <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+              Speichert die Vorlage und öffnet die Vorschau in einem neuen Tab.
+            </span>
+          </span>
+        </button>
+      ) : (
+        <div className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left opacity-70 shadow-sm">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-gray-900">
+              Vorschau öffnen
+            </span>
+            <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+              Speichere die Vorlage zuerst.
+            </span>
+          </span>
+        </div>
+      )}
 
       <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-4">
@@ -1882,6 +2305,86 @@ function normalizeFieldKey(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+function createTargetField(
+  target: Exclude<FormFieldTarget, "">,
+  sortOrder: number,
+): FormField {
+  const spec = RESERVED_TARGETS[target];
+  return {
+    key: target.replace(/\./g, "_"),
+    label: spec.label,
+    type: spec.type,
+    required: false,
+    help_text: "",
+    options: getTargetOptions(target),
+    sort_order: sortOrder,
+    applies_to_child: spec.appliesToChild,
+    target,
+  };
+}
+
+function getTargetOptions(
+  target: Exclude<FormFieldTarget, "">,
+): FormField["options"] {
+  if (target !== "student.pickup_status") return [];
+  return [
+    { label: "Geht alleine nach Hause", value: "alone" },
+    { label: "Wird abgeholt", value: "picked_up" },
+  ];
+}
+
+function prepareFieldsForSave(fields: FormField[]): FormField[] {
+  return fields.map((field, index) => {
+    if (field.target) {
+      return createTargetField(field.target, index);
+    }
+    return {
+      ...field,
+      key: field.key.trim() || normalizeFieldKey(field.label),
+      label: field.label.trim(),
+      help_text: field.help_text?.trim() ?? "",
+      sort_order: index,
+    };
+  });
+}
+
+function getSchemaDraftValidationMessage({
+  fields,
+  isCreating,
+  name,
+}: Readonly<{
+  fields: FormField[];
+  isCreating: boolean;
+  name: string;
+}>): string | null {
+  if (isCreating && name.trim() === "") {
+    return "Bitte gib zuerst einen Namen für die Vorlage ein.";
+  }
+
+  const seenKeys = new Set<string>();
+  for (const [index, field] of fields.entries()) {
+    const questionNumber = index + 1;
+    if (field.label.trim() === "") {
+      return `Bitte gib für Frage ${questionNumber} einen Fragetext ein.`;
+    }
+
+    const key = field.key.trim() || normalizeFieldKey(field.label);
+    if (key === "") {
+      return `Bitte ändere Frage ${questionNumber}. Aus dem Fragetext konnte kein internes Feld erzeugt werden.`;
+    }
+    if (seenKeys.has(key)) {
+      return `Bitte ändere Frage ${questionNumber}. Zwei Zusatzfragen haben denselben oder einen zu ähnlichen Fragetext.`;
+    }
+    seenKeys.add(key);
+
+    if (field.type === "select" && (field.options ?? []).length === 0) {
+      return `Bitte ergänze für Frage ${questionNumber} mindestens eine Auswahloption.`;
+    }
+  }
+
+  return null;
 }
 
 function formatSchemaDate(value: string): string {

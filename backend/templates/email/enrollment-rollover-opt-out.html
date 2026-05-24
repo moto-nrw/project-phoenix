@@ -2,9 +2,7 @@
 {{template "header" .}}
 
 <div class="email-body">
-    <div class="brand">
-        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
-    </div>
+    {{template "school-brand" .}}
     <h1>Anmeldung wurde verlängert</h1>
 
     <p>Sehr geehrte/r {{.GuardianFirstName}} {{.GuardianLastName}},</p>
@@ -12,7 +10,7 @@
     <p>{{if .SchoolName}}die <strong>{{.SchoolName}}</strong> hat{{else}}wir haben{{end}} Ihre Anmeldung für <strong>{{.PhaseName}}</strong> automatisch übernommen. Sie müssen nichts weiter tun, damit Ihr Kind im neuen Zeitraum dabei ist.</p>
 
     {{if .ChildNames}}
-    <div class="highlight-box" style="background-color: #ecfdf5; border-left: 4px solid #10b981;">
+    <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{if eq (len .ChildNames) 1}}Verlängerte Anmeldung:{{else}}Verlängerte Anmeldungen:{{end}}</strong></p>
         <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
             {{range .ChildNames}}
@@ -23,7 +21,7 @@
     {{end}}
 
     {{if .RolloverDeadline}}
-    <div class="highlight-box" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; margin-top: 16px;">
+    <div class="highlight-box" style="margin-top: 16px;">
         <p style="margin: 0; font-size: 14px;"><strong>Falls Sie nicht teilnehmen möchten:</strong></p>
         <p style="margin: 8px 0 0 0; font-size: 14px;">Bitte melden Sie sich bis zum <strong>{{.RolloverDeadline}}</strong> über den Link unten ab. Nach diesem Datum wird die Anmeldung in die reguläre Prüfung übernommen.</p>
     </div>
@@ -43,7 +41,7 @@
         <p style="margin: 8px 0 0 0; font-size: 14px;">Sobald die Bearbeitungszeit endet, geht Ihre Anmeldung in die reguläre Prüfung der Schulleitung. Sie erhalten anschließend eine separate E-Mail mit dem Ergebnis.</p>
     </div>
 
-    <p class="security-note">Bewahren Sie diese E-Mail auf — der Link bleibt bis zur Frist gültig.</p>
+    <p class="security-note">Bewahren Sie diese E-Mail auf. Der Link bleibt bis zur Frist gültig.</p>
 </div>
 
 {{template "footer" .}}

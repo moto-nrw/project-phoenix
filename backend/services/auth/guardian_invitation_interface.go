@@ -26,10 +26,13 @@ type GuardianInvitationAcceptData struct {
 // Returned by ValidateInvitation so the accept page can pre-fill the email
 // and the guardian's first/last name without exposing internal IDs.
 type GuardianInvitationValidation struct {
-	Email     string    `json:"email"`
-	FirstName string    `json:"first_name,omitempty"`
-	LastName  string    `json:"last_name,omitempty"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Email         string    `json:"email"`
+	FirstName     string    `json:"first_name,omitempty"`
+	LastName      string    `json:"last_name,omitempty"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	SchoolName    string    `json:"school_name,omitempty"`
+	TenantSlug    string    `json:"tenant_slug,omitempty"`
+	SchoolLogoURL string    `json:"school_logo_url,omitempty"`
 }
 
 // GuardianInvitationService manages the lifecycle of guardian-account
