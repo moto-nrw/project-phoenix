@@ -213,6 +213,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 const (
 	ErrCodeEnrollmentCareOfferingMissing = "enrollment.care_offering_missing"
 	ErrCodeEnrollmentCareOfferingFull    = "enrollment.care_offering_full"
+	ErrCodeEnrollmentInvalidPhone        = "enrollment.invalid_phone"
 )
 
 // mapSubmitError translates service-layer sentinel errors into HTTP
@@ -224,6 +225,8 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
+	case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
 	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -394,6 +397,8 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		case errors.Is(err, enrollmentService.ErrEditNotAllowed):
 			common.RenderError(w, r, common.ErrorForbidden(err))
+		case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}

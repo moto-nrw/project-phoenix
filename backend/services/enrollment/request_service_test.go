@@ -306,6 +306,24 @@ func TestRequestService_Submit_RejectsInvalidEmail(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
 }
 
+// Regression for issue #1465: a guardian phone that fails the canonical
+// student phone format (e.g. "12345") must be rejected at submit with
+// ErrInvalidGuardianPhone, instead of being stored and later blocking
+// approval with a 500.
+func TestRequestService_Submit_RejectsInvalidGuardianPhone(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	badPhone := "12345"
+	req := validSubmission(env.phaseID)
+	req.GuardianPhone = &badPhone
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidGuardianPhone),
+		"invalid guardian phone must return ErrInvalidGuardianPhone; got %v", err)
+}
+
 func TestRequestService_Submit_RejectsNoChildren(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()

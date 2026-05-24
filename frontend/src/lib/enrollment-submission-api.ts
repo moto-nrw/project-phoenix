@@ -83,6 +83,7 @@ const SUBMISSION_ERROR_MESSAGES: Record<string, string> = {
     "Eines der ausgewählten Betreuungsangebote ist bereits voll und kann derzeit keine weiteren Anmeldungen aufnehmen. Bitte wähle ein anderes Angebot oder wende dich an die Schule.",
   "enrollment.disabled":
     "Die Online-Anmeldung ist für diese Schule aktuell nicht freigeschaltet. Bitte wende dich an die Schulleitung.",
+  "enrollment.invalid_phone": "Bitte gib eine gültige Telefonnummer ein.",
 };
 
 async function readError(response: Response, fallback: string): Promise<Error> {

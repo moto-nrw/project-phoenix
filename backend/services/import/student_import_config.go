@@ -19,7 +19,6 @@ import (
 
 var (
 	emailRegex  = regexp.MustCompile(`^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
-	phoneRegex  = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
 	timeRegex   = regexp.MustCompile(`^([01]?[0-9]|2[0-3]):[0-5][0-9]$`)
 	dateLayouts = []string{
 		"2006-01-02",
@@ -341,7 +340,7 @@ func validateGuardianEmail(num int, email, fieldPrefix string) []importModels.Va
 func validateGuardianLegacyPhones(num int, guardian importModels.GuardianImportData, fieldPrefix string) []importModels.ValidationError {
 	var errors []importModels.ValidationError
 
-	if guardian.Phone != "" && !phoneRegex.MatchString(guardian.Phone) {
+	if guardian.Phone != "" && users.ValidateOptionalPhone(guardian.Phone) != nil {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_phone", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Telefon-Format für Erziehungsberechtigten %d: %s", num, guardian.Phone),
@@ -350,7 +349,7 @@ func validateGuardianLegacyPhones(num int, guardian importModels.GuardianImportD
 		})
 	}
 
-	if guardian.MobilePhone != "" && !phoneRegex.MatchString(guardian.MobilePhone) {
+	if guardian.MobilePhone != "" && users.ValidateOptionalPhone(guardian.MobilePhone) != nil {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_mobile", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Mobiltelefon-Format für Erziehungsberechtigten %d: %s", num, guardian.MobilePhone),
@@ -367,7 +366,7 @@ func validateGuardianPhoneNumbers(num int, phones []importModels.PhoneImportData
 	var errors []importModels.ValidationError
 
 	for i, phone := range phones {
-		if phone.PhoneNumber == "" || phoneRegex.MatchString(phone.PhoneNumber) {
+		if phone.PhoneNumber == "" || users.ValidateOptionalPhone(phone.PhoneNumber) == nil {
 			continue
 		}
 		label := phone.Label

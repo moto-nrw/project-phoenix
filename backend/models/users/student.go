@@ -157,8 +157,10 @@ func validatePtrPhone(phone *string, fieldName string) error {
 		return nil
 	}
 	*phone = strings.TrimSpace(*phone)
-	phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
-	if !phonePattern.MatchString(*phone) {
+	// Pinned to the canonical optionalPhonePattern (phone_validation.go)
+	// so this student-creation check never diverges from the submit/edit
+	// validation in the enrollment service.
+	if !optionalPhonePattern.MatchString(*phone) {
 		return errors.New("invalid " + fieldName + " format")
 	}
 	return nil

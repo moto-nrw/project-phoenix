@@ -32,6 +32,11 @@ var (
 	ErrDecisionChildNotFound   = errors.New("request child not found")
 	ErrDecisionInvalidStatus   = errors.New("invalid decision status")
 	ErrDecisionAlreadyTerminal = errors.New("child is already in a terminal status")
+	// ErrDecisionInvalidData marks an approval that failed because the
+	// parent-supplied request data (e.g. guardian phone) doesn't pass the
+	// student/person validators. Mapped to 400, not 500 — submit/edit now
+	// validate up front, so this is defense-in-depth for legacy rows.
+	ErrDecisionInvalidData = errors.New("enrollment request data is invalid")
 )
 
 // DecisionStatus enumerates the per-child decisions an admin can apply.
@@ -510,7 +515,7 @@ func (s *decisionService) applyApproval(
 		Birthday:  &dob,
 	}
 	if err := person.Validate(); err != nil {
-		return nil, fmt.Errorf("decision: validate person: %w", err)
+		return nil, fmt.Errorf("decision: validate person: %w: %w", ErrDecisionInvalidData, err)
 	}
 	if err := s.personRepo.Create(ctx, person); err != nil {
 		return nil, fmt.Errorf("decision: create person: %w", err)
@@ -535,7 +540,7 @@ func (s *decisionService) applyApproval(
 		GuardianPhone: guardianPhone,
 	}
 	if err := student.Validate(); err != nil {
-		return nil, fmt.Errorf("decision: validate student: %w", err)
+		return nil, fmt.Errorf("decision: validate student: %w: %w", ErrDecisionInvalidData, err)
 	}
 	if err := s.studentRepo.Create(ctx, student); err != nil {
 		return nil, fmt.Errorf("decision: create student: %w", err)

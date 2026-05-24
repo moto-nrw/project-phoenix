@@ -20,6 +20,12 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollmentForm" });
 
+// Mirror of the backend canonical phone format
+// (backend/models/users/phone_validation.go). Optional country code +
+// 7..15 chars of digits/spaces/hyphens. Kept in sync so a value the form
+// accepts can't later be rejected at student creation on approval.
+const GUARDIAN_PHONE_PATTERN = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
+
 interface ChildDraft {
   first_name: string;
   last_name: string;
@@ -261,6 +267,14 @@ export function EnrollmentForm({
     }
     if (!guardianEmail.trim()) {
       setError("Bitte gib eine E-Mail-Adresse ein.");
+      return;
+    }
+    // Phone is optional, but reject an invalid format before submit so the
+    // parent fixes their own typo instead of producing a request that can
+    // never be approved (the backend enforces the same rule).
+    const trimmedPhone = guardianPhone.trim();
+    if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
+      setError("Bitte gib eine gültige Telefonnummer ein.");
       return;
     }
     if (!agbConsent || !dataConsent || !emailConsent) {
