@@ -344,17 +344,17 @@ export function EnrollmentForm({
     if (errorKeys.length > 0) {
       setFieldErrors(newFieldErrors);
       // Banner text:
-      //  - only consents missing (1+)  → the dedicated consent message
-      //  - exactly one other field     → that field's specific message
-      //  - anything else / mixed       → a generic summary
+      //  - exactly one missing field/consent → its own specific message
+      //  - several, but all of them consents → the consent summary
+      //  - anything else / mixed             → a generic summary
       // (the per-field red marking always shows which inputs are affected).
       const onlyConsents = errorKeys.every((key) => key.startsWith("consent_"));
       const [firstMessage] = Object.values(newFieldErrors);
       let banner = "Bitte korrigiere die rot markierten Felder.";
-      if (onlyConsents) {
-        banner = "Bitte bestätige alle erforderlichen Zustimmungen.";
-      } else if (errorKeys.length === 1 && firstMessage) {
+      if (errorKeys.length === 1 && firstMessage) {
         banner = firstMessage;
+      } else if (onlyConsents) {
+        banner = "Bitte bestätige alle erforderlichen Zustimmungen.";
       }
       setError(banner);
       return;
