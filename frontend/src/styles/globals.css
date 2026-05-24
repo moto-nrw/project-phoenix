@@ -369,6 +369,27 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
+.moto-hover-elevated {
+  transition:
+    border-color 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.moto-hover-elevated:hover {
+  border-color: #d1d5db;
+  background-color: rgb(249 250 251 / 0.4);
+  box-shadow:
+    0 3px 10px rgb(15 23 42 / 0.045),
+    0 0 0 1px rgb(15 23 42 / 0.045);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moto-hover-elevated {
+    transition: none;
+  }
+}
+
 .moto-select {
   padding-right: 2.75rem;
   appearance: none;

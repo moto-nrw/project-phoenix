@@ -256,7 +256,7 @@ export function GroupTransferModal({
                 <button
                   onClick={() => handleCancel(transfer.substitutionId)}
                   disabled={deletingId === transfer.substitutionId}
-                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition-all duration-200 hover:bg-red-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors duration-200 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {deletingId === transfer.substitutionId
                     ? "Wird entfernt..."
@@ -319,7 +319,7 @@ export function GroupTransferModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:hover:scale-105"
+            className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-[border-color,background-color,box-shadow] duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
           >
             Abbrechen
           </button>
@@ -330,7 +330,7 @@ export function GroupTransferModal({
             disabled={
               !selectedPersonId || loading || availableUsers.length === 0
             }
-            className="flex-1 rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 md:hover:scale-105"
+            className="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-[background-color,box-shadow] duration-200 hover:bg-gray-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
