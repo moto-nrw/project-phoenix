@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatedBackground } from "./animated-background";
 import { useModal } from "./dashboard/modal-context";
 
 interface BackgroundWrapperProps {
@@ -11,13 +10,7 @@ export function BackgroundWrapper({ children }: BackgroundWrapperProps) {
   const { isModalOpen } = useModal();
 
   return (
-    <div className="min-h-screen">
-      <AnimatedBackground />
-      <div
-        className="fixed inset-0 bg-white/20 backdrop-blur-sm"
-        style={{ zIndex: -5 }}
-      />
-
+    <div className="min-h-screen bg-white">
       <div className="relative">{children}</div>
 
       <div

@@ -198,13 +198,10 @@ describe("InvitePage", () => {
     render(<InvitePage />);
 
     await waitFor(() => {
-      expect(screen.getByAltText("moto Logo")).toBeInTheDocument();
+      expect(screen.getByText("Konto einrichten")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Bitte bestätige deine Einladung/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Bestätige deine Einladung/)).toBeInTheDocument();
   });
 
   it("should show link to login page on error", async () => {
@@ -216,7 +213,7 @@ describe("InvitePage", () => {
     render(<InvitePage />);
 
     await waitFor(() => {
-      const loginLink = screen.getByRole("link", { name: /die Startseite/i });
+      const loginLink = screen.getByRole("link", { name: /Zur Anmeldung/i });
       expect(loginLink).toBeInTheDocument();
       expect(loginLink).toHaveAttribute("href", "/");
     });
@@ -281,8 +278,7 @@ describe("InvitePage", () => {
     render(<InvitePage />);
 
     await waitFor(() => {
-      // Check for SVG error icon
-      const svg = screen.getByRole("img", { hidden: true });
+      const svg = screen.getByRole("img", { name: "Fehler" });
       expect(svg).toBeInTheDocument();
     });
   });

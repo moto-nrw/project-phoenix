@@ -322,6 +322,45 @@
   );
 }
 
+.moto-auth-shell-background {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+@media (max-width: 1023px) {
+  .moto-auth-shell-background {
+    background: #f9fafb;
+  }
+
+  .moto-auth-shell-background::before {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    content: "";
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      rgba(17, 24, 39, 0.12) 1px,
+      transparent 0
+    );
+    background-size: 14px 14px;
+    mask-image: radial-gradient(
+      circle at center,
+      black 0,
+      black 58%,
+      rgba(0, 0, 0, 0.62) 80%,
+      transparent 100%
+    );
+    -webkit-mask-image: radial-gradient(
+      circle at center,
+      black 0,
+      black 58%,
+      rgba(0, 0, 0, 0.62) 80%,
+      transparent 100%
+    );
+  }
+}
+
 .moto-content-surface {
   border-color: #e5e7eb;
   background: #ffffff;
@@ -350,18 +389,6 @@
   }
   100% {
     transform: translateX(100%);
-  }
-}
-
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
   }
 }
 
@@ -422,32 +449,15 @@
   animation: mui-pulse 2s ease-in-out infinite;
 }
 
-/* MOTO Logo-Text mit Farbverlauf - FIXED VERSION */
-.moto-logo-text {
-  font-family: var(--font-geist-sans) !important;
-  font-size: 26px !important;
-  font-weight: 800 !important;
-  background: linear-gradient(135deg, #5080d8, #83cd2d);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: -0.5px !important;
-  display: inline-block !important;
-  /* Remove the conflicting color property */
-}
-
-/* Fallback for browsers that don't support gradient text */
-@supports not (-webkit-background-clip: text) {
-  .moto-logo-text {
-    color: #5080d8;
-    -webkit-text-fill-color: inherit;
-  }
-}
-
 /* Prevent layout shift when modals hide scrollbar */
 html {
+  background: #ffffff;
   overflow-y: scroll;
   scrollbar-gutter: stable;
+}
+
+body {
+  background: #ffffff;
 }
 
 /* Safe area support for mobile devices */

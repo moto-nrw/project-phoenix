@@ -5,7 +5,10 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Check, Circle } from "lucide-react";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
-import { Input } from "~/components/ui";
+import {
+  authInputClassName,
+  authPrimaryButtonClassName,
+} from "~/components/auth/auth-shell";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import {
   acceptGuardianInvitation,
@@ -203,7 +206,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         </div>
       )}
 
-      <section className="rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-3 text-sm lg:hidden">
+      <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
         <p className="font-medium text-gray-700">
           Einladung für{" "}
           <span className="font-semibold text-gray-900">
@@ -223,7 +226,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
           Passwort
         </label>
         <div className="relative">
-          <Input
+          <input
             id="password"
             name="password"
             type={showPassword ? "text" : "password"}
@@ -231,7 +234,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`w-full pr-12 ${errorFieldName === "password" ? "ring-[#FF3130]" : ""}`}
+            className={`${authInputClassName} pr-12 ${errorFieldName === "password" ? "ring-2 ring-[#FF3130]/35" : ""}`}
             required
           />
           <PasswordToggleButton
@@ -249,7 +252,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
           Passwort bestätigen
         </label>
         <div className="relative">
-          <Input
+          <input
             id="confirmPassword"
             name="confirmPassword"
             type={showConfirmPassword ? "text" : "password"}
@@ -257,7 +260,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`w-full pr-12 ${errorFieldName === "confirmPassword" ? "ring-[#FF3130]" : ""}`}
+            className={`${authInputClassName} pr-12 ${errorFieldName === "confirmPassword" ? "ring-2 ring-[#FF3130]/35" : ""}`}
             required
           />
           <PasswordToggleButton
@@ -267,8 +270,8 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-        <p className="text-sm font-semibold text-gray-900">
+      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <p className="text-xs font-medium text-gray-700">
           Passwortanforderungen
         </p>
         <div className="mt-3 grid gap-1.5 sm:grid-cols-2 sm:gap-2">
@@ -304,7 +307,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="h-11 w-full rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:bg-gray-800 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400 sm:h-12"
+        className={authPrimaryButtonClassName}
       >
         {isSubmitting ? "Wird übernommen..." : "Einladung akzeptieren"}
       </button>
