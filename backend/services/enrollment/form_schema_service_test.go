@@ -61,7 +61,13 @@ func TestFormSchemaService_PublishVersion_CreatesActive(t *testing.T) {
 	assert.Equal(t, schema.ID, active.ID)
 }
 
-func TestFormSchemaService_PublishVersion_DeactivatesPrevious(t *testing.T) {
+func TestFormSchemaService_PublishVersion_KeepsAllVersionsActive(t *testing.T) {
+	// Multi-schema rework (commit 5e29a0dc8): publishing a new version
+	// of the same logical schema no longer deactivates the previous
+	// version. Phases pin schemas by id, so historical versions need to
+	// stay valid until the row is hard-deleted. The (tenant_id, name,
+	// version) unique index from migration 1.15.74 lets multiple
+	// versions coexist with is_active=true.
 	_, svc, creatorID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(1)
 
@@ -78,15 +84,11 @@ func TestFormSchemaService_PublishVersion_DeactivatesPrevious(t *testing.T) {
 	assert.True(t, v2.IsActive)
 	assert.Equal(t, 2, v2.Version)
 
-	// GetByID v1 returns the now-inactive row.
+	// v1 STAYS active (was deactivated under the old single-schema flow).
 	v1Refetched, err := svc.GetByID(ctx, v1.ID)
 	require.NoError(t, err)
-	assert.False(t, v1Refetched.IsActive, "previous version must be deactivated when publishing v2")
-
-	// GetActive returns v2.
-	active, err := svc.GetActive(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, v2.ID, active.ID)
+	assert.True(t, v1Refetched.IsActive,
+		"previous version must remain active under multi-schema semantics")
 }
 
 func TestFormSchemaService_GetActive_NoRowsErrSentinel(t *testing.T) {
@@ -137,8 +139,10 @@ func TestFormSchemaService_ListVersions_ReturnsNewestFirst(t *testing.T) {
 	assert.Equal(t, 3, list[0].Version)
 	assert.Equal(t, 2, list[1].Version)
 	assert.Equal(t, 1, list[2].Version)
-	// Only the newest should be active.
+	// All three stay active — the multi-schema rework dropped the
+	// "only one active" invariant. Phases pin by id, so older
+	// versions need to remain valid for already-bound phases.
 	assert.True(t, list[0].IsActive)
-	assert.False(t, list[1].IsActive)
-	assert.False(t, list[2].IsActive)
+	assert.True(t, list[1].IsActive)
+	assert.True(t, list[2].IsActive)
 }
