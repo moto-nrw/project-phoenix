@@ -133,12 +133,22 @@ export function EnrollmentForm({
   // up. On a successful submit the banner isn't rendered, so the ref is
   // null and the scroll is a no-op.
   const errorRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [submitAttempt, setSubmitAttempt] = useState(0);
 
   useEffect(() => {
-    if (submitAttempt > 0) {
-      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if (submitAttempt === 0) return;
+    // Scroll to the first invalid field (every marked input/select/checkbox
+    // carries aria-invalid) so the parent lands on the actual problem and its
+    // inline message — not just the top banner. Server-level errors (e.g.
+    // offering full) mark no field, so fall back to the banner.
+    const firstInvalid = formRef.current?.querySelector<HTMLElement>(
+      '[aria-invalid="true"]',
+    );
+    (firstInvalid ?? errorRef.current)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   }, [submitAttempt]);
 
   const [guardianFirstName, setGuardianFirstName] = useState("");
@@ -476,7 +486,12 @@ export function EnrollmentForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      noValidate
+      className="space-y-5"
+    >
       {error && (
         <div
           ref={errorRef}
@@ -811,7 +826,7 @@ export function EnrollmentForm({
           checked={agbConsent}
           onChange={setAgbConsent}
           required
-          error={!!fieldErrors.consent_agb}
+          error={fieldErrors.consent_agb}
         />
         <Consent
           name="consent_data_processing"
@@ -819,7 +834,7 @@ export function EnrollmentForm({
           checked={dataConsent}
           onChange={setDataConsent}
           required
-          error={!!fieldErrors.consent_data_processing}
+          error={fieldErrors.consent_data_processing}
         />
         <Consent
           name="consent_email_contact"
@@ -827,7 +842,7 @@ export function EnrollmentForm({
           checked={emailConsent}
           onChange={setEmailConsent}
           required
-          error={!!fieldErrors.consent_email_contact}
+          error={fieldErrors.consent_email_contact}
         />
         <Consent
           name="consent_photo"
@@ -1001,45 +1016,48 @@ function Consent({
   checked,
   onChange,
   required = false,
-  error = false,
+  error,
 }: {
   readonly name: string;
   readonly label: string;
   readonly checked: boolean;
   readonly onChange: (v: boolean) => void;
   readonly required?: boolean;
-  readonly error?: boolean;
+  readonly error?: string;
 }) {
   return (
-    <label
-      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
-        checked
-          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
-          : error
-            ? "border-[#EF4444] bg-red-50"
-            : "border-gray-200 bg-white hover:border-gray-300"
-      }`}
-    >
-      <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
-        <input
-          name={name}
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-          aria-required={required}
-          aria-invalid={error ? true : undefined}
-          className="absolute inset-0 cursor-pointer opacity-0"
-        />
-        {checked && (
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
-            <Check className="h-3.5 w-3.5" />
-          </span>
-        )}
-      </span>
-      <span className="leading-6 font-medium text-gray-700">
-        {label} {required && <span className="text-red-500">*</span>}
-      </span>
-    </label>
+    <div>
+      <label
+        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
+          checked
+            ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
+            : error
+              ? "border-[#EF4444] bg-red-50"
+              : "border-gray-200 bg-white hover:border-gray-300"
+        }`}
+      >
+        <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
+          <input
+            name={name}
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => onChange(e.target.checked)}
+            aria-required={required}
+            aria-invalid={error ? true : undefined}
+            className="absolute inset-0 cursor-pointer opacity-0"
+          />
+          {checked && (
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+              <Check className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </span>
+        <span className="leading-6 font-medium text-gray-700">
+          {label} {required && <span className="text-red-500">*</span>}
+        </span>
+      </label>
+      {error && <p className="mt-1 text-xs text-[#EF4444]">{error}</p>}
+    </div>
   );
 }
 
