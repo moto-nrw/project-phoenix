@@ -309,6 +309,12 @@ export function proxy(request: NextRequest): NextResponse {
     return withSecurityHeaders(NextResponse.next());
   }
 
+  if (pathname === "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = `/${tenantSlug}`;
+    return withSecurityHeaders(NextResponse.rewrite(url));
+  }
+
   // Rewrite: school-a.localhost:3000/dashboard -> internal /school-a/dashboard
   // This lets the [tenant] dynamic segment in the App Router capture the slug.
   const url = request.nextUrl.clone();

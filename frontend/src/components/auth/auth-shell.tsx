@@ -71,6 +71,37 @@ const motoTestimonials: Testimonial[] = [
   },
 ];
 
+const parentTestimonials: Testimonial[] = [
+  {
+    quote:
+      "Ich finde die wichtigsten Infos zur OGS an einem Ort und muss nicht mehr in Mails oder Zetteln suchen.",
+    author: "Elternteil",
+    role: "OGS-Kommunikation",
+    metric: "Alles an einem Ort",
+  },
+  {
+    quote:
+      "Rückmeldungen an die Betreuung sind viel einfacher, weil nicht jedes Thema über Telefonate oder einzelne E-Mails laufen muss.",
+    author: "Elternteil",
+    role: "Kommunikation mit der OGS",
+    metric: "Einfacher antworten",
+  },
+  {
+    quote:
+      "Wenn im Alltag viel los ist, hilft es sehr, dass ich später nochmal nachsehen kann, was die OGS mitgeteilt hat.",
+    author: "Elternteil",
+    role: "Familienalltag",
+    metric: "Verlässlich informiert",
+  },
+  {
+    quote:
+      "Die Kommunikation fühlt sich deutlich organisierter an. Wir wissen schneller, was wichtig ist und wo wir es wiederfinden.",
+    author: "Elternteil",
+    role: "Betreuungsalltag",
+    metric: "Besser organisiert",
+  },
+];
+
 interface AuthShellProps {
   readonly eyebrow: string;
   readonly title: string;
@@ -155,8 +186,7 @@ function AuthTestimonialPanel({
   readonly variant: AuthShellVariant;
 }) {
   const items = useMemo(() => {
-    void variant;
-    return motoTestimonials;
+    return variant === "parents" ? parentTestimonials : motoTestimonials;
   }, [variant]);
   const [activeIndex, setActiveIndex] = useState(0);
 

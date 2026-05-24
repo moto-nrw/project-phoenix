@@ -116,8 +116,9 @@ export default function ParentLoginPage() {
   return (
     <AuthShell
       eyebrow="Elternportal"
+      eyebrowClassName="text-[#83CD2D]"
       title="Willkommen im Eltern-Portal"
-      subtitle="Melden Sie sich an, um Anmeldungen, Rückmeldungen und Dokumente Ihrer Familie zu verwalten."
+      subtitle="Melden Sie sich an, um alles Wichtige zur Betreuung Ihres Kindes im Blick zu behalten."
       variant="parents"
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
@@ -178,6 +179,10 @@ export default function ParentLoginPage() {
             {isLoading ? "Anmeldung läuft..." : "Anmelden"}
           </span>
         </button>
+
+        <p className="text-center text-sm leading-6 text-gray-500">
+          Passwort vergessen? Bitte wenden Sie sich an Ihre OGS.
+        </p>
       </form>
     </AuthShell>
   );
