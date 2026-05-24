@@ -34,11 +34,6 @@ vi.mock("~/lib/operator-url", () => ({
   isOperatorSubdomain: () => false,
 }));
 
-vi.mock("~/lib/confetti", () => ({
-  launchConfetti: vi.fn(),
-  clearConfetti: vi.fn(),
-}));
-
 vi.mock("~/components/ui", () => ({
   Input: ({
     value,

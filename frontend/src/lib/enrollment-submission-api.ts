@@ -16,7 +16,7 @@ export interface PublicCareOffering {
   is_active: boolean;
 }
 
-export interface SubmitOfferingDays {
+interface SubmitOfferingDays {
   offering_id: number;
   selected_days: string[];
 }
