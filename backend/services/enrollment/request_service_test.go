@@ -324,6 +324,27 @@ func TestRequestService_Submit_RejectsInvalidGuardianPhone(t *testing.T) {
 		"invalid guardian phone must return ErrInvalidGuardianPhone; got %v", err)
 }
 
+// Regression: submit used to accept guardian emails that net/mail.ParseAddress
+// allows but the canonical student-email rule rejects at approval (e.g.
+// "test@localhost" or "a@b" — no dot in the domain). Such a request passed
+// submit, got stored, then could never be approved (student.Validate failed),
+// leaving it permanently stuck. Submit must now reject them up front with
+// ErrInvalidGuardianEmail, using the same rule as approval.
+func TestRequestService_Submit_RejectsEmailRejectedAtApproval(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	for _, badEmail := range []string{"test@localhost", "a@b"} {
+		req := validSubmission(env.phaseID)
+		req.GuardianEmail = badEmail
+		_, err := env.svc.Submit(ctx, req)
+		require.Error(t, err, "submit must reject %q (approval would reject it)", badEmail)
+		assert.True(t, errors.Is(err, enrollmentService.ErrInvalidGuardianEmail),
+			"invalid guardian email must return ErrInvalidGuardianEmail; got %v", err)
+	}
+}
+
 func TestRequestService_Submit_RejectsNoChildren(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()

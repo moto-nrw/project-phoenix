@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"regexp"
 	"strings"
 	"time"
 
@@ -144,8 +143,10 @@ func validatePtrEmail(email *string, fieldName string) error {
 		return nil
 	}
 	*email = strings.TrimSpace(*email)
-	emailPattern := regexp.MustCompile(`^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
-	if !emailPattern.MatchString(*email) {
+	// Pinned to the shared canonical pattern (email_validation.go) so the
+	// rule enforced here at student creation matches enrollment submit-time
+	// validation exactly — a value accepted at submit can't be rejected here.
+	if !optionalEmailPattern.MatchString(*email) {
 		return errors.New("invalid " + fieldName + " format")
 	}
 	return nil

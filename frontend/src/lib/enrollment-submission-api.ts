@@ -84,6 +84,7 @@ const SUBMISSION_ERROR_MESSAGES: Record<string, string> = {
   "enrollment.disabled":
     "Die Online-Anmeldung ist für diese Schule aktuell nicht freigeschaltet. Bitte wende dich an die Schulleitung.",
   "enrollment.invalid_phone": "Bitte gib eine gültige Telefonnummer ein.",
+  "enrollment.invalid_email": "Bitte gib eine gültige E-Mail-Adresse ein.",
 };
 
 async function readError(response: Response, fallback: string): Promise<Error> {

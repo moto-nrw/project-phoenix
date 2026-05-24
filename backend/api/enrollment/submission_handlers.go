@@ -214,6 +214,7 @@ const (
 	ErrCodeEnrollmentCareOfferingMissing = "enrollment.care_offering_missing"
 	ErrCodeEnrollmentCareOfferingFull    = "enrollment.care_offering_full"
 	ErrCodeEnrollmentInvalidPhone        = "enrollment.invalid_phone"
+	ErrCodeEnrollmentInvalidEmail        = "enrollment.invalid_email"
 )
 
 // mapSubmitError translates service-layer sentinel errors into HTTP
@@ -227,6 +228,10 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
 	case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
+	// Must precede the generic ErrInvalidSubmission case below: the email
+	// error wraps ErrInvalidSubmission, so the specific match has to win.
+	case errors.Is(err, enrollmentService.ErrInvalidGuardianEmail):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidEmail))
 	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
