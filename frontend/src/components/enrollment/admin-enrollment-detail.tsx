@@ -840,11 +840,10 @@ function formatCustomValue(
     if (cells.length === 0) return null;
     return (
       <span>
-        {cells.map((c, i) => (
+        {cells.map((c) => (
           <span key={c.label} className="mr-3 inline-block">
             <span className="text-gray-500">{c.label}:</span>{" "}
             <span className="font-medium">{c.value as string}</span>
-            {i < cells.length - 1 ? "" : ""}
           </span>
         ))}
       </span>
