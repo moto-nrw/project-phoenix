@@ -135,11 +135,18 @@ export const parentAuthConfig = {
     // parents.{TENANT_DOMAIN} exactly. Tenant + operator subdomains
     // never see this cookie, so a leak in either direction is
     // impossible by design.
+    //
+    // SameSite=Strict on the session + CSRF cookies hardens against
+    // cross-site request forgery on a portal that handles guardian
+    // PII (children, enrollment status). The parent portal has no
+    // cross-site GET flows that depend on cookie presence — login is
+    // POST-only, no third-party callbacks. callbackUrl stays Lax
+    // because NextAuth uses it during initial sign-in navigations.
     sessionToken: {
       name: "parent.session-token",
       options: {
         httpOnly: true,
-        sameSite: "lax" as const,
+        sameSite: "strict" as const,
         path: "/",
         secure: process.env.NODE_ENV === "production",
       },
@@ -156,7 +163,7 @@ export const parentAuthConfig = {
       name: "parent.csrf-token",
       options: {
         httpOnly: true,
-        sameSite: "lax" as const,
+        sameSite: "strict" as const,
         path: "/",
         secure: process.env.NODE_ENV === "production",
       },
