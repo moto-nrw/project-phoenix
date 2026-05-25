@@ -60,6 +60,21 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   contact_list: "Kontaktliste",
 };
 
+const freeFieldTypes = [
+  "boolean",
+  "number",
+  "text",
+  "textarea",
+  "date",
+  "select",
+] satisfies FormFieldType[];
+
+const structuredFieldTypes = new Set<FormFieldType>([
+  "phone_list",
+  "weekday_schedule",
+  "contact_list",
+]);
+
 // Labels for the answer storage picker. Admins can still rename the
 // displayed question; the target decides whether the answer is copied
 // into student data, schedule data, or contacts at approval time.
@@ -1850,7 +1865,7 @@ function FieldEditorRow({
               </span>
               <input
                 type="text"
-                value={displayLabel}
+                value={isTargetField ? displayLabel : field.label}
                 onChange={(event) => {
                   const nextLabel = event.target.value;
                   const currentAutoKey = normalizeFieldKey(field.label);
@@ -1885,9 +1900,12 @@ function FieldEditorRow({
                 disabled={disabled || isTargetField}
                 className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
               >
-                {Object.entries(fieldTypeLabels).map(([value, label]) => (
+                {(isTargetField
+                  ? (Object.keys(fieldTypeLabels) as FormFieldType[])
+                  : freeFieldTypes
+                ).map((value) => (
                   <option key={value} value={value}>
-                    {label}
+                    {fieldTypeLabels[value]}
                   </option>
                 ))}
               </select>
@@ -2408,6 +2426,10 @@ function getSchemaDraftValidationMessage({
       return `Bitte ändere Frage ${questionNumber}. Zwei Zusatzfragen haben denselben oder einen zu ähnlichen Fragetext.`;
     }
     seenKeys.add(key);
+
+    if (!field.target && structuredFieldTypes.has(field.type)) {
+      return `Bitte wähle für Frage ${questionNumber} einen einfachen Typ. Telefonlisten, Wochenzeiten und Kontaktlisten sind nur als feste Vorschläge verfügbar.`;
+    }
 
     if (field.type === "select" && (field.options ?? []).length === 0) {
       return `Bitte ergänze für Frage ${questionNumber} mindestens eine Auswahloption.`;
