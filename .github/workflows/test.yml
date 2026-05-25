@@ -85,16 +85,12 @@ jobs:
             -covermode=atomic \
             -coverprofile=coverage.out
 
-      - name: Regenerate full Go coverage after flaky retries
+      - name: Regenerate full Go coverage
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
         run: |
-          if [ ! -f rerun-fails.json ]; then
-            exit 0
-          fi
-
-          echo "Flaky tests were rerun; regenerating full coverage for SonarCloud"
+          echo "Regenerating full coverage for SonarCloud"
           cp coverage.out coverage.gotestsum.out
           if ! go test ./... -covermode=atomic -coverprofile=coverage.out; then
             echo "Coverage regeneration failed; retrying once"
