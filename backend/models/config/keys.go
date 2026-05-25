@@ -73,7 +73,6 @@ const (
 	KeySessionCleanupIntervalMinutes  = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin   = "operations.session_abandoned_threshold_minutes"
 	KeyAdminSupervisionOverview       = "operations.admin_supervision_overview"
-	KeyOGSGroupsEnabled               = "operations.ogs_groups_enabled"
 	KeyStatusFlagClearTime            = "operations.status_flag_clear_time"
 	KeySickClearMode                  = "operations.sick_clear_mode"
 	KeyExcusedClearMode               = "operations.excused_clear_mode"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -23,13 +23,10 @@ import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { useOGSGroupsEnabled } from "~/components/tenant/tenant-provider";
-import { useTenantRouter } from "~/lib/tenant-router";
-import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "DatabaseGroupsPage" });
 
-function GroupsPageContent() {
+export default function GroupsPage() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
@@ -358,21 +355,4 @@ function GroupsPageContent() {
       )}
     </DatabasePageLayout>
   );
-}
-
-export default function GroupsPage() {
-  const router = useTenantRouter();
-  const ogsGroupsEnabled = useOGSGroupsEnabled();
-
-  useEffect(() => {
-    if (!ogsGroupsEnabled) {
-      router.replace("/database");
-    }
-  }, [ogsGroupsEnabled, router]);
-
-  if (!ogsGroupsEnabled) {
-    return <Loading fullPage={false} />;
-  }
-
-  return <GroupsPageContent />;
 }

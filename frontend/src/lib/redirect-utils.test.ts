@@ -122,24 +122,6 @@ describe("redirect-utils", () => {
       expect(result).toBe("/students/search");
     });
 
-    it("should return /students/search when OGS groups are disabled", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = getSmartRedirectPath(
-        session,
-        supervisionState,
-        "detailed",
-        false,
-      );
-      expect(result).toBe("/students/search");
-    });
-
     it("should return /ogs-groups as default for regular users", () => {
       const session = createSession(["user"]);
       const supervisionState: SupervisionState = {
@@ -357,26 +339,6 @@ describe("redirect-utils", () => {
       };
 
       const result = useSmartRedirectPath(session, supervisionState, "binary");
-
-      expect(result.isReady).toBe(true);
-      expect(result.redirectPath).toBe("/students/search");
-    });
-
-    it("should return students search when OGS groups are disabled", () => {
-      const session = createSession(["user"]);
-      const supervisionState: SupervisionState = {
-        hasGroups: true,
-        isLoadingGroups: false,
-        isSupervising: false,
-        isLoadingSupervision: false,
-      };
-
-      const result = useSmartRedirectPath(
-        session,
-        supervisionState,
-        "detailed",
-        false,
-      );
 
       expect(result.isReady).toBe(true);
       expect(result.redirectPath).toBe("/students/search");

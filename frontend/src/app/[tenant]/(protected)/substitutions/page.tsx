@@ -25,7 +25,6 @@ import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { Loading } from "~/components/ui/loading";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { useOGSGroupsEnabled } from "~/components/tenant/tenant-provider";
 
 const logger = createLogger({ component: "SubstitutionsPage" });
 
@@ -1058,29 +1057,12 @@ function SubstitutionPageContent() {
   );
 }
 
-function SubstitutionGate() {
-  const router = useTenantRouter();
-  const ogsGroupsEnabled = useOGSGroupsEnabled();
-
-  useEffect(() => {
-    if (!ogsGroupsEnabled) {
-      router.replace("/students/search");
-    }
-  }, [ogsGroupsEnabled, router]);
-
-  if (!ogsGroupsEnabled) {
-    return <Loading fullPage={false} />;
-  }
-
-  return <SubstitutionPageContent />;
-}
-
 // Main component with Suspense wrapper
 export default function SubstitutionPage() {
   return (
     <RoleGuard variant="adminOnly">
       <Suspense fallback={<Loading fullPage={false} />}>
-        <SubstitutionGate />
+        <SubstitutionPageContent />
       </Suspense>
     </RoleGuard>
   );

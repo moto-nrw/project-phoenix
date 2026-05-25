@@ -7,7 +7,6 @@ import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
-  useOGSGroupsEnabled,
   usePresenceMode,
   useTenantSlugSafe,
 } from "~/components/tenant/tenant-provider";
@@ -368,7 +367,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
   const presenceMode = usePresenceMode();
-  const ogsGroupsEnabled = useOGSGroupsEnabled();
   const isBinaryMode = presenceMode === "binary";
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
@@ -403,7 +401,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const filteredNavItems = NAV_ITEMS.filter((item) => {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
-    if (!ogsGroupsEnabled && item.href === "/substitutions") return false;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
     }
@@ -589,13 +586,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const substitutionsItem = mainNavItems.find(
     (item) => item.href === "/substitutions",
   );
-  const databaseSubPages = useMemo(
-    () =>
-      ogsGroupsEnabled
-        ? DATABASE_SUB_PAGES
-        : DATABASE_SUB_PAGES.filter((page) => page.href !== "/database/groups"),
-    [ogsGroupsEnabled],
-  );
 
   // Coming soon items
   const comingSoonItems = mainNavItems.filter((item) => item.comingSoon);
@@ -648,11 +638,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
   useEffect(() => {
     if (
       pathname.startsWith("/database/") &&
-      databaseSubPages.some((p) => pathname === p.href)
+      DATABASE_SUB_PAGES.some((p) => pathname === p.href)
     ) {
       localStorage.setItem("sidebar-last-database", pathname);
     }
-  }, [pathname, databaseSubPages]);
+  }, [pathname]);
 
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
   // Reads localStorage at click-time so the page loads with the right param immediately.
@@ -730,7 +720,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // accordion when the setting is off).
   const showStaffAccordions =
     userIsCaregiver || (userIsAdmin && adminOverviewEnabled);
-  const showGroupsAccordion = ogsGroupsEnabled && showStaffAccordions;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorSections = useMemo(
@@ -913,7 +902,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
             .map(renderNavItem)}
 
           {/* Meine Gruppen accordion (staff only) */}
-          {showGroupsAccordion && (
+          {showStaffAccordions && (
             <SidebarAccordionSection
               icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
               label={
@@ -1029,12 +1018,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
               onToggle={handleDatabaseToggle}
               isActive={isAccordionSectionActive(
                 "/database",
-                databaseSubPages.some((p) => pathname === p.href),
+                DATABASE_SUB_PAGES.some((p) => pathname === p.href),
               )}
               isIconActive={pathname.startsWith("/database")}
-              hasChildren={databaseSubPages.length > 0}
+              hasChildren={DATABASE_SUB_PAGES.length > 0}
             >
-              {databaseSubPages.map((page) => (
+              {DATABASE_SUB_PAGES.map((page) => (
                 <SidebarSubItem
                   key={page.href}
                   href={page.href}

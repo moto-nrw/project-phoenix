@@ -60,8 +60,7 @@ func DetermineStudentAccess(
 		configModel.StudentDataScopeGroupSupervisorsOnly,
 		logger,
 	)
-	ogsGroupsEnabled := configService.ResolveOGSGroupsEnabled(r.Context(), settingsSvc, logger)
-	ctx.AllStaffScope = !ogsGroupsEnabled || scope == configModel.StudentDataScopeAllStaff
+	ctx.AllStaffScope = scope == configModel.StudentDataScopeAllStaff
 
 	if educationGroups, err := userContextSvc.GetMyGroups(r.Context()); err == nil {
 		ctx.MyGroupIDs = make(map[int64]struct{}, len(educationGroups))

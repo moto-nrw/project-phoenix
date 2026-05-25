@@ -67,10 +67,8 @@ func CanReadStudent(
 	}
 
 	scope := resolveStudentDataScope(ctx, settings, logger)
-	ogsGroupsEnabled := resolveOGSGroupsEnabled(ctx, settings, logger)
-	if userCtx != nil {
-		if staff, err := userCtx.GetCurrentStaff(ctx); err == nil && staff != nil &&
-			(!ogsGroupsEnabled || scope == configModel.StudentDataScopeAllStaff) {
+	if scope == configModel.StudentDataScopeAllStaff && userCtx != nil {
+		if staff, err := userCtx.GetCurrentStaff(ctx); err == nil && staff != nil {
 			return true
 		}
 	}
@@ -136,23 +134,6 @@ func resolveStudentDataScope(ctx context.Context, settings StudentReadSettings, 
 		return fallback
 	}
 	return val
-}
-
-func resolveOGSGroupsEnabled(ctx context.Context, settings StudentReadSettings, logger *slog.Logger) bool {
-	if settings == nil {
-		return true
-	}
-	val, err := settings.ResolveString(ctx, configModel.KeyOGSGroupsEnabled)
-	if err != nil {
-		if logger != nil {
-			logger.Warn("settings resolve failed in CanReadStudent",
-				slog.String("key", configModel.KeyOGSGroupsEnabled),
-				slog.String("error", err.Error()),
-			)
-		}
-		return true
-	}
-	return val != "false"
 }
 
 // CanModifyStudent decides whether the caller may write to this student row

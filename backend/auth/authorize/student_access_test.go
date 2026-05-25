@@ -138,25 +138,6 @@ func TestResolveStudentDataScope_HappyPath(t *testing.T) {
 	assert.Equal(t, configModel.StudentDataScopeAllStaff, got)
 }
 
-func TestResolveOGSGroupsEnabled_NilSettingsDefaultsToEnabled(t *testing.T) {
-	assert.True(t, resolveOGSGroupsEnabled(context.Background(), nil, nil))
-}
-
-func TestResolveOGSGroupsEnabled_ResolveErrorDefaultsToEnabled(t *testing.T) {
-	settings := &stubSettings{valueErr: errors.New("settings down")}
-	assert.True(t, resolveOGSGroupsEnabled(context.Background(), settings, slog.Default()))
-}
-
-func TestResolveOGSGroupsEnabled_FalseStringDisables(t *testing.T) {
-	settings := &stubSettings{value: "false"}
-	assert.False(t, resolveOGSGroupsEnabled(context.Background(), settings, nil))
-}
-
-func TestResolveOGSGroupsEnabled_OtherValuesEnable(t *testing.T) {
-	settings := &stubSettings{value: "true"}
-	assert.True(t, resolveOGSGroupsEnabled(context.Background(), settings, nil))
-}
-
 // --- CanReadStudent ----------------------------------------------------
 
 func TestCanReadStudent_NilStudent(t *testing.T) {
@@ -197,32 +178,6 @@ func TestCanReadStudent_AllStaffScopeRequiresStaffRecord(t *testing.T) {
 		context.Background(),
 		[]string{"users:read"},
 		studentInGroup(99),
-		staffer,
-		settings,
-		nil,
-	)
-	assert.True(t, got)
-}
-
-func TestCanReadStudent_DisabledOGSGroupsRequiresStaffRecord(t *testing.T) {
-	settings := &stubSettings{hasOverride: true, value: "false"}
-
-	guest := &stubUserCtx{staffErr: errors.New("no staff record")}
-	got := CanReadStudent(
-		context.Background(),
-		[]string{"users:read"},
-		&users.Student{},
-		guest,
-		settings,
-		nil,
-	)
-	assert.False(t, got, "disabled OGS groups must NOT promote non-staff callers")
-
-	staffer := &stubUserCtx{staff: &users.Staff{}}
-	got = CanReadStudent(
-		context.Background(),
-		[]string{"users:read"},
-		&users.Student{},
 		staffer,
 		settings,
 		nil,

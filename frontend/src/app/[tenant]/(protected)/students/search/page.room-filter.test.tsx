@@ -45,7 +45,6 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenant: () => ({ tenantSlug: "t", tenant: null }),
   useTenantSlugSafe: () => "t",
   usePresenceMode: () => "detailed",
-  useOGSGroupsEnabled: () => true,
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 

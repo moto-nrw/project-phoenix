@@ -145,9 +145,6 @@ func (rs *Resource) enforceWebCheckinAccess(ctx context.Context, staffID, studen
 		configModel.WebCheckinAccessGroupSupervisors,
 		rs.getLogger(),
 	)
-	if !configSvc.ResolveOGSGroupsEnabled(ctx, rs.SettingsService, rs.getLogger()) {
-		mode = configModel.WebCheckinAccessAllStaff
-	}
 	if mode == configModel.WebCheckinAccessAllStaff {
 		return evaluateWebCheckinAccess(mode, false)
 	}

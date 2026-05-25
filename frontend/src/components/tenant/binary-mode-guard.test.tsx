@@ -30,7 +30,6 @@ function makeTenant(
     settings: {},
     presenceMode,
     studentPhotosEnabled: false,
-    ogsGroupsEnabled: true,
   };
 }
 

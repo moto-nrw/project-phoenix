@@ -26,13 +26,12 @@ export function getSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
   presenceMode: PresenceMode = "detailed",
-  ogsGroupsEnabled = true,
 ): string {
   const canUseCaregiverFlows = isCaregiver(session);
   const canUseAdminFlows = hasRole(session, "admin");
 
   if (canUseCaregiverFlows) {
-    if (presenceMode === "binary" || !ogsGroupsEnabled) {
+    if (presenceMode === "binary") {
       return "/students/search";
     }
 
@@ -70,7 +69,6 @@ export function useSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
   presenceMode: PresenceMode = "detailed",
-  ogsGroupsEnabled = true,
 ): { redirectPath: string; isReady: boolean } {
   const isReady =
     !supervisionState.isLoadingGroups && !supervisionState.isLoadingSupervision;
@@ -78,7 +76,6 @@ export function useSmartRedirectPath(
     session,
     supervisionState,
     presenceMode,
-    ogsGroupsEnabled,
   );
 
   return {
