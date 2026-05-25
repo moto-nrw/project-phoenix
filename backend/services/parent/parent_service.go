@@ -155,6 +155,19 @@ func (s *service) ListEnrollmentsForAccount(ctx context.Context, accountID int64
 		return nil, fmt.Errorf("parent: list enrollments: %w", err)
 	}
 
+	// Redact admin-internal status reasons unless the owning phase opts
+	// in via show_status_reason_to_parent. Same gate the public status
+	// page and the decision email apply — keeps internal rejection /
+	// waitlist notes out of the parent dashboard payload.
+	for _, req := range requests {
+		if req.ShowStatusReasonToParent {
+			continue
+		}
+		for i := range req.Children {
+			req.Children[i].StatusReason = nil
+		}
+	}
+
 	s.logger.Debug("parent: listed enrollment requests",
 		slog.Int64("account_id", accountID),
 		slog.Int("count", len(requests)),

@@ -544,7 +544,35 @@ func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*e
 	if err != nil {
 		return nil, nil, fmt.Errorf("status: list children: %w", err)
 	}
+
+	// status_reason is admin-internal free text. It may only reach a
+	// parent when the request's phase opts in via
+	// show_status_reason_to_parent. Strip it otherwise so the public
+	// status page (and the parents-portal status view that shares this
+	// endpoint) never expose an internal rejection/waitlist note. The
+	// decision service applies the same gate to the parent email.
+	if !s.statusReasonVisibleToParent(tenantCtx, req.PhaseID) {
+		for _, c := range children {
+			c.StatusReason = nil
+		}
+	}
 	return req, children, nil
+}
+
+// statusReasonVisibleToParent reports whether the given phase allows a
+// per-child status_reason to be surfaced to the parent. Fail-closed: if
+// the phase can't be loaded it returns false, so an internal note is
+// redacted rather than risk leaking when the setting can't be confirmed.
+func (s *requestService) statusReasonVisibleToParent(ctx context.Context, phaseID int64) bool {
+	phase, err := s.phaseRepo.FindByID(ctx, phaseID)
+	if err != nil {
+		s.logger.Warn("status: phase load failed; redacting status reason",
+			slog.Int64("phase_id", phaseID),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return phase.ShowStatusReasonToParent
 }
 
 // Edit applies the patch only when every child is still `submitted`.

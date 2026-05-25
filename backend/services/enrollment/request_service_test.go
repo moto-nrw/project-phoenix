@@ -433,6 +433,58 @@ func TestRequestService_GetByStatusToken_UnknownReturnsNotFound(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrRequestNotFound))
 }
 
+// Regression: status_reason is admin-internal free text. When the phase
+// has show_status_reason_to_parent=false (the default), the public status
+// page must NOT surface a stored rejection/waitlist note.
+func TestRequestService_GetByStatusToken_RedactsReasonWhenPhaseDisablesIt(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+
+	// Admin records a rejection with an internal reason.
+	reason := "Intern: Kapazität voll, Geschwisterkind bevorzugt"
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+		ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID,
+	))
+
+	// Phase defaults to show_status_reason_to_parent=false.
+	_, children, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	assert.Nil(t, children[0].StatusReason,
+		"status reason must be hidden when the phase disables parent-facing reasons")
+}
+
+// Counterpart: when the phase opts in via show_status_reason_to_parent,
+// the stored reason is surfaced to the parent unchanged.
+func TestRequestService_GetByStatusToken_SurfacesReasonWhenPhaseEnablesIt(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+
+	reason := "Leider keine freien Plätze in diesem Durchgang"
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+		ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID,
+	))
+
+	env.phase.ShowStatusReasonToParent = true
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	_, children, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	require.NotNil(t, children[0].StatusReason)
+	assert.Equal(t, reason, *children[0].StatusReason)
+}
+
 // --- Edit ---
 
 func TestRequestService_Edit_AppliesPatchWhileSubmitted(t *testing.T) {

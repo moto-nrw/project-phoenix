@@ -108,6 +108,13 @@ type EnrollmentRequestSummary struct {
 	ServiceStartDate time.Time `json:"service_start_date"`
 	ServiceEndDate   time.Time `json:"service_end_date"`
 
+	// ShowStatusReasonToParent mirrors the owning phase flag. Internal
+	// plumbing only (json:"-"): the parent service uses it to redact
+	// admin-internal child status reasons before returning, and the API
+	// handler maps an explicit response struct, so it never reaches the
+	// wire. See services/parent ListEnrollmentsForAccount.
+	ShowStatusReasonToParent bool `json:"-"`
+
 	SchoolName string `json:"school_name"`
 	SchoolSlug string `json:"school_slug"`
 

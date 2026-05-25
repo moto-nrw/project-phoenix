@@ -36,17 +36,18 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 	}
 
 	type row struct {
-		RequestID        int64      `bun:"request_id"`
-		TenantID         int64      `bun:"tenant_id"`
-		StatusToken      string     `bun:"status_token"`
-		SubmittedAt      time.Time  `bun:"submitted_at"`
-		WithdrawnAt      *time.Time `bun:"withdrawn_at"`
-		PhaseID          int64      `bun:"phase_id"`
-		PhaseName        string     `bun:"phase_name"`
-		ServiceStartDate time.Time  `bun:"service_start_date"`
-		ServiceEndDate   time.Time  `bun:"service_end_date"`
-		SchoolName       string     `bun:"school_name"`
-		SchoolSlug       string     `bun:"school_slug"`
+		RequestID                int64      `bun:"request_id"`
+		TenantID                 int64      `bun:"tenant_id"`
+		StatusToken              string     `bun:"status_token"`
+		SubmittedAt              time.Time  `bun:"submitted_at"`
+		WithdrawnAt              *time.Time `bun:"withdrawn_at"`
+		PhaseID                  int64      `bun:"phase_id"`
+		PhaseName                string     `bun:"phase_name"`
+		ServiceStartDate         time.Time  `bun:"service_start_date"`
+		ServiceEndDate           time.Time  `bun:"service_end_date"`
+		ShowStatusReasonToParent bool       `bun:"show_status_reason_to_parent"`
+		SchoolName               string     `bun:"school_name"`
+		SchoolSlug               string     `bun:"school_slug"`
 	}
 
 	// Two-pronged match:
@@ -70,6 +71,7 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 			ph.name             AS phase_name,
 			ph.service_start_date AS service_start_date,
 			ph.service_end_date   AS service_end_date,
+			ph.show_status_reason_to_parent AS show_status_reason_to_parent,
 			sch.name            AS school_name,
 			sch.slug            AS school_slug
 		FROM enrollment.requests AS req
@@ -143,18 +145,19 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 	out := make([]*parentModels.EnrollmentRequestSummary, 0, len(rows))
 	for _, rr := range rows {
 		out = append(out, &parentModels.EnrollmentRequestSummary{
-			RequestID:        rr.RequestID,
-			TenantID:         rr.TenantID,
-			StatusToken:      rr.StatusToken,
-			SubmittedAt:      rr.SubmittedAt,
-			WithdrawnAt:      rr.WithdrawnAt,
-			PhaseID:          rr.PhaseID,
-			PhaseName:        rr.PhaseName,
-			ServiceStartDate: rr.ServiceStartDate,
-			ServiceEndDate:   rr.ServiceEndDate,
-			SchoolName:       rr.SchoolName,
-			SchoolSlug:       rr.SchoolSlug,
-			Children:         childrenByRequest[rr.RequestID],
+			RequestID:                rr.RequestID,
+			TenantID:                 rr.TenantID,
+			StatusToken:              rr.StatusToken,
+			SubmittedAt:              rr.SubmittedAt,
+			WithdrawnAt:              rr.WithdrawnAt,
+			PhaseID:                  rr.PhaseID,
+			PhaseName:                rr.PhaseName,
+			ServiceStartDate:         rr.ServiceStartDate,
+			ServiceEndDate:           rr.ServiceEndDate,
+			ShowStatusReasonToParent: rr.ShowStatusReasonToParent,
+			SchoolName:               rr.SchoolName,
+			SchoolSlug:               rr.SchoolSlug,
+			Children:                 childrenByRequest[rr.RequestID],
 		})
 	}
 	return out, nil

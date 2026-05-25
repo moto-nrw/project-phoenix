@@ -130,3 +130,55 @@ func TestService_ListEnrollmentsForAccount_EmptyResultPropagates(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Empty(t, result)
 }
+
+// Regression: status_reason is admin-internal. When the owning phase has
+// show_status_reason_to_parent=false, the dashboard payload must not carry
+// the stored reason — even though the repo returns it.
+func TestService_ListEnrollmentsForAccount_RedactsReasonWhenPhaseDisablesIt(t *testing.T) {
+	reason := "intern: Kapazität voll"
+	repo := &stubEnrollmentRequestRepo{
+		listResult: []*parentModels.EnrollmentRequestSummary{
+			{
+				RequestID:                42,
+				TenantID:                 7,
+				ShowStatusReasonToParent: false,
+				Children: []parentModels.EnrollmentRequestChildSummary{
+					{ChildID: 100, FirstName: "Lina", Status: "rejected", StatusReason: &reason},
+				},
+			},
+		},
+	}
+	svc := buildParentService(t, repo)
+
+	result, err := svc.ListEnrollmentsForAccount(context.Background(), 1234)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	require.Len(t, result[0].Children, 1)
+	assert.Nil(t, result[0].Children[0].StatusReason,
+		"status reason must be stripped when the phase disables parent-facing reasons")
+}
+
+// Counterpart: phase opted in → the reason is preserved on the dashboard.
+func TestService_ListEnrollmentsForAccount_KeepsReasonWhenPhaseEnablesIt(t *testing.T) {
+	reason := "Leider kein Platz"
+	repo := &stubEnrollmentRequestRepo{
+		listResult: []*parentModels.EnrollmentRequestSummary{
+			{
+				RequestID:                43,
+				TenantID:                 7,
+				ShowStatusReasonToParent: true,
+				Children: []parentModels.EnrollmentRequestChildSummary{
+					{ChildID: 101, FirstName: "Tom", Status: "rejected", StatusReason: &reason},
+				},
+			},
+		},
+	}
+	svc := buildParentService(t, repo)
+
+	result, err := svc.ListEnrollmentsForAccount(context.Background(), 1234)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	require.Len(t, result[0].Children, 1)
+	require.NotNil(t, result[0].Children[0].StatusReason)
+	assert.Equal(t, reason, *result[0].Children[0].StatusReason)
+}
