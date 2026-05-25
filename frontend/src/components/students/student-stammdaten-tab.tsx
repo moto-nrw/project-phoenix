@@ -5,6 +5,7 @@ import { Loader2, Save } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   BusStatusSection,
+  EnrollmentConsentsSection,
   PersonalInfoSection,
   PickupStatusSection,
 } from "./student-form-fields";
@@ -367,6 +368,13 @@ export function StudentStammdatenTab({
       <BusStatusSection
         value={formData.bus}
         onChange={(value) => handleChange("bus", value)}
+      />
+
+      <EnrollmentConsentsSection
+        agbAcceptedAt={student.agb_accepted_at}
+        dataProcessingAcceptedAt={student.data_processing_accepted_at}
+        emailContactAcceptedAt={student.email_contact_accepted_at}
+        photoConsentGivenAt={student.photo_consent_given_at}
       />
 
       <div className="sticky bottom-0 -mx-6 -mb-6 flex items-center justify-end gap-2 border-t border-gray-100 bg-white/95 px-6 py-3 backdrop-blur-sm">

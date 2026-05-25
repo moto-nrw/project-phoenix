@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"regexp"
 	"strings"
 	"time"
 
@@ -10,26 +9,44 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// StudentStatus represents the lifecycle status of a student.
+// Set on creation by the parent-enrollment flow; transitions are driven by
+// the activate-students scheduler tick (pending→active when enrolled_from
+// arrives, active→inactive when enrolled_until passes). The "alumnus" value
+// is reserved for future graduation/leaver flows — no scheduler logic
+// transitions to it as of PR 2.
+type StudentStatus string
+
+const (
+	StudentStatusPending  StudentStatus = "pending"
+	StudentStatusActive   StudentStatus = "active"
+	StudentStatusInactive StudentStatus = "inactive"
+	StudentStatusAlumnus  StudentStatus = "alumnus"
+)
+
 // Student represents a student in the system
 type Student struct {
 	base.Model `bun:"schema:users,table:students"`
 	base.TenantModel
-	PersonID        int64      `bun:"person_id,notnull" json:"person_id"`
-	SchoolClass     string     `bun:"school_class,notnull" json:"school_class"`
-	GuardianName    *string    `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
-	GuardianContact *string    `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
-	GuardianEmail   *string    `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone   *string    `bun:"guardian_phone" json:"guardian_phone,omitempty"`
-	GroupID         *int64     `bun:"group_id" json:"group_id,omitempty"`
-	ExtraInfo       *string    `bun:"extra_info" json:"extra_info,omitempty"`
-	SupervisorNotes *string    `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
-	HealthInfo      *string    `bun:"health_info" json:"health_info,omitempty"`
-	PickupStatus    *string    `bun:"pickup_status" json:"pickup_status,omitempty"`
-	Bus             *bool      `bun:"bus" json:"bus,omitempty"`                     // Administrative permission flag (Buskind)
-	Sick            *bool      `bun:"sick" json:"sick,omitempty"`                   // true = currently sick
-	SickSince       *time.Time `bun:"sick_since" json:"sick_since,omitempty"`       // When sickness was reported
-	Excused         *bool      `bun:"excused" json:"excused,omitempty"`             // true = currently excused (not attending today)
-	ExcusedSince    *time.Time `bun:"excused_since" json:"excused_since,omitempty"` // When excused status was reported
+	PersonID        int64         `bun:"person_id,notnull" json:"person_id"`
+	SchoolClass     string        `bun:"school_class,notnull" json:"school_class"`
+	GuardianName    *string       `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
+	GuardianContact *string       `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
+	GuardianEmail   *string       `bun:"guardian_email" json:"guardian_email,omitempty"`
+	GuardianPhone   *string       `bun:"guardian_phone" json:"guardian_phone,omitempty"`
+	GroupID         *int64        `bun:"group_id" json:"group_id,omitempty"`
+	ExtraInfo       *string       `bun:"extra_info" json:"extra_info,omitempty"`
+	SupervisorNotes *string       `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
+	HealthInfo      *string       `bun:"health_info" json:"health_info,omitempty"`
+	PickupStatus    *string       `bun:"pickup_status" json:"pickup_status,omitempty"`
+	Bus             *bool         `bun:"bus" json:"bus,omitempty"`                     // Administrative permission flag (Buskind)
+	Sick            *bool         `bun:"sick" json:"sick,omitempty"`                   // true = currently sick
+	SickSince       *time.Time    `bun:"sick_since" json:"sick_since,omitempty"`       // When sickness was reported
+	Excused         *bool         `bun:"excused" json:"excused,omitempty"`             // true = currently excused (not attending today)
+	ExcusedSince    *time.Time    `bun:"excused_since" json:"excused_since,omitempty"` // When excused status was reported
+	Status          StudentStatus `bun:"status,notnull,default:'active'" json:"status"`
+	EnrolledFrom    *time.Time    `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
+	EnrolledUntil   *time.Time    `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
 
 	// Photo (optional, gated by operations.student_photos_enabled setting +
 	// per-student parental consent recorded in photo_consent_given_at).
@@ -38,6 +55,16 @@ type Student struct {
 	PhotoPath           *string    `bun:"photo_path" json:"-"`
 	PhotoConsentGivenAt *time.Time `bun:"photo_consent_given_at" json:"photo_consent_given_at,omitempty"`
 	PhotoConsentGivenBy *int64     `bun:"photo_consent_given_by" json:"photo_consent_given_by,omitempty"`
+
+	// Other consents the parent ticked at enrollment time. Populated
+	// by the decision service on approval from request.consent_flags.
+	// NULL = no consent recorded (parent either declined or the row
+	// predates the consent capture). Timestamp = consent given on
+	// that date. Mirrors the photo_consent_given_at shape so the
+	// student detail page can render all four uniformly.
+	AGBAcceptedAt            *time.Time `bun:"agb_accepted_at" json:"agb_accepted_at,omitempty"`
+	DataProcessingAcceptedAt *time.Time `bun:"data_processing_accepted_at" json:"data_processing_accepted_at,omitempty"`
+	EmailContactAcceptedAt   *time.Time `bun:"email_contact_accepted_at" json:"email_contact_accepted_at,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
@@ -116,8 +143,10 @@ func validatePtrEmail(email *string, fieldName string) error {
 		return nil
 	}
 	*email = strings.TrimSpace(*email)
-	emailPattern := regexp.MustCompile(`^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
-	if !emailPattern.MatchString(*email) {
+	// Pinned to the shared canonical pattern (email_validation.go) so the
+	// rule enforced here at student creation matches enrollment submit-time
+	// validation exactly — a value accepted at submit can't be rejected here.
+	if !optionalEmailPattern.MatchString(*email) {
 		return errors.New("invalid " + fieldName + " format")
 	}
 	return nil
@@ -129,8 +158,10 @@ func validatePtrPhone(phone *string, fieldName string) error {
 		return nil
 	}
 	*phone = strings.TrimSpace(*phone)
-	phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
-	if !phonePattern.MatchString(*phone) {
+	// Pinned to the canonical optionalPhonePattern (phone_validation.go)
+	// so this student-creation check never diverges from the submit/edit
+	// validation in the enrollment service.
+	if !optionalPhonePattern.MatchString(*phone) {
 		return errors.New("invalid " + fieldName + " format")
 	}
 	return nil

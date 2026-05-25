@@ -1,0 +1,44 @@
+{{define "enrollment-admin-notification.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "school-brand" .}}
+    <h1>Neue Anmeldung eingegangen</h1>
+
+    <p>Eine neue Anmeldung wurde über das Eltern-Portal eingereicht.</p>
+
+    <div class="highlight-box">
+        <p style="margin: 0; font-size: 14px;"><strong>Erziehungsberechtigte/r:</strong> {{.GuardianFirstName}} {{.GuardianLastName}}</p>
+        <p style="margin: 4px 0 0 0; font-size: 14px;"><strong>E-Mail:</strong> {{.GuardianEmail}}</p>
+        {{if .GuardianPhone}}
+        <p style="margin: 4px 0 0 0; font-size: 14px;"><strong>Telefon:</strong> {{.GuardianPhone}}</p>
+        {{end}}
+    </div>
+
+    {{if .ChildNames}}
+    <div class="highlight-box" style="margin-top: 16px;">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{if eq (len .ChildNames) 1}}Angemeldetes Kind:{{else}}Angemeldete Kinder:{{end}}</strong></p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .ChildNames}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+
+    <p>Bitte prüfen Sie die Anmeldung im Verwaltungsbereich:</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.AdminURL}}">Anmeldung öffnen</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.AdminURL}}">{{.AdminURL}}</a>
+    </div>
+
+    <p class="security-note">Diese Benachrichtigung wurde automatisch versendet. Empfänger werden über die Einstellung „Benachrichtigungs-Empfänger" verwaltet.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

@@ -287,7 +287,7 @@ function OperatorSuggestionCard({
 
   return (
     <div
-      className={`overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md ${suggestion.isHidden ? "opacity-60" : ""}`}
+      className={`overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-sm backdrop-blur-md ${suggestion.isHidden ? "opacity-60" : ""}`}
     >
       <div className="p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -378,7 +378,7 @@ function SuggestionSkeletons() {
       {Array.from({ length: 3 }, (_, i) => (
         <div
           key={i}
-          className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+          className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-sm"
         >
           <div className="space-y-3">
             <div className="flex items-start justify-between gap-2">

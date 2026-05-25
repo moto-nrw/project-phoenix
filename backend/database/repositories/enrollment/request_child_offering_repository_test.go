@@ -1,0 +1,204 @@
+package enrollment_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// setupChildOfferingTest gives us a tenant + phase + request + child +
+// care offering — the full chain needed to insert a request_child × care_offering
+// row.
+func setupChildOfferingTest(t *testing.T) (
+	*bun.DB,
+	enrollmentModels.RequestChildOfferingRepository,
+	int64, // tenantID
+	int64, // requestChildID
+	int64, // careOfferingID
+) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
+	phaseName := uniquePhaseName("childoffering")
+	phase := makeValidPhase(phaseName)
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return phaseRepo.Create(ctx, phase)
+	}))
+
+	reqRepo := enrollmentRepo.NewRequestRepository(db)
+	token := uniqueToken("childoffering")
+	req := makeRequest(phase.ID, token, "anna@example.test")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return reqRepo.Create(ctx, req)
+	}))
+
+	childRepo := enrollmentRepo.NewRequestChildRepository(db)
+	child := makeChild(req.ID, "Lara", "Beispiel")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return childRepo.Create(ctx, child)
+	}))
+
+	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	offering := makeOffering(phase.ID, uniqueOfferingName("childoffering"))
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return offeringRepo.Create(ctx, offering)
+	}))
+
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.request_child_offerings").
+			Where("tenant_id = ? AND request_child_id = ?", tenantID, child.ID).
+			Exec(bg)
+		wipeOfferings(db, tenantID, phase.ID)
+		wipeRequests(db, tenantID, token)
+		wipePhases(db, tenantID, phaseName)
+	})
+
+	return db, enrollmentRepo.NewRequestChildOfferingRepository(db), tenantID, child.ID, offering.ID
+}
+
+// --- Create + ListByRequestChildID ----------------------------------------
+
+func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+
+	notes := "Bitte Mo+Mi"
+	row := &enrollmentModels.RequestChildOffering{
+		RequestChildID: childID,
+		CareOfferingID: offeringID,
+		SelectedDays:   []string{"mon", "wed"},
+		Notes:          &notes,
+	}
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, row)
+	})
+	require.NoError(t, err)
+	assert.NotZero(t, row.ID)
+	assert.Equal(t, tenantID, row.TenantID)
+}
+
+func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+
+	// Second offering so the child has two picks.
+	offering2Repo := enrollmentRepo.NewCareOfferingRepository(db)
+	o2 := makeOffering(0, uniqueOfferingName("second"))
+	// We need o2's PhaseID; fetch the first offering's phase via repo.
+	var first *enrollmentModels.CareOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var fbErr error
+		first, fbErr = offering2Repo.FindByID(ctx, offeringID)
+		return fbErr
+	}))
+	o2.PhaseID = first.PhaseID
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return offering2Repo.Create(ctx, o2)
+	}))
+
+	for _, oid := range []int64{offeringID, o2.ID} {
+		row := &enrollmentModels.RequestChildOffering{
+			RequestChildID: childID,
+			CareOfferingID: oid,
+			SelectedDays:   nil,
+		}
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, row)
+		}))
+	}
+
+	var list []*enrollmentModels.RequestChildOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByRequestChildID(ctx, childID)
+		return lErr
+	}))
+	require.Len(t, list, 2)
+}
+
+func TestRequestChildOfferingRepository_ListByRequestChildID_EmptyResultNoError(t *testing.T) {
+	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
+	var list []*enrollmentModels.RequestChildOffering
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByRequestChildID(ctx, 9_999_999)
+		return lErr
+	})
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}
+
+// --- CountActiveByCareOffering -------------------------------------------
+
+func TestRequestChildOfferingRepository_CountActiveByCareOffering_ExcludesTerminalStatuses(t *testing.T) {
+	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
+
+	// Need three additional children with different statuses so we can
+	// verify the COUNT only includes non-terminal rows. Fetch the
+	// request_id from the first child via raw SQL — we just need any
+	// request id that already exists for the tenant.
+	var requestID int64
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return db.NewRaw(`SELECT request_id FROM enrollment.request_children WHERE tenant_id = ? LIMIT 1`, tenantID).
+			Scan(ctx, &requestID)
+	}))
+
+	childRepo := enrollmentRepo.NewRequestChildRepository(db)
+	statuses := []string{
+		enrollmentModels.ChildStatusSubmitted,
+		enrollmentModels.ChildStatusApproved,
+		enrollmentModels.ChildStatusWaitlisted,
+		enrollmentModels.ChildStatusRejected,  // EXCLUDED
+		enrollmentModels.ChildStatusWithdrawn, // EXCLUDED
+	}
+	for i, status := range statuses {
+		c := makeChild(requestID, "Counter", "Child")
+		c.Status = status
+		c.SortOrder = i + 100
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return childRepo.Create(ctx, c)
+		}))
+		row := &enrollmentModels.RequestChildOffering{
+			RequestChildID: c.ID,
+			CareOfferingID: offeringID,
+		}
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, row)
+		}))
+	}
+
+	var count int
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var cErr error
+		count, cErr = repo.CountActiveByCareOffering(ctx, offeringID)
+		return cErr
+	})
+	require.NoError(t, err)
+	// 3 active (submitted/approved/waitlisted) of the 5 we added; the
+	// rejected + withdrawn rows MUST be excluded.
+	assert.Equal(t, 3, count,
+		"CountActiveByCareOffering must EXCLUDE rejected + withdrawn (capacity logic depends on it)")
+}
+
+func TestRequestChildOfferingRepository_CountActiveByCareOffering_ZeroWhenUnused(t *testing.T) {
+	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
+	var count int
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var cErr error
+		count, cErr = repo.CountActiveByCareOffering(ctx, 9_999_999)
+		return cErr
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 0, count)
+}

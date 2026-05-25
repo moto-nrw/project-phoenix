@@ -299,6 +299,78 @@ func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID
 	return nil
 }
 
+// LoadProfileWithChildren returns the guardian profile linked to the
+// account plus the primary phone + active-student summaries. Multi-
+// schema join (users.students_guardians → users.students →
+// users.persons) lives here so handlers/services don't reach into the
+// schema directly. Returns (nil, nil) when no profile is linked under
+// the current tenant context.
+func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context, accountID int64) (*users.GuardianProfileWithChildren, error) {
+	profile := new(users.GuardianProfile)
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(profile).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".account_id = ?`, accountID).
+		Limit(1).
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to load guardian profile: %w", err)
+	}
+
+	result := &users.GuardianProfileWithChildren{Profile: profile}
+
+	var primaryPhone users.GuardianPhoneNumber
+	phoneErr := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&primaryPhone).
+		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
+		Where(`"guardian_phone_number".guardian_profile_id = ?`, profile.ID).
+		OrderExpr(`"guardian_phone_number".is_primary DESC, "guardian_phone_number".id ASC`).
+		Limit(1).
+		Scan(ctx)
+	if phoneErr != nil && !errors.Is(phoneErr, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to load primary phone: %w", phoneErr)
+	}
+	if phoneErr == nil && primaryPhone.PhoneNumber != "" {
+		result.PrimaryPhone = primaryPhone.PhoneNumber
+	}
+
+	type childRow struct {
+		StudentID   int64  `bun:"student_id"`
+		FirstName   string `bun:"first_name"`
+		LastName    string `bun:"last_name"`
+		SchoolClass string `bun:"school_class"`
+	}
+	var rows []childRow
+	childErr := repoBase.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.students_guardians AS "sg"`).
+		ColumnExpr(`"s".id AS student_id`).
+		ColumnExpr(`"p".first_name`).
+		ColumnExpr(`"p".last_name`).
+		ColumnExpr(`"s".school_class`).
+		Join(`INNER JOIN users.students AS "s" ON "s".id = "sg".student_id`).
+		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
+		Where(`"sg".guardian_profile_id = ?`, profile.ID).
+		Where(`"s".status <> ?`, "alumnus").
+		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
+		Scan(ctx, &rows)
+	if childErr != nil && !errors.Is(childErr, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to load children: %w", childErr)
+	}
+	for _, row := range rows {
+		result.Children = append(result.Children, users.GuardianChildSummary{
+			StudentID:   row.StudentID,
+			FirstName:   row.FirstName,
+			LastName:    row.LastName,
+			SchoolClass: row.SchoolClass,
+		})
+	}
+
+	return result, nil
+}
+
 // GetStudentCount returns the number of students for a guardian
 func (r *GuardianProfileRepository) GetStudentCount(ctx context.Context, profileID int64) (int, error) {
 	count, err := repoBase.GetDB(ctx, r.db).NewSelect().

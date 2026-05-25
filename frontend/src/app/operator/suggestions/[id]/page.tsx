@@ -158,7 +158,7 @@ export default function OperatorSuggestionDetailPage() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-32 rounded" />
-        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-sm">
           <Skeleton className="mb-4 h-6 w-3/4 rounded" />
           <Skeleton className="mb-2 h-4 w-full rounded" />
           <Skeleton className="mb-2 h-4 w-full rounded" />
@@ -217,7 +217,7 @@ export default function OperatorSuggestionDetailPage() {
       )}
 
       {/* Main card */}
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
+      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-sm sm:p-6">
         {/* Status dropdown + moderation actions */}
         <div className="mb-4 flex items-center justify-between">
           <StatusDropdown
@@ -290,7 +290,7 @@ export default function OperatorSuggestionDetailPage() {
       </div>
 
       {/* Comments section */}
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
+      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-sm sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-gray-900">
           Kommentare ({suggestion.operatorComments.length})
         </h2>

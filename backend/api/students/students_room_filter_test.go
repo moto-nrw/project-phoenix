@@ -306,10 +306,18 @@ func TestListStudents_LocationStateTransit_EmptyReturnsEmpty(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
 	var resp struct {
-		Data []json.RawMessage `json:"data"`
+		Data []struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	assert.Empty(t, resp.Data)
+
+	ids := make(map[int64]struct{}, len(resp.Data))
+	for _, s := range resp.Data {
+		ids[s.ID] = struct{}{}
+	}
+	_, hasBystander := ids[bystander.ID]
+	assert.False(t, hasBystander, "student without open attendance must not appear")
 }
 
 func TestListStudents_LocationStateTransitWithGroupID_NoIntersectionReturnsEmpty(t *testing.T) {

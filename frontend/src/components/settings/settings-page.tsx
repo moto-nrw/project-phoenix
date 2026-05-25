@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import { createLogger } from "~/lib/logger";
 import {
@@ -19,6 +19,7 @@ import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
 import { PersonalizationTab } from "./personalization-tab";
+import { EnrollmentLinkPanel } from "./enrollment-link-panel";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
@@ -32,17 +33,25 @@ const logger = createLogger({ component: "SettingsPage" });
 
 interface SettingsTabContentProps {
   readonly tab: SchemaTab;
+  readonly highlightKey?: string | null;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
 }
 
-function SettingsTabContent({ tab, onSave, onReset }: SettingsTabContentProps) {
+function SettingsTabContent({
+  tab,
+  highlightKey,
+  onSave,
+  onReset,
+}: SettingsTabContentProps) {
   return (
     <div className="space-y-6">
+      {tab.key === "enrollment" && <EnrollmentLinkPanel tab={tab} />}
       {tab.categories.map((category) => (
         <SettingsCategory
           key={category.key}
           category={category}
+          highlightKey={highlightKey}
           onSave={onSave}
           onReset={onReset}
         />
@@ -57,7 +66,7 @@ function SettingsSkeleton() {
       {Array.from({ length: 2 }).map((_, catIdx) => (
         <div
           key={catIdx}
-          className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6"
+          className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6"
         >
           <Skeleton className="mb-4 h-5 w-32 rounded" />
           <div className="divide-y divide-gray-100">
@@ -82,6 +91,7 @@ function SettingsSkeleton() {
 
 interface SettingsContentProps {
   readonly tabKey: string;
+  readonly highlightKey?: string | null;
 }
 
 // useSettingsSchemaSWR is the single read path. The bridge mounted in the
@@ -97,7 +107,7 @@ function useSettingsSchemaSWR() {
   );
 }
 
-function SettingsContent({ tabKey }: SettingsContentProps) {
+function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   const { refresh: refreshSupervision } = useOptionalSupervision();
   const router = useRouter();
   const {
@@ -236,7 +246,12 @@ function SettingsContent({ tabKey }: SettingsContentProps) {
           </button>
         </div>
       )}
-      <SettingsTabContent tab={tab} onSave={handleSave} onReset={handleReset} />
+      <SettingsTabContent
+        tab={tab}
+        highlightKey={highlightKey}
+        onSave={handleSave}
+        onReset={handleReset}
+      />
     </>
   );
 }
@@ -250,6 +265,7 @@ export function useSettingsTabs(): {
   tabs: { id: string; label: string; icon: string }[];
   renderTab: (tabId: string) => React.ReactNode;
 } | null {
+  const searchParams = useSearchParams();
   const {
     data: schema,
     error: schemaError,
@@ -265,6 +281,7 @@ export function useSettingsTabs(): {
     operations: "Betrieb",
     gdpr: "Datenschutz",
     devices: "Geräte",
+    enrollment: "Anmeldung",
     system: "System",
     general: "Allgemein",
   };
@@ -278,6 +295,8 @@ export function useSettingsTabs(): {
     gdpr: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
     devices:
       "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+    enrollment:
+      "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
     system: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
     general:
       "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4",
@@ -307,13 +326,14 @@ export function useSettingsTabs(): {
   };
 
   const tabs = [...schemaTabs, personalizationTab];
+  const highlightKey = searchParams.get("highlight");
 
   const renderTab = (tabId: string) => {
     if (tabId === "settings-personalisierung") {
       return <PersonalizationTab />;
     }
     const settingsKey = tabId.replace("settings-", "");
-    return <SettingsContent tabKey={settingsKey} />;
+    return <SettingsContent tabKey={settingsKey} highlightKey={highlightKey} />;
   };
 
   return { tabs, renderTab };

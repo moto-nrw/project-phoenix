@@ -320,34 +320,36 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
-		// Create a real parent account to avoid FK constraint violations
-		// guardian_profiles.account_id references auth.accounts_parents(id)
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "linkaccount")
-		defer testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
+		// Create a real auth account to satisfy the FK constraint on
+		// guardian_profiles.account_id, which (since parent-enrollment
+		// PR 3, migration 1.15.46) references auth.accounts(id) instead
+		// of the orphaned auth.accounts_parents(id).
+		account := testpkg.CreateTestAccount(t, db, "linkaccount")
+		defer testpkg.CleanupAccount(t, db, account.ID)
 
-		// Use non-existent profile ID with real parent account ID
-		err := repo.LinkAccount(ctx, int64(999999), parentAccount.ID)
+		// Use non-existent profile ID with real account ID
+		err := repo.LinkAccount(ctx, int64(999999), account.ID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("successfully links account to profile", func(t *testing.T) {
-		// Create guardian profile and parent account
+		// Create guardian profile and a real auth account.
 		profile := testpkg.CreateTestGuardianProfile(t, db, "linktest")
 		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "linkprofile")
-		defer testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
+		account := testpkg.CreateTestAccount(t, db, "linkprofile")
+		defer testpkg.CleanupAccount(t, db, account.ID)
 
 		// Link the account
-		err := repo.LinkAccount(ctx, profile.ID, parentAccount.ID)
+		err := repo.LinkAccount(ctx, profile.ID, account.ID)
 		require.NoError(t, err)
 
 		// Verify the link
 		found, err := repo.FindByID(ctx, profile.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, found.AccountID)
-		assert.Equal(t, parentAccount.ID, *found.AccountID)
+		assert.Equal(t, account.ID, *found.AccountID)
 		assert.True(t, found.HasAccount)
 	})
 }

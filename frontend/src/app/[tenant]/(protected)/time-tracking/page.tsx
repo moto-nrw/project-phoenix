@@ -602,7 +602,7 @@ function ClockInCard({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm">
       <div className="relative p-5 sm:p-6 md:p-8">
         {/* Title + status badge */}
         <div className="mb-5 flex items-center justify-between">
@@ -748,7 +748,7 @@ function ClockInCard({
                           setBreakMenuOpen(false);
                       }}
                     />
-                    <div className="absolute top-full left-0 z-20 mt-2 flex gap-1.5 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+                    <div className="moto-content-surface absolute top-full left-0 z-20 mt-2 flex gap-1.5 rounded-xl border p-2 shadow-lg">
                       {BREAK_OPTIONS.map((mins) => (
                         <button
                           key={mins}
@@ -1187,7 +1187,7 @@ function WeekChart({
   );
 
   return (
-    <div className="relative flex min-h-[280px] flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] md:h-full md:min-h-0">
+    <div className="moto-content-surface relative flex min-h-[280px] flex-col overflow-hidden rounded-3xl border shadow-sm md:h-full md:min-h-0">
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6 md:p-8">
         <div className="mb-3 flex items-baseline justify-between sm:mb-4">
           <h2 className="text-base font-bold text-gray-900 sm:text-lg">
@@ -1356,7 +1356,7 @@ function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
           <div
             ref={panelRef}
             style={{ top: pos.top, right: pos.right }}
-            className="fixed z-50 w-[320px] rounded-xl border border-gray-200 bg-white shadow-lg"
+            className="moto-content-surface fixed z-50 w-[320px] rounded-xl border shadow-lg"
           >
             <div className="p-4 pb-2">
               <p className="text-sm font-medium text-gray-700">
@@ -1846,7 +1846,7 @@ function WeekTable({
     }, 0);
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
       {/* Week navigation header */}
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
         <button

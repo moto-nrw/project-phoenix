@@ -13,6 +13,7 @@ export const RESERVED_SLUGS = new Set([
   "www", // www.moto-app.de redirect
   "api", // api.moto-app.de, api-staging, api-demo
   "operator", // operator dashboard
+  "parents", // parents.moto-app.de — guardian portal (cross-tenant)
   "grafana", // grafana.moto-app.de monitoring
   "pyreportal", // pyreportal.moto-app.de kiosk SPA
   // Defensive reservations (common infrastructure subdomains)

@@ -1,0 +1,48 @@
+{{define "enrollment-rollover-opt-out.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "school-brand" .}}
+    <h1>Anmeldung wurde verlängert</h1>
+
+    <p>Sehr geehrte/r {{.GuardianFirstName}} {{.GuardianLastName}},</p>
+
+    <p>{{if .SchoolName}}die <strong>{{.SchoolName}}</strong> hat{{else}}wir haben{{end}} Ihre Anmeldung für <strong>{{.PhaseName}}</strong> automatisch übernommen. Sie müssen nichts weiter tun, damit Ihr Kind im neuen Zeitraum dabei ist.</p>
+
+    {{if .ChildNames}}
+    <div class="highlight-box">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{if eq (len .ChildNames) 1}}Verlängerte Anmeldung:{{else}}Verlängerte Anmeldungen:{{end}}</strong></p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .ChildNames}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+
+    {{if .RolloverDeadline}}
+    <div class="highlight-box" style="margin-top: 16px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Falls Sie nicht teilnehmen möchten:</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Bitte melden Sie sich bis zum <strong>{{.RolloverDeadline}}</strong> über den Link unten ab. Nach diesem Datum wird die Anmeldung in die reguläre Prüfung übernommen.</p>
+    </div>
+    {{end}}
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.StatusURL}}">Status ansehen oder abmelden</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.StatusURL}}">{{.StatusURL}}</a>
+    </div>
+
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Wie geht es weiter?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Sobald die Bearbeitungszeit endet, geht Ihre Anmeldung in die reguläre Prüfung der Schulleitung. Sie erhalten anschließend eine separate E-Mail mit dem Ergebnis.</p>
+    </div>
+
+    <p class="security-note">Bewahren Sie diese E-Mail auf. Der Link bleibt bis zur Frist gültig.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

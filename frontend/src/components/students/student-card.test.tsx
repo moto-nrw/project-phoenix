@@ -88,7 +88,7 @@ describe("StudentCard", () => {
     expect(screen.getByText("Class 1a")).toBeInTheDocument();
   });
 
-  it("applies custom gradient class", () => {
+  it("ignores legacy custom gradient classes", () => {
     const { container } = render(
       <StudentCard
         {...defaultProps}
@@ -97,14 +97,14 @@ describe("StudentCard", () => {
     );
 
     const gradientDiv = container.querySelector(".from-red-50\\/80");
-    expect(gradientDiv).toBeInTheDocument();
+    expect(gradientDiv).not.toBeInTheDocument();
   });
 
-  it("applies default gradient when not specified", () => {
+  it("does not render the previous default gradient overlay", () => {
     const { container } = render(<StudentCard {...defaultProps} />);
 
     const gradientDiv = container.querySelector(".from-blue-50\\/80");
-    expect(gradientDiv).toBeInTheDocument();
+    expect(gradientDiv).not.toBeInTheDocument();
   });
 
   it("renders both location badge and tracking indicators when both are provided", () => {

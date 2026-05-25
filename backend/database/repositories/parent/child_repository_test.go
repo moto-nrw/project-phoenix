@@ -1,0 +1,330 @@
+package parent_test
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
+	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// ensureGuardianProfile returns the guardian_profile id for the
+// (account, tenant) pair, creating it on first call. Uses the existing
+// row on subsequent calls to satisfy the (tenant_id, account_id) unique
+// index — multiple children under one parent share a single profile.
+func ensureGuardianProfile(t *testing.T, db *bun.DB, accountID, tenantID int64) int64 {
+	t.Helper()
+	bg := context.Background()
+
+	// account_tenants is the membership precondition.
+	testpkg.EnsureAccountTenant(t, db, accountID, tenantID)
+
+	var profileID int64
+	err := db.NewRaw(`SELECT id FROM users.guardian_profiles WHERE tenant_id = ? AND account_id = ?`,
+		tenantID, accountID).Scan(bg, &profileID)
+	if err == nil && profileID != 0 {
+		return profileID
+	}
+
+	uniqueEmail := fmt.Sprintf("link-%d@test", time.Now().UnixNano())
+	err = db.NewRaw(`
+		INSERT INTO users.guardian_profiles
+		  (tenant_id, account_id, has_account, first_name, last_name, email,
+		   preferred_contact_method, language_preference)
+		VALUES (?, ?, TRUE, 'Anna', 'Beispiel', ?, 'email', 'de')
+		RETURNING id
+	`, tenantID, accountID, uniqueEmail).Scan(bg, &profileID)
+	require.NoError(t, err)
+	return profileID
+}
+
+// linkChildToAccount adds a students_guardians row tying the student
+// to the (account, tenant) guardian profile. Idempotent on the
+// (tenant, student, profile) unique index; safe to call multiple times
+// for the same triple.
+func linkChildToAccount(t *testing.T, db *bun.DB, accountID, tenantID, studentID int64) int64 {
+	t.Helper()
+	bg := context.Background()
+	profileID := ensureGuardianProfile(t, db, accountID, tenantID)
+
+	_, err := db.NewRaw(`
+		INSERT INTO users.students_guardians
+		  (tenant_id, student_id, guardian_profile_id, relationship_type, is_primary,
+		   can_pickup)
+		VALUES (?, ?, ?, 'parent', TRUE, TRUE)
+		ON CONFLICT (tenant_id, student_id, guardian_profile_id) DO NOTHING
+	`, tenantID, studentID, profileID).Exec(bg)
+	require.NoError(t, err)
+	return profileID
+}
+
+// cleanupParentChild best-effort wipes the join rows so the next test
+// starts clean. Deletes in FK-friendly order.
+func cleanupParentChild(t *testing.T, db *bun.DB, accountID int64, tenantIDs ...int64) {
+	t.Helper()
+	bg := context.Background()
+	for _, tid := range tenantIDs {
+		_, _ = db.NewDelete().Table("users.students_guardians").
+			Where("tenant_id = ? AND guardian_profile_id IN (SELECT id FROM users.guardian_profiles WHERE tenant_id = ? AND account_id = ?)",
+				tid, tid, accountID).Exec(bg)
+		_, _ = db.NewDelete().Table("users.guardian_profiles").
+			Where("tenant_id = ? AND account_id = ?", tid, accountID).Exec(bg)
+		_, _ = db.NewDelete().Table("auth.account_tenants").
+			Where("account_id = ? AND tenant_id = ?", accountID, tid).Exec(bg)
+	}
+}
+
+func runAsAdmin(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) error {
+	t.Helper()
+	return tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+		return fn(ctx)
+	})
+}
+
+// --- ListByAccount ----------------------------------------------------
+
+func TestChildRepository_ListByAccount_RejectsNonPositive(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	repo := parentRepo.NewChildRepository(db)
+
+	_, err := repo.ListByAccount(context.Background(), 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be positive")
+
+	_, err = repo.ListByAccount(context.Background(), -1)
+	require.Error(t, err)
+}
+
+func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "parentchild-happy")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Beispiel", "1a")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("users.students").
+			Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.persons").
+			Where("id = ?", student.PersonID).Exec(context.Background())
+	})
+
+	linkChildToAccount(t, db, account.ID, tenantID, student.ID)
+
+	repo := parentRepo.NewChildRepository(db)
+	var list []*parentModels.ChildSummary
+	err := runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByAccount(ctx, account.ID)
+		return lErr
+	})
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, student.ID, list[0].StudentID)
+	assert.Equal(t, tenantID, list[0].TenantID)
+	assert.Equal(t, "Lara", list[0].FirstName)
+	assert.Equal(t, "1a", list[0].SchoolClass)
+	assert.NotEmpty(t, list[0].SchoolName, "school name must be JOINed in from platform.schools")
+	assert.NotEmpty(t, list[0].SchoolSlug)
+}
+
+func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
+	// A parent who lost access to a school (account_tenants.status !=
+	// 'active') MUST NOT continue to see its children.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "parentchild-inactive")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Inactive", "1a")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("users.students").
+			Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.persons").
+			Where("id = ?", student.PersonID).Exec(context.Background())
+	})
+	linkChildToAccount(t, db, account.ID, tenantID, student.ID)
+
+	// Flip the mapping to 'inactive'.
+	_, err := db.NewRaw(`UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?`,
+		account.ID, tenantID).Exec(context.Background())
+	require.NoError(t, err)
+
+	repo := parentRepo.NewChildRepository(db)
+	var list []*parentModels.ChildSummary
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByAccount(ctx, account.ID)
+		return lErr
+	}))
+	assert.Empty(t, list, "inactive account_tenants membership MUST hide the child")
+}
+
+func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {
+	// Soft-deleted persons (deleted_at IS NOT NULL) must be excluded.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "parentchild-softdel")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Deleted", "1a")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("users.students").
+			Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.persons").
+			Where("id = ?", student.PersonID).Exec(context.Background())
+	})
+	linkChildToAccount(t, db, account.ID, tenantID, student.ID)
+
+	// Soft-delete the underlying person.
+	_, err := db.NewRaw(`UPDATE users.persons SET deleted_at = NOW() WHERE id = ?`, student.PersonID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	repo := parentRepo.NewChildRepository(db)
+	var list []*parentModels.ChildSummary
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByAccount(ctx, account.ID)
+		return lErr
+	}))
+	assert.Empty(t, list, "soft-deleted person MUST be filtered out")
+}
+
+func TestChildRepository_ListByAccount_CrossTenant(t *testing.T) {
+	// One account → two children at two different tenants. Both rows
+	// must come back in a single call (cross-tenant join via
+	// account_tenants).
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	var tenantA int64 = 91501
+	var tenantB int64 = 91502
+	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.EnsureTestTenant(t, db, tenantB)
+
+	account := testpkg.CreateTestAccount(t, db, "parentchild-cross")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantA, tenantB)
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	studentA := testpkg.CreateTestStudentForTenant(t, db, tenantA, "Lara", "Cross-A", "1a")
+	studentB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "Tim", "Cross-B", "2b")
+	t.Cleanup(func() {
+		bg := context.Background()
+		for _, s := range []struct {
+			studentID, personID int64
+		}{{studentA.ID, studentA.PersonID}, {studentB.ID, studentB.PersonID}} {
+			_, _ = db.NewDelete().Table("users.students").Where("id = ?", s.studentID).Exec(bg)
+			_, _ = db.NewDelete().Table("users.persons").Where("id = ?", s.personID).Exec(bg)
+		}
+	})
+
+	linkChildToAccount(t, db, account.ID, tenantA, studentA.ID)
+	linkChildToAccount(t, db, account.ID, tenantB, studentB.ID)
+
+	repo := parentRepo.NewChildRepository(db)
+	var list []*parentModels.ChildSummary
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByAccount(ctx, account.ID)
+		return lErr
+	}))
+	require.Len(t, list, 2, "both children must come back in a single cross-tenant query")
+	seenTenants := map[int64]bool{}
+	for _, c := range list {
+		seenTenants[c.TenantID] = true
+	}
+	assert.True(t, seenTenants[tenantA])
+	assert.True(t, seenTenants[tenantB])
+}
+
+func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
+	// Result ordering is school_name ASC, first_name ASC, last_name
+	// ASC. Verify with two children at the same school.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "parentchild-order")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	// Insert Z first, A second, so the test really exercises the
+	// ORDER BY rather than insertion order.
+	studentZ := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Zara", "Last", "3c")
+	studentA := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Anna", "First", "1a")
+	t.Cleanup(func() {
+		bg := context.Background()
+		for _, s := range []struct {
+			studentID, personID int64
+		}{{studentZ.ID, studentZ.PersonID}, {studentA.ID, studentA.PersonID}} {
+			_, _ = db.NewDelete().Table("users.students").Where("id = ?", s.studentID).Exec(bg)
+			_, _ = db.NewDelete().Table("users.persons").Where("id = ?", s.personID).Exec(bg)
+		}
+	})
+	linkChildToAccount(t, db, account.ID, tenantID, studentZ.ID)
+	linkChildToAccount(t, db, account.ID, tenantID, studentA.ID)
+
+	repo := parentRepo.NewChildRepository(db)
+	var list []*parentModels.ChildSummary
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByAccount(ctx, account.ID)
+		return lErr
+	}))
+	require.Len(t, list, 2)
+	assert.Equal(t, "Anna", list[0].FirstName, "first_name ASC means Anna comes before Zara")
+	assert.Equal(t, "Zara", list[1].FirstName)
+}
+
+func TestChildRepository_ListByAccount_UnknownAccountEmpty(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	repo := parentRepo.NewChildRepository(db)
+
+	var list []*parentModels.ChildSummary
+	err := runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByAccount(ctx, 9_999_999)
+		return lErr
+	})
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}

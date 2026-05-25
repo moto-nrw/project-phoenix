@@ -14,7 +14,7 @@
     <p>Sie wurden zum <strong>Eltern-Portal</strong> von moto eingeladen. Mit diesem Zugang können Sie die Informationen {{if .StudentNames}}zu {{if eq (len .StudentNames) 1}}Ihrem Kind{{else}}Ihren Kindern{{end}}{{else}}zu Ihren Kindern{{end}} einsehen und erhalten wichtige Benachrichtigungen.</p>
 
     {{if .StudentNames}}
-    <div class="highlight-box" style="background-color: #f0f9ff; border-left: 4px solid #3b82f6;">
+    <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{if eq (len .StudentNames) 1}}Ihr Kind:{{else}}Ihre Kinder:{{end}}</strong></p>
         <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
             {{range .StudentNames}}
@@ -39,7 +39,7 @@
         <a href="{{.InvitationURL}}">{{.InvitationURL}}</a>
     </div>
 
-    <div class="highlight-box" style="margin-top: 24px; background-color: #f0f9ff; border-left: 4px solid #3b82f6;">
+    <div class="highlight-box" style="margin-top: 24px;">
         <p style="margin: 0; font-size: 14px;"><strong>Nach der Registrierung können Sie:</strong></p>
         <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 14px;">
             <li>Informationen zu Ihren Kindern einsehen</li>

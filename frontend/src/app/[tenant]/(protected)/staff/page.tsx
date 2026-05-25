@@ -276,7 +276,7 @@ function StaffPageContent() {
               return (
                 <div
                   key={staffMember.id}
-                  className={`group relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150`}
+                  className={`group moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150`}
                 >
                   {/* Modern gradient overlay */}
                   <div

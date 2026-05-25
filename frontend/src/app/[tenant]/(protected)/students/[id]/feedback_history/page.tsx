@@ -261,7 +261,7 @@ export default function StudentFeedbackHistoryPage() {
       </div>
 
       {/* Main visual card */}
-      <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
         <div className="p-4 sm:p-6 md:p-8">
           <h2 className="mb-1 text-base font-bold text-gray-900 sm:text-lg">
             Feedback-Übersicht

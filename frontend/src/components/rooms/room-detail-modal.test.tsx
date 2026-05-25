@@ -253,12 +253,15 @@ describe("RoomDetailModal", () => {
     it("renders transit content on desktop without fetching room details", () => {
       render(<RoomDetailModal roomId="__transit__" onClose={vi.fn()} />);
 
-      expect(screen.getByRole("heading", { name: "Unterwegs" }))
-        .toBeInTheDocument();
-      expect(screen.getByTestId("transit-students-section"))
-        .toBeInTheDocument();
-      expect(screen.queryByTestId("room-detail-loader"))
-        .not.toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Unterwegs" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("transit-students-section"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("room-detail-loader"),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -293,12 +296,15 @@ describe("RoomDetailModal", () => {
     it("renders transit content on mobile without fetching room details", () => {
       render(<RoomDetailModal roomId="__transit__" onClose={vi.fn()} />);
 
-      expect(screen.getByRole("heading", { name: "Unterwegs" }))
-        .toBeInTheDocument();
-      expect(screen.getByTestId("transit-students-section"))
-        .toBeInTheDocument();
-      expect(screen.queryByTestId("room-detail-loader"))
-        .not.toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Unterwegs" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("transit-students-section"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("room-detail-loader"),
+      ).not.toBeInTheDocument();
     });
 
     it("keeps shouldScaleBackground on the bottom sheet (iOS-style scale animation)", () => {

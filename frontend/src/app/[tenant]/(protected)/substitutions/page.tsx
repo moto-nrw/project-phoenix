@@ -380,14 +380,9 @@ function SubstitutionPageContent() {
               type="button"
               key={teacher.id}
               onClick={() => openSubstitutionPopup(teacher)}
-              className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-blue-300/50 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+              className="group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
             >
-              {/* Modern gradient overlay */}
-              <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
-              {/* Subtle inner glow */}
-              <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-              {/* Modern border highlight */}
-              <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+              <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
 
               <div className="relative flex items-center justify-between p-4 md:p-5">
                 {/* Left content - Avatar + Info */}
@@ -403,7 +398,7 @@ function SubstitutionPageContent() {
 
                   {/* Teacher info */}
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-base font-semibold text-gray-900 transition-colors duration-300 md:text-lg md:group-hover:text-blue-600">
+                    <h3 className="inline-block origin-left truncate text-base font-semibold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:text-lg md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
                       {formatTeacherName(teacher)}
                     </h3>
                     {/* Meta info row: Group + Status */}
@@ -433,9 +428,9 @@ function SubstitutionPageContent() {
 
                   {/* Plus icon button (visual only - parent button handles click) */}
                   <span className="relative" aria-hidden="true">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 transition-all duration-200 md:h-10 md:w-10 md:group-hover:scale-110 md:group-hover:bg-blue-100">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 transition-colors duration-300 md:h-10 md:w-10 md:group-hover:bg-gray-200">
                       <svg
-                        className="h-5 w-5 text-gray-600 transition-colors md:group-hover:text-blue-600"
+                        className="h-5 w-5 text-gray-600 transition-colors duration-300 md:group-hover:text-gray-900"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -448,14 +443,9 @@ function SubstitutionPageContent() {
                         />
                       </svg>
                     </div>
-                    {/* Ripple effect on hover */}
-                    <div className="absolute inset-0 scale-0 rounded-full bg-blue-200/20 transition-transform duration-300 md:group-hover:scale-100"></div>
                   </span>
                 </div>
               </div>
-
-              {/* Glowing border effect */}
-              <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
             </button>
           ))}
         </div>
@@ -596,7 +586,7 @@ function SubstitutionPageContent() {
                       return (
                         <div
                           key={substitution.id}
-                          className="group relative overflow-hidden rounded-2xl border border-orange-200/50 bg-gradient-to-br from-orange-50/80 to-amber-50/50 shadow-sm transition-all duration-300 hover:shadow-md"
+                          className="group relative overflow-hidden rounded-2xl border border-orange-200 bg-orange-50/70 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[border-color,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-orange-300 hover:bg-orange-50 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)]"
                         >
                           <div className="relative p-4 md:p-5">
                             {/* Mobile layout */}
@@ -626,7 +616,7 @@ function SubstitutionPageContent() {
                                   )
                                 }
                                 disabled={isMutating}
-                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-colors duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20"
                               >
                                 Beenden
                               </button>
@@ -661,7 +651,7 @@ function SubstitutionPageContent() {
                                   )
                                 }
                                 disabled={isMutating}
-                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-colors duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20"
                               >
                                 Beenden
                               </button>
@@ -735,7 +725,7 @@ function SubstitutionPageContent() {
                       return (
                         <div
                           key={substitution.id}
-                          className="group relative overflow-hidden rounded-2xl border border-purple-200/50 bg-gradient-to-br from-purple-50/80 to-pink-50/50 shadow-sm transition-all duration-300 hover:shadow-md"
+                          className="group relative overflow-hidden rounded-2xl border border-purple-200 bg-purple-50/70 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[border-color,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-purple-300 hover:bg-purple-50 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)]"
                         >
                           <div className="relative p-4 md:p-5">
                             {/* Mobile layout */}
@@ -770,7 +760,7 @@ function SubstitutionPageContent() {
                                   )
                                 }
                                 disabled={isMutating}
-                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                                className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-colors duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20"
                               >
                                 Beenden
                               </button>
@@ -810,7 +800,7 @@ function SubstitutionPageContent() {
                                   )
                                 }
                                 disabled={isMutating}
-                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
+                                className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-colors duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20"
                               >
                                 Beenden
                               </button>
@@ -864,7 +854,7 @@ function SubstitutionPageContent() {
                 id="substitution-group-select"
                 value={selectedGroup}
                 onChange={(e) => setSelectedGroup(e.target.value)}
-                className="block w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-white py-3 pr-10 pl-4 text-lg text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                className="moto-content-surface block w-full cursor-pointer appearance-none rounded-lg border py-3 pr-10 pl-4 text-lg text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
               >
                 <option value="">Gruppe auswählen...</option>
                 {groups.map((group) => (
@@ -906,7 +896,7 @@ function SubstitutionPageContent() {
                   setSubstitutionDays((prev) => Math.max(1, prev - 1))
                 }
                 disabled={substitutionDays <= 1}
-                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white"
+                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-colors duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white"
                 aria-label="Tage verringern"
               >
                 <svg
@@ -957,7 +947,7 @@ function SubstitutionPageContent() {
                   setSubstitutionDays((prev) => Math.min(365, prev + 1))
                 }
                 disabled={substitutionDays >= 365}
-                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-gray-300 bg-white text-gray-600 transition-colors duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label="Tage erhöhen"
               >
                 <svg
@@ -987,7 +977,7 @@ function SubstitutionPageContent() {
             <button
               type="button"
               onClick={closePopup}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-[border-color,background-color,box-shadow] duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-sm"
             >
               Abbrechen
             </button>
@@ -996,7 +986,7 @@ function SubstitutionPageContent() {
               type="button"
               onClick={handleAssignSubstitution}
               disabled={isMutating}
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-[background-color,box-shadow] duration-200 hover:bg-gray-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isMutating ? (
                 <span className="flex items-center justify-center gap-2">

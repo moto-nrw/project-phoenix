@@ -78,6 +78,7 @@ const (
 	KeyExcusedClearMode               = "operations.excused_clear_mode"
 	KeyPresenceMode                   = "operations.presence_mode"
 	KeyWebCheckinAccess               = "attendance.web_checkin_access"
+	KeyStudentActivationIntervalMin   = "operations.student_activation_interval_minutes"
 	KeyWebSpontaneousActivities       = "attendance.web_spontaneous_activities_enabled"
 	KeyStudentPhotosEnabled           = "operations.student_photos_enabled"
 )
@@ -99,6 +100,49 @@ const (
 	ClearModeManual      = "manual"
 	ClearModeNextCheckin = "next_checkin"
 	ClearModeEndOfDay    = "end_of_day"
+)
+
+// Invitations settings (auth flows).
+const (
+	KeyGuardianInvitationTokenExpiryHours = "invitations.guardian_token_expiry_hours"
+)
+
+// Parent-enrollment settings. Tenant-wide behavioural toggles only -
+// per-phase overrides (open window, form schema, overflow mode, status-
+// reason visibility) live on enrollment.phases columns.
+const (
+	KeyEnrollmentEnabled                     = "enrollment.enabled"
+	KeyEnrollmentCollectGradeLevel           = "enrollment.collect_grade_level"
+	KeyEnrollmentCareOfferingsEnabled        = "enrollment.care_offerings_enabled"
+	KeyEnrollmentCareOfferingsRequired       = "enrollment.care_offerings_required"
+	KeyEnrollmentDefaultActivationMode       = "enrollment.default_activation_mode"
+	KeyEnrollmentNotificationEmails          = "enrollment.notification_emails"
+	KeyEnrollmentAutoInviteGuardianOnApprove = "enrollment.auto_invite_guardian_on_approval"
+	KeyEnrollmentDuplicateHandling           = "enrollment.duplicate_handling"
+	KeyEnrollmentAllowSubmissionEdit         = "enrollment.allow_submission_edit"
+	KeyEnrollmentRequireCaptcha              = "enrollment.require_captcha"
+	KeyEnrollmentRejectedRetentionDays       = "enrollment.rejected_retention_days"
+	KeyEnrollmentWaitlistEnabled             = "enrollment.waitlist_enabled"
+	KeyEnrollmentNotifyPerDecision           = "enrollment.notify_per_decision"
+	KeyEnrollmentOutboxMaxAttempts           = "enrollment.outbox_max_attempts"
+	KeyEnrollmentOutboxWorkerIntervalSeconds = "enrollment.outbox_worker_interval_seconds"
+	KeyEnrollmentStatusTokenTTLDays          = "enrollment.status_token_ttl_days"
+	KeyEnrollmentCaptchaSiteKey              = "enrollment.captcha_site_key"
+	KeyEnrollmentCaptchaSecretKey            = "enrollment.captcha_secret_key"
+	KeyEnrollmentGradeLevelMax               = "enrollment.grade_level_max"
+)
+
+// Enrollment select-option values.
+const (
+	EnrollmentActivationModeImmediate = "immediate"
+	EnrollmentActivationModeScheduled = "scheduled"
+
+	EnrollmentDuplicateHandlingBlock  = "block"
+	EnrollmentDuplicateHandlingWarn   = "warn"
+	EnrollmentDuplicateHandlingIgnore = "ignore"
+
+	EnrollmentNotifyPerDecisionDigest    = "digest"
+	EnrollmentNotifyPerDecisionImmediate = "immediate"
 )
 
 // Timetable settings (WP-B7). Per-tenant configuration for the activity
