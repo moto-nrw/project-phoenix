@@ -135,7 +135,7 @@ jobs:
 
       - name: Extract metadata for backend
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: ${{ env.BACKEND_IMAGE }}
           tags: |
@@ -196,7 +196,7 @@ jobs:
 
       - name: Extract metadata for frontend
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: ${{ env.FRONTEND_IMAGE }}
           tags: |
