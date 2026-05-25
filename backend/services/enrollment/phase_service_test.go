@@ -165,8 +165,19 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 
 	open, err := svc.ListPublicOpen(ctx, now)
 	require.NoError(t, err)
-	require.Len(t, open, 1, "only the open+active phase should appear")
-	assert.Equal(t, "phase-"+t.Name()+"-open-active", open[0].Name)
+	testPhaseNames := map[string]struct{}{
+		"phase-" + t.Name() + "-open-active":   {},
+		"phase-" + t.Name() + "-open-inactive": {},
+		"phase-" + t.Name() + "-closed-window": {},
+	}
+	matching := make([]*enrollmentModels.Phase, 0, len(open))
+	for _, phase := range open {
+		if _, ok := testPhaseNames[phase.Name]; ok {
+			matching = append(matching, phase)
+		}
+	}
+	require.Len(t, matching, 1, "only this test's open+active phase should appear")
+	assert.Equal(t, "phase-"+t.Name()+"-open-active", matching[0].Name)
 }
 
 func TestPhaseService_Delete_RefusesWhenOfferingsReference(t *testing.T) {
