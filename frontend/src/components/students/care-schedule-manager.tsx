@@ -519,7 +519,7 @@ export function CareScheduleManager({
 
   if (isLoading && arrivalData.schedules.length === 0) {
     return (
-      <div className="moto-content-surface flex items-center justify-center rounded-2xl border py-12 shadow-sm">
+      <div className="moto-content-surface flex items-center justify-center rounded-2xl border border-gray-200 py-12 shadow-sm">
         <Loader2 className="h-7 w-7 animate-spin text-gray-500" />
       </div>
     );
@@ -534,7 +534,7 @@ export function CareScheduleManager({
   }
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-xl border shadow-sm backdrop-blur-md sm:rounded-2xl">
+    <section className="moto-content-surface overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
       <div className="border-b border-gray-100 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -967,7 +967,7 @@ function AbsencePlaceholder({
         type="button"
         onClick={() => onRequestDeleteStatusDay(statusDay)}
         disabled={isDeleting}
-        className="moto-content-surface group relative flex min-h-[134px] w-full items-center rounded-lg border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+        className="moto-content-surface group relative flex min-h-[134px] w-full items-center rounded-lg border border-gray-200 p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
         aria-label={`${label} entfernen`}
       >
         <span className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700">
@@ -979,7 +979,7 @@ function AbsencePlaceholder({
   }
 
   return (
-    <div className="moto-content-surface flex min-h-[134px] items-center rounded-lg border p-3 shadow-sm">
+    <div className="moto-content-surface flex min-h-[134px] items-center rounded-lg border border-gray-200 p-3 shadow-sm">
       {content}
     </div>
   );

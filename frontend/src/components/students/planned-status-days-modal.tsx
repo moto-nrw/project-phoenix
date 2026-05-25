@@ -168,7 +168,7 @@ export function PlannedStatusDaysModal({
     >
       <div className="space-y-5">
         <div className="flex items-start gap-3">
-          <div className="moto-content-surface mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
+          <div className="moto-content-surface mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 shadow-sm">
             {isSick ? (
               <CalendarX className="h-5 w-5" />
             ) : (
@@ -224,7 +224,7 @@ export function PlannedStatusDaysModal({
                       ? "border-gray-900 bg-gray-900 text-white"
                       : existingDay
                         ? "border-gray-100 bg-gray-50 text-gray-400"
-                        : "moto-content-surface text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                        : "moto-content-surface border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
                   } disabled:cursor-not-allowed`}
                   title={
                     existingDay
@@ -273,7 +273,7 @@ export function PlannedStatusDaysModal({
                         ),
                       )
                     }
-                    className="moto-content-surface inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    className="moto-content-surface inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     {format(date, "dd.MM.yyyy", { locale: de })}
                     <X className="h-3.5 w-3.5 text-gray-400" />
@@ -293,7 +293,7 @@ export function PlannedStatusDaysModal({
               {activeExistingDays.map((day) => (
                 <div
                   key={day.id}
-                  className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm text-gray-700 shadow-sm"
+                  className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm"
                 >
                   <span>
                     <span className="block">{formatDateLabel(day.date)}</span>
