@@ -82,6 +82,7 @@ jobs:
             --rerun-fails-report rerun-fails.json \
             --packages="./..." \
             -- \
+            -coverpkg=./... \
             -covermode=atomic \
             -coverprofile=coverage.out
 
@@ -92,9 +93,9 @@ jobs:
         run: |
           echo "Regenerating full coverage for SonarCloud"
           cp coverage.out coverage.gotestsum.out
-          if ! go test ./... -covermode=atomic -coverprofile=coverage.out; then
+          if ! go test ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
             echo "Coverage regeneration failed; retrying once"
-            if ! go test ./... -covermode=atomic -coverprofile=coverage.out; then
+            if ! go test ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
               echo "Coverage regeneration failed after retry; keeping gotestsum coverage.out"
               mv coverage.gotestsum.out coverage.out
             fi
