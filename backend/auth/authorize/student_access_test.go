@@ -138,6 +138,25 @@ func TestResolveStudentDataScope_HappyPath(t *testing.T) {
 	assert.Equal(t, configModel.StudentDataScopeAllStaff, got)
 }
 
+func TestResolveOGSGroupsEnabled_NilSettingsDefaultsToEnabled(t *testing.T) {
+	assert.True(t, resolveOGSGroupsEnabled(context.Background(), nil, nil))
+}
+
+func TestResolveOGSGroupsEnabled_ResolveErrorDefaultsToEnabled(t *testing.T) {
+	settings := &stubSettings{valueErr: errors.New("settings down")}
+	assert.True(t, resolveOGSGroupsEnabled(context.Background(), settings, slog.Default()))
+}
+
+func TestResolveOGSGroupsEnabled_FalseStringDisables(t *testing.T) {
+	settings := &stubSettings{value: "false"}
+	assert.False(t, resolveOGSGroupsEnabled(context.Background(), settings, nil))
+}
+
+func TestResolveOGSGroupsEnabled_OtherValuesEnable(t *testing.T) {
+	settings := &stubSettings{value: "true"}
+	assert.True(t, resolveOGSGroupsEnabled(context.Background(), settings, nil))
+}
+
 // --- CanReadStudent ----------------------------------------------------
 
 func TestCanReadStudent_NilStudent(t *testing.T) {
