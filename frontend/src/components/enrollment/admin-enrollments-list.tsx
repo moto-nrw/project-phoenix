@@ -33,7 +33,7 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
 
-type SetupStepStatus = "done" | "todo" | "optional" | "blocked";
+type SetupStepStatus = "done" | "todo" | "blocked";
 
 interface SetupStep {
   readonly title: string;
@@ -129,8 +129,13 @@ export function AdminEnrollmentsList() {
         enrollmentEnabled={enrollmentEnabled}
         phaseCount={phases.length}
         activePhaseCount={phases.filter((phase) => phase.is_active).length}
-        activePhaseWithFormCount={
-          phases.filter((phase) => phase.is_active).length
+        activePhaseUsingBaseFormCount={
+          phases.filter((phase) => phase.is_active && !phase.form_schema_id)
+            .length
+        }
+        activePhaseUsingCustomFormCount={
+          phases.filter((phase) => phase.is_active && phase.form_schema_id)
+            .length
         }
         schemaCount={latestSchemas.length}
         careOfferingCount={careOfferingStats.total}
@@ -353,7 +358,8 @@ interface EnrollmentSetupGuideProps {
   readonly enrollmentEnabled: boolean | null;
   readonly phaseCount: number;
   readonly activePhaseCount: number;
-  readonly activePhaseWithFormCount: number;
+  readonly activePhaseUsingBaseFormCount: number;
+  readonly activePhaseUsingCustomFormCount: number;
   readonly schemaCount: number;
   readonly careOfferingCount: number;
   readonly activeCareOfferingCount: number;
@@ -364,7 +370,8 @@ function EnrollmentSetupGuide({
   enrollmentEnabled,
   phaseCount,
   activePhaseCount,
-  activePhaseWithFormCount,
+  activePhaseUsingBaseFormCount,
+  activePhaseUsingCustomFormCount,
   schemaCount,
   careOfferingCount,
   activeCareOfferingCount,
@@ -380,6 +387,27 @@ function EnrollmentSetupGuide({
   useEffect(() => {
     if (!setupComplete) setExpanded(true);
   }, [setupComplete]);
+
+  const activePhaseWithResolvedFormCount =
+    activePhaseUsingBaseFormCount + activePhaseUsingCustomFormCount;
+  const formStepStatus: SetupStepStatus =
+    activePhaseCount === 0
+      ? "blocked"
+      : activePhaseWithResolvedFormCount > 0
+        ? "done"
+        : "todo";
+  const formStepMeta =
+    activePhaseCount === 0
+      ? "Wartet auf Phase"
+      : activePhaseUsingCustomFormCount > 0
+        ? "Eigene Vorlage"
+        : activePhaseUsingBaseFormCount > 0
+          ? "Basisformular"
+          : schemaCount > 0
+            ? "In Phase auswählen"
+            : "Basisformular wählen";
+  const formStepAction =
+    activePhaseCount === 0 ? "Anmeldephase anlegen" : "In Phase festlegen";
 
   const steps = [
     {
@@ -429,14 +457,11 @@ function EnrollmentSetupGuide({
     {
       title: "Anmeldeformular festlegen",
       description:
-        schemaCount === 0
-          ? "Das Basisformular reicht oft aus. Zusatzfragen sind optional."
-          : "Eigene Vorlagen sind optional. Eine Anmeldephase kann auch mit dem Basisformular live gehen.",
-      href: "/enrollment-form",
-      action: "Formulare prüfen",
-      status:
-        activePhaseWithFormCount > 0 || schemaCount === 0 ? "optional" : "todo",
-      meta: activePhaseWithFormCount > 0 ? "Basisformular" : "Optional",
+        "Wähle in der Anmeldephase das Basisformular oder eine eigene Vorlage aus.",
+      href: activePhaseCount === 0 ? "/enrollment-phases" : "/enrollment-form",
+      action: formStepAction,
+      status: formStepStatus,
+      meta: formStepMeta,
       icon: FileText,
       requiredForPublish: false,
     },
@@ -671,9 +696,9 @@ function EnrollmentSetupGuide({
 
                 <div className="text-xs leading-relaxed text-gray-500">
                   Für den Elternlink sind Aktivierung, Anmeldephase und
-                  Betreuungsangebote entscheidend. Das Basisformular ist schon
-                  da. Eigene Formularvorlagen musst du zusätzlich in der
-                  passenden Anmeldephase auswählen.
+                  Betreuungsangebote entscheidend. Jede Anmeldephase nutzt
+                  entweder das Basisformular oder eine eigene Vorlage. Lege
+                  zuerst eine Phase an und prüfe dort die Formularauswahl.
                 </div>
               </div>
             </aside>
@@ -685,11 +710,11 @@ function EnrollmentSetupGuide({
 }
 
 function isStepComplete(status: SetupStepStatus) {
-  return status === "done" || status === "optional";
+  return status === "done";
 }
 
 function getStepIconClass(status: SetupStepStatus) {
-  if (status === "done" || status === "optional") {
+  if (status === "done") {
     return "border-[#83CD2D]/30 bg-[#83CD2D]/15 text-[#5A8B1F]";
   }
   return "border-gray-200 bg-white text-gray-500";
