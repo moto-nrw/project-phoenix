@@ -16,6 +16,11 @@ func TestValidateOptionalEmail(t *testing.T) {
 		{"standard address", "anna@example.com", false},
 		{"dotted local + subdomain", "anna.beispiel@sub.example.de", false},
 		{"surrounding whitespace is trimmed", "  anna@example.com  ", false},
+		// `+` in local part — sub-addressing, RFC 5322 valid. The
+		// enrollment rate-limit test (request_service_test.go) uses
+		// `anna+0@example.com` etc to exercise per-IP throttling.
+		{"plus subaddressing", "anna+0@example.com", false},
+		{"plus subaddressing complex", "user+tag@sub.example.com", false},
 		// Regression: net/mail.ParseAddress accepts these, but student
 		// creation at enrollment approval rejects them (the domain has no
 		// dot), which used to leave enrollment requests permanently stuck.

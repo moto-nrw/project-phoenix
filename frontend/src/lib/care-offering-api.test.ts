@@ -72,7 +72,7 @@ describe("listCareOfferings", () => {
     });
     const out = await listCareOfferings();
     expect(out).toHaveLength(1);
-    expect(out[0].id).toBe("1234");
+    expect(out[0]!.id).toBe("1234");
     expect(seenURL).not.toContain("phase_id");
   });
 

@@ -78,8 +78,8 @@ describe("listMyChildren", () => {
     mockFetch(async () => jsonResponse({ data: [mkChild("1234", "OGS A")] }));
     const out = await listMyChildren();
     expect(out).toHaveLength(1);
-    expect(out[0].student_id).toBe("1234");
-    expect(out[0].school_name).toBe("OGS A");
+    expect(out[0]!.student_id).toBe("1234");
+    expect(out[0]!.school_name).toBe("OGS A");
   });
 
   it("handles flat (non-enveloped) response by returning it directly", async () => {
@@ -122,8 +122,8 @@ describe("listMyEnrollments", () => {
     mockFetch(async () => jsonResponse({ data: [mkEnrollment("99")] }));
     const out = await listMyEnrollments();
     expect(out).toHaveLength(1);
-    expect(out[0].request_id).toBe("99");
-    expect(out[0].children).toHaveLength(1);
+    expect(out[0]!.request_id).toBe("99");
+    expect(out[0]!.children).toHaveLength(1);
   });
 
   it("throws on non-OK", async () => {

@@ -73,7 +73,7 @@ describe("listPhases", () => {
     mockFetch(async () => jsonResponse({ data: [mkPhase("1", "X")] }));
     const out = await listPhases();
     expect(out).toHaveLength(1);
-    expect(out[0].id).toBe("1");
+    expect(out[0]!.id).toBe("1");
   });
 
   it("returns [] when the backend returns non-array data", async () => {
@@ -379,7 +379,7 @@ describe("listRolloverReview", () => {
     );
     const out = await listRolloverReview("42");
     expect(out).toHaveLength(1);
-    expect(out[0].first_name).toBe("Lara");
+    expect(out[0]!.first_name).toBe("Lara");
   });
 
   it("returns [] when backend returns non-array data", async () => {

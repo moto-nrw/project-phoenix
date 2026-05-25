@@ -139,7 +139,7 @@ describe("latestSchemasByName", () => {
     ];
     const out = latestSchemasByName(list);
     expect(out).toHaveLength(1);
-    expect(out[0].id).toBe("2");
+    expect(out[0]!.id).toBe("2");
   });
 
   it("sorts the result by created_at DESC", () => {
@@ -168,7 +168,7 @@ describe("listSchemas", () => {
     );
     const out = await listSchemas();
     expect(out).toHaveLength(1);
-    expect(out[0].name).toBe("A");
+    expect(out[0]!.name).toBe("A");
   });
 
   it("returns [] when the backend returns a non-array data", async () => {

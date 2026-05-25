@@ -41,7 +41,7 @@ func wipePhases(db *bun.DB, tenantID int64, names ...string) {
 	}
 	_, _ = db.NewDelete().
 		TableExpr("enrollment.phases").
-		Where("tenant_id = ? AND name IN (?)", tenantID, bun.In(names)).
+		Where("tenant_id = ? AND name IN (?)", tenantID, bun.List(names)).
 		Exec(bg)
 }
 
@@ -333,7 +333,7 @@ func TestPhaseRepository_ListPublicOpen_OnlyReturnsActiveInWindow(t *testing.T) 
 		return lErr
 	}))
 
-	var ours map[string]bool = make(map[string]bool)
+	ours := make(map[string]bool)
 	for _, p := range list {
 		ours[p.Name] = true
 	}

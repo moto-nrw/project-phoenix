@@ -16,7 +16,12 @@ var ErrInvalidEmailFormat = errors.New("invalid email format")
 // least one dot, and a letter-only TLD. Keep enrollment submit-time and
 // approval-time (student creation) validation pinned to this one regex so a
 // value accepted at submit can never be rejected at student creation.
-var optionalEmailPattern = regexp.MustCompile(`^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
+//
+// Local-part character class includes `+` for sub-addressing
+// (anna+admin@example.com, common with GMail and many providers — RFC
+// 5322 permits it). The existing rate-limit test in
+// services/enrollment/request_service_test.go relies on the pattern.
+var optionalEmailPattern = regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
 
 // ValidateOptionalEmail validates an optional email string. An empty (or
 // whitespace-only) value is allowed and returns nil; a non-empty value must

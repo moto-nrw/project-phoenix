@@ -312,7 +312,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_OrdersLinkedFirst(t *testing.T
 	}))
 
 	// Filter to ours and verify ordering.
-	var linkedIdx, unlinkedIdx int = -1, -1
+	linkedIdx, unlinkedIdx := -1, -1
 	for i, p := range list {
 		switch p.PhaseName {
 		case linkedName:

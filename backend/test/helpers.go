@@ -110,6 +110,14 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 
 	viper.Set("db_dsn", dsn)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
+	// Cap per-test pool size. Each call to SetupTestDB opens a fresh
+	// pool; the prod default is 25 connections, which exhausts
+	// Postgres's max_connections (~100) once gotestsum runs the test
+	// packages in parallel. 3 conns/test fits comfortably and is more
+	// than enough for the test fixture chain (1-2 statements at a
+	// time).
+	viper.Set("db_max_open_conns", 3)
+	viper.Set("db_max_idle_conns", 1)
 
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to connect to test database")
