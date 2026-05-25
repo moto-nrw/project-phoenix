@@ -32,6 +32,7 @@ func init() {
 					key_value     TEXT   NOT NULL,
 					attempts      INT    NOT NULL DEFAULT 0,
 					window_start  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+					updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 					UNIQUE (tenant_id, key_type, key_value)
 				);
 			`).Exec(ctx); err != nil {
@@ -43,6 +44,21 @@ func init() {
 				ON enrollment.submission_rate_limits (window_start);
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed creating index on enrollment.submission_rate_limits: %w", err)
+			}
+
+			// Tenant isolation: rate-limit rows carry guardian emails as
+			// key_value, so cross-tenant reads/writes would both leak PII
+			// and let a tenant clear another tenant's counter to bypass
+			// throttling.
+			if _, err := db.NewRaw(`
+				ALTER TABLE enrollment.submission_rate_limits ENABLE ROW LEVEL SECURITY;
+				ALTER TABLE enrollment.submission_rate_limits FORCE ROW LEVEL SECURITY;
+				CREATE POLICY tenant_isolation_submission_rate_limits ON enrollment.submission_rate_limits
+					FOR ALL
+					USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+					WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+			`).Exec(ctx); err != nil {
+				return fmt.Errorf("failed enabling RLS on enrollment.submission_rate_limits: %w", err)
 			}
 
 			return nil

@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -26,6 +27,36 @@ func init() {
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			fmt.Println("Migration 1.15.68: Repointing enrollment tables to phase_id...")
+
+			// Safety log: count rows that will be deleted so the blast radius
+			// is visible in deploy logs. The migration intentionally wipes
+			// dependent tables - partially-pointed rows would otherwise block
+			// the schema rewrite.
+			counts := struct {
+				Offerings       int `bun:"offerings"`
+				RequestChildren int `bun:"request_children"`
+				Requests        int `bun:"requests"`
+				CareOfferings   int `bun:"care_offerings"`
+			}{}
+			if err := db.NewRaw(`
+				SELECT
+					(SELECT COUNT(*) FROM enrollment.request_child_offerings) AS offerings,
+					(SELECT COUNT(*) FROM enrollment.request_children) AS request_children,
+					(SELECT COUNT(*) FROM enrollment.requests) AS requests,
+					(SELECT COUNT(*) FROM enrollment.care_offerings) AS care_offerings
+			`).Scan(ctx, &counts); err != nil {
+				return fmt.Errorf("failed counting rows to be deleted: %w", err)
+			}
+			total := counts.Offerings + counts.RequestChildren + counts.Requests + counts.CareOfferings
+			if total > 0 {
+				slog.Warn("migration 1.15.68: deleting enrollment rows for schema repoint",
+					"request_child_offerings", counts.Offerings,
+					"request_children", counts.RequestChildren,
+					"requests", counts.Requests,
+					"care_offerings", counts.CareOfferings,
+					"total", total,
+				)
+			}
 
 			// Wipe any rows in dependent tables - there is no production data
 			// yet, and partially-pointed rows would otherwise block the schema

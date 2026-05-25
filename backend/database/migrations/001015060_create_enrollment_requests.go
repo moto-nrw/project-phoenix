@@ -41,7 +41,7 @@ func createEnrollmentRequestsUp(ctx context.Context, db *bun.DB) error {
 			id                   BIGSERIAL PRIMARY KEY,
 			tenant_id            BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
 			schema_id            BIGINT NOT NULL REFERENCES enrollment.form_schemas(id) ON DELETE RESTRICT,
-			calendar_period_id   BIGINT NOT NULL REFERENCES schedule.calendar_periods(id) ON DELETE SET NULL,
+			calendar_period_id   BIGINT NOT NULL REFERENCES schedule.calendar_periods(id) ON DELETE RESTRICT,
 			guardian_first_name  TEXT NOT NULL,
 			guardian_last_name   TEXT NOT NULL,
 			guardian_email       TEXT NOT NULL,

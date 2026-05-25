@@ -42,8 +42,8 @@ func (r *SubmissionRateLimitRepository) IncrementAttempts(ctx context.Context, t
 	query := fmt.Sprintf(`
 		WITH upsert AS (
 			INSERT INTO enrollment.submission_rate_limits
-				(tenant_id, key_type, key_value, attempts, window_start)
-			VALUES (?, ?, ?, 1, NOW())
+				(tenant_id, key_type, key_value, attempts, window_start, updated_at)
+			VALUES (?, ?, ?, 1, NOW(), NOW())
 			ON CONFLICT (tenant_id, key_type, key_value) DO UPDATE
 			SET attempts = CASE
 					WHEN enrollment.submission_rate_limits.window_start > NOW() - INTERVAL '%d seconds'
@@ -54,7 +54,8 @@ func (r *SubmissionRateLimitRepository) IncrementAttempts(ctx context.Context, t
 					WHEN enrollment.submission_rate_limits.window_start > NOW() - INTERVAL '%d seconds'
 						THEN enrollment.submission_rate_limits.window_start
 					ELSE NOW()
-				END
+				END,
+				updated_at = NOW()
 			RETURNING attempts, window_start + INTERVAL '%d seconds' AS retry_at
 		)
 		SELECT attempts, retry_at FROM upsert

@@ -3,6 +3,8 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/uptrace/bun"
 )
@@ -39,6 +41,27 @@ func guardianProfileAccountFKUp(ctx context.Context, db *bun.DB) error {
 	// The orphaned accounts_parents table is being abandoned by the parent-enrollment
 	// flow; only seeder fixtures populated this column. Production tenants have no
 	// real data here. Pair with has_account=false so the consistency invariant holds.
+	//
+	// Safety check: count rows that would be wiped so a future replay against
+	// a populated environment fails loudly. Override with
+	// PHOENIX_ALLOW_GUARDIAN_RESET=1 if the data loss is intentional.
+	var existing int
+	if err := db.NewRaw(`SELECT COUNT(*) FROM users.guardian_profiles WHERE account_id IS NOT NULL`).Scan(ctx, &existing); err != nil {
+		return fmt.Errorf("failed counting guardian profile account_id rows: %w", err)
+	}
+	if existing > 0 {
+		slog.Warn("migration 1.15.57: clearing legacy guardian_profiles.account_id values",
+			"affected_rows", existing,
+			"reason", "FK target moves from auth.accounts_parents to auth.accounts; legacy values cannot be remapped",
+		)
+		if os.Getenv("PHOENIX_ALLOW_GUARDIAN_RESET") != "1" && existing > 100 {
+			return fmt.Errorf(
+				"migration 1.15.57 would clear %d non-null guardian_profiles.account_id rows; "+
+					"set PHOENIX_ALLOW_GUARDIAN_RESET=1 to proceed",
+				existing,
+			)
+		}
+	}
 	if _, err := db.NewRaw(`
 		UPDATE users.guardian_profiles
 		SET account_id = NULL,
