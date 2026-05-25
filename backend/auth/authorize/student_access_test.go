@@ -185,6 +185,32 @@ func TestCanReadStudent_AllStaffScopeRequiresStaffRecord(t *testing.T) {
 	assert.True(t, got)
 }
 
+func TestCanReadStudent_DisabledOGSGroupsRequiresStaffRecord(t *testing.T) {
+	settings := &stubSettings{hasOverride: true, value: "false"}
+
+	guest := &stubUserCtx{staffErr: errors.New("no staff record")}
+	got := CanReadStudent(
+		context.Background(),
+		[]string{"users:read"},
+		&users.Student{},
+		guest,
+		settings,
+		nil,
+	)
+	assert.False(t, got, "disabled OGS groups must NOT promote non-staff callers")
+
+	staffer := &stubUserCtx{staff: &users.Staff{}}
+	got = CanReadStudent(
+		context.Background(),
+		[]string{"users:read"},
+		&users.Student{},
+		staffer,
+		settings,
+		nil,
+	)
+	assert.True(t, got)
+}
+
 func TestCanReadStudent_NoGroupRequiresAdmin(t *testing.T) {
 	uc := &stubUserCtx{staff: &users.Staff{}}
 	got := CanReadStudent(

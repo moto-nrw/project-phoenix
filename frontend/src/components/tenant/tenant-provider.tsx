@@ -185,3 +185,8 @@ export function usePresenceMode(): PresenceMode {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.presenceMode ?? "detailed";
 }
+
+export function useOGSGroupsEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.ogsGroupsEnabled ?? true;
+}

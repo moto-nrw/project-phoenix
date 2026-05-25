@@ -10,6 +10,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWith
 import { Suspense, useState, useEffect } from "react";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { useOGSGroupsEnabled } from "~/components/tenant/tenant-provider";
 
 import { Loading } from "~/components/ui/loading";
 // Icon component
@@ -99,6 +100,7 @@ const baseDataSections = [
 function DatabaseContent() {
   const { data: session, status } = useSession({ required: true });
   const isMobile = useIsMobile();
+  const ogsGroupsEnabled = useOGSGroupsEnabled();
   const [counts, setCounts] = useState<{
     students: number;
     teachers: number;
@@ -255,68 +257,70 @@ function DatabaseContent() {
       {/* Data Sections Grid */}
       <div className="min-h-[60vh]">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {baseDataSections.map((section) => {
-            // Check permissions for this section
-            const permissionKey =
-              `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
-            if (!permissions?.[permissionKey]) {
-              return null;
-            }
+          {baseDataSections
+            .filter((section) => ogsGroupsEnabled || section.id !== "groups")
+            .map((section) => {
+              // Check permissions for this section
+              const permissionKey =
+                `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
+              if (!permissions?.[permissionKey]) {
+                return null;
+              }
 
-            const countKey =
-              section.id === "permissions" ? "permissionCount" : section.id;
-            const count = counts[countKey as keyof typeof counts] ?? 0;
-            const entryLabel = count === 1 ? "Eintrag" : "Einträge";
-            const countText = countsLoading
-              ? "Lade..."
-              : `${count} ${entryLabel}`;
+              const countKey =
+                section.id === "permissions" ? "permissionCount" : section.id;
+              const count = counts[countKey as keyof typeof counts] ?? 0;
+              const entryLabel = count === 1 ? "Eintrag" : "Einträge";
+              const countText = countsLoading
+                ? "Lade..."
+                : `${count} ${entryLabel}`;
 
-            return (
-              <Link
-                key={section.id}
-                href={section.href}
-                className="group moto-content-surface moto-hover-elevated relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
-              >
-                <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
+              return (
+                <Link
+                  key={section.id}
+                  href={section.href}
+                  className="group moto-content-surface moto-hover-elevated relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                >
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
 
-                <div className="relative p-6">
-                  <div className="mb-4 flex items-start justify-between">
-                    <div
-                      data-testid={`database-section-icon-${section.id}`}
-                      className="rounded-2xl p-3 text-white shadow-sm transition-[box-shadow,filter] duration-300 group-hover:shadow-md group-hover:brightness-95"
-                      style={{ backgroundColor: section.iconColor }}
-                    >
-                      <Icon path={section.icon} className="h-6 w-6" />
+                  <div className="relative p-6">
+                    <div className="mb-4 flex items-start justify-between">
+                      <div
+                        data-testid={`database-section-icon-${section.id}`}
+                        className="rounded-2xl p-3 text-white shadow-sm transition-[box-shadow,filter] duration-300 group-hover:shadow-md group-hover:brightness-95"
+                        style={{ backgroundColor: section.iconColor }}
+                      >
+                        <Icon path={section.icon} className="h-6 w-6" />
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${
+                          countsLoading
+                            ? "animate-pulse bg-gray-200 text-gray-400"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {countText}
+                      </span>
                     </div>
-                    <span
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${
-                        countsLoading
-                          ? "animate-pulse bg-gray-200 text-gray-400"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {countText}
-                    </span>
-                  </div>
 
-                  <h3 className="mb-2 inline-block origin-left text-lg font-bold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.025] group-hover:text-gray-950 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
-                    {section.title}
-                  </h3>
-                  <p className="mb-4 line-clamp-2 text-sm text-gray-600">
-                    {section.description}
-                  </p>
+                    <h3 className="mb-2 inline-block origin-left text-lg font-bold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.025] group-hover:text-gray-950 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+                      {section.title}
+                    </h3>
+                    <p className="mb-4 line-clamp-2 text-sm text-gray-600">
+                      {section.description}
+                    </p>
 
-                  <div className="flex items-center text-gray-400 transition-colors group-hover:text-gray-700">
-                    <span className="text-sm font-medium">Verwalten</span>
-                    <Icon
-                      path="M9 5l7 7-7 7"
-                      className="ml-2 h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
-                    />
+                    <div className="flex items-center text-gray-400 transition-colors group-hover:text-gray-700">
+                      <span className="text-sm font-medium">Verwalten</span>
+                      <Icon
+                        path="M9 5l7 7-7 7"
+                        className="ml-2 h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+                      />
+                    </div>
                   </div>
-                </div>
-              </Link>
-            );
-          })}
+                </Link>
+              );
+            })}
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
+import { useOGSGroupsEnabled } from "~/components/tenant/tenant-provider";
 import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
@@ -355,6 +356,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Get shell auth mode
   const { mode } = useShellAuth();
+  const ogsGroupsEnabled = useOGSGroupsEnabled();
 
   // Check if current path matches nav item
   const isActiveRoute = useCallback(
@@ -426,7 +428,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
   // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
-  const alreadyHasSupervisionTab = baseMain.some(
+  const roleMainItems = ogsGroupsEnabled
+    ? baseMain
+    : baseMain.filter((item) => item.href !== "/ogs-groups");
+  const alreadyHasSupervisionTab = roleMainItems.some(
     (item) => item.href === "/active-supervisions",
   );
   const filteredMainItems =
@@ -435,16 +440,16 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     adminOverviewEnabled &&
     !alreadyHasSupervisionTab
       ? [
-          ...baseMain.slice(0, 1),
+          ...roleMainItems.slice(0, 1),
           {
             href: "/active-supervisions",
             label: "Aufsicht",
             iconKey: "supervision" as const,
             alwaysShow: true,
           },
-          ...baseMain.slice(1),
+          ...roleMainItems.slice(1),
         ]
-      : baseMain;
+      : roleMainItems;
 
   // Pre-compute permission flags to reduce complexity in filter
   const userIsAdmin = hasRole(session, "admin");
@@ -473,6 +478,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
     }
+    if (!ogsGroupsEnabled && item.href === "/substitutions") return false;
     if (item.alwaysShow) return true;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;

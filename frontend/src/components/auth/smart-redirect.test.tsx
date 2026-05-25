@@ -43,18 +43,23 @@ vi.mock("~/lib/redirect-utils", () => ({
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   usePresenceMode: vi.fn(() => "detailed"),
+  useOGSGroupsEnabled: vi.fn(() => true),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
 }));
 
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import {
+  useOGSGroupsEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
 
 describe("SmartRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(usePresenceMode).mockReturnValue("detailed");
+    vi.mocked(useOGSGroupsEnabled).mockReturnValue(true);
   });
 
   it("renders nothing (returns null)", () => {
@@ -166,6 +171,7 @@ describe("SmartRedirect", () => {
         isSupervising: true,
       }),
       "detailed",
+      true,
     );
   });
 
@@ -178,6 +184,20 @@ describe("SmartRedirect", () => {
       expect.anything(),
       expect.anything(),
       "binary",
+      true,
+    );
+  });
+
+  it("passes disabled OGS groups mode to useSmartRedirectPath", () => {
+    vi.mocked(useOGSGroupsEnabled).mockReturnValue(false);
+
+    render(<SmartRedirect />);
+
+    expect(useSmartRedirectPath).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "detailed",
+      false,
     );
   });
 });

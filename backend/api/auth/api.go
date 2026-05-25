@@ -281,6 +281,7 @@ type TenantResolveResponse struct {
 	// decide whether to render avatars on student cards. Defaults to false
 	// when the setting is missing or unresolvable.
 	StudentPhotosEnabled bool `json:"student_photos_enabled"`
+	OGSGroupsEnabled     bool `json:"ogs_groups_enabled"`
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -322,6 +323,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	// unauthenticated, so we don't have a tenant in the request context — use
 	// the ForTenant variant which opens its own tenant transaction.
 	presenceMode := configSvc.ResolvePresenceModeForTenant(r.Context(), rs.SettingsService, school.ID, nil)
+	ogsGroupsEnabled := configSvc.ResolveOGSGroupsEnabledForTenant(r.Context(), rs.SettingsService, school.ID, nil)
 
 	// Same out-of-tenant-middleware story for the photo feature flag: read
 	// the setting through ResolveStringForTenant (opens its own tenant tx)
@@ -346,6 +348,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		Settings:             settings,
 		PresenceMode:         presenceMode,
 		StudentPhotosEnabled: studentPhotosEnabled,
+		OGSGroupsEnabled:     ogsGroupsEnabled,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")

@@ -30,6 +30,7 @@ vi.mock("~/lib/tenant-api", async (importOriginal) => {
 
 import {
   TenantProvider,
+  useOGSGroupsEnabled,
   usePresenceMode,
   useTenant,
   useTenantSafe,
@@ -50,6 +51,7 @@ const mockTenant: TenantInfo = {
   settings: {},
   presenceMode: "detailed",
   studentPhotosEnabled: false,
+  ogsGroupsEnabled: true,
 };
 
 // ============================================================================
@@ -431,5 +433,23 @@ describe("usePresenceMode", () => {
     );
     const { result } = renderHook(() => usePresenceMode(), { wrapper });
     expect(result.current).toBe("detailed");
+  });
+});
+
+describe("useOGSGroupsEnabled", () => {
+  it("returns the tenant's OGS groups setting inside a TenantProvider", () => {
+    const tenant: TenantInfo = { ...mockTenant, ogsGroupsEnabled: false };
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={tenant}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => useOGSGroupsEnabled(), { wrapper });
+    expect(result.current).toBe(false);
+  });
+
+  it("returns true outside any TenantProvider", () => {
+    const { result } = renderHook(() => useOGSGroupsEnabled());
+    expect(result.current).toBe(true);
   });
 });

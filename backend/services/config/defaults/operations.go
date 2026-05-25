@@ -186,6 +186,19 @@ func init() {
 		SortOrder:       1,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyOGSGroupsEnabled,
+		Label:           "OGS arbeitet mit festen Gruppen",
+		Description:     "Aktiviert feste OGS-Gruppen, gruppenbasierte Betreueransichten und Vertretungen. Wenn deaktiviert, werden OGS-Gruppen ausgeblendet und berechtigte Mitarbeitende erhalten gruppenunabhängigen Zugriff.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "aufsicht",
+		SortOrder:       2,
+	})
+
 	// Break auto-end interval is NOT registered here — it controls a global ticker
 	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 

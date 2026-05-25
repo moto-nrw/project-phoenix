@@ -19,6 +19,7 @@ interface TenantResolveResponse {
   settings: TenantSettings;
   presence_mode?: string;
   student_photos_enabled?: boolean;
+  ogs_groups_enabled?: boolean;
 }
 
 /**
@@ -51,6 +52,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),
       studentPhotosEnabled: data.student_photos_enabled === true,
+      ogsGroupsEnabled: data.ogs_groups_enabled !== false,
     };
   } catch {
     return null;

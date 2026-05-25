@@ -59,6 +59,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   // these tests since they don't exercise the spacer path.
   useTenantSafe: vi.fn(() => null),
   usePresenceMode: vi.fn(() => "binary"),
+  useOGSGroupsEnabled: vi.fn(() => true),
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 

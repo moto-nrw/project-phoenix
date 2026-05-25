@@ -96,6 +96,9 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 
 	// 2. Scope check
 	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
+	if !configService.ResolveOGSGroupsEnabled(ctx, rs.SettingsService, logger) {
+		scope = configModel.AttendanceLogScopeAllStaff
+	}
 	if !rs.attendanceHistoryScopeAllows(r, student, scope) {
 		renderError(w, r, ErrorForbidden(errors.New("not_group_supervisor")))
 		return

@@ -26,6 +26,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
 		"operations.admin_supervision_overview",
+		"operations.ogs_groups_enabled",
 		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
@@ -106,6 +107,17 @@ func TestAllSettingsRegistered(t *testing.T) {
 	// The `>=` is intentional so later work packages can add more settings
 	// without retrofitting this assertion.
 	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
+}
+
+func TestOGSGroupsEnabledSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyOGSGroupsEnabled)
+	require.NotNil(t, def, "operations.ogs_groups_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "default must preserve fixed OGS group behavior")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "aufsicht", def.Category)
+	assert.Equal(t, "config:manage", def.WritePermission)
 }
 
 func TestPresenceModeSetting(t *testing.T) {

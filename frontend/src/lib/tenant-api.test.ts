@@ -135,6 +135,7 @@ describe("tenant-api", () => {
         // — matches backend's own safe fallback.
         presenceMode: "detailed",
         studentPhotosEnabled: false,
+        ogsGroupsEnabled: true,
       });
     });
 
@@ -178,6 +179,30 @@ describe("tenant-api", () => {
       );
       const result = await resolveTenant("binary-school");
       expect(result?.presenceMode).toBe("binary");
+    });
+
+    it("passes through disabled OGS groups from the backend", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 2,
+          slug: "open-school",
+          name: "Open School",
+          subdomain: "open",
+          organization_id: 11,
+          organization_name: "Org B",
+          settings: {},
+          ogs_groups_enabled: false,
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const result = await resolveTenant("open-school");
+      expect(result?.ogsGroupsEnabled).toBe(false);
     });
 
     it("maps hidden tenants from resolve response", async () => {
@@ -306,6 +331,7 @@ describe("tenant-api", () => {
         // call resolveTenant() once the user picks a tenant.
         presenceMode: "detailed",
         studentPhotosEnabled: false,
+        ogsGroupsEnabled: true,
       });
     });
 
@@ -425,6 +451,7 @@ describe("tenant-api", () => {
         // when the new tenant's layout mounts and calls resolveTenant.
         presenceMode: "detailed",
         studentPhotosEnabled: false,
+        ogsGroupsEnabled: true,
       });
     });
 

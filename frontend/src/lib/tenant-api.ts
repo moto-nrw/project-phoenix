@@ -48,6 +48,7 @@ export interface TenantInfo {
    * carry config:read but still need to know whether to render avatars.
    */
   studentPhotosEnabled: boolean;
+  ogsGroupsEnabled: boolean;
 }
 
 interface TenantResolveResponse {
@@ -61,6 +62,7 @@ interface TenantResolveResponse {
   settings: TenantSettings;
   presence_mode?: string;
   student_photos_enabled?: boolean;
+  ogs_groups_enabled?: boolean;
 }
 
 /**
@@ -102,6 +104,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),
       studentPhotosEnabled: data.student_photos_enabled === true,
+      ogsGroupsEnabled: data.ogs_groups_enabled !== false,
     };
   } catch {
     return null;
@@ -166,6 +169,7 @@ export async function listAllTenants(
           presenceMode: "detailed",
           // Same story for the photo flag — re-resolved on tenant landing.
           studentPhotosEnabled: false,
+          ogsGroupsEnabled: true,
         })),
         status: "ok",
       };
@@ -220,6 +224,7 @@ export async function listAvailableTenants(): Promise<TenantInfo[]> {
     // after the switch when the new tenant's layout mounts and calls resolveTenant.
     presenceMode: "detailed",
     studentPhotosEnabled: false,
+    ogsGroupsEnabled: true,
   }));
 }
 

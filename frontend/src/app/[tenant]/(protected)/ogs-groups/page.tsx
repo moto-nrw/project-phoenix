@@ -58,7 +58,10 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import {
+  useOGSGroupsEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
@@ -1500,13 +1503,30 @@ function OGSGroupPageContent() {
   );
 }
 
+function OGSGroupGate() {
+  const router = useTenantRouter();
+  const ogsGroupsEnabled = useOGSGroupsEnabled();
+
+  useEffect(() => {
+    if (!ogsGroupsEnabled) {
+      router.replace("/students/search");
+    }
+  }, [ogsGroupsEnabled, router]);
+
+  if (!ogsGroupsEnabled) {
+    return <Loading fullPage={false} />;
+  }
+
+  return <OGSGroupPageContent />;
+}
+
 // Main component with Suspense wrapper
 export default function OGSGroupPage() {
   return (
     <RoleGuard variant="staffOnly">
       <Suspense fallback={<Loading fullPage={false} />}>
         <SSEErrorBoundary>
-          <OGSGroupPageContent />
+          <OGSGroupGate />
         </SSEErrorBoundary>
       </Suspense>
     </RoleGuard>

@@ -100,6 +100,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   // LocationBadge / PresenceBadge render the richer detailed variant in tests
   // unless a specific test overrides the mock.
   usePresenceMode: vi.fn(() => "detailed"),
+  useOGSGroupsEnabled: vi.fn(() => true),
   TenantProvider: ({
     children,
   }: {

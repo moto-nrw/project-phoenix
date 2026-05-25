@@ -15,6 +15,7 @@ import {
 } from "~/lib/dashboard-helpers";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
+import { useOGSGroupsEnabled } from "~/components/tenant/tenant-provider";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -252,6 +253,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
 
 function DashboardContent() {
   const router = useTenantRouter();
+  const ogsGroupsEnabled = useOGSGroupsEnabled();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -373,14 +375,16 @@ function DashboardContent() {
           loading={isLoading}
           href="/students/search?status=entschuldigt"
         />
-        <StatCard
-          title="Aktive Gruppen"
-          value={dashboardData?.activeOGSGroups ?? 0}
-          icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-          color="from-[#83CD2D] to-[#70b525]"
-          loading={isLoading}
-          href="/ogs-groups"
-        />
+        {ogsGroupsEnabled && (
+          <StatCard
+            title="Aktive Gruppen"
+            value={dashboardData?.activeOGSGroups ?? 0}
+            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            color="from-[#83CD2D] to-[#70b525]"
+            loading={isLoading}
+            href="/ogs-groups"
+          />
+        )}
         <StatCard
           title="Aktive Aktivitäten"
           value={dashboardData?.activeActivities ?? 0}
@@ -536,57 +540,58 @@ function DashboardContent() {
           })()}
         </InfoCard>
 
-        {/* Active Groups */}
-        <InfoCard
-          title="Aktive Gruppen"
-          icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-          href="/ogs-groups"
-        >
-          {(() => {
-            if (isLoading) {
+        {ogsGroupsEnabled && (
+          <InfoCard
+            title="Aktive Gruppen"
+            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            href="/ogs-groups"
+          >
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-14 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const groups = dashboardData?.activeGroupsSummary;
+              if (!groups || groups.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine aktiven Gruppen
+                  </p>
+                );
+              }
               return (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
+                <div className="space-y-2">
+                  {groups.slice(0, 5).map((group) => (
                     <div
-                      key={i}
-                      className="h-14 animate-pulse rounded-lg bg-gray-100"
-                    ></div>
+                      key={`${group.type}-${group.name}`}
+                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900">
+                          {group.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {group.location} • {group.studentCount} Kinder
+                        </p>
+                      </div>
+                      <div
+                        className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
+                      ></div>
+                    </div>
                   ))}
                 </div>
               );
-            }
-            const groups = dashboardData?.activeGroupsSummary;
-            if (!groups || groups.length === 0) {
-              return (
-                <p className="py-8 text-center text-sm text-gray-500">
-                  Keine aktiven Gruppen
-                </p>
-              );
-            }
-            return (
-              <div className="space-y-2">
-                {groups.slice(0, 5).map((group) => (
-                  <div
-                    key={`${group.type}-${group.name}`}
-                    className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">
-                        {group.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {group.location} • {group.studentCount} Kinder
-                      </p>
-                    </div>
-                    <div
-                      className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
-                    ></div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </InfoCard>
+            })()}
+          </InfoCard>
+        )}
 
         {/* Betreuer Summary */}
         <InfoCard
