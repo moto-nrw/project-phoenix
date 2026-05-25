@@ -19,6 +19,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
+var errStudentStatusDayReassigned = errors.New("student reassigned out of caller scope")
+
 func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request) {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
@@ -86,7 +88,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 			return err
 		}
 		if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
-			return errors.New("student reassigned out of caller scope")
+			return errStudentStatusDayReassigned
 		}
 
 		oppositeStatus := active.StudentStatusDayExcused
@@ -121,6 +123,10 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		})
 		return nil
 	}); err != nil {
+		if errors.Is(err, errStudentStatusDayReassigned) {
+			renderError(w, r, ErrorForbidden(err))
+			return
+		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to create student status days", err))
 		return
 	}
@@ -174,7 +180,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 			return err
 		}
 		if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
-			return errors.New("student reassigned out of caller scope")
+			return errStudentStatusDayReassigned
 		}
 
 		if err := rs.StudentStatusDayRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceManual); err != nil {
@@ -196,6 +202,10 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			renderError(w, r, ErrorNotFound(errors.New("student status day not found")))
+			return
+		}
+		if errors.Is(err, errStudentStatusDayReassigned) {
+			renderError(w, r, ErrorForbidden(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to delete student status day", err))

@@ -332,6 +332,24 @@ describe("CareScheduleManager", () => {
     expect(screen.getAllByText("Abholung:").length).toBeGreaterThan(0);
   });
 
+  it("reports the visible week range", async () => {
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        statusDays={statusDays}
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungsplan");
+
+    expect(onVisibleDateRangeChange).toHaveBeenCalledWith(
+      "2026-05-25",
+      "2026-05-29",
+    );
+  });
+
   it("updates the weekly plan from the edit action", async () => {
     const onUpdate = vi.fn();
 

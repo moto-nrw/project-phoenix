@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -68,7 +68,12 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function getStatusDayRange(): { from: string; to: string } {
+interface StatusDayRange {
+  readonly from: string;
+  readonly to: string;
+}
+
+function getStatusDayRange(): StatusDayRange {
   const from = new Date();
   from.setDate(from.getDate() - 14);
   const to = new Date();
@@ -77,6 +82,35 @@ function getStatusDayRange(): { from: string; to: string } {
     from: formatLocalDate(from),
     to: formatLocalDate(to),
   };
+}
+
+function extendStatusDayRange(
+  range: StatusDayRange,
+  dates: string[],
+): StatusDayRange {
+  let from = range.from;
+  let to = range.to;
+  for (const date of dates) {
+    if (date < from) from = date;
+    if (date > to) to = date;
+  }
+  return from === range.from && to === range.to ? range : { from, to };
+}
+
+function mergeStatusDays(
+  current: StudentStatusDay[] | undefined,
+  incoming: StudentStatusDay[],
+): StudentStatusDay[] {
+  const incomingDates = new Set(incoming.map((day) => day.date));
+  const byId = new Map<string, StudentStatusDay>();
+  for (const day of current ?? []) {
+    if (incomingDates.has(day.date)) continue;
+    byId.set(day.id, day);
+  }
+  for (const day of incoming) {
+    byId.set(day.id, day);
+  }
+  return Array.from(byId.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // =============================================================================
@@ -185,7 +219,8 @@ export default function StudentDetailPage() {
     async () => fetchArrivalData(studentId),
     { revalidateOnFocus: false },
   );
-  const statusDayRange = useMemo(() => getStatusDayRange(), []);
+  const [statusDayRange, setStatusDayRange] =
+    useState<StatusDayRange>(getStatusDayRange);
   const { data: statusDays = [], mutate: mutateStatusDays } = useSWRAuth(
     hasFullAccess && studentId
       ? `student-status-days-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
@@ -194,6 +229,9 @@ export default function StudentDetailPage() {
       fetchStudentStatusDays(studentId, statusDayRange.from, statusDayRange.to),
     { revalidateOnFocus: false },
   );
+  const ensureStatusDayRange = useCallback((from: string, to: string) => {
+    setStatusDayRange((current) => extendStatusDayRange(current, [from, to]));
+  }, []);
   // Load active groups when check-in modal opens
   useEffect(() => {
     if (!showConfirmCheckin) {
@@ -497,9 +535,17 @@ export default function StudentDetailPage() {
 
     setPlannedStatusLoading(true);
     try {
-      await createStudentStatusDays(studentId, plannedStatusModal, dates);
+      const createdStatusDays = await createStudentStatusDays(
+        studentId,
+        plannedStatusModal,
+        dates,
+      );
       refreshData();
-      await mutateStatusDays();
+      setStatusDayRange((current) => extendStatusDayRange(current, dates));
+      await mutateStatusDays(
+        (current) => mergeStatusDays(current, createdStatusDays),
+        { revalidate: true },
+      );
       toast.success(
         plannedStatusModal === "sick"
           ? `Krankmeldung für ${student.name} wurde gespeichert`
@@ -658,6 +704,7 @@ export default function StudentDetailPage() {
             showCheckin={showCheckin}
             statusDays={statusDays}
             onDeleteStatusDay={handleDeletePlannedStatus}
+            onVisibleDateRangeChange={ensureStatusDayRange}
             showPersonalInfoModal={showPersonalInfoModal}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onCheckinClick={() => setShowConfirmCheckin(true)}
@@ -903,6 +950,7 @@ interface FullAccessViewProps {
   showCheckin: boolean;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
+  onVisibleDateRangeChange: (from: string, to: string) => void;
   showPersonalInfoModal: boolean;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
@@ -926,6 +974,7 @@ function FullAccessView({
   showCheckin,
   statusDays,
   onDeleteStatusDay,
+  onVisibleDateRangeChange,
   showPersonalInfoModal,
   onCheckoutClick,
   onCheckinClick,
@@ -977,6 +1026,7 @@ function FullAccessView({
           isExcused={student.excused}
           statusDays={statusDays}
           onDeleteStatusDay={onDeleteStatusDay}
+          onVisibleDateRangeChange={onVisibleDateRangeChange}
         />
 
         <PersonalInfoReadOnly

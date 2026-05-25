@@ -81,6 +81,7 @@ interface CareScheduleManagerProps {
   readonly isExcused?: boolean;
   readonly statusDays?: StudentStatusDay[];
   readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
+  readonly onVisibleDateRangeChange?: (from: string, to: string) => void;
 }
 
 interface CareDayData {
@@ -171,6 +172,7 @@ export function CareScheduleManager({
   isExcused = false,
   statusDays = [],
   onDeleteStatusDay,
+  onVisibleDateRangeChange,
 }: CareScheduleManagerProps) {
   const [arrivalData, setArrivalData] = useState<ArrivalData>({
     schedules: [],
@@ -199,6 +201,13 @@ export function CareScheduleManager({
     () => formatWeekRange(weekDays[0] ?? new Date(), weekDays[4] ?? new Date()),
     [weekDays],
   );
+
+  useEffect(() => {
+    const firstDay = weekDays[0];
+    const lastDay = weekDays[weekDays.length - 1];
+    if (!firstDay || !lastDay) return;
+    onVisibleDateRangeChange?.(formatDateISO(firstDay), formatDateISO(lastDay));
+  }, [onVisibleDateRangeChange, weekDays]);
 
   const statusDayByDate = useMemo(() => {
     const entries = new Map<string, StudentStatusDay>();
