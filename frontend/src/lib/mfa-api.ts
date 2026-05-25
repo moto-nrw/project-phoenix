@@ -210,13 +210,33 @@ interface ResendParams {
   challengeToken: string;
 }
 
+interface ResendResponse {
+  challenge_token: string;
+}
+
+/**
+ * resendChallenge re-issues an MFA email code AND returns the renewed
+ * challenge JWT. Callers MUST swap their in-flight `challengeToken` for
+ * the returned value before the next verify — the previous JWT will
+ * expire on its own clock while the freshly emailed code is bound to
+ * the new JWT's lifetime. (#1430 review round 2 — without this swap
+ * users hit a dead end where the new code can't be verified.)
+ */
 export async function resendChallenge(
   scope: LoginScope,
   params: ResendParams,
-): Promise<void> {
+): Promise<string> {
   const url = mfaUrl(scope, "resend");
   const payload = { challenge_token: params.challengeToken };
-  await postJson<unknown>(url, payload);
+  if (isOperator(scope)) {
+    const envelope = await postJson<OperatorEnvelope<ResendResponse>>(
+      url,
+      payload,
+    );
+    return envelope.data.challenge_token;
+  }
+  const response = await postJson<ResendResponse>(url, payload);
+  return response.challenge_token;
 }
 
 // ----- Enrollment + self-service (authenticated, requires Bearer token) -----
@@ -402,6 +422,43 @@ export async function operatorAdminSetMFAOverride(
 ): Promise<void> {
   await postJson<unknown>(
     operatorAdminMFAUrl(schoolId, accountId, "/override"),
+    { override, reason },
+    { bearerToken, method: "PUT", allowEmptyBody: true },
+  );
+}
+
+// ----- Operator account-wide override (the "mailbox lockout" switch) -----
+
+// The account-wide override lives outside any school — it applies
+// across every tenant the account belongs to. Only the operator
+// surface can read or write it; tenant admins must use the per-school
+// override (which only affects their own tenant). See #1430 review
+// round 2 for the threat model.
+
+function operatorGlobalMFAUrl(accountId: string): string {
+  return `/api/operator/accounts/${encodeURIComponent(accountId)}/mfa/global-override`;
+}
+
+export async function operatorAdminGetGlobalMFAOverride(
+  bearerToken: string,
+  accountId: string,
+): Promise<MFAAdminState> {
+  const envelope = await postJson<OperatorEnvelope<MFAAdminState>>(
+    operatorGlobalMFAUrl(accountId),
+    undefined,
+    { bearerToken, method: "GET" },
+  );
+  return envelope.data;
+}
+
+export async function operatorAdminSetGlobalMFAOverride(
+  bearerToken: string,
+  accountId: string,
+  override: MFAAdminOverride,
+  reason: string,
+): Promise<void> {
+  await postJson<unknown>(
+    operatorGlobalMFAUrl(accountId),
     { override, reason },
     { bearerToken, method: "PUT", allowEmptyBody: true },
   );

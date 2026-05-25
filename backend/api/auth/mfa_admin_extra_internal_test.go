@@ -47,6 +47,7 @@ type adminMFAStub struct {
 	hasEnrollmentFn func(ctx context.Context, accountID int64) (bool, error)
 	setOverrideFn   func(ctx context.Context, actorID, actorTenantID, targetID int64, override, reason string, perms []string) error
 	adminDisableFn  func(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error
+	getAdminStateFn func(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (authService.MFAAdminState, error)
 }
 
 func (s *adminMFAStub) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
@@ -68,6 +69,13 @@ func (s *adminMFAStub) AdminDisable(ctx context.Context, actorID, actorTenantID,
 		return s.adminDisableFn(ctx, actorID, actorTenantID, targetID, reason, perms)
 	}
 	return nil
+}
+
+func (s *adminMFAStub) GetAdminState(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (authService.MFAAdminState, error) {
+	if s.getAdminStateFn != nil {
+		return s.getAdminStateFn(ctx, actorID, actorTenantID, targetID, perms)
+	}
+	return authService.MFAAdminState{}, nil
 }
 
 // withActorTenant overrides the TenantID on the AppClaims stored on the
@@ -108,18 +116,22 @@ func reqWithAccountID(t *testing.T, method, accountIDParam string, body any, cla
 }
 
 func TestMFAAdminGetState_HappyPath(t *testing.T) {
+	// Post-#1430-round-2 the handler delegates the entire state read +
+	// permission/membership gate to MFAService.GetAdminState. Tests
+	// drive the stub's return value rather than the two-call shape the
+	// handler used previously.
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			hasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
-		},
-		AuthService: &adminAuthStub{
-			getAccountByIDFn: func(context.Context, int) (*authModels.Account, error) {
-				return &authModels.Account{MFAAdminOverride: authService.MFAAdminOverrideForceOff}, nil
+			getAdminStateFn: func(_ context.Context, _, _, _ int64, _ []string) (authService.MFAAdminState, error) {
+				return authService.MFAAdminState{
+					Enrolled: true,
+					Override: authService.MFAAdminOverrideForceOff,
+				}, nil
 			},
 		},
 	}
 
-	r := reqWithAccountID(t, http.MethodGet, "100", nil, 0, nil)
+	r := reqWithAccountID(t, http.MethodGet, "100", nil, 1, []string{"users:manage"})
 	rr := httptest.NewRecorder()
 	rs.mfaAdminGetState(rr, r)
 
@@ -131,10 +143,7 @@ func TestMFAAdminGetState_HappyPath(t *testing.T) {
 }
 
 func TestMFAAdminGetState_BadIDReturns400(t *testing.T) {
-	rs := &Resource{
-		MFAService:  &adminMFAStub{},
-		AuthService: &adminAuthStub{},
-	}
+	rs := &Resource{MFAService: &adminMFAStub{}}
 
 	r := reqWithAccountID(t, http.MethodGet, "not-a-number", nil, 0, nil)
 	rr := httptest.NewRecorder()
@@ -143,14 +152,16 @@ func TestMFAAdminGetState_BadIDReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestMFAAdminGetState_DefaultsOverrideToNoneWhenAccountMissing(t *testing.T) {
+func TestMFAAdminGetState_RequiresAuthenticatedActor(t *testing.T) {
+	// claims.ID == 0 means the request reached the handler without a
+	// valid AppClaims (e.g. forged or stripped context). Without an
+	// actor identity GetAdminState can't run its membership check, so
+	// the handler must refuse before delegating. (#1430 review round 2)
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			hasEnrollmentFn: func(context.Context, int64) (bool, error) { return false, nil },
-		},
-		AuthService: &adminAuthStub{
-			getAccountByIDFn: func(context.Context, int) (*authModels.Account, error) {
-				return nil, errors.New("not found")
+			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (authService.MFAAdminState, error) {
+				t.Fatal("GetAdminState must not run without an authenticated actor")
+				return authService.MFAAdminState{}, nil
 			},
 		},
 	}
@@ -159,11 +170,47 @@ func TestMFAAdminGetState_DefaultsOverrideToNoneWhenAccountMissing(t *testing.T)
 	rr := httptest.NewRecorder()
 	rs.mfaAdminGetState(rr, r)
 
-	require.Equal(t, http.StatusOK, rr.Code)
-	var resp MFAAdminStateResponse
-	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
-	assert.Equal(t, authService.MFAAdminOverrideNone, resp.Override,
-		"missing account row falls back to 'none' override so the modal still renders sanely")
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestMFAAdminGetState_CrossTenantReturns403(t *testing.T) {
+	// Service-layer membership check rejects the read when the target
+	// account doesn't belong to the actor's tenant. The handler maps
+	// ErrMFAPermissionDenied to 403 so a tenant admin cannot probe
+	// foreign account_ids. (#1430 review round 2)
+	rs := &Resource{
+		MFAService: &adminMFAStub{
+			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (authService.MFAAdminState, error) {
+				return authService.MFAAdminState{}, authService.ErrMFAPermissionDenied
+			},
+		},
+	}
+
+	r := reqWithAccountID(t, http.MethodGet, "100", nil, 1, []string{"users:manage"})
+	rr := httptest.NewRecorder()
+	rs.mfaAdminGetState(rr, r)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+}
+
+func TestMFAAdminGetState_ServiceErrorReturns500(t *testing.T) {
+	// Generic service errors map to 500 so transient infra failures
+	// don't masquerade as 403 (which would invite confused-deputy
+	// debugging). Permission denial is the only "expected" failure
+	// shape; everything else is operational.
+	rs := &Resource{
+		MFAService: &adminMFAStub{
+			getAdminStateFn: func(context.Context, int64, int64, int64, []string) (authService.MFAAdminState, error) {
+				return authService.MFAAdminState{}, errors.New("db connection lost")
+			},
+		},
+	}
+
+	r := reqWithAccountID(t, http.MethodGet, "100", nil, 1, []string{"users:manage"})
+	rr := httptest.NewRecorder()
+	rs.mfaAdminGetState(rr, r)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
 
 func TestMFAAdminSetOverride_HappyPath(t *testing.T) {

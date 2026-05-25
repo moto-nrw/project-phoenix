@@ -123,8 +123,16 @@ func (req *MFAResendRequest) Bind(_ *http.Request) error {
 	)
 }
 
+// MFAResendResponse carries the renewed challenge token. The frontend
+// must replace its in-flight token with this value so the next verify
+// travels with a JWT whose expiry covers the freshly emailed code.
+type MFAResendResponse struct {
+	ChallengeToken string `json:"challenge_token"`
+}
+
 // mfaResend re-issues an email code against the existing challenge token.
-// Rate-limited inside the service.
+// Rate-limited inside the service. Returns the renewed challenge JWT —
+// see MFAResendResponse for why the previous 204-shape was unsafe.
 func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -134,11 +142,12 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.MFAService.ResendChallenge(r.Context(), req.ChallengeToken, parseClientIP(r)); err != nil {
+	renewed, err := rs.MFAService.ResendChallenge(r.Context(), req.ChallengeToken, parseClientIP(r))
+	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	render.JSON(w, r, MFAResendResponse{ChallengeToken: renewed})
 }
 
 // ----- /mfa/enroll/start -----
@@ -148,12 +157,19 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 // Authorization header identifies the account. Authenticated by
 // MFAEnrollmentAuthenticator, which guarantees the token has
 // mfa_enrollment_pending=true.
+//
+// The authenticator accepts both tenant- and platform-scoped enrollment
+// tokens (operator routes share the same middleware). This handler must
+// additionally enforce that the presented token is *tenant*-scoped — a
+// platform-scoped token whose account_id happens to collide with a tenant
+// account_id would otherwise be accepted and mint a full tenant session.
+// (#1430 review item — tenant-enrollment scope mismatch.)
 func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
 	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 {
+	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopeTenant || claims.TenantID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
@@ -194,7 +210,9 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 {
+	// Same defense-in-depth as mfaEnrollStart — tenant endpoint rejects
+	// platform-scope enrollment tokens even when account_id matches.
+	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopeTenant || claims.TenantID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}

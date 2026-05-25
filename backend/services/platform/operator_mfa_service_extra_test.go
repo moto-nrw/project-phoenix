@@ -59,9 +59,10 @@ func TestOperatorMFAService_VerifyCodeForOperator_WrongCode_ReturnsInvalid(t *te
 func TestOperatorMFAService_ResendChallenge_InvalidJWT_ReturnsTokenInvalid(t *testing.T) {
 	svc, _, _ := newTestOperatorMFAService(t)
 
-	err := svc.ResendChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
+	renewed, err := svc.ResendChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
 
 	require.Error(t, err)
+	assert.Empty(t, renewed)
 	assert.ErrorIs(t, err, platformSvc.ErrOperatorMFAChallengeTokenInvalid)
 }
 
@@ -80,9 +81,10 @@ func TestOperatorMFAService_ResendChallenge_WrongScope_ReturnsTokenInvalid(t *te
 	}, 5*60*1_000_000_000) // 5 minutes in nanoseconds
 	require.NoError(t, err)
 
-	err = svc.ResendChallenge(context.Background(), tenantToken, net.ParseIP("127.0.0.1"))
+	renewed, err := svc.ResendChallenge(context.Background(), tenantToken, net.ParseIP("127.0.0.1"))
 
 	require.Error(t, err)
+	assert.Empty(t, renewed)
 	assert.ErrorIs(t, err, platformSvc.ErrOperatorMFAChallengeTokenInvalid,
 		"a tenant-scoped JWT must not survive the operator resend gate")
 }
@@ -96,5 +98,10 @@ func TestOperatorMFAService_ResendChallenge_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	require.NoError(t, svc.ResendChallenge(context.Background(), token, net.ParseIP("127.0.0.1")))
+	renewed, err := svc.ResendChallenge(context.Background(), token, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	// See tenant-side counterpart — JWT iat has 1-second resolution so
+	// equal byte sequences are legal here. The contract we actually
+	// care about is that resend returns a usable token at all.
+	assert.NotEmpty(t, renewed, "happy path must return a renewed challenge JWT")
 }

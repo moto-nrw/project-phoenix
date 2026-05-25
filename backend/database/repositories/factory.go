@@ -51,6 +51,7 @@ type Factory struct {
 	MFACredential          authModels.MFACredentialRepository
 	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
 	MFATrustedDevice       authModels.MFATrustedDeviceRepository
+	MFAOverride            authModels.MFAOverrideRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -171,6 +172,7 @@ func NewFactory(db *bun.DB) *Factory {
 		MFACredential:          auth.NewMFACredentialRepository(db),
 		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
 		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
+		MFAOverride:            auth.NewMFAOverrideRepository(db),
 
 		// Users repositories
 		Person:              users.NewPersonRepository(db),

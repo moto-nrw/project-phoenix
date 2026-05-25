@@ -80,7 +80,7 @@ func (s *stubOperatorMFAService) StartChallenge(ctx context.Context, operatorID 
 func (s *stubOperatorMFAService) VerifyChallenge(context.Context, string, string) (*platformSvc.OperatorVerifiedChallenge, error) {
 	panic("unexpected VerifyChallenge")
 }
-func (s *stubOperatorMFAService) ResendChallenge(context.Context, string, net.IP) error {
+func (s *stubOperatorMFAService) ResendChallenge(context.Context, string, net.IP) (string, error) {
 	panic("unexpected ResendChallenge")
 }
 func (s *stubOperatorMFAService) VerifyCodeForOperator(context.Context, int64, string) error {

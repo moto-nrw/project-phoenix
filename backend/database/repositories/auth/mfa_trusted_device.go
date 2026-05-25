@@ -139,6 +139,26 @@ func (r *MFATrustedDeviceRepository) RevokeAllByAccountID(ctx context.Context, a
 	return nil
 }
 
+// RevokeAllByAccountTenant revokes every active device for the
+// (account, tenant) pair without touching devices the same account
+// trusted in other tenants. Used by tenant-scoped force_off writes —
+// flipping the override in tenant A must invalidate the user's tenant
+// A trust cookies but must not yank their tenant B cookies.
+func (r *MFATrustedDeviceRepository) RevokeAllByAccountTenant(ctx context.Context, accountID, tenantID int64, revokedAt time.Time) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.MFATrustedDevice)(nil)).
+		ModelTableExpr(mfaTrustedDeviceTable).
+		Set("revoked_at = ?", revokedAt).
+		Where("account_id = ?", accountID).
+		Where("tenant_id = ?", tenantID).
+		Where("revoked_at IS NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "revoke all mfa trusted devices for account+tenant", Err: err}
+	}
+	return nil
+}
+
 // DeleteExpired prunes devices past their TTL.
 func (r *MFATrustedDeviceRepository) DeleteExpired(ctx context.Context) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewDelete().

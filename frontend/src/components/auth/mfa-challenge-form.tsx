@@ -56,6 +56,13 @@ export function MFAChallengeForm({
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendIn, setResendIn] = useState(resendCooldownSeconds);
+  // The backend rotates the challenge JWT on every resend. The prop is
+  // the initial token from /auth/login; we shadow it locally so the
+  // verify call after a resend travels with the renewed JWT. (#1430
+  // review round 2 — the previous shape produced a dead-end where the
+  // freshly emailed code couldn't be verified once the original JWT
+  // expired.)
+  const [activeToken, setActiveToken] = useState(challengeToken);
   const otpRef = useRef<OTPInputGridHandle | null>(null);
 
   useEffect(() => {
@@ -70,7 +77,7 @@ export function MFAChallengeForm({
       setError("");
       try {
         const tokens = await verifyMFA(scope, {
-          challengeToken,
+          challengeToken: activeToken,
           code: submittedCode,
           rememberDevice,
         });
@@ -87,7 +94,7 @@ export function MFAChallengeForm({
         setIsVerifying(false);
       }
     },
-    [scope, challengeToken, rememberDevice, onSuccess],
+    [scope, activeToken, rememberDevice, onSuccess],
   );
 
   const handleResend = async () => {
@@ -95,7 +102,12 @@ export function MFAChallengeForm({
     setIsResending(true);
     setError("");
     try {
-      await resendChallenge(scope, { challengeToken });
+      const renewed = await resendChallenge(scope, {
+        challengeToken: activeToken,
+      });
+      // Swap the in-flight token so the next verify travels with the
+      // JWT that's bound to the freshly emailed code's lifetime.
+      setActiveToken(renewed);
       setResendIn(resendCooldownSeconds);
       otpRef.current?.reset();
     } catch (err) {

@@ -41,18 +41,18 @@ const (
 	mfaAuditFallbackIP = "0.0.0.0"
 )
 
-// MFA admin-override values. Stored as text in auth.accounts.mfa_admin_override
-// (see migration 1.15.59). Used by IsRequired to short-circuit the tenant-mode
-// decision for individual accounts when an admin has explicitly opted them in
-// or out — typically because a user lost mailbox access.
+// MFA admin-override value re-exports. The canonical declarations live
+// in models/auth/mfa_override.go so the repository layer can reference
+// them without importing the service package. Re-exporting here keeps
+// existing callers (handlers, tests) source-compatible.
 const (
-	MFAAdminOverrideNone     = "none"
-	MFAAdminOverrideForceOff = "force_off"
-	MFAAdminOverrideForceOn  = "force_on"
+	MFAAdminOverrideNone     = auth.MFAAdminOverrideNone
+	MFAAdminOverrideForceOff = auth.MFAAdminOverrideForceOff
+	MFAAdminOverrideForceOn  = auth.MFAAdminOverrideForceOn
 )
 
 // IsValidMFAAdminOverride is the allow-list guard used by handlers + service
-// before writing the override column. Anything else MUST be rejected with
+// before writing the override row. Anything else MUST be rejected with
 // ErrMFAInvalidOverride so the DB CHECK constraint isn't the last line of
 // defence.
 func IsValidMFAAdminOverride(v string) bool {
@@ -106,7 +106,13 @@ type MFAService interface {
 	// Email-code challenge flow.
 	StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
 	VerifyChallenge(ctx context.Context, challengeToken, code string) (*VerifiedChallenge, error)
-	ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) error
+	// ResendChallenge re-issues an email code for the still-active
+	// challenge and returns the *new* JWT token. The previous token
+	// remains valid until its own expiry, but the frontend must
+	// replace the in-flight token because the next verify must travel
+	// with the renewed JWT (otherwise the user sees a fresh emailed
+	// code that cannot be verified once the old JWT expires).
+	ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 
 	// VerifyCodeForAccount is the JWT-less sibling of VerifyChallenge used by
 	// enrollment confirmation, where the user is already authenticated and a
@@ -163,17 +169,28 @@ type MFAService interface {
 	// admin with users:manage could force-disable MFA on any account in any
 	// other tenant by guessing its primary key (#1430 Item #2 IDOR fix).
 	AdminDisable(ctx context.Context, actorID, actorTenantID, targetAccountID int64, reason string, actorPermissions []string) error
-	// SetMFAOverride writes the per-account admin override
+	// SetMFAOverride writes a tenant-scoped admin override
 	// (force_off / force_on / none). Audit row + trusted-device revocation
-	// (for force_off) are part of the same call so callers don't forget
-	// the security hygiene step. Like AdminDisable, the actor's tenant is
-	// required: cross-tenant calls are rejected as ErrMFAPermissionDenied
-	// with a failure audit row.
+	// (for force_off, scoped to (account, tenant)) are part of the same
+	// call so callers don't forget the security hygiene step. Like
+	// AdminDisable, the actor's tenant is required: cross-tenant calls
+	// are rejected as ErrMFAPermissionDenied with a failure audit row.
+	// "none" deletes any existing tenant-scoped row for the (account,
+	// actorTenant) pair — it does NOT clear the platform-wide row, which
+	// only the operator can write/delete.
 	SetMFAOverride(ctx context.Context, actorID, actorTenantID, targetAccountID int64, override, reason string, actorPermissions []string) error
-	// GetMFAOverride returns the current per-account override value.
-	// Read-side helper used by admin/operator surfaces to drive the
-	// settings modal — returns "none" when no row is present.
-	GetMFAOverride(ctx context.Context, accountID int64) (string, error)
+	// GetTenantMFAOverride returns the tenant-scoped override value for
+	// the given (account, tenant) pair, or "none" if no row exists. Used
+	// by the tenant admin "Manage MFA" modal — the operator-side global
+	// row is intentionally NOT exposed on this path so a tenant admin
+	// can never see whether the operator has opened the emergency
+	// switch.
+	GetTenantMFAOverride(ctx context.Context, accountID, tenantID int64) (string, error)
+	// GetGlobalMFAOverride returns the platform-wide override row (or
+	// "none" if none is set). Operator-only — exposed for the operator
+	// admin surface so the Notfall-Schalter can be inspected and
+	// cleared.
+	GetGlobalMFAOverride(ctx context.Context, accountID int64) (string, error)
 	// OperatorAdminDisable is the operator-side variant of AdminDisable.
 	// Skips the users:manage check because operator routes are already
 	// gated at the platform JWT layer, and writes audit metadata with
@@ -183,9 +200,32 @@ type MFAService interface {
 	// any future direct caller (CLI, scheduler) can't act cross-tenant.
 	OperatorAdminDisable(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error
 	// OperatorSetMFAOverride is the operator-side variant of
-	// SetMFAOverride. Same permission/audit/membership treatment as
-	// OperatorAdminDisable.
+	// SetMFAOverride. Writes a tenant-scoped row (just like the tenant
+	// admin path), not a platform-wide one — that's the next method.
 	OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error
+	// OperatorSetGlobalMFAOverride is the explicit "account-wide
+	// emergency switch" entry point. Writes (or clears, for "none") the
+	// platform-wide row in auth.mfa_overrides. Only the operator surface
+	// can call this — the tenant admin surface intentionally cannot
+	// reach across tenants. (#1430 review round 2.)
+	OperatorSetGlobalMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error
+	// GetAdminState returns the read-side snapshot the tenant admin
+	// "Manage MFA" modal needs (enrolled + current override). Bundles
+	// the users:manage permission check and the school-membership check
+	// in one call so the read path can't accidentally skip the gate
+	// that the write paths (AdminDisable / SetMFAOverride) already
+	// enforce. A cross-tenant probe returns ErrMFAPermissionDenied and
+	// emits a failure audit row, mirroring the write-side defense-in-
+	// depth. (#1430 review round 2 — closes the GetState IDOR.)
+	GetAdminState(ctx context.Context, actorID, actorTenantID, targetAccountID int64, actorPermissions []string) (MFAAdminState, error)
+}
+
+// MFAAdminState is the read-side payload for the admin "Manage MFA"
+// modal. Mirrors the handler's response DTO so the service layer owns
+// the shape. Override defaults to "none" when no override is set.
+type MFAAdminState struct {
+	Enrolled bool
+	Override string
 }
 
 // MFAServiceConfig groups dependencies for NewMFAService. Fields without zero
@@ -256,18 +296,76 @@ func NewMFAService(cfg MFAServiceConfig) (MFAService, error) {
 // IsRequired evaluates the tenant's security.mfa_mode setting against the
 // account's roles. Operator (platform-scope) sessions are handled by the
 // platform service in a later phase — this implementation rejects them.
+//
+// Override resolution (#1430 review round 2 — closes cross-tenant
+// override bleed):
+//
+//  1. Platform-wide row in auth.mfa_overrides (tenant_id IS NULL).
+//     Set by the operator as the "account lost mailbox access" escape
+//     hatch; applies to every login regardless of tenant.
+//  2. Tenant-scoped row in auth.mfa_overrides (tenant_id = login
+//     tenant). Set by a tenant admin; only affects logins to that
+//     tenant. Force_off in tenant A does NOT bypass MFA in tenant B.
+//  3. No override row → tenant policy (security.mfa_mode) decides.
+//
+// Override lookup is allowed to fail closed (refuse this login on
+// infra error) for the same reason the enrollment-lookup is: if we
+// can't tell whether the override is force_off, we must not silently
+// honor it.
 func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error) {
 	if account == nil {
 		return false, errors.New("account is required")
 	}
-	// Per-account admin override wins over the tenant-mode decision. This
-	// is the "user lost mailbox access" escape hatch and the inverse
-	// "this admin must always 2FA even if the school is off" hardening.
-	switch account.MFAAdminOverride {
-	case MFAAdminOverrideForceOff:
-		return false, nil
-	case MFAAdminOverrideForceOn:
-		return true, nil
+	// Both override lookups must run as phoenix_admin (BYPASSRLS).
+	// The login flow has no tenant transaction yet, so app.current_tenant_id
+	// is unset and the RLS policy on auth.mfa_overrides hides every
+	// row whose tenant_id is NOT NULL — including the tenant-scoped
+	// row we need for resolution. The lookup is safe to read across
+	// tenants here because the account is authenticated and the
+	// tenantID arg is the resolved login tenant from a trusted source
+	// (slug → school FK already validated upstream).
+	var (
+		global         *auth.MFAOverride
+		tenantOverride *auth.MFAOverride
+	)
+	txErr := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		global, err = s.repos.MFAOverride.FindGlobal(txCtx, account.ID)
+		if err != nil {
+			return err
+		}
+		if tenantID > 0 {
+			tenantOverride, err = s.repos.MFAOverride.FindByAccountAndTenant(txCtx, account.ID, tenantID)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if txErr != nil {
+		s.logger.Warn("mfa override lookup failed; refusing login",
+			slog.Int64("account_id", account.ID),
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", txErr.Error()))
+		return false, ErrMFAStatusUnavailable
+	}
+	// Step 1: platform-wide override (operator emergency switch) wins.
+	if global != nil {
+		switch global.Override {
+		case MFAAdminOverrideForceOff:
+			return false, nil
+		case MFAAdminOverrideForceOn:
+			return true, nil
+		}
+	}
+	// Step 2: tenant-scoped override (tenant admin per-school).
+	if tenantOverride != nil {
+		switch tenantOverride.Override {
+		case MFAAdminOverrideForceOff:
+			return false, nil
+		case MFAAdminOverrideForceOn:
+			return true, nil
+		}
 	}
 	mode := configModel.MFAModeOff
 	if s.settings != nil {
@@ -507,18 +605,23 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	return nil
 }
 
-func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) error {
+func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	claims, err := s.parseChallengeToken(challengeToken)
 	if err != nil {
-		return ErrMFAChallengeTokenInvalid
+		return "", ErrMFAChallengeTokenInvalid
 	}
 
 	// No per-resend cooldown gate — the sliding-window cap inside
 	// StartChallenge (3 codes / 15 min) remains as the abuse defense.
-	if _, err := s.StartChallenge(ctx, claims.AccountID, claims.TenantID, claims.Scope, ip); err != nil {
-		return err
+	// Return the renewed JWT so the caller's frontend can replace its
+	// in-flight challenge_token; otherwise the new email code becomes
+	// unverifiable as soon as the original token expires (the resend
+	// loses-its-token dead end #1430 review round 2 flagged).
+	renewed, err := s.StartChallenge(ctx, claims.AccountID, claims.TenantID, claims.Scope, ip)
+	if err != nil {
+		return "", err
 	}
-	return nil
+	return renewed, nil
 }
 
 // handleFailedAttempt atomically bumps the lockout counter via the
@@ -781,15 +884,76 @@ func (s *mfaService) OperatorAdminDisable(ctx context.Context, operatorID, schoo
 	return s.adminDisableCore(ctx, "operator", operatorID, schoolID, targetAccountID, reason)
 }
 
-func (s *mfaService) GetMFAOverride(ctx context.Context, accountID int64) (string, error) {
-	account, err := s.repos.Account.FindByID(ctx, accountID)
-	if err != nil || account == nil {
-		return "", fmt.Errorf("load account: %w", err)
-	}
-	if account.MFAAdminOverride == "" {
+// GetTenantMFAOverride returns the tenant-scoped override row's value
+// for (account, tenant) or "none" if no row exists. Used by the tenant
+// admin "Manage MFA" modal — the operator-global row is intentionally
+// hidden on this path so tenant admins can't enumerate operator state.
+func (s *mfaService) GetTenantMFAOverride(ctx context.Context, accountID, tenantID int64) (string, error) {
+	if tenantID == 0 {
 		return MFAAdminOverrideNone, nil
 	}
-	return account.MFAAdminOverride, nil
+	row, err := s.repos.MFAOverride.FindByAccountAndTenant(ctx, accountID, tenantID)
+	if err != nil {
+		return "", fmt.Errorf("load tenant mfa override: %w", err)
+	}
+	if row == nil {
+		return MFAAdminOverrideNone, nil
+	}
+	return row.Override, nil
+}
+
+// GetGlobalMFAOverride returns the platform-wide override or "none" if
+// the operator has not set one. Used by the operator surface only.
+func (s *mfaService) GetGlobalMFAOverride(ctx context.Context, accountID int64) (string, error) {
+	row, err := s.repos.MFAOverride.FindGlobal(ctx, accountID)
+	if err != nil {
+		return "", fmt.Errorf("load global mfa override: %w", err)
+	}
+	if row == nil {
+		return MFAAdminOverrideNone, nil
+	}
+	return row.Override, nil
+}
+
+// GetAdminState bundles the permission + school-membership gates that
+// the write paths (AdminDisable / SetMFAOverride) already enforce so
+// the read path can't be the soft underbelly. A cross-tenant probe is
+// indistinguishable from "no such account" — both return
+// ErrMFAPermissionDenied — and lands a failure audit row so scanning
+// attempts are forensically visible.
+//
+// (#1430 review round 2 — without this gate, a tenant admin with
+// users:manage could enumerate which account_ids in *other* tenants
+// are MFA-enrolled and which carry which override, purely by probing
+// integer IDs.)
+func (s *mfaService) GetAdminState(ctx context.Context, actorID, actorTenantID, targetAccountID int64, actorPermissions []string) (MFAAdminState, error) {
+	if err := s.requireAdminPermission(actorPermissions); err != nil {
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       "account",
+			ActorID:         actorID,
+			TargetTenantID:  actorTenantID,
+			TargetAccountID: targetAccountID,
+			Action:          "get_state",
+			ErrMsg:          "permission denied",
+		})
+		return MFAAdminState{}, err
+	}
+	if err := s.requireSchoolMembership(ctx, "account", actorID, actorTenantID, targetAccountID, "get_state"); err != nil {
+		return MFAAdminState{}, err
+	}
+	enrolled, err := s.HasEnrollment(ctx, targetAccountID)
+	if err != nil {
+		return MFAAdminState{}, err
+	}
+	// Tenant admin reads only see their own tenant's override row.
+	// The operator's account-wide row is intentionally hidden from
+	// this path (tenant admins must not learn whether the operator
+	// has opened the emergency switch on shared accounts).
+	override, err := s.GetTenantMFAOverride(ctx, targetAccountID, actorTenantID)
+	if err != nil {
+		return MFAAdminState{}, err
+	}
+	return MFAAdminState{Enrolled: enrolled, Override: override}, nil
 }
 
 // adminDisableCore is the shared cascade used by both tenant-admin and
@@ -868,11 +1032,16 @@ func (s *mfaService) OperatorSetMFAOverride(ctx context.Context, operatorID, sch
 
 // setMFAOverrideCore is the shared write + trusted-device-revoke +
 // audit-record pipeline used by both tenant-admin and operator flows.
-// The account update and trusted-device revoke run in a single tx so a
-// failed revoke rolls back the override flip — otherwise a force_off
-// could leave the account flagged "no MFA" while stale trusted-device
-// cookies remain valid. Rejected attempts (bad value, empty reason,
-// missing target) produce a failure audit row so abuse is observable.
+// The row mutation and the (account, tenant)-scoped trusted-device
+// revoke run in a single tx so a failed revoke rolls back the override
+// flip — otherwise a force_off could leave the account flagged "no
+// MFA" for this tenant while stale trusted-device cookies remain
+// valid.
+//
+// "none" deletes any existing tenant-scoped row for the (account,
+// actorTenant) pair; it does NOT touch the platform-wide row (which
+// only OperatorSetGlobalMFAOverride can write/clear). The audit row
+// records the previous value so the audit trail shows the transition.
 func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, actorID, targetTenantID, targetAccountID int64, override, reason string) error {
 	if !IsValidMFAAdminOverride(override) {
 		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
@@ -900,27 +1069,46 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 		})
 		return errors.New("reason is required for admin override")
 	}
+	if targetTenantID == 0 {
+		// setMFAOverrideCore writes tenant-scoped rows — a zero tenant
+		// would silently target the platform-wide slot, which only the
+		// operator-global path is allowed to do.
+		return errors.New("target tenant id is required for set_override")
+	}
 
-	var previous string
+	previous := MFAAdminOverrideNone
 	txErr := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		account, err := s.repos.Account.FindByID(txCtx, targetAccountID)
-		if err != nil || account == nil {
-			return fmt.Errorf("load target account: %w", err)
+		existing, err := s.repos.MFAOverride.FindByAccountAndTenant(txCtx, targetAccountID, targetTenantID)
+		if err != nil {
+			return fmt.Errorf("load existing tenant override: %w", err)
 		}
-		previous = account.MFAAdminOverride
-		if previous == "" {
-			previous = MFAAdminOverrideNone
+		if existing != nil {
+			previous = existing.Override
 		}
-		account.MFAAdminOverride = override
-		if err := s.repos.Account.Update(txCtx, account); err != nil {
-			return fmt.Errorf("persist mfa override: %w", err)
+		if override == MFAAdminOverrideNone {
+			if err := s.repos.MFAOverride.DeleteTenant(txCtx, targetAccountID, targetTenantID); err != nil {
+				return fmt.Errorf("clear tenant override: %w", err)
+			}
+			return nil
 		}
-		// Force-off must revoke every existing trusted-device cookie in
-		// the same tx — a partial success (override flipped but devices
-		// kept) is a security regression, not a transient warning.
+		tenantID := targetTenantID
+		row := &auth.MFAOverride{
+			AccountID: targetAccountID,
+			TenantID:  &tenantID,
+			Override:  override,
+			SetBy:     actorID,
+			SetByType: actorType,
+			Reason:    reason,
+		}
+		if err := s.repos.MFAOverride.UpsertTenant(txCtx, row); err != nil {
+			return fmt.Errorf("persist tenant mfa override: %w", err)
+		}
+		// Force-off must revoke trusted devices for THIS tenant only —
+		// the same account may legitimately keep trust in other tenants
+		// where the admin hasn't (yet) flipped the switch.
 		if override == MFAAdminOverrideForceOff {
-			if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(txCtx, targetAccountID, time.Now()); err != nil {
-				return fmt.Errorf("revoke trusted devices: %w", err)
+			if err := s.repos.MFATrustedDevice.RevokeAllByAccountTenant(txCtx, targetAccountID, targetTenantID, time.Now()); err != nil {
+				return fmt.Errorf("revoke tenant-scoped trusted devices: %w", err)
 			}
 		}
 		return nil
@@ -943,6 +1131,107 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 		"actor_type":        actorType,
 		"actor_account_id":  actorID,
 		"action":            "set_override",
+		"scope":             "tenant",
+		"override":          override,
+		"previous_override": previous,
+		"reason":            reason,
+	})
+	return nil
+}
+
+// OperatorSetGlobalMFAOverride writes (or clears) the platform-wide
+// override row. This is the explicit "account-wide emergency switch"
+// surface — set force_off when the user has lost mailbox access in a
+// way that affects every school they belong to (e.g. account-wide
+// password reset failed). Tenant admins cannot reach this; the surface
+// lives only on /operator/accounts/{id}/mfa/global-override.
+//
+// "none" deletes the row, returning the account to tenant-scoped
+// resolution. Force_off additionally revokes trusted devices across
+// EVERY tenant the account has trusted in — this is the only override
+// path that touches RevokeAllByAccountID.
+func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error {
+	if !IsValidMFAAdminOverride(override) {
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       auth.MFAOverrideSetByTypeOperator,
+			ActorID:         operatorID,
+			TargetAccountID: targetAccountID,
+			Action:          "set_global_override",
+			Override:        override,
+			Reason:          reason,
+			ErrMsg:          ErrMFAInvalidOverride.Error(),
+		})
+		return ErrMFAInvalidOverride
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       auth.MFAOverrideSetByTypeOperator,
+			ActorID:         operatorID,
+			TargetAccountID: targetAccountID,
+			Action:          "set_global_override",
+			Override:        override,
+			ErrMsg:          "reason is required",
+		})
+		return errors.New("reason is required for global mfa override")
+	}
+
+	previous := MFAAdminOverrideNone
+	txErr := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		existing, err := s.repos.MFAOverride.FindGlobal(txCtx, targetAccountID)
+		if err != nil {
+			return fmt.Errorf("load existing global override: %w", err)
+		}
+		if existing != nil {
+			previous = existing.Override
+		}
+		if override == MFAAdminOverrideNone {
+			if err := s.repos.MFAOverride.DeleteGlobal(txCtx, targetAccountID); err != nil {
+				return fmt.Errorf("clear global mfa override: %w", err)
+			}
+			return nil
+		}
+		row := &auth.MFAOverride{
+			AccountID: targetAccountID,
+			TenantID:  nil,
+			Override:  override,
+			SetBy:     operatorID,
+			SetByType: auth.MFAOverrideSetByTypeOperator,
+			Reason:    reason,
+		}
+		if err := s.repos.MFAOverride.UpsertGlobal(txCtx, row); err != nil {
+			return fmt.Errorf("persist global mfa override: %w", err)
+		}
+		if override == MFAAdminOverrideForceOff {
+			// Force_off at platform scope yanks trust across every
+			// tenant — that's the whole point of the emergency switch.
+			if err := s.repos.MFATrustedDevice.RevokeAllByAccountID(txCtx, targetAccountID, time.Now()); err != nil {
+				return fmt.Errorf("revoke trusted devices: %w", err)
+			}
+		}
+		return nil
+	})
+	if txErr != nil {
+		s.recordAdminOverrideFailure(ctx, adminOverrideFailureEvent{
+			ActorType:       auth.MFAOverrideSetByTypeOperator,
+			ActorID:         operatorID,
+			TargetAccountID: targetAccountID,
+			Action:          "set_global_override",
+			Override:        override,
+			Reason:          reason,
+			ErrMsg:          txErr.Error(),
+		})
+		return txErr
+	}
+
+	// TenantID 0 on the audit row signals "platform-wide". The audit
+	// recorder accepts that as a sentinel — the operator surface runs
+	// outside any tenant tx, so the audit must travel without one.
+	s.recordAuthEvent(ctx, targetAccountID, 0, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
+		"actor_type":        auth.MFAOverrideSetByTypeOperator,
+		"actor_operator_id": operatorID,
+		"action":            "set_global_override",
+		"scope":             "platform",
 		"override":          override,
 		"previous_override": previous,
 		"reason":            reason,

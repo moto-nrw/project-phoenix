@@ -257,6 +257,15 @@ func (rs *Resource) Router() chi.Router {
 			r.Delete("/{id}", rs.provisioningResource.SoftDeletePerson)
 		})
 
+		// Account-wide MFA override surface ("mailbox lockout emergency
+		// switch"). Deliberately decoupled from /schools/{id}/accounts/{}
+		// because the platform-wide override row applies regardless of
+		// which school an account belongs to — see #1430 review round 2.
+		r.Route("/accounts/{accountId}/mfa", func(r chi.Router) {
+			r.Get("/global-override", rs.provisioningResource.GetAccountMFAGlobalOverride)
+			r.Put("/global-override", rs.provisioningResource.SetAccountMFAGlobalOverride)
+		})
+
 		// Suggestions management
 		r.Route("/suggestions", func(r chi.Router) {
 			r.Get("/", rs.suggestionsResource.ListSuggestions)

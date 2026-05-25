@@ -97,16 +97,24 @@ func TestMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
 
 // --- Per-account admin override ---
 
-func TestMFAService_GetMFAOverride_DefaultNone(t *testing.T) {
+func TestMFAService_GetTenantMFAOverride_DefaultNone(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-override-default")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
-	override, err := svc.GetMFAOverride(ctx, acc.ID)
+	// New shape: a missing override row resolves to "none" instead of
+	// reading a column. Tenant ID can be any value — there's no row.
+	tenantID := testpkg.UniqueTestTenantID(t)
+	override, err := svc.GetTenantMFAOverride(ctx, acc.ID, tenantID)
 	require.NoError(t, err)
 	assert.Equal(t, auth.MFAAdminOverrideNone, override)
+
+	// Same for the global lookup — operator hasn't set anything yet.
+	globalOverride, err := svc.GetGlobalMFAOverride(ctx, acc.ID)
+	require.NoError(t, err)
+	assert.Equal(t, auth.MFAAdminOverrideNone, globalOverride)
 }
 
 // tenantMappedAccount creates an account + a fresh tenant + the
@@ -146,7 +154,7 @@ func TestMFAService_SetMFAOverride_PermissionGate(t *testing.T) {
 
 	// users:manage + matching tenant works.
 	require.NoError(t, svc.SetMFAOverride(ctx, 0, actorTenantID, acc.ID, auth.MFAAdminOverrideForceOff, "reason", []string{"users:manage"}))
-	got, err := svc.GetMFAOverride(ctx, acc.ID)
+	got, err := svc.GetTenantMFAOverride(ctx, acc.ID, actorTenantID)
 	require.NoError(t, err)
 	assert.Equal(t, auth.MFAAdminOverrideForceOff, got)
 }
@@ -174,37 +182,101 @@ func TestMFAService_SetMFAOverride_ForceOff_RevokesTrustedDevices(t *testing.T) 
 
 func TestMFAService_IsRequired_HonorsOverride(t *testing.T) {
 	ctx := context.Background()
-	svc, repos, db := newTestMFAService(t)
+	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-isreq")
 
-	// Reload the persisted Account (with MFAAdminOverride column) before
-	// calling IsRequired — the service inspects account.MFAAdminOverride
-	// directly, not a fresh DB read.
-	reload := func() {
-		fresh, err := repos.Account.FindByID(ctx, acc.ID)
-		require.NoError(t, err)
-		require.NotNil(t, fresh)
-		acc.MFAAdminOverride = fresh.MFAAdminOverride
-	}
+	// Post-#1430-round-2 the override lives in auth.mfa_overrides, not
+	// on auth.accounts. IsRequired reads the table fresh on every call
+	// so no in-memory reload is needed between writes.
 
-	// none -> service default ("off" because no settings wired) => false
-	required, err := svc.IsRequired(ctx, acc, 0)
+	// no override + no tenant policy => false
+	required, err := svc.IsRequired(ctx, acc, actorTenantID)
 	require.NoError(t, err)
 	assert.False(t, required, "no override + settings off => not required")
 
-	// force_on => true regardless of tenant mode
+	// force_on on the actor's tenant => true when logging into that tenant
 	require.NoError(t, svc.SetMFAOverride(ctx, 0, actorTenantID, acc.ID, auth.MFAAdminOverrideForceOn, "always 2FA", []string{"users:manage"}))
-	reload()
-	required, err = svc.IsRequired(ctx, acc, 0)
+	required, err = svc.IsRequired(ctx, acc, actorTenantID)
 	require.NoError(t, err)
-	assert.True(t, required, "force_on must force MFA required")
+	assert.True(t, required, "force_on must force MFA required for the tenant where it was set")
 
-	// force_off => false regardless of tenant mode
+	// force_off on the actor's tenant => false when logging into that tenant
 	require.NoError(t, svc.SetMFAOverride(ctx, 0, actorTenantID, acc.ID, auth.MFAAdminOverrideForceOff, "lost mailbox", []string{"users:manage"}))
-	reload()
-	required, err = svc.IsRequired(ctx, acc, 0)
+	required, err = svc.IsRequired(ctx, acc, actorTenantID)
 	require.NoError(t, err)
-	assert.False(t, required, "force_off must skip MFA")
+	assert.False(t, required, "force_off must skip MFA in the tenant where it was set")
+}
+
+// TestMFAService_IsRequired_TenantOverride_StaysInTenant is the
+// regression test for the #1430 round-2 Blocker: an override set in
+// tenant A must NOT leak into tenant B. Before this fix the override
+// lived on auth.accounts (global), and force_off in school A silently
+// bypassed MFA in school B for shared accounts.
+func TestMFAService_IsRequired_TenantOverride_StaysInTenant(t *testing.T) {
+	ctx := context.Background()
+	svc, _, db := newTestMFAService(t)
+
+	acc, tenantA := tenantMappedAccount(t, db, "mfa-svc-override-tenant-iso-a")
+	tenantB := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantB)
+
+	// Admin in tenant A flips force_off for the shared account.
+	require.NoError(t, svc.SetMFAOverride(ctx, 0, tenantA, acc.ID, auth.MFAAdminOverrideForceOff, "lost mailbox in school A", []string{"users:manage"}))
+
+	// Login to tenant A honors the override.
+	requiredA, err := svc.IsRequired(ctx, acc, tenantA)
+	require.NoError(t, err)
+	assert.False(t, requiredA, "force_off in tenant A must apply to logins into tenant A")
+
+	// Login to tenant B must NOT see the tenant-A override — the whole
+	// reason we tenant-scoped the table.
+	requiredB, err := svc.IsRequired(ctx, acc, tenantB)
+	require.NoError(t, err)
+	assert.False(t, requiredB,
+		"tenant B has no override and no policy → still not required, but the important assertion is below")
+
+	// Make tenant B require MFA explicitly via a tenant-B force_on
+	// override — proves the resolver actually reads the *tenant-B* row,
+	// not the tenant-A one.
+	require.NoError(t, svc.SetMFAOverride(ctx, 0, tenantB, acc.ID, auth.MFAAdminOverrideForceOn, "tenant B keeps 2FA", []string{"users:manage"}))
+	requiredB, err = svc.IsRequired(ctx, acc, tenantB)
+	require.NoError(t, err)
+	assert.True(t, requiredB, "force_on in tenant B must apply to logins into tenant B even with force_off in tenant A")
+
+	// And tenant A still sees its own override.
+	requiredA, err = svc.IsRequired(ctx, acc, tenantA)
+	require.NoError(t, err)
+	assert.False(t, requiredA, "tenant A's force_off must survive the tenant-B write — the rows live independently")
+}
+
+// TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere proves
+// the operator-only platform-wide row works as the explicit
+// account-wide emergency switch: set once, applies to every tenant.
+func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
+	ctx := context.Background()
+	svc, _, db := newTestMFAService(t)
+
+	acc, tenantA := tenantMappedAccount(t, db, "mfa-svc-override-global-a")
+	tenantB := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantB)
+
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, auth.MFAAdminOverrideForceOff, "mailbox lockout account-wide"))
+
+	requiredA, err := svc.IsRequired(ctx, acc, tenantA)
+	require.NoError(t, err)
+	assert.False(t, requiredA, "global force_off must bypass MFA in tenant A")
+
+	requiredB, err := svc.IsRequired(ctx, acc, tenantB)
+	require.NoError(t, err)
+	assert.False(t, requiredB, "global force_off must bypass MFA in tenant B too")
+
+	// Clearing the global row returns the account to tenant-scoped
+	// resolution.
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, auth.MFAAdminOverrideNone, "mailbox restored"))
+	override, err := svc.GetGlobalMFAOverride(ctx, acc.ID)
+	require.NoError(t, err)
+	assert.Equal(t, auth.MFAAdminOverrideNone, override,
+		"clearing the global override must remove the platform-wide row")
 }
 
 // TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite is a regression
@@ -225,7 +297,7 @@ func TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite(t *testing.T) {
 	err = svc.SetMFAOverride(ctx, 0, actorTenantID, acc.ID, "force_maybe", "test", []string{"users:manage"})
 	assert.ErrorIs(t, err, auth.ErrMFAInvalidOverride)
 
-	override, err := svc.GetMFAOverride(ctx, acc.ID)
+	override, err := svc.GetTenantMFAOverride(ctx, acc.ID, actorTenantID)
 	require.NoError(t, err)
 	assert.Equal(t, auth.MFAAdminOverrideNone, override, "override must stay none after rejected write")
 
@@ -296,11 +368,16 @@ func TestMFAService_SetMFAOverride_RejectsCrossTenant(t *testing.T) {
 	err := svc.SetMFAOverride(ctx, 7777, tenantB, target.ID, auth.MFAAdminOverrideForceOff, "cross-tenant attack", []string{"users:manage"})
 	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
 
-	// And the override on the target must remain unset.
-	override, err := svc.GetMFAOverride(ctx, target.ID)
+	// And the override on the target must remain unset — for both
+	// tenants since neither one ever authorized a write.
+	overrideA, err := svc.GetTenantMFAOverride(ctx, target.ID, tenantA)
 	require.NoError(t, err)
-	assert.Equal(t, auth.MFAAdminOverrideNone, override,
-		"rejected cross-tenant override must NOT write the column — that's the IDOR the #1430 review flagged")
+	assert.Equal(t, auth.MFAAdminOverrideNone, overrideA,
+		"rejected cross-tenant override must NOT write tenant A's row")
+	overrideB, err := svc.GetTenantMFAOverride(ctx, target.ID, tenantB)
+	require.NoError(t, err)
+	assert.Equal(t, auth.MFAAdminOverrideNone, overrideB,
+		"rejected cross-tenant override must NOT write tenant B's row either")
 }
 
 func TestMFAService_SetMFAOverride_RejectsZeroActorTenant(t *testing.T) {
@@ -343,9 +420,9 @@ func TestMFAService_OperatorSetMFAOverride_RejectsCrossSchool(t *testing.T) {
 	err := svc.OperatorSetMFAOverride(ctx, 1, 999, acc.ID, auth.MFAAdminOverrideForceOn, "test")
 	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
 
-	override, err := svc.GetMFAOverride(ctx, acc.ID)
+	override, err := svc.GetTenantMFAOverride(ctx, acc.ID, 999)
 	require.NoError(t, err)
-	assert.Equal(t, auth.MFAAdminOverrideNone, override, "override must remain unset after rejected cross-school write")
+	assert.Equal(t, auth.MFAAdminOverrideNone, override, "override row must remain unset after rejected cross-school write")
 }
 
 func TestMFAService_OperatorAdminDisable_RejectsCrossSchool(t *testing.T) {

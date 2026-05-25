@@ -60,7 +60,12 @@ type OperatorMFAService interface {
 
 	StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
 	VerifyChallenge(ctx context.Context, challengeToken, code string) (*OperatorVerifiedChallenge, error)
-	ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) error
+	// ResendChallenge — see tenant counterpart. Returns the renewed
+	// challenge JWT so the operator frontend can replace its in-flight
+	// token. Returning only an error like the previous shape created a
+	// dead-end where the freshly emailed code couldn't be verified once
+	// the original JWT expired.
+	ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	VerifyCodeForOperator(ctx context.Context, operatorID int64, code string) error
 
 	Enroll(ctx context.Context, operatorID int64) error
@@ -262,18 +267,19 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 	return &OperatorVerifiedChallenge{OperatorID: op.ID}, nil
 }
 
-func (s *operatorMFAService) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) error {
+func (s *operatorMFAService) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	claims, err := s.parseChallengeToken(challengeToken)
 	if err != nil {
-		return ErrOperatorMFAChallengeTokenInvalid
+		return "", ErrOperatorMFAChallengeTokenInvalid
 	}
 	if claims.Scope != authjwt.MFAChallengeScopePlatform {
-		return ErrOperatorMFAChallengeTokenInvalid
+		return "", ErrOperatorMFAChallengeTokenInvalid
 	}
-	if _, err := s.StartChallenge(ctx, claims.AccountID, ip); err != nil {
-		return err
+	renewed, err := s.StartChallenge(ctx, claims.AccountID, ip)
+	if err != nil {
+		return "", err
 	}
-	return nil
+	return renewed, nil
 }
 
 func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operatorID int64, code string) error {

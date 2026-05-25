@@ -26,7 +26,7 @@ import (
 // branches don't panic on the way to the assertion.
 type stubOperatorMFAServiceExtra struct {
 	verifyChallengeFn func(ctx context.Context, challengeToken, code string) (*platformSvc.OperatorVerifiedChallenge, error)
-	resendChallengeFn func(ctx context.Context, challengeToken string, ip net.IP) error
+	resendChallengeFn func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	startChallengeFn  func(ctx context.Context, operatorID int64, ip net.IP) (string, error)
 	verifyCodeFn      func(ctx context.Context, operatorID int64, code string) error
 	enrollFn          func(ctx context.Context, operatorID int64) error
@@ -51,11 +51,11 @@ func (s *stubOperatorMFAServiceExtra) VerifyChallenge(ctx context.Context, chall
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubOperatorMFAServiceExtra) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) error {
+func (s *stubOperatorMFAServiceExtra) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	if s.resendChallengeFn != nil {
 		return s.resendChallengeFn(ctx, challengeToken, ip)
 	}
-	return nil
+	return "renewed-token", nil
 }
 
 func (s *stubOperatorMFAServiceExtra) VerifyCodeForOperator(ctx context.Context, operatorID int64, code string) error {
@@ -158,9 +158,12 @@ func TestOperatorMFAVerify_ServiceErrorMapsTo401(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-func TestOperatorMFAResend_Success_Returns204(t *testing.T) {
+// TestOperatorMFAResend_Success_ReturnsRenewedToken mirrors the tenant-side
+// shape: operator resend now hands back the renewed challenge JWT so the
+// operator login flow can replace its in-flight token.
+func TestOperatorMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
-		resendChallengeFn: func(context.Context, string, net.IP) error { return nil },
+		resendChallengeFn: func(context.Context, string, net.IP) (string, error) { return "renewed-tok", nil },
 	}}
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/resend",
@@ -168,7 +171,10 @@ func TestOperatorMFAResend_Success_Returns204(t *testing.T) {
 	rr := httptest.NewRecorder()
 	rs.Resend(rr, r)
 
-	assert.Equal(t, http.StatusNoContent, rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	var resp MFAResendResponse
+	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
+	assert.Equal(t, "renewed-tok", resp.ChallengeToken)
 }
 
 func TestOperatorMFAResend_BindRejectsEmptyToken(t *testing.T) {
@@ -183,8 +189,8 @@ func TestOperatorMFAResend_BindRejectsEmptyToken(t *testing.T) {
 
 func TestOperatorMFAResend_ServiceErrorMapsTo429(t *testing.T) {
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
-		resendChallengeFn: func(context.Context, string, net.IP) error {
-			return authService.ErrMFARateLimited
+		resendChallengeFn: func(context.Context, string, net.IP) (string, error) {
+			return "", authService.ErrMFARateLimited
 		},
 	}}
 

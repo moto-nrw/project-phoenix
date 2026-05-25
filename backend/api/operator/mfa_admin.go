@@ -3,8 +3,10 @@ package operator
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
@@ -106,7 +108,7 @@ func (rs *ProvisioningResource) GetSchoolAccountMFAState(w http.ResponseWriter, 
 	if !rs.requireMFAAdminDeps(w, r) {
 		return
 	}
-	_, accountID, ok := rs.resolveOperatorMFAAdminTarget(w, r)
+	schoolID, accountID, ok := rs.resolveOperatorMFAAdminTarget(w, r)
 	if !ok {
 		return
 	}
@@ -115,7 +117,12 @@ func (rs *ProvisioningResource) GetSchoolAccountMFAState(w http.ResponseWriter, 
 		common.RenderError(w, r, ErrInternal("failed to read MFA enrollment"))
 		return
 	}
-	override, err := rs.TenantMFAService.GetMFAOverride(r.Context(), accountID)
+	// The school MFA modal shows the *tenant-scoped* override that
+	// affects logins to this school. The platform-wide ("operator
+	// account-wide") row lives behind its own endpoint
+	// (/operator/accounts/{id}/mfa/global-override) so the school
+	// view never mixes per-school and account-wide state.
+	override, err := rs.TenantMFAService.GetTenantMFAOverride(r.Context(), accountID, schoolID)
 	if err != nil {
 		// Read-side failure shouldn't block the modal from rendering —
 		// fall back to "none" and let the admin still trigger writes.
@@ -205,4 +212,97 @@ func operatorIDFromClaims(r *http.Request) int64 {
 		return 0
 	}
 	return int64(claims.ID)
+}
+
+// MFAGlobalOverrideStateResponse mirrors MFAAdminStateResponse for the
+// account-wide ("operator emergency switch") read. Enrolled is
+// duplicated from the per-school endpoint so the operator's account-
+// level modal can render without two round-trips; Override holds the
+// platform-wide auth.mfa_overrides row's value or "none" when no
+// global row is present.
+type MFAGlobalOverrideStateResponse struct {
+	Enrolled bool   `json:"enrolled"`
+	Override string `json:"override"`
+}
+
+// GetAccountMFAGlobalOverride returns the platform-wide override row
+// for an account — used by the operator's account-level modal to render
+// the "Account-weit deaktivieren" emergency surface.
+//
+// Account-scope (not school-scope): the operator route lives directly
+// under /operator/accounts/{accountId}/mfa/global-override; there is
+// no schoolId in the path because the action by definition spans every
+// tenant the account belongs to. (#1430 review round 2.)
+func (rs *ProvisioningResource) GetAccountMFAGlobalOverride(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFAAdminDeps(w, r) {
+		return
+	}
+	accountID, ok := rs.resolveOperatorAccountTarget(w, r)
+	if !ok {
+		return
+	}
+	enrolled, err := rs.TenantMFAService.HasEnrollment(r.Context(), accountID)
+	if err != nil {
+		common.RenderError(w, r, ErrInternal("failed to read MFA enrollment"))
+		return
+	}
+	override, err := rs.TenantMFAService.GetGlobalMFAOverride(r.Context(), accountID)
+	if err != nil {
+		override = authSvc.MFAAdminOverrideNone
+	}
+	common.Respond(w, r, http.StatusOK, &MFAGlobalOverrideStateResponse{
+		Enrolled: enrolled,
+		Override: override,
+	}, "MFA global override retrieved successfully")
+}
+
+// SetAccountMFAGlobalOverride writes (or clears) the platform-wide
+// override row. Force_off here is the explicit "mailbox lockout
+// emergency switch" — applies across every tenant the account belongs
+// to and revokes every trusted device. Tenant admins intentionally
+// cannot reach this surface; only the operator dashboard exposes it.
+func (rs *ProvisioningResource) SetAccountMFAGlobalOverride(w http.ResponseWriter, r *http.Request) {
+	if !rs.requireMFAAdminDeps(w, r) {
+		return
+	}
+	accountID, ok := rs.resolveOperatorAccountTarget(w, r)
+	if !ok {
+		return
+	}
+	operatorID := operatorIDFromClaims(r)
+	if operatorID == 0 {
+		common.RenderError(w, r, ErrUnauthorized())
+		return
+	}
+	req := &MFAAdminOverrideSetRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+	if err := rs.TenantMFAService.OperatorSetGlobalMFAOverride(r.Context(), operatorID, accountID, req.Override, req.Reason); err != nil {
+		if errors.Is(err, authSvc.ErrMFAInvalidOverride) {
+			common.RenderError(w, r, ErrInvalidRequest(err))
+			return
+		}
+		if errors.Is(err, authSvc.ErrMFAPermissionDenied) {
+			common.RenderError(w, r, ErrForbidden("Permission denied"))
+			return
+		}
+		common.RenderError(w, r, ErrInternal("MFA global override failed"))
+		return
+	}
+	common.RespondNoContent(w, r)
+}
+
+// resolveOperatorAccountTarget parses {accountId} from the path. Same
+// shape as resolveOperatorMFAAdminTarget but without a schoolId — the
+// account-wide endpoints are deliberately decoupled from any school.
+func (rs *ProvisioningResource) resolveOperatorAccountTarget(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	accountIDStr := chi.URLParam(r, "accountId")
+	accountID, err := strconv.ParseInt(accountIDStr, 10, 64)
+	if err != nil || accountID <= 0 {
+		common.RenderError(w, r, ErrInvalidRequest(errors.New(common.MsgInvalidAccountID)))
+		return 0, false
+	}
+	return accountID, true
 }

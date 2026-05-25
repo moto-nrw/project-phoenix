@@ -42,7 +42,7 @@ func (s *stubMFAService) VerifyChallenge(_ context.Context, _, _ string) (*auths
 	panic("stubMFAService.VerifyChallenge must not be called in these tests")
 }
 
-func (s *stubMFAService) ResendChallenge(_ context.Context, _ string, _ net.IP) error {
+func (s *stubMFAService) ResendChallenge(_ context.Context, _ string, _ net.IP) (string, error) {
 	panic("stubMFAService.ResendChallenge must not be called in these tests")
 }
 
@@ -90,8 +90,16 @@ func (s *stubMFAService) SetMFAOverride(_ context.Context, _, _, _ int64, _, _ s
 	panic("stubMFAService.SetMFAOverride must not be called in these tests")
 }
 
-func (s *stubMFAService) GetMFAOverride(_ context.Context, _ int64) (string, error) {
-	panic("stubMFAService.GetMFAOverride must not be called in these tests")
+func (s *stubMFAService) GetTenantMFAOverride(_ context.Context, _, _ int64) (string, error) {
+	panic("stubMFAService.GetTenantMFAOverride must not be called in these tests")
+}
+
+func (s *stubMFAService) GetGlobalMFAOverride(_ context.Context, _ int64) (string, error) {
+	panic("stubMFAService.GetGlobalMFAOverride must not be called in these tests")
+}
+
+func (s *stubMFAService) OperatorSetGlobalMFAOverride(_ context.Context, _, _ int64, _, _ string) error {
+	panic("stubMFAService.OperatorSetGlobalMFAOverride must not be called in these tests")
 }
 
 func (s *stubMFAService) OperatorAdminDisable(_ context.Context, _, _, _ int64, _ string) error {
@@ -100,6 +108,10 @@ func (s *stubMFAService) OperatorAdminDisable(_ context.Context, _, _, _ int64, 
 
 func (s *stubMFAService) OperatorSetMFAOverride(_ context.Context, _, _, _ int64, _, _ string) error {
 	panic("stubMFAService.OperatorSetMFAOverride must not be called in these tests")
+}
+
+func (s *stubMFAService) GetAdminState(_ context.Context, _, _, _ int64, _ []string) (authsvc.MFAAdminState, error) {
+	panic("stubMFAService.GetAdminState must not be called in these tests")
 }
 
 // TestLoginWithMFAGate_IsRequiredInfraError_ReturnsMFAStatusUnavailable proves

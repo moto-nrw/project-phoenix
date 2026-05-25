@@ -142,8 +142,15 @@ func (req *MFAResendRequest) Bind(_ *http.Request) error {
 	)
 }
 
+// MFAResendResponse mirrors the tenant-side shape so frontend clients
+// see one wire format. The renewed token must replace the in-flight
+// challenge_token; see the tenant handler for the why.
+type MFAResendResponse struct {
+	ChallengeToken string `json:"challenge_token"`
+}
+
 // Resend re-issues an email code against the existing challenge token.
-// Rate-limited inside the service.
+// Rate-limited inside the service. Returns the renewed challenge JWT.
 func (rs *MFAResource) Resend(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -153,11 +160,12 @@ func (rs *MFAResource) Resend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, ErrInvalidRequest(err))
 		return
 	}
-	if err := rs.mfaService.ResendChallenge(r.Context(), req.ChallengeToken, parseOperatorClientIP(r)); err != nil {
+	renewed, err := rs.mfaService.ResendChallenge(r.Context(), req.ChallengeToken, parseOperatorClientIP(r))
+	if err != nil {
 		mapOperatorMFAError(w, r, err)
 		return
 	}
-	common.RespondNoContent(w, r)
+	render.JSON(w, r, MFAResendResponse{ChallengeToken: renewed})
 }
 
 // ----- /auth/mfa/enroll/start -----

@@ -109,6 +109,12 @@ type MFAAdminStateResponse struct {
 // mfaAdminGetState returns the current MFA admin-facing snapshot for an
 // account so the modal can render the right action set without inferring
 // state from /accounts list views.
+//
+// Membership-gated: the read path runs the same actor-permissions +
+// account-belongs-to-tenant check as the write paths via
+// MFAService.GetAdminState. Without that gate a tenant admin with
+// users:manage could probe account_ids across tenants and learn MFA
+// state for accounts they don't administer. (#1430 review round 2.)
 func (rs *Resource) mfaAdminGetState(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -119,20 +125,25 @@ func (rs *Resource) mfaAdminGetState(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidAccountID)))
 		return
 	}
-	enrolled, err := rs.MFAService.HasEnrollment(r.Context(), targetID)
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	state, err := rs.MFAService.GetAdminState(
+		r.Context(),
+		int64(claims.ID),
+		claims.TenantID,
+		targetID,
+		claims.Permissions,
+	)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	override := authService.MFAAdminOverrideNone
-	if acc, accErr := rs.AuthService.GetAccountByID(r.Context(), int(targetID)); accErr == nil && acc != nil {
-		if acc.MFAAdminOverride != "" {
-			override = acc.MFAAdminOverride
-		}
-	}
 	render.JSON(w, r, MFAAdminStateResponse{
-		Enrolled: enrolled,
-		Override: override,
+		Enrolled: state.Enrolled,
+		Override: state.Override,
 	})
 }
 

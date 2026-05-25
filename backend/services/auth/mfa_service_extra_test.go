@@ -85,9 +85,10 @@ func TestMFAService_VerifyCodeForAccount_WrongCode_RecordsFailureAndReturnsInval
 func TestMFAService_ResendChallenge_InvalidToken_ReturnsTokenInvalid(t *testing.T) {
 	svc, _, _ := newExtraMFAService(t)
 
-	err := svc.ResendChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
+	renewed, err := svc.ResendChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
 
 	require.Error(t, err)
+	assert.Empty(t, renewed, "invalid token must not produce a renewed JWT")
 	assert.ErrorIs(t, err, auth.ErrMFAChallengeTokenInvalid)
 }
 
@@ -102,8 +103,16 @@ func TestMFAService_ResendChallenge_HappyPath(t *testing.T) {
 	require.NotEmpty(t, token)
 
 	// The resend path goes parseChallengeToken → StartChallenge, both
-	// of which are exercised end-to-end.
-	require.NoError(t, svc.ResendChallenge(context.Background(), token, net.ParseIP("127.0.0.1")))
+	// of which are exercised end-to-end. The renewed JWT is what the
+	// frontend must swap in for the in-flight challenge_token.
+	renewed, err := svc.ResendChallenge(context.Background(), token, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	// The token may or may not differ byte-for-byte from the original
+	// (JWT iat has 1-second granularity and the encoded claims overlap
+	// fully when start + resend land in the same second). What matters
+	// is that the resend path *returns* a usable token at all — the
+	// pre-fix shape returned only an error.
+	assert.NotEmpty(t, renewed, "happy path must return a renewed challenge JWT")
 }
 
 // ShortenUserAgent parses common UA strings into a friendly "Browser auf OS"

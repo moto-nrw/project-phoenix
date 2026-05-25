@@ -8,8 +8,10 @@ import {
   adminResetMFA,
   adminSetMFAOverride,
   germanMFAErrorMessage,
+  operatorAdminGetGlobalMFAOverride,
   operatorAdminGetMFAState,
   operatorAdminResetMFA,
+  operatorAdminSetGlobalMFAOverride,
   operatorAdminSetMFAOverride,
   type MFAAdminOverride,
   type MFAAdminState,
@@ -81,6 +83,20 @@ export function MFAAdminOverrideModal({
   const [overrideError, setOverrideError] = useState("");
   const [overrideWorking, setOverrideWorking] = useState(false);
 
+  // Account-wide override section state. Only rendered on the operator
+  // surface (`scope === "operator"`) — tenant admins intentionally
+  // cannot reach the platform-wide row, since flipping it bypasses MFA
+  // across every tenant the account belongs to. The "mailbox lockout
+  // emergency switch" is operator-only by design. (#1430 review round 2)
+  const [globalOverride, setGlobalOverride] =
+    useState<MFAAdminOverride>("none");
+  const [selectedGlobalOverride, setSelectedGlobalOverride] =
+    useState<MFAAdminOverride>("none");
+  const [globalStateLoaded, setGlobalStateLoaded] = useState(false);
+  const [globalReason, setGlobalReason] = useState("");
+  const [globalError, setGlobalError] = useState("");
+  const [globalWorking, setGlobalWorking] = useState(false);
+
   useEffect(() => {
     if (!isOpen) {
       setView({ kind: "form" });
@@ -94,6 +110,12 @@ export function MFAAdminOverrideModal({
       setOverrideReason("");
       setOverrideError("");
       setOverrideWorking(false);
+      setGlobalOverride("none");
+      setSelectedGlobalOverride("none");
+      setGlobalStateLoaded(false);
+      setGlobalReason("");
+      setGlobalError("");
+      setGlobalWorking(false);
     }
   }, [isOpen]);
 
@@ -128,13 +150,36 @@ export function MFAAdminOverrideModal({
     }
   }, [bearerToken, accountId, scope, schoolId]);
 
+  // The account-wide override row is operator-only — tenant admins
+  // never read it. Failures fall through to "none" so the per-school
+  // section still renders.
+  const loadGlobalState = useCallback(async () => {
+    if (scope !== "operator") return;
+    try {
+      const state = await operatorAdminGetGlobalMFAOverride(
+        bearerToken,
+        accountId,
+      );
+      setGlobalOverride(state.override);
+      setSelectedGlobalOverride(state.override);
+    } catch (err) {
+      logger.warn("operator_global_mfa_state_load_failed", {
+        account_id: accountId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setGlobalStateLoaded(true);
+    }
+  }, [bearerToken, accountId, scope]);
+
   useEffect(() => {
     if (isOpen) {
       // Fire-and-forget pattern is the project convention for async work in
       // useEffect; errors are surfaced via the function's own try/catch.
       void loadState(); // NOSONAR typescript:S3735 fire-and-forget pattern matches project convention (10+ existing sites)
+      void loadGlobalState(); // NOSONAR typescript:S3735 see above
     }
-  }, [isOpen, loadState]);
+  }, [isOpen, loadState, loadGlobalState]);
 
   if (!isOpen) return null;
 
@@ -167,6 +212,47 @@ export function MFAAdminOverrideModal({
       });
     } finally {
       setIsWorking(false);
+    }
+  };
+
+  const handleGlobalOverrideSubmit = async () => {
+    if (selectedGlobalOverride === globalOverride) return;
+    const trimmed = globalReason.trim();
+    if (trimmed.length < MIN_REASON_LENGTH) {
+      setGlobalError(
+        `Bitte geben Sie eine Begründung mit mindestens ${MIN_REASON_LENGTH} Zeichen an.`,
+      );
+      return;
+    }
+    setGlobalWorking(true);
+    setGlobalError("");
+    try {
+      await operatorAdminSetGlobalMFAOverride(
+        bearerToken,
+        accountId,
+        selectedGlobalOverride,
+        trimmed,
+      );
+      setGlobalOverride(selectedGlobalOverride);
+      let msg: string;
+      if (selectedGlobalOverride === "force_off") {
+        msg = `2FA für ${accountLabel} wurde Account-weit deaktiviert (alle Schulen).`;
+      } else if (selectedGlobalOverride === "force_on") {
+        msg = `2FA für ${accountLabel} wurde Account-weit erzwungen (alle Schulen).`;
+      } else {
+        msg = `Account-weite Notfall-Einstellung für ${accountLabel} wurde aufgehoben.`;
+      }
+      toast.success(msg);
+      setGlobalReason("");
+    } catch (err) {
+      setGlobalError(germanMFAErrorMessage(err));
+      logger.warn("operator_global_mfa_override_failed", {
+        account_id: accountId,
+        target: selectedGlobalOverride,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setGlobalWorking(false);
     }
   };
 
@@ -317,118 +403,250 @@ export function MFAAdminOverrideModal({
               </form>
             </section>
 
-            <section className="border-t border-gray-100 pt-6">
-              <h3 className="mb-2 text-sm font-semibold text-gray-900">
-                2FA für diesen Mitarbeiter aktivieren oder deaktivieren
-              </h3>
-              <p className="mb-3 text-sm text-gray-600">
-                Wählen Sie, ob für diesen Account die Schul-Einstellung gelten
-                soll oder ob 2FA für diesen Mitarbeiter individuell aktiviert
-                oder deaktiviert wird — z. B. wenn der Mitarbeiter keinen
-                Zugriff auf sein E-Mail-Postfach hat.
-              </p>
+            {scope === "tenant" && (
+              <section className="border-t border-gray-100 pt-6">
+                <h3 className="mb-2 text-sm font-semibold text-gray-900">
+                  2FA für diesen Mitarbeiter aktivieren oder deaktivieren
+                </h3>
+                <p className="mb-3 text-sm text-gray-600">
+                  Wählen Sie, ob für diesen Account die Schul-Einstellung gelten
+                  soll oder ob 2FA für diesen Mitarbeiter individuell aktiviert
+                  oder deaktiviert wird — z. B. wenn der Mitarbeiter keinen
+                  Zugriff auf sein E-Mail-Postfach hat.
+                </p>
+                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  <strong className="font-semibold">Wichtig:</strong> Diese
+                  Einstellung gilt nur für diese Schule. Wenn der Mitarbeiter an
+                  weiteren Schulen aktiv ist, bleibt 2FA dort unverändert.
+                </div>
 
-              <fieldset
-                className="space-y-2"
-                disabled={overrideWorking || !stateLoaded}
-              >
-                <legend className="sr-only">2FA-Einstellung</legend>
-                {(
-                  [
-                    {
-                      value: "none",
-                      title: "Standard",
-                      desc: "Die in den Schul-Einstellungen festgelegte 2FA-Pflicht gilt.",
-                    },
-                    {
-                      value: "force_on",
-                      title: "Aktiv",
-                      desc: "2FA ist für diesen Mitarbeiter immer erforderlich, unabhängig von der Schul-Einstellung.",
-                    },
-                    {
-                      value: "force_off",
-                      title: "Deaktiv",
-                      desc: "2FA ist für diesen Mitarbeiter abgeschaltet. Vertraute Geräte werden beim Speichern entfernt.",
-                    },
-                  ] as const
-                ).map((opt) => (
-                  <label
-                    key={opt.value}
-                    htmlFor={`admin-mfa-override-${opt.value}`}
-                    aria-label={opt.title}
-                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-                      selectedOverride === opt.value
-                        ? "border-[#5080D8] bg-[#5080D8]/5"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <input
-                      id={`admin-mfa-override-${opt.value}`}
-                      type="radio"
-                      name="admin-mfa-override"
-                      value={opt.value}
-                      checked={selectedOverride === opt.value}
-                      onChange={() => setSelectedOverride(opt.value)}
-                      className="mt-1 h-4 w-4"
+                <fieldset
+                  className="space-y-2"
+                  disabled={overrideWorking || !stateLoaded}
+                >
+                  <legend className="sr-only">2FA-Einstellung</legend>
+                  {(
+                    [
+                      {
+                        value: "none",
+                        title: "Standard",
+                        desc: "Die in den Schul-Einstellungen festgelegte 2FA-Pflicht gilt.",
+                      },
+                      {
+                        value: "force_on",
+                        title: "Aktiv",
+                        desc: "2FA ist für diesen Mitarbeiter immer erforderlich, unabhängig von der Schul-Einstellung.",
+                      },
+                      {
+                        value: "force_off",
+                        title: "Deaktiv",
+                        desc: "2FA ist für diesen Mitarbeiter abgeschaltet. Vertraute Geräte werden beim Speichern entfernt.",
+                      },
+                    ] as const
+                  ).map((opt) => (
+                    <label
+                      key={opt.value}
+                      htmlFor={`admin-mfa-override-${opt.value}`}
+                      aria-label={opt.title}
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                        selectedOverride === opt.value
+                          ? "border-[#5080D8] bg-[#5080D8]/5"
+                          : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        id={`admin-mfa-override-${opt.value}`}
+                        type="radio"
+                        name="admin-mfa-override"
+                        value={opt.value}
+                        checked={selectedOverride === opt.value}
+                        onChange={() => setSelectedOverride(opt.value)}
+                        className="mt-1 h-4 w-4"
+                      />
+                      <span className="flex-1">
+                        <span className="block text-sm font-medium text-gray-900">
+                          {opt.title}
+                          {override === opt.value && (
+                            <span className="ml-2 text-xs font-normal text-gray-500">
+                              (aktuell)
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-xs text-gray-600">
+                          {opt.desc}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+
+                {selectedOverride !== override && (
+                  <div className="mt-3 space-y-2">
+                    <label
+                      htmlFor="admin-mfa-override-reason"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Begründung (Pflichtfeld)
+                    </label>
+                    <textarea
+                      id="admin-mfa-override-reason"
+                      rows={2}
+                      value={overrideReason}
+                      onChange={(e) => setOverrideReason(e.target.value)}
+                      maxLength={500}
+                      placeholder="z. B. „Mitarbeiter im Urlaub, Postfach gesperrt"
+                      disabled={overrideWorking}
+                      className="block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5080D8] disabled:bg-gray-50"
                     />
-                    <span className="flex-1">
-                      <span className="block text-sm font-medium text-gray-900">
-                        {opt.title}
-                        {override === opt.value && (
-                          <span className="ml-2 text-xs font-normal text-gray-500">
-                            (aktuell)
-                          </span>
-                        )}
-                      </span>
-                      <span className="block text-xs text-gray-600">
-                        {opt.desc}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
+                  </div>
+                )}
 
-              {selectedOverride !== override && (
-                <div className="mt-3 space-y-2">
-                  <label
-                    htmlFor="admin-mfa-override-reason"
-                    className="block text-sm font-medium text-gray-700"
+                {overrideError && (
+                  <div
+                    role="alert"
+                    className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700"
                   >
-                    Begründung (Pflichtfeld)
-                  </label>
-                  <textarea
-                    id="admin-mfa-override-reason"
-                    rows={2}
-                    value={overrideReason}
-                    onChange={(e) => setOverrideReason(e.target.value)}
-                    maxLength={500}
-                    placeholder="z. B. „Mitarbeiter im Urlaub, Postfach gesperrt"
-                    disabled={overrideWorking}
-                    className="block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5080D8] disabled:bg-gray-50"
-                  />
-                </div>
-              )}
+                    {overrideError}
+                  </div>
+                )}
 
-              {overrideError && (
-                <div
-                  role="alert"
-                  className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700"
-                >
-                  {overrideError}
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={overrideWorking || selectedOverride === override}
+                    onClick={() => void handleOverrideSubmit()}
+                    className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    {overrideWorking
+                      ? "Wird gespeichert…"
+                      : "Änderung speichern"}
+                  </button>
                 </div>
-              )}
+              </section>
+            )}
 
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  disabled={overrideWorking || selectedOverride === override}
-                  onClick={() => void handleOverrideSubmit()}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-gray-800 disabled:opacity-50"
+            {scope === "operator" && (
+              <section className="mt-6 rounded-lg border-2 border-[#FFCDB8] bg-[#FFFBEB] p-4">
+                <h3 className="mb-1 text-sm font-semibold text-gray-900">
+                  Notfall: 2FA Account-weit verwalten
+                </h3>
+                <p className="mb-3 text-xs text-gray-700">
+                  Diese Aktion wirkt für{" "}
+                  <strong>alle Schulen, in denen der Account aktiv ist</strong>.
+                  Nur einsetzen, wenn der Mitarbeiter komplett keinen Zugriff
+                  auf sein E-Mail-Postfach hat — also nicht über die
+                  Schul-spezifische Einstellung oben gelöst werden kann.
+                </p>
+
+                <fieldset
+                  className="space-y-2"
+                  disabled={globalWorking || !globalStateLoaded}
                 >
-                  {overrideWorking ? "Wird gespeichert…" : "Änderung speichern"}
-                </button>
-              </div>
-            </section>
+                  <legend className="sr-only">
+                    Account-weite 2FA-Einstellung
+                  </legend>
+                  {(
+                    [
+                      {
+                        value: "none",
+                        title: "Standard (keine Account-weite Vorgabe)",
+                        desc: "Jede Schule entscheidet einzeln über die 2FA-Pflicht für diesen Account.",
+                      },
+                      {
+                        value: "force_off",
+                        title: "Account-weit deaktivieren",
+                        desc: "2FA ist in jeder Schule abgeschaltet, in der der Account aktiv ist. Alle vertrauenswürdigen Geräte werden entfernt.",
+                      },
+                      {
+                        value: "force_on",
+                        title: "Account-weit erzwingen",
+                        desc: "2FA ist überall verpflichtend, unabhängig von der jeweiligen Schul-Einstellung.",
+                      },
+                    ] as const
+                  ).map((opt) => (
+                    <label
+                      key={opt.value}
+                      htmlFor={`admin-mfa-global-${opt.value}`}
+                      aria-label={opt.title}
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                        selectedGlobalOverride === opt.value
+                          ? "border-[#FFCDB8] bg-white"
+                          : "border-gray-200 bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        id={`admin-mfa-global-${opt.value}`}
+                        type="radio"
+                        name="admin-mfa-global"
+                        value={opt.value}
+                        checked={selectedGlobalOverride === opt.value}
+                        onChange={() => setSelectedGlobalOverride(opt.value)}
+                        className="mt-1 h-4 w-4"
+                      />
+                      <span className="flex-1">
+                        <span className="block text-sm font-medium text-gray-900">
+                          {opt.title}
+                          {globalOverride === opt.value && (
+                            <span className="ml-2 text-xs font-normal text-gray-500">
+                              (aktuell)
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-xs text-gray-600">
+                          {opt.desc}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+
+                {selectedGlobalOverride !== globalOverride && (
+                  <div className="mt-3 space-y-2">
+                    <label
+                      htmlFor="admin-mfa-global-reason"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Begründung (Pflichtfeld)
+                    </label>
+                    <textarea
+                      id="admin-mfa-global-reason"
+                      rows={2}
+                      value={globalReason}
+                      onChange={(e) => setGlobalReason(e.target.value)}
+                      maxLength={500}
+                      placeholder="z. B. „Mitarbeiter hat dauerhaft keinen E-Mail-Zugriff mehr — Account-weite Notfall-Freischaltung"
+                      disabled={globalWorking}
+                      className="block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF3130] disabled:bg-gray-50"
+                    />
+                  </div>
+                )}
+
+                {globalError && (
+                  <div
+                    role="alert"
+                    className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                  >
+                    {globalError}
+                  </div>
+                )}
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={
+                      globalWorking || selectedGlobalOverride === globalOverride
+                    }
+                    onClick={() => void handleGlobalOverrideSubmit()}
+                    className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: DANGER_RED }}
+                  >
+                    {globalWorking
+                      ? "Wird gespeichert…"
+                      : "Account-weit speichern"}
+                  </button>
+                </div>
+              </section>
+            )}
           </>
         )}
 

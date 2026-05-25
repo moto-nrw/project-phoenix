@@ -255,7 +255,51 @@ type MFATrustedDeviceRepository interface {
 	// removes the account-wide credential, so every cross-tenant trusted
 	// device must go with it.
 	RevokeAllByAccountID(ctx context.Context, accountID int64, revokedAt time.Time) error
+	// RevokeAllByAccountTenant revokes every active device for the
+	// (account, tenant) pair. Used by tenant-scoped admin override
+	// writes that flip MFA to force_off — the operation must NOT touch
+	// devices the same account trusted in other tenants.
+	RevokeAllByAccountTenant(ctx context.Context, accountID, tenantID int64, revokedAt time.Time) error
 	DeleteExpired(ctx context.Context) (int, error)
+}
+
+// MFAOverrideRepository persists the per-(account, tenant) admin
+// overrides plus the optional platform-wide ("operator account-wide")
+// row keyed on TenantID IS NULL. Reads return nil instead of an error
+// on a missing row — "no override" is a valid state for the resolver.
+//
+// Schema invariants enforced by partial unique indexes (migration
+// 1.15.72):
+//   - At most one row with tenant_id IS NULL per account.
+//   - At most one row with tenant_id = X per (account, X).
+type MFAOverrideRepository interface {
+	// FindGlobal returns the platform-wide row (tenant_id IS NULL) for
+	// the given account, or (nil, nil) when no operator override has
+	// been set. Used by IsRequired as the first step of the resolution
+	// chain.
+	FindGlobal(ctx context.Context, accountID int64) (*MFAOverride, error)
+	// FindByAccountAndTenant returns the tenant-scoped row, or (nil,
+	// nil) when none exists. Step 2 of the resolver.
+	FindByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (*MFAOverride, error)
+	// UpsertGlobal writes or replaces the platform-wide row for an
+	// account. Used only by the operator account-wide endpoint.
+	UpsertGlobal(ctx context.Context, override *MFAOverride) error
+	// UpsertTenant writes or replaces the tenant-scoped row.
+	UpsertTenant(ctx context.Context, override *MFAOverride) error
+	// DeleteGlobal removes the platform-wide row if it exists.
+	// Operator-only.
+	DeleteGlobal(ctx context.Context, accountID int64) error
+	// DeleteTenant removes the (account, tenant) row if it exists.
+	DeleteTenant(ctx context.Context, accountID, tenantID int64) error
+	// ListByAccount returns every override row that targets the given
+	// account. Used by the operator UI and by the audit/diagnostic
+	// surface so a single account's override picture across tenants is
+	// inspectable.
+	ListByAccount(ctx context.Context, accountID int64) ([]*MFAOverride, error)
+	// DeleteAllByAccount wipes every override row when the account is
+	// reset or destroyed. Returns the number of rows removed for the
+	// audit log.
+	DeleteAllByAccount(ctx context.Context, accountID int64) (int64, error)
 }
 
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.

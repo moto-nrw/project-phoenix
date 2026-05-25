@@ -29,7 +29,7 @@ import (
 // which would mask test misconfiguration).
 type stubMFAService struct {
 	verifyChallengeFn     func(ctx context.Context, challengeToken, code string) (*authService.VerifiedChallenge, error)
-	resendChallengeFn     func(ctx context.Context, challengeToken string, ip net.IP) error
+	resendChallengeFn     func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	enrollFn              func(ctx context.Context, accountID int64) error
 	verifyCodeFn          func(ctx context.Context, accountID int64, code string) error
 	startChallengeFn      func(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
@@ -55,11 +55,11 @@ func (s *stubMFAService) VerifyChallenge(ctx context.Context, challengeToken, co
 	}
 	return nil, errors.New("not implemented")
 }
-func (s *stubMFAService) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) error {
+func (s *stubMFAService) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	if s.resendChallengeFn != nil {
 		return s.resendChallengeFn(ctx, challengeToken, ip)
 	}
-	return nil
+	return "renewed-token", nil
 }
 func (s *stubMFAService) VerifyCodeForAccount(ctx context.Context, accountID int64, code string) error {
 	if s.verifyCodeFn != nil {
@@ -94,8 +94,14 @@ func (s *stubMFAService) RevokeTrustedDevice(ctx context.Context, accountID, ten
 }
 func (s *stubMFAService) IsTrustedDeviceEnabled(context.Context, int64) bool { return true }
 func (s *stubMFAService) TrustedDeviceDays(context.Context, int64) int       { return 90 }
-func (s *stubMFAService) GetMFAOverride(context.Context, int64) (string, error) {
-	return "", nil
+func (s *stubMFAService) GetTenantMFAOverride(context.Context, int64, int64) (string, error) {
+	return authService.MFAAdminOverrideNone, nil
+}
+func (s *stubMFAService) GetGlobalMFAOverride(context.Context, int64) (string, error) {
+	return authService.MFAAdminOverrideNone, nil
+}
+func (s *stubMFAService) OperatorSetGlobalMFAOverride(context.Context, int64, int64, string, string) error {
+	return nil
 }
 func (s *stubMFAService) SetMFAOverride(context.Context, int64, int64, int64, string, string, []string) error {
 	return nil
@@ -108,6 +114,9 @@ func (s *stubMFAService) AdminDisable(context.Context, int64, int64, int64, stri
 }
 func (s *stubMFAService) OperatorAdminDisable(context.Context, int64, int64, int64, string) error {
 	return nil
+}
+func (s *stubMFAService) GetAdminState(context.Context, int64, int64, int64, []string) (authService.MFAAdminState, error) {
+	return authService.MFAAdminState{}, nil
 }
 func (s *stubMFAService) MaskEmailForChallenge(string) string { return "" }
 func (s *stubMFAService) CleanupExpiredChallenges(context.Context, time.Duration) (int64, error) {
@@ -213,16 +222,24 @@ func TestMFAVerify_ServiceErrorMapsTo429ForLockout(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 }
 
-func TestMFAResend_Success_Returns204(t *testing.T) {
+// TestMFAResend_Success_ReturnsRenewedToken verifies the post-#1430-round-2
+// shape: resend hands the renewed challenge JWT back to the caller so the
+// frontend can replace its in-flight token. The previous shape (204 no body)
+// produced a dead end where the freshly emailed code couldn't be verified
+// once the original JWT expired.
+func TestMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
 	rs := &Resource{MFAService: &stubMFAService{
-		resendChallengeFn: func(context.Context, string, net.IP) error { return nil },
+		resendChallengeFn: func(context.Context, string, net.IP) (string, error) { return "renewed-tok", nil },
 	}}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/resend", MFAResendRequest{ChallengeToken: "tok"})
 	rr := httptest.NewRecorder()
 	rs.mfaResend(rr, r)
 
-	assert.Equal(t, http.StatusNoContent, rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	var resp MFAResendResponse
+	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
+	assert.Equal(t, "renewed-tok", resp.ChallengeToken)
 }
 
 func TestMFAResend_BindRejectsEmptyToken(t *testing.T) {
@@ -237,8 +254,8 @@ func TestMFAResend_BindRejectsEmptyToken(t *testing.T) {
 
 func TestMFAResend_ServiceErrorPropagates(t *testing.T) {
 	rs := &Resource{MFAService: &stubMFAService{
-		resendChallengeFn: func(context.Context, string, net.IP) error {
-			return authService.ErrMFARateLimited
+		resendChallengeFn: func(context.Context, string, net.IP) (string, error) {
+			return "", authService.ErrMFARateLimited
 		},
 	}}
 
@@ -344,6 +361,85 @@ func TestMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {
 	rs.mfaEnrollConfirm(rr, r)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+// withPlatformEnrollmentClaims primes the request context with a
+// platform-scope enrollment claim. Mirrors withEnrollmentClaims but
+// flips Scope/TenantID so we can prove the tenant handlers reject
+// operator tokens whose AccountID happens to collide with a tenant
+// account_id.
+func withPlatformEnrollmentClaims(r *http.Request, accountID int64) *http.Request {
+	ctx := context.WithValue(r.Context(), jwt.CtxEnrollmentClaims, jwt.MFAEnrollmentClaims{
+		AccountID:            accountID,
+		Scope:                jwt.MFAEnrollmentScopePlatform,
+		TenantID:             0,
+		MFAEnrollmentPending: true,
+	})
+	return r.WithContext(ctx)
+}
+
+// TestMFAEnrollStart_RejectsPlatformScopeToken proves the tenant
+// enrollment-start endpoint refuses a platform-scope enrollment token
+// even when account_id is set. Regression test for the
+// cross-scope-enrollment finding in the second #1430 review round.
+func TestMFAEnrollStart_RejectsPlatformScopeToken(t *testing.T) {
+	rs := &Resource{MFAService: &stubMFAService{
+		startChallengeFn: func(context.Context, int64, int64, string, net.IP) (string, error) {
+			t.Fatal("StartChallenge must not run on a platform-scope token")
+			return "", nil
+		},
+	}}
+
+	r := withPlatformEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil), 42)
+	rr := httptest.NewRecorder()
+	rs.mfaEnrollStart(rr, r)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code,
+		"tenant endpoint must reject platform-scope enrollment tokens")
+}
+
+// TestMFAEnrollConfirm_RejectsPlatformScopeToken is the confirm-side
+// counterpart of TestMFAEnrollStart_RejectsPlatformScopeToken.
+func TestMFAEnrollConfirm_RejectsPlatformScopeToken(t *testing.T) {
+	rs := &Resource{MFAService: &stubMFAService{
+		verifyCodeFn: func(context.Context, int64, string) error {
+			t.Fatal("VerifyCodeForAccount must not run on a platform-scope token")
+			return nil
+		},
+	}}
+
+	r := withPlatformEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
+		MFAEnrollConfirmRequest{Code: "123456"}), 42)
+	rr := httptest.NewRecorder()
+	rs.mfaEnrollConfirm(rr, r)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code,
+		"tenant endpoint must reject platform-scope enrollment tokens")
+}
+
+// TestMFAEnrollStart_RejectsMissingTenantID proves a tenant-scope token
+// with TenantID==0 is also refused. (claims.Scope alone is not enough
+// — without TenantID the service can't resolve the tenant policy.)
+func TestMFAEnrollStart_RejectsMissingTenantID(t *testing.T) {
+	rs := &Resource{MFAService: &stubMFAService{
+		startChallengeFn: func(context.Context, int64, int64, string, net.IP) (string, error) {
+			t.Fatal("StartChallenge must not run without a tenant_id")
+			return "", nil
+		},
+	}}
+
+	r := jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil)
+	ctx := context.WithValue(r.Context(), jwt.CtxEnrollmentClaims, jwt.MFAEnrollmentClaims{
+		AccountID:            42,
+		Scope:                jwt.MFAEnrollmentScopeTenant,
+		TenantID:             0,
+		MFAEnrollmentPending: true,
+	})
+	rr := httptest.NewRecorder()
+	rs.mfaEnrollStart(rr, r.WithContext(ctx))
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code,
+		"tenant endpoint must reject tenant-scope tokens without a tenant_id")
 }
 
 func TestMFAEnrollConfirm_BindRejectsShortCode(t *testing.T) {

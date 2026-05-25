@@ -20,9 +20,10 @@ import (
 
 // loginGateScenario wires the real auth.Service + real MFA service on top
 // of the test DB so the LoginWithMFAGate branches can be exercised
-// end-to-end. The MFA-required state is driven via mfa_admin_override on
-// the account, which short-circuits IsRequired without depending on any
-// tenant settings registry.
+// end-to-end. The MFA-required state is driven via the auth.mfa_overrides
+// row (platform-wide) which short-circuits IsRequired without depending
+// on any tenant settings registry. Post-#1430-round-2 the override no
+// longer lives on the accounts row.
 type loginGateScenario struct {
 	t         *testing.T
 	db        *bun.DB
@@ -107,15 +108,27 @@ func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
 	}
 }
 
-// setOverride writes mfa_admin_override directly so we can flip
-// IsRequired regardless of tenant settings.
+// setOverride writes a platform-wide row in auth.mfa_overrides so we
+// can flip IsRequired regardless of tenant settings. Goes through raw
+// SQL to keep the helper independent of the MFAService surface (which
+// is the SUT in these tests).
 func (sc *loginGateScenario) setOverride(override string) {
 	sc.t.Helper()
-	_, err := sc.db.NewUpdate().
-		Table("auth.accounts").
-		Set("mfa_admin_override = ?", override).
-		Where("id = ?", sc.accountID).
-		Exec(context.Background())
+	if override == auth.MFAAdminOverrideNone {
+		_, err := sc.db.NewDelete().
+			Table("auth.mfa_overrides").
+			Where("account_id = ? AND tenant_id IS NULL", sc.accountID).
+			Exec(context.Background())
+		require.NoError(sc.t, err)
+		return
+	}
+	_, err := sc.db.ExecContext(context.Background(), `
+		INSERT INTO auth.mfa_overrides
+			(account_id, tenant_id, override, set_by, set_by_type, reason)
+		VALUES (?, NULL, ?, 0, 'operator', 'test fixture')
+		ON CONFLICT (account_id) WHERE tenant_id IS NULL
+		DO UPDATE SET override = EXCLUDED.override, updated_at = CURRENT_TIMESTAMP`,
+		sc.accountID, override)
 	require.NoError(sc.t, err)
 }
 
