@@ -3,7 +3,10 @@ package students
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
 // Constants for date formats
@@ -89,6 +92,24 @@ type StudentDetailResponse struct {
 	GroupSupervisors     []SupervisorContact `json:"group_supervisors,omitempty"`
 	AttendanceLogEnabled bool                `json:"attendance_log_enabled"`
 	FeedbackEnabled      bool                `json:"feedback_enabled"`
+}
+
+type StudentStatusDayResponse struct {
+	ID         int64      `json:"id"`
+	StudentID  int64      `json:"student_id"`
+	Date       string     `json:"date"`
+	Status     string     `json:"status"`
+	Label      string     `json:"label"`
+	ReportedAt time.Time  `json:"reported_at"`
+	ClearedAt  *time.Time `json:"cleared_at,omitempty"`
+	Source     string     `json:"source"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+type CreateStudentStatusDaysRequest struct {
+	Status string   `json:"status"`
+	Dates  []string `json:"dates"`
 }
 
 // StudentRequest represents a student creation request with person details
@@ -223,6 +244,33 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	}
 	// Guardian fields are deprecated - allow empty strings for clearing
 	// Empty strings will be converted to nil in the update handler
+	return nil
+}
+
+func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
+	req.Status = strings.TrimSpace(req.Status)
+	if req.Status != active.StudentStatusDaySick && req.Status != active.StudentStatusDayExcused {
+		return errors.New("status must be sick or excused")
+	}
+	if len(req.Dates) == 0 {
+		return errors.New("dates are required")
+	}
+
+	seen := make(map[string]struct{}, len(req.Dates))
+	for i, rawDate := range req.Dates {
+		date := strings.TrimSpace(rawDate)
+		if date == "" {
+			return errors.New("date cannot be empty")
+		}
+		if _, err := time.Parse(dateFormatYYYYMMDD, date); err != nil {
+			return errors.New("invalid date format, expected YYYY-MM-DD")
+		}
+		if _, ok := seen[date]; ok {
+			return errors.New("duplicate dates are not allowed")
+		}
+		seen[date] = struct{}{}
+		req.Dates[i] = date
+	}
 	return nil
 }
 

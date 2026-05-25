@@ -8,7 +8,7 @@ vi.mock("react-day-picker", () => ({
     selected,
     onSelect,
   }: {
-    selected?: Date;
+    selected?: Date | Date[];
     onSelect: (date: Date | undefined) => void;
   }) => (
     <div data-testid="day-picker">
@@ -18,7 +18,7 @@ vi.mock("react-day-picker", () => ({
       >
         Select 15.01.2024
       </button>
-      {selected && (
+      {selected instanceof Date && (
         <div data-testid="selected-date">{selected.toISOString()}</div>
       )}
     </div>
@@ -122,6 +122,53 @@ describe("DatePicker", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("day-picker")).not.toBeInTheDocument();
     });
+  });
+
+  it("closes calendar on pointer down outside", async () => {
+    render(
+      <div>
+        <DatePicker value={null} onChange={mockOnChange} />
+        <div data-testid="outside">Outside</div>
+      </div>,
+    );
+
+    const button = screen.getByRole("button", { name: /datum auswählen/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+    });
+
+    fireEvent.pointerDown(screen.getByTestId("outside"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("day-picker")).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not close inline calendar when pressing inside it", async () => {
+    render(
+      <div>
+        <DatePicker
+          mode="multiple"
+          values={[new Date("2024-01-15T00:00:00Z")]}
+          onChangeDates={mockOnChange}
+          calendarLayout="inline"
+        />
+        <div data-testid="outside">Outside</div>
+      </div>,
+    );
+
+    const button = screen.getByRole("button", { name: /15\.01\.2024/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+    });
+
+    fireEvent.pointerDown(screen.getByTestId("day-picker"));
+
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
   });
 
   it("calls onChange when a date is selected", async () => {

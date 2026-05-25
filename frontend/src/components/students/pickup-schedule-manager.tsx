@@ -37,6 +37,7 @@ import {
   updateStudentPickupNote,
   deleteStudentPickupNote,
 } from "@/lib/pickup-schedule-api";
+import type { StudentStatusDay } from "~/lib/student-status-days-api";
 
 const logger = createLogger({ component: "PickupScheduleManager" });
 
@@ -59,6 +60,7 @@ interface PickupScheduleManagerProps {
   readonly onUpdate?: () => void;
   readonly isSick?: boolean;
   readonly isExcused?: boolean;
+  readonly statusDays?: StudentStatusDay[];
 }
 
 export default function PickupScheduleManager({
@@ -67,6 +69,7 @@ export default function PickupScheduleManager({
   onUpdate,
   isSick = false,
   isExcused = false,
+  statusDays = [],
 }: PickupScheduleManagerProps) {
   const [pickupData, setPickupData] = useState<PickupData>({
     schedules: [],
@@ -83,6 +86,15 @@ export default function PickupScheduleManager({
 
   // Compute week data
   const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
+  const statusByDate = useMemo(() => {
+    const entries = new Map<string, StudentStatusDay["status"]>();
+    for (const day of statusDays) {
+      if (!day.cleared_at) {
+        entries.set(day.date, day.status);
+      }
+    }
+    return entries;
+  }, [statusDays]);
 
   // Merge schedule + exceptions + sick / excused + notes for each day
   const dayDataList = useMemo(
@@ -95,6 +107,7 @@ export default function PickupScheduleManager({
           isSick,
           pickupData.notes,
           isExcused,
+          statusByDate.get(formatDateISO(date)) ?? null,
         ),
       ),
     [
@@ -104,6 +117,7 @@ export default function PickupScheduleManager({
       isSick,
       isExcused,
       pickupData.notes,
+      statusByDate,
     ],
   );
 
@@ -241,8 +255,9 @@ export default function PickupScheduleManager({
       isSick,
       pickupData.notes,
       isExcused,
+      statusByDate.get(formatDateISO(editingDay.date)) ?? null,
     );
-  }, [editingDay, pickupData, isSick, isExcused]);
+  }, [editingDay, pickupData, isSick, isExcused, statusByDate]);
 
   // Show loading state
   if (isLoading && pickupData.schedules.length === 0) {
@@ -413,27 +428,15 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
         </div>
 
         {/* Content */}
-        {day.showSick ? (
-          <div
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
-            style={{ backgroundColor: "#EAB308" }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
-            <span>Krank</span>
-          </div>
-        ) : day.showExcused ? (
-          <div
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
-            style={{ backgroundColor: "#7C3AED" }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
-            <span>Entschuldigt</span>
+        {day.showSick || day.showExcused ? (
+          <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600">
+            <span>keine Abholung</span>
           </div>
         ) : (
           <>
             {/* Time */}
             <div className="w-12 flex-shrink-0 text-sm font-semibold text-gray-900">
-              {effectiveTime ?? "—"}
+              {effectiveTime ?? "-"}
             </div>
 
             {/* Exception indicator */}
@@ -535,27 +538,15 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
       {day.isToday && <div className="text-[10px] text-[#F78C10]">heute</div>}
 
       {/* Content */}
-      {day.showSick ? (
-        <div
-          className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
-          style={{ backgroundColor: "#EAB308" }}
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
-          <span>Krank</span>
-        </div>
-      ) : day.showExcused ? (
-        <div
-          className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
-          style={{ backgroundColor: "#7C3AED" }}
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
-          <span>Entschuldigt</span>
+      {day.showSick || day.showExcused ? (
+        <div className="mt-1 inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600">
+          <span>keine Abholung</span>
         </div>
       ) : (
         <>
           {/* Time */}
           <div className="mt-1 text-sm font-semibold text-gray-900">
-            {effectiveTime ?? "—"}
+            {effectiveTime ?? "-"}
           </div>
 
           {/* Schedule note (recurring weekly) */}

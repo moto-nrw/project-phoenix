@@ -35,8 +35,8 @@ import {
 import { performImmediateCheckin } from "~/lib/checkin-api";
 import { createLogger } from "~/lib/logger";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
-import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
-import { ArrivalScheduleManager } from "~/components/students/arrival-schedule-manager";
+import { CareScheduleManager } from "~/components/students/care-schedule-manager";
+import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
 import { fetchArrivalData } from "~/lib/student-arrival-api";
@@ -44,6 +44,13 @@ import {
   getDayData as getArrivalDayData,
   formatArrivalTime,
 } from "~/lib/arrival-schedule-helpers";
+import {
+  createStudentStatusDays,
+  deleteStudentStatusDay,
+  fetchStudentStatusDays,
+  type StudentStatusDay,
+  type StudentStatusKind,
+} from "~/lib/student-status-days-api";
 
 type TodayArrival = {
   time?: string;
@@ -53,6 +60,24 @@ type TodayArrival = {
 };
 
 const logger = createLogger({ component: "StudentDetailPage" });
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getStatusDayRange(): { from: string; to: string } {
+  const from = new Date();
+  from.setDate(from.getDate() - 14);
+  const to = new Date();
+  to.setDate(to.getDate() + 90);
+  return {
+    from: formatLocalDate(from),
+    to: formatLocalDate(to),
+  };
+}
 
 // =============================================================================
 // MAIN COMPONENT
@@ -82,7 +107,7 @@ export default function StudentDetailPage() {
     refreshData,
   } = useStudentData(studentId);
 
-  // Set breadcrumb data — include group/room name for 3-level breadcrumb
+  // Set breadcrumb data, include group/room name for 3-level breadcrumb
   // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
   const breadcrumbGroupName =
     referrer.startsWith("/ogs-groups") && globalThis.window !== undefined
@@ -137,6 +162,12 @@ export default function StudentDetailPage() {
     null,
   );
   const [switchLoading, setSwitchLoading] = useState(false);
+  const [plannedStatusModal, setPlannedStatusModal] =
+    useState<StudentStatusKind | null>(null);
+  const [plannedStatusLoading, setPlannedStatusLoading] = useState(false);
+  const [deletingPlannedStatusDayId, setDeletingPlannedStatusDayId] = useState<
+    string | null
+  >(null);
   const [selectedActiveGroupId, setSelectedActiveGroupId] =
     useState<string>("");
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
@@ -154,7 +185,15 @@ export default function StudentDetailPage() {
     async () => fetchArrivalData(studentId),
     { revalidateOnFocus: false },
   );
-
+  const statusDayRange = useMemo(() => getStatusDayRange(), []);
+  const { data: statusDays = [], mutate: mutateStatusDays } = useSWRAuth(
+    hasFullAccess && studentId
+      ? `student-status-days-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
+      : null,
+    async () =>
+      fetchStudentStatusDays(studentId, statusDayRange.from, statusDayRange.to),
+    { revalidateOnFocus: false },
+  );
   // Load active groups when check-in modal opens
   useEffect(() => {
     if (!showConfirmCheckin) {
@@ -349,6 +388,7 @@ export default function StudentDetailPage() {
         sick: newSickStatus,
       });
       refreshData();
+      await mutateStatusDays();
       setShowConfirmSick(false);
       toast.success(
         newSickStatus
@@ -376,6 +416,7 @@ export default function StudentDetailPage() {
         excused: newExcusedStatus,
       });
       refreshData();
+      await mutateStatusDays();
       setShowConfirmExcused(false);
       toast.success(
         newExcusedStatus
@@ -394,7 +435,7 @@ export default function StudentDetailPage() {
   };
 
   // Click interceptor for the Krank button. If the student is currently
-  // excused, we must first clear the excused flag — show the switch dialog
+  // excused, we must first clear the excused flag and show the switch dialog
   // instead of the normal confirm modal.
   const handleSickClick = () => {
     if (student?.sick) {
@@ -405,7 +446,7 @@ export default function StudentDetailPage() {
       setSwitchTarget("sick");
       return;
     }
-    setShowConfirmSick(true);
+    setPlannedStatusModal("sick");
   };
 
   const handleExcusedClick = () => {
@@ -417,7 +458,7 @@ export default function StudentDetailPage() {
       setSwitchTarget("excused");
       return;
     }
-    setShowConfirmExcused(true);
+    setPlannedStatusModal("excused");
   };
 
   const handleConfirmSwitch = async () => {
@@ -432,6 +473,7 @@ export default function StudentDetailPage() {
         excused: switchTarget === "excused",
       });
       refreshData();
+      await mutateStatusDays();
       toast.success(
         switchTarget === "sick"
           ? `${student.name} wurde krankgemeldet (Entschuldigung aufgehoben)`
@@ -447,6 +489,53 @@ export default function StudentDetailPage() {
       toast.error("Fehler beim Wechseln des Status");
     } finally {
       setSwitchLoading(false);
+    }
+  };
+
+  const handleCreatePlannedStatus = async (dates: string[]) => {
+    if (!plannedStatusModal || !student) return;
+
+    setPlannedStatusLoading(true);
+    try {
+      await createStudentStatusDays(studentId, plannedStatusModal, dates);
+      refreshData();
+      await mutateStatusDays();
+      toast.success(
+        plannedStatusModal === "sick"
+          ? `Krankmeldung für ${student.name} wurde gespeichert`
+          : `Entschuldigung für ${student.name} wurde gespeichert`,
+      );
+      setPlannedStatusModal(null);
+    } catch (err) {
+      logger.error("planned_status_create_failed", {
+        student_id: studentId,
+        status: plannedStatusModal,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Geplanter Status konnte nicht gespeichert werden");
+    } finally {
+      setPlannedStatusLoading(false);
+    }
+  };
+
+  const handleDeletePlannedStatus = async (statusDayId: string) => {
+    if (!student) return;
+
+    setDeletingPlannedStatusDayId(statusDayId);
+    try {
+      await deleteStudentStatusDay(studentId, statusDayId);
+      refreshData();
+      await mutateStatusDays();
+      toast.success("Geplante Abwesenheit wurde entfernt");
+    } catch (err) {
+      logger.error("planned_status_delete_failed", {
+        student_id: studentId,
+        status_day_id: statusDayId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Geplanter Status konnte nicht entfernt werden");
+    } finally {
+      setDeletingPlannedStatusDayId(null);
     }
   };
 
@@ -567,6 +656,8 @@ export default function StudentDetailPage() {
             feedbackEnabled={feedbackEnabled}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
+            statusDays={statusDays}
+            onDeleteStatusDay={handleDeletePlannedStatus}
             showPersonalInfoModal={showPersonalInfoModal}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onCheckinClick={() => setShowConfirmCheckin(true)}
@@ -653,7 +744,8 @@ export default function StudentDetailPage() {
           {student.sick ? (
             <>
               Möchten Sie die Krankmeldung für <strong>{student.name}</strong>{" "}
-              aufheben?
+              für heute aufheben? Geplante Kranktage in der Zukunft bleiben
+              bestehen.
             </>
           ) : (
             <>
@@ -680,7 +772,8 @@ export default function StudentDetailPage() {
           {student.excused ? (
             <>
               Möchten Sie die Entschuldigung für <strong>{student.name}</strong>{" "}
-              aufheben?
+              für heute aufheben? Geplante Entschuldigungen in der Zukunft
+              bleiben bestehen.
             </>
           ) : (
             <>
@@ -691,7 +784,7 @@ export default function StudentDetailPage() {
         </p>
       </ConfirmationModal>
 
-      {/* Switch Dialog — shown when user clicks one flag but the other is set */}
+      {/* Switch Dialog, shown when user clicks one flag but the other is set */}
       <ConfirmationModal
         isOpen={switchTarget !== null}
         onClose={() => setSwitchTarget(null)}
@@ -722,6 +815,18 @@ export default function StudentDetailPage() {
           )}
         </p>
       </ConfirmationModal>
+
+      <PlannedStatusDaysModal
+        isOpen={plannedStatusModal !== null}
+        status={plannedStatusModal ?? "sick"}
+        studentName={student.name}
+        isSubmitting={plannedStatusLoading}
+        existingDays={statusDays}
+        deletingStatusDayId={deletingPlannedStatusDayId}
+        onClose={() => setPlannedStatusModal(null)}
+        onSubmit={handleCreatePlannedStatus}
+        onDeleteStatusDay={handleDeletePlannedStatus}
+      />
     </>
   );
 }
@@ -796,6 +901,8 @@ interface FullAccessViewProps {
   feedbackEnabled: boolean;
   showCheckout: boolean;
   showCheckin: boolean;
+  statusDays: StudentStatusDay[];
+  onDeleteStatusDay: (statusDayId: string) => Promise<void>;
   showPersonalInfoModal: boolean;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
@@ -817,6 +924,8 @@ function FullAccessView({
   feedbackEnabled,
   showCheckout,
   showCheckin,
+  statusDays,
+  onDeleteStatusDay,
   showPersonalInfoModal,
   onCheckoutClick,
   onCheckinClick,
@@ -860,18 +969,14 @@ function FullAccessView({
       )}
 
       <div className="space-y-4 sm:space-y-6">
-        <ArrivalScheduleManager
-          studentId={studentId}
-          readOnly={!hasWriteAccess}
-          onUpdate={hasWriteAccess ? onRefreshData : undefined}
-        />
-
-        <PickupScheduleManager
+        <CareScheduleManager
           studentId={studentId}
           readOnly={!hasWriteAccess}
           onUpdate={hasWriteAccess ? onRefreshData : undefined}
           isSick={student.sick}
           isExcused={student.excused}
+          statusDays={statusDays}
+          onDeleteStatusDay={onDeleteStatusDay}
         />
 
         <PersonalInfoReadOnly

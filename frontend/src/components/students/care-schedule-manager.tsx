@@ -1,0 +1,1231 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { mutate } from "swr";
+import {
+  CalendarDays,
+  CalendarX,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Loader2,
+  SquarePen,
+  StickyNote,
+  X,
+} from "lucide-react";
+import { CareDayOverrideModal } from "./care-day-override-modal";
+import { CareWeeklyPlanModal } from "./care-weekly-plan-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import {
+  type ArrivalData,
+  createArrivalException,
+  createArrivalNote,
+  deleteArrivalException,
+  deleteArrivalNote,
+  fetchArrivalData,
+  updateArrivalException,
+  updateArrivalSchedules,
+} from "~/lib/student-arrival-api";
+import {
+  type ArrivalDayData,
+  type ArrivalScheduleFormEntry,
+  WEEKDAYS,
+  formatDateISO,
+  formatShortDate,
+  getDayData as getArrivalDayData,
+  getWeekDays,
+  mergeSchedulesWithTemplate as mergeArrivalSchedulesWithTemplate,
+} from "~/lib/arrival-schedule-helpers";
+import {
+  createStudentPickupException,
+  createStudentPickupNote,
+  deleteStudentPickupException,
+  deleteStudentPickupNote,
+  fetchStudentPickupData,
+  updateStudentPickupException,
+  updateStudentPickupSchedules,
+} from "~/lib/pickup-schedule-api";
+import {
+  type BulkPickupScheduleFormData,
+  type DayData as PickupDayData,
+  type PickupData,
+  formatPickupTime,
+  formatWeekRange,
+  getDayData as getPickupDayData,
+  mergeSchedulesWithTemplate as mergePickupSchedulesWithTemplate,
+} from "~/lib/pickup-schedule-helpers";
+import { createLogger } from "~/lib/logger";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import type {
+  StudentStatusDay,
+  StudentStatusKind,
+} from "~/lib/student-status-days-api";
+
+const logger = createLogger({ component: "CareScheduleManager" });
+const statusDayDateFormatter = new Intl.DateTimeFormat("de-DE", {
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+const weekMonthFormatter = new Intl.DateTimeFormat("de-DE", {
+  month: "long",
+  year: "numeric",
+});
+
+interface CareScheduleManagerProps {
+  readonly studentId: string;
+  readonly readOnly?: boolean;
+  readonly onUpdate?: () => void;
+  readonly isSick?: boolean;
+  readonly isExcused?: boolean;
+  readonly statusDays?: StudentStatusDay[];
+  readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
+}
+
+interface CareDayData {
+  readonly date: Date;
+  readonly weekday: number;
+  readonly isToday: boolean;
+  readonly status: StudentStatusKind | null;
+  readonly statusDay: StudentStatusDay | null;
+  readonly arrival: ArrivalDayData;
+  readonly pickup: PickupDayData;
+}
+
+type CareEventTone = "neutral" | "warning" | "purple";
+
+interface CareBoundaryItem {
+  readonly key: string;
+  readonly label: string;
+  readonly value: string;
+  readonly description?: string;
+  readonly marker: string | null;
+  readonly color: string;
+  readonly icon: React.ReactNode;
+  readonly onEdit?: () => void;
+}
+
+interface CareAppointmentItem {
+  readonly key: string;
+  readonly title: string;
+  readonly timeRange: string;
+  readonly tone: CareEventTone;
+}
+
+interface CareNoteItem {
+  readonly key: string;
+  readonly label: string;
+  readonly value: string;
+}
+
+function invalidatePickupCaches() {
+  try {
+    mutate(
+      (key) =>
+        typeof key === "string" &&
+        (key.includes("ogs-students-") || key.includes("dashboard")),
+    ).catch(() => undefined);
+  } catch {
+    return;
+  }
+}
+
+function getStatusLabel(status: StudentStatusKind): string {
+  return status === "sick" ? "Krank" : "Entschuldigt";
+}
+
+function formatStatusDayDate(date: string): string {
+  return statusDayDateFormatter.format(new Date(`${date}T00:00:00`));
+}
+
+function formatWeekMonth(days: CareDayData[]): string {
+  const firstDay = days[0]?.date;
+  const lastDay = days[days.length - 1]?.date;
+  if (!firstDay) return "";
+  if (!lastDay || firstDay.getMonth() === lastDay.getMonth()) {
+    return weekMonthFormatter.format(firstDay);
+  }
+  const firstMonth = firstDay.toLocaleDateString("de-DE", { month: "long" });
+  const lastMonth = lastDay.toLocaleDateString("de-DE", {
+    month: "long",
+    year: "numeric",
+  });
+  return `${firstMonth} / ${lastMonth}`;
+}
+
+function getAbsenceStatus(
+  arrival: ArrivalDayData,
+  pickup: PickupDayData,
+): StudentStatusKind | null {
+  if (arrival.showSick || pickup.showSick) return "sick";
+  if (arrival.showExcused || pickup.showExcused) return "excused";
+  return null;
+}
+
+export function CareScheduleManager({
+  studentId,
+  readOnly = false,
+  onUpdate,
+  isSick = false,
+  isExcused = false,
+  statusDays = [],
+  onDeleteStatusDay,
+}: CareScheduleManagerProps) {
+  const [arrivalData, setArrivalData] = useState<ArrivalData>({
+    schedules: [],
+    exceptions: [],
+    notes: [],
+  });
+  const [pickupData, setPickupData] = useState<PickupData>({
+    schedules: [],
+    exceptions: [],
+    notes: [],
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  const [isWeeklyPlanModalOpen, setIsWeeklyPlanModalOpen] = useState(false);
+  const [editingDayDate, setEditingDayDate] = useState<Date | null>(null);
+  const [statusDayToDelete, setStatusDayToDelete] =
+    useState<StudentStatusDay | null>(null);
+  const [deletingStatusDayId, setDeletingStatusDayId] = useState<string | null>(
+    null,
+  );
+
+  const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
+  const weekRange = useMemo(
+    () => formatWeekRange(weekDays[0] ?? new Date(), weekDays[4] ?? new Date()),
+    [weekDays],
+  );
+
+  const statusDayByDate = useMemo(() => {
+    const entries = new Map<string, StudentStatusDay>();
+    for (const day of statusDays) {
+      if (!day.cleared_at) {
+        entries.set(day.date, day);
+      }
+    }
+    return entries;
+  }, [statusDays]);
+
+  const statusByDate = useMemo(() => {
+    const entries = new Map<string, StudentStatusKind>();
+    for (const [date, day] of statusDayByDate) {
+      entries.set(date, day.status);
+    }
+    return entries;
+  }, [statusDayByDate]);
+
+  const days = useMemo<CareDayData[]>(
+    () =>
+      weekDays.map((date) => {
+        const dateKey = formatDateISO(date);
+        const statusForDate = statusByDate.get(dateKey) ?? null;
+        const arrival = getArrivalDayData(
+          date,
+          arrivalData.schedules,
+          arrivalData.exceptions,
+          arrivalData.notes,
+          isSick,
+          isExcused,
+          statusForDate,
+        );
+        const pickup = getPickupDayData(
+          date,
+          pickupData.schedules,
+          pickupData.exceptions,
+          isSick,
+          pickupData.notes,
+          isExcused,
+          statusForDate,
+        );
+        return {
+          date,
+          weekday: arrival.weekday,
+          isToday: arrival.isToday || pickup.isToday,
+          status: getAbsenceStatus(arrival, pickup),
+          statusDay: statusDayByDate.get(dateKey) ?? null,
+          arrival,
+          pickup,
+        };
+      }),
+    [
+      weekDays,
+      statusByDate,
+      statusDayByDate,
+      arrivalData.schedules,
+      arrivalData.exceptions,
+      arrivalData.notes,
+      pickupData.schedules,
+      pickupData.exceptions,
+      pickupData.notes,
+      isSick,
+      isExcused,
+    ],
+  );
+  const selectedMobileDay = useMemo(() => {
+    const today = days.find((day) => day.isToday);
+    if (!selectedDateKey) return today ?? days[0] ?? null;
+    return (
+      days.find((day) => formatDateISO(day.date) === selectedDateKey) ??
+      today ??
+      days[0] ??
+      null
+    );
+  }, [days, selectedDateKey]);
+  const weekMonth = useMemo(() => formatWeekMonth(days), [days]);
+
+  useEffect(() => {
+    if (days.length === 0) return;
+    const selectedStillVisible = days.some(
+      (day) => formatDateISO(day.date) === selectedDateKey,
+    );
+    if (selectedStillVisible) return;
+    const today = days.find((day) => day.isToday);
+    setSelectedDateKey(formatDateISO((today ?? days[0])!.date));
+  }, [days, selectedDateKey]);
+
+  const loadCareData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const [arrival, pickup] = await Promise.all([
+        fetchArrivalData(studentId),
+        fetchStudentPickupData(studentId),
+      ]);
+      setArrivalData(arrival);
+      setPickupData(pickup);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Betreuungsplan konnte nicht geladen werden";
+      logger.error("care_schedule_load_failed", {
+        error: message,
+        student_id: studentId,
+      });
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [studentId]);
+
+  const refreshCareData = useCallback(async () => {
+    const [arrival, pickup] = await Promise.all([
+      fetchArrivalData(studentId),
+      fetchStudentPickupData(studentId),
+    ]);
+    setArrivalData(arrival);
+    setPickupData(pickup);
+    onUpdate?.();
+  }, [studentId, onUpdate]);
+
+  useEffect(() => {
+    loadCareData().catch(() => undefined);
+  }, [loadCareData]);
+
+  const handleUpdateWeeklyPlan = async (data: {
+    arrivalSchedules: ArrivalScheduleFormEntry[];
+    pickupData: BulkPickupScheduleFormData;
+  }) => {
+    await Promise.all([
+      updateArrivalSchedules(
+        studentId,
+        data.arrivalSchedules.map((schedule) => ({
+          weekday: schedule.weekday,
+          expected_arrival: schedule.expected_arrival,
+          notes: schedule.notes ?? null,
+        })),
+      ),
+      updateStudentPickupSchedules(studentId, data.pickupData),
+    ]);
+    await refreshCareData();
+    invalidatePickupCaches();
+  };
+
+  const currentEditingArrivalDay = useMemo(() => {
+    if (!editingDayDate) return null;
+    const dateKey = formatDateISO(editingDayDate);
+    return getArrivalDayData(
+      editingDayDate,
+      arrivalData.schedules,
+      arrivalData.exceptions,
+      arrivalData.notes,
+      isSick,
+      isExcused,
+      statusByDate.get(dateKey) ?? null,
+    );
+  }, [editingDayDate, arrivalData, isSick, isExcused, statusByDate]);
+
+  const currentEditingPickupDay = useMemo(() => {
+    if (!editingDayDate) return null;
+    const dateKey = formatDateISO(editingDayDate);
+    return getPickupDayData(
+      editingDayDate,
+      pickupData.schedules,
+      pickupData.exceptions,
+      isSick,
+      pickupData.notes,
+      isExcused,
+      statusByDate.get(dateKey) ?? null,
+    );
+  }, [editingDayDate, pickupData, isSick, isExcused, statusByDate]);
+
+  const handleSaveArrivalException = useCallback(
+    async (params: {
+      expectedArrival: string | null;
+      reason?: string | null;
+    }) => {
+      if (!currentEditingArrivalDay) return;
+      const dateStr = formatDateISO(currentEditingArrivalDay.date);
+      const input = {
+        exception_date: dateStr,
+        expected_arrival: params.expectedArrival,
+        reason: params.reason ?? null,
+      };
+      if (currentEditingArrivalDay.exception) {
+        await updateArrivalException(
+          studentId,
+          currentEditingArrivalDay.exception.id,
+          input,
+        );
+      } else {
+        await createArrivalException(studentId, input);
+      }
+      await refreshCareData();
+    },
+    [currentEditingArrivalDay, studentId, refreshCareData],
+  );
+
+  const handleDeleteArrivalException = useCallback(async () => {
+    if (!currentEditingArrivalDay?.exception) return;
+    await deleteArrivalException(
+      studentId,
+      currentEditingArrivalDay.exception.id,
+    );
+    await refreshCareData();
+  }, [currentEditingArrivalDay, studentId, refreshCareData]);
+
+  const handleCreateArrivalNote = useCallback(
+    async (content: string) => {
+      if (!currentEditingArrivalDay) return;
+      await createArrivalNote(studentId, {
+        note_date: formatDateISO(currentEditingArrivalDay.date),
+        content,
+      });
+      await refreshCareData();
+    },
+    [currentEditingArrivalDay, studentId, refreshCareData],
+  );
+
+  const handleDeleteArrivalNote = useCallback(
+    async (noteId: number) => {
+      await deleteArrivalNote(studentId, noteId);
+      await refreshCareData();
+    },
+    [studentId, refreshCareData],
+  );
+
+  const handleSavePickupException = useCallback(
+    async (params: { pickupTime?: string; reason?: string }) => {
+      if (!currentEditingPickupDay) return;
+      const dateStr = formatDateISO(currentEditingPickupDay.date);
+      if (currentEditingPickupDay.exception) {
+        await updateStudentPickupException(
+          studentId,
+          currentEditingPickupDay.exception.id,
+          {
+            exceptionDate: dateStr,
+            pickupTime: params.pickupTime,
+            reason: params.reason,
+          },
+        );
+      } else {
+        await createStudentPickupException(studentId, {
+          exceptionDate: dateStr,
+          pickupTime: params.pickupTime,
+          reason: params.reason,
+        });
+      }
+      await refreshCareData();
+      invalidatePickupCaches();
+    },
+    [currentEditingPickupDay, studentId, refreshCareData],
+  );
+
+  const handleDeletePickupException = useCallback(async () => {
+    if (!currentEditingPickupDay?.exception) return;
+    await deleteStudentPickupException(
+      studentId,
+      currentEditingPickupDay.exception.id,
+    );
+    await refreshCareData();
+    invalidatePickupCaches();
+  }, [currentEditingPickupDay, studentId, refreshCareData]);
+
+  const handleCreatePickupNote = useCallback(
+    async (content: string) => {
+      if (!currentEditingPickupDay) return;
+      await createStudentPickupNote(studentId, {
+        noteDate: formatDateISO(currentEditingPickupDay.date),
+        content,
+      });
+      await refreshCareData();
+      invalidatePickupCaches();
+    },
+    [currentEditingPickupDay, studentId, refreshCareData],
+  );
+
+  const handleDeletePickupNote = useCallback(
+    async (noteId: string) => {
+      await deleteStudentPickupNote(studentId, noteId);
+      await refreshCareData();
+      invalidatePickupCaches();
+    },
+    [studentId, refreshCareData],
+  );
+
+  const handleDeleteStatusDay = useCallback(
+    async (statusDayId: string) => {
+      if (!onDeleteStatusDay) return;
+      setDeletingStatusDayId(statusDayId);
+      try {
+        await onDeleteStatusDay(statusDayId);
+      } finally {
+        setDeletingStatusDayId(null);
+      }
+    },
+    [onDeleteStatusDay],
+  );
+
+  const handleConfirmDeleteStatusDay = useCallback(async () => {
+    if (!statusDayToDelete) return;
+    try {
+      await handleDeleteStatusDay(statusDayToDelete.id);
+      setStatusDayToDelete(null);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Geplanter Status konnte nicht entfernt werden";
+      logger.error("care_schedule_status_delete_failed", {
+        error: message,
+        student_status_day_id: statusDayToDelete.id,
+      });
+    }
+  }, [handleDeleteStatusDay, statusDayToDelete]);
+
+  if (isLoading && arrivalData.schedules.length === 0) {
+    return (
+      <div className="moto-content-surface flex items-center justify-center rounded-2xl border py-12 shadow-sm">
+        <Loader2 className="h-7 w-7 animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <section className="moto-content-surface overflow-hidden rounded-xl border shadow-sm backdrop-blur-md sm:rounded-2xl">
+      <div className="border-b border-gray-100 p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Wochenübersicht
+            </p>
+            <div className="mt-1 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
+              <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">
+                Betreuungsplan
+              </h2>
+              <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-600">
+                {weekRange}
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setWeekOffset(0)}
+              disabled={weekOffset === 0}
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
+            >
+              Heute
+            </button>
+            {!readOnly ? (
+              <button
+                type="button"
+                onClick={() => setIsWeeklyPlanModalOpen(true)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                aria-label="Wochenplan bearbeiten"
+                title="Wochenplan bearbeiten"
+              >
+                <SquarePen className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="relative mt-4 hidden items-center justify-between gap-2 xl:flex">
+          <div>
+            <WeekNavButton
+              ariaLabel="Vorherige Woche"
+              onClick={() => setWeekOffset((value) => value - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Vorherige Woche</span>
+            </WeekNavButton>
+          </div>
+          {weekOffset === 0 ? (
+            <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
+              Aktuelle Woche
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setWeekOffset(0)}
+              className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:inline-flex"
+            >
+              Zurück zur aktuellen Woche
+            </button>
+          )}
+          <div>
+            <WeekNavButton
+              ariaLabel="Nächste Woche"
+              onClick={() => setWeekOffset((value) => value + 1)}
+            >
+              <span className="hidden sm:inline">Nächste Woche</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </WeekNavButton>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-3 sm:p-4">
+        <div className="xl:hidden">
+          <MobileCareWeek
+            days={days}
+            weekMonth={weekMonth}
+            selectedDay={selectedMobileDay}
+            readOnly={readOnly}
+            deletingStatusDayId={deletingStatusDayId}
+            onPreviousWeek={() => setWeekOffset((value) => value - 1)}
+            onNextWeek={() => setWeekOffset((value) => value + 1)}
+            onSelectDay={(day) => setSelectedDateKey(formatDateISO(day.date))}
+            onEditDay={setEditingDayDate}
+            onRequestDeleteStatusDay={setStatusDayToDelete}
+          />
+        </div>
+        <div className="hidden xl:block">
+          <div className="grid gap-3 xl:grid-cols-5">
+            {days.map((day) => (
+              <CareDayCard
+                key={formatDateISO(day.date)}
+                day={day}
+                readOnly={readOnly}
+                onEditDay={setEditingDayDate}
+                deletingStatusDayId={deletingStatusDayId}
+                onRequestDeleteStatusDay={setStatusDayToDelete}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <CareWeeklyPlanModal
+        isOpen={isWeeklyPlanModalOpen}
+        onClose={() => setIsWeeklyPlanModalOpen(false)}
+        onSubmit={handleUpdateWeeklyPlan}
+        initialArrivalSchedules={mergeArrivalSchedulesWithTemplate(
+          arrivalData.schedules,
+        )}
+        initialPickupSchedules={mergePickupSchedulesWithTemplate(
+          pickupData.schedules,
+        )}
+      />
+      <CareDayOverrideModal
+        isOpen={editingDayDate !== null}
+        onClose={() => setEditingDayDate(null)}
+        arrivalDay={currentEditingArrivalDay}
+        pickupDay={currentEditingPickupDay}
+        onSaveArrivalException={handleSaveArrivalException}
+        onDeleteArrivalException={handleDeleteArrivalException}
+        onCreateArrivalNote={handleCreateArrivalNote}
+        onDeleteArrivalNote={handleDeleteArrivalNote}
+        onSavePickupException={handleSavePickupException}
+        onDeletePickupException={handleDeletePickupException}
+        onCreatePickupNote={handleCreatePickupNote}
+        onDeletePickupNote={handleDeletePickupNote}
+      />
+      <ConfirmationModal
+        isOpen={statusDayToDelete !== null}
+        onClose={() => setStatusDayToDelete(null)}
+        onConfirm={handleConfirmDeleteStatusDay}
+        title="Geplanten Status entfernen?"
+        confirmText="Entfernen"
+        cancelText="Abbrechen"
+        isConfirmLoading={deletingStatusDayId === statusDayToDelete?.id}
+        confirmButtonClass="bg-[#CC2626] hover:bg-[#B91C1C]"
+      >
+        <p className="text-sm leading-6 text-gray-600">
+          {statusDayToDelete
+            ? `Dieser Eintrag wird nur für ${formatStatusDayDate(
+                statusDayToDelete.date,
+              )} entfernt. Andere geplante Tage bleiben bestehen.`
+            : "Dieser geplante Status wird entfernt."}
+        </p>
+      </ConfirmationModal>
+    </section>
+  );
+}
+
+function WeekNavButton({
+  ariaLabel,
+  children,
+  onClick,
+}: {
+  readonly ariaLabel: string;
+  readonly children: React.ReactNode;
+  readonly onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    >
+      {children}
+    </button>
+  );
+}
+
+function MobileCareWeek({
+  days,
+  weekMonth,
+  selectedDay,
+  readOnly,
+  deletingStatusDayId,
+  onPreviousWeek,
+  onNextWeek,
+  onSelectDay,
+  onEditDay,
+  onRequestDeleteStatusDay,
+}: {
+  readonly days: CareDayData[];
+  readonly weekMonth: string;
+  readonly selectedDay: CareDayData | null;
+  readonly readOnly: boolean;
+  readonly deletingStatusDayId: string | null;
+  readonly onPreviousWeek: () => void;
+  readonly onNextWeek: () => void;
+  readonly onSelectDay: (day: CareDayData) => void;
+  readonly onEditDay: (date: Date) => void;
+  readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2">
+        <WeekIconButton ariaLabel="Vorherige Woche" onClick={onPreviousWeek}>
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+        </WeekIconButton>
+        <div className="min-w-0 text-center text-lg font-semibold text-gray-800">
+          {weekMonth}
+        </div>
+        <WeekIconButton ariaLabel="Nächste Woche" onClick={onNextWeek}>
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </WeekIconButton>
+      </div>
+
+      <div className="grid grid-cols-5 gap-1.5">
+        {days.map((day) => (
+          <MobileDayButton
+            key={formatDateISO(day.date)}
+            day={day}
+            isSelected={
+              selectedDay !== null &&
+              formatDateISO(selectedDay.date) === formatDateISO(day.date)
+            }
+            onClick={() => onSelectDay(day)}
+          />
+        ))}
+      </div>
+
+      {selectedDay ? (
+        <CareDayCard
+          day={selectedDay}
+          readOnly={readOnly}
+          onEditDay={onEditDay}
+          deletingStatusDayId={deletingStatusDayId}
+          onRequestDeleteStatusDay={onRequestDeleteStatusDay}
+          isMobileDetail
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function WeekIconButton({
+  ariaLabel,
+  children,
+  onClick,
+}: {
+  readonly ariaLabel: string;
+  readonly children: React.ReactNode;
+  readonly onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    >
+      {children}
+    </button>
+  );
+}
+
+function MobileDayButton({
+  day,
+  isSelected,
+  onClick,
+}: {
+  readonly day: CareDayData;
+  readonly isSelected: boolean;
+  readonly onClick: () => void;
+}) {
+  const weekdayInfo = WEEKDAYS[day.weekday - 1];
+  const statusLabel = day.status
+    ? day.status === "sick"
+      ? "Krank"
+      : "Entsch."
+    : null;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-w-0 rounded-lg border px-1 py-2 text-center transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+        isSelected
+          ? "border-gray-300 bg-gray-100 text-gray-900 shadow-sm"
+          : "border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50"
+      }`}
+    >
+      <span className="block truncate text-xs font-semibold">
+        {weekdayInfo?.shortLabel ?? "Tag"}
+      </span>
+      <span
+        className={`mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${
+          day.isToday
+            ? "bg-[#FF3130] text-white"
+            : isSelected
+              ? "bg-white text-gray-900"
+              : "bg-gray-100 text-gray-700"
+        }`}
+      >
+        {day.date.getDate()}
+      </span>
+      <span
+        className={`mt-1 block truncate text-[10px] font-semibold ${
+          isSelected ? "text-gray-500" : "text-gray-400"
+        }`}
+      >
+        {statusLabel ?? " "}
+      </span>
+    </button>
+  );
+}
+
+function CareDayCard({
+  day,
+  readOnly,
+  onEditDay,
+  deletingStatusDayId,
+  onRequestDeleteStatusDay,
+  isMobileDetail = false,
+}: {
+  readonly day: CareDayData;
+  readonly readOnly: boolean;
+  readonly onEditDay: (date: Date) => void;
+  readonly deletingStatusDayId: string | null;
+  readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
+  readonly isMobileDetail?: boolean;
+}) {
+  const weekdayInfo = WEEKDAYS[day.weekday - 1];
+  const hasStatus = day.status !== null;
+  const boundaries = getCareBoundaries(day, {
+    onEditArrival: () => onEditDay(day.date),
+    onEditPickup: () => onEditDay(day.date),
+  });
+  const appointments = getCareAppointments();
+  const notes = getCareNotes(day);
+
+  return (
+    <article
+      className={`flex flex-col rounded-xl border border-gray-200 bg-white p-3 shadow-sm ${
+        isMobileDetail ? "min-h-[236px]" : "min-h-[260px]"
+      }`}
+    >
+      <div className="flex min-h-[52px] items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-gray-900">
+              {weekdayInfo?.shortLabel ?? "Tag"}
+            </span>
+            {day.isToday ? (
+              <span className="text-xs font-semibold text-gray-500">Heute</span>
+            ) : null}
+          </div>
+          <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
+            {day.isToday ? (
+              <>
+                <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-[#FF3130] px-1.5 text-sm font-semibold text-white">
+                  {day.date.getDate()}
+                </span>
+                <span>.</span>
+                <span>
+                  {(day.date.getMonth() + 1).toString().padStart(2, "0")}.
+                </span>
+              </>
+            ) : (
+              formatShortDate(day.date)
+            )}
+          </div>
+        </div>
+        {hasStatus ? <StatusPill status={day.status} /> : null}
+      </div>
+
+      <div className="mt-3 flex flex-1 flex-col space-y-3">
+        {hasStatus ? (
+          <AbsencePlaceholder
+            status={day.status}
+            statusDay={day.statusDay}
+            readOnly={readOnly}
+            isDeleting={deletingStatusDayId === day.statusDay?.id}
+            onRequestDeleteStatusDay={onRequestDeleteStatusDay}
+          />
+        ) : (
+          <CareBoundarySection boundaries={boundaries} readOnly={readOnly} />
+        )}
+        {appointments.length > 0 ? (
+          <CareAppointmentSection appointments={appointments} />
+        ) : null}
+        {notes.length > 0 ? <CareNotesSection notes={notes} /> : null}
+      </div>
+    </article>
+  );
+}
+
+function AbsencePlaceholder({
+  status,
+  statusDay,
+  readOnly,
+  isDeleting,
+  onRequestDeleteStatusDay,
+}: {
+  readonly status: StudentStatusKind | null;
+  readonly statusDay: StudentStatusDay | null;
+  readonly readOnly: boolean;
+  readonly isDeleting: boolean;
+  readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
+}) {
+  if (!status) return null;
+  const isSick = status === "sick";
+  const label = isSick ? "Ganztägig krank gemeldet" : "Ganztägig entschuldigt";
+  const isInteractive = !readOnly && statusDay !== null;
+  const content = (
+    <div className="flex min-w-0 items-center gap-3 pr-8 text-left">
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm ${
+          isSick
+            ? "bg-[#EAB308]/10 text-[#A16207]"
+            : "bg-[#7C3AED]/10 text-[#6D28D9]"
+        }`}
+      >
+        <CalendarX className="h-4.5 w-4.5" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+          Status
+        </div>
+        <div className="text-sm leading-5 font-semibold text-gray-900">
+          {isDeleting ? "Wird entfernt..." : label}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (isInteractive) {
+    return (
+      <button
+        type="button"
+        onClick={() => onRequestDeleteStatusDay(statusDay)}
+        disabled={isDeleting}
+        className="moto-content-surface group relative flex min-h-[134px] w-full items-center rounded-lg border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+        aria-label={`${label} entfernen`}
+      >
+        <span className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700">
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="moto-content-surface flex min-h-[134px] items-center rounded-lg border p-3 shadow-sm">
+      {content}
+    </div>
+  );
+}
+
+function CareBoundarySection({
+  boundaries,
+  readOnly,
+}: {
+  readonly boundaries: CareBoundaryItem[];
+  readonly readOnly: boolean;
+}) {
+  return (
+    <div className="flex min-h-[134px] flex-col rounded-lg border border-gray-100 bg-gray-50">
+      <div className="flex flex-1 flex-col divide-y divide-gray-100">
+        {boundaries.map((boundary) => (
+          <CareBoundaryRow
+            key={boundary.key}
+            boundary={boundary}
+            readOnly={readOnly}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CareBoundaryRow({
+  boundary,
+  readOnly,
+}: {
+  readonly boundary: CareBoundaryItem;
+  readonly readOnly: boolean;
+}) {
+  const content = (
+    <>
+      <span
+        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm"
+        style={{
+          backgroundColor: `${boundary.color}14`,
+          color: boundary.color,
+        }}
+      >
+        {boundary.icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+          {boundary.label}
+        </div>
+        <div className="text-sm leading-5 font-semibold text-gray-900">
+          {boundary.value}
+          {boundary.marker ? (
+            <span className="ml-2 rounded-full bg-white px-1.5 py-0.5 align-middle text-[11px] font-semibold text-gray-500 shadow-sm">
+              {boundary.marker}
+            </span>
+          ) : null}
+        </div>
+        {boundary.description ? (
+          <div className="mt-0.5 text-xs leading-5 text-gray-500">
+            {boundary.description}
+          </div>
+        ) : null}
+      </div>
+      {!readOnly && boundary.onEdit ? (
+        <span className="rounded-md p-1.5 text-gray-400 transition-colors group-hover:bg-gray-200/70 group-hover:text-gray-700">
+          <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+      ) : null}
+    </>
+  );
+
+  if (!readOnly && boundary.onEdit) {
+    return (
+      <button
+        type="button"
+        onClick={boundary.onEdit}
+        className="group flex w-full min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-gray-100/70 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 px-3 py-2.5">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">{content}</div>
+    </div>
+  );
+}
+
+function CareAppointmentSection({
+  appointments,
+}: {
+  readonly appointments: CareAppointmentItem[];
+}) {
+  return (
+    <div className="space-y-1.5">
+      {appointments.map((appointment) => (
+        <div
+          key={appointment.key}
+          className="rounded-lg border border-gray-100 bg-white px-3 py-2.5 shadow-sm"
+        >
+          <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+            {appointment.timeRange}
+          </div>
+          <div className="text-sm font-semibold text-gray-900">
+            {appointment.title}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CareNotesSection({ notes }: { readonly notes: CareNoteItem[] }) {
+  return (
+    <div className="space-y-1.5 border-t border-gray-100 pt-3">
+      {notes.map((note) => (
+        <div
+          key={note.key}
+          className="flex min-w-0 items-start gap-2 text-xs leading-5 text-gray-500"
+        >
+          <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <span className="font-semibold text-gray-600">{note.label}:</span>
+          <span className="min-w-0 break-words">{note.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StatusPill({ status }: { readonly status: StudentStatusKind }) {
+  const isSick = status === "sick";
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+        isSick
+          ? "border-[#EAB308]/30 bg-[#EAB308]/10 text-[#854D0E]"
+          : "border-[#7C3AED]/25 bg-[#7C3AED]/10 text-[#5B21B6]"
+      }`}
+    >
+      {getStatusLabel(status)}
+    </span>
+  );
+}
+
+function getArrivalValue(day: ArrivalDayData): string {
+  if (day.isAbsent) return "Kommt nicht";
+  return day.effectiveTime ?? "Nicht geplant";
+}
+
+function getPickupValue(day: PickupDayData): string {
+  if (day.isException && !day.effectiveTime) return "Keine Abholung";
+  return day.effectiveTime
+    ? formatPickupTime(day.effectiveTime)
+    : "Nicht geplant";
+}
+
+function getArrivalMarker(day: ArrivalDayData): string | null {
+  if (day.isException) return "Ausnahme";
+  return null;
+}
+
+function getPickupMarker(day: PickupDayData): string | null {
+  if (day.isException) return "Ausnahme";
+  return null;
+}
+
+function getArrivalDescription(day: ArrivalDayData): string | undefined {
+  if (!day.isException) return undefined;
+  return day.effectiveReason
+    ? `Grund: ${day.effectiveReason}`
+    : "Tagesänderung";
+}
+
+function getPickupDescription(day: PickupDayData): string | undefined {
+  if (!day.isException) return undefined;
+  return day.effectiveNotes ? `Grund: ${day.effectiveNotes}` : "Tagesänderung";
+}
+
+function getCareBoundaries(
+  day: CareDayData,
+  actions: {
+    readonly onEditArrival: () => void;
+    readonly onEditPickup: () => void;
+  },
+): CareBoundaryItem[] {
+  return [
+    {
+      key: "arrival",
+      label: "Ankunft",
+      value: getArrivalValue(day.arrival),
+      description: getArrivalDescription(day.arrival),
+      marker: getArrivalMarker(day.arrival),
+      color: LOCATION_COLORS.GROUP_ROOM,
+      icon: <Clock className="h-4 w-4" aria-hidden="true" />,
+      onEdit: actions.onEditArrival,
+    },
+    {
+      key: "pickup",
+      label: "Abholung",
+      value: getPickupValue(day.pickup),
+      description: getPickupDescription(day.pickup),
+      marker: getPickupMarker(day.pickup),
+      color: LOCATION_COLORS.SCHOOLYARD,
+      icon: <CalendarDays className="h-4 w-4" aria-hidden="true" />,
+      onEdit: actions.onEditPickup,
+    },
+  ];
+}
+
+function getCareAppointments(): CareAppointmentItem[] {
+  return [];
+}
+
+function getCareNotes(day: CareDayData): CareNoteItem[] {
+  const notes: CareNoteItem[] = [];
+  const arrivalNotes = getArrivalDisplayNotes(day.arrival);
+  const pickupNotes = getPickupDisplayNotes(day.pickup);
+  if (arrivalNotes.length > 0) {
+    notes.push({
+      key: "arrival-notes",
+      label: "Ankunft",
+      value: arrivalNotes.join(", "),
+    });
+  }
+  if (pickupNotes.length > 0) {
+    notes.push({
+      key: "pickup-notes",
+      label: "Abholung",
+      value: pickupNotes.join(", "),
+    });
+  }
+  return notes;
+}
+
+function getArrivalDisplayNotes(day: ArrivalDayData): string[] {
+  return [
+    day.baseSchedule?.notes ?? null,
+    ...day.notes.map((note) => note.content),
+  ].filter((note): note is string => !!note);
+}
+
+function getPickupDisplayNotes(day: PickupDayData): string[] {
+  return [
+    day.baseSchedule?.notes ?? null,
+    ...day.notes.map((note) => note.content),
+  ].filter((note): note is string => !!note);
+}
