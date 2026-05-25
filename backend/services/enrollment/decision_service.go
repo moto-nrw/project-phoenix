@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -1273,6 +1274,7 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 		if err != nil {
 			return fmt.Errorf("parse %s time %q: %w", day, hhmm, err)
 		}
+		t = timezone.WallClock(t)
 		if isPickup {
 			row := &scheduleModels.StudentPickupSchedule{
 				StudentID:  studentID,
