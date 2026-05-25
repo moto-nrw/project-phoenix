@@ -90,8 +90,6 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
-          BASE_REF: ${{ inputs.base_ref }}
-          IS_PR: ${{ inputs.is-pr }}
         run: |
           echo "Regenerating full coverage for SonarCloud"
           cp coverage.out coverage.gotestsum.out
@@ -100,38 +98,6 @@ jobs:
             if ! go test ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
               echo "Coverage regeneration failed after retry; keeping gotestsum coverage.out"
               mv coverage.gotestsum.out coverage.out
-            fi
-          fi
-          if [ "${IS_PR}" = "true" ] && [ -n "${BASE_REF}" ]; then
-            changed_packages="$(git diff --name-only "origin/${BASE_REF}"...HEAD -- '*.go' \
-              | grep '^backend/' \
-              | grep -v '_test.go$' \
-              | grep -v '^backend/api/' \
-              | xargs -r -n1 dirname \
-              | sed 's|^backend|.|' \
-              | sort -u \
-              | tr '\n' ' ')"
-            if [ -n "${changed_packages}" ]; then
-              echo "Appending targeted coverage for changed backend packages: ${changed_packages}"
-              if go test ${changed_packages} -coverpkg=./... -covermode=atomic -coverprofile=coverage.changed.out; then
-                tail -n +2 coverage.changed.out >> coverage.out
-                rm -f coverage.changed.out
-              else
-                echo "Targeted changed-package coverage failed; keeping existing coverage.out"
-              fi
-            fi
-          fi
-          if [ "${IS_PR}" = "true" ]; then
-            echo "Appending deterministic coverage for OGS settings access paths"
-            if go test ./auth/authorize ./services/config ./services/config/defaults \
-              -run 'TestResolveOGSGroupsEnabled|TestResolveStudentDataScope|TestCanReadStudent|TestOGSGroupsEnabledSetting|TestDefaultRegistry' \
-              -coverpkg=./... \
-              -covermode=atomic \
-              -coverprofile=coverage.ogs.out; then
-              tail -n +2 coverage.ogs.out >> coverage.out
-              rm -f coverage.ogs.out
-            else
-              echo "OGS settings access coverage failed; keeping existing coverage.out"
             fi
           fi
           rm -f coverage.gotestsum.out
