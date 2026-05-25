@@ -3,6 +3,7 @@ package enrollment_test
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func setupRequestRepoTest(t *testing.T) (*bun.DB, enrollmentModels.RequestReposi
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
-	var tenantID int64 = 1
+	tenantID := tenantIDForTestName(t.Name())
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
@@ -34,6 +35,12 @@ func setupRequestRepoTest(t *testing.T) (*bun.DB, enrollmentModels.RequestReposi
 	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
 	return db, enrollmentRepo.NewRequestRepository(db), tenantID, phase.ID
+}
+
+func tenantIDForTestName(name string) int64 {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	return 200_000 + int64(h.Sum32()%100_000)
 }
 
 // wipeRequests removes every request + child row for the tenant whose

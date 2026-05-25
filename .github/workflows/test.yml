@@ -95,10 +95,15 @@ jobs:
           fi
 
           echo "Flaky tests were rerun; regenerating full coverage for SonarCloud"
+          cp coverage.out coverage.gotestsum.out
           if ! go test ./... -covermode=atomic -coverprofile=coverage.out; then
             echo "Coverage regeneration failed; retrying once"
-            go test ./... -covermode=atomic -coverprofile=coverage.out
+            if ! go test ./... -covermode=atomic -coverprofile=coverage.out; then
+              echo "Coverage regeneration failed after retry; keeping gotestsum coverage.out"
+              mv coverage.gotestsum.out coverage.out
+            fi
           fi
+          rm -f coverage.gotestsum.out
 
       - name: Drop flaky retries from junit.xml
         working-directory: backend
