@@ -1104,7 +1104,7 @@ function AnnouncementCard({
   }, [menuOpen]);
 
   return (
-    <div className="relative rounded-3xl border border-gray-100/50 bg-white/90 p-5 pr-12 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
+    <div className="relative rounded-3xl border border-gray-100/50 bg-white/90 p-5 pr-12 shadow-sm backdrop-blur-md transition-all duration-150">
       {/* Kebab menu - absolute top right */}
       <div className="absolute top-3 right-3" ref={menuRef}>
         <button
@@ -1339,7 +1339,7 @@ function AnnouncementSkeletons() {
       {Array.from({ length: 3 }, (_, i) => (
         <div
           key={i}
-          className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+          className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-sm"
         >
           <div className="space-y-3">
             <Skeleton className="h-5 w-3/5 rounded" />

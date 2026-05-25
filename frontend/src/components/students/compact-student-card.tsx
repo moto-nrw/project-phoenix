@@ -55,7 +55,7 @@ export function CompactStudentCard({
 
   const chromeClass =
     chrome === "card"
-      ? "border border-gray-200 bg-white px-4 py-3 hover:border-gray-300 hover:bg-gray-50"
+      ? "moto-content-surface border px-4 py-3 hover:border-gray-300 hover:bg-gray-50"
       : "bg-transparent px-0 py-0 hover:bg-transparent";
   const content = (
     <>

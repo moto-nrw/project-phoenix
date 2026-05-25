@@ -262,6 +262,29 @@ func init() {
 		},
 	})
 
+	// --- Student Activation Scheduler (parent-enrollment lifecycle) ---
+	//
+	// Controls how often the activate-students tick re-evaluates pending and
+	// active students against their enrolled_from / enrolled_until dates.
+	// Date transitions only happen on day boundaries — the interval is a
+	// safety-net for restarts and clock drift, not a precision dial.
+
+	minActivationInterval := float64(5)
+	maxActivationInterval := float64(1440)
+	config.Register(config.Definition{
+		Key:             config.KeyStudentActivationIntervalMin,
+		Label:           "Schüleraktivierung Intervall (Minuten)",
+		Description:     "Wie oft geprüft wird, ob Schüler mit Status \"ausstehend\" oder mit Abmeldedatum in der Vergangenheit ihren Status wechseln müssen.",
+		Type:            config.FieldNumber,
+		Default:         60,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "schüleraktivierung",
+		SortOrder:       50,
+		Validation:      &config.ValidationRules{Min: &minActivationInterval, Max: &maxActivationInterval},
+	})
+
 	// --- Web-An/Abmeldung Zugriff (who can toggle presence via web UI) ---
 
 	config.Register(config.Definition{

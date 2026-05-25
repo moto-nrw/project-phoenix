@@ -69,6 +69,14 @@ type StudentResponse struct {
 	PhotoConsentGivenAt *time.Time `json:"photo_consent_given_at,omitempty"`
 	PhotoConsentGivenBy *int64     `json:"photo_consent_given_by,omitempty"`
 
+	// Other consents stamped on the student row by the enrollment
+	// decision service from request.consent_flags. Read-only here —
+	// updates flow via a new enrollment submission, not the student
+	// edit form. NULL = no consent recorded.
+	AGBAcceptedAt            *time.Time `json:"agb_accepted_at,omitempty"`
+	DataProcessingAcceptedAt *time.Time `json:"data_processing_accepted_at,omitempty"`
+	EmailContactAcceptedAt   *time.Time `json:"email_contact_accepted_at,omitempty"`
+
 	HasFullAccess bool      `json:"has_full_access"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`

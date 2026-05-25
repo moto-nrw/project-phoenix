@@ -334,7 +334,7 @@ function SuggestionSkeletons() {
       {Array.from({ length: 3 }, (_, i) => (
         <div
           key={i}
-          className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+          className="moto-content-surface rounded-3xl border p-5 shadow-sm"
         >
           <div className="flex flex-col gap-3 md:flex-row md:gap-4">
             <div className="hidden md:flex md:items-start md:pt-1">

@@ -2,15 +2,21 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { useTenantRouter } from "~/lib/tenant-router";
 import Image from "next/image";
+import { useTenantRouter } from "~/lib/tenant-router";
+import {
+  AuthShell,
+  authInputClassName,
+  authPrimaryButtonClassName,
+} from "~/components/auth/auth-shell";
 import { Loading } from "~/components/ui/loading";
 import Link from "next/link";
-import { Input } from "~/components/ui";
 import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";
 import { createLogger } from "~/lib/logger";
+import { useTenantSafe } from "~/components/tenant/tenant-provider";
+import { loginImageSrc } from "~/lib/tenant-api";
 
 const logger = createLogger({ component: "ResetPasswordPage" });
 
@@ -42,7 +48,7 @@ function PasswordField({
         {label}
       </label>
       <div className="relative">
-        <Input
+        <input
           id={id}
           name={id}
           type={visible ? "text" : "password"}
@@ -50,8 +56,7 @@ function PasswordField({
           required
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full pr-10"
-          label=""
+          className={`${authInputClassName} pr-10`}
           disabled={disabled}
         />
         <PasswordToggleButton
@@ -74,6 +79,19 @@ export function ResetPasswordPageContent() {
   const [token, setToken] = useState<string | null>(null);
   const router = useTenantRouter();
   const searchParams = useSearchParams();
+  const tenantContext = useTenantSafe();
+  const tenant = tenantContext?.tenant;
+  const brand = tenant?.settings?.loginImageUrl ? (
+    <Image
+      src={loginImageSrc(tenant.settings.loginImageUrl)}
+      alt={`${tenant.name} Logo`}
+      width={180}
+      height={104}
+      className="max-h-[104px] w-auto object-contain"
+      priority
+      unoptimized
+    />
+  ) : null;
 
   useEffect(() => {
     const tokenParam = searchParams.get("token");
@@ -169,132 +187,117 @@ export function ResetPasswordPageContent() {
 
   if (isSuccess) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
-        <div className="w-full max-w-md rounded-2xl border border-gray-200/50 bg-white/90 p-8 shadow-sm backdrop-blur-sm">
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-              <CheckIcon className="h-10 w-10 text-green-600" />
-            </div>
-
-            <h1 className="mb-2 text-2xl font-semibold text-gray-900">
-              Passwort erfolgreich geändert!
-            </h1>
-            <p className="mb-6 text-sm text-gray-600">
-              Sie werden zur Anmeldeseite weitergeleitet...
-            </p>
-
-            <Loading fullPage={false} />
+      <AuthShell
+        eyebrow="Passwort geändert"
+        eyebrowClassName="text-[#83CD2D]"
+        title="Passwort erfolgreich geändert"
+        subtitle="Sie werden automatisch zur Anmeldeseite weitergeleitet."
+        variant="reset"
+        brand={brand}
+      >
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EAF6D8]">
+            <CheckIcon className="h-10 w-10 text-[#4E7D1B]" />
           </div>
+
+          <p className="mb-6 text-sm text-gray-600">
+            Die Anmeldung ist gleich wieder möglich.
+          </p>
+
+          <Loading fullPage={false} />
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-gray-200/50 bg-white/90 p-8 shadow-sm backdrop-blur-sm">
-        <div className="mb-6 flex justify-center">
-          <Image
-            src="/images/moto_transparent.png"
-            alt="MOTO Logo"
-            width={100}
-            height={40}
-            priority
-            className="opacity-60"
+    <AuthShell
+      eyebrow="Passwort zurücksetzen"
+      eyebrowClassName="text-[#83CD2D]"
+      title="Neues Passwort festlegen"
+      subtitle="Wählen Sie ein starkes Passwort für Ihr Konto."
+      variant="reset"
+      brand={brand}
+    >
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <svg
+                className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <PasswordField
+            id="password"
+            label="Neues Passwort"
+            value={password}
+            onChange={setPassword}
+            visible={showPassword}
+            onToggleVisible={() => setShowPassword(!showPassword)}
+            disabled={isLoading || !token}
+          />
+          <PasswordField
+            id="confirmPassword"
+            label="Passwort bestätigen"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            visible={showConfirmPassword}
+            onToggleVisible={() => setShowConfirmPassword(!showConfirmPassword)}
+            disabled={isLoading || !token}
           />
         </div>
 
-        <div className="mb-6 text-center">
-          <h1 className="mb-2 text-2xl font-semibold text-gray-900">
-            Neues Passwort festlegen
-          </h1>
-          <p className="text-sm text-gray-600">
-            Bitte geben Sie Ihr neues Passwort ein.
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-left">
+          <p className="mb-1.5 text-xs font-medium text-gray-700">
+            Passwort-Anforderungen:
           </p>
+          <ul className="space-y-0.5 text-xs text-gray-600">
+            <li>Mindestens 8 Zeichen lang</li>
+            <li>Groß- und Kleinbuchstaben</li>
+            <li>Mindestens eine Zahl</li>
+            <li>Mindestens ein Sonderzeichen</li>
+          </ul>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          {error && (
-            <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-4">
-              <div className="flex items-start gap-3">
-                <svg
-                  className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            </div>
+        <button
+          type="submit"
+          disabled={isLoading || !token}
+          className={authPrimaryButtonClassName}
+        >
+          {isLoading ? (
+            <>
+              <SpinnerIcon className="mr-2 -ml-1 h-4 w-4 text-white" />
+              <span>Wird gespeichert...</span>
+            </>
+          ) : (
+            <span>Passwort ändern</span>
           )}
+        </button>
 
-          <div className="space-y-4">
-            <PasswordField
-              id="password"
-              label="Neues Passwort"
-              value={password}
-              onChange={setPassword}
-              visible={showPassword}
-              onToggleVisible={() => setShowPassword(!showPassword)}
-              disabled={isLoading || !token}
-            />
-            <PasswordField
-              id="confirmPassword"
-              label="Passwort bestätigen"
-              value={confirmPassword}
-              onChange={setConfirmPassword}
-              visible={showConfirmPassword}
-              onToggleVisible={() =>
-                setShowConfirmPassword(!showConfirmPassword)
-              }
-              disabled={isLoading || !token}
-            />
-          </div>
-
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-left">
-            <p className="mb-1.5 text-xs font-medium text-gray-700">
-              Passwort-Anforderungen:
-            </p>
-            <ul className="space-y-0.5 text-xs text-gray-600">
-              <li>• Mindestens 8 Zeichen lang</li>
-              <li>• Groß- und Kleinbuchstaben</li>
-              <li>• Mindestens eine Zahl</li>
-              <li>• Mindestens ein Sonderzeichen</li>
-            </ul>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading || !token}
-            className="inline-flex w-full items-center justify-center rounded-md bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+        <div className="pt-2 text-center">
+          <Link
+            href="/"
+            className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline"
           >
-            {isLoading ? (
-              <>
-                <SpinnerIcon className="mr-2 -ml-1 h-4 w-4 text-white" />
-                <span>Wird gespeichert...</span>
-              </>
-            ) : (
-              <span>Passwort ändern</span>
-            )}
-          </button>
-
-          <div className="pt-2 text-center">
-            <Link
-              href="/"
-              className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline"
-            >
-              Zurück zur Anmeldung
-            </Link>
-          </div>
-        </form>
-      </div>
-    </div>
+            Zurück zur Anmeldung
+          </Link>
+        </div>
+      </form>
+    </AuthShell>
   );
 }

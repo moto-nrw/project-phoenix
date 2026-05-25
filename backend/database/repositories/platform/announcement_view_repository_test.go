@@ -168,8 +168,19 @@ func createTestOrganization(t *testing.T, db *bun.DB, name string) int64 {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	suffix := fmt.Sprintf("%d-%d", time.Now().UnixNano(), atomic.AddInt64(&schoolCounter, 1))
-	var id int64
 	_, err := db.NewRaw(`
+		SELECT setval(
+			pg_get_serial_sequence('platform.organizations', 'id'),
+			GREATEST(
+				COALESCE((SELECT MAX(id) FROM platform.organizations), 1),
+				(SELECT last_value FROM platform.organizations_id_seq)
+			)
+		)
+	`).Exec(ctx)
+	require.NoError(t, err)
+
+	var id int64
+	_, err = db.NewRaw(`
 		INSERT INTO platform.organizations (name, slug, active, created_at, updated_at)
 		VALUES (?, ?, true, NOW(), NOW())
 		RETURNING id
@@ -193,8 +204,19 @@ func createTestSchool(t *testing.T, db *bun.DB, name string, orgID int64) int64 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	suffix := fmt.Sprintf("%d-%d", time.Now().UnixNano(), atomic.AddInt64(&schoolCounter, 1))
-	var id int64
 	_, err := db.NewRaw(`
+		SELECT setval(
+			pg_get_serial_sequence('platform.schools', 'id'),
+			GREATEST(
+				COALESCE((SELECT MAX(id) FROM platform.schools), 1),
+				(SELECT last_value FROM platform.schools_id_seq)
+			)
+		)
+	`).Exec(ctx)
+	require.NoError(t, err)
+
+	var id int64
+	_, err = db.NewRaw(`
 		INSERT INTO platform.schools (name, slug, subdomain, organization_id, active, created_at, updated_at)
 		VALUES (?, ?, ?, ?, true, NOW(), NOW())
 		RETURNING id

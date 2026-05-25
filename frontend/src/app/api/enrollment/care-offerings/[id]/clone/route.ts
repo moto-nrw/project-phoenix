@@ -1,0 +1,44 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { auth } from "~/server/auth";
+import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "CareOfferingCloneRoute" });
+
+interface RouteContext {
+  params: Promise<{ id: string }>;
+}
+
+export async function POST(request: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
+  const session = await auth();
+  const token = session?.user?.token;
+  if (!token) {
+    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  }
+  try {
+    const body = (await request.json()) as Record<string, unknown>;
+    const response = await fetch(
+      `${getServerApiUrl()}/api/enrollment/care-offerings/${encodeURIComponent(id)}/clone`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+    return NextResponse.json(payload, { status: response.status });
+  } catch (error) {
+    logger.error("care_offering_clone_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}

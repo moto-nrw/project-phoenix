@@ -3,11 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { signIn, signOut, useSession } from "next-auth/react";
-import { Input, Alert } from "~/components/ui";
+import { Alert } from "~/components/ui";
+import {
+  AuthShell,
+  OperatorBrand,
+  authInputClassName,
+  authPrimaryButtonClassName,
+} from "~/components/auth/auth-shell";
 import { Loading } from "~/components/ui/loading";
-import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { operatorPath } from "~/lib/operator-url";
 
@@ -77,8 +81,6 @@ export default function OperatorLoginPage() {
     setError("");
 
     try {
-      launchConfetti();
-
       const result = await signIn("operator-credentials", {
         redirect: false,
         email,
@@ -86,7 +88,6 @@ export default function OperatorLoginPage() {
       });
 
       if (result?.error) {
-        clearConfetti();
         const errorMessages: Record<string, string> = {
           account_inactive:
             "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie den Administrator.",
@@ -100,8 +101,6 @@ export default function OperatorLoginPage() {
 
       router.push(operatorPath("/operator/suggestions"));
     } catch (err) {
-      clearConfetti();
-
       setError(
         err instanceof Error
           ? err.message
@@ -113,100 +112,73 @@ export default function OperatorLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="relative mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-6 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl sm:p-10">
-        {/* Logo Section */}
-        <div className="mb-8 flex justify-center">
-          <Image
-            src="/images/moto_transparent.png"
-            alt="MOTO Logo"
-            width={200}
-            height={80}
-            priority
-          />
-        </div>
+    <AuthShell
+      eyebrow="Operator"
+      eyebrowClassName="text-gray-700"
+      title="Operator Dashboard"
+      subtitle="Melden Sie sich an, um Plattformbetrieb, Träger und Schulen zu verwalten."
+      variant="operator"
+      brand={<OperatorBrand />}
+    >
+      <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        {error && <Alert type="error" message={error} />}
 
-        {/* Welcome Text */}
-        <h1
-          className="mb-2 text-4xl font-bold md:text-5xl"
-          style={{
-            background: "linear-gradient(135deg, #5080d8, #83cd2d)",
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          Willkommen bei moto
-        </h1>
-        <p className="mb-6 text-3xl font-semibold tracking-wide text-gray-900 sm:mb-10">
-          Operator Dashboard
-        </p>
+        <div className="space-y-4">
+          <div className="text-left">
+            <label
+              htmlFor="operator-email"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              E-Mail-Adresse
+            </label>
+            <input
+              id="operator-email"
+              name="email"
+              type="email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={authInputClassName}
+            />
+          </div>
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
-          {error && <Alert type="error" message={error} />}
-
-          <div className="space-y-4">
-            <div className="text-left">
-              <label
-                htmlFor="operator-email"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                E-Mail-Adresse
-              </label>
-              <Input
-                id="operator-email"
-                name="email"
-                type="email"
-                autoComplete="username"
+          <div className="text-left">
+            <label
+              htmlFor="operator-password"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Passwort
+            </label>
+            <div className="relative">
+              <input
+                id="operator-password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full"
-                label=""
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${authInputClassName} pr-10`}
+              />
+              <PasswordToggleButton
+                showPassword={showPassword}
+                onToggle={() => setShowPassword(!showPassword)}
               />
             </div>
-
-            <div className="text-left">
-              <label
-                htmlFor="operator-password"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Passwort
-              </label>
-              <div className="relative">
-                <Input
-                  id="operator-password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pr-10"
-                  label=""
-                />
-                <PasswordToggleButton
-                  showPassword={showPassword}
-                  onToggle={() => setShowPassword(!showPassword)}
-                />
-              </div>
-            </div>
           </div>
+        </div>
 
-          <div className="mt-2 flex justify-center">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="relative z-10">
-                {isLoading ? "Anmeldung läuft..." : "Anmelden"}
-              </span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className={authPrimaryButtonClassName}
+        >
+          <span className="relative z-10">
+            {isLoading ? "Anmeldung läuft..." : "Anmelden"}
+          </span>
+        </button>
+      </form>
+    </AuthShell>
   );
 }

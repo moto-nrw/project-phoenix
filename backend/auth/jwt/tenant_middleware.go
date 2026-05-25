@@ -10,12 +10,24 @@ import (
 // on the request context. It must be placed AFTER the Authenticator middleware
 // in the middleware chain.
 //
-// In Phase 1, this middleware is created but NOT yet mounted in the router.
-// It will be wired into the Chi middleware chain in Phase 3.
+// Defense-in-depth: rejects parent-scope tokens outright. Parent tokens carry
+// tenant_id=0 and an empty role set for any tenant — they could bypass RLS
+// silently if smuggled into a tenant route. The host-only parent cookie + the
+// proxy already make this leak path impossible in practice, but a hard 403 here
+// closes the gap if either fails. Operator (platform) tokens are NOT rejected
+// here because some platform endpoints intentionally cross-tenant via WithAdminTx
+// (operator dashboards) — they use IsPlatformScope checks at the handler level
+// instead.
 func TenantMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := ClaimsFromCtx(r.Context())
 		if claims.ID == 0 {
+			renderUnauthorized(w, r, ErrTokenUnauthorized)
+			return
+		}
+
+		// Hard reject parent-scope tokens on tenant endpoints.
+		if claims.Scope == tenant.ScopeParent {
 			renderUnauthorized(w, r, ErrTokenUnauthorized)
 			return
 		}
