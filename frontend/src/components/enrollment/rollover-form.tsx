@@ -156,12 +156,12 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
             aria-describedby={nameError ? "rollover-name-error" : undefined}
             className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
               nameError !== null
-                ? "border-[#EF4444] focus:border-[#EF4444] focus:ring-[#EF4444]"
+                ? "border-[#FF3130] focus:border-[#FF3130] focus:ring-[#FF3130]"
                 : "border-gray-200"
             }`}
           />
           {nameError !== null && (
-            <p id="rollover-name-error" className="mt-1 text-xs text-[#EF4444]">
+            <p id="rollover-name-error" className="mt-1 text-xs text-[#FF3130]">
               {nameError}
             </p>
           )}

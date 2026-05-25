@@ -108,12 +108,12 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
       </header>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/5 p-3 text-sm text-[#CC2626]">
           {error}
         </div>
       )}
       {info && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <div className="rounded-lg border border-[#83CD2D]/30 bg-[#83CD2D]/5 p-3 text-sm text-[#5BA01F]">
           {info}
         </div>
       )}

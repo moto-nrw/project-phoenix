@@ -191,11 +191,11 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
 
   if (notFound) {
     return (
-      <div className="moto-content-surface rounded-xl border border-red-200 bg-red-50 p-5 text-center shadow-sm sm:p-6">
-        <h1 className="text-xl font-semibold text-red-800">
+      <div className="moto-content-surface rounded-xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-5 text-center shadow-sm sm:p-6">
+        <h1 className="text-xl font-semibold text-[#CC2626]">
           Status-Link ungültig
         </h1>
-        <p className="mt-2 text-sm text-red-700">
+        <p className="mt-2 text-sm text-[#CC2626]">
           Der Link ist abgelaufen oder ungültig. Bitte prüfen Sie die URL aus
           Ihrer Bestätigungs-E-Mail oder wenden Sie sich an die OGS.
         </p>
@@ -205,7 +205,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
 
   if (!status) {
     return (
-      <div className="moto-content-surface rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800 shadow-sm sm:p-6">
+      <div className="moto-content-surface rounded-xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-5 text-sm text-[#CC2626] shadow-sm sm:p-6">
         {error ?? "Status konnte nicht geladen werden."}
       </div>
     );
@@ -313,12 +313,12 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
       </section>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="rounded-2xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-4 text-sm text-[#CC2626]">
           {error}
         </div>
       )}
       {info && (
-        <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+        <div className="rounded-2xl border border-[#83CD2D]/30 bg-[#83CD2D]/5 p-4 text-sm text-[#5BA01F]">
           {info}
         </div>
       )}
