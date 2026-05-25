@@ -110,17 +110,48 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 
 	cleanup := func() {
 		bg := context.Background()
-		// Clean every phase that points back to the source or to a
-		// phase derived from it, plus their requests/children, plus
-		// the source itself, plus the schema.
-		_, _ = db.NewDelete().TableExpr("enrollment.request_child_offerings").Where("tenant_id = ?", 1).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.request_children").Where("tenant_id = ?", 1).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.requests").Where("tenant_id = ?", 1).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.care_offerings").Where("tenant_id = ?", 1).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.submission_rate_limits").Where("tenant_id = ?", 1).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.phases").Where("tenant_id = ?", 1).Exec(bg)
+		_, _ = db.NewRaw(`
+			WITH phase_scope AS (
+				SELECT id
+				FROM enrollment.phases
+				WHERE tenant_id = 1
+				  AND (id = ? OR rollover_source_phase_id = ?)
+			)
+			DELETE FROM enrollment.request_child_offerings rco
+			USING enrollment.request_children rc, enrollment.requests r, phase_scope ps
+			WHERE rco.request_child_id = rc.id
+			  AND rc.request_id = r.id
+			  AND r.phase_id = ps.id
+		`, sourcePhase.ID, sourcePhase.ID).Exec(bg)
+		_, _ = db.NewRaw(`
+			WITH phase_scope AS (
+				SELECT id
+				FROM enrollment.phases
+				WHERE tenant_id = 1
+				  AND (id = ? OR rollover_source_phase_id = ?)
+			)
+			DELETE FROM enrollment.request_children rc
+			USING enrollment.requests r, phase_scope ps
+			WHERE rc.request_id = r.id
+			  AND r.phase_id = ps.id
+		`, sourcePhase.ID, sourcePhase.ID).Exec(bg)
+		_, _ = db.NewRaw(`
+			DELETE FROM enrollment.requests r
+			USING enrollment.phases p
+			WHERE r.phase_id = p.id
+			  AND p.tenant_id = 1
+			  AND (p.id = ? OR p.rollover_source_phase_id = ?)
+		`, sourcePhase.ID, sourcePhase.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("enrollment.care_offerings").
+			Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = 1 AND (id = ? OR rollover_source_phase_id = ?))",
+				sourcePhase.ID, sourcePhase.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("enrollment.submission_rate_limits").
+			Where("tenant_id = 1 AND key_value LIKE ?", "%@example.com").Exec(bg)
+		_, _ = db.NewDelete().TableExpr("enrollment.phases").
+			Where("tenant_id = 1 AND (id = ? OR rollover_source_phase_id = ?)", sourcePhase.ID, sourcePhase.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").Where("created_by = ?", account.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(bg)
+		_ = db.Close()
 	}
 	return env, cleanup
 }

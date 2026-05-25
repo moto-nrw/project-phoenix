@@ -214,6 +214,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 			TableExpr("auth.accounts").
 			Where("id = ?", account.ID).
 			Exec(bg)
+		_ = db.Close()
 	}
 	return env, cleanup
 }

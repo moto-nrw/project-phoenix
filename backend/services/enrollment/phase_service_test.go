@@ -19,6 +19,7 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, 1)
+	phaseNamePrefix := "phase-" + t.Name()
 	repoFactory := repositories.NewFactory(db)
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Repo:             repoFactory.Phase,
@@ -29,19 +30,19 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 
 	cleanup := func() {
 		bg := context.Background()
-		// Wipe in dependency order. Tests use tenant_id=1 throughout.
 		_, _ = db.NewDelete().
 			TableExpr("enrollment.requests").
-			Where("tenant_id = ?", 1).
+			Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = ? AND name LIKE ?)", 1, phaseNamePrefix+"%").
 			Exec(bg)
 		_, _ = db.NewDelete().
 			TableExpr("enrollment.care_offerings").
-			Where("tenant_id = ?", 1).
+			Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = ? AND name LIKE ?)", 1, phaseNamePrefix+"%").
 			Exec(bg)
 		_, _ = db.NewDelete().
 			TableExpr("enrollment.phases").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ? AND name LIKE ?", 1, phaseNamePrefix+"%").
 			Exec(bg)
+		_ = db.Close()
 	}
 	return svc, repoFactory, cleanup
 }
@@ -101,11 +102,11 @@ func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
-	first := minimalPhase("dup-test")
+	first := minimalPhase(t.Name() + "-dup")
 	_, err := svc.Create(ctx, first)
 	require.NoError(t, err)
 
-	second := minimalPhase("dup-test")
+	second := minimalPhase(t.Name() + "-dup")
 	_, err = svc.Create(ctx, second)
 	require.Error(t, err, "UNIQUE(tenant_id, name) must reject duplicate")
 }
@@ -118,14 +119,14 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 	created, err := svc.Create(ctx, minimalPhase(t.Name()))
 	require.NoError(t, err)
 
-	created.Name = "renamed phase"
+	created.Name = "phase-" + t.Name() + "-renamed"
 	created.IsActive = false
 	created.CareOverflowMode = enrollmentModels.PhaseCareOverflowReject
 	require.NoError(t, svc.Update(ctx, created))
 
 	refreshed, err := svc.GetByID(ctx, created.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "renamed phase", refreshed.Name)
+	assert.Equal(t, "phase-"+t.Name()+"-renamed", refreshed.Name)
 	assert.False(t, refreshed.IsActive)
 	assert.Equal(t, enrollmentModels.PhaseCareOverflowReject, refreshed.CareOverflowMode)
 }
@@ -141,14 +142,14 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 	pastEnd := now.AddDate(0, 0, -1)
 
 	// Currently open + active.
-	openActive := minimalPhase("open-active")
+	openActive := minimalPhase(t.Name() + "-open-active")
 	openActive.EnrollmentOpenAt = &openStart
 	openActive.EnrollmentCloseAt = &openEnd
 	_, err := svc.Create(ctx, openActive)
 	require.NoError(t, err)
 
 	// Open + inactive (admin hidden).
-	hidden := minimalPhase("open-inactive")
+	hidden := minimalPhase(t.Name() + "-open-inactive")
 	hidden.EnrollmentOpenAt = &openStart
 	hidden.EnrollmentCloseAt = &openEnd
 	hidden.IsActive = false
@@ -156,7 +157,7 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 	require.NoError(t, err)
 
 	// Active but window closed yesterday.
-	closed := minimalPhase("closed-window")
+	closed := minimalPhase(t.Name() + "-closed-window")
 	closed.EnrollmentOpenAt = &openStart
 	closed.EnrollmentCloseAt = &pastEnd
 	_, err = svc.Create(ctx, closed)
@@ -165,7 +166,7 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 	open, err := svc.ListPublicOpen(ctx, now)
 	require.NoError(t, err)
 	require.Len(t, open, 1, "only the open+active phase should appear")
-	assert.Equal(t, "phase-open-active", open[0].Name)
+	assert.Equal(t, "phase-"+t.Name()+"-open-active", open[0].Name)
 }
 
 func TestPhaseService_Delete_RefusesWhenOfferingsReference(t *testing.T) {
