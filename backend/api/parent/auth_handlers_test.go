@@ -31,11 +31,12 @@ func (s *stubParentAuthService) LoginParentWithAudit(
 }
 
 // newTestResource wires a Resource with just the AuthService — the login
-// handler doesn't touch ParentService, RequestService, SchoolRepo or db.
-// If a future change to the handler reaches into them, the nil deref will
-// surface as a test failure, which is the desired guardrail.
+// handler doesn't touch ParentService, RequestService, GuardianProfileLoader,
+// SchoolRepo, AccountTenantRepo, or db. If a future change to the handler
+// reaches into them, the nil deref will surface as a test failure, which is
+// the desired guardrail.
 func newTestResource(svc authService.AuthService) *parent.Resource {
-	return parent.NewResource(svc, nil, nil, nil, nil)
+	return parent.NewResource(svc, nil, nil, nil, nil, nil, nil)
 }
 
 // postLogin runs a single POST against the login handler via the resource's

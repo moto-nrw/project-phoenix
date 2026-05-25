@@ -70,6 +70,7 @@ type Factory struct {
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
+	GuardianProfileLoader    users.GuardianProfileLoader
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
@@ -239,6 +240,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InvitationExpiry:        invitationTokenExpiry,
 		DB:                      db,
 	})
+
+	// Thin loader that backs the public + parent enrollment me/profile
+	// endpoints. Pulls the multi-schema join out of the handlers (Rule 1)
+	// and into the existing GuardianProfileRepository.LoadProfileWithChildren.
+	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
 	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, activeLogger)
@@ -879,6 +885,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,
+		GuardianProfileLoader:    guardianProfileLoader,
 		UserContext:              userContextService,
 		Database:                 databaseService,
 		Import:                   studentImportService, // Student import service

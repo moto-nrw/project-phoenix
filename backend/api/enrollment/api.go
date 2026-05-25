@@ -15,6 +15,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource bundles the handler methods + their dependencies.
@@ -27,6 +28,7 @@ type Resource struct {
 	DecisionService           enrollmentService.DecisionService
 	RolloverService           enrollmentService.RolloverService
 	GuardianInvitationService authService.GuardianInvitationService
+	GuardianProfileLoader     usersService.GuardianProfileLoader
 	SchoolRepo                platformModels.SchoolRepository
 	PhaseRepo                 enrollmentModels.PhaseRepository
 	db                        *bun.DB
@@ -47,6 +49,7 @@ func NewResource(
 	decisionSvc enrollmentService.DecisionService,
 	rolloverSvc enrollmentService.RolloverService,
 	guardianInvitationSvc authService.GuardianInvitationService,
+	guardianProfileLoader usersService.GuardianProfileLoader,
 	schoolRepo platformModels.SchoolRepository,
 	phaseRepo enrollmentModels.PhaseRepository,
 	db *bun.DB,
@@ -60,6 +63,7 @@ func NewResource(
 		DecisionService:           decisionSvc,
 		RolloverService:           rolloverSvc,
 		GuardianInvitationService: guardianInvitationSvc,
+		GuardianProfileLoader:     guardianProfileLoader,
 		SchoolRepo:                schoolRepo,
 		PhaseRepo:                 phaseRepo,
 		db:                        db,

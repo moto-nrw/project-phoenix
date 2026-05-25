@@ -47,11 +47,12 @@ type profileChild struct {
 // getEnrollmentProfile returns guardian + linked-children data for the
 // calling parent within the requested tenant. Tenant comes from the
 // path slug (admin-tx resolves it); account from claims.ID. The
-// guardian_profile lookup runs under WithTenantTx so RLS narrows
-// reads to that tenant — a parent who has no profile in this school
-// just gets claims-derived guardian fields and an empty children list.
+// repository call runs under WithTenantTx via the loader so RLS
+// narrows reads to that tenant — a parent who has no profile in this
+// school just gets claims-derived guardian fields and an empty
+// children list.
 func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request) {
-	if rs.db == nil {
+	if rs.GuardianProfileLoader == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment profile not wired")))
 		return
 	}
@@ -69,6 +70,46 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	schoolID, err := rs.resolveSchoolID(r.Context(), slug)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(err))
+		return
+	}
+
+	loaded, err := rs.GuardianProfileLoader.LoadForTenant(r.Context(), accountID, schoolID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	resp := buildEnrollmentProfileResponse(claims, loaded)
+	common.Respond(w, r, http.StatusOK, resp, "Profile retrieved")
+}
+
+// resolveSchoolID wraps SchoolRepo.FindBySlug in WithAdminTx so the
+// cross-tenant lookup is allowed. Returns an error when the slug
+// doesn't resolve or the school is soft-deleted.
+func (rs *Resource) resolveSchoolID(ctx context.Context, slug string) (int64, error) {
+	var out int64
+	err := tenant.WithAdminTx(ctx, rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+		school, findErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		if findErr != nil || school == nil || school.IsDeleted() {
+			return errors.New("tenant not found")
+		}
+		out = school.ID
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return out, nil
+}
+
+// buildEnrollmentProfileResponse merges the claims-derived defaults
+// with the (possibly nil) guardian profile loaded from the tenant.
+// Nil loaded → defaults only + empty children, matching the legacy
+// fall-through behavior.
+func buildEnrollmentProfileResponse(claims jwt.AppClaims, loaded *usersModels.GuardianProfileWithChildren) EnrollmentProfileResponse {
 	resp := EnrollmentProfileResponse{
 		Guardian: profileGuardian{
 			FirstName: claims.FirstName,
@@ -77,95 +118,35 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 		},
 		Children: []profileChild{},
 	}
-
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, err := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if err != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
-
-		// Stamp the resolved school onto the context BEFORE the nested
-		// WithTenantTx so its mismatch guard sees the same id (instead
-		// of the parent JWT's tenant_id=0, which would error out with
-		// "mismatched tenant_id"). Mirrors the submitParentEnrollment
-		// path below.
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-
-		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, tx bun.Tx) error {
-			var profile usersModels.GuardianProfile
-			schoolErr := tx.NewSelect().
-				Model(&profile).
-				ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
-				Where(`"guardian_profile".account_id = ?`, accountID).
-				Limit(1).
-				Scan(txCtx)
-			if schoolErr != nil {
-				return nil //nolint:nilerr // no profile in this tenant — fall through to claims-derived response
-			}
-
-			if profile.FirstName != "" {
-				resp.Guardian.FirstName = profile.FirstName
-			}
-			if profile.LastName != "" {
-				resp.Guardian.LastName = profile.LastName
-			}
-			if profile.Email != nil && *profile.Email != "" {
-				resp.Guardian.Email = *profile.Email
-			}
-
-			var primaryPhone usersModels.GuardianPhoneNumber
-			if err := tx.NewSelect().
-				Model(&primaryPhone).
-				ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
-				Where(`"guardian_phone_number".guardian_profile_id = ?`, profile.ID).
-				OrderExpr(`"guardian_phone_number".is_primary DESC, "guardian_phone_number".id ASC`).
-				Limit(1).
-				Scan(txCtx); err == nil && primaryPhone.PhoneNumber != "" {
-				phone := primaryPhone.PhoneNumber
-				resp.Guardian.Phone = &phone
-			}
-
-			type studentRow struct {
-				StudentID   int64  `bun:"student_id"`
-				FirstName   string `bun:"first_name"`
-				LastName    string `bun:"last_name"`
-				SchoolClass string `bun:"school_class"`
-			}
-			var rows []studentRow
-			if err := tx.NewSelect().
-				TableExpr(`users.students_guardians AS "sg"`).
-				ColumnExpr(`"s".id AS student_id`).
-				ColumnExpr(`"p".first_name`).
-				ColumnExpr(`"p".last_name`).
-				ColumnExpr(`"s".school_class`).
-				Join(`INNER JOIN users.students AS "s" ON "s".id = "sg".student_id`).
-				Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
-				Where(`"sg".guardian_profile_id = ?`, profile.ID).
-				Where(`"s".status <> ?`, "alumnus").
-				OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
-				Scan(txCtx, &rows); err == nil {
-				for _, row := range rows {
-					child := profileChild{
-						ID:          strconv.FormatInt(row.StudentID, 10),
-						FirstName:   row.FirstName,
-						LastName:    row.LastName,
-						SchoolClass: row.SchoolClass,
-					}
-					if grade := parseLeadingGrade(row.SchoolClass); grade > 0 {
-						child.GradeLevel = &grade
-					}
-					resp.Children = append(resp.Children, child)
-				}
-			}
-			return nil
-		})
-	})
-	if resolveErr != nil {
-		common.RenderError(w, r, common.ErrorNotFound(resolveErr))
-		return
+	if loaded == nil || loaded.Profile == nil {
+		return resp
 	}
-
-	common.Respond(w, r, http.StatusOK, resp, "Profile retrieved")
+	if loaded.Profile.FirstName != "" {
+		resp.Guardian.FirstName = loaded.Profile.FirstName
+	}
+	if loaded.Profile.LastName != "" {
+		resp.Guardian.LastName = loaded.Profile.LastName
+	}
+	if loaded.Profile.Email != nil && *loaded.Profile.Email != "" {
+		resp.Guardian.Email = *loaded.Profile.Email
+	}
+	if loaded.PrimaryPhone != "" {
+		phone := loaded.PrimaryPhone
+		resp.Guardian.Phone = &phone
+	}
+	for _, child := range loaded.Children {
+		entry := profileChild{
+			ID:          strconv.FormatInt(child.StudentID, 10),
+			FirstName:   child.FirstName,
+			LastName:    child.LastName,
+			SchoolClass: child.SchoolClass,
+		}
+		if grade := parseLeadingGrade(child.SchoolClass); grade > 0 {
+			entry.GradeLevel = &grade
+		}
+		resp.Children = append(resp.Children, entry)
+	}
+	return resp
 }
 
 // parseLeadingGrade extracts the leading integer from strings like "1a"
@@ -232,12 +213,20 @@ type submitParentResponse struct {
 }
 
 // submitParentEnrollment handles a parent-authenticated submission.
-// The handler resolves the slug to a tenant via admin-tx, then runs
-// the existing RequestService.Submit with GuardianAccountID stamped
-// from claims.ID. Captcha is skipped — the JWT is the trust signal.
+// The handler resolves the slug to a tenant via admin-tx, verifies the
+// calling account is mapped to that tenant via auth.account_tenants
+// (defense against an authenticated parent stamping rows on schools
+// they have no relationship with), then runs the existing
+// RequestService.Submit with GuardianAccountID stamped from claims.ID
+// and the originating IP captured for rate-limiting. Captcha is
+// skipped — the JWT is the trust signal.
 func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Request) {
 	if rs.RequestService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit not configured")))
+		return
+	}
+	if rs.AccountTenantRepo == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit: account tenant repo missing")))
 		return
 	}
 
@@ -272,6 +261,7 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 	var (
 		result    *enrollmentService.SubmitResult
 		submitErr error
+		forbidden bool
 	)
 	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, err := rs.SchoolRepo.FindBySlug(adminCtx, slug)
@@ -279,13 +269,22 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 			return errors.New("tenant not found")
 		}
 
+		// Tenant-mapping check: the parent JWT identifies the actor but
+		// does NOT prove they belong at this school. Without this
+		// guard, any authenticated parent could stamp
+		// guardian_account_id on requests for arbitrary tenants.
+		mapped, mapErr := rs.AccountTenantRepo.ExistsByAccountAndTenant(adminCtx, accountID, school.ID)
+		if mapErr != nil {
+			return fmt.Errorf("verify tenant membership: %w", mapErr)
+		}
+		if !mapped {
+			forbidden = true
+			return nil
+		}
+
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 
-		// No captcha. The parent JWT (issued only for accounts with
-		// a guardian role on at least one school) is sufficient
-		// anti-abuse signal; rate limiting still runs inside Submit.
-
-		serviceReq, parseErr := buildParentServiceRequest(wireReq, school.ID, accountID)
+		serviceReq, parseErr := buildParentServiceRequest(wireReq, school.ID, accountID, getClientIP(r))
 		if parseErr != nil {
 			submitErr = parseErr
 			return nil
@@ -302,6 +301,10 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorNotFound(resolveErr))
 		return
 	}
+	if forbidden {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("account is not a member of this school")))
+		return
+	}
 	if submitErr != nil {
 		mapParentSubmitError(w, r, submitErr)
 		return
@@ -315,11 +318,11 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 }
 
 // buildParentServiceRequest converts the wire request to the
-// enrollment.RequestService input. Mirrors api/enrollment.buildServiceRequest
-// but stamps GuardianAccountID and intentionally leaves RemoteIP empty
-// (parent submissions skip IP-based rate-limiting since the JWT already
-// identifies the actor).
-func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID, accountID int64) (enrollmentService.SubmitRequest, error) {
+// enrollment.RequestService input. Mirrors api/enrollment.buildServiceRequest,
+// stamps GuardianAccountID from the JWT, and now also forwards the
+// caller's IP so per-IP rate limiting applies on top of per-email
+// and per-account checks.
+func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID, accountID int64, remoteIP string) (enrollmentService.SubmitRequest, error) {
 	out := enrollmentService.SubmitRequest{
 		TenantID:          tenantID,
 		PhaseID:           wireReq.PhaseID,
@@ -330,6 +333,7 @@ func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID,
 		ConsentFlags:      wireReq.ConsentFlags,
 		CustomData:        wireReq.CustomData,
 		GuardianAccountID: &accountID,
+		RemoteIP:          remoteIP,
 	}
 	for i, c := range wireReq.Children {
 		dob, err := time.Parse("2006-01-02", c.DateOfBirth)

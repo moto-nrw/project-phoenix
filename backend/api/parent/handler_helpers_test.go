@@ -57,7 +57,7 @@ func TestBuildParentServiceRequest_StampsTenantAndAccount(t *testing.T) {
 			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
 		},
 	}
-	out, err := buildParentServiceRequest(wire, 7777, 4321)
+	out, err := buildParentServiceRequest(wire, 7777, 4321, "203.0.113.42")
 	require.NoError(t, err)
 	assert.Equal(t, int64(7777), out.TenantID)
 	require.NotNil(t, out.GuardianAccountID)
@@ -66,6 +66,8 @@ func TestBuildParentServiceRequest_StampsTenantAndAccount(t *testing.T) {
 	assert.Equal(t, int64(42), out.PhaseID)
 	assert.Equal(t, "anna@example.test", out.GuardianEmail)
 	assert.True(t, out.ConsentFlags["photo"].(bool))
+	assert.Equal(t, "203.0.113.42", out.RemoteIP,
+		"RemoteIP is forwarded so per-IP rate limiting applies even on authenticated parent submits")
 	require.Len(t, out.Children, 1)
 	assert.Equal(t, time.Date(2018, 3, 4, 0, 0, 0, 0, time.UTC), out.Children[0].DateOfBirth)
 }
@@ -85,7 +87,7 @@ func TestBuildParentServiceRequest_PreservesOfferingDays(t *testing.T) {
 			},
 		},
 	}
-	out, err := buildParentServiceRequest(wire, 7777, 4321)
+	out, err := buildParentServiceRequest(wire, 7777, 4321, "203.0.113.42")
 	require.NoError(t, err)
 	require.Len(t, out.Children, 1)
 	assert.Equal(t, []int64{77, 88}, out.Children[0].OfferingIDs)
@@ -101,7 +103,7 @@ func TestBuildParentServiceRequest_RejectsBadDateOfBirth(t *testing.T) {
 			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "not-a-date"},
 		},
 	}
-	_, err := buildParentServiceRequest(wire, 7777, 4321)
+	_, err := buildParentServiceRequest(wire, 7777, 4321, "203.0.113.42")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "date_of_birth")
 	assert.Contains(t, err.Error(), "YYYY-MM-DD")
@@ -113,7 +115,7 @@ func TestBuildParentServiceRequest_EmptyChildrenOK(t *testing.T) {
 	// should hand off cleanly even with zero children so the service
 	// can produce the expected ErrInvalidSubmission.
 	wire := &submitParentEnrollmentRequest{PhaseID: 42}
-	out, err := buildParentServiceRequest(wire, 7777, 4321)
+	out, err := buildParentServiceRequest(wire, 7777, 4321, "203.0.113.42")
 	require.NoError(t, err)
 	assert.Empty(t, out.Children)
 }
@@ -126,7 +128,7 @@ func TestBuildParentServiceRequest_TargetGradeLevelPassesThrough(t *testing.T) {
 			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04", TargetGradeLevel: &g},
 		},
 	}
-	out, err := buildParentServiceRequest(wire, 7777, 4321)
+	out, err := buildParentServiceRequest(wire, 7777, 4321, "203.0.113.42")
 	require.NoError(t, err)
 	require.NotNil(t, out.Children[0].TargetGradeLevel)
 	assert.Equal(t, int16(2), *out.Children[0].TargetGradeLevel)

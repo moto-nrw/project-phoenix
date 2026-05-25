@@ -507,6 +507,14 @@ type GuardianProfileRepository interface {
 
 	// GetStudentCount returns the number of students for a guardian
 	GetStudentCount(ctx context.Context, profileID int64) (int, error)
+
+	// LoadProfileWithChildren returns the guardian profile linked to the
+	// given account along with their primary phone and a summary of
+	// every active student linked via users.students_guardians. Returns
+	// (nil, nil) when no profile exists in the current tenant context
+	// — callers fall through to claims-derived defaults instead of
+	// erroring. RLS narrows reads to the tenant in context.
+	LoadProfileWithChildren(ctx context.Context, accountID int64) (*GuardianProfileWithChildren, error)
 }
 
 // GuardianPhoneNumberRepository defines operations for managing guardian phone numbers

@@ -354,6 +354,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentDecision,
 		api.Services.EnrollmentRollover,
 		api.Services.GuardianInvitation,
+		api.Services.GuardianProfileLoader,
 		repoFactory.School,
 		repoFactory.Phase,
 		db,
@@ -441,7 +442,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.Auth,
 		api.Services.Parent,
 		api.Services.EnrollmentRequest,
+		api.Services.GuardianProfileLoader,
 		repoFactory.School,
+		repoFactory.AccountTenant,
 		db,
 	)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{

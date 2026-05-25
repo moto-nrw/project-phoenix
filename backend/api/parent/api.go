@@ -25,20 +25,24 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource bundles the parent-portal HTTP handlers + their deps.
 type Resource struct {
-	AuthService     authService.AuthService
-	ParentService   parentService.Service
-	RequestService  enrollmentService.RequestService
-	SchoolRepo      platformModels.SchoolRepository
-	db              *bun.DB
-	authRateLimiter func(http.Handler) http.Handler
+	AuthService           authService.AuthService
+	ParentService         parentService.Service
+	RequestService        enrollmentService.RequestService
+	GuardianProfileLoader usersService.GuardianProfileLoader
+	SchoolRepo            platformModels.SchoolRepository
+	AccountTenantRepo     authModels.AccountTenantRepository
+	db                    *bun.DB
+	authRateLimiter       func(http.Handler) http.Handler
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for the public parent
@@ -54,15 +58,19 @@ func NewResource(
 	auth authService.AuthService,
 	parent parentService.Service,
 	requestSvc enrollmentService.RequestService,
+	guardianProfileLoader usersService.GuardianProfileLoader,
 	schoolRepo platformModels.SchoolRepository,
+	accountTenantRepo authModels.AccountTenantRepository,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
-		AuthService:    auth,
-		ParentService:  parent,
-		RequestService: requestSvc,
-		SchoolRepo:     schoolRepo,
-		db:             db,
+		AuthService:           auth,
+		ParentService:         parent,
+		RequestService:        requestSvc,
+		GuardianProfileLoader: guardianProfileLoader,
+		SchoolRepo:            schoolRepo,
+		AccountTenantRepo:     accountTenantRepo,
+		db:                    db,
 	}
 }
 
