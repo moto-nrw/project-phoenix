@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
   fetchMyEnrollmentProfile,
@@ -14,6 +15,8 @@ import {
 } from "~/lib/enrollment-submission-api";
 import {
   fetchPublicActiveSchema,
+  fetchPublicCaptchaConfig,
+  type PublicCaptchaConfig,
   type PublicFormSchema,
 } from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
@@ -165,6 +168,8 @@ export function EnrollmentForm({
   // shared across all children in the submission.
   const [customData, setCustomData] = useState<Record<string, unknown>>({});
   const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaConfig, setCaptchaConfig] =
+    useState<PublicCaptchaConfig | null>(null);
   const [profile, setProfile] = useState<MeProfileResponse | null>(null);
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
@@ -177,7 +182,7 @@ export function EnrollmentForm({
       setError(null);
       try {
         const profileLoader = profileFetcher ?? fetchMyEnrollmentProfile;
-        const [schemaResult, offeringsResult, profileResult] =
+        const [schemaResult, offeringsResult, profileResult, captchaResult] =
           await Promise.all([
             previewSchema !== undefined
               ? Promise.resolve(previewSchema)
@@ -188,11 +193,18 @@ export function EnrollmentForm({
               ? fetchPublicCareOfferings(tenantSlug, phaseID)
               : Promise.resolve({ offerings: [], careRequired: false }),
             profileLoader().catch(() => null),
+            // Skip the captcha config when the caller already authenticated
+            // the parent (parent-portal embedded form). Saves a round-trip
+            // and avoids rendering the widget on an already-trusted path.
+            skipCaptcha
+              ? Promise.resolve(null)
+              : fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
           ]);
         if (cancelled) return;
         setSchema(schemaResult);
         setOfferings(offeringsResult.offerings);
         setCareRequired(offeringsResult.careRequired);
+        setCaptchaConfig(captchaResult);
         // Prefill guardian fields from the profile when present. We
         // only fill empty fields so an admin testing the form on a
         // teacher session can still type their own values.
@@ -223,7 +235,7 @@ export function EnrollmentForm({
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug, phaseID, previewSchema, profileFetcher]);
+  }, [tenantSlug, phaseID, previewSchema, profileFetcher, skipCaptcha]);
 
   const updateChild = (index: number, patch: Partial<ChildDraft>) => {
     setChildren((prev) =>
@@ -684,7 +696,7 @@ export function EnrollmentForm({
                   <p className="text-sm font-semibold text-gray-700">
                     Betreuungsangebote
                     {careRequired && (
-                      <span className="ml-1 text-[#EF4444]">*</span>
+                      <span className="ml-1 text-[#FF3130]">*</span>
                     )}
                   </p>
                   <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -695,7 +707,7 @@ export function EnrollmentForm({
                 <div
                   className={`space-y-2 ${
                     childOfferingErrors[i]
-                      ? "rounded-md border border-[#EF4444] bg-red-50 p-2"
+                      ? "rounded-md border border-[#FF3130] bg-[#FF3130]/5 p-2"
                       : ""
                   }`}
                 >
@@ -791,7 +803,7 @@ export function EnrollmentForm({
                   })}
                 </div>
                 {childOfferingErrors[i] && (
-                  <p className="mt-1 text-xs text-[#EF4444]">
+                  <p className="mt-1 text-xs text-[#FF3130]">
                     Bitte mindestens ein Betreuungsangebot auswählen.
                   </p>
                 )}
@@ -852,29 +864,48 @@ export function EnrollmentForm({
         />
       </section>
 
-      {!skipCaptcha && (
-        <input
-          type="hidden"
-          name="captcha_token"
-          value={captchaToken}
-          onChange={(e) => setCaptchaToken(e.target.value)}
-        />
-      )}
       {/*
-        Captcha widget: PR 7 ships the form skeleton + the backend
-        Verify path. The Cloudflare Turnstile widget is injected by
-        the page wrapper when enrollment.captcha_site_key is set; the
-        widget's onSuccess handler calls window.dispatchEvent('moto-captcha')
-        with the token, which a small companion component picks up.
-        Until that wiring lands, captcha can be disabled per-tenant
-        via enrollment.require_captcha=false for development/testing.
-        skipCaptcha=true skips the widget entirely, set by callers
-        that have already authenticated the user (parent JWT path).
+        Cloudflare Turnstile widget. Only rendered when:
+        - the caller didn't skip captcha (parent JWT path skips), and
+        - the tenant has configured enrollment.captcha_site_key.
+        When require_captcha=true but no site_key is set, we still
+        render a warning to the parent and disable submit — failing
+        closed is safer than letting bots through silently.
+        The hidden input ships the token along with the form post.
       */}
+      {!skipCaptcha && captchaConfig?.site_key && (
+        <section aria-labelledby="captcha-heading" className="space-y-2">
+          <h2 id="captcha-heading" className="sr-only">
+            Sicherheitsprüfung
+          </h2>
+          <Turnstile
+            siteKey={captchaConfig.site_key}
+            options={{ theme: "light" }}
+            onSuccess={(token) => setCaptchaToken(token)}
+            onExpire={() => setCaptchaToken("")}
+            onError={() => setCaptchaToken("")}
+          />
+          <input type="hidden" name="captcha_token" value={captchaToken} />
+        </section>
+      )}
+      {!skipCaptcha && captchaConfig?.enabled && !captchaConfig.site_key && (
+        <div
+          role="alert"
+          className="rounded-md border border-[#FF3130]/30 bg-[#FF3130]/5 p-3 text-sm text-[#CC2626]"
+        >
+          Die Anmeldung ist derzeit nicht möglich: Die Bot-Schutz-Konfiguration
+          ist unvollständig. Bitte wende dich an die OGS-Leitung.
+        </div>
+      )}
 
       <button
         type="submit"
-        disabled={submitting || previewMode}
+        disabled={
+          submitting ||
+          previewMode ||
+          (!skipCaptcha && !!captchaConfig?.site_key && !captchaToken) ||
+          (!skipCaptcha && !!captchaConfig?.enabled && !captchaConfig.site_key)
+        }
         className="h-11 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400"
       >
         {previewMode
@@ -937,11 +968,11 @@ function Input({
         spellCheck={type === "email" ? false : undefined}
         className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
           error
-            ? "border-[#EF4444] bg-red-50"
+            ? "border-[#FF3130] bg-[#FF3130]/5"
             : "moto-content-surface hover:border-gray-300"
         }`}
       />
-      {error && <p className="mt-1 text-xs text-[#EF4444]">{error}</p>}
+      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </label>
   );
 }
@@ -972,7 +1003,7 @@ function GradeLevelSelect({
         aria-invalid={error ? true : undefined}
         className={`moto-select mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
           error
-            ? "border-[#EF4444] bg-red-50"
+            ? "border-[#FF3130] bg-[#FF3130]/5"
             : "moto-content-surface hover:border-gray-300"
         }`}
       >
@@ -985,7 +1016,7 @@ function GradeLevelSelect({
           </option>
         ))}
       </select>
-      {error && <p className="mt-1 text-xs text-[#EF4444]">{error}</p>}
+      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </label>
   );
 }
@@ -1032,7 +1063,7 @@ function Consent({
           checked
             ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
             : error
-              ? "border-[#EF4444] bg-red-50"
+              ? "border-[#FF3130] bg-[#FF3130]/5"
               : "border-gray-200 bg-white hover:border-gray-300"
         }`}
       >
@@ -1053,10 +1084,10 @@ function Consent({
           )}
         </span>
         <span className="leading-6 font-medium text-gray-700">
-          {label} {required && <span className="text-red-500">*</span>}
+          {label} {required && <span className="text-[#FF3130]">*</span>}
         </span>
       </label>
-      {error && <p className="mt-1 text-xs text-[#EF4444]">{error}</p>}
+      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </div>
   );
 }
@@ -1071,7 +1102,7 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
   const labelEl = (
     <span className="block text-sm font-semibold text-gray-700">
       {field.label}
-      {field.required && <span className="text-red-500"> *</span>}
+      {field.required && <span className="text-[#FF3130]"> *</span>}
     </span>
   );
   const valueStr = typeof value === "string" ? value : "";
@@ -1217,7 +1248,7 @@ function PhoneListInput({ field, value, onChange }: CustomFieldInputProps) {
     <fieldset className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
       <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
-        {field.required && <span className="text-red-500"> *</span>}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
       {phones.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
@@ -1329,7 +1360,7 @@ function WeekdayScheduleInput({
     <fieldset className="rounded-lg border border-gray-200 p-3">
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
-        {field.required && <span className="text-red-500"> *</span>}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
       <p className="text-xs text-gray-500">
         Leere Felder bedeuten: an diesem Tag keine Angabe.
@@ -1391,7 +1422,7 @@ function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
     <fieldset className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
-        {field.required && <span className="text-red-500"> *</span>}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
       {contacts.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
@@ -1710,7 +1741,7 @@ function DateOfBirthPicker({
 
   const selectClass = `moto-select h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
     error
-      ? "border-[#EF4444] bg-red-50"
+      ? "border-[#FF3130] bg-[#FF3130]/5"
       : "moto-content-surface hover:border-gray-300"
   }`;
 
@@ -1760,7 +1791,7 @@ function DateOfBirthPicker({
           ))}
         </select>
       </div>
-      {error && <p className="mt-1 text-xs text-[#EF4444]">{error}</p>}
+      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </>
   );
 }

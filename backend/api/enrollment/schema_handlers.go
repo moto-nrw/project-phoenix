@@ -152,6 +152,51 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, out, "Public active form schema retrieved")
 }
 
+// PublicCaptchaConfigResponse carries the tenant-scoped Cloudflare
+// Turnstile site key + enabled flag so the public form can render
+// the widget. Returned by GET /enrollment/captcha-config/{tenantSlug}.
+// SiteKey is intentionally surfaced — Turnstile site keys are public
+// by design (they appear in the rendered widget markup).
+type PublicCaptchaConfigResponse struct {
+	Enabled bool   `json:"enabled"`
+	SiteKey string `json:"site_key"`
+}
+
+// publicCaptchaConfig serves the captcha config for the parent form.
+// Slug-gated, no JWT.
+func (rs *Resource) publicCaptchaConfig(w http.ResponseWriter, r *http.Request) {
+	if rs.CaptchaService == nil || rs.SchoolRepo == nil || rs.db == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("captcha config endpoint not wired")))
+		return
+	}
+
+	slug := chi.URLParam(r, "tenantSlug")
+	if slug == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
+		return
+	}
+
+	out := PublicCaptchaConfigResponse{}
+	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		if schoolErr != nil || school == nil || school.IsDeleted() {
+			return errors.New("tenant not found")
+		}
+		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
+		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+			out.Enabled = rs.CaptchaService.IsEnabled(txCtx)
+			out.SiteKey = rs.CaptchaService.SiteKey(txCtx)
+			return nil
+		})
+	})
+	if resolveErr != nil {
+		renderPublicEnrollmentError(w, r, resolveErr)
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, out, "Captcha config retrieved")
+}
+
 // getActiveSchema returns the currently-active schema or 404 if none
 // has been published yet for this tenant.
 func (rs *Resource) getActiveSchema(w http.ResponseWriter, r *http.Request) {

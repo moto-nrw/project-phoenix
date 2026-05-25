@@ -42,6 +42,13 @@ type CaptchaService interface {
 	// tenant in context. Frontend calls this so it can hide the
 	// widget when the setting is off.
 	IsEnabled(ctx context.Context) bool
+
+	// SiteKey returns the public Cloudflare Turnstile site key for the
+	// tenant in context, or "" when unset. Safe to expose on a public
+	// endpoint — it's the same value that lives in the rendered widget
+	// markup. Falls back to env ENROLLMENT_CAPTCHA_SITE_KEY when no
+	// tenant override exists.
+	SiteKey(ctx context.Context) string
 }
 
 // CaptchaServiceConfig is the dependency-injection bundle.
@@ -163,4 +170,17 @@ func (s *captchaService) resolveSecret(ctx context.Context) string {
 		}
 	}
 	return strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SECRET_KEY"))
+}
+
+// SiteKey resolves the public Turnstile site key via the same tenant
+// override → env var fallback chain used by the secret key.
+func (s *captchaService) SiteKey(ctx context.Context) string {
+	if s.settings != nil {
+		if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentCaptchaSiteKey); err == nil && has {
+			if v, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentCaptchaSiteKey); err == nil && v != "" {
+				return v
+			}
+		}
+	}
+	return strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SITE_KEY"))
 }

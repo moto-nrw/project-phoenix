@@ -222,6 +222,34 @@ export interface PublicFormSchema {
   fields: FormField[];
 }
 
+/**
+ * Public Cloudflare Turnstile config for a tenant. enabled mirrors the
+ * server-side enrollment.require_captcha setting; site_key is the
+ * public Turnstile site key (safe to render in the widget). When
+ * site_key is empty the widget is hidden and submit falls through —
+ * the backend's IsEnabled check still gates verification.
+ */
+export interface PublicCaptchaConfig {
+  enabled: boolean;
+  site_key: string;
+}
+
+export async function fetchPublicCaptchaConfig(
+  tenantSlug: string,
+): Promise<PublicCaptchaConfig | null> {
+  const response = await fetch(
+    `/api/enrollment/captcha-config/${encodeURIComponent(tenantSlug)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    logger.warn("public_captcha_config_failed", {
+      status: response.status,
+    });
+    return null;
+  }
+  return readJSON<PublicCaptchaConfig>(response);
+}
+
 export async function fetchPublicActiveSchema(
   tenantSlug: string,
   phaseId: string,
