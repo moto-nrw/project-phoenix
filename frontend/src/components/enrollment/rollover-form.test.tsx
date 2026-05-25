@@ -96,7 +96,9 @@ describe("RolloverForm", () => {
     expect(endInput.value).toBe("2028-07-31");
 
     // mode defaults to opt_out (safer default — parent doesn't need to act)
-    const modeSelect = screen.getByLabelText("Modus") as HTMLSelectElement;
+    const modeSelect = document.getElementById(
+      "rollover-mode",
+    ) as HTMLSelectElement;
     expect(modeSelect.value).toBe("opt_out");
 
     // bumps_grade defaults to true (yearly cadence)
@@ -162,9 +164,12 @@ describe("RolloverForm", () => {
       ),
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Modus"), {
-      target: { value: "opt_in" },
-    });
+    fireEvent.change(
+      document.getElementById("rollover-mode") as HTMLSelectElement,
+      {
+        target: { value: "opt_in" },
+      },
+    );
 
     // The opt_in description ends with "wird die Anmeldung zurückgezogen" —
     // matching the unique tail keeps us off the dropdown <option> text.

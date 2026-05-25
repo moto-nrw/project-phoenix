@@ -222,7 +222,7 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
           Elternrückmeldung
         </legend>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
+          <label className="block" htmlFor="rollover-mode">
             <span className="block text-xs font-semibold text-gray-700">
               Modus
             </span>
