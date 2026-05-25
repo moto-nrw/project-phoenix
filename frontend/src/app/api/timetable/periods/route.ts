@@ -1,7 +1,7 @@
 // app/api/timetable/periods/route.ts
 //
-// GET  /api/timetable/periods       — list all calendar periods for the tenant
-// POST /api/timetable/periods       — create a new calendar period
+// GET  /api/timetable/periods       - list all calendar periods for the tenant
+// POST /api/timetable/periods       - create a new calendar period
 //
 // The Go backend (api/timetable/api.go listPeriods/createPeriod) wraps
 // responses in { status, data, message }. Strip that envelope here so

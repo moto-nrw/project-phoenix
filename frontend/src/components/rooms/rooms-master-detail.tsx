@@ -211,7 +211,7 @@ function RoomStatusSummary({ room }: { room: Room }) {
   const isOccupied = room.isOccupied;
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
+    <section className="moto-content-surface rounded-lg border p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={

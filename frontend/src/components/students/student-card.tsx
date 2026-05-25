@@ -26,7 +26,7 @@ interface StudentCardProps {
    * checking the feature flag themselves.
    */
   readonly photoUrl?: string | null;
-  /** Gradient class for the card overlay */
+  /** Legacy visual accent prop retained for existing callers. */
   readonly gradient?: string;
   /** Click handler for navigation (used when checkinMode is false/absent) */
   readonly onClick: () => void;
@@ -103,7 +103,7 @@ export function StudentCard({
   firstName,
   lastName,
   photoUrl,
-  gradient = "from-blue-50/80 to-cyan-100/80",
+  gradient,
   onClick,
   locationBadge,
   extraContent,
@@ -130,6 +130,7 @@ export function StudentCard({
   const ariaLabel = checkinMode
     ? `${firstName} ${lastName} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
     : `${firstName} ${lastName} - Tippen für mehr Infos`;
+  void gradient;
 
   return (
     <button
@@ -141,32 +142,16 @@ export function StudentCard({
       aria-busy={isCheckinPending}
       data-checkin-mode={checkinMode || undefined}
       data-checkin-state={checkinMode ? checkinState : undefined}
-      className={`group relative w-full cursor-pointer overflow-hidden rounded-3xl bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none disabled:cursor-wait disabled:opacity-70 md:hover:-translate-y-0.5 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)] ${
+      className={`group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70 ${
         // Click-time scale skipped in check-in mode: sub-pixel aliasing
         // during the scale animation flashes a 1px white seam at the
         // body→tap-strip boundary. Pending spinner gives the click feedback.
-        checkinMode ? "" : "active:scale-[0.98] disabled:active:scale-100"
+        checkinMode ? "" : "active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
       }`}
     >
       <div className={`relative ${checkinMode ? "p-6 pb-0" : "p-6 pb-5"}`}>
-        {/* Decorative layers — scoped to the card body so the tap-strip
-            below stays cleanly coloured. The from-white/80 gradient was
-            previously washing the strip into a pale tint. */}
-        <div
-          className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${gradient} opacity-[0.03]`}
-        />
-        {/* White-gradient overlay. In navigation mode it sits at inset-px
-            so the rounded corners stay crisp; in check-in mode it stretches
-            full inset so the 1px button-bg seam at the body→tap-strip
-            boundary doesn't flash white during the click animation. */}
-        <div
-          className={`pointer-events-none absolute ${checkinMode ? "inset-0" : "inset-px"} bg-gradient-to-br from-white/80 to-white/20`}
-        />
-        {/* Subtle hover ring — only in navigation mode. In check-in mode the
-            tap-strip below carries the visual signal, and a hover ring would
-            print as a horizontal line at the body→strip boundary (pb-0). */}
         {!checkinMode && (
-          <div className="pointer-events-none absolute inset-0 ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-blue-200/60" />
+          <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
         )}
 
         {/* Card body content sits above the decorative layers */}
@@ -189,14 +174,14 @@ export function StudentCard({
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-150 md:group-hover:text-blue-600">
+                    <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
                       {firstName}
                     </h3>
                     {/* Arrow hint only points to navigation; in check-in mode the
                       bottom strip carries the action signal instead. */}
                     {!checkinMode && (
                       <svg
-                        className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-150 md:group-hover:text-blue-500"
+                        className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -210,7 +195,7 @@ export function StudentCard({
                       </svg>
                     )}
                   </div>
-                  <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-150 md:group-hover:text-blue-500">
+                  <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-200 md:group-hover:text-gray-800">
                     {lastName}
                   </p>
                 </div>
@@ -232,15 +217,10 @@ export function StudentCard({
 
           {/* Bottom hint in navigation mode only. */}
           {!checkinMode && (
-            <p className="text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
+            <p className="text-xs text-gray-400 transition-colors duration-200 md:group-hover:text-gray-500">
               Tippen für mehr Infos
             </p>
           )}
-
-          {/* Decorative bottom-right ping — static, no pulse animation.
-              The previous top-left animate-ping was removed because it
-              visually pulsed through the avatar now sitting in that corner. */}
-          <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30" />
         </div>
       </div>
 
@@ -291,11 +271,6 @@ export function StudentCard({
           )}
           <span>{tapStrip.copy}</span>
         </div>
-      )}
-
-      {/* Glowing border effect — navigation mode only */}
-      {!checkinMode && (
-        <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-150 md:group-hover:opacity-100" />
       )}
     </button>
   );

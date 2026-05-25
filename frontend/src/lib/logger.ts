@@ -330,11 +330,11 @@ class ClientLogger implements Logger {
 
       if (!response.ok) {
         // Fallback to console if API fails
-        console.error("[Logger] Failed to ship logs:", response.statusText);
+        console.warn("[Logger] Failed to ship logs:", response.statusText);
       }
     } catch (error) {
       // Network error - logs are lost (acceptable tradeoff)
-      console.error("[Logger] Network error shipping logs:", error);
+      console.warn("[Logger] Network error shipping logs:", error);
     }
   }
 

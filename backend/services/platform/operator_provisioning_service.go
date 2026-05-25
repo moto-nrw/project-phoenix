@@ -706,14 +706,21 @@ INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
 
 // queryDevices runs the shared device query with an optional WHERE clause.
 // All callers pass static WHERE strings with parameterized args — no user input is concatenated.
+//
+// Devices belonging to a soft-deleted school or organization are filtered out
+// unconditionally so global listings (operator dashboard) never surface entries
+// for tenants that are in the Papierkorb. Detail endpoints (ListSchoolDevices,
+// ListOrganizationDevices) still reject deleted targets via their explicit
+// IsDeleted pre-check before reaching this query; the SQL filter is the
+// safety net for the global ListAllDevices path.
 func (s *operatorProvisioningService) queryDevices(adminCtx context.Context, whereClause string, args ...interface{}) ([]OperatorDeviceInfo, error) {
 	var db bun.IDB = s.txHandler.DB
 	if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
 		db = tx
 	}
-	q := operatorDeviceQuery
+	q := operatorDeviceQuery + ` WHERE "s".deleted_at IS NULL AND "o".deleted_at IS NULL`
 	if whereClause != "" {
-		q += " WHERE " + whereClause
+		q += " AND " + whereClause
 	}
 	q += ` ORDER BY "o".name, "s".name, "d".device_id`
 
@@ -769,6 +776,9 @@ func (s *operatorProvisioningService) ListOrganizationDevices(ctx context.Contex
 		}
 		if org == nil {
 			return &OrganizationNotFoundError{OrganizationID: organizationID}
+		}
+		if org.IsDeleted() {
+			return &OrganizationDeletedError{OrganizationID: organizationID}
 		}
 		var queryErr error
 		result, queryErr = s.queryDevices(adminCtx, `"o".id = ?`, organizationID)

@@ -73,5 +73,6 @@ describe("AppShell", () => {
     expect(main).toBeInTheDocument();
     expect(main.className).toContain("flex-1");
     expect(main.className).toContain("pb-24");
+    expect(main.className).not.toContain("moto-dotted-background");
   });
 });

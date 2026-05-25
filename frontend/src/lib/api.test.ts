@@ -214,6 +214,35 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("logs 429 failures as rate-limit warnings", async () => {
+      const consoleWarn = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockRejectedValueOnce(
+        new Error("API error: 429"),
+      );
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.getStudents({ token: "test-token" }),
+        ).rejects.toThrow("Error fetching students: API error: 429");
+
+        expect(consoleWarn).toHaveBeenCalledWith("api operation rate limited", {
+          context: "Error fetching students",
+          error: "API error: 429",
+          status: 429,
+          rate_limited: true,
+        });
+      } finally {
+        consoleWarn.mockRestore();
+        restore();
+      }
+    });
   });
 
   describe("studentService.createStudent", () => {

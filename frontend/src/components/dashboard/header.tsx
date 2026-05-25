@@ -2,7 +2,7 @@
 // Refactored with extracted sub-components to reduce cognitive complexity
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { LogoutModal } from "~/components/ui/logout-modal";
 import { TenantSwitcher } from "~/components/tenant/tenant-switcher";
@@ -19,10 +19,12 @@ import {
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   InvitationsBreadcrumb,
+  EnrollmentBreadcrumb,
   ActivityBreadcrumb,
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
+  ParentChildBreadcrumb,
   PageTitleDisplay,
 } from "./header/breadcrumb-components";
 import {
@@ -47,6 +49,7 @@ export function Header() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
   const {
@@ -57,6 +60,10 @@ export function Header() {
     homeUrl,
     profileUrl,
   } = useShellAuth();
+  const displayedPageTitle =
+    mode === "parent" && (pathname === "/" || pathname === "/parents")
+      ? "Start"
+      : pageTitle;
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
@@ -65,9 +72,11 @@ export function Header() {
   const userRole =
     mode === "operator"
       ? "Operator"
-      : userRoles.includes("admin")
-        ? "Admin"
-        : "Betreuer";
+      : mode === "parent"
+        ? "Eltern"
+        : userRoles.includes("admin")
+          ? "Admin"
+          : "Betreuer";
 
   // Scroll effect for header shrinking (hysteresis to prevent flicker)
   useEffect(() => {
@@ -80,6 +89,30 @@ export function Header() {
     });
     return () => globalThis.window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (profileMenuRef.current?.contains(target)) return;
+      setIsProfileMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isProfileMenuOpen]);
 
   // Get page type information
   const pageTypeInfo = getPageTypeInfo(pathname);
@@ -96,13 +129,13 @@ export function Header() {
 
   return (
     <header
-      className={`sticky top-0 z-50 w-full bg-white transition-all duration-300 ${
+      className={`sticky top-0 z-50 w-full border-b border-gray-200/70 bg-white/95 backdrop-blur-md transition-[background-color,border-color,box-shadow] duration-300 ${
         isScrolled ? "shadow-sm" : ""
       }`}
     >
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div
-          className={`flex w-full items-center transition-all duration-300 ${
+          className={`flex w-full items-center transition-[height] duration-300 ${
             isScrolled ? "h-12 lg:h-16" : "h-14 lg:h-16"
           }`}
         >
@@ -112,7 +145,7 @@ export function Header() {
             <BreadcrumbDivider />
             <HeaderBreadcrumb
               pathname={pathname}
-              pageTitle={pageTitle}
+              pageTitle={displayedPageTitle}
               pageTypeInfo={pageTypeInfo}
               subPageLabel={subPageLabel}
               isScrolled={isScrolled}
@@ -141,11 +174,10 @@ export function Header() {
               <RefreshButton />
             </div>
 
-            {/* Tenant switcher */}
-            <TenantSwitcher />
+            {mode === "teacher" ? <TenantSwitcher /> : null}
 
             {/* User menu */}
-            <div className="relative">
+            <div ref={profileMenuRef} className="relative">
               <ProfileTrigger
                 displayName={displayName}
                 displayAvatar={displayAvatar}
@@ -254,6 +286,22 @@ function HeaderBreadcrumb({
   // Invitations page
   if (pathname === "/invitations") {
     return <InvitationsBreadcrumb />;
+  }
+
+  if (pageTypeInfo.isEnrollmentPage) {
+    return (
+      <EnrollmentBreadcrumb
+        current={pageTitle}
+        pathname={pathname}
+        isScrolled={isScrolled}
+      />
+    );
+  }
+
+  if (pathname.startsWith("/parents/children/")) {
+    return (
+      <ParentChildBreadcrumb childName={pageTitle} isScrolled={isScrolled} />
+    );
   }
 
   // Activity detail page

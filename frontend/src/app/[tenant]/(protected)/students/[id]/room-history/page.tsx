@@ -162,7 +162,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
       {/* Anwesenheit */}
-      <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
         <div className="p-4 sm:p-6">
           <div className="mb-3">
             <h2 className="text-base font-bold text-gray-900 sm:text-lg">
@@ -221,7 +221,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
       </div>
 
       {/* Aktivität (Raumwechsel) */}
-      <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
         <div className="p-4 sm:p-6">
           <div className="mb-3">
             <h2 className="text-base font-bold text-gray-900 sm:text-lg">
@@ -425,7 +425,7 @@ function HistoryTable({
   const todayKey = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
       <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
         <h2 className="text-base font-bold text-gray-900 sm:text-lg">
           Anwesenheitsprotokoll

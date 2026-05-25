@@ -201,7 +201,10 @@ func (s *guardianService) DeleteGuardian(ctx context.Context, id int64) error {
 	return s.guardianProfileRepo.Delete(ctx, id)
 }
 
-// SendInvitation sends an invitation to a guardian
+// SendInvitation sends an invitation to a guardian.
+//
+// Deprecated: Replaced by services/auth.GuardianInvitationService.Create
+// (parent-enrollment PR 3). Frontend does not call this. Cleanup PR pending.
 func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvitationRequest) (*authModels.GuardianInvitation, error) {
 	// Get guardian profile
 	profile, err := s.guardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
@@ -338,7 +341,10 @@ func (s *guardianService) getStudentNamesForGuardian(ctx context.Context, guardi
 	return studentNames, nil
 }
 
-// ValidateInvitation validates an invitation token
+// ValidateInvitation validates an invitation token.
+//
+// Deprecated: Replaced by services/auth.GuardianInvitationService.Validate
+// (parent-enrollment PR 3). Frontend does not call this. Cleanup PR pending.
 func (s *guardianService) ValidateInvitation(ctx context.Context, token string) (*GuardianInvitationValidationResult, error) {
 	invitation, err := s.guardianInvitationRepo.FindByToken(ctx, token)
 	if err != nil {
@@ -375,7 +381,13 @@ func (s *guardianService) ValidateInvitation(ctx context.Context, token string) 
 	}, nil
 }
 
-// AcceptInvitation accepts an invitation and creates a guardian account
+// AcceptInvitation accepts an invitation and creates a guardian account.
+//
+// Deprecated: This flow writes to the orphaned auth.accounts_parents table
+// and is unused by the frontend. The parent-enrollment plan replaces this
+// with services/auth.GuardianInvitationService (PR 3, 2026-04). Will be
+// removed in a separate cleanup PR once /api/guardians/invitations/...
+// routes are confirmed unused. New code should not call this method.
 func (s *guardianService) AcceptInvitation(ctx context.Context, req GuardianInvitationAcceptRequest) (*authModels.AccountParent, error) {
 	if err := s.validateInvitationAcceptRequest(req); err != nil {
 		return nil, err

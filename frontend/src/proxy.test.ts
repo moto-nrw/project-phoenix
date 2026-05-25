@@ -2,8 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const OPERATOR_HOSTNAME = "operator.localhost:3000";
+const PARENTS_HOSTNAME = "parents.localhost:3000";
 
 vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
+vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
 
 // Import after env is stubbed — proxy reads the env var at module load
@@ -29,10 +31,12 @@ describe("proxy env validation", () => {
 
     // Restore for subsequent imports
     vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
+    vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
   });
 
   it("throws when TENANT_DOMAIN is missing", async () => {
     vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
+    vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
     vi.stubEnv("TENANT_DOMAIN", "");
 
     await expect(
@@ -303,6 +307,18 @@ describe("proxy", () => {
 
       const rewrite = res.headers.get("x-middleware-rewrite");
       expect(rewrite).toContain("/school-a");
+    });
+
+    it("rewrites /login to the tenant root login page", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/login`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(new URL(rewrite!).pathname).toBe("/school-a");
     });
 
     it("skips rewrite when path already has tenant prefix with slash", () => {

@@ -86,11 +86,14 @@ Both `api-helpers.ts` and `operator/route-wrapper.ts` use this pattern. The same
 
 ### Subdomain-Based Tenant Resolution
 
-Proxy (`src/proxy.ts`) handles all tenant routing:
+Proxy (`src/proxy.ts`) handles all subdomain routing:
 
 1. **Operator requests** (`NEXT_PUBLIC_OPERATOR_HOSTNAME`): rewritten to `/operator/*` internally
-2. **Tenant requests** (`{slug}.TENANT_DOMAIN`): rewritten to `/[tenant]/*` for the dynamic segment
-3. **Reserved slugs** (`src/lib/reserved-slugs.ts`): blocked from tenant resolution (www, api, operator, etc.)
+2. **Parents requests** (`NEXT_PUBLIC_PARENTS_HOSTNAME`): rewritten to `/parents/*` internally — cross-tenant guardian portal
+3. **Tenant requests** (`{slug}.TENANT_DOMAIN`): rewritten to `/[tenant]/*` for the dynamic segment
+4. **Reserved slugs** (`src/lib/reserved-slugs.ts`): blocked from tenant resolution (www, api, operator, parents, etc.)
+
+The proxy also redirects cross-host paths back to their canonical subdomain — e.g. `/operator/*` hit on a tenant subdomain 302s to `operator.{TENANT_DOMAIN}`, and `/parents/*` likewise lands on `parents.{TENANT_DOMAIN}`. Defense-in-depth on top of the host-only session cookies.
 
 ### App Directory Structure
 
@@ -100,14 +103,32 @@ src/app/
 │   ├── login/
 │   ├── provisioning/      # Create/manage organizations + schools
 │   └── suggestions/
+├── parents/               # Parent portal (cross-tenant, separate subdomain)
+│   ├── login/
+│   ├── children/[id]/     # Per-child detail page (read-only)
+│   └── page.tsx           # Dashboard — children grouped by school
 ├── [tenant]/              # Dynamic tenant segment (resolved by proxy)
 │   ├── layout.tsx         # Validates slug via /auth/tenant/resolve, wraps in TenantProvider
 │   ├── (protected)/       # Auth-required routes (dashboard, students, rooms, etc.)
 │   └── (public)/          # Pre-auth routes (invite, reset-password)
 └── api/
     ├── auth/tenant/       # Tenant resolution + listing endpoints
-    └── auth/switch-tenant/# Switch JWT scope to different school
+    ├── auth/switch-tenant/# Switch JWT scope to different school
+    ├── operator/auth/     # Operator NextAuth handlers
+    └── parent/            # Parent NextAuth + cross-tenant data endpoints
+        ├── auth/          # parent NextAuth handlers
+        └── me/children/   # GET — every student linked to the parent
 ```
+
+### Three Portals — Session Isolation
+
+Each portal is its own NextAuth instance. Cookies are host-only on operator + parents subdomains so they're invisible to other hosts. JWT `scope` claim is the authoritative discriminator on the backend.
+
+| Portal | NextAuth basePath | Cookie | JWT scope | Server file |
+|---|---|---|---|---|
+| Tenant | `/api/auth` | `next-auth.session-token` | `""` / `"org"` | `server/auth/index.ts` |
+| Operator | `/api/operator/auth` | `operator.session-token` | `"platform"` | `server/auth/operator.ts` |
+| Parents | `/api/parent/auth` | `parent.session-token` | `"parent"` | `server/auth/parent.ts` |
 
 ### Tenant Context & Navigation
 

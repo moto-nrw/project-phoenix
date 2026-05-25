@@ -1,20 +1,23 @@
-// [tenant]/page.tsx — Login page (tenant-scoped)
+// [tenant]/page.tsx, tenant-scoped login page
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Input, Alert } from "~/components/ui";
+import { Alert } from "~/components/ui";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
+import {
+  AuthShell,
+  authInputClassName,
+  authPrimaryButtonClassName,
+} from "~/components/auth/auth-shell";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
-import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { env } from "~/env";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 
 import { createLogger } from "~/lib/logger";
@@ -33,6 +36,7 @@ function LoginForm() {
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
+  const loginTitle = tenant?.name?.trim() ? tenant.name : "Willkommen bei moto";
 
   // Guard against calling signOut multiple times during stale session cleanup
   const isCleaningSessionRef = useRef(false);
@@ -114,7 +118,7 @@ function LoginForm() {
     void checkAndRedirect();
   }, [status, session]);
 
-  // Check for session errors in URL — but suppress after a deliberate logout.
+  // Check for session errors in URL, but suppress after a deliberate logout.
   // NextAuth's useSession({ required: true }) races the logout navigation and
   // can redirect here with ?error=SessionRequired before the page unloads.
   useEffect(() => {
@@ -138,10 +142,8 @@ function LoginForm() {
     }
   }, [searchParams]);
 
-  const isCheckingAuth =
-    checkingAuth ||
-    status === "loading" ||
-    (awaitingRedirect && status === "authenticated");
+  const isCheckingAuth = checkingAuth || status === "loading";
+  const isSubmitting = isLoading || awaitingRedirect;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,10 +151,6 @@ function LoginForm() {
     setError("");
 
     try {
-      // Start confetti immediately when button is clicked
-      // This creates a perception of instant response
-      launchConfetti();
-
       const result = await signIn("credentials", {
         email,
         password,
@@ -161,7 +159,6 @@ function LoginForm() {
       });
 
       if (result?.error) {
-        clearConfetti();
         setError("Ungültige E-Mail oder Passwort");
       } else {
         // Set flag to indicate we're awaiting redirect
@@ -170,7 +167,6 @@ function LoginForm() {
         router.refresh();
       }
     } catch (error) {
-      clearConfetti();
       setError("Anmeldefehler. Bitte versuchen Sie es erneut.");
       logger.error("login failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -181,90 +177,36 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-10 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl">
-        {/* Top Bar: Tenant Selector (left) + Help (right) */}
-        {tenant?.hidden !== true && (
-          <div className="absolute top-4 right-4 left-4 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => {
-                const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
-                const portSuffix = window.location.port
-                  ? `:${window.location.port}`
-                  : "";
-                window.location.href = `${window.location.protocol}//${tenantDomain}${portSuffix}/`;
-              }}
-              className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Einrichtung wechseln
-            </button>
-          </div>
-        )}
-
-        {/* Logo Section */}
-        <div className="mb-8 flex justify-center">
-          {tenant?.settings?.loginImageUrl ? (
+    <>
+      <AuthShell
+        eyebrow="Ihr OGS Portal"
+        eyebrowClassName="text-[#83CD2D]"
+        title={loginTitle}
+        subtitle="Melden Sie sich mit Ihrem Konto an."
+        variant="tenant"
+        brand={
+          tenant?.settings?.loginImageUrl ? (
             <Image
               src={loginImageSrc(tenant.settings.loginImageUrl)}
               alt={`${tenant.name} Logo`}
-              width={200}
-              height={142}
-              className="max-h-[142px] w-auto object-contain"
+              width={180}
+              height={104}
+              className="max-h-[104px] w-auto object-contain"
               priority
               unoptimized
             />
-          ) : (
-            <Image
-              src="/images/moto_transparent.png"
-              alt="MOTO Logo"
-              width={200}
-              height={80}
-              priority
-            />
-          )}
-        </div>
-
-        {/* Welcome Text */}
-        <h1 className="mb-2 bg-gradient-to-r from-[#5080d8] to-[#83cd2d] bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
-          Willkommen bei moto!
-        </h1>
-        <p className="text-xl text-gray-700">Ganztag. Digital.</p>
-        {tenant?.name && (
-          <p className="mt-4 mb-10 text-2xl font-semibold text-gray-800">
-            {tenant.name}
-          </p>
-        )}
-        {!tenant?.name && <div className="mb-10" />}
-
-        {/* Loading spinner while checking auth or awaiting redirect */}
+          ) : null
+        }
+      >
         {isCheckingAuth && (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
-              <p className="text-sm text-gray-500">
-                {awaitingRedirect
-                  ? "Sie werden weitergeleitet…"
-                  : "Sitzung wird überprüft…"}
-              </p>
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
+              <p className="text-sm text-gray-500">Sitzung wird überprüft...</p>
             </div>
           </div>
         )}
 
-        {/* Login Form — fades in after auth check */}
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
         >
@@ -279,16 +221,17 @@ function LoginForm() {
                 >
                   E-Mail-Adresse
                 </label>
-                <Input
+                <input
                   id="email"
                   name="email"
                   type="email"
+                  data-testid="input-email"
                   autoComplete="username"
                   required
+                  disabled={isSubmitting}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full"
-                  label={""}
+                  className={authInputClassName}
                 />
               </div>
 
@@ -300,16 +243,17 @@ function LoginForm() {
                   Passwort
                 </label>
                 <div className="relative">
-                  <Input
+                  <input
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
+                    data-testid="input-password"
                     autoComplete="current-password"
                     required
+                    disabled={isSubmitting}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pr-10"
-                    label={""}
+                    className={`${authInputClassName} pr-10`}
                   />
                   <PasswordToggleButton
                     showPassword={showPassword}
@@ -322,22 +266,23 @@ function LoginForm() {
               <div className="text-center">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setIsResetModalOpen(true)}
-                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none"
+                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
                 >
                   Passwort vergessen?
                 </button>
               </div>
             </div>
 
-            <div className="mt-2 flex justify-center">
+            <div className="mt-2">
               <button
                 type="submit"
-                disabled={isLoading}
-                className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSubmitting}
+                className={authPrimaryButtonClassName}
               >
                 <span className="relative z-10">
-                  {isLoading ? "Anmeldung läuft..." : "Anmelden"}
+                  {isSubmitting ? "Anmeldung läuft..." : "Anmelden"}
                 </span>
               </button>
             </div>
@@ -355,14 +300,14 @@ function LoginForm() {
               }}
             />
           )}
-      </div>
+      </AuthShell>
 
       {/* Password Reset Modal */}
       <PasswordResetModal
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
       />
-    </div>
+    </>
   );
 }
 
@@ -370,12 +315,19 @@ export default function HomePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen flex-col items-center justify-center p-4">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
-            <p className="text-sm text-gray-500">Laden…</p>
+        <AuthShell
+          eyebrow="Ihr OGS Portal"
+          eyebrowClassName="text-[#83CD2D]"
+          title="Willkommen"
+          subtitle="Melden Sie sich mit Ihrem Konto an."
+          variant="tenant"
+          brand={null}
+        >
+          <div className="flex flex-col items-center gap-4 py-8">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
+            <p className="text-sm text-gray-500">Laden...</p>
           </div>
-        </div>
+        </AuthShell>
       }
     >
       <LoginForm />
