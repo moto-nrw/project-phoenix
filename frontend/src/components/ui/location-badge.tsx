@@ -243,9 +243,7 @@ export function LocationBadge({
       sickMode === "replace" ||
       excusedMode === "replace");
 
-  // Sick indicator badge for "additional" mode (sick but present)
-  // Uses same size configuration as the main badge for consistency
-  const SickIndicator = () => (
+  const sickIndicator = (
     <span
       className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
       style={{
@@ -261,9 +259,7 @@ export function LocationBadge({
     </span>
   );
 
-  // Excused indicator badge for "additional" mode (excused but present).
-  // Same size/shape as sick indicator, purple to differentiate.
-  const ExcusedIndicator = () => (
+  const excusedIndicator = (
     <span
       className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
       style={{
@@ -279,8 +275,7 @@ export function LocationBadge({
     </span>
   );
 
-  // "Kommt heute nicht" indicator for "additional" mode (planned absence but present).
-  const NotArrivalIndicator = () => (
+  const notArrivalIndicator = (
     <span
       className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
       style={{
@@ -320,9 +315,9 @@ export function LocationBadge({
             seit {formattedTime} Uhr
           </span>
         )}
-        {sickMode === "additional" && <SickIndicator />}
-        {excusedMode === "additional" && <ExcusedIndicator />}
-        {notArrivalMode === "additional" && <NotArrivalIndicator />}
+        {sickMode === "additional" && sickIndicator}
+        {excusedMode === "additional" && excusedIndicator}
+        {notArrivalMode === "additional" && notArrivalIndicator}
       </div>
     );
   }
@@ -352,9 +347,9 @@ export function LocationBadge({
           seit {formattedTime} Uhr
         </span>
       )}
-      {sickMode === "additional" && <SickIndicator />}
-      {excusedMode === "additional" && <ExcusedIndicator />}
-      {notArrivalMode === "additional" && <NotArrivalIndicator />}
+      {sickMode === "additional" && sickIndicator}
+      {excusedMode === "additional" && excusedIndicator}
+      {notArrivalMode === "additional" && notArrivalIndicator}
     </div>
   );
 }
