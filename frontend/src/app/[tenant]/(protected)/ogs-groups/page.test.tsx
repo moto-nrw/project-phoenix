@@ -346,6 +346,9 @@ vi.mock("~/components/students/student-card", () => ({
       {notes && <span>({notes})</span>}
     </div>
   ),
+  StudentAbsenceRow: ({ label }: { label: string }) => (
+    <div data-testid="student-absence-row">Kommt heute nicht ({label})</div>
+  ),
 }));
 
 // Mock pickup schedule API
@@ -2581,6 +2584,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       string,
       { actualArrivalTime?: string; actualPickupTime?: string }
     >,
+    studentOverrides?: Record<string, Record<string, unknown>>,
   ) {
     vi.clearAllMocks();
     // Re-freeze time after clearAllMocks since it may reset fake timers state
@@ -2633,6 +2637,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
               current_location: "Raum 101",
               actual_arrival_time: studentActuals?.["1"]?.actualArrivalTime,
               actual_pickup_time: studentActuals?.["1"]?.actualPickupTime,
+              ...studentOverrides?.["1"],
             },
             {
               id: "2",
@@ -2642,6 +2647,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
               current_location: "Raum 101",
               actual_arrival_time: studentActuals?.["2"]?.actualArrivalTime,
               actual_pickup_time: studentActuals?.["2"]?.actualPickupTime,
+              ...studentOverrides?.["2"],
             },
             {
               id: "3",
@@ -2651,6 +2657,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
               current_location: "Zuhause",
               actual_arrival_time: studentActuals?.["3"]?.actualArrivalTime,
               actual_pickup_time: studentActuals?.["3"]?.actualPickupTime,
+              ...studentOverrides?.["3"],
             },
           ],
           roomStatus: {
@@ -2749,6 +2756,33 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       .find((el) => el.dataset.pickupTime === "14:00");
     expect(row).toBeDefined();
     expect(row?.dataset.actualTime).toBe("14:07");
+  });
+
+  it("suppresses overdue pickup when an already-arrived student is later marked sick", async () => {
+    const pickupMap = new Map([
+      ["1", { pickupTime: "13:00", isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(
+      pickupMap,
+      undefined,
+      { "1": { actualArrivalTime: "08:03" } },
+      { "1": { sick: true } },
+    );
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    expect(
+      screen.getByText("Kommt heute nicht (krank gemeldet)"),
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByTestId("pickup-time-row")
+        .some((el) => el.dataset.pickupTime === "13:00"),
+    ).toBe(false);
   });
 
   it("renders sort filter with Alphabetisch and Nächste Abholung options", async () => {
