@@ -9,12 +9,10 @@ import {
   adminSetMFAOverride,
   germanMFAErrorMessage,
   operatorAdminGetGlobalMFAOverride,
-  operatorAdminGetMFAState,
   operatorAdminResetMFA,
   operatorAdminSetGlobalMFAOverride,
   operatorAdminSetMFAOverride,
   type MFAAdminOverride,
-  type MFAAdminState,
 } from "~/lib/mfa-api";
 
 const logger = createLogger({ component: "MFAAdminOverrideModal" });
@@ -119,21 +117,14 @@ export function MFAAdminOverrideModal({
     }
   }, [isOpen]);
 
+  // Tenant-only: the per-school override state. The operator surface
+  // does NOT render the per-school section, so it skips this call
+  // entirely — otherwise it would hit the per-school endpoint with a
+  // school the operator modal isn't even scoped to and 404.
   const loadState = useCallback(async () => {
+    if (scope !== "tenant") return;
     try {
-      let state: MFAAdminState;
-      if (scope === "operator") {
-        if (!schoolId) {
-          throw new Error("schoolId is required for operator scope");
-        }
-        state = await operatorAdminGetMFAState(
-          bearerToken,
-          schoolId,
-          accountId,
-        );
-      } else {
-        state = await adminGetMFAState(bearerToken, accountId);
-      }
+      const state = await adminGetMFAState(bearerToken, accountId);
       setOverride(state.override);
       setSelectedOverride(state.override);
       setEnrolled(state.enrolled);
@@ -148,11 +139,12 @@ export function MFAAdminOverrideModal({
     } finally {
       setStateLoaded(true);
     }
-  }, [bearerToken, accountId, scope, schoolId]);
+  }, [bearerToken, accountId, scope]);
 
-  // The account-wide override row is operator-only — tenant admins
-  // never read it. Failures fall through to "none" so the per-school
-  // section still renders.
+  // Operator-only: the account-wide override row + enrollment flag.
+  // This is the operator modal's single source of state (it renders no
+  // per-school section), so it also drives `enrolled` + `stateLoaded`
+  // for the header.
   const loadGlobalState = useCallback(async () => {
     if (scope !== "operator") return;
     try {
@@ -162,11 +154,14 @@ export function MFAAdminOverrideModal({
       );
       setGlobalOverride(state.override);
       setSelectedGlobalOverride(state.override);
+      setEnrolled(state.enrolled);
+      setStateLoaded(true);
     } catch (err) {
       logger.warn("operator_global_mfa_state_load_failed", {
         account_id: accountId,
         error: err instanceof Error ? err.message : String(err),
       });
+      setStateLoaded(true);
     } finally {
       setGlobalStateLoaded(true);
     }
@@ -324,7 +319,10 @@ export function MFAAdminOverrideModal({
             <p className="text-sm text-gray-600">{accountLabel}</p>
             {stateLoaded && (
               <p className="mt-1 text-xs text-gray-500">
-                Aktueller Status: {overrideLabel(override)}
+                Aktueller Status:{" "}
+                {overrideLabel(
+                  scope === "operator" ? globalOverride : override,
+                )}
                 {enrolled
                   ? " · 2FA bereits eingerichtet"
                   : " · 2FA noch nicht eingerichtet"}
