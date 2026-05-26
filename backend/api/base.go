@@ -143,7 +143,8 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 // setupBasicMiddleware configures basic router middleware
 func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
+	router.Use(middleware.ClientIPFromXFF())
+	router.Use(syncClientIPToRemoteAddr)
 	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
@@ -161,6 +162,15 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	sentryMiddleware := sentryhttp.New(sentryhttp.Options{Repanic: true})
 	router.Use(sentryMiddleware.Handle)
 	router.Use(customMiddleware.SecurityHeaders)
+}
+
+func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ip := middleware.GetClientIP(r.Context()); ip != "" {
+			r.RemoteAddr = ip
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // setupCORS configures CORS middleware with allowed origins from environment.

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,32 +73,32 @@ func TestRateLimiter_SetKeyFunc(t *testing.T) {
 // GetClientIP Tests
 // =============================================================================
 
-func TestGetClientIP_XRealIP(t *testing.T) {
+func TestGetClientIP_ChiClientIPFromHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Real-IP", "192.168.1.100")
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := GetClientIP(req)
-	assert.Equal(t, "192.168.1.100", ip, "X-Real-IP should take precedence")
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromHeader("X-Real-IP"))
+	assert.Equal(t, "192.168.1.100", ip, "trusted chi client IP context should take precedence")
 }
 
-func TestGetClientIP_XForwardedFor(t *testing.T) {
+func TestGetClientIP_ChiClientIPFromXFF(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2, 10.0.0.3")
+	req.Header.Set("X-Forwarded-For", "10.0.0.1")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := GetClientIP(req)
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
 	assert.Equal(t, "10.0.0.1", ip, "Should return first IP from X-Forwarded-For")
 }
 
-func TestGetClientIP_XForwardedFor_WithSpaces(t *testing.T) {
+func TestGetClientIP_ChiClientIPFromXFF_RejectsSpoofedLeftmost(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Forwarded-For", "  10.0.0.1  ,  10.0.0.2  ")
+	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := GetClientIP(req)
-	assert.Equal(t, "10.0.0.1", ip, "Should trim spaces")
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
+	assert.Equal(t, "10.0.0.2", ip, "Should trust the rightmost XFF hop when no proxy CIDRs are configured")
 }
 
 func TestGetClientIP_RemoteAddr(t *testing.T) {
@@ -126,10 +127,22 @@ func TestGetClientIP_IPv6(t *testing.T) {
 
 func TestGetClientIP_IPv6_XForwardedFor(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Forwarded-For", "2001:db8::1, 2001:db8::2")
+	req.Header.Set("X-Forwarded-For", "2001:db8::1")
 
-	ip := GetClientIP(req)
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
 	assert.Equal(t, "2001:db8::1", ip)
+}
+
+func getClientIPThroughMiddleware(
+	req *http.Request,
+	clientIPMiddleware func(http.Handler) http.Handler,
+) string {
+	var ip string
+	handler := clientIPMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		ip = GetClientIP(r)
+	}))
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	return ip
 }
 
 // =============================================================================
