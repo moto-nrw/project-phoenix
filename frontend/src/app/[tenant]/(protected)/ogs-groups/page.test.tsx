@@ -2785,6 +2785,33 @@ describe("OGSGroupPage rendered pickup urgency", () => {
     ).toBe(false);
   });
 
+  it("shows the resolved pickup time, not the absence row, when a sick student is already picked up", async () => {
+    const pickupMap = new Map([
+      ["1", { pickupTime: "13:00", isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(
+      pickupMap,
+      undefined,
+      { "1": { actualPickupTime: "13:05" } },
+      { "1": { sick: true } },
+    );
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    expect(
+      screen.queryByText("Kommt heute nicht (krank gemeldet)"),
+    ).not.toBeInTheDocument();
+    const row = screen
+      .getAllByTestId("pickup-time-row")
+      .find((el) => el.dataset.pickupTime === "13:00");
+    expect(row).toBeDefined();
+    expect(row?.dataset.actualTime).toBe("13:05");
+  });
+
   it("renders sort filter with Alphabetisch and Nächste Abholung options", async () => {
     setupWithStudentsAndPickupTimes(new Map());
 

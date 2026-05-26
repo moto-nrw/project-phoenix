@@ -1299,7 +1299,7 @@ function OGSGroupPageContent() {
                   }
                   extraContent={
                     <>
-                      {studentAbsence ? (
+                      {studentAbsence && !student.actual_pickup_time ? (
                         <StudentAbsenceRow label={studentAbsence.label} />
                       ) : (
                         <>
