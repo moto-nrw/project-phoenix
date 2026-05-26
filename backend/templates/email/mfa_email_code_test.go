@@ -52,7 +52,7 @@ func TestMFAEmailCodeTemplate_Renders(t *testing.T) {
 				// Branding
 				"moto Logo",
 				// Footer chrome
-				"Ganztag. Digital.",
+				"Unterstützt von",
 			},
 			// Critical: the template must NEVER include a clickable
 			// "enter code" button — phishing-resistance per the design plan.

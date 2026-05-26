@@ -387,19 +387,6 @@ function operatorAdminMFAUrl(
   return `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/accounts/${encodeURIComponent(accountId)}/mfa${suffix}`;
 }
 
-export async function operatorAdminGetMFAState(
-  bearerToken: string,
-  schoolId: string,
-  accountId: string,
-): Promise<MFAAdminState> {
-  const envelope = await postJson<OperatorEnvelope<MFAAdminState>>(
-    operatorAdminMFAUrl(schoolId, accountId, ""),
-    undefined,
-    { bearerToken, method: "GET" },
-  );
-  return envelope.data;
-}
-
 export async function operatorAdminResetMFA(
   bearerToken: string,
   schoolId: string,

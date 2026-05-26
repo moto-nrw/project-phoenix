@@ -56,7 +56,7 @@ func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
 				"Administration",
 				// Branding chrome
 				"moto Logo",
-				"Ganztag. Digital.",
+				"Unterstützt von",
 			},
 		},
 		{
