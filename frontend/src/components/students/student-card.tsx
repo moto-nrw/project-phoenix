@@ -371,6 +371,17 @@ export function ExceptionIcon() {
 }
 
 /**
+ * Neutral marker for "not coming today" rows (sick, excused, or a schedule
+ * exception with no time). A known absence is information, not a warning — a
+ * calm gray clock matches the student detail page and avoids the alarm an
+ * amber triangle implies. Used for every absence line so the same state always
+ * reads the same, across cards and detail.
+ */
+export function AbsenceIcon() {
+  return <Clock className="h-3.5 w-3.5 text-gray-400" />;
+}
+
+/**
  * Shared pickup time display row used across OGS groups, active supervisions,
  * and student search pages. Normalizes the three rendering branches:
  *   1. Has planned or actual time → show status-aware time row
@@ -485,7 +496,7 @@ export function PickupTimeRow({
 }>) {
   if (isException && !pickupTime && !actualTime) {
     return (
-      <StudentInfoRow icon={<ExceptionIcon />}>
+      <StudentInfoRow icon={<AbsenceIcon />}>
         {notes || "Abwesend"}
       </StudentInfoRow>
     );
@@ -501,6 +512,21 @@ export function PickupTimeRow({
       now={now}
       kind="pickup"
     />
+  );
+}
+
+/**
+ * Single neutral status line shown instead of the arrival + pickup rows when a
+ * student is absent today (sick / excused). One line for the whole day — an
+ * absent child has neither a meaningful arrival nor pickup time, so repeating
+ * the reason on two rows would be noise. Mirrors the existing schedule-based
+ * "Kommt heute nicht (…)" wording so every absence reads identically.
+ */
+export function StudentAbsenceRow({ label }: Readonly<{ label: string }>) {
+  return (
+    <StudentInfoRow icon={<AbsenceIcon />}>
+      {`Kommt heute nicht (${label})`}
+    </StudentInfoRow>
   );
 }
 
@@ -527,7 +553,7 @@ export function ArrivalTimeRow({
 }>) {
   if (isAbsent) {
     return (
-      <StudentInfoRow icon={<ExceptionIcon />}>
+      <StudentInfoRow icon={<AbsenceIcon />}>
         {notes ? `Kommt heute nicht (${notes})` : "Kommt heute nicht"}
       </StudentInfoRow>
     );
@@ -535,7 +561,7 @@ export function ArrivalTimeRow({
 
   if (isException && !arrivalTime && !actualTime) {
     return (
-      <StudentInfoRow icon={<ExceptionIcon />}>
+      <StudentInfoRow icon={<AbsenceIcon />}>
         {notes ? `Kommt heute nicht (${notes})` : "Kommt heute nicht"}
       </StudentInfoRow>
     );

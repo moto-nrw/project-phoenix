@@ -9,7 +9,8 @@ type TimeStatusState =
   | "slightly-overdue"
   | "very-overdue"
   | "done-on-time"
-  | "done-late";
+  | "done-late"
+  | "absent-excused";
 
 type TimeStatusIcon = "clock" | "warning" | "check";
 
@@ -28,6 +29,51 @@ interface StudentTimeStatusInput {
   plannedTime?: string;
   actualTime?: string;
   now: Date;
+  /** Student is reported sick today — suppresses overdue urgency. */
+  sick?: boolean;
+  /** Student is excused today (not attending) — suppresses overdue urgency. */
+  excused?: boolean;
+}
+
+/** Why a student is not expected today. Drives the neutral "absent" rendering. */
+export interface StudentAbsence {
+  reason: "sick" | "excused";
+  /** German UI label, e.g. "krank gemeldet" or "entschuldigt". */
+  label: string;
+}
+
+interface StudentAbsenceInput {
+  sick?: boolean;
+  excused?: boolean;
+}
+
+/**
+ * Determines whether a student is absent today and why. Single source of truth
+ * for the sick/excused rule, consumed by every surface (group cards, search,
+ * active supervisions, student detail) and the sort ranking so they can never
+ * disagree. Sick takes priority over excused.
+ *
+ * The label is intentionally date-free: a "seit <weekday>" qualifier reads
+ * wrong once an absence spans more than a week. We only state the status.
+ *
+ * Note: resolved actual times may still win at the row level. Callers that
+ * collapse a whole day into one absence line should only do so while pickup is
+ * unresolved, otherwise an already-arrived sick/excused child can still fall
+ * through to an overdue pickup state.
+ */
+export function getStudentAbsence({
+  sick,
+  excused,
+}: StudentAbsenceInput): StudentAbsence | null {
+  if (sick) {
+    return { reason: "sick", label: "krank gemeldet" };
+  }
+
+  if (excused) {
+    return { reason: "excused", label: "entschuldigt" };
+  }
+
+  return null;
 }
 
 interface TimeParts {
@@ -90,6 +136,8 @@ export function getStudentTimeStatus({
   plannedTime,
   actualTime,
   now,
+  sick,
+  excused,
 }: StudentTimeStatusInput): StudentTimeStatus {
   const displayActualTime = formatTimeDisplay(actualTime);
   const displayPlannedTime = formatTimeDisplay(plannedTime);
@@ -116,6 +164,22 @@ export function getStudentTimeStatus({
       detailAnnotation:
         diffMinutes === undefined ? undefined : formatActualDiff(diffMinutes),
       diffMinutes,
+    };
+  }
+
+  // Absence wins over the temporal (overdue) path but never over a recorded
+  // actual time above — a sick/excused child is not "overdue", they are simply
+  // not expected today. Neutral coloring, sorted out of the urgency band.
+  const absence = getStudentAbsence({ sick, excused });
+  if (absence) {
+    return {
+      state: "absent-excused",
+      displayTime: undefined,
+      icon: "clock",
+      iconColor: LOCATION_COLORS.UNKNOWN,
+      textColor: undefined,
+      isResolved: true,
+      detailAnnotation: absence.label,
     };
   }
 
@@ -214,6 +278,10 @@ export function getTimeStatusSortRank(status: StudentTimeStatus): number {
     case "done-late":
       return 4;
     case "done-on-time":
+      return 5;
+    // Out of the urgency band, alongside resolved students — but above "none"
+    // so a known-absent child still outranks one with no schedule at all.
+    case "absent-excused":
       return 5;
     case "none":
     default:

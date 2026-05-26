@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   areStudentDayTimesResolved,
   combineTimeNotes,
+  getStudentAbsence,
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "./student-time-status";
@@ -216,6 +217,117 @@ describe("getStudentTimeStatus edge cases", () => {
     expect(status.state).toBe("done-late");
     expect(status.diffMinutes).toBe(90);
     expect(status.detailAnnotation).toBe("+90 min");
+  });
+});
+
+describe("getStudentTimeStatus sick/excused", () => {
+  // now is well past the planned time, so without the sick/excused signal
+  // these inputs would all classify as very-overdue (red).
+  const now = new Date("2025-01-15T15:00:00");
+
+  it("neutralizes an overdue planned arrival when the student is sick", () => {
+    const status = getStudentTimeStatus({
+      plannedTime: "08:00",
+      now,
+      sick: true,
+    });
+
+    expect(status.state).toBe("absent-excused");
+    // No red overdue color — that is the whole point of the fix.
+    expect(status.textColor).toBeUndefined();
+    expect(status.iconColor).toBe(LOCATION_COLORS.UNKNOWN);
+    // A sick child is closed out for the day, not an open urgency.
+    expect(status.isResolved).toBe(true);
+    expect(status.detailAnnotation).not.toContain("Überfällig");
+  });
+
+  it("neutralizes an overdue planned pickup when the student is excused", () => {
+    const status = getStudentTimeStatus({
+      plannedTime: "13:00",
+      now,
+      excused: true,
+    });
+
+    expect(status.state).toBe("absent-excused");
+    expect(status.textColor).toBeUndefined();
+  });
+
+  it("lets a recorded actual time win over a stale sick flag (precedence)", () => {
+    // A child marked sick who nevertheless checked in (RFID) must show the
+    // real arrival, not 'absent'. actual time always wins.
+    const status = getStudentTimeStatus({
+      plannedTime: "08:00",
+      actualTime: "08:05",
+      now,
+      sick: true,
+    });
+
+    expect(status.state).toBe("done-late");
+    expect(status.displayTime).toBe("08:05");
+  });
+
+  it("ignores sick/excused when neither planned nor actual time exists", () => {
+    const status = getStudentTimeStatus({ now, sick: true });
+
+    // Nothing to neutralize — without a time there is no red to suppress.
+    expect(status.state).toBe("absent-excused");
+  });
+
+  it("ranks absent-excused out of the urgency band but above 'none'", () => {
+    const absentExcused = getStudentTimeStatus({
+      plannedTime: "08:00",
+      now,
+      sick: true,
+    });
+    const veryOverdue = getStudentTimeStatus({ plannedTime: "08:00", now });
+    const approaching = getStudentTimeStatus({ plannedTime: "15:15", now });
+    const planned = getStudentTimeStatus({ plannedTime: "16:00", now });
+    const none = getStudentTimeStatus({ now });
+
+    expect(getTimeStatusSortRank(absentExcused)).toBeGreaterThan(
+      getTimeStatusSortRank(veryOverdue),
+    );
+    expect(getTimeStatusSortRank(absentExcused)).toBeGreaterThan(
+      getTimeStatusSortRank(approaching),
+    );
+    expect(getTimeStatusSortRank(absentExcused)).toBeGreaterThan(
+      getTimeStatusSortRank(planned),
+    );
+    // Must not change the existing contract: 'none' stays last.
+    expect(getTimeStatusSortRank(none)).toBe(6);
+    expect(getTimeStatusSortRank(absentExcused)).toBeLessThan(
+      getTimeStatusSortRank(none),
+    );
+  });
+});
+
+describe("getStudentAbsence", () => {
+  it("returns null when the student is neither sick nor excused", () => {
+    expect(getStudentAbsence({})).toBeNull();
+    expect(getStudentAbsence({ sick: false, excused: false })).toBeNull();
+  });
+
+  it("labels a sick student without any date qualifier", () => {
+    // No "seit <weekday>" — a weekday abbreviation is ambiguous past 7 days
+    // and outright wrong past two weeks, so we keep a stable, date-free label.
+    const absence = getStudentAbsence({ sick: true });
+
+    expect(absence).not.toBeNull();
+    expect(absence?.reason).toBe("sick");
+    expect(absence?.label).toBe("krank gemeldet");
+  });
+
+  it("labels an excused student", () => {
+    const absence = getStudentAbsence({ excused: true });
+
+    expect(absence?.reason).toBe("excused");
+    expect(absence?.label).toBe("entschuldigt");
+  });
+
+  it("prefers sick over excused when both are set", () => {
+    const absence = getStudentAbsence({ sick: true, excused: true });
+
+    expect(absence?.reason).toBe("sick");
   });
 });
 
