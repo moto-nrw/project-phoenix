@@ -139,7 +139,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 // setupBasicMiddleware configures basic router middleware
 func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
+	router.Use(middleware.ClientIPFromXFF())
 	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
