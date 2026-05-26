@@ -211,6 +211,66 @@ func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
 	}
 }
 
+func TestStudentImportConfig_Validate_EnrollmentDates(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	baseRow := func() importModels.StudentImportRow {
+		return importModels.StudentImportRow{
+			FirstName:         "Max",
+			LastName:          "Mustermann",
+			SchoolClass:       "1A",
+			DataRetentionDays: 30,
+		}
+	}
+
+	hasCode := func(errs []importModels.ValidationError, code string) bool {
+		for _, e := range errs {
+			if e.Code == code {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("valid range passes and normalizes to ISO", func(t *testing.T) {
+		row := baseRow()
+		row.EnrolledFrom = "01.08.2024"
+		row.EnrolledUntil = "31.07.2025"
+		errs := config.Validate(context.Background(), &row)
+		assert.False(t, hasCode(errs, "invalid_date_format"))
+		assert.False(t, hasCode(errs, "invalid_date_range"))
+		assert.Equal(t, "2024-08-01", row.EnrolledFrom)
+		assert.Equal(t, "2025-07-31", row.EnrolledUntil)
+	})
+
+	t.Run("future enrolled_from is allowed", func(t *testing.T) {
+		row := baseRow()
+		row.EnrolledFrom = futureBirthdayISOForTests()
+		errs := config.Validate(context.Background(), &row)
+		assert.False(t, hasCode(errs, "invalid_date_format"),
+			"a future enrollment start date must be accepted (unlike a birthday)")
+	})
+
+	t.Run("invalid format reports error", func(t *testing.T) {
+		row := baseRow()
+		row.EnrolledFrom = "kein-datum"
+		errs := config.Validate(context.Background(), &row)
+		assert.True(t, hasCode(errs, "invalid_date_format"))
+	})
+
+	t.Run("until before from reports range error", func(t *testing.T) {
+		row := baseRow()
+		row.EnrolledFrom = "01.08.2024"
+		row.EnrolledUntil = "01.08.2023"
+		errs := config.Validate(context.Background(), &row)
+		assert.True(t, hasCode(errs, "invalid_date_range"))
+	})
+}
+
 func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
 	config := &StudentImportConfig{
 		resolver: &RelationshipResolver{

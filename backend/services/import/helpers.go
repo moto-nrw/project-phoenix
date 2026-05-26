@@ -120,6 +120,8 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 	row.ExtraInfo = mapper.GetCol("zusatzinfo")
 	row.PickupStatus = mapper.GetCol("abholstatus")
 	row.BusPermission = ParseBool(mapper.GetCol("bus"))
+	row.EnrolledFrom = mapper.GetCol("einschreibung von")
+	row.EnrolledUntil = mapper.GetCol("einschreibung bis")
 
 	// Privacy consent
 	row.PrivacyAccepted = ParseBool(mapper.GetCol("datenschutz"))

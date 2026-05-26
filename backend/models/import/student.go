@@ -16,6 +16,8 @@ type StudentImportRow struct {
 	HealthInfo      string `json:"health_info,omitempty"`
 	PickupStatus    string `json:"pickup_status,omitempty"` // "Geht alleine nach Hause" or "Wird abgeholt"
 	BusPermission   bool   `json:"bus_permission"`
+	EnrolledFrom    string `json:"enrolled_from,omitempty"`  // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
+	EnrolledUntil   string `json:"enrolled_until,omitempty"` // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
 
 	// Multiple guardians (extensible: Erz1, Erz2, Erz3, ...)
 	Guardians []GuardianImportData `json:"guardians,omitempty"`

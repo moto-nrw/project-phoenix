@@ -423,6 +423,57 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 	assert.True(t, *student.Bus, "Bus permission from CSV (Ja) must persist as true")
 }
 
+// TestImportStudents_PersistsEnrollmentDatesAndStatus verifies that the
+// enrollment date range is imported and that a future enrollment start marks
+// the student as pending (so the activate-students scheduler activates them
+// later), while a past/current start stays active (issue #1460, phase 2a).
+func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "EnrollTest")
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStudentsHandler())
+
+	csvContent := "Vorname,Nachname,Klasse,Einschreibung von,Einschreibung bis\n" +
+		"Zukunft,EnrollRegression,1a,01.08.2099,31.07.2100\n" +
+		"Aktiv,EnrollRegression,1a,01.08.2020,01.08.2099"
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "enroll.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	read := func(firstName string) users.Student {
+		var s users.Student
+		err := tc.db.NewSelect().
+			Model(&s).
+			ModelTableExpr(`users.students AS "student"`).
+			Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+			Where(`"person".first_name = ?`, firstName).
+			Where(`"person".last_name = ?`, "EnrollRegression").
+			Scan(context.Background())
+		require.NoError(t, err, "imported student %q should exist", firstName)
+		return s
+	}
+
+	future := read("Zukunft")
+	require.NotNil(t, future.EnrolledFrom, "enrolled_from must be persisted")
+	assert.Equal(t, "2099-08-01", future.EnrolledFrom.Format("2006-01-02"))
+	require.NotNil(t, future.EnrolledUntil, "enrolled_until must be persisted")
+	assert.Equal(t, "2100-07-31", future.EnrolledUntil.Format("2006-01-02"))
+	assert.Equal(t, users.StudentStatusPending, future.Status,
+		"a future enrollment start must be imported as pending")
+
+	active := read("Aktiv")
+	require.NotNil(t, active.EnrolledFrom, "enrolled_from must be persisted")
+	assert.Equal(t, "2020-08-01", active.EnrolledFrom.Format("2006-01-02"))
+	assert.Equal(t, users.StudentStatusActive, active.Status,
+		"a past/current enrollment start must stay active")
+}
+
 // =============================================================================
 // STAFF ID RESOLUTION TESTS
 // =============================================================================
