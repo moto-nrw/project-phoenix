@@ -485,6 +485,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		SupervisorNotes: stringPtr(row.SupervisorNotes),
 		HealthInfo:      stringPtr(row.HealthInfo),
 		PickupStatus:    stringPtr(row.PickupStatus),
+		Bus:             &row.BusPermission,
 	}
 	student.SetTenantID(tenant.FromContext(ctx))
 

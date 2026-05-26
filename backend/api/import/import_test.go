@@ -5,6 +5,7 @@
 package importapi_test
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -12,11 +13,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -382,6 +385,42 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 
 	// Log the result - may succeed with warnings or fail
 	t.Logf("Duplicate import response: %d - %s", rr.Code, rr.Body.String())
+}
+
+// TestImportStudents_PersistsBusPermission is a regression test for issue #1460:
+// the "Bus" column was parsed and validated but never written to the student
+// record, silently dropping the bus permission on import.
+func TestImportStudents_PersistsBusPermission(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "BusTest")
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStudentsHandler())
+
+	// CSV with Bus=Ja — the imported student must end up with bus = true.
+	csvContent := "Vorname,Nachname,Klasse,Bus\nBuskind,Phase1Regression,1a,Ja"
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "bus.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	// Read the imported student back and assert the bus permission was persisted.
+	var student users.Student
+	err := tc.db.NewSelect().
+		Model(&student).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"person".first_name = ?`, "Buskind").
+		Where(`"person".last_name = ?`, "Phase1Regression").
+		Scan(context.Background())
+	require.NoError(t, err, "imported student should exist in the database")
+	require.NotNil(t, student.Bus, "Bus must be persisted, not left nil")
+	assert.True(t, *student.Bus, "Bus permission from CSV (Ja) must persist as true")
 }
 
 // =============================================================================
