@@ -358,16 +358,15 @@ export function StudentDetailHeader({
               </div>
             )}
             {(() => {
-              // Variant B: a sick/excused child has neither a meaningful
-              // arrival nor pickup time today, so collapse both rows into one
-              // neutral status line — identical wording to every other surface
-              // via the shared getStudentAbsence helper. A recorded actual
-              // arrival still wins (the flag can be stale until check-in).
+              // Variant B: a sick/excused child without a completed pickup
+              // should not accrue overdue pickup urgency, even if they already
+              // checked in before the absence flag was set. Once pickup is
+              // recorded, the actual resolved times can render normally.
               const absence = getStudentAbsence({
                 sick: student.sick,
                 excused: student.excused,
               });
-              if (absence && !todayArrivalActualTime) {
+              if (absence && !todayPickupActualTime) {
                 return (
                   <div
                     data-testid="today-absence-row"

@@ -1535,7 +1535,7 @@ function SearchPageContent() {
                           sick: student.sick,
                           excused: student.excused,
                         });
-                        if (absence && !student.actual_arrival_time) {
+                        if (absence && !student.actual_pickup_time) {
                           return <StudentAbsenceRow label={absence.label} />;
                         }
                         return (

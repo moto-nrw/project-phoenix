@@ -56,9 +56,10 @@ interface StudentAbsenceInput {
  * The label is intentionally date-free: a "seit <weekday>" qualifier reads
  * wrong once an absence spans more than a week. We only state the status.
  *
- * Note: a recorded actual arrival/pickup always wins over this — callers must
- * check the actual time first (the sick flag can be stale until the next
- * check-in clears it).
+ * Note: resolved actual times may still win at the row level. Callers that
+ * collapse a whole day into one absence line should only do so while pickup is
+ * unresolved, otherwise an already-arrived sick/excused child can still fall
+ * through to an overdue pickup state.
  */
 export function getStudentAbsence({
   sick,

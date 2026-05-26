@@ -769,6 +769,38 @@ describe("StudentSearchPage", () => {
       expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
     });
 
+    it("keeps a sick checked-in student out of the overdue pickup row", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              first_name: "Kerstin",
+              current_location: "Raum 101",
+              arrival_time: "08:00",
+              pickup_time: "15:30",
+              actual_arrival_time: "08:05",
+              actual_pickup_time: undefined,
+              sick: true,
+              has_full_access: true,
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Kommt heute nicht (krank gemeldet)"),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
+    });
+
     it("filters to show only transit students when 'unterwegs' is selected", async () => {
       mockSearchParams.set("status", "unterwegs");
 
