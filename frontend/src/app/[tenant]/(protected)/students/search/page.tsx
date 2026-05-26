@@ -39,6 +39,7 @@ import {
   StudentInfoRow,
   PickupTimeRow,
   ArrivalTimeRow,
+  StudentAbsenceRow,
 } from "~/components/students/student-card";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
@@ -54,6 +55,7 @@ import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
 import {
+  getStudentAbsence,
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
@@ -1283,11 +1285,15 @@ function SearchPageContent() {
         plannedTime: a.arrival_time,
         actualTime: a.actual_arrival_time,
         now,
+        sick: a.sick,
+        excused: a.excused,
       });
       const statusB = getStudentTimeStatus({
         plannedTime: b.arrival_time,
         actualTime: b.actual_arrival_time,
         now,
+        sick: b.sick,
+        excused: b.excused,
       });
       const rankA = getTimeStatusSortRank(statusA);
       const rankB = getTimeStatusSortRank(statusB);
@@ -1523,28 +1529,40 @@ function SearchPageContent() {
                         Gruppe: {student.group_name}
                       </StudentInfoRow>
                     )}
-                    {student.has_full_access !== false && (
-                      <>
-                        <ArrivalTimeRow
-                          arrivalTime={student.arrival_time}
-                          actualTime={student.actual_arrival_time}
-                          isException={student.arrival_is_exception ?? false}
-                          isAbsent={
-                            (student.arrival_is_exception ?? false) &&
-                            !student.arrival_time
-                          }
-                          notes={student.arrival_notes}
-                          now={now}
-                        />
-                        <PickupTimeRow
-                          pickupTime={student.pickup_time ?? undefined}
-                          actualTime={student.actual_pickup_time}
-                          isException={student.pickup_is_exception ?? false}
-                          notes={student.pickup_notes}
-                          now={now}
-                        />
-                      </>
-                    )}
+                    {student.has_full_access !== false &&
+                      (() => {
+                        const absence = getStudentAbsence({
+                          sick: student.sick,
+                          excused: student.excused,
+                        });
+                        if (absence && !student.actual_arrival_time) {
+                          return <StudentAbsenceRow label={absence.label} />;
+                        }
+                        return (
+                          <>
+                            <ArrivalTimeRow
+                              arrivalTime={student.arrival_time}
+                              actualTime={student.actual_arrival_time}
+                              isException={
+                                student.arrival_is_exception ?? false
+                              }
+                              isAbsent={
+                                (student.arrival_is_exception ?? false) &&
+                                !student.arrival_time
+                              }
+                              notes={student.arrival_notes}
+                              now={now}
+                            />
+                            <PickupTimeRow
+                              pickupTime={student.pickup_time ?? undefined}
+                              actualTime={student.actual_pickup_time}
+                              isException={student.pickup_is_exception ?? false}
+                              notes={student.pickup_notes}
+                              now={now}
+                            />
+                          </>
+                        );
+                      })()}
                   </>
                 }
                 trackingIndicators={
