@@ -156,6 +156,30 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
     () => chartData.filter((d) => d.roomDetailAvailable),
     [chartData],
   );
+  const renderDurationTick = useCallback(
+    (p: Record<string, unknown>) => (
+      <TodayTick chartData={chartData} props={p} />
+    ),
+    [chartData],
+  );
+  const renderActivityTick = useCallback(
+    (p: Record<string, unknown>) => (
+      <TodayTick chartData={activityChartData} props={p} />
+    ),
+    [activityChartData],
+  );
+  const renderDurationTooltipValue = useCallback(
+    (value: string | number) => (
+      <span className="font-medium">{value} Std</span>
+    ),
+    [],
+  );
+  const renderActivityTooltipValue = useCallback(
+    (value: string | number) => (
+      <span className="font-medium">{value} Wechsel</span>
+    ),
+    [],
+  );
 
   if (chartData.length === 0) return null;
 
@@ -189,9 +213,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
                 tickMargin={8}
                 fontSize={11}
                 interval={0}
-                tick={(p: Record<string, unknown>) => (
-                  <TodayTick chartData={chartData} props={p} />
-                )}
+                tick={renderDurationTick}
               />
               <YAxis
                 tickLine={false}
@@ -204,9 +226,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
                 content={
                   <ChartTooltipContent
                     labelFormatter={(label) => `Tag: ${label}`}
-                    formatter={(value) => (
-                      <span className="font-medium">{value} Std</span>
-                    )}
+                    formatter={renderDurationTooltipValue}
                   />
                 }
               />
@@ -253,9 +273,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
                   tickMargin={8}
                   fontSize={11}
                   interval={0}
-                  tick={(p: Record<string, unknown>) => (
-                    <TodayTick chartData={activityChartData} props={p} />
-                  )}
+                  tick={renderActivityTick}
                 />
                 <YAxis
                   tickLine={false}
@@ -268,9 +286,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
                   content={
                     <ChartTooltipContent
                       labelFormatter={(label) => `Tag: ${label}`}
-                      formatter={(value) => (
-                        <span className="font-medium">{value} Wechsel</span>
-                      )}
+                      formatter={renderActivityTooltipValue}
                     />
                   }
                 />
