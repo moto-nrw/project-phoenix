@@ -1265,6 +1265,24 @@ function SearchPageContent() {
 
     return [...filteredStudents].sort((a, b) => {
       if (sortMode === "pickup") {
+        const statusA = getStudentTimeStatus({
+          plannedTime: a.pickup_time,
+          actualTime: a.actual_pickup_time,
+          now,
+          sick: a.sick,
+          excused: a.excused,
+        });
+        const statusB = getStudentTimeStatus({
+          plannedTime: b.pickup_time,
+          actualTime: b.actual_pickup_time,
+          now,
+          sick: b.sick,
+          excused: b.excused,
+        });
+        const rankA = getTimeStatusSortRank(statusA);
+        const rankB = getTimeStatusSortRank(statusB);
+        if (rankA !== rankB) return rankA - rankB;
+
         const timeA = a.pickup_time;
         const timeB = b.pickup_time;
         if (timeA && !timeB) return -1;
