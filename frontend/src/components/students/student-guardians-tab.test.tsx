@@ -51,6 +51,27 @@ describe("StudentGuardiansTab", () => {
     expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
   });
 
+  it("renders manager read-only when user has read access but no write access", () => {
+    const onChanged = vi.fn();
+    render(
+      <StudentGuardiansTab
+        student={makeStudent({
+          has_full_access: true,
+          has_write_access: false,
+        })}
+        onChanged={onChanged}
+      />,
+    );
+
+    expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
+    expect(receivedProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        readOnly: true,
+        onUpdate: undefined,
+      }),
+    );
+  });
+
   it("shows GDPR hint when has_full_access is false", () => {
     render(
       <StudentGuardiansTab student={makeStudent({ has_full_access: false })} />,
