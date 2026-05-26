@@ -16,6 +16,7 @@ import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
+import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
 import {
   type AttendanceHistory,
@@ -663,10 +664,8 @@ function StudentRoomHistoryPageContent() {
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
 
-  // Scroll to top on mount — prevents inheriting scroll position from previous page
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+  // Start at the top instead of inheriting the previous page's scroll position
+  useScrollToTop(studentId);
 
   const fetchStudent = useCallback(async (): Promise<Student | null> => {
     try {

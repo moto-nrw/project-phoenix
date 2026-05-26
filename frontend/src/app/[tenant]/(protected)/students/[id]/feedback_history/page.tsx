@@ -7,6 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
+import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { BackButton } from "~/components/ui/back-button";
 import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
@@ -68,6 +69,9 @@ export default function StudentFeedbackHistoryPage() {
   const [showDetails, setShowDetails] = useState(false);
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
+
+  // Start at the top instead of inheriting the previous page's scroll position
+  useScrollToTop(studentId);
 
   useEffect(() => {
     let cancelled = false;
