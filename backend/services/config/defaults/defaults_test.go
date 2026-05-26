@@ -69,6 +69,34 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"security.mfa_mode",
 		"security.mfa_trusted_device_enabled",
 		"security.mfa_trusted_device_days",
+		// Parent-enrollment PR 2: activate-students scheduler interval.
+		"operations.student_activation_interval_minutes",
+		// Parent-enrollment PR 3: guardian invitation token expiry.
+		"invitations.guardian_token_expiry_hours",
+		// Parent-enrollment registry plumbing. open_window_*,
+		// show_status_reason_to_parent, and care_overflow_mode moved
+		// to per-phase columns on enrollment.phases - they're no
+		// longer tenant-wide settings.
+		"enrollment.enabled",
+		"enrollment.collect_grade_level",
+		"enrollment.care_offerings_enabled",
+		"enrollment.care_offerings_required",
+		"enrollment.default_activation_mode",
+		"enrollment.notification_emails",
+		"enrollment.auto_invite_guardian_on_approval",
+		"enrollment.duplicate_handling",
+		"enrollment.allow_submission_edit",
+		"enrollment.require_captcha",
+		"enrollment.rejected_retention_days",
+		"enrollment.waitlist_enabled",
+		"enrollment.notify_per_decision",
+		"enrollment.outbox_max_attempts",
+		"enrollment.outbox_worker_interval_seconds",
+		"enrollment.status_token_ttl_days",
+		// PR 7: public form additions.
+		"enrollment.captcha_site_key",
+		"enrollment.captcha_secret_key",
+		"enrollment.grade_level_max",
 	}
 
 	for _, key := range expectedKeys {
@@ -89,7 +117,7 @@ func TestPresenceModeSetting(t *testing.T) {
 	require.NotNil(t, def, "operations.presence_mode should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
 	assert.Equal(t, config.PresenceModeDetailed, def.Default, "default must be detailed for backwards compatibility")
-	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "presence_mode is operator-only — cascading impact too large for tenant admins")
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "presence_mode is operator-only - cascading impact too large for tenant admins")
 	assert.Equal(t, "operations", def.Tab)
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 2)
@@ -208,7 +236,7 @@ func TestTimetableSettings_DependsOn(t *testing.T) {
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
 
-	// Overdue threshold is independent of materialization — it only depends on
+	// Overdue threshold is independent of materialization - it only depends on
 	// the top-level feature toggle.
 }
 
@@ -247,8 +275,8 @@ func TestTimetableSettings_WeekdayOptions(t *testing.T) {
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 7, "all 7 weekdays must be offered")
 
-	// Weekday option values must be ISO 8601 integers 1–7. Drifting to
-	// time.Weekday's 0–6 convention would silently break any future
+	// Weekday option values must be ISO 8601 integers 1-7. Drifting to
+	// time.Weekday's 0-6 convention would silently break any future
 	// materialization consumer that compares to time.Weekday()+1.
 	seen := map[int]string{}
 	for _, opt := range def.Options.Static {
@@ -287,6 +315,209 @@ func TestOperationsSettings_Types(t *testing.T) {
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
 	}
+}
+
+// TestEnrollmentSettings_AllRegistered_OnEnrollmentTab guards that every
+// enrollment.* user-facing setting lands on the "enrollment" tab. The two
+// system-tab keys (outbox_max_attempts, status_token_ttl_days) are pulled
+// out separately so a future tab refactor can't silently move user-visible
+// settings without breaking the test.
+func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
+	enrollmentTabKeys := []string{
+		config.KeyEnrollmentEnabled,
+		config.KeyEnrollmentCollectGradeLevel,
+		config.KeyEnrollmentCareOfferingsEnabled,
+		config.KeyEnrollmentCareOfferingsRequired,
+		config.KeyEnrollmentDefaultActivationMode,
+		config.KeyEnrollmentNotificationEmails,
+		config.KeyEnrollmentAutoInviteGuardianOnApprove,
+		config.KeyEnrollmentDuplicateHandling,
+		config.KeyEnrollmentAllowSubmissionEdit,
+		config.KeyEnrollmentRequireCaptcha,
+		config.KeyEnrollmentRejectedRetentionDays,
+		config.KeyEnrollmentWaitlistEnabled,
+		config.KeyEnrollmentNotifyPerDecision,
+	}
+	for _, key := range enrollmentTabKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should be registered", key)
+		assert.Equalf(t, "enrollment", def.Tab, "setting %q should be in enrollment tab", key)
+		assert.NotEmptyf(t, def.Label, "setting %q must have a German label", key)
+		assert.NotEmptyf(t, def.Description, "setting %q must have a German description", key)
+	}
+
+	systemTabKeys := []string{
+		config.KeyEnrollmentOutboxMaxAttempts,
+		config.KeyEnrollmentStatusTokenTTLDays,
+	}
+	for _, key := range systemTabKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should be registered", key)
+		assert.Equalf(t, "system", def.Tab, "setting %q should be in system tab", key)
+	}
+}
+
+// TestEnrollmentEnabled_DefaultsOff guards that the master feature flag is
+// off by default. Regressing this would silently expose a half-built
+// feature to every tenant on next deploy.
+func TestEnrollmentEnabled_DefaultsOff(t *testing.T) {
+	def := config.GetDefinition(config.KeyEnrollmentEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "enrollment.enabled must default to false")
+	assert.Equal(t, "config:update", def.WritePermission)
+}
+
+// TestEnrollmentSettings_DependencyOnEnabled guards that all per-feature
+// enrollment settings hide when the master toggle is off (depends_on
+// enrollment.enabled = true). Captures the rev-2.x intent that PR 4 is
+// pure plumbing and nothing renders in the parent UI until enabled.
+func TestEnrollmentSettings_DependencyOnEnabled(t *testing.T) {
+	gatedOnEnabled := []string{
+		config.KeyEnrollmentCollectGradeLevel,
+		config.KeyEnrollmentCareOfferingsEnabled,
+		config.KeyEnrollmentDefaultActivationMode,
+		config.KeyEnrollmentNotificationEmails,
+		config.KeyEnrollmentAutoInviteGuardianOnApprove,
+		config.KeyEnrollmentDuplicateHandling,
+		config.KeyEnrollmentAllowSubmissionEdit,
+		config.KeyEnrollmentRequireCaptcha,
+		config.KeyEnrollmentWaitlistEnabled,
+		config.KeyEnrollmentNotifyPerDecision,
+	}
+	for _, key := range gatedOnEnabled {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		require.NotNilf(t, def.DependsOn, "setting %q must depend on enrollment.enabled", key)
+		assert.Equal(t, config.KeyEnrollmentEnabled, def.DependsOn.Key, "setting %q parent should be enrollment.enabled", key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+
+	// Care-offerings-required hangs off care_offerings_enabled (nested gate),
+	// not the master toggle.
+	careRequired := config.GetDefinition(config.KeyEnrollmentCareOfferingsRequired)
+	require.NotNil(t, careRequired.DependsOn)
+	assert.Equal(t, config.KeyEnrollmentCareOfferingsEnabled, careRequired.DependsOn.Key)
+}
+
+// TestEnrollmentSelectOptions_AreCanonical guards the static option lists
+// for the three select-typed enrollment settings. Drift here breaks the
+// frontend select renderer silently.
+func TestEnrollmentSelectOptions_AreCanonical(t *testing.T) {
+	activation := config.GetDefinition(config.KeyEnrollmentDefaultActivationMode)
+	require.NotNil(t, activation.Options)
+	require.Len(t, activation.Options.Static, 2)
+	activationValues := []any{activation.Options.Static[0].Value, activation.Options.Static[1].Value}
+	assert.Contains(t, activationValues, config.EnrollmentActivationModeImmediate)
+	assert.Contains(t, activationValues, config.EnrollmentActivationModeScheduled)
+
+	dup := config.GetDefinition(config.KeyEnrollmentDuplicateHandling)
+	require.NotNil(t, dup.Options)
+	require.Len(t, dup.Options.Static, 3)
+	dupValues := []any{
+		dup.Options.Static[0].Value,
+		dup.Options.Static[1].Value,
+		dup.Options.Static[2].Value,
+	}
+	assert.Contains(t, dupValues, config.EnrollmentDuplicateHandlingBlock)
+	assert.Contains(t, dupValues, config.EnrollmentDuplicateHandlingWarn)
+	assert.Contains(t, dupValues, config.EnrollmentDuplicateHandlingIgnore)
+
+	notify := config.GetDefinition(config.KeyEnrollmentNotifyPerDecision)
+	require.NotNil(t, notify.Options)
+	require.Len(t, notify.Options.Static, 2)
+	notifyValues := []any{notify.Options.Static[0].Value, notify.Options.Static[1].Value}
+	assert.Contains(t, notifyValues, config.EnrollmentNotifyPerDecisionDigest)
+	assert.Contains(t, notifyValues, config.EnrollmentNotifyPerDecisionImmediate)
+}
+
+// (TestEnrollmentDateFields removed: the open-window settings moved to
+// per-phase columns on enrollment.phases - no tenant-wide date pickers
+// remain.)
+
+// TestEnrollmentOutboxWorkerInterval guards the registry shape of the
+// outbox worker polling interval setting (PR 5). Operator-only because
+// the cadence is platform plumbing, not tenant-tunable.
+func TestEnrollmentOutboxWorkerInterval(t *testing.T) {
+	def := config.GetDefinition(config.KeyEnrollmentOutboxWorkerIntervalSeconds)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 30, def.Default)
+	assert.Equal(t, "system", def.Tab)
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(10), *def.Validation.Min)
+	assert.Equal(t, float64(600), *def.Validation.Max)
+}
+
+// TestEnrollmentStatusTokenTTL_OperatorOnly guards the §11 rule that this
+// setting is operator-writable only - readable by tenant admins, not
+// editable. We use AccessOperatorOnly + config:manage instead of
+// introducing a new platform:config:update permission.
+func TestEnrollmentStatusTokenTTL_OperatorOnly(t *testing.T) {
+	def := config.GetDefinition(config.KeyEnrollmentStatusTokenTTLDays)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 365, def.Default)
+	assert.Equal(t, "system", def.Tab)
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy,
+		"status_token_ttl_days must be operator-only - tenant admins should not extend their own status-link windows")
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+}
+
+// TestEnrollmentSafetyPermissions guards that the captcha and retention
+// settings - both with security/GDPR implications - use the stricter
+// config:manage write permission, not the operational config:update.
+func TestEnrollmentSafetyPermissions(t *testing.T) {
+	captcha := config.GetDefinition(config.KeyEnrollmentRequireCaptcha)
+	require.NotNil(t, captcha)
+	assert.Equal(t, "config:manage", captcha.WritePermission)
+
+	retention := config.GetDefinition(config.KeyEnrollmentRejectedRetentionDays)
+	require.NotNil(t, retention)
+	assert.Equal(t, "config:manage", retention.WritePermission)
+}
+
+// TestGuardianInvitationTokenExpiry guards the registry shape of the
+// guardian-invitation token TTL. Operator-only, default 48h, validation 1-168h.
+func TestGuardianInvitationTokenExpiry(t *testing.T) {
+	def := config.GetDefinition(config.KeyGuardianInvitationTokenExpiryHours)
+	require.NotNil(t, def, "invitations.guardian_token_expiry_hours should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 48, def.Default)
+	assert.Equal(t, "system", def.Tab)
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy,
+		"guardian token TTL is auth plumbing - operators only")
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(1), *def.Validation.Min)
+	assert.Equal(t, float64(168), *def.Validation.Max)
+}
+
+// TestStudentActivationInterval guards the registry shape of the activate-
+// students scheduler interval. Default 60 minutes, validation 5-1440.
+func TestStudentActivationInterval(t *testing.T) {
+	def := config.GetDefinition(config.KeyStudentActivationIntervalMin)
+	require.NotNil(t, def, "operations.student_activation_interval_minutes should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 60, def.Default)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(5), *def.Validation.Min)
+	assert.Equal(t, float64(1440), *def.Validation.Max)
+	assert.Nil(t, def.DependsOn, "activate-students interval is independent of other settings")
 }
 
 // TestStatusFlagClearMode_Defaults guards that the clear-mode settings
@@ -661,12 +892,12 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 // TestStudentPhotosSetting guards the photo-feature toggle: defaults to OFF so
 // no school surfaces photos until an admin opts in, sits in the operations tab
 // alongside other Datenverwaltung-affecting toggles, and uses config:update
-// (operational, not GDPR-scoped — consent itself is captured per student).
+// (operational, not GDPR-scoped - consent itself is captured per student).
 func TestStudentPhotosSetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyStudentPhotosEnabled)
 	require.NotNil(t, def, "operations.student_photos_enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
-	assert.Equal(t, false, def.Default, "must default to false — feature is off until admin opts in")
+	assert.Equal(t, false, def.Default, "must default to false - feature is off until admin opts in")
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "kinder", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)

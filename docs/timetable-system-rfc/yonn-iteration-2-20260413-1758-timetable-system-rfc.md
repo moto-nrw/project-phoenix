@@ -14,7 +14,7 @@ Ergebnis aus drei Runden Devil's-Advocate-Analyse gegen das ursprüngliche RFC (
 
 **Begründung:** Drei Modi erzwingen künstliche Grenzen. Jede OGS hat feste Blöcke (Mensa, Lernzeit) UND spontane Aktivitäten. Ein "Flexible"-Modus, der keine Materialisierung erlaubt, ist für keine Schule mit festen Blöcken brauchbar. Stattdessen: Materialisierung ist optional aktivierbar per Setting, spontane Aktivitäten sind immer möglich.
 
-**Impact:** 
+**Impact:**
 - `timetable.mode` Setting entfällt
 - `timetable.allow_spontaneous_activities` Setting entfällt
 - DependsOn-OR-Erweiterung im Settings-System wird NICHT benötigt
@@ -189,8 +189,8 @@ POST /api/timetable/substitute
 
 ```go
 type ConflictService interface {
-    CheckConflicts(ctx context.Context, date time.Time, startTime, endTime string, 
-        roomIDs []int64, staffIDs []int64, studentIDs []int64, 
+    CheckConflicts(ctx context.Context, date time.Time, startTime, endTime string,
+        roomIDs []int64, staffIDs []int64, studentIDs []int64,
         excludeInstanceID *int64) []Conflict
 }
 
@@ -279,7 +279,7 @@ POST /api/timetable/materialize
 A) Partial UNIQUE Index nur für Template-basierte Instances:
 
 ```sql
-CREATE UNIQUE INDEX idx_activity_instances_template_unique 
+CREATE UNIQUE INDEX idx_activity_instances_template_unique
     ON schedule.activity_instances (tenant_id, date, activity_group_id, start_time)
     WHERE activity_group_id IS NOT NULL;
 ```
@@ -357,7 +357,7 @@ CREATE TABLE schedule.activity_instances (
 );
 
 -- Partial UNIQUE: verhindert Template-Duplikate, erlaubt spontane Duplikate
-CREATE UNIQUE INDEX idx_activity_instances_template_unique 
+CREATE UNIQUE INDEX idx_activity_instances_template_unique
     ON schedule.activity_instances (tenant_id, date, activity_group_id, start_time)
     WHERE activity_group_id IS NOT NULL;
 

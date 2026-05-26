@@ -7,6 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
+import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { BackButton } from "~/components/ui/back-button";
 import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
@@ -68,6 +69,9 @@ export default function StudentFeedbackHistoryPage() {
   const [showDetails, setShowDetails] = useState(false);
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
+
+  // Start at the top instead of inheriting the previous page's scroll position
+  useScrollToTop(studentId);
 
   useEffect(() => {
     let cancelled = false;
@@ -261,7 +265,7 @@ export default function StudentFeedbackHistoryPage() {
       </div>
 
       {/* Main visual card */}
-      <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
         <div className="p-4 sm:p-6 md:p-8">
           <h2 className="mb-1 text-base font-bold text-gray-900 sm:text-lg">
             Feedback-Übersicht

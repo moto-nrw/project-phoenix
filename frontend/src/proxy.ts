@@ -21,6 +21,14 @@ if (!OPERATOR_HOSTNAME) {
   );
 }
 
+const PARENTS_HOSTNAME = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
+if (!PARENTS_HOSTNAME) {
+  throw new Error(
+    "NEXT_PUBLIC_PARENTS_HOSTNAME is not set. " +
+      "Add it to your .env.local or docker-compose environment.",
+  );
+}
+
 const TENANT_DOMAIN: string = (() => {
   const val = process.env.TENANT_DOMAIN;
   if (!val) {
@@ -133,6 +141,82 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
   return withSecurityHeaders(NextResponse.redirect(url));
 }
 
+// --- Parents subdomain handling (cross-tenant guardian portal) ---
+
+/** Paths the parents subdomain serves (without /parents prefix).
+ * Mirrors OPERATOR_PUBLIC_PATHS in shape — the proxy rewrites these to
+ * /parents/* internally so the App Router routes them under app/parent/.
+ *
+ * The "/parents" prefix is the path namespace inside the App Router,
+ * NOT the URL path the user sees. On parents.{TENANT_DOMAIN} the user
+ * sees /login → internally rewritten to /parents/login.
+ */
+const PARENTS_PUBLIC_PATHS = [
+  "/login",
+  "/email-confirm",
+  "/children",
+  "/enroll",
+  "/accept-guardian-invite",
+];
+
+function isParentsHost(hostname: string): boolean {
+  return hostname === PARENTS_HOSTNAME;
+}
+
+function handleParentsSubdomain(request: NextRequest): NextResponse {
+  const { pathname } = request.nextUrl;
+
+  // Block tenant + operator auth endpoints on the parents host. Tenant
+  // and operator session cookies are strictly host-only on their own
+  // subdomains, but we 404 here as defense-in-depth in case a misconfig
+  // ever leaked them.
+  if (
+    pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/api/operator/auth/")
+  ) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
+
+  // Pass through: parents API routes, static assets, Sentry tunnel.
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/monitoring")
+  ) {
+    return withSecurityHeaders(NextResponse.next());
+  }
+
+  // Root → /parents (which server-redirects to the dashboard).
+  if (pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/parents";
+    return withSecurityHeaders(NextResponse.rewrite(url));
+  }
+
+  // Known parents paths → rewrite to /parents/* internally.
+  if (
+    PARENTS_PUBLIC_PATHS.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`),
+    )
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/parents${pathname}`;
+    return withSecurityHeaders(NextResponse.rewrite(url));
+  }
+
+  // Already prefixed with /parents → pass through (handles direct
+  // /parents/* access during dev).
+  if (pathname.startsWith("/parents")) {
+    return withSecurityHeaders(NextResponse.next());
+  }
+
+  // Anything else → redirect to root. Keeps the parents host from
+  // leaking access to tenant or operator paths.
+  const url = request.nextUrl.clone();
+  url.pathname = "/";
+  return withSecurityHeaders(NextResponse.redirect(url));
+}
+
 // --- Tenant subdomain handling (from multi-tenancy) ---
 
 // Alias for use in subdomain extraction below.
@@ -170,9 +254,14 @@ export function proxy(request: NextRequest): NextResponse {
 
   const hostname = getHostname(request);
 
-  // 1. Operator subdomain gets its own routing
+  // 1a. Operator subdomain gets its own routing
   if (isOperatorHost(hostname)) {
     return handleOperatorSubdomain(request);
+  }
+
+  // 1b. Parents subdomain gets its own routing (mirrors operator)
+  if (isParentsHost(hostname)) {
+    return handleParentsSubdomain(request);
   }
 
   // 2. /api/* and /monitoring (Sentry tunnel) — pass through with security headers.
@@ -180,7 +269,7 @@ export function proxy(request: NextRequest): NextResponse {
     return withSecurityHeaders(NextResponse.next());
   }
 
-  // 3. Operator auth guard on non-operator hosts:
+  // 3a. Operator auth guard on non-operator hosts:
   //    Protect all /operator/* routes except /operator/login by requiring the
   //    operator session cookie. Redirect /operator/* to operator subdomain if possible.
   if (pathname.startsWith("/operator")) {
@@ -188,6 +277,19 @@ export function proxy(request: NextRequest): NextResponse {
     const protocol = request.nextUrl.protocol;
     const search = request.nextUrl.search;
     const redirectUrl = `${protocol}//${OPERATOR_HOSTNAME}${cleanPath}${search}`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
+  }
+
+  // 3b. Parents auth guard on non-parents hosts: same pattern as
+  // operator. /parents/* hit on a tenant subdomain or the bare domain
+  // gets redirected to parents.{TENANT_DOMAIN}. Defense-in-depth so
+  // a stray link or bookmark can't accidentally serve parent UI from
+  // a tenant context.
+  if (pathname.startsWith("/parents")) {
+    const cleanPath = pathname.replace(/^\/parents/, "") || "/";
+    const protocol = request.nextUrl.protocol;
+    const search = request.nextUrl.search;
+    const redirectUrl = `${protocol}//${PARENTS_HOSTNAME}${cleanPath}${search}`;
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
@@ -205,6 +307,12 @@ export function proxy(request: NextRequest): NextResponse {
   // so skip rewriting to avoid double-prefixing (e.g. /school-a/school-a/dashboard).
   if (pathname.startsWith(`/${tenantSlug}/`) || pathname === `/${tenantSlug}`) {
     return withSecurityHeaders(NextResponse.next());
+  }
+
+  if (pathname === "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = `/${tenantSlug}`;
+    return withSecurityHeaders(NextResponse.rewrite(url));
   }
 
   // Rewrite: school-a.localhost:3000/dashboard -> internal /school-a/dashboard

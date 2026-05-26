@@ -59,7 +59,7 @@ interface Room {
 // meta line, status pill, two middle rows, and the footer hint.
 function RoomCardSkeleton() {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md">
       <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
       <div className="relative flex min-h-[180px] flex-col p-6">
         <div className="mb-3 flex items-start justify-between">
@@ -113,7 +113,7 @@ function TransitAssignmentCard({
       onClick={onOpen}
       aria-haspopup="dialog"
       aria-controls="room-detail-panel"
-      className="group mb-5 flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white/90 p-4 text-left shadow-[0_8px_30px_rgb(0,0,0,0.10)] backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:border-gray-200 hover:bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.14)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:scale-[0.99] sm:p-5"
+      className="group moto-content-surface moto-hover-elevated mb-5 flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] sm:p-5"
     >
       <div className="flex min-w-0 items-center gap-3">
         <span
@@ -136,7 +136,7 @@ function TransitAssignmentCard({
           </p>
         </div>
       </div>
-      <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors group-hover:border-gray-300 group-hover:bg-gray-50">
+      <span className="moto-content-surface inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium text-gray-700 transition-colors group-hover:border-gray-300 group-hover:bg-gray-50">
         Zuweisen
         <ArrowRight className="h-4 w-4 text-gray-500" aria-hidden="true" />
       </span>
@@ -603,22 +603,20 @@ function RoomsPageContent() {
                         ? "room-detail-panel"
                         : undefined
                     }
-                    className="group relative w-full cursor-pointer overflow-hidden rounded-3xl bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+                    className="group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
                   >
                     <div className="relative p-6 pb-5">
-                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]" />
-                      <div className="pointer-events-none absolute inset-px bg-gradient-to-br from-white/80 to-white/20" />
-                      <div className="pointer-events-none absolute inset-0 ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-blue-200/60" />
+                      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
 
                       <div className="relative flex min-h-[156px] flex-col">
                         <div className="mb-3 flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-150 md:group-hover:text-blue-600">
+                              <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
                                 {room.name}
                               </h3>
                               <svg
-                                className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-150 md:group-hover:text-blue-500"
+                                className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
@@ -633,7 +631,7 @@ function RoomsPageContent() {
                             </div>
                             {(room.building !== undefined ||
                               room.floor !== undefined) && (
-                              <p className="mt-0.5 overflow-hidden text-sm text-ellipsis whitespace-nowrap text-gray-500 transition-colors duration-150 md:group-hover:text-blue-500">
+                              <p className="mt-0.5 overflow-hidden text-sm text-ellipsis whitespace-nowrap text-gray-500 transition-colors duration-300 md:group-hover:text-gray-600">
                                 {room.building &&
                                   room.floor !== undefined &&
                                   `${room.building} · ${formatFloor(room.floor)}`}

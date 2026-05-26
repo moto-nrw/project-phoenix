@@ -1,0 +1,328 @@
+package parent_test
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
+	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// enableEnrollmentForTenant sets the enrollment.enabled setting to
+// true for the given tenant. The repo INNER JOINs on this setting, so
+// without it every test row drops out of the result.
+func enableEnrollmentForTenant(t *testing.T, db *bun.DB, tenantID int64) {
+	t.Helper()
+	bg := context.Background()
+	// Need a real account to satisfy the FK on config.setting_values.updated_by.
+	updater := testpkg.CreateTestAccount(t, db, "settingsupdater")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", updater.ID).Exec(bg)
+	})
+
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values
+		  (tenant_id, setting_key, value, updated_by, created_at, updated_at)
+		VALUES (?, 'enrollment.enabled', 'true'::jsonb, ?, NOW(), NOW())
+		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = 'true'::jsonb, updated_at = NOW()
+	`, tenantID, updater.ID).Exec(bg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("config.setting_values").
+			Where("tenant_id = ? AND setting_key = ?", tenantID, "enrollment.enabled").
+			Exec(bg)
+	})
+}
+
+// insertEnrollablePhase makes a minimal phase row directly so we don't
+// pull in the enrollment repo here. windowOpen/Close = nil means
+// "always open".
+func insertEnrollablePhase(t *testing.T, db *bun.DB, tenantID int64, name string, windowOpen, windowClose *time.Time, active bool) int64 {
+	t.Helper()
+	bg := context.Background()
+	var id int64
+	err := db.NewRaw(`
+		INSERT INTO enrollment.phases
+		  (tenant_id, name, kind, service_start_date, service_end_date,
+		   enrollment_open_at, enrollment_close_at, is_active, care_overflow_mode,
+		   show_status_reason_to_parent)
+		VALUES (?, ?, 'school_year', '2026-09-01', '2027-07-31',
+		        ?, ?, ?, 'waitlist', FALSE)
+		RETURNING id
+	`, tenantID, name, windowOpen, windowClose, active).Scan(bg, &id)
+	require.NoError(t, err)
+	return id
+}
+
+func wipePhasesForTenant(db *bun.DB, tenantID int64, namePrefix string) {
+	_, _ = db.NewDelete().Table("enrollment.phases").
+		Where("tenant_id = ? AND name LIKE ?", tenantID, namePrefix+"%").
+		Exec(context.Background())
+}
+
+// --- ListEnrollable ---------------------------------------------------
+
+func TestEnrollablePhaseRepository_ListEnrollable_RejectsNonPositiveAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	repo := parentRepo.NewEnrollablePhaseRepository(db)
+
+	_, err := repo.ListEnrollable(context.Background(), 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be positive")
+
+	_, err = repo.ListEnrollable(context.Background(), -1)
+	require.Error(t, err)
+}
+
+func TestEnrollablePhaseRepository_ListEnrollable_HappyPath(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	enableEnrollmentForTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "enrollable-happy")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("auth.account_tenants").
+			Where("account_id = ?", account.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	name := fmt.Sprintf("enrollable-happy-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, tenantID, "enrollable-happy")
+	insertEnrollablePhase(t, db, tenantID, name, nil, nil, true)
+
+	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	var list []*parentModels.EnrollablePhase
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListEnrollable(ctx, account.ID)
+		return lErr
+	}))
+
+	found := false
+	for _, p := range list {
+		if p.PhaseName == name {
+			found = true
+			assert.False(t, p.AlreadyLinked,
+				"no account_tenants mapping → AlreadyLinked must be false")
+			assert.Equal(t, tenantID, p.SchoolID)
+		}
+	}
+	assert.True(t, found, "phase with enrollment enabled + active + open window MUST appear")
+}
+
+func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T) {
+	// Parent has an active account_tenants mapping → already_linked
+	// must be TRUE for that tenant's phases.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	enableEnrollmentForTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "enrollable-linked")
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("auth.account_tenants").
+			Where("account_id = ?", account.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	name := fmt.Sprintf("enrollable-linked-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, tenantID, "enrollable-linked")
+	insertEnrollablePhase(t, db, tenantID, name, nil, nil, true)
+
+	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	var list []*parentModels.EnrollablePhase
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListEnrollable(ctx, account.ID)
+		return lErr
+	}))
+
+	for _, p := range list {
+		if p.PhaseName == name {
+			assert.True(t, p.AlreadyLinked,
+				"active account_tenants mapping must surface as AlreadyLinked=true")
+			return
+		}
+	}
+	t.Fatal("phase not found in result")
+}
+
+func TestEnrollablePhaseRepository_ListEnrollable_OmitsTenantsWithoutEnabledSetting(t *testing.T) {
+	// A tenant that hasn't enabled enrollment.enabled (or has it set
+	// to false) must drop out of the result entirely — the INNER JOIN
+	// on config.setting_values enforces this.
+	//
+	// Uses a dedicated tenant ID so the tenant-1 setting other tests
+	// flip on/off doesn't bleed into this assertion.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 91520
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	// Deliberately NOT calling enableEnrollmentForTenant.
+
+	account := testpkg.CreateTestAccount(t, db, "enrollable-nosetting")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	name := fmt.Sprintf("enrollable-nosetting-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, tenantID, "enrollable-nosetting")
+	insertEnrollablePhase(t, db, tenantID, name, nil, nil, true)
+
+	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	var list []*parentModels.EnrollablePhase
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListEnrollable(ctx, account.ID)
+		return lErr
+	}))
+	for _, p := range list {
+		assert.NotEqual(t, name, p.PhaseName,
+			"phase from a tenant without enrollment.enabled MUST NOT appear")
+	}
+}
+
+func TestEnrollablePhaseRepository_ListEnrollable_OmitsInactivePhases(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	enableEnrollmentForTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "enrollable-inactive")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	name := fmt.Sprintf("enrollable-inactive-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, tenantID, "enrollable-inactive")
+	insertEnrollablePhase(t, db, tenantID, name, nil, nil, false) // is_active = false
+
+	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	var list []*parentModels.EnrollablePhase
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListEnrollable(ctx, account.ID)
+		return lErr
+	}))
+	for _, p := range list {
+		assert.NotEqual(t, name, p.PhaseName,
+			"is_active=false phase MUST NOT appear")
+	}
+}
+
+func TestEnrollablePhaseRepository_ListEnrollable_RespectsEnrollmentWindow(t *testing.T) {
+	// A phase whose window has closed must NOT appear; one whose
+	// window opens in the future must NOT appear.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	enableEnrollmentForTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "enrollable-window")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	defer wipePhasesForTenant(db, tenantID, "enrollable-window")
+
+	past := time.Now().Add(-2 * time.Hour)
+	morePast := time.Now().Add(-1 * time.Hour)
+	future := time.Now().Add(2 * time.Hour)
+	moreFuture := time.Now().Add(3 * time.Hour)
+
+	openName := fmt.Sprintf("enrollable-window-open-%d", time.Now().UnixNano())
+	closedName := fmt.Sprintf("enrollable-window-closed-%d", time.Now().UnixNano())
+	futureName := fmt.Sprintf("enrollable-window-future-%d", time.Now().UnixNano())
+
+	insertEnrollablePhase(t, db, tenantID, openName, &past, &future, true)
+	insertEnrollablePhase(t, db, tenantID, closedName, &past, &morePast, true)
+	insertEnrollablePhase(t, db, tenantID, futureName, &future, &moreFuture, true)
+
+	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	var list []*parentModels.EnrollablePhase
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListEnrollable(ctx, account.ID)
+		return lErr
+	}))
+
+	seen := map[string]bool{}
+	for _, p := range list {
+		seen[p.PhaseName] = true
+	}
+	assert.True(t, seen[openName], "open + active phase MUST appear")
+	assert.False(t, seen[closedName], "closed-window phase MUST NOT appear")
+	assert.False(t, seen[futureName], "future-window phase MUST NOT appear")
+}
+
+func TestEnrollablePhaseRepository_ListEnrollable_OrdersLinkedFirst(t *testing.T) {
+	// Linked schools come before unlinked in the result order so the
+	// parent dashboard puts familiar schools at the top.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	var tenantLinked int64 = 91510
+	var tenantUnlinked int64 = 91511
+	testpkg.EnsureTestTenant(t, db, tenantLinked)
+	testpkg.EnsureTestTenant(t, db, tenantUnlinked)
+	enableEnrollmentForTenant(t, db, tenantLinked)
+	enableEnrollmentForTenant(t, db, tenantUnlinked)
+
+	account := testpkg.CreateTestAccount(t, db, "enrollable-order")
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantLinked) // linked here only
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("auth.account_tenants").
+			Where("account_id = ?", account.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("auth.accounts").
+			Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	linkedName := fmt.Sprintf("enrollable-order-linked-%d", time.Now().UnixNano())
+	unlinkedName := fmt.Sprintf("enrollable-order-unlinked-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, tenantLinked, "enrollable-order-linked")
+	defer wipePhasesForTenant(db, tenantUnlinked, "enrollable-order-unlinked")
+	insertEnrollablePhase(t, db, tenantLinked, linkedName, nil, nil, true)
+	insertEnrollablePhase(t, db, tenantUnlinked, unlinkedName, nil, nil, true)
+
+	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	var list []*parentModels.EnrollablePhase
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListEnrollable(ctx, account.ID)
+		return lErr
+	}))
+
+	// Filter to ours and verify ordering.
+	linkedIdx, unlinkedIdx := -1, -1
+	for i, p := range list {
+		switch p.PhaseName {
+		case linkedName:
+			linkedIdx = i
+		case unlinkedName:
+			unlinkedIdx = i
+		}
+	}
+	require.NotEqual(t, -1, linkedIdx, "linked phase must appear")
+	require.NotEqual(t, -1, unlinkedIdx, "unlinked phase must appear")
+	assert.Less(t, linkedIdx, unlinkedIdx,
+		"AlreadyLinked DESC must put linked schools BEFORE unlinked ones in the result")
+}

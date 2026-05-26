@@ -130,6 +130,15 @@ func ErrorInvalidRequest(err error) render.Renderer {
 	return newErrResponse(http.StatusBadRequest, err)
 }
 
+// ErrorInvalidRequestWithCode returns a 400 Bad Request with a stable
+// error code so the frontend can map to a localized German message
+// without parsing the free-form error string.
+func ErrorInvalidRequestWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Code = code
+	return resp
+}
+
 // ErrorValidation returns a 400 Bad Request with a summary message and a
 // per-field error list. The summary goes in the standard `error` field so
 // existing frontend handlers that read `.error` continue to display a
@@ -150,12 +159,40 @@ func ErrorUnauthorized(err error) render.Renderer {
 	return newErrResponse(http.StatusUnauthorized, err)
 }
 
+// ErrorUnauthorizedWithCode returns a 401 Unauthorized with a stable error
+// code for frontend disambiguation (e.g. distinguishing wrong-password from
+// account-inactive without leaking the difference in the human-readable
+// message).
+func ErrorUnauthorizedWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusUnauthorized, err)
+	resp.Code = code
+	return resp
+}
+
 // ErrorForbidden returns a 403 Forbidden error response
 func ErrorForbidden(err error) render.Renderer {
 	return newErrResponse(http.StatusForbidden, err)
 }
 
+// ErrorForbiddenWithCode returns a 403 Forbidden with a stable error code.
+func ErrorForbiddenWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusForbidden, err)
+	resp.Code = code
+	return resp
+}
+
 // ErrorNotFound returns a 404 Not Found error response
+// ErrorNotFoundWithCode returns a 404 with a stable error code.
+func ErrorNotFoundWithCode(err error, code string) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusNotFound,
+		Status:         "error",
+		ErrorText:      err.Error(),
+		Code:           code,
+	}
+}
+
 func ErrorNotFound(err error) render.Renderer {
 	return newErrResponse(http.StatusNotFound, err)
 }

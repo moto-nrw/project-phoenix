@@ -1,0 +1,440 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+import {
+  listPhases,
+  createPhase,
+  updatePhase,
+  deletePhase,
+  createRollover,
+  listRolloverReview,
+  decideRolloverReview,
+  type Phase,
+  type PhaseInput,
+  type RolloverInput,
+  type RolloverResult,
+} from "./enrollment-phase-api";
+
+const originalFetch = globalThis.fetch;
+
+function mockFetch(
+  impl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+) {
+  globalThis.fetch = vi.fn(impl) as typeof globalThis.fetch;
+}
+
+function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+}
+
+beforeEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+function mkPhase(id: string, name: string): Phase {
+  return {
+    id,
+    name,
+    kind: "school_year",
+    service_start_date: "2026-09-01",
+    service_end_date: "2027-07-31",
+    enrollment_open_at: null,
+    enrollment_close_at: null,
+    form_schema_id: "7",
+    show_status_reason_to_parent: false,
+    care_overflow_mode: "waitlist",
+    is_active: true,
+    created_at: "2026-04-01T12:00:00Z",
+    updated_at: "2026-04-01T12:00:00Z",
+  };
+}
+
+const validInput: PhaseInput = {
+  name: "Schuljahr 2026",
+  kind: "school_year",
+  service_start_date: "2026-09-01",
+  service_end_date: "2027-07-31",
+  show_status_reason_to_parent: false,
+  care_overflow_mode: "waitlist",
+  is_active: true,
+};
+
+// --- listPhases -------------------------------------------------------
+
+describe("listPhases", () => {
+  it("returns the unwrapped data on 200", async () => {
+    mockFetch(async () => jsonResponse({ data: [mkPhase("1", "X")] }));
+    const out = await listPhases();
+    expect(out).toHaveLength(1);
+    expect(out[0]!.id).toBe("1");
+  });
+
+  it("returns [] when the backend returns non-array data", async () => {
+    mockFetch(async () => jsonResponse({ data: null }));
+    expect(await listPhases()).toEqual([]);
+  });
+
+  it("uses cache: 'no-store'", async () => {
+    let seenInit: RequestInit | undefined;
+    mockFetch(async (_, init) => {
+      seenInit = init;
+      return jsonResponse({ data: [] });
+    });
+    await listPhases();
+    expect(seenInit?.cache).toBe("no-store");
+  });
+
+  it("throws with the German fallback message on non-OK + non-JSON body", async () => {
+    // Non-JSON body → readError's try/catch falls through with the
+    // operation-specific fallback string (no HTTP suffix because
+    // the suffix is appended inside the try-block only).
+    mockFetch(async () => new Response("nope", { status: 500 }));
+    await expect(listPhases()).rejects.toThrow(
+      /Phasen konnten nicht geladen werden/,
+    );
+  });
+});
+
+// --- createPhase ------------------------------------------------------
+
+describe("createPhase", () => {
+  it("POSTs the body and returns the unwrapped phase", async () => {
+    let seenBody = "";
+    mockFetch(async (_, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse(
+        { data: mkPhase("1234", "Schuljahr 2026") },
+        { status: 201 },
+      );
+    });
+    const out = await createPhase(validInput);
+    expect(out.id).toBe("1234");
+    expect(seenBody).toContain(`"name":"Schuljahr 2026"`);
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "validation failed" }, { status: 400 }),
+    );
+    await expect(createPhase(validInput)).rejects.toThrow(/validation failed/);
+  });
+});
+
+// --- updatePhase ------------------------------------------------------
+
+describe("updatePhase", () => {
+  it("PUTs to the id-bearing URL and returns the unwrapped phase", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: mkPhase("1234", "Updated") });
+    });
+    const out = await updatePhase("1234", { ...validInput, name: "Updated" });
+    expect(out.name).toBe("Updated");
+    expect(seenURL).toContain("/1234");
+  });
+
+  it("URL-encodes the id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: mkPhase("a/b", "X") });
+    });
+    await updatePhase("a/b", validInput);
+    expect(seenURL).toContain("a%2Fb");
+  });
+
+  it("translates validation error 'service_end_date must be on or after service_start_date' to German", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { error: "service_end_date must be on or after service_start_date" },
+        { status: 400 },
+      ),
+    );
+    await expect(updatePhase("1", validInput)).rejects.toThrow(
+      /Das Ende des Betreuungszeitraums muss am gleichen Tag oder nach dem Beginn liegen/,
+    );
+  });
+
+  it("translates 'enrollment_close_at must be after enrollment_open_at' to German", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { error: "enrollment_close_at must be after enrollment_open_at" },
+        { status: 400 },
+      ),
+    );
+    await expect(updatePhase("1", validInput)).rejects.toThrow(
+      /Die Schließung des Anmeldefensters muss nach der Öffnung liegen/,
+    );
+  });
+
+  it("falls back to backend error text for unmatched validation messages", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "some other backend error" }, { status: 400 }),
+    );
+    await expect(updatePhase("1", validInput)).rejects.toThrow(
+      /some other backend error/,
+    );
+  });
+});
+
+// --- deletePhase ------------------------------------------------------
+
+describe("deletePhase", () => {
+  it("resolves on 204", async () => {
+    mockFetch(async () => new Response(null, { status: 204 }));
+    await expect(deletePhase("1234")).resolves.toBeUndefined();
+  });
+
+  it("URL-encodes the id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return new Response(null, { status: 204 });
+    });
+    await deletePhase("a/b");
+    expect(seenURL).toContain("a%2Fb");
+  });
+
+  it("translates phase_has_requests code to the German message", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { code: "enrollment.phase_has_requests", error: "phase has requests" },
+        { status: 409 },
+      ),
+    );
+    await expect(deletePhase("1234")).rejects.toThrow(/bereits Anmeldungen/);
+  });
+
+  it("translates phase_has_offerings code", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        {
+          code: "enrollment.phase_has_offerings",
+          error: "phase has offerings",
+        },
+        { status: 409 },
+      ),
+    );
+    await expect(deletePhase("1234")).rejects.toThrow(
+      /Betreuungsangebote zugeordnet/,
+    );
+  });
+
+  it("translates phase_has_references code", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        {
+          code: "enrollment.phase_has_references",
+          error: "phase has references",
+        },
+        { status: 409 },
+      ),
+    );
+    await expect(deletePhase("1234")).rejects.toThrow(
+      /an anderer Stelle verwendet/,
+    );
+  });
+
+  it("falls back to the German operation fallback when body is malformed", async () => {
+    mockFetch(async () => new Response("not json", { status: 500 }));
+    await expect(deletePhase("1234")).rejects.toThrow(
+      /Phase konnte nicht gelöscht werden/,
+    );
+  });
+});
+
+// --- createRollover ---------------------------------------------------
+
+const validRolloverInput: RolloverInput = {
+  name: "Schuljahr 2027",
+  kind: "school_year",
+  service_start_date: "2027-09-01",
+  service_end_date: "2028-07-31",
+  rollover_mode: "opt_out",
+  rollover_auto_approve: false,
+  rollover_deadline: "2027-07-15T18:00:00Z",
+};
+
+describe("createRollover", () => {
+  it("POSTs the body and returns the unwrapped RolloverResult", async () => {
+    const result: RolloverResult = {
+      phase: mkPhase("99", "Schuljahr 2027"),
+      summary: {
+        source_child_count: 5,
+        rolled_count: 4,
+        review_count: 1,
+        review_by_reason: { grade_above_max: 1 },
+        request_count: 3,
+        enqueued_emails: 3,
+        skipped_empty_email: 0,
+      },
+    };
+    mockFetch(async () => jsonResponse({ data: result }, { status: 201 }));
+    const out = await createRollover("42", validRolloverInput);
+    expect(out.phase.id).toBe("99");
+    expect(out.summary.rolled_count).toBe(4);
+  });
+
+  it("URL-encodes the source phase id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(
+        { data: { phase: mkPhase("1", "X"), summary: {} } },
+        { status: 201 },
+      );
+    });
+    await createRollover("a/b", validRolloverInput);
+    expect(seenURL).toContain("a%2Fb/rollover");
+  });
+
+  it("translates rollover.source_not_found code", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { code: "rollover.source_not_found", error: "source not found" },
+        { status: 404 },
+      ),
+    );
+    await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
+      /Quellphase wurde nicht gefunden/,
+    );
+  });
+
+  it("translates rollover.source_already_rolled code", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { code: "rollover.source_already_rolled", error: "already rolled" },
+        { status: 409 },
+      ),
+    );
+    await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
+      /bereits eine Anschlussphase/,
+    );
+  });
+
+  it("translates rollover.invalid_request code", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { code: "rollover.invalid_request", error: "invalid" },
+        { status: 400 },
+      ),
+    );
+    await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
+      /unvollständig oder ungültig/,
+    );
+  });
+
+  it("translates rollover.duplicate_name code", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { code: "rollover.duplicate_name", error: "duplicate name" },
+        { status: 409 },
+      ),
+    );
+    await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
+      /bereits eine Phase mit diesem Namen/,
+    );
+  });
+
+  it("falls back to backend error text for unknown codes", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { code: "rollover.something.else", error: "weird backend error" },
+        { status: 500 },
+      ),
+    );
+    await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
+      /weird backend error/,
+    );
+  });
+});
+
+// --- listRolloverReview ----------------------------------------------
+
+describe("listRolloverReview", () => {
+  it("returns the unwrapped list on 200", async () => {
+    mockFetch(async () =>
+      jsonResponse({
+        data: [
+          {
+            child_id: "1",
+            request_id: "2",
+            first_name: "Lara",
+            last_name: "Beispiel",
+            guardian_first_name: "Anna",
+            guardian_last_name: "Beispiel",
+            guardian_email: "a@b.c",
+            status_token: "tok",
+          },
+        ],
+      }),
+    );
+    const out = await listRolloverReview("42");
+    expect(out).toHaveLength(1);
+    expect(out[0]!.first_name).toBe("Lara");
+  });
+
+  it("returns [] when backend returns non-array data", async () => {
+    mockFetch(async () => jsonResponse({ data: null }));
+    expect(await listRolloverReview("42")).toEqual([]);
+  });
+
+  it("throws with the German fallback on non-OK + non-JSON body", async () => {
+    mockFetch(async () => new Response("nope", { status: 500 }));
+    await expect(listRolloverReview("42")).rejects.toThrow(
+      /Prüfliste konnte nicht geladen werden/,
+    );
+  });
+});
+
+// --- decideRolloverReview -------------------------------------------
+
+describe("decideRolloverReview", () => {
+  it("POSTs to the request-children URL with the decision body", async () => {
+    let seenURL = "";
+    let seenBody = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenBody = (init?.body as string) ?? "";
+      return new Response(null, { status: 204 });
+    });
+    await decideRolloverReview("99", { decision: "keep", new_grade_level: 2 });
+    expect(seenURL).toContain(
+      "/api/enrollment/admin/request-children/99/rollover-review",
+    );
+    expect(seenBody).toContain(`"decision":"keep"`);
+    expect(seenBody).toContain(`"new_grade_level":2`);
+  });
+
+  it("translates rollover.review_invalid code", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { code: "rollover.review_invalid", error: "invalid" },
+        { status: 400 },
+      ),
+    );
+    await expect(
+      decideRolloverReview("99", { decision: "keep" }),
+    ).rejects.toThrow(/in diesem Zustand nicht erlaubt/);
+  });
+
+  it("translates rollover.review_not_found code", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { code: "rollover.review_not_found", error: "not found" },
+        { status: 404 },
+      ),
+    );
+    await expect(
+      decideRolloverReview("99", { decision: "drop" }),
+    ).rejects.toThrow(/Eintrag in der Prüfliste existiert nicht mehr/);
+  });
+});

@@ -36,7 +36,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
 const DETAIL_CARD_CLASS =
-  "rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6";
+  "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
 
 interface StudentsInRoomSectionProps {
   readonly roomId: string;
@@ -63,9 +63,7 @@ export function StudentsInRoomSection({
   );
   const [targetActiveGroupId, setTargetActiveGroupId] = useState("");
   const [bulkMoveState, setBulkMoveState] = useState<
-    | { type: "idle" }
-    | { type: "loading" }
-    | { type: "error"; message: string }
+    { type: "idle" } | { type: "loading" } | { type: "error"; message: string }
   >({ type: "idle" });
   const sectionSearchParams = useSearchParams();
   // Drilling into a child must return to the same /rooms grid state the
@@ -240,10 +238,7 @@ export function StudentsInRoomSection({
     // (Rauminformationen / Belegungshistorie). Section element +
     // aria-label preserve the "info-card" landmark contract the tests
     // / a11y tooling expect from the previous InfoCard wrapper.
-    <section
-      aria-label="Kinder im Raum"
-      className={DETAIL_CARD_CLASS}
-    >
+    <section aria-label="Kinder im Raum" className={DETAIL_CARD_CLASS}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
           Kinder im Raum
@@ -275,8 +270,8 @@ export function StudentsInRoomSection({
         >
           Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
           {hiddenCount} weitere {hiddenCount === 1 ? "Kind ist" : "Kinder sind"}{" "}
-          aktuell nicht in dieser Übersicht, bitte in der Kindersuche öffnen,
-          um alle zu sehen.
+          aktuell nicht in dieser Übersicht, bitte in der Kindersuche öffnen, um
+          alle zu sehen.
         </div>
       )}
 
@@ -387,7 +382,7 @@ function BulkMoveToolbar({
     <div
       className={`mb-4 rounded-2xl border p-3 transition-shadow ${
         hasSelection
-          ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-[0_12px_40px_rgb(0,0,0,0.12)] backdrop-blur"
+          ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
           : "border-transparent bg-gray-50/80 shadow-none"
       }`}
     >
@@ -476,7 +471,7 @@ interface StudentsInRoomBodyProps {
 // original tighter shape.
 function StudentRowSkeleton({ withAvatar }: { withAvatar: boolean }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+    <div className="moto-content-surface flex items-center gap-3 rounded-xl border px-4 py-3">
       {withAvatar ? (
         <div className="h-8 w-8 flex-shrink-0 animate-pulse rounded-full bg-gray-200" />
       ) : null}

@@ -59,6 +59,7 @@ const logger = createLogger({ component: "ApiClient" });
 function handleApiError(error: unknown, context: string): Error {
   // Extract error details
   const errorMessage = error instanceof Error ? error.message : String(error);
+  const statusMatch = /API error[:\s(]+(\d{3})/.exec(errorMessage);
   const status =
     error &&
     typeof error === "object" &&
@@ -67,13 +68,21 @@ function handleApiError(error: unknown, context: string): Error {
     typeof error.response === "object" &&
     "status" in error.response
       ? (error.response.status as number)
-      : undefined;
+      : statusMatch?.[1]
+        ? Number.parseInt(statusMatch[1], 10)
+        : undefined;
 
-  logger.error("api operation failed", {
+  const logContext = {
     context,
     error: errorMessage,
     status,
-  });
+    ...(status === 429 && { rate_limited: true }),
+  };
+  if (status === 429) {
+    logger.warn("api operation rate limited", logContext);
+  } else {
+    logger.error("api operation failed", logContext);
+  }
 
   return new Error(`${context}: ${errorMessage}`);
 }

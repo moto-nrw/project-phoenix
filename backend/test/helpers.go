@@ -110,6 +110,14 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 
 	viper.Set("db_dsn", dsn)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
+	// Cap per-test pool size. Each call to SetupTestDB opens a fresh
+	// pool; the prod default is 25 connections, which exhausts
+	// Postgres's max_connections (~100) once gotestsum runs the test
+	// packages in parallel. 3 conns/test fits comfortably and is more
+	// than enough for the test fixture chain (1-2 statements at a
+	// time).
+	viper.Set("db_max_open_conns", 3)
+	viper.Set("db_max_idle_conns", 1)
 
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to connect to test database")
@@ -299,6 +307,9 @@ func UniqueTestTenantID(tb testing.TB) int64 {
 
 // IntPtr returns a pointer to the given int value.
 func IntPtr(i int) *int { return &i }
+
+// Int16Ptr returns a pointer to the given int16 value.
+func Int16Ptr(i int16) *int16 { return &i }
 
 // StrPtr returns a pointer to the given string value.
 func StrPtr(s string) *string { return &s }

@@ -135,12 +135,25 @@ type StudentRepository interface {
 	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
 	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*Student, error)
 
+	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
+	UpdateStatus(ctx context.Context, studentID int64, newStatus StudentStatus) error
+
+	// FindPendingDueForActivation returns students whose status='pending' AND
+	// enrolled_from <= asOf within the current tenant context. Used by the
+	// activate-students scheduler tick.
+	FindPendingDueForActivation(ctx context.Context, asOf time.Time) ([]*Student, error)
+
+	// FindActiveDueForDeactivation returns students whose status='active' AND
+	// enrolled_until <= asOf within the current tenant context. Used by the
+	// activate-students scheduler tick to flip rows to 'inactive'.
+	FindActiveDueForDeactivation(ctx context.Context, asOf time.Time) ([]*Student, error)
+
 	// PurgeAllPhotos clears photo_path on every student row visible in the
 	// current tenant context (RLS scopes it) and returns the list of stored
 	// URLs that were cleared. Caller is responsible for unlinking the
 	// underlying files.
 	//
-	// Used when an admin disables operations.student_photos_enabled — the
+	// Used when an admin disables operations.student_photos_enabled - the
 	// reviewer flagged that without this, existing photos remain accessible
 	// after the toggle. The DB clear runs inside whatever transaction the
 	// caller provides via context, so it is atomic with the setting write;
@@ -494,6 +507,14 @@ type GuardianProfileRepository interface {
 
 	// GetStudentCount returns the number of students for a guardian
 	GetStudentCount(ctx context.Context, profileID int64) (int, error)
+
+	// LoadProfileWithChildren returns the guardian profile linked to the
+	// given account along with their primary phone and a summary of
+	// every active student linked via users.students_guardians. Returns
+	// (nil, nil) when no profile exists in the current tenant context
+	// — callers fall through to claims-derived defaults instead of
+	// erroring. RLS narrows reads to the tenant in context.
+	LoadProfileWithChildren(ctx context.Context, accountID int64) (*GuardianProfileWithChildren, error)
 }
 
 // GuardianPhoneNumberRepository defines operations for managing guardian phone numbers

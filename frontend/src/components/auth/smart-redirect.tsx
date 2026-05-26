@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
+import { usePresenceMode } from "~/components/tenant/tenant-provider";
 
 interface SmartRedirectProps {
   readonly onRedirect?: (path: string) => void;
@@ -17,15 +18,20 @@ interface SmartRedirectProps {
 export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   const router = useTenantRouter();
   const { data: session, status } = useSession();
+  const presenceMode = usePresenceMode();
   const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
     useSupervision();
 
-  const { redirectPath, isReady } = useSmartRedirectPath(session, {
-    hasGroups,
-    isLoadingGroups,
-    isSupervising,
-    isLoadingSupervision,
-  });
+  const { redirectPath, isReady } = useSmartRedirectPath(
+    session,
+    {
+      hasGroups,
+      isLoadingGroups,
+      isSupervising,
+      isLoadingSupervision,
+    },
+    presenceMode,
+  );
 
   useEffect(() => {
     // Only redirect if user is authenticated and supervision data is ready

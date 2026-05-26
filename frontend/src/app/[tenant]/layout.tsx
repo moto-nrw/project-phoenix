@@ -1,10 +1,12 @@
-import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import { TenantProvider } from "~/components/tenant/tenant-provider";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import { normalizePresenceMode } from "~/lib/tenant-api";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
+import { env } from "~/env";
 
 interface TenantResolveResponse {
   tenant_id: number;
@@ -55,6 +57,37 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
   }
 }
 
+export function bareTenantHost(currentHost: string): string {
+  const [hostname = "", port] = currentHost.split(":");
+  const portSuffix = port ? `:${port}` : "";
+
+  if (hostname === env.TENANT_DOMAIN) {
+    return currentHost;
+  }
+
+  if (hostname.endsWith(`.${env.TENANT_DOMAIN}`)) {
+    return `${env.TENANT_DOMAIN}${portSuffix}`;
+  }
+
+  return env.TENANT_DOMAIN;
+}
+
+async function redirectToTenantSelection(): Promise<never> {
+  const requestHeaders = await headers();
+  const currentHost =
+    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+
+  if (!currentHost) {
+    throw new Error("Cannot redirect invalid tenant without a Host header");
+  }
+
+  const protocol =
+    requestHeaders.get("x-forwarded-proto") ??
+    (env.NODE_ENV === "production" ? "https" : "http");
+
+  redirect(`${protocol}://${bareTenantHost(currentHost)}/`);
+}
+
 /**
  * Layout for all tenant-scoped routes.
  * Validates the tenant slug via the backend and provides tenant context.
@@ -79,7 +112,7 @@ export default async function TenantLayout({
   const tenant = await fetchTenantInfo(tenantSlug);
 
   if (!tenant) {
-    notFound();
+    await redirectToTenantSelection();
   }
 
   return (

@@ -176,7 +176,7 @@ function ProfileContent() {
         </div>
 
         {/* Profile Form */}
-        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
+        <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
           <div className="space-y-4">
             <Input
               label="Vorname"
@@ -250,7 +250,7 @@ function ProfileContent() {
         </div>
 
         {/* Security Section */}
-        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
+        <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
           <h3 className="mb-3 text-base font-semibold text-gray-900">
             Passwort ändern
           </h3>

@@ -129,6 +129,10 @@ vi.mock("./student-form-fields", () => ({
       onChange={(e) => onChange(e.target.value)}
     />
   ),
+  // EnrollmentConsentsSection: read-only consent display rendered
+  // below the student form. The tests don't exercise it but the mock
+  // must satisfy the import in student-stammdaten-tab.tsx.
+  EnrollmentConsentsSection: () => <div data-testid="enrollment-consents" />,
 }));
 
 vi.mock("./student-common-form-sections", () => ({

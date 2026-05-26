@@ -26,7 +26,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
 const mockSearchParamsGet = vi.fn((_key: string): string | null => null);
-// Stable reference — real useSearchParams returns the same object between renders.
+// Stable reference, real useSearchParams returns the same object between renders.
 // A fresh object each call causes the useEffect([searchParams]) to re-fire.
 const stableSearchParams = { get: mockSearchParamsGet };
 vi.mock("next/navigation", () => ({
@@ -125,7 +125,6 @@ import { useTenant } from "~/components/tenant/tenant-provider";
 import { refreshToken } from "~/lib/auth-api";
 import HomePage from "./page";
 
-// Mock Element.animate for confetti effect
 const mockAnimate = vi.fn(() => ({
   onfinish: null,
   cancel: vi.fn(),
@@ -173,23 +172,45 @@ describe("HomePage (Login)", () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Willkommen bei moto!")).toBeInTheDocument();
+      expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
     });
   });
 
-  it("displays the MOTO logo", async () => {
+  it("does not display a MOTO logo fallback", async () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByAltText("MOTO Logo")).toBeInTheDocument();
+      expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
     });
   });
 
-  it("displays tagline", async () => {
+  it("displays tenant login logo when configured", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      tenant: {
+        name: "Grundschule Musterstadt",
+        settings: {
+          loginImageUrl: "/uploads/school-logo.png",
+        },
+      } as ReturnType<typeof useTenant>["tenant"],
+    });
+
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Ganztag. Digital.")).toBeInTheDocument();
+      expect(
+        screen.getByAltText("Grundschule Musterstadt Logo"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("displays login subtitle", async () => {
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Melden Sie sich mit Ihrem Konto an."),
+      ).toBeInTheDocument();
     });
   });
 
@@ -243,7 +264,7 @@ describe("HomePage (Login)", () => {
     expect(formContainer).toHaveClass("hidden");
 
     // Loading spinner is visible with checking message
-    expect(screen.getByText("Sitzung wird überprüft…")).toBeInTheDocument();
+    expect(screen.getByText("Sitzung wird überprüft...")).toBeInTheDocument();
   });
 
   it("posts to /api/auth/login then seeds session via internalRefresh (2-step MFA flow)", async () => {
@@ -405,105 +426,6 @@ describe("HomePage (Login)", () => {
   });
 });
 
-describe("Tenant selector button", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
-      update: vi.fn(),
-    });
-    vi.mocked(useTenant).mockReturnValue({
-      tenantSlug: "test-tenant",
-      tenant: null,
-    });
-    Element.prototype.animate = mockAnimate;
-  });
-
-  it("renders tenant selector button", async () => {
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("does not render tenant selector button for hidden tenants", async () => {
-    vi.mocked(useTenant).mockReturnValue({
-      tenantSlug: "demo-ogs",
-      tenant: {
-        name: "Demo-OGS",
-        hidden: true,
-      } as ReturnType<typeof useTenant>["tenant"],
-    });
-
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Willkommen bei moto!")).toBeInTheDocument();
-    });
-
-    expect(
-      screen.queryByRole("button", { name: /Einrichtung wechseln/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("navigates to tenant domain with port when port is present", async () => {
-    Object.defineProperty(window, "location", {
-      writable: true,
-      value: {
-        protocol: "http:",
-        port: "3000",
-        href: "",
-      },
-    });
-
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-      ).toBeInTheDocument();
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-    );
-
-    // env.NEXT_PUBLIC_TENANT_DOMAIN comes from the global mock (undefined),
-    // but the URL is constructed with the domain
-    expect(window.location.href).toContain("/");
-  });
-
-  it("navigates to tenant domain without port when port is empty", async () => {
-    Object.defineProperty(window, "location", {
-      writable: true,
-      value: {
-        protocol: "https:",
-        port: "",
-        href: "",
-      },
-    });
-
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-      ).toBeInTheDocument();
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-    );
-
-    // Without port, no :port suffix should be appended
-    expect(window.location.href).not.toContain(":3000");
-  });
-});
-
 describe("Tenant name display", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -554,9 +476,8 @@ describe("Tenant name display", () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Ganztag. Digital.")).toBeInTheDocument();
+      expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
     });
-    // With empty name, the spacer div should be rendered instead
   });
 });
 
@@ -913,50 +834,5 @@ describe("Deliberate logout suppression", () => {
       "",
       window.location.pathname,
     );
-  });
-});
-
-describe("Confetti effect", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
-      update: vi.fn(),
-    });
-    Element.prototype.animate = mockAnimate;
-  });
-
-  it("tests confetti color array", () => {
-    // Test the confetti colors that would be used
-    const colors = ["#FF3130", "#F78C10", "#83DC2D", "#5080D8"];
-
-    expect(colors).toHaveLength(4);
-    expect(colors[0]).toBe("#FF3130");
-  });
-
-  it("tests confetti quadrant calculation", () => {
-    // Test the quadrant-based angle calculation
-    const quadrant = 2 as number; // Bottom-left quadrant
-    let angle = 0;
-
-    switch (quadrant) {
-      case 0:
-        angle = (Math.random() * Math.PI) / 2;
-        break;
-      case 1:
-        angle = Math.PI / 2 + (Math.random() * Math.PI) / 2;
-        break;
-      case 2:
-        angle = Math.PI + (Math.random() * Math.PI) / 2;
-        break;
-      case 3:
-        angle = (3 * Math.PI) / 2 + (Math.random() * Math.PI) / 2;
-        break;
-    }
-
-    // Angle for quadrant 2 should be between π and 3π/2
-    expect(angle).toBeGreaterThanOrEqual(Math.PI);
-    expect(angle).toBeLessThanOrEqual((3 * Math.PI) / 2);
   });
 });

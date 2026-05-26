@@ -37,7 +37,7 @@ describe("RootPage", () => {
 
     render(<RootPage />);
 
-    expect(screen.getByText("Willkommen bei moto!")).toBeInTheDocument();
+    expect(screen.getByText("Willkommen")).toBeInTheDocument();
     expect(screen.getByText("Einrichtung")).toBeInTheDocument();
     // Select is rendered but disabled while loading (avoids layout flicker)
     const select = screen.getByRole("combobox");
@@ -172,6 +172,9 @@ describe("RootPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
 
     expect(hrefSpy).toHaveBeenCalledWith(expect.stringContaining("school-a."));
+    expect(
+      screen.getByRole("button", { name: "Portal wird geöffnet..." }),
+    ).toBeDisabled();
 
     hrefSpy.mockRestore();
   });
@@ -220,7 +223,7 @@ describe("RootPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Backend nicht erreichbar — bitte versuchen Sie es später erneut.",
+          "Backend nicht erreichbar. Bitte versuchen Sie es später erneut.",
         ),
       ).toBeInTheDocument();
     });

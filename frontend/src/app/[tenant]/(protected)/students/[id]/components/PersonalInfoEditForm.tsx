@@ -35,7 +35,7 @@ export function PersonalInfoEditForm({
   };
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
           <PersonIcon />

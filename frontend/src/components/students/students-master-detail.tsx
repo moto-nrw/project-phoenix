@@ -388,14 +388,14 @@ function ClassActionsMenu({
         aria-label={`Aktionen für Klasse ${schoolClass}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+        className="moto-content-surface flex h-7 w-7 items-center justify-center rounded-md border text-gray-500 hover:bg-gray-50 hover:text-gray-700"
       >
         <MoreVertical className="h-4 w-4" aria-hidden />
       </button>
       {open ? (
         <div
           role="menu"
-          className="absolute top-full right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+          className="moto-content-surface absolute top-full right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg border py-1 shadow-lg"
         >
           <button
             type="button"

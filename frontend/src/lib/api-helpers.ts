@@ -48,6 +48,27 @@ interface ServerFetchOptions {
   returnVoidOn204?: boolean;
 }
 
+async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
+  try {
+    const { headers } = await import("next/headers");
+    const incomingHeaders = await headers();
+    const forwardedFor = incomingHeaders.get("x-forwarded-for");
+    const realIp = incomingHeaders.get("x-real-ip");
+    const userAgent = incomingHeaders.get("user-agent");
+    const ip = forwardedFor?.split(",")[0]?.trim() ?? realIp;
+
+    return {
+      ...(ip && {
+        "X-Forwarded-For": ip,
+        "X-Real-IP": ip,
+      }),
+      ...(userAgent && { "User-Agent": userAgent }),
+    };
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Check if the current session is authenticated
  * @returns NextResponse with error if not authenticated, null if authenticated
@@ -74,6 +95,7 @@ async function serverFetchWithRetry<T>(
 ): Promise<T> {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   const url = `${getServerApiUrl()}${endpoint}`;
+  const forwardHeaders = await getIncomingForwardHeaders();
 
   const executeRequest = async (bearer: string) =>
     fetch(url, {
@@ -81,6 +103,7 @@ async function serverFetchWithRetry<T>(
       headers: {
         Authorization: `Bearer ${bearer}`,
         "Content-Type": "application/json",
+        ...forwardHeaders,
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
       cache: "no-store", // Prevent Next.js from caching API responses
@@ -264,6 +287,12 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
         logger.error("api route error", {
           status,
           error: error.message,
+        });
+      } else if (status === 429) {
+        logger.warn("api route rate limited", {
+          status,
+          error: error.message,
+          rate_limited: true,
         });
       } else {
         logger.warn("api route error", {
@@ -548,12 +577,18 @@ export async function fetchWithRetry<T>(
       return { response: null, data: null };
     }
     // All other errors (4xx bugs, 5xx server errors) should throw
-    logger.error("api error", {
+    const logContext = {
       url,
       method,
       status: response.status,
       error_text: errorText.substring(0, 200),
-    });
+      ...(response.status === 429 && { rate_limited: true }),
+    };
+    if (response.status === 429) {
+      logger.warn("api rate limited", logContext);
+    } else {
+      logger.error("api error", logContext);
+    }
     throw new Error(`API error: ${response.status}`);
   }
 

@@ -85,6 +85,12 @@ export interface BackendStudent {
   photo_consent_given?: boolean;
   photo_consent_given_at?: string;
   photo_consent_given_by?: number;
+  // Other consents the parent ticked at enrollment time. Stamped by
+  // the decision service on approval from request.consent_flags.
+  // Null/undefined = no consent recorded; ISO timestamp = consent given.
+  agb_accepted_at?: string;
+  data_processing_accepted_at?: string;
+  email_contact_accepted_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -206,6 +212,9 @@ export interface Student {
   photo_consent_given?: boolean;
   photo_consent_given_at?: string;
   photo_consent_given_by?: number;
+  agb_accepted_at?: string;
+  data_processing_accepted_at?: string;
+  email_contact_accepted_at?: string;
 }
 
 // Mapping functions
@@ -265,6 +274,9 @@ export function mapStudentResponse(
     photo_consent_given: backendStudent.photo_consent_given,
     photo_consent_given_at: backendStudent.photo_consent_given_at,
     photo_consent_given_by: backendStudent.photo_consent_given_by,
+    agb_accepted_at: backendStudent.agb_accepted_at,
+    data_processing_accepted_at: backendStudent.data_processing_accepted_at,
+    email_contact_accepted_at: backendStudent.email_contact_accepted_at,
   };
 
   // Add scheduled checkout info if present

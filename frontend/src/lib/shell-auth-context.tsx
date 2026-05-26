@@ -4,6 +4,7 @@ import React, { createContext, useContext, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
+import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 
@@ -23,7 +24,7 @@ interface ShellProfile {
 
 type ShellStatus = "loading" | "authenticated" | "unauthenticated";
 
-type ShellMode = "teacher" | "operator";
+type ShellMode = "teacher" | "operator" | "parent";
 
 interface ShellAuthContextType {
   user: ShellUser | null;
@@ -169,6 +170,68 @@ export function OperatorShellProvider({
       },
       mode: "operator" as const,
       homeUrl: operatorPath("/operator/suggestions"),
+      profileUrl: null,
+    };
+  }, [session, sessionStatus]);
+
+  return (
+    <ShellAuthContext.Provider value={value}>
+      {children}
+    </ShellAuthContext.Provider>
+  );
+}
+
+// ParentShellProvider — same shape as OperatorShellProvider with a
+// parent-scope NextAuth session. Used by app/parents/auth-guard.tsx
+// to feed the AppShell user/profile/logout machinery on the parent
+// portal. Cross-tenant ChildSummary data isn't carried here — the
+// dashboard fetches it directly via /api/parent/me/children.
+export function ParentShellProvider({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}) {
+  const { data: session, status: sessionStatus } = useSession();
+
+  const value = useMemo<ShellAuthContextType>(() => {
+    const user: ShellUser | null = session?.user
+      ? {
+          name: session.user.name?.trim() || "Eltern",
+          email: session.user.email ?? "",
+          roles: session.user.roles ?? ["guardian"],
+        }
+      : null;
+
+    const displayName = session?.user?.name ?? "";
+    const nameParts = displayName.split(" ");
+    const shellProfile: ShellProfile | null = session?.user
+      ? {
+          firstName: nameParts[0],
+          lastName: nameParts.slice(1).join(" ") || undefined,
+        }
+      : null;
+
+    const status: ShellStatus =
+      sessionStatus === "loading"
+        ? "loading"
+        : sessionStatus === "authenticated"
+          ? "authenticated"
+          : "unauthenticated";
+
+    return {
+      user,
+      profile: shellProfile,
+      status,
+      isSessionExpired: session?.error === "RefreshTokenExpired",
+      logout: async () => {
+        // Parent backend has no logout endpoint yet — tokens expire
+        // naturally. NextAuth signOut clears the parent.session-token
+        // cookie locally and redirects to the parents login page.
+        clearSessionCache();
+        await signOut({ callbackUrl: parentAbsoluteUrl("/parents/login") });
+      },
+      mode: "parent" as const,
+      homeUrl: parentPath("/parents"),
       profileUrl: null,
     };
   }, [session, sessionStatus]);

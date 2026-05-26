@@ -467,6 +467,9 @@ gitleaks-report.json
 backend/routes.md
 backend/docs/openapi.yaml
 
+# Runtime upload artifacts created from package-local Go test working dirs
+backend/**/public/uploads/
+
 # OpenSpec local specification files
 openspec/
 .worktrees

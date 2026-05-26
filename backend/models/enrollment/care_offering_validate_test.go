@@ -1,0 +1,147 @@
+package enrollment
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// Pure tests for CareOffering.Validate + HasUnlimitedCapacity.
+// CareOffering.Validate runs at admin-create + admin-update time;
+// missing/wrong values land as a 400 in the admin UI rather than as
+// a Postgres CHECK violation.
+
+func validCareOffering() *CareOffering {
+	return &CareOffering{
+		Name:           "OGS-Nachmittag",
+		PhaseID:        42,
+		DaysOfWeekMode: DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+	}
+}
+
+func TestCareOffering_Validate_HappyPath(t *testing.T) {
+	assert.NoError(t, validCareOffering().Validate())
+}
+
+func TestCareOffering_Validate_RequiresName(t *testing.T) {
+	c := validCareOffering()
+	c.Name = "  "
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "name")
+}
+
+func TestCareOffering_Validate_TrimsName(t *testing.T) {
+	c := validCareOffering()
+	c.Name = "  Spätbetreuung  "
+	require.NoError(t, c.Validate())
+	assert.Equal(t, "Spätbetreuung", c.Name)
+}
+
+func TestCareOffering_Validate_RequiresPhaseID(t *testing.T) {
+	c := validCareOffering()
+	c.PhaseID = 0
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "phase_id")
+}
+
+func TestCareOffering_Validate_DefaultsDaysModeToFixed(t *testing.T) {
+	c := validCareOffering()
+	c.DaysOfWeekMode = ""
+	require.NoError(t, c.Validate())
+	assert.Equal(t, DaysOfWeekModeFixed, c.DaysOfWeekMode)
+}
+
+func TestCareOffering_Validate_RejectsUnknownDaysMode(t *testing.T) {
+	c := validCareOffering()
+	c.DaysOfWeekMode = "wild_choice"
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "days_of_week_mode")
+}
+
+func TestCareOffering_Validate_AcceptsParentChoiceMode(t *testing.T) {
+	c := validCareOffering()
+	c.DaysOfWeekMode = DaysOfWeekModeParentChoice
+	assert.NoError(t, c.Validate())
+}
+
+func TestCareOffering_Validate_RejectsUnknownAvailableDay(t *testing.T) {
+	c := validCareOffering()
+	c.AvailableDays = []string{"mon", "funday"}
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "funday")
+}
+
+func TestCareOffering_Validate_AcceptsAllCanonicalDays(t *testing.T) {
+	c := validCareOffering()
+	c.AvailableDays = []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+	assert.NoError(t, c.Validate())
+}
+
+func TestCareOffering_Validate_AvailableDaysIsCaseInsensitive(t *testing.T) {
+	// canonicalDaySet check lowercases on the fly; mixed-case input
+	// shouldn't reject just because of casing.
+	c := validCareOffering()
+	c.AvailableDays = []string{"Mon", "TUE"}
+	assert.NoError(t, c.Validate())
+}
+
+func TestCareOffering_Validate_EmptyAvailableDaysOK(t *testing.T) {
+	// No days = no care days configured yet; admin can save and add
+	// later. The submission service enforces availability separately.
+	c := validCareOffering()
+	c.AvailableDays = nil
+	assert.NoError(t, c.Validate())
+}
+
+func TestCareOffering_Validate_RejectsNegativeCapacity(t *testing.T) {
+	c := validCareOffering()
+	cap := -1
+	c.Capacity = &cap
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "capacity")
+}
+
+func TestCareOffering_Validate_AcceptsZeroCapacity(t *testing.T) {
+	// Zero is legal and explicit — "full from the start, no enrollments
+	// allowed until admin raises the cap".
+	c := validCareOffering()
+	cap := 0
+	c.Capacity = &cap
+	assert.NoError(t, c.Validate())
+}
+
+func TestCareOffering_Validate_RejectsNegativePrice(t *testing.T) {
+	c := validCareOffering()
+	price := -50
+	c.PriceCents = &price
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "price_cents")
+}
+
+func TestCareOffering_Validate_AcceptsZeroPrice(t *testing.T) {
+	c := validCareOffering()
+	price := 0
+	c.PriceCents = &price
+	assert.NoError(t, c.Validate())
+}
+
+func TestCareOffering_HasUnlimitedCapacity_NilIsUnlimited(t *testing.T) {
+	c := validCareOffering()
+	c.Capacity = nil
+	assert.True(t, c.HasUnlimitedCapacity())
+}
+
+func TestCareOffering_HasUnlimitedCapacity_SetIsBounded(t *testing.T) {
+	c := validCareOffering()
+	cap := 30
+	c.Capacity = &cap
+	assert.False(t, c.HasUnlimitedCapacity())
+}

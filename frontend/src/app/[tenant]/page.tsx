@@ -1,22 +1,25 @@
-// [tenant]/page.tsx — Login page (tenant-scoped)
+// [tenant]/page.tsx, tenant-scoped login page
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Input, Alert } from "~/components/ui";
+import { Alert } from "~/components/ui";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
+import {
+  AuthShell,
+  authInputClassName,
+  authPrimaryButtonClassName,
+} from "~/components/auth/auth-shell";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
-import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { env } from "~/env";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import {
   login as loginApi,
@@ -44,6 +47,7 @@ interface MFAEnrollmentStep {
   enrollmentToken: string;
   email: string;
 }
+
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,6 +64,7 @@ function LoginForm() {
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
+  const loginTitle = tenant?.name?.trim() ? tenant.name : "Willkommen bei moto";
 
   // Guard against calling signOut multiple times during stale session cleanup
   const isCleaningSessionRef = useRef(false);
@@ -141,7 +146,7 @@ function LoginForm() {
     void checkAndRedirect();
   }, [status, session]);
 
-  // Check for session errors in URL — but suppress after a deliberate logout.
+  // Check for session errors in URL, but suppress after a deliberate logout.
   // NextAuth's useSession({ required: true }) races the logout navigation and
   // can redirect here with ?error=SessionRequired before the page unloads.
   useEffect(() => {
@@ -165,11 +170,14 @@ function LoginForm() {
     }
   }, [searchParams]);
 
-  const isCheckingAuth =
-    checkingAuth ||
-    status === "loading" ||
-    (awaitingRedirect && status === "authenticated");
+  const isCheckingAuth = checkingAuth || status === "loading";
+  const isSubmitting = isLoading || awaitingRedirect;
 
+  // seedSessionWithTokens hands an already-minted access/refresh pair to
+  // NextAuth via the internalRefresh credential path. Used after a
+  // successful MFA verify/enroll OR a non-MFA login — in all cases the
+  // backend has already authenticated the account, so we only seed the
+  // session.
   const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
     const result = await signIn("credentials", {
       redirect: false,
@@ -178,12 +186,10 @@ function LoginForm() {
       refreshToken: tokens.refresh_token,
     });
     if (result?.error) {
-      clearConfetti();
       setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
       logger.error("session_seed_failed", { error: result.error });
       return;
     }
-    launchConfetti();
     setAwaitingRedirect(true);
     router.refresh();
   };
@@ -231,7 +237,6 @@ function LoginForm() {
         refresh_token: response.refresh_token,
       });
     } catch (err) {
-      clearConfetti();
       if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
       } else {
@@ -246,100 +251,40 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div
-        className={`relative mx-auto w-full rounded-2xl bg-white/80 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl ${
-          mfaStep || enrollmentStep ? "max-w-lg p-10" : "max-w-2xl p-10"
-        }`}
+    <>
+      <AuthShell
+        eyebrow="Ihr OGS Portal"
+        eyebrowClassName="text-[#83CD2D]"
+        title={loginTitle}
+        subtitle="Melden Sie sich mit Ihrem Konto an."
+        variant="tenant"
+        brand={
+          tenant?.settings?.loginImageUrl ? (
+            <Image
+              src={loginImageSrc(tenant.settings.loginImageUrl)}
+              alt={`${tenant.name} Logo`}
+              width={180}
+              height={104}
+              className="max-h-[104px] w-auto object-contain"
+              priority
+              unoptimized
+            />
+          ) : null
+        }
       >
-        {/* Top Bar: Tenant Selector (left) + Help (right) */}
-        {tenant?.hidden !== true && !mfaStep && !enrollmentStep && (
-          <div className="absolute top-4 right-4 left-4 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => {
-                const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
-                const portSuffix = window.location.port
-                  ? `:${window.location.port}`
-                  : "";
-                window.location.href = `${window.location.protocol}//${tenantDomain}${portSuffix}/`;
-              }}
-              className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Einrichtung wechseln
-            </button>
-          </div>
-        )}
-
-        {!mfaStep && !enrollmentStep && (
-          <>
-            {/* Logo Section */}
-            <div className="mb-8 flex justify-center">
-              {tenant?.settings?.loginImageUrl ? (
-                <Image
-                  src={loginImageSrc(tenant.settings.loginImageUrl)}
-                  alt={`${tenant.name} Logo`}
-                  width={200}
-                  height={142}
-                  className="max-h-[142px] w-auto object-contain"
-                  priority
-                  unoptimized
-                />
-              ) : (
-                <Image
-                  src="/images/moto_transparent.png"
-                  alt="MOTO Logo"
-                  width={200}
-                  height={80}
-                  priority
-                />
-              )}
-            </div>
-
-            {/* Welcome Text */}
-            <h1 className="mb-2 bg-gradient-to-r from-[#5080d8] to-[#83cd2d] bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
-              Willkommen bei moto!
-            </h1>
-            <p className="text-xl text-gray-700">Ganztag. Digital.</p>
-            {tenant?.name && (
-              <p className="mt-4 mb-10 text-2xl font-semibold text-gray-800">
-                {tenant.name}
-              </p>
-            )}
-            {!tenant?.name && <div className="mb-10" />}
-          </>
-        )}
-
-        {/* Loading spinner while checking auth or awaiting redirect */}
         {isCheckingAuth && (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
-              <p className="text-sm text-gray-500">
-                {awaitingRedirect
-                  ? "Sie werden weitergeleitet…"
-                  : "Sitzung wird überprüft…"}
-              </p>
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
+              <p className="text-sm text-gray-500">Sitzung wird überprüft...</p>
             </div>
           </div>
         )}
 
-        {/* MFA Step — replaces login form when challenge is required */}
-        {!isCheckingAuth && mfaStep && (
-          <div className="transition-opacity duration-300">
+        <div
+          className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
+        >
+          {mfaStep ? (
             <MFAChallengeForm
               scope="tenant"
               challengeToken={mfaStep.challengeToken}
@@ -353,12 +298,7 @@ function LoginForm() {
                 setPassword("");
               }}
             />
-          </div>
-        )}
-
-        {/* Enrollment Step — forced when backend requires MFA but user has no credential yet */}
-        {!isCheckingAuth && enrollmentStep && (
-          <div className="transition-opacity duration-300">
+          ) : enrollmentStep ? (
             <MFAEnrollmentScreen
               scope="tenant"
               bearerToken={enrollmentStep.enrollmentToken}
@@ -369,97 +309,92 @@ function LoginForm() {
                 setPassword("");
               }}
               onComplete={async (tokens) => {
-                // Post-#1430: confirm() returns a freshly-minted access/refresh
-                // pair. The enrollment-scoped token is discarded — it never
-                // had session privileges in the first place.
+                setEnrollmentStep(null);
                 await seedSessionWithTokens({
                   access_token: tokens.access_token,
                   refresh_token: tokens.refresh_token,
                 });
-                setEnrollmentStep(null);
               }}
             />
-          </div>
-        )}
+          ) : (
+            <form onSubmit={handleSubmit} noValidate className="space-y-6">
+              {error && <Alert type="error" message={error} />}
 
-        {/* Login Form — fades in after auth check */}
-        <div
-          className={`transition-opacity duration-300 ${isCheckingAuth || mfaStep || enrollmentStep ? "pointer-events-none hidden" : "opacity-100"}`}
-        >
-          <form onSubmit={handleSubmit} noValidate className="space-y-6">
-            {error && <Alert type="error" message={error} />}
-
-            <div className="space-y-4">
-              <div className="text-left">
-                <label
-                  htmlFor="email"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  E-Mail-Adresse
-                </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full"
-                  label={""}
-                />
-              </div>
-
-              <div className="text-left">
-                <label
-                  htmlFor="password"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Passwort
-                </label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
+              <div className="space-y-4">
+                <div className="text-left">
+                  <label
+                    htmlFor="email"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    E-Mail-Adresse
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    data-testid="input-email"
+                    autoComplete="username"
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pr-10"
-                    label={""}
+                    disabled={isSubmitting}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={authInputClassName}
                   />
-                  <PasswordToggleButton
-                    showPassword={showPassword}
-                    onToggle={() => setShowPassword(!showPassword)}
-                  />
+                </div>
+
+                <div className="text-left">
+                  <label
+                    htmlFor="password"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Passwort
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      data-testid="input-password"
+                      autoComplete="current-password"
+                      required
+                      disabled={isSubmitting}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={`${authInputClassName} pr-10`}
+                    />
+                    <PasswordToggleButton
+                      showPassword={showPassword}
+                      onToggle={() => setShowPassword(!showPassword)}
+                    />
+                  </div>
+                </div>
+
+                {/* Forgot Password Link */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => setIsResetModalOpen(true)}
+                    className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                  >
+                    Passwort vergessen?
+                  </button>
                 </div>
               </div>
 
-              {/* Forgot Password Link */}
-              <div className="text-center">
+              <div className="mt-2">
                 <button
-                  type="button"
-                  onClick={() => setIsResetModalOpen(true)}
-                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none"
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={authPrimaryButtonClassName}
                 >
-                  Passwort vergessen?
+                  <span className="relative z-10">
+                    {isSubmitting ? "Anmeldung läuft..." : "Anmelden"}
+                  </span>
                 </button>
               </div>
-            </div>
-
-            <div className="mt-2 flex justify-center">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span className="relative z-10">
-                  {isLoading ? "Anmeldung läuft..." : "Anmelden"}
-                </span>
-              </button>
-            </div>
-          </form>
+            </form>
+          )}
         </div>
 
         {/* Smart redirect for authenticated users */}
@@ -473,14 +408,14 @@ function LoginForm() {
               }}
             />
           )}
-      </div>
+      </AuthShell>
 
       {/* Password Reset Modal */}
       <PasswordResetModal
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
       />
-    </div>
+    </>
   );
 }
 
@@ -488,12 +423,19 @@ export default function HomePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen flex-col items-center justify-center p-4">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
-            <p className="text-sm text-gray-500">Laden…</p>
+        <AuthShell
+          eyebrow="Ihr OGS Portal"
+          eyebrowClassName="text-[#83CD2D]"
+          title="Willkommen"
+          subtitle="Melden Sie sich mit Ihrem Konto an."
+          variant="tenant"
+          brand={null}
+        >
+          <div className="flex flex-col items-center gap-4 py-8">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
+            <p className="text-sm text-gray-500">Laden...</p>
           </div>
-        </div>
+        </AuthShell>
       }
     >
       <LoginForm />
