@@ -129,6 +129,11 @@ type RequestChildRepository interface {
 	// to find pending_renewal / auto_renewed rows.
 	ListByPhaseAndStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*RequestChild, error)
 
+	// CountCreatedStudentsByPhaseID returns the number of distinct
+	// students created from the phase's requests. Powers the phase-delete
+	// confirmation modal; these students survive the delete.
+	CountCreatedStudentsByPhaseID(ctx context.Context, phaseID int64) (int, error)
+
 	// BulkUpdateStatusByPhaseAndStatus is the deadline-worker
 	// primitive: flip every row in (phaseID, currentStatus) to
 	// newStatus in one UPDATE. Returns the count actually changed.

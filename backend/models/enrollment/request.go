@@ -87,9 +87,20 @@ type RequestRepository interface {
 	FindActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []DuplicateChildKey) ([]DuplicateChildKey, error)
 
 	// ExistsByPhaseID reports whether any request row references the
-	// given phase. The phase delete path uses this to refuse a destructive
-	// delete and surface "deaktivieren statt löschen" to the admin.
+	// given phase.
 	ExistsByPhaseID(ctx context.Context, phaseID int64) (bool, error)
+
+	// CountByPhaseID returns how many request rows reference the phase.
+	// Powers the phase-delete confirmation modal.
+	CountByPhaseID(ctx context.Context, phaseID int64) (int, error)
+
+	// DeleteByPhaseID removes every request for the phase (cascading to
+	// request_children + request_child_offerings) and returns the number
+	// of requests deleted. Created students are preserved — the
+	// created_student_id FK is ON DELETE SET NULL. Must run before the
+	// phase's care offerings are deleted because of the
+	// request_child_offerings.care_offering_id RESTRICT FK.
+	DeleteByPhaseID(ctx context.Context, phaseID int64) (int, error)
 
 	// ExistsBySchemaID reports whether any request row references the
 	// given schema version. The schema delete path uses this to preserve

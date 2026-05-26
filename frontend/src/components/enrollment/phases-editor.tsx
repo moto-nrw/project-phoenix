@@ -20,15 +20,18 @@ import {
 } from "lucide-react";
 import {
   type Phase,
+  type PhaseDeleteImpact,
   type PhaseInput,
   type PhaseKind,
   type PhaseCareOverflowMode,
   type RolloverResult,
   createPhase,
   deletePhase,
+  getPhaseDeleteImpact,
   listPhases,
   updatePhase,
 } from "~/lib/enrollment-phase-api";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   latestSchemasByName,
   listSchemas,
@@ -145,6 +148,14 @@ export function PhasesEditor() {
   const [schemaSource, setSchemaSource] = useState<SchemaSource>("base");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Delete-confirmation modal state. deleteTarget drives visibility;
+  // deleteImpact holds the fetched blast-radius counts.
+  const [deleteTarget, setDeleteTarget] = useState<Phase | null>(null);
+  const [deleteImpact, setDeleteImpact] = useState<PhaseDeleteImpact | null>(
+    null,
+  );
+  const [impactLoading, setImpactLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
   const [highlightFormSection, setHighlightFormSection] = useState(false);
   const [highlightActions, setHighlightActions] = useState(false);
@@ -287,36 +298,49 @@ export function PhasesEditor() {
     }
   };
 
-  const handleDelete = useCallback(
-    async (phase: Phase) => {
-      if (
-        !window.confirm(
-          `Anmeldephase „${phase.name}" wirklich löschen? Diese Aktion ist nicht umkehrbar.`,
-        )
-      ) {
-        return;
-      }
-      setDeletingId(phase.id);
-      setError(null);
-      try {
-        await deletePhase(phase.id);
-        toast.success(`Anmeldephase „${phase.name}" gelöscht.`);
-        await loadAll();
-      } catch (err) {
+  // Opens the confirmation modal and fetches the delete blast radius so
+  // the admin sees exactly what will be removed vs kept before confirming.
+  const requestDelete = useCallback((phase: Phase) => {
+    setDeleteTarget(phase);
+    setDeleteImpact(null);
+    setDeleteError("");
+    setImpactLoading(true);
+    getPhaseDeleteImpact(phase.id)
+      .then((impact) => setDeleteImpact(impact))
+      .catch((err) => {
         const message =
           err instanceof Error ? err.message : "Unbekannter Fehler";
-        logger.error("phase_delete_failed", { error: message });
-        // The backend returns 409 with a German hint when the phase has
-        // care offerings or submissions referencing it. The message
-        // already says "deactivate instead", surface as-is.
-        setError(message);
-        toast.error(message);
-      } finally {
-        setDeletingId(null);
-      }
-    },
-    [loadAll, toast],
-  );
+        logger.error("phase_delete_impact_failed", { error: message });
+        setDeleteError(message);
+      })
+      .finally(() => setImpactLoading(false));
+  }, []);
+
+  const closeDelete = useCallback(() => {
+    setDeleteTarget(null);
+    setDeleteImpact(null);
+    setDeleteError("");
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    const phase = deleteTarget;
+    setDeletingId(phase.id);
+    setDeleteError("");
+    try {
+      await deletePhase(phase.id);
+      toast.success(`Anmeldephase „${phase.name}" gelöscht.`);
+      closeDelete();
+      await loadAll();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      logger.error("phase_delete_failed", { error: message });
+      setDeleteError(message);
+      toast.error(message);
+    } finally {
+      setDeletingId(null);
+    }
+  }, [deleteTarget, closeDelete, loadAll, toast]);
 
   const startRollover = (phase: Phase) => {
     setRolloverSource(phase);
@@ -449,14 +473,14 @@ export function PhasesEditor() {
             onAssignForm={() => startEdit(phase, true)}
             onRollover={() => startRollover(phase)}
             onToggleActive={() => void handleToggleActive(phase)}
-            onDelete={() => void handleDelete(phase)}
+            onDelete={() => requestDelete(phase)}
           />
         ),
       },
     ],
     [
       deletingId,
-      handleDelete,
+      requestDelete,
       handleToggleActive,
       highlightActions,
       rolloverSource,
@@ -551,6 +575,67 @@ export function PhasesEditor() {
           defaultSortDirection="desc"
         />
       ) : null}
+
+      {deleteTarget && (
+        <ConfirmDeleteModal
+          isOpen={Boolean(deleteTarget)}
+          title="Anmeldephase löschen"
+          description={
+            <p>
+              Möchtest du die Anmeldephase{" "}
+              <span className="font-medium">„{deleteTarget.name}"</span>{" "}
+              wirklich endgültig löschen? Sie kann jederzeit gelöscht werden –
+              während des Betreuungszeitraums, davor und danach.
+            </p>
+          }
+          warningSlot={
+            <div className="space-y-2">
+              <div className="rounded-lg bg-[#EAB308]/10 px-3 py-2 text-sm text-[#854D0E]">
+                <p className="font-medium">
+                  Diese Aktion kann nicht rückgängig gemacht werden:
+                </p>
+                {impactLoading ? (
+                  <p className="mt-1 text-xs">Löschvorschau wird geladen…</p>
+                ) : deleteImpact ? (
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+                    <li>
+                      {deleteImpact.requests}{" "}
+                      {deleteImpact.requests === 1
+                        ? "Anmeldung"
+                        : "Anmeldungen"}{" "}
+                      werden endgültig gelöscht
+                    </li>
+                    <li>
+                      {deleteImpact.care_offerings}{" "}
+                      {deleteImpact.care_offerings === 1
+                        ? "Betreuungsangebot"
+                        : "Betreuungsangebote"}{" "}
+                      werden endgültig gelöscht
+                    </li>
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-xs">
+                    Alle Anmeldungen und Betreuungsangebote dieser Phase werden
+                    endgültig gelöscht.
+                  </p>
+                )}
+              </div>
+              {!impactLoading && deleteImpact && (
+                <div className="rounded-lg bg-[#83CD2D]/10 px-3 py-2 text-sm text-[#4a7a15]">
+                  {deleteImpact.students_kept === 1
+                    ? "1 bereits angelegter Schüler bleibt erhalten."
+                    : `${deleteImpact.students_kept} bereits angelegte Schüler bleiben erhalten.`}
+                </div>
+              )}
+            </div>
+          }
+          gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+          onConfirm={confirmDelete}
+          onClose={closeDelete}
+          loading={deletingId === deleteTarget.id}
+          error={deleteError}
+        />
+      )}
     </div>
   );
 }

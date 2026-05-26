@@ -114,6 +114,10 @@ type CareOfferingRepository interface {
 	// window gates the surrounding flow, so individual offerings
 	// don't need their own time filter.
 	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*CareOffering, error)
+
+	// CountByPhaseID returns how many care offerings belong to the phase.
+	// Powers the phase-delete confirmation modal.
+	CountByPhaseID(ctx context.Context, phaseID int64) (int, error)
 }
 
 // RequestChildOffering is a row in enrollment.request_child_offerings -

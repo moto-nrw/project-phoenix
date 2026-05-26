@@ -785,7 +785,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
 		Repo:             repos.Phase,
 		RequestRepo:      repos.Request,
+		RequestChildRepo: repos.RequestChild,
 		CareOfferingRepo: repos.CareOffering,
+		DB:               db,
 		Logger:           logger.With("service", "enrollment-phase"),
 	})
 
