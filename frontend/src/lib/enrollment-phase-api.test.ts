@@ -5,10 +5,12 @@ import {
   createPhase,
   updatePhase,
   deletePhase,
+  getPhaseDeleteImpact,
   createRollover,
   listRolloverReview,
   decideRolloverReview,
   type Phase,
+  type PhaseDeleteImpact,
   type PhaseInput,
   type RolloverInput,
   type RolloverResult,
@@ -203,50 +205,53 @@ describe("deletePhase", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("translates phase_has_requests code to the German message", async () => {
+  // The "has requests/offerings" delete guard was removed — a phase is
+  // always deletable now. A non-204 response surfaces the backend's error
+  // text directly (no special code translation).
+  it("surfaces the backend error text on a non-OK response", async () => {
     mockFetch(async () =>
-      jsonResponse(
-        { code: "enrollment.phase_has_requests", error: "phase has requests" },
-        { status: 409 },
-      ),
+      jsonResponse({ error: "phase not found" }, { status: 404 }),
     );
-    await expect(deletePhase("1234")).rejects.toThrow(/bereits Anmeldungen/);
-  });
-
-  it("translates phase_has_offerings code", async () => {
-    mockFetch(async () =>
-      jsonResponse(
-        {
-          code: "enrollment.phase_has_offerings",
-          error: "phase has offerings",
-        },
-        { status: 409 },
-      ),
-    );
-    await expect(deletePhase("1234")).rejects.toThrow(
-      /Betreuungsangebote zugeordnet/,
-    );
-  });
-
-  it("translates phase_has_references code", async () => {
-    mockFetch(async () =>
-      jsonResponse(
-        {
-          code: "enrollment.phase_has_references",
-          error: "phase has references",
-        },
-        { status: 409 },
-      ),
-    );
-    await expect(deletePhase("1234")).rejects.toThrow(
-      /an anderer Stelle verwendet/,
-    );
+    await expect(deletePhase("1234")).rejects.toThrow(/phase not found/);
   });
 
   it("falls back to the German operation fallback when body is malformed", async () => {
     mockFetch(async () => new Response("not json", { status: 500 }));
     await expect(deletePhase("1234")).rejects.toThrow(
       /Phase konnte nicht gelöscht werden/,
+    );
+  });
+});
+
+// --- getPhaseDeleteImpact ---------------------------------------------
+
+describe("getPhaseDeleteImpact", () => {
+  it("returns the impact counts on a successful response", async () => {
+    const impact: PhaseDeleteImpact = {
+      requests: 3,
+      care_offerings: 2,
+      students_kept: 5,
+    };
+    mockFetch(async () => jsonResponse({ data: impact }));
+    await expect(getPhaseDeleteImpact("1234")).resolves.toEqual(impact);
+  });
+
+  it("requests the delete-impact path with the URL-encoded id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: { requests: 0, care_offerings: 0, students_kept: 0 },
+      });
+    });
+    await getPhaseDeleteImpact("a/b");
+    expect(seenURL).toContain("a%2Fb/delete-impact");
+  });
+
+  it("throws the German fallback when the response is not OK", async () => {
+    mockFetch(async () => new Response("boom", { status: 500 }));
+    await expect(getPhaseDeleteImpact("1234")).rejects.toThrow(
+      /Löschvorschau konnte nicht geladen werden/,
     );
   });
 });
