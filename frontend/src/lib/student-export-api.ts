@@ -48,6 +48,14 @@ export interface StudentExportColumnOption {
   description: string;
 }
 
+const WEEKLY_COLUMNS: Array<[StudentExportColumn, string, string]> = [
+  ["weekly_monday", "Montag", "Montags"],
+  ["weekly_tuesday", "Dienstag", "Dienstags"],
+  ["weekly_wednesday", "Mittwoch", "Mittwochs"],
+  ["weekly_thursday", "Donnerstag", "Donnerstags"],
+  ["weekly_friday", "Freitag", "Freitags"],
+];
+
 export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
   {
     id: "name",
@@ -74,41 +82,12 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
     description:
       "Mo bis Fr, an denen für das Kind ein Wochenplan für Ankunft oder Abholung hinterlegt ist.",
   },
-  {
-    id: "weekly_monday",
-    label: "Montag",
-    group: "weekly",
-    description:
-      "Regelmäßige Montags-Ankunft und Montags-Abholung aus dem Wochenplan.",
-  },
-  {
-    id: "weekly_tuesday",
-    label: "Dienstag",
-    group: "weekly",
-    description:
-      "Regelmäßige Dienstags-Ankunft und Dienstags-Abholung aus dem Wochenplan.",
-  },
-  {
-    id: "weekly_wednesday",
-    label: "Mittwoch",
-    group: "weekly",
-    description:
-      "Regelmäßige Mittwochs-Ankunft und Mittwochs-Abholung aus dem Wochenplan.",
-  },
-  {
-    id: "weekly_thursday",
-    label: "Donnerstag",
-    group: "weekly",
-    description:
-      "Regelmäßige Donnerstags-Ankunft und Donnerstags-Abholung aus dem Wochenplan.",
-  },
-  {
-    id: "weekly_friday",
-    label: "Freitag",
-    group: "weekly",
-    description:
-      "Regelmäßige Freitags-Ankunft und Freitags-Abholung aus dem Wochenplan.",
-  },
+  ...WEEKLY_COLUMNS.map(([id, label, weekday]) => ({
+    id,
+    label,
+    group: "weekly" as const,
+    description: `Regelmäßige ${weekday}-Ankunft und ${weekday}-Abholung aus dem Wochenplan.`,
+  })),
   {
     id: "planned_arrival",
     label: "Geplante Ankunft",
