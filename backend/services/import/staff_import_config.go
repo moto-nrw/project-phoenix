@@ -15,6 +15,36 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// systemRoleDisplayNames maps system role raw names to their German display
+// names. This mirrors SYSTEM_ROLE_TRANSLATIONS in the frontend
+// (frontend/src/lib/auth-helpers.ts) so the staff import accepts the same
+// names a user sees on the roles page. Tenant-specific custom roles have no
+// translation — their raw name is also their display name.
+var systemRoleDisplayNames = map[string]string{
+	"admin":    "Administrator",
+	"user":     "Betreuer",
+	"guest":    "Gast",
+	"guardian": "Erziehungsberechtigter",
+}
+
+// displayNameToRawRole is the reverse lookup (lowercased display name → raw name).
+var displayNameToRawRole = func() map[string]string {
+	m := make(map[string]string, len(systemRoleDisplayNames))
+	for raw, display := range systemRoleDisplayNames {
+		m[strings.ToLower(display)] = raw
+	}
+	return m
+}()
+
+// roleDisplayName returns the German display name for a role's raw name, or the
+// raw name itself for roles without a translation (e.g. custom tenant roles).
+func roleDisplayName(rawName string) string {
+	if display, ok := systemRoleDisplayNames[strings.ToLower(rawName)]; ok {
+		return display
+	}
+	return rawName
+}
+
 // StaffImportDeps contains the dependencies for StaffImportConfig.
 type StaffImportDeps struct {
 	InvitationService authsvc.InvitationService
@@ -35,9 +65,11 @@ type StaffImportConfig struct {
 	roleRepo          authModels.RoleRepository
 	schoolRepo        platformModels.SchoolRepository
 
-	// roleNames is the pool of valid role names used for fuzzy suggestions
-	// when a row's role cannot be resolved. Loaded in PreloadReferenceData.
-	roleNames []string
+	// roleDisplayNames is the pool of role display names used for fuzzy
+	// suggestions when a row's role cannot be resolved. Loaded in
+	// PreloadReferenceData. Display names are shown so suggestions match the
+	// roles page and the import page.
+	roleDisplayNames []string
 	// schoolName is the tenant's display name, shown in invitation emails.
 	schoolName string
 }
@@ -59,9 +91,9 @@ func (c *StaffImportConfig) PreloadReferenceData(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("preload roles: %w", err)
 	}
-	c.roleNames = make([]string, 0, len(roles))
+	c.roleDisplayNames = make([]string, 0, len(roles))
 	for _, role := range roles {
-		c.roleNames = append(c.roleNames, role.Name)
+		c.roleDisplayNames = append(c.roleDisplayNames, roleDisplayName(role.Name))
 	}
 
 	// School name is best-effort: a missing name only degrades the email text,
@@ -114,7 +146,15 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 		return []importModels.ValidationError{requiredFieldError("role", "Rolle ist erforderlich")}
 	}
 
-	role, err := c.roleRepo.FindByName(ctx, name)
+	// Accept either the raw role name (e.g. "user") or the German display name
+	// shown on the roles page (e.g. "Betreuer"). FindByName matches the raw
+	// name case-insensitively, so translate a display name back first.
+	lookup := name
+	if raw, ok := displayNameToRawRole[strings.ToLower(name)]; ok {
+		lookup = raw
+	}
+
+	role, err := c.roleRepo.FindByName(ctx, lookup)
 	if err == nil && role != nil {
 		row.RoleID = role.ID
 		return nil
@@ -128,8 +168,8 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 		}}
 	}
 
-	// Not found — offer the closest known role names as suggestions.
-	suggestions := findSimilar(name, 3, func() []string { return c.roleNames })
+	// Not found — offer the closest known role display names as suggestions.
+	suggestions := findSimilar(name, 3, func() []string { return c.roleDisplayNames })
 	verr := importModels.ValidationError{
 		Field:       "role",
 		Code:        "role_not_found",

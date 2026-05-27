@@ -682,3 +682,46 @@ func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, invalidCount, "row with an unknown role must not create an invitation")
 }
+
+// TestImportStaff_AcceptsRoleDisplayName verifies that the German display name
+// shown on the roles page (e.g. "Betreuer") is accepted in the CSV and resolves
+// to the underlying system role ("user").
+func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffImport", "DisplayRole")
+
+	email := fmt.Sprintf("display.role.%d@example.com", time.Now().UnixNano())
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStaff)
+
+	// "Betreuer" is the German display name of the system role "user".
+	csvContent := "Vorname,Nachname,Email,Rolle,Position\n" +
+		fmt.Sprintf("Bea,Betreuerin,%s,Betreuer,", email)
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "staff.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	var userRoleID int64
+	err := tc.db.NewSelect().
+		Table("auth.roles").
+		Column("id").
+		Where("LOWER(name) = 'user'").
+		Where("tenant_id IS NULL").
+		Limit(1).
+		Scan(context.Background(), &userRoleID)
+	require.NoError(t, err, "system 'user' role must exist")
+
+	count, err := tc.db.NewSelect().
+		Table("auth.invitation_tokens").
+		Where("LOWER(email) = LOWER(?)", email).
+		Where("role_id = ?", userRoleID).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "display name 'Betreuer' must resolve to the system 'user' role")
+}

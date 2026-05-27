@@ -481,7 +481,7 @@ export default function StudentImportPage() {
           </svg>
           Schritt 1: Vorlage herunterladen
         </h3>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
               htmlFor="format-select"
@@ -524,7 +524,15 @@ export default function StudentImportPage() {
               <span className="font-medium">15.08.15</span>
             </p>
           </div>
-          <div className="flex-1 sm:pt-6">
+          <div className="flex-1">
+            {/* Spacer matches the format-select label height so the button
+                aligns with the dropdown on the sm+ row layout. */}
+            <span
+              aria-hidden="true"
+              className="invisible mb-2 hidden text-sm font-medium text-gray-700 sm:block"
+            >
+              Format wählen
+            </span>
             <Button
               type="button"
               variant="primary"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Loading } from "~/components/ui/loading";
@@ -8,6 +8,9 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { UploadSection, StatsCards } from "~/components/import";
 import { useToast } from "~/contexts/ToastContext";
+import { createCrudService } from "~/lib/database/service-factory";
+import { rolesConfig } from "~/lib/database/configs/roles.config";
+import { getRoleDisplayName, type Role } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StaffImportPage" });
@@ -129,6 +132,29 @@ export default function StaffImportPage() {
   });
 
   const toast = useToast();
+
+  // Load the tenant's role names so the user knows what to put in the
+  // "Rolle" column (the import matches role names exactly, case-insensitive).
+  const rolesService = useMemo(() => createCrudService(rolesConfig), []);
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
+
+  useEffect(() => {
+    rolesService
+      .getList({ page: 1, pageSize: 500 })
+      .then((data) => {
+        const list: Role[] = Array.isArray(data.data) ? data.data : [];
+        setAvailableRoles(
+          list
+            .map((r) => getRoleDisplayName(r.name))
+            .filter((name) => name !== ""),
+        );
+      })
+      .catch((err: unknown) => {
+        logger.warn("roles_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, [rolesService]);
 
   const resetForm = useCallback(() => {
     setUploadedFile(null);
@@ -387,6 +413,19 @@ export default function StaffImportPage() {
               <li>
                 Die Spalte „Rolle" muss exakt einer vorhandenen Rolle
                 entsprechen
+                {availableRoles.length > 0 && (
+                  <>
+                    :{" "}
+                    {availableRoles.map((role, i) => (
+                      <span key={role}>
+                        {i > 0 && ", "}
+                        <span className="font-medium text-gray-900">
+                          {role}
+                        </span>
+                      </span>
+                    ))}
+                  </>
+                )}
               </li>
               <li>
                 Der Import verschickt Einladungen — Mitarbeitende setzen ihr
@@ -445,7 +484,7 @@ export default function StaffImportPage() {
           </svg>
           Schritt 1: Vorlage herunterladen
         </h3>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
               htmlFor="format-select"
@@ -489,7 +528,15 @@ export default function StaffImportPage() {
               <span className="font-medium">Position</span> (optional)
             </p>
           </div>
-          <div className="flex-1 sm:pt-6">
+          <div className="flex-1">
+            {/* Spacer matches the format-select label height so the button
+                aligns with the dropdown on the sm+ row layout. */}
+            <span
+              aria-hidden="true"
+              className="invisible mb-2 hidden text-sm font-medium text-gray-700 sm:block"
+            >
+              Format wählen
+            </span>
             <Button
               type="button"
               variant="primary"
