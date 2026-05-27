@@ -131,6 +131,10 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/settings")).toBe("Einstellungen");
       });
 
+      it("should return 'Notfall' for /emergency", () => {
+        expect(getPageTitle("/emergency")).toBe("Notfall");
+      });
+
       it("should return 'Einladungen' for /invitations", () => {
         expect(getPageTitle("/invitations")).toBe("Einladungen");
       });

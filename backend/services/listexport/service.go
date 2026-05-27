@@ -84,6 +84,8 @@ func ColumnCatalog() map[ColumnID]Column {
 		ColumnStudentName:     {ID: ColumnStudentName, Label: "Kind"},
 		ColumnStudentClass:    {ID: ColumnStudentClass, Label: "Klasse"},
 		ColumnStudentGroup:    {ID: ColumnStudentGroup, Label: "Aufsichtsgruppe"},
+		ColumnContactName:     {ID: ColumnContactName, Label: "Kontakt"},
+		ColumnContactPhone:    {ID: ColumnContactPhone, Label: "Telefonnummer"},
 	}
 }
 

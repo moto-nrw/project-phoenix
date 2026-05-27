@@ -1,0 +1,174 @@
+package emergency
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/moto-nrw/project-phoenix/models/users"
+
+	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+)
+
+type stubAttendanceRepo struct {
+	ids []int64
+	err error
+}
+
+func (r stubAttendanceRepo) ListOpenStudentIDsForDate(_ context.Context, _ time.Time) ([]int64, error) {
+	return r.ids, r.err
+}
+
+type stubStudentRepo struct {
+	students map[int64]*users.Student
+	err      error
+}
+
+func (r stubStudentRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
+	return r.students, r.err
+}
+
+type stubPersonRepo struct {
+	persons map[int64]*users.Person
+	err     error
+}
+
+func (r stubPersonRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*users.Person, error) {
+	return r.persons, r.err
+}
+
+func newMockBunDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock, func()) {
+	t.Helper()
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	return db, mock, func() {
+		mock.ExpectClose()
+		require.NoError(t, db.Close())
+	}
+}
+
+func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
+	db, mock, cleanup := newMockBunDB(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`(?s)SELECT .*active\.visits`).
+		WillReturnRows(sqlmock.NewRows([]string{"student_id", "room_name"}).
+			AddRow(int64(101), "Kreativraum"))
+	mock.ExpectQuery(`(?s)SELECT .*users\.students_guardians`).
+		WillReturnRows(sqlmock.NewRows([]string{"student_id", "first_name", "last_name", "phone_number"}).
+			AddRow(int64(101), "Lea", "Albrecht", "02551 111").
+			AddRow(int64(101), "Noah", "Albrecht", "02551 222").
+			AddRow(int64(101), "Lea", "Albrecht", "02551 333"))
+
+	legacyName := "Familie Schmitt"
+	legacyPhone := "02551 444"
+	svc := NewService(Dependencies{
+		AttendanceRepo: stubAttendanceRepo{ids: []int64{101, 202}},
+		StudentRepo: stubStudentRepo{students: map[int64]*users.Student{
+			101: {PersonID: 301, SchoolClass: "Klasse 3b"},
+			202: {PersonID: 302, SchoolClass: "Klasse 2a", GuardianName: &legacyName, GuardianPhone: &legacyPhone},
+		}},
+		PersonRepo: stubPersonRepo{persons: map[int64]*users.Person{
+			301: {FirstName: "Mila", LastName: "Albrecht"},
+			302: {FirstName: "Max", LastName: "Schmitt"},
+		}},
+		ListExport: listexport.NewService(),
+		DB:         db,
+	})
+
+	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+
+	require.Len(t, doc.Rows, 2)
+	assert.Equal(t, "Notfallliste", doc.Title)
+	assert.Equal(t, "2 anwesende Kinder", doc.Subtitle)
+	assert.Equal(t, "Mila Albrecht", doc.Rows[0].Values[listexport.ColumnName])
+	assert.Equal(t, "Kreativraum", doc.Rows[0].Values[listexport.ColumnCurrentLocation])
+	assert.Equal(t, "02551 111; 02551 222; 02551 333", doc.Rows[0].Values[listexport.ColumnContactPhone])
+	assert.Equal(t, "Lea Albrecht; Noah Albrecht", doc.Rows[0].Values[listexport.ColumnContactName])
+	assert.Equal(t, "Max Schmitt", doc.Rows[1].Values[listexport.ColumnName])
+	assert.Equal(t, "Unterwegs", doc.Rows[1].Values[listexport.ColumnCurrentLocation])
+	assert.Equal(t, "02551 444", doc.Rows[1].Values[listexport.ColumnContactPhone])
+	assert.Equal(t, "Familie Schmitt", doc.Rows[1].Values[listexport.ColumnContactName])
+}
+
+func TestBuildSnapshotDocumentWithNoStudents(t *testing.T) {
+	db, _, cleanup := newMockBunDB(t)
+	defer cleanup()
+
+	svc := NewService(Dependencies{
+		AttendanceRepo: stubAttendanceRepo{ids: []int64{}},
+		StudentRepo:    stubStudentRepo{},
+		PersonRepo:     stubPersonRepo{},
+		ListExport:     listexport.NewService(),
+		DB:             db,
+	})
+
+	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	require.NoError(t, err)
+	assert.Equal(t, "0 anwesende Kinder", doc.Subtitle)
+	assert.Empty(t, doc.Rows)
+}
+
+func TestRenderSnapshot(t *testing.T) {
+	db, _, cleanup := newMockBunDB(t)
+	defer cleanup()
+
+	svc := NewService(Dependencies{
+		AttendanceRepo: stubAttendanceRepo{ids: []int64{}},
+		StudentRepo:    stubStudentRepo{},
+		PersonRepo:     stubPersonRepo{},
+		ListExport:     listexport.NewService(),
+		DB:             db,
+	})
+
+	file, err := svc.RenderSnapshot(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "application/pdf", file.ContentType)
+	assert.Equal(t, "notfallliste.pdf", file.Filename)
+	assert.NotEmpty(t, file.Data)
+}
+
+func TestBuildSnapshotDocumentRejectsMissingDependencies(t *testing.T) {
+	svc := NewService(Dependencies{})
+
+	_, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	require.Error(t, err)
+}
+
+func TestBuildDocumentRows(t *testing.T) {
+	rows := buildDocumentRows([]snapshotRow{
+		{
+			Name:         "Mila Albrecht",
+			SchoolClass:  "Klasse 3b",
+			Location:     "Kreativraum",
+			ContactPhone: "02551 123",
+			ContactName:  "Lea Albrecht",
+		},
+	})
+
+	assert.Len(t, rows, 1)
+	assert.Equal(t, "Mila Albrecht", rows[0].Values[listexport.ColumnName])
+	assert.Equal(t, "Klasse 3b", rows[0].Values[listexport.ColumnSchoolClass])
+	assert.Equal(t, "Kreativraum", rows[0].Values[listexport.ColumnCurrentLocation])
+	assert.Equal(t, "02551 123", rows[0].Values[listexport.ColumnContactPhone])
+	assert.Equal(t, "Lea Albrecht", rows[0].Values[listexport.ColumnContactName])
+}
+
+func TestFirstNonEmpty(t *testing.T) {
+	assert.Equal(t, "Mobil", firstNonEmpty("", "  ", "Mobil", "Festnetz"))
+	assert.Empty(t, firstNonEmpty("", " "))
+}
+
+func TestJoinUnique(t *testing.T) {
+	assert.Equal(t, "Lea Albrecht; Noah Albrecht", joinUnique("Lea Albrecht", "Noah Albrecht", "lea albrecht"))
+	assert.Equal(t, "02551 111; 02551 222", joinUnique("02551 111; 02551 222", "02551 111"))
+	assert.Empty(t, joinUnique("", " "))
+}

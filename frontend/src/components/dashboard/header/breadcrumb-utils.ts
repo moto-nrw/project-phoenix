@@ -75,6 +75,7 @@ function getMainRouteTitle(pathname: string): string {
     "/substitutions": "Vertretungen",
     "/timetables": "Stundenplan",
     "/database": "Datenverwaltung",
+    "/emergency": "Notfall",
     "/settings": "Einstellungen",
     "/profile": "Profil",
     "/invitations": "Einladungen",

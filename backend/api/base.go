@@ -25,6 +25,7 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
+	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
@@ -85,6 +86,7 @@ type API struct {
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingAPI.Resource
 	Timetable        *timetableAPI.Resource
+	Emergency        *emergencyAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -437,6 +439,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                 logger.With("handler", "timetable"),
 		DB:                     db,
 	})
+	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -599,6 +602,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount timetable resources
 		r.Mount("/timetable", a.Timetable.Router())
+
+		// Mount emergency snapshot resources
+		r.Mount("/emergency", a.Emergency.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

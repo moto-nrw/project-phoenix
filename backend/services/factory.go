@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
@@ -76,6 +77,7 @@ type Factory struct {
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
 	ListExport               listexport.Service
+	Emergency                emergency.Service
 	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
@@ -860,6 +862,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              platformLogger,
 	})
 
+	listExportService := listexport.NewService()
+	emergencyService := emergency.NewService(emergency.Dependencies{
+		AttendanceRepo: repos.Attendance,
+		StudentRepo:    repos.Student,
+		PersonRepo:     repos.Person,
+		ListExport:     listExportService,
+		DB:             db,
+	})
+
 	factory := &Factory{
 		Auth:                     authService,
 		Active:                   activeService,
@@ -891,7 +902,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		UserContext:              userContextService,
 		Database:                 databaseService,
 		Import:                   studentImportService, // Student import service
-		ListExport:               listexport.NewService(),
+		ListExport:               listExportService,
+		Emergency:                emergencyService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Invitation:               invitationService,
 		GuardianInvitation:       guardianInvitationService,
