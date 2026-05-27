@@ -175,6 +175,101 @@ func TestColumnCatalogExcludesRoomAndInternalIdentifier(t *testing.T) {
 	}
 }
 
+func TestDefaultColumnsForPreset(t *testing.T) {
+	tests := []struct {
+		preset Preset
+		want   []ColumnID
+	}{
+		{PresetOGSCompact, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnPlannedPickup}},
+		{PresetDailyPlanning, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}},
+		{PresetAttendanceSnapshot, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCurrentLocation, ColumnPlannedPickup}},
+		{PresetPickupList, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnPlannedPickup, ColumnDailyNotes}},
+		{PresetBlankChecklist, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup}},
+		{Preset("unknown"), []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday}},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.preset), func(t *testing.T) {
+			got := DefaultColumnsForPreset(tt.preset)
+			if strings.Join(columnIDsToStrings(got), ",") != strings.Join(columnIDsToStrings(tt.want), ",") {
+				t.Fatalf("DefaultColumnsForPreset(%q) = %v, want %v", tt.preset, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveColumnsDedupesSkipsUnknownAndFallsBack(t *testing.T) {
+	got := ResolveColumns([]ColumnID{ColumnName, "nope", ColumnName, ColumnStudentGroup}, PresetOGSWeekly)
+	if len(got) != 2 {
+		t.Fatalf("ResolveColumns len = %d, want 2", len(got))
+	}
+	if got[0].ID != ColumnName || got[1].ID != ColumnStudentGroup {
+		t.Fatalf("ResolveColumns = %v", got)
+	}
+
+	fallback := ResolveColumns([]ColumnID{"nope"}, PresetOGSWeekly)
+	if len(fallback) != len(DefaultColumnsForPreset(PresetOGSWeekly)) {
+		t.Fatalf("fallback len = %d", len(fallback))
+	}
+}
+
+func TestGeneratedAtLabelDefaultsZeroTime(t *testing.T) {
+	if GeneratedAtLabel(time.Time{}) == "" {
+		t.Fatal("GeneratedAtLabel returned empty label for zero time")
+	}
+
+	label := GeneratedAtLabel(time.Date(2026, time.May, 27, 16, 45, 0, 0, time.UTC))
+	if label != "27.05.2026 16:45" {
+		t.Fatalf("GeneratedAtLabel = %q", label)
+	}
+}
+
+func TestPDFHelpersCoverEscapesWrappingAndPagination(t *testing.T) {
+	encoded := pdfLiteralString("ÄÖÜ äöü ß éè áà óò íì \\\n\r\t() \u2603")
+	for _, want := range []string{`\\`, `\n`, `\r`, `\t`, `\(`, `\)`, "?"} {
+		if !strings.Contains(encoded, want) {
+			t.Fatalf("encoded PDF literal %q does not contain %q", encoded, want)
+		}
+	}
+
+	lines := wrapPDFText("Supercalifragilisticexpialidocious plus words", 24)
+	if len(lines) < 2 {
+		t.Fatalf("wrapPDFText lines = %v, want multiple lines", lines)
+	}
+
+	doc := sampleDocument()
+	for i := 0; i < 80; i++ {
+		doc.Rows = append(doc.Rows, Row{Values: map[ColumnID]string{
+			ColumnName:         "Kind mit sehr langem Namen",
+			ColumnSchoolClass:  "Klasse 4a",
+			ColumnWeeklyMonday: "08:00 bis 16:00",
+		}})
+	}
+	file, err := NewService().Render(doc, FormatPDF, "multi-page")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	data := string(file.Data)
+	if !strings.Contains(data, "/Count ") || strings.Contains(data, "/Count 1 >>") {
+		t.Fatalf("expected multi-page PDF, data starts %q", file.Data[:80])
+	}
+}
+
+func TestRenderUnsupportedFormat(t *testing.T) {
+	_, err := NewService().Render(sampleDocument(), Format("csv"), "liste")
+	if err == nil {
+		t.Fatal("Render() error = nil, want unsupported format error")
+	}
+}
+
+func columnIDsToStrings(ids []ColumnID) []string {
+	values := make([]string, len(ids))
+	for i, id := range ids {
+		values[i] = string(id)
+	}
+	return values
+}
+
 func sampleDocument() Document {
 	columns := ResolveColumns([]ColumnID{ColumnName, ColumnSchoolClass, ColumnWeeklyMonday}, PresetOGSWeekly)
 	return Document{
