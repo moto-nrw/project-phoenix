@@ -13,7 +13,11 @@ import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import type {
+  FilterConfig,
+  ActiveFilter,
+  OverflowMenuItem,
+} from "~/components/ui/page-header";
 import {
   formatFloor,
   getRoomCategoryColor,
@@ -21,7 +25,12 @@ import {
 } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
-import { ArrowRight, Footprints } from "lucide-react";
+import {
+  ArrowRight,
+  FileSpreadsheet,
+  FileText,
+  Footprints,
+} from "lucide-react";
 
 import { Loading } from "~/components/ui/loading";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
@@ -30,6 +39,10 @@ import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import {
+  exportRoomSnapshot,
+  type RoomSnapshotExportFormat,
+} from "~/lib/room-export-api";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -174,6 +187,8 @@ function RoomsPageContent() {
   const [occupiedFilter, setOccupiedFilter] = useState(
     () => searchParams.get("status") ?? "all",
   );
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -305,6 +320,34 @@ function RoomsPageContent() {
 
     return filtered;
   }, [roomsData, searchTerm, buildingFilter, occupiedFilter]);
+
+  const exportRoomIds = useMemo(() => {
+    return filteredRooms
+      .map((room) => Number.parseInt(room.id, 10))
+      .filter((id) => Number.isFinite(id));
+  }, [filteredRooms]);
+
+  const handleExport = useCallback(
+    async (format: RoomSnapshotExportFormat) => {
+      setIsExporting(true);
+      setExportError(null);
+      try {
+        await exportRoomSnapshot({
+          format,
+          title: "Wer ist wo",
+          room_ids: exportRoomIds,
+          include_transit: true,
+        });
+      } catch {
+        setExportError(
+          "Der Raum-Snapshot konnte nicht exportiert werden. Bitte versuchen Sie es erneut.",
+        );
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [exportRoomIds],
+  );
 
   // Track whether the click handler just pushed an entry. Used by the
   // effect below to stamp a marker into the resulting history entry.
@@ -475,6 +518,33 @@ function RoomsPageContent() {
     transitCount > 0 ||
     (normalizedSearchTerm.length > 0 &&
       "unterwegs".includes(normalizedSearchTerm));
+  const exportTargetCount = filteredRooms.length + 1;
+  const overflowItems = useMemo<OverflowMenuItem[]>(
+    () => [
+      {
+        label: "Wer ist wo als PDF",
+        icon: <FileText className="size-4" aria-hidden />,
+        badge: exportTargetCount,
+        disabled: loading || isExporting,
+        onClick: () => void handleExport("pdf"),
+      },
+      {
+        label: "Wer ist wo als Word",
+        icon: <FileText className="size-4" aria-hidden />,
+        badge: exportTargetCount,
+        disabled: loading || isExporting,
+        onClick: () => void handleExport("docx"),
+      },
+      {
+        label: "Wer ist wo als Excel",
+        icon: <FileSpreadsheet className="size-4" aria-hidden />,
+        badge: exportTargetCount,
+        disabled: loading || isExporting,
+        onClick: () => void handleExport("xlsx"),
+      },
+    ],
+    [exportTargetCount, handleExport, isExporting, loading],
+  );
 
   // Auth-loading: nothing to render until NextAuth resolves the session
   // (the `useSession({ required: true })` callback redirects on
@@ -514,6 +584,7 @@ function RoomsPageContent() {
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}
+        overflowMenu={overflowItems}
         onClearAllFilters={() => {
           setSearchTerm("");
           setBuildingFilter("all");
@@ -524,6 +595,12 @@ function RoomsPageContent() {
       {error && (
         <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
           {error}
+        </div>
+      )}
+
+      {exportError && (
+        <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
+          {exportError}
         </div>
       )}
 

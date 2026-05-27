@@ -73,6 +73,17 @@ func ColumnCatalog() map[ColumnID]Column {
 		ColumnPlannedPickup:   {ID: ColumnPlannedPickup, Label: "Geplante Abholung"},
 		ColumnDailyNotes:      {ID: ColumnDailyNotes, Label: "Tageshinweise"},
 		ColumnCurrentLocation: {ID: ColumnCurrentLocation, Label: "Aktueller Aufenthaltsort"},
+		ColumnRoomName:        {ID: ColumnRoomName, Label: "Raum"},
+		ColumnRoomStatus:      {ID: ColumnRoomStatus, Label: "Status"},
+		ColumnRoomBuilding:    {ID: ColumnRoomBuilding, Label: "Gebäude"},
+		ColumnRoomFloor:       {ID: ColumnRoomFloor, Label: "Etage"},
+		ColumnRoomActivity:    {ID: ColumnRoomActivity, Label: "Aktivität"},
+		ColumnRoomSupervision: {ID: ColumnRoomSupervision, Label: "Aufsicht"},
+		ColumnRoomChildCount:  {ID: ColumnRoomChildCount, Label: "Kinder"},
+		ColumnChecklist:       {ID: ColumnChecklist, Label: "Abhaken"},
+		ColumnStudentName:     {ID: ColumnStudentName, Label: "Kind"},
+		ColumnStudentClass:    {ID: ColumnStudentClass, Label: "Klasse"},
+		ColumnStudentGroup:    {ID: ColumnStudentGroup, Label: "Aufsichtsgruppe"},
 	}
 }
 

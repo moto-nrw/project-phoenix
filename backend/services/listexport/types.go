@@ -26,6 +26,17 @@ const (
 	ColumnPlannedPickup   ColumnID = "planned_pickup"
 	ColumnDailyNotes      ColumnID = "daily_notes"
 	ColumnCurrentLocation ColumnID = "current_location"
+	ColumnRoomName        ColumnID = "room_name"
+	ColumnRoomStatus      ColumnID = "room_status"
+	ColumnRoomBuilding    ColumnID = "room_building"
+	ColumnRoomFloor       ColumnID = "room_floor"
+	ColumnRoomActivity    ColumnID = "room_activity"
+	ColumnRoomSupervision ColumnID = "room_supervision"
+	ColumnRoomChildCount  ColumnID = "room_child_count"
+	ColumnChecklist       ColumnID = "checklist"
+	ColumnStudentName     ColumnID = "student_name"
+	ColumnStudentClass    ColumnID = "student_class"
+	ColumnStudentGroup    ColumnID = "student_group"
 )
 
 type Preset string
