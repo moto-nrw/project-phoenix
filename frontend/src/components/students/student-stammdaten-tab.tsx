@@ -13,7 +13,11 @@ import { StudentCommonFormSections } from "./student-common-form-sections";
 import { StudentPhotoSection } from "./student-photo-section";
 import { validateStudentForm } from "~/lib/student-form-validation";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
-import { deleteStudentPhoto, uploadStudentPhoto } from "~/lib/student-api";
+import {
+  deleteStudentPhoto,
+  fetchStudentPrivacyConsent,
+  uploadStudentPhoto,
+} from "~/lib/student-api";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/api";
 
@@ -35,9 +39,17 @@ interface StudentStammdatenTabProps {
   onStudentRefresh?: () => void | Promise<void>;
 }
 
+// ServerConsent holds the privacy consent fetched separately for the selected
+// student. The list endpoint does not carry privacy_consent_accepted /
+// data_retention_days — they only come from the per-student detail endpoint —
+// so the draft must be seeded from this fetch, otherwise the checkbox would
+// always render unchecked and saving would overwrite the real consent.
+type ServerConsent = { accepted: boolean; dataRetentionDays: number };
+
 function buildDraft(
   student: Student,
   photosEnabled: boolean,
+  consent: ServerConsent | null,
 ): Partial<Student> {
   const draft: Partial<Student> = {
     first_name: student.first_name ?? "",
@@ -48,8 +60,10 @@ function buildDraft(
     health_info: student.health_info ?? "",
     supervisor_notes: student.supervisor_notes ?? "",
     extra_info: student.extra_info ?? "",
-    privacy_consent_accepted: student.privacy_consent_accepted ?? false,
-    data_retention_days: student.data_retention_days ?? 30,
+    privacy_consent_accepted:
+      consent?.accepted ?? student.privacy_consent_accepted ?? false,
+    data_retention_days:
+      consent?.dataRetentionDays ?? student.data_retention_days ?? 30,
     bus: student.bus ?? false,
     pickup_status: student.pickup_status ?? "",
   };
@@ -76,8 +90,13 @@ export function StudentStammdatenTab({
   onStudentRefresh,
 }: StudentStammdatenTabProps) {
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  // Privacy consent is fetched separately (the list doesn't carry it); null
+  // until the per-student fetch below resolves.
+  const [serverConsent, setServerConsent] = useState<ServerConsent | null>(
+    null,
+  );
   const [formData, setFormData] = useState<Partial<Student>>(() =>
-    buildDraft(student, photosEnabled),
+    buildDraft(student, photosEnabled, null),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -101,7 +120,7 @@ export function StudentStammdatenTab({
   // We deliberately depend only on student.id; `student` is read on each
   // run via the closure and the deps rule is suppressed on the array line.
   useEffect(() => {
-    setFormData(buildDraft(student, photosEnabled));
+    setFormData(buildDraft(student, photosEnabled, null));
     setErrors({});
     // Drop any uncommitted photo state when navigating to a different
     // student so we never carry one student's pending pick into another's
@@ -154,9 +173,63 @@ export function StudentStammdatenTab({
     });
   }, [photosEnabled, student.photo_consent_given_at]);
 
+  // Load the real privacy consent for the selected student. The list-level
+  // `student` object does not carry privacy_consent_accepted /
+  // data_retention_days — they come only from the per-student detail endpoint.
+  // Without this fetch the checkbox would always render unchecked and a save
+  // would write the stored consent back to false.
+  useEffect(() => {
+    let cancelled = false;
+    setServerConsent(null);
+    fetchStudentPrivacyConsent(student.id)
+      .then((consent) => {
+        if (cancelled) return;
+        // A 404 (null) means no consent recorded yet → treat as not accepted.
+        setServerConsent(
+          consent
+            ? {
+                accepted: consent.accepted,
+                dataRetentionDays: consent.dataRetentionDays,
+              }
+            : { accepted: false, dataRetentionDays: 30 },
+        );
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.warn("privacy_consent_load_failed", {
+          student_id: student.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [student.id]);
+
+  // Mirror the freshly loaded consent into the editable draft. Like the
+  // photo-consent sync effect, this touches ONLY the privacy keys so unrelated
+  // in-flight edits are preserved. originalDraft (below) also depends on
+  // serverConsent, so the form is not falsely marked dirty after the load.
+  useEffect(() => {
+    if (serverConsent === null) return;
+    setFormData((prev) => {
+      if (
+        prev.privacy_consent_accepted === serverConsent.accepted &&
+        prev.data_retention_days === serverConsent.dataRetentionDays
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        privacy_consent_accepted: serverConsent.accepted,
+        data_retention_days: serverConsent.dataRetentionDays,
+      };
+    });
+  }, [serverConsent]);
+
   const originalDraft = useMemo(
-    () => buildDraft(student, photosEnabled),
-    [student, photosEnabled],
+    () => buildDraft(student, photosEnabled, serverConsent),
+    [student, photosEnabled, serverConsent],
   );
   const isDirty = useMemo(() => {
     if (pendingPhotoBlob !== null) return true;

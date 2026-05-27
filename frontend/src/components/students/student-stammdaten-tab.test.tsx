@@ -23,6 +23,7 @@ vi.mock("~/lib/student-form-validation", () => ({
 vi.mock("~/lib/student-api", () => ({
   uploadStudentPhoto: uploadStudentPhotoMock,
   deleteStudentPhoto: deleteStudentPhotoMock,
+  fetchStudentPrivacyConsent: vi.fn(() => Promise.resolve(null)),
 }));
 
 // Mock StudentPhotoSection with controllable test buttons. The real component
