@@ -162,11 +162,6 @@ func TestBuildDocumentRows(t *testing.T) {
 	assert.Equal(t, "Lea Albrecht", rows[0].Values[listexport.ColumnContactName])
 }
 
-func TestFirstNonEmpty(t *testing.T) {
-	assert.Equal(t, "Mobil", firstNonEmpty("", "  ", "Mobil", "Festnetz"))
-	assert.Empty(t, firstNonEmpty("", " "))
-}
-
 func TestJoinUnique(t *testing.T) {
 	assert.Equal(t, "Lea Albrecht; Noah Albrecht", joinUnique("Lea Albrecht", "Noah Albrecht", "lea albrecht"))
 	assert.Equal(t, "02551 111; 02551 222", joinUnique("02551 111; 02551 222", "02551 111"))

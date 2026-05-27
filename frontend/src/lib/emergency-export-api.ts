@@ -28,12 +28,12 @@ export async function exportEmergencySnapshot(
 }
 
 function openForPrint(url: string) {
-  const target = window.open(url, "_blank");
+  const target = globalThis.open(url, "_blank");
   if (!target) {
     URL.revokeObjectURL(url);
     throw new Error("Der Druckdialog konnte nicht geöffnet werden.");
   }
-  window.setTimeout(() => {
+  globalThis.setTimeout(() => {
     target.focus();
     target.print();
     URL.revokeObjectURL(url);

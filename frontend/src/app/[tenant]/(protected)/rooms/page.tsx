@@ -526,21 +526,27 @@ function RoomsPageContent() {
         icon: <FileText className="size-4" aria-hidden />,
         badge: exportTargetCount,
         disabled: loading || isExporting,
-        onClick: () => void handleExport("pdf"),
+        onClick: () => {
+          handleExport("pdf").catch(() => undefined);
+        },
       },
       {
         label: "Wer ist wo als Word",
         icon: <FileText className="size-4" aria-hidden />,
         badge: exportTargetCount,
         disabled: loading || isExporting,
-        onClick: () => void handleExport("docx"),
+        onClick: () => {
+          handleExport("docx").catch(() => undefined);
+        },
       },
       {
         label: "Wer ist wo als Excel",
         icon: <FileSpreadsheet className="size-4" aria-hidden />,
         badge: exportTargetCount,
         disabled: loading || isExporting,
-        onClick: () => void handleExport("xlsx"),
+        onClick: () => {
+          handleExport("xlsx").catch(() => undefined);
+        },
       },
     ],
     [exportTargetCount, handleExport, isExporting, loading],

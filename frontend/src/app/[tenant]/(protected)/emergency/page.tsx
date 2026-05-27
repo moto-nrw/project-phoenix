@@ -31,6 +31,12 @@ export default function EmergencyPage() {
     },
     [],
   );
+  const handlePrint = useCallback(() => {
+    handleExport("print").catch(() => undefined);
+  }, [handleExport]);
+  const handleDownload = useCallback(() => {
+    handleExport("download").catch(() => undefined);
+  }, [handleExport]);
 
   if (status === "loading") {
     return <Loading fullPage={false} />;
@@ -66,7 +72,7 @@ export default function EmergencyPage() {
             size="xl"
             isLoading={isExporting}
             loadingText="Erstelle PDF..."
-            onClick={() => void handleExport("print")}
+            onClick={handlePrint}
             className="h-16 gap-3 rounded-xl"
           >
             <Printer className="h-5 w-5" aria-hidden />
@@ -77,7 +83,7 @@ export default function EmergencyPage() {
             variant="outline"
             size="xl"
             disabled={isExporting}
-            onClick={() => void handleExport("download")}
+            onClick={handleDownload}
             className="h-16 gap-3 rounded-xl"
           >
             <Download className="h-5 w-5" aria-hidden />

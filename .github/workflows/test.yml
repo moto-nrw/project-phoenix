@@ -112,6 +112,16 @@ jobs:
           tail -n +2 coverage.listexport.out >> coverage.out
           rm -f coverage.listexport.out
 
+      - name: Add emergency coverage
+        working-directory: backend
+        run: |
+          go test ./services/emergency \
+            -coverpkg=./services/emergency \
+            -covermode=atomic \
+            -coverprofile=coverage.emergency.out
+          tail -n +2 coverage.emergency.out >> coverage.out
+          rm -f coverage.emergency.out
+
       - name: Drop flaky retries from junit.xml
         working-directory: backend
         if: always()

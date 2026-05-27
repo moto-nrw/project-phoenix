@@ -146,6 +146,23 @@ func (s *service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]s
 		return nil, err
 	}
 
+	rows := buildSnapshotRows(studentIDs, students, persons, locations, contacts)
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Location != rows[j].Location {
+			return rows[i].Location < rows[j].Location
+		}
+		return rows[i].Name < rows[j].Name
+	})
+	return rows, nil
+}
+
+func buildSnapshotRows(
+	studentIDs []int64,
+	students map[int64]*userModel.Student,
+	persons map[int64]*userModel.Person,
+	locations map[int64]string,
+	contacts map[int64]guardianContact,
+) []snapshotRow {
 	rows := make([]snapshotRow, 0, len(studentIDs))
 	for _, id := range studentIDs {
 		student := students[id]
@@ -176,14 +193,7 @@ func (s *service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]s
 		row.ContactPhone = joinUnique(row.ContactPhone, row.GuardianPhone, row.GuardianContact)
 		rows = append(rows, row)
 	}
-
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].Location != rows[j].Location {
-			return rows[i].Location < rows[j].Location
-		}
-		return rows[i].Name < rows[j].Name
-	})
-	return rows, nil
+	return rows
 }
 
 func (s *service) loadCurrentLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
@@ -277,16 +287,6 @@ func buildDocumentRows(rows []snapshotRow) []listexport.Row {
 		}})
 	}
 	return result
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func joinUnique(values ...string) string {
