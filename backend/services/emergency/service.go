@@ -11,10 +11,13 @@ import (
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+const presenceModeBinary = "binary"
 
 type Service interface {
 	RenderSnapshot(ctx context.Context) (listexport.File, error)
@@ -33,10 +36,16 @@ type personReader interface {
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModel.Person, error)
 }
 
+type activePresenceReader interface {
+	GetPresenceMode(ctx context.Context) string
+	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error)
+}
+
 type Dependencies struct {
 	AttendanceRepo attendanceReader
 	StudentRepo    studentReader
 	PersonRepo     personReader
+	ActiveService  activePresenceReader
 	ListExport     listexport.Service
 	DB             *bun.DB
 }
@@ -45,6 +54,7 @@ type service struct {
 	attendanceRepo attendanceReader
 	studentRepo    studentReader
 	personRepo     personReader
+	activeService  activePresenceReader
 	listExport     listexport.Service
 	db             *bun.DB
 }
@@ -73,6 +83,7 @@ func NewService(deps Dependencies) Service {
 		attendanceRepo: deps.AttendanceRepo,
 		studentRepo:    deps.StudentRepo,
 		personRepo:     deps.PersonRepo,
+		activeService:  deps.ActiveService,
 		listExport:     deps.ListExport,
 		db:             deps.DB,
 	}
@@ -197,6 +208,10 @@ func buildSnapshotRows(
 }
 
 func (s *service) loadCurrentLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
+	if s.activeService != nil && s.activeService.GetPresenceMode(ctx) == presenceModeBinary {
+		return s.loadBinaryLocations(ctx, studentIDs)
+	}
+
 	type currentLocationRow struct {
 		StudentID int64          `bun:"student_id"`
 		RoomName  sql.NullString `bun:"room_name"`
@@ -229,6 +244,33 @@ func (s *service) loadCurrentLocations(ctx context.Context, studentIDs []int64) 
 		}
 	}
 	return locations, nil
+}
+
+func (s *service) loadBinaryLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
+	statuses, err := s.activeService.GetStudentsAttendanceStatuses(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	locations := make(map[int64]string, len(studentIDs))
+	for _, id := range studentIDs {
+		locations[id] = binaryLocationLabel(statuses[id])
+	}
+	return locations, nil
+}
+
+func binaryLocationLabel(status *activeService.AttendanceStatus) string {
+	if status == nil {
+		return "Abwesend"
+	}
+	switch status.Status {
+	case "checked_in":
+		return "Anwesend"
+	case "on_yard":
+		return "Schulhof"
+	default:
+		return "Abwesend"
+	}
 }
 
 type guardianContact struct {

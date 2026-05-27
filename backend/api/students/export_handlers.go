@@ -30,6 +30,7 @@ type studentExportRequest struct {
 type studentExportFilters struct {
 	Search      string `json:"search"`
 	GroupID     string `json:"group_id"`
+	RoomID      string `json:"room_id"`
 	Year        string `json:"year"`
 	Status      string `json:"status"`
 	PickupTime  string `json:"pickup_time"`
@@ -142,6 +143,11 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 	if req.Filters.GroupID != "" {
 		if groupID, err := strconv.ParseInt(req.Filters.GroupID, 10, 64); err == nil {
 			params.groupID = groupID
+		}
+	}
+	if req.Filters.RoomID != "" {
+		if roomID, err := strconv.ParseInt(req.Filters.RoomID, 10, 64); err == nil {
+			params.roomID = roomID
 		}
 	}
 	return params

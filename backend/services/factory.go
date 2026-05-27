@@ -590,7 +590,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		})),
 	)
 	// Rollover (annual phase renewal) emails. Slice 1 reuses the
-	// submission template as a placeholder — proper branded copy lands
+	// submission template as a placeholder. Proper branded copy lands
 	// in a follow-up PR.
 	emailTemplateRegistry.Register(
 		platformModels.EmailKindEnrollmentRolloverOptIn,
@@ -867,6 +867,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AttendanceRepo: repos.Attendance,
 		StudentRepo:    repos.Student,
 		PersonRepo:     repos.Person,
+		ActiveService:  activeService,
 		ListExport:     listExportService,
 		DB:             db,
 	})

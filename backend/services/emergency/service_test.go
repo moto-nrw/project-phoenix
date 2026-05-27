@@ -8,6 +8,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/models/users"
 
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,20 @@ type stubPersonRepo struct {
 
 func (r stubPersonRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*users.Person, error) {
 	return r.persons, r.err
+}
+
+type stubActivePresence struct {
+	mode     string
+	statuses map[int64]*activeService.AttendanceStatus
+	err      error
+}
+
+func (s stubActivePresence) GetPresenceMode(_ context.Context) string {
+	return s.mode
+}
+
+func (s stubActivePresence) GetStudentsAttendanceStatuses(_ context.Context, _ []int64) (map[int64]*activeService.AttendanceStatus, error) {
+	return s.statuses, s.err
 }
 
 func newMockBunDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock, func()) {
@@ -97,6 +112,43 @@ func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
 	assert.Equal(t, "Unterwegs", doc.Rows[1].Values[listexport.ColumnCurrentLocation])
 	assert.Equal(t, "02551 444", doc.Rows[1].Values[listexport.ColumnContactPhone])
 	assert.Equal(t, "Familie Schmitt", doc.Rows[1].Values[listexport.ColumnContactName])
+}
+
+func TestBuildSnapshotDocumentUsesBinaryLocations(t *testing.T) {
+	db, mock, cleanup := newMockBunDB(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`(?s)SELECT .*users\.students_guardians`).
+		WillReturnRows(sqlmock.NewRows([]string{"student_id", "first_name", "last_name", "phone_number"}))
+
+	svc := NewService(Dependencies{
+		AttendanceRepo: stubAttendanceRepo{ids: []int64{101, 202}},
+		StudentRepo: stubStudentRepo{students: map[int64]*users.Student{
+			101: {PersonID: 301, SchoolClass: "Klasse 3b"},
+			202: {PersonID: 302, SchoolClass: "Klasse 2a"},
+		}},
+		PersonRepo: stubPersonRepo{persons: map[int64]*users.Person{
+			301: {FirstName: "Mila", LastName: "Albrecht"},
+			302: {FirstName: "Max", LastName: "Schmitt"},
+		}},
+		ActiveService: stubActivePresence{
+			mode: "binary",
+			statuses: map[int64]*activeService.AttendanceStatus{
+				101: {Status: "checked_in"},
+				202: {Status: "on_yard"},
+			},
+		},
+		ListExport: listexport.NewService(),
+		DB:         db,
+	})
+
+	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+
+	require.Len(t, doc.Rows, 2)
+	assert.Equal(t, "Anwesend", doc.Rows[0].Values[listexport.ColumnCurrentLocation])
+	assert.Equal(t, "Schulhof", doc.Rows[1].Values[listexport.ColumnCurrentLocation])
 }
 
 func TestBuildSnapshotDocumentWithNoStudents(t *testing.T) {
@@ -166,4 +218,11 @@ func TestJoinUnique(t *testing.T) {
 	assert.Equal(t, "Lea Albrecht; Noah Albrecht", joinUnique("Lea Albrecht", "Noah Albrecht", "lea albrecht"))
 	assert.Equal(t, "02551 111; 02551 222", joinUnique("02551 111; 02551 222", "02551 111"))
 	assert.Empty(t, joinUnique("", " "))
+}
+
+func TestBinaryLocationLabel(t *testing.T) {
+	assert.Equal(t, "Anwesend", binaryLocationLabel(&activeService.AttendanceStatus{Status: "checked_in"}))
+	assert.Equal(t, "Schulhof", binaryLocationLabel(&activeService.AttendanceStatus{Status: "on_yard"}))
+	assert.Equal(t, "Abwesend", binaryLocationLabel(&activeService.AttendanceStatus{Status: "checked_out"}))
+	assert.Equal(t, "Abwesend", binaryLocationLabel(nil))
 }

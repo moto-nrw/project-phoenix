@@ -4,7 +4,25 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/stretchr/testify/assert"
 )
+
+func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
+	params := exportRequestToListParams(studentExportRequest{
+		Filters: studentExportFilters{
+			Search:  "  mila  ",
+			GroupID: "17",
+			RoomID:  "42",
+		},
+	})
+
+	assert.Equal(t, "mila", params.search)
+	assert.Equal(t, int64(17), params.groupID)
+	assert.Equal(t, int64(42), params.roomID)
+	assert.Equal(t, studentExportPageSize, params.pageSize)
+	assert.True(t, params.includePickupTimes)
+	assert.True(t, params.includeArrivalTimes)
+}
 
 func TestWeeklyCellUsesExplicitLabels(t *testing.T) {
 	tests := []struct {
