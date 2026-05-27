@@ -6,10 +6,12 @@ package importapi_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +46,7 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 
 	// Create import resource
-	resource := importAPI.NewResource(svc.Import, repos.DataImport, svc.Users, db)
+	resource := importAPI.NewResource(svc.Import, svc.StaffImport, repos.DataImport, svc.Users, db)
 
 	return &testContext{
 		db:       db,
@@ -596,4 +598,87 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should return a valid chi.Router")
+}
+
+// =============================================================================
+// STAFF (MITARBEITER) IMPORT TESTS (issue #1460, phase 3)
+// =============================================================================
+
+func TestDownloadStaffTemplate_CSV(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/template", tc.resource.DownloadStaffTemplate)
+
+	req, _ := http.NewRequest("GET", "/template?format=csv", nil)
+	rr := testutil.ExecuteRequest(router, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+	for _, col := range []string{"Vorname", "Nachname", "Email", "Rolle"} {
+		assert.Contains(t, body, col, "staff CSV template must advertise the %q column", col)
+	}
+}
+
+func TestDownloadStaffTemplate_XLSX(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/template", tc.resource.DownloadStaffTemplate)
+
+	req, _ := http.NewRequest("GET", "/template?format=xlsx", nil)
+	rr := testutil.ExecuteRequest(router, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		rr.Header().Get("Content-Type"))
+}
+
+// TestImportStaff_CreatesInvitationForValidRole verifies that a staff row with a
+// valid role creates an invitation, while a row with an unknown role is rejected
+// (and never produces an invitation).
+func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	// Role visible to tenant 1 (AdminTestClaims defaults to tenant 1).
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "ImportRolle", 1)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffImport", "Admin")
+
+	unique := time.Now().UnixNano()
+	validEmail := fmt.Sprintf("valid.staff.%d@example.com", unique)
+	invalidEmail := fmt.Sprintf("invalid.staff.%d@example.com", unique)
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStaff)
+
+	csvContent := "Vorname,Nachname,Email,Rolle,Position\n" +
+		fmt.Sprintf("Valide,Person,%s,%s,Lehrkraft\n", validEmail, role.Name) +
+		fmt.Sprintf("Falsche,Rolle,%s,GibtEsNicht,", invalidEmail)
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "staff.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	// The valid row created exactly one invitation with the resolved role.
+	validCount, err := tc.db.NewSelect().
+		Table("auth.invitation_tokens").
+		Where("LOWER(email) = LOWER(?)", validEmail).
+		Where("role_id = ?", role.ID).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, validCount, "valid staff row must create an invitation with the resolved role")
+
+	// The unknown-role row must NOT create an invitation.
+	invalidCount, err := tc.db.NewSelect().
+		Table("auth.invitation_tokens").
+		Where("LOWER(email) = LOWER(?)", invalidEmail).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, invalidCount, "row with an unknown role must not create an invitation")
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
@@ -309,11 +310,19 @@ export default function TeachersPage() {
           actionButton={
             <div className="flex items-center gap-2">
               {!isMobile ? (
-                <DatabaseGroupingToggle
-                  value={grouping}
-                  options={STAFF_GROUPING_OPTIONS}
-                  onChange={handleGroupingChange}
-                />
+                <>
+                  <DatabaseGroupingToggle
+                    value={grouping}
+                    options={STAFF_GROUPING_OPTIONS}
+                    onChange={handleGroupingChange}
+                  />
+                  <Link
+                    href="/database/personal/import"
+                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Importieren
+                  </Link>
+                </>
               ) : null}
               <DatabaseCreateAction
                 label="Personal"

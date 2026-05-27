@@ -40,6 +40,7 @@ const (
 // Resource defines the import resource
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
+	staffImportService   *importService.ImportService[importModels.StaffImportRow]
 	auditRepo            audit.DataImportRepository
 	personService        userSvc.PersonService
 	db                   *bun.DB
@@ -48,12 +49,14 @@ type Resource struct {
 // NewResource creates a new import resource
 func NewResource(
 	studentImportService *importService.ImportService[importModels.StudentImportRow],
+	staffImportService *importService.ImportService[importModels.StaffImportRow],
 	auditRepo audit.DataImportRepository,
 	personService userSvc.PersonService,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
+		staffImportService:   staffImportService,
 		auditRepo:            auditRepo,
 		personService:        personService,
 		db:                   db,
@@ -89,12 +92,19 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.importStudents)
 		})
 
-		// Future: Teacher import endpoints
-		// r.Route("/teachers", func(r chi.Router) {
-		//     r.Get("/template", rs.downloadTeacherTemplate)
-		//     r.Post("/preview", rs.previewTeacherImport)
-		//     r.Post("/import", rs.importTeachers)
-		// })
+		// Staff (Mitarbeiter) import endpoints
+		r.Route("/teachers", func(r chi.Router) {
+			// Template download - requires UsersRead
+			r.With(authorize.RequiresPermission("users:read"), withTx).Get("/template", rs.DownloadStaffTemplate)
+
+			// Preview - requires UsersCreate
+			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/preview", rs.PreviewStaffImport)
+
+			// Actual import - requires UsersCreate
+			// Note: no withTx here — the handler manages its own WithTenantTx
+			// to control commit/rollback based on import results.
+			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.ImportStaff)
+		})
 	})
 
 	return r
@@ -539,8 +549,14 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 	return staff.ID, nil
 }
 
-// logImportAudit creates an audit record for import operations (GDPR compliance)
+// logImportAudit creates an audit record for student import operations (GDPR compliance)
 func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
+	recordImportAudit(rs.auditRepo, "student", filename, result, userID, dryRun, tenantID)
+}
+
+// recordImportAudit asynchronously writes a GDPR audit record for any import
+// operation. entityType identifies the imported entity (e.g. "student", "staff").
+func recordImportAudit[T any](auditRepo audit.DataImportRepository, entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -552,7 +568,7 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 		}()
 		auditCtx := context.Background()
 		auditRecord := &audit.DataImport{
-			EntityType:   "student",
+			EntityType:   entityType,
 			Filename:     filename,
 			TotalRows:    result.TotalRows,
 			CreatedCount: result.CreatedCount,
@@ -567,7 +583,7 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 			Metadata:     audit.JSONBMap{},
 		}
 		auditRecord.SetTenantID(tenantID)
-		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
+		if err := auditRepo.Create(auditCtx, auditRecord); err != nil {
 			if dryRun {
 				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))
 			} else {

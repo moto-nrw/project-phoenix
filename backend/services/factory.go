@@ -74,6 +74,7 @@ type Factory struct {
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
+	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
 	RealtimeHub              *realtime.Hub                                               // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
@@ -680,6 +681,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
 
+	// Staff import bulk-creates invitations (reuses the invitation service);
+	// Person/Account/Staff/Teacher are created when each invitee accepts.
+	staffImportConfig := importService.NewStaffImportConfig(
+		importService.StaffImportDeps{
+			InvitationService: invitationService,
+			AccountRepo:       repos.Account,
+			RoleRepo:          repos.Role,
+			SchoolRepo:        repos.School,
+		},
+	)
+	staffImportService := importService.NewImportService(staffImportConfig, db)
+
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
 	// delivery constraints and security profile). If the two ever need to diverge,
@@ -889,6 +902,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		UserContext:              userContextService,
 		Database:                 databaseService,
 		Import:                   studentImportService, // Student import service
+		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
 		RealtimeHub:              realtimeHub,          // Expose SSE hub for API layer
 		Invitation:               invitationService,
 		GuardianInvitation:       guardianInvitationService,
