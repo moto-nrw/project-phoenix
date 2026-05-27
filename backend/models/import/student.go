@@ -19,6 +19,15 @@ type StudentImportRow struct {
 	EnrolledFrom    string `json:"enrolled_from,omitempty"`  // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
 	EnrolledUntil   string `json:"enrolled_until,omitempty"` // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
 
+	// Consent dates — the explicit date each consent was given (e.g. from a
+	// signed paper form). Empty = no consent recorded. A set date asserts the
+	// consent was given on that date. Photo consent's "given_by" is left empty
+	// on import.
+	AGBAcceptedAt            string `json:"agb_accepted_at,omitempty"`
+	DataProcessingAcceptedAt string `json:"data_processing_accepted_at,omitempty"`
+	EmailContactAcceptedAt   string `json:"email_contact_accepted_at,omitempty"`
+	PhotoConsentGivenAt      string `json:"photo_consent_given_at,omitempty"`
+
 	// Multiple guardians (extensible: Erz1, Erz2, Erz3, ...)
 	Guardians []GuardianImportData `json:"guardians,omitempty"`
 

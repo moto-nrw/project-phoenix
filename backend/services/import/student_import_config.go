@@ -224,6 +224,9 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	// 6b. Enrollment date range validation (if provided)
 	errors = append(errors, validateEnrollmentDates(row)...)
 
+	// 6c. Consent date validation (if provided)
+	errors = append(errors, validateConsentDates(row)...)
+
 	// 7. Privacy validation
 	if row.DataRetentionDays < 1 {
 		errors = append(errors, importModels.ValidationError{
@@ -283,6 +286,48 @@ func validateEnrollmentDates(row *importModels.StudentImportRow) []importModels.
 			Severity: importModels.ErrorSeverityError,
 		})
 	}
+
+	return errors
+}
+
+// validateConsentDates validates the optional consent date columns (AGB, data
+// processing, email contact, photo) and normalizes them to ISO format. A
+// consent cannot have been given in the future, so future dates are rejected.
+func validateConsentDates(row *importModels.StudentImportRow) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+
+	validate := func(value *string, field, label string) {
+		trimmed := strings.TrimSpace(*value)
+		if trimmed == "" {
+			*value = ""
+			return
+		}
+		parsed, err := parseDateFormats(trimmed)
+		if err != nil {
+			errors = append(errors, importModels.ValidationError{
+				Field:    field,
+				Message:  fmt.Sprintf("Ungültiges Datumsformat für '%s'. Bitte verwenden Sie JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ.", label),
+				Code:     "invalid_date_format",
+				Severity: importModels.ErrorSeverityError,
+			})
+			return
+		}
+		if validateBirthdayDate(parsed) != nil {
+			errors = append(errors, importModels.ValidationError{
+				Field:    field,
+				Message:  fmt.Sprintf("Einwilligungsdatum für '%s' darf nicht in der Zukunft liegen.", label),
+				Code:     "invalid_date",
+				Severity: importModels.ErrorSeverityError,
+			})
+			return
+		}
+		*value = parsed.Format("2006-01-02")
+	}
+
+	validate(&row.AGBAcceptedAt, "agb_accepted_at", "AGB akzeptiert am")
+	validate(&row.DataProcessingAcceptedAt, "data_processing_accepted_at", "Datenverarbeitung akzeptiert am")
+	validate(&row.EmailContactAcceptedAt, "email_contact_accepted_at", "E-Mail-Kontakt akzeptiert am")
+	validate(&row.PhotoConsentGivenAt, "photo_consent_given_at", "Foto-Einwilligung am")
 
 	return errors
 }
@@ -521,20 +566,25 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 
 // createStudentFromRow creates a student from person and row
 func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
-	enrolledFrom := parseOptionalEnrollmentDate(row.EnrolledFrom)
-	enrolledUntil := parseOptionalEnrollmentDate(row.EnrolledUntil)
+	enrolledFrom := parseOptionalImportDate(row.EnrolledFrom)
+	enrolledUntil := parseOptionalImportDate(row.EnrolledUntil)
 
 	student := &users.Student{
-		PersonID:        personID,
-		SchoolClass:     strings.TrimSpace(row.SchoolClass),
-		GroupID:         row.GroupID,
-		ExtraInfo:       stringPtr(row.ExtraInfo),
-		SupervisorNotes: stringPtr(row.SupervisorNotes),
-		HealthInfo:      stringPtr(row.HealthInfo),
-		PickupStatus:    stringPtr(row.PickupStatus),
-		Bus:             &row.BusPermission,
-		EnrolledFrom:    enrolledFrom,
-		EnrolledUntil:   enrolledUntil,
+		PersonID:                 personID,
+		SchoolClass:              strings.TrimSpace(row.SchoolClass),
+		GroupID:                  row.GroupID,
+		ExtraInfo:                stringPtr(row.ExtraInfo),
+		SupervisorNotes:          stringPtr(row.SupervisorNotes),
+		HealthInfo:               stringPtr(row.HealthInfo),
+		PickupStatus:             stringPtr(row.PickupStatus),
+		Bus:                      &row.BusPermission,
+		EnrolledFrom:             enrolledFrom,
+		EnrolledUntil:            enrolledUntil,
+		AGBAcceptedAt:            parseOptionalImportDate(row.AGBAcceptedAt),
+		DataProcessingAcceptedAt: parseOptionalImportDate(row.DataProcessingAcceptedAt),
+		EmailContactAcceptedAt:   parseOptionalImportDate(row.EmailContactAcceptedAt),
+		// Photo consent date is set; "given_by" is intentionally left nil on import.
+		PhotoConsentGivenAt: parseOptionalImportDate(row.PhotoConsentGivenAt),
 	}
 
 	// A future enrollment start means the student isn't active yet. Mark them
@@ -861,10 +911,11 @@ func validateBirthdayDate(parsed time.Time) error {
 	return nil
 }
 
-// parseOptionalEnrollmentDate parses an optional enrollment date, allowing
-// future dates. Returns nil for empty or unparseable input (format errors are
-// surfaced separately by validateEnrollmentDates during validation).
-func parseOptionalEnrollmentDate(dateStr string) *time.Time {
+// parseOptionalImportDate parses an optional date in any supported format,
+// allowing future dates. Returns nil for empty or unparseable input (format
+// errors are surfaced separately during validation). Shared by enrollment and
+// consent date columns.
+func parseOptionalImportDate(dateStr string) *time.Time {
 	trimmed := strings.TrimSpace(dateStr)
 	if trimmed == "" {
 		return nil

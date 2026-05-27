@@ -476,6 +476,48 @@ func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
 		"a past/current enrollment start must stay active")
 }
 
+// TestImportStudents_PersistsConsentDates verifies that the explicit consent
+// date columns (AGB, data processing, email contact, photo) are imported and
+// that photo_consent_given_by is left NULL on import (issue #1460, phase 2b).
+func TestImportStudents_PersistsConsentDates(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "ConsentTest")
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStudentsHandler())
+
+	csvContent := "Vorname,Nachname,Klasse,AGB akzeptiert am,Datenverarbeitung akzeptiert am,E-Mail-Kontakt akzeptiert am,Foto-Einwilligung am\n" +
+		"Consent,Phase2bRegression,1a,01.08.2024,02.08.2024,03.08.2024,04.08.2024"
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "consent.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	var student users.Student
+	err := tc.db.NewSelect().
+		Model(&student).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"person".first_name = ?`, "Consent").
+		Where(`"person".last_name = ?`, "Phase2bRegression").
+		Scan(context.Background())
+	require.NoError(t, err, "imported student should exist")
+
+	require.NotNil(t, student.AGBAcceptedAt, "AGB consent date must be persisted")
+	assert.Equal(t, "2024-08-01", student.AGBAcceptedAt.Format("2006-01-02"))
+	require.NotNil(t, student.DataProcessingAcceptedAt)
+	assert.Equal(t, "2024-08-02", student.DataProcessingAcceptedAt.Format("2006-01-02"))
+	require.NotNil(t, student.EmailContactAcceptedAt)
+	assert.Equal(t, "2024-08-03", student.EmailContactAcceptedAt.Format("2006-01-02"))
+	require.NotNil(t, student.PhotoConsentGivenAt)
+	assert.Equal(t, "2024-08-04", student.PhotoConsentGivenAt.Format("2006-01-02"))
+	assert.Nil(t, student.PhotoConsentGivenBy, "photo_consent_given_by must be left NULL on import")
+}
+
 // =============================================================================
 // STAFF ID RESOLUTION TESTS
 // =============================================================================
