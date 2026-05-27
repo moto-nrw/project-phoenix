@@ -78,10 +78,10 @@ func (rs *Resource) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 			{ID: listexport.ColumnRoomActivity, Label: "Aktivität"},
 			{ID: listexport.ColumnRoomSupervision, Label: "Aufsicht"},
 			{ID: listexport.ColumnRoomChildCount, Label: "Kinder"},
-			{ID: listexport.ColumnChecklist, Label: "Abhaken"},
-			{ID: listexport.ColumnStudentName, Label: "Kind"},
 			{ID: listexport.ColumnStudentClass, Label: "Klasse"},
 			{ID: listexport.ColumnStudentGroup, Label: "Aufsichtsgruppe"},
+			{ID: listexport.ColumnStudentName, Label: "Kind"},
+			{ID: listexport.ColumnChecklist, Label: "Abhaken"},
 		},
 		Rows: buildRoomSnapshotRows(locations, studentsByID),
 	}
