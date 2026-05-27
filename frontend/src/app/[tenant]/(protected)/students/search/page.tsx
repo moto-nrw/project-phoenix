@@ -8,6 +8,7 @@ import {
   useMemo,
   useCallback,
 } from "react";
+import { Download } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -41,6 +42,7 @@ import {
   ArrivalTimeRow,
   StudentAbsenceRow,
 } from "~/components/students/student-card";
+import { StudentExportModal } from "~/components/students/student-export-modal";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -513,6 +515,7 @@ function SearchPageContent() {
   const [groupMode, setGroupMode] = useState<GroupMode>(initialGroupMode);
   const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoomName);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   const updateUrlParams = useCallback(
     (patch: Partial<Record<(typeof FILTER_QUERY_PARAMS)[number], string>>) => {
@@ -1202,6 +1205,27 @@ function SearchPageContent() {
     updateGroupMode,
   ]);
 
+  const exportFilters = useMemo(
+    () => ({
+      search: searchTerm,
+      group_id: selectedGroup,
+      year: selectedYear,
+      status: attendanceFilter,
+      pickup_time: pickupTimeFilter,
+      arrival_time: arrivalTimeFilter,
+      sort: sortMode,
+    }),
+    [
+      searchTerm,
+      selectedGroup,
+      selectedYear,
+      attendanceFilter,
+      pickupTimeFilter,
+      arrivalTimeFilter,
+      sortMode,
+    ],
+  );
+
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents: Student[] = students.filter((student) => {
     // Apply attendance filter
@@ -1388,6 +1412,14 @@ function SearchPageContent() {
           filters={filterConfigs}
           activeFilters={activeFilters}
           onClearAllFilters={clearAllFilters}
+          overflowMenu={[
+            {
+              label: "Exportieren",
+              icon: <Download className="h-4 w-4" aria-hidden />,
+              onClick: () => setIsExportOpen(true),
+              badge: filteredStudents.length,
+            },
+          ]}
         />
       </div>
 
@@ -1642,6 +1674,15 @@ function SearchPageContent() {
             pendingCount={schoolCheckin.pendingIds.size}
           />
         </div>
+      )}
+
+      {isExportOpen && (
+        <StudentExportModal
+          isOpen={isExportOpen}
+          filters={exportFilters}
+          resultCount={filteredStudents.length}
+          onClose={() => setIsExportOpen(false)}
+        />
       )}
     </div>
   );

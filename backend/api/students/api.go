@@ -22,12 +22,14 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -53,6 +55,8 @@ type Resource struct {
 	PrivacyConsentRepo     users.PrivacyConsentRepository
 	PickupScheduleService  scheduleService.PickupScheduleService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
+	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
 	SchoolRepo             platform.SchoolRepository
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
@@ -61,6 +65,7 @@ type Resource struct {
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
 	StudentPhotos          userService.StudentPhotoService
+	ListExportService      listexport.Service
 	Logger                 *slog.Logger
 	db                     *bun.DB
 }
@@ -77,6 +82,8 @@ type ResourceConfig struct {
 	PrivacyConsentRepo     users.PrivacyConsentRepository
 	PickupScheduleService  scheduleService.PickupScheduleService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
+	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
 	SchoolRepo             platform.SchoolRepository
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
@@ -85,6 +92,7 @@ type ResourceConfig struct {
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
 	StudentPhotos          userService.StudentPhotoService
+	ListExportService      listexport.Service
 	Logger                 *slog.Logger
 	DB                     *bun.DB
 }
@@ -101,6 +109,8 @@ func NewResource(cfg ResourceConfig) *Resource {
 		PrivacyConsentRepo:     cfg.PrivacyConsentRepo,
 		PickupScheduleService:  cfg.PickupScheduleService,
 		ArrivalScheduleService: cfg.ArrivalScheduleService,
+		PickupScheduleRepo:     cfg.PickupScheduleRepo,
+		ArrivalScheduleRepo:    cfg.ArrivalScheduleRepo,
 		SchoolRepo:             cfg.SchoolRepo,
 		SettingsService:        cfg.SettingsService,
 		AttendanceRepo:         cfg.AttendanceRepo,
@@ -109,6 +119,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		DataAccessLogRepo:      cfg.DataAccessLogRepo,
 		Broadcaster:            cfg.Broadcaster,
 		StudentPhotos:          cfg.StudentPhotos,
+		ListExportService:      cfg.ListExportService,
 		Logger:                 cfg.Logger,
 		db:                     cfg.DB,
 	}
@@ -131,6 +142,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-location", rs.getStudentCurrentLocation)

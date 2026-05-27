@@ -338,6 +338,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
 		PickupScheduleService:  api.Services.PickupSchedule,
 		ArrivalScheduleService: api.Services.ArrivalSchedule,
+		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
+		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
 		SchoolRepo:             repoFactory.School,
 		SettingsService:        api.Services.Settings,
 		AttendanceRepo:         repoFactory.Attendance,
@@ -346,6 +348,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
 		Broadcaster:            api.Services.RealtimeHub,
 		StudentPhotos:          api.Services.StudentPhotos,
+		ListExportService:      api.Services.ListExport,
 		Logger:                 logger.With("handler", "students"),
 		DB:                     db,
 	})
