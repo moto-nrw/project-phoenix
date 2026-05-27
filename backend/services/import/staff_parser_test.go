@@ -1,12 +1,34 @@
 package importpkg
 
 import (
+	"bytes"
+	"context"
+	"io"
 	"strings"
 	"testing"
 
+	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xuri/excelize/v2"
 )
+
+// buildStaffXLSX builds an in-memory .xlsx from the given rows (row 0 = header).
+func buildStaffXLSX(t *testing.T, rows [][]string) io.Reader {
+	t.Helper()
+	f := excelize.NewFile()
+	sheet := f.GetSheetName(0)
+	for r, row := range rows {
+		for c, val := range row {
+			cell, err := excelize.CoordinatesToCellName(c+1, r+1)
+			require.NoError(t, err)
+			require.NoError(t, f.SetCellStr(sheet, cell, val))
+		}
+	}
+	buf := new(bytes.Buffer)
+	require.NoError(t, f.Write(buf))
+	return buf
+}
 
 func TestParseStaffCSV_MapsColumns(t *testing.T) {
 	csvData := "Vorname,Nachname,Email,Rolle,Position\n" +
@@ -52,4 +74,50 @@ func TestParseStaffCSV_MissingRequiredColumn(t *testing.T) {
 func TestParseStaffCSV_NoDataRows(t *testing.T) {
 	_, err := ParseStaffCSV(strings.NewReader("Vorname,Nachname,Email,Rolle"))
 	require.Error(t, err)
+}
+
+func TestParseStaffXLSX_MapsColumns(t *testing.T) {
+	reader := buildStaffXLSX(t, [][]string{
+		{"Vorname", "Nachname", "Email", "Rolle", "Position"},
+		{"Anna", "Lehmann", "anna@example.com", "Lehrer", "Klassenlehrerin"},
+		{"Bernd", "Schulz", "bernd@example.com", "Admin", ""},
+	})
+
+	rows, err := ParseStaffXLSX(reader)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	assert.Equal(t, "Anna", rows[0].FirstName)
+	assert.Equal(t, "anna@example.com", rows[0].Email)
+	assert.Equal(t, "Lehrer", rows[0].RoleName)
+	assert.Equal(t, "Klassenlehrerin", rows[0].Position)
+	assert.Equal(t, "Admin", rows[1].RoleName)
+	assert.Equal(t, "", rows[1].Position)
+}
+
+func TestParseStaffXLSX_MissingRequiredColumn(t *testing.T) {
+	reader := buildStaffXLSX(t, [][]string{
+		{"Vorname", "Nachname", "Email"},
+		{"Anna", "Lehmann", "anna@example.com"},
+	})
+
+	_, err := ParseStaffXLSX(reader)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "rolle")
+}
+
+func TestParseStaffXLSX_NoDataRows(t *testing.T) {
+	reader := buildStaffXLSX(t, [][]string{
+		{"Vorname", "Nachname", "Email", "Rolle"},
+	})
+
+	_, err := ParseStaffXLSX(reader)
+	require.Error(t, err)
+}
+
+func TestStaffImportConfig_EntityNameAndUpdate(t *testing.T) {
+	config := NewStaffImportConfig(StaffImportDeps{})
+
+	assert.Equal(t, "Mitarbeiter", config.EntityName())
+	// Update is a no-op (create-only import); existing accounts are skipped.
+	assert.NoError(t, config.Update(context.Background(), 0, importModels.StaffImportRow{}))
 }

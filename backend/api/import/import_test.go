@@ -767,3 +767,37 @@ func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "display name 'Betreuer' must resolve to the system 'user' role")
 }
+
+// TestPreviewStaffImport_ValidatesRows exercises the staff preview (dry-run)
+// handler: a valid row, an unknown-role row (suggestions path) and a row with
+// a missing name (required-field path). The preview persists nothing.
+func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "PreviewRolle", 1)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffPreview", "Admin")
+
+	router := chi.NewRouter()
+	router.Post("/preview", tc.resource.PreviewStaffImport)
+
+	unique := time.Now().UnixNano()
+	csvContent := "Vorname,Nachname,Email,Rolle,Position\n" +
+		fmt.Sprintf("Gut,Person,preview.valid.%d@example.com,%s,Lehrkraft\n", unique, role.Name) +
+		fmt.Sprintf("Schlecht,Rolle,preview.badrole.%d@example.com,GibtEsNicht,\n", unique) +
+		fmt.Sprintf(",Ohne,preview.noname.%d@example.com,%s,", unique, role.Name)
+
+	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "staff.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "preview should succeed: %s", rr.Body.String())
+
+	// Dry-run must not create any invitations.
+	count, err := tc.db.NewSelect().
+		Table("auth.invitation_tokens").
+		Where("LOWER(email) LIKE ?", fmt.Sprintf("preview.%%.%d@example.com", unique)).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "preview (dry-run) must not create invitations")
+}
