@@ -533,9 +533,9 @@ export default function StaffImportPage() {
                 aligns with the dropdown on the sm+ row layout. */}
             <span
               aria-hidden="true"
-              className="invisible mb-2 hidden text-sm font-medium text-gray-700 sm:block"
+              className="mb-2 hidden text-sm font-medium text-gray-700 sm:block"
             >
-              Format wählen
+              {"\u00A0"}
             </span>
             <Button
               type="button"

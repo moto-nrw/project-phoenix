@@ -527,11 +527,14 @@ export default function StudentImportPage() {
           <div className="flex-1">
             {/* Spacer matches the format-select label height so the button
                 aligns with the dropdown on the sm+ row layout. */}
+            {/* Non-breaking space keeps a reliable label-height line box
+                (a normal space would collapse) without duplicating the
+                "Format wählen" label text. */}
             <span
               aria-hidden="true"
-              className="invisible mb-2 hidden text-sm font-medium text-gray-700 sm:block"
+              className="mb-2 hidden text-sm font-medium text-gray-700 sm:block"
             >
-              Format wählen
+              {"\u00A0"}
             </span>
             <Button
               type="button"
