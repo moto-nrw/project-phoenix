@@ -32,6 +32,7 @@ func init() {
 	registerEnrollmentLifecycle()
 	registerEnrollmentSystem()
 	registerEnrollmentPublicForm() // PR 7
+	registerEnrollmentLegalTexts()
 }
 
 func registerEnrollmentMaster() {
@@ -419,4 +420,78 @@ func registerEnrollmentPublicForm() {
 	// phase carries its own waitlist/reject/allow setting now. The
 	// constants live on enrollmentModels.PhaseCareOverflow*; the
 	// service reads phase.CareOverflowMode at submit time.
+}
+
+// registerEnrollmentLegalTexts wires the per-tenant AGB and Datenschutz
+// (DSGVO) documents shown behind the required consent checkboxes on the
+// public enrollment form. Stored as Markdown; the parent's browser
+// renders them in a modal when the consent label is clicked. Empty
+// default → no clickable link, the form falls back to a plain label so
+// nothing breaks for tenants that haven't filled the text in yet.
+//
+// WritePermission is config:manage (not config:update): these are
+// legally binding documents with GDPR implications, so they sit at the
+// same permission level as the other security/GDPR enrollment settings.
+func registerEnrollmentLegalTexts() {
+	dependsOnEnabled := &config.Dependency{
+		Key:       config.KeyEnrollmentEnabled,
+		Condition: "eq",
+		Value:     true,
+	}
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalAGBText,
+		Label:           "AGB-Text (Anmeldeformular)",
+		Description:     "Allgemeine Geschäftsbedingungen, die Eltern beim Anmelden bestätigen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird im Formular über einen Link zur Zustimmung angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Type:            config.FieldTextarea,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       80,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalDSGVOText,
+		Label:           "Datenschutzerklärung (Anmeldeformular)",
+		Description:     "Datenschutzerklärung gemäß DSGVO, die Eltern bei der Anmeldung bestätigen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird im Formular über einen Link zur Einwilligung angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Type:            config.FieldTextarea,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       81,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalEmailContactText,
+		Label:           "Hinweis zum E-Mail-Kontakt (Anmeldeformular)",
+		Description:     "Erläuterung zur E-Mail-Kontakt-Zustimmung (wozu die Schule die E-Mail-Adresse nutzt). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Type:            config.FieldTextarea,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       82,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalPhotoText,
+		Label:           "Hinweis zur Fotoeinwilligung (Anmeldeformular)",
+		Description:     "Erläuterung zur (optionalen) Fotoeinwilligung (wo und wie Fotos verwendet werden). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Type:            config.FieldTextarea,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       83,
+		DependsOn:       dependsOnEnabled,
+	})
 }

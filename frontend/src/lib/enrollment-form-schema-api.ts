@@ -250,6 +250,35 @@ export async function fetchPublicCaptchaConfig(
   return readJSON<PublicCaptchaConfig>(response);
 }
 
+/**
+ * Per-tenant legal documents (Markdown) shown behind the AGB and
+ * Datenschutz consent checkboxes on the public form. Empty strings mean
+ * the admin hasn't configured a document — the form then renders a
+ * plain consent label without a clickable "view document" link.
+ */
+export interface PublicLegalTexts {
+  agb: string;
+  dsgvo: string;
+  email_contact: string;
+  photo: string;
+}
+
+export async function fetchPublicLegalTexts(
+  tenantSlug: string,
+): Promise<PublicLegalTexts | null> {
+  const response = await fetch(
+    `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    logger.warn("public_legal_texts_failed", {
+      status: response.status,
+    });
+    return null;
+  }
+  return readJSON<PublicLegalTexts>(response);
+}
+
 export async function fetchPublicActiveSchema(
   tenantSlug: string,
   phaseId: string,

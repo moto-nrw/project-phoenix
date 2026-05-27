@@ -16,9 +16,13 @@ import {
 import {
   fetchPublicActiveSchema,
   fetchPublicCaptchaConfig,
+  fetchPublicLegalTexts,
   type PublicCaptchaConfig,
   type PublicFormSchema,
+  type PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
+import ReactMarkdown, { type Components } from "react-markdown";
+import { Modal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollmentForm" });
@@ -60,6 +64,17 @@ const DAY_LABELS: Record<string, string> = {
   fri: "Fr",
   sat: "Sa",
   sun: "So",
+};
+
+// The four consent checkboxes that can carry a per-tenant info text.
+// Keys match the PublicLegalTexts fields and the modal title lookup.
+type LegalDocKey = "agb" | "dsgvo" | "email_contact" | "photo";
+
+const LEGAL_DOC_TITLES: Record<LegalDocKey, string> = {
+  agb: "Allgemeine Geschäftsbedingungen",
+  dsgvo: "Datenschutzerklärung",
+  email_contact: "E-Mail-Kontakt",
+  photo: "Fotoeinwilligung",
 };
 
 import type {
@@ -170,6 +185,12 @@ export function EnrollmentForm({
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
     useState<PublicCaptchaConfig | null>(null);
+  // Per-tenant legal documents (Markdown) shown behind the AGB +
+  // Datenschutz consent checkboxes. null until fetched / when the tenant
+  // configured none — the consent label then renders without a link.
+  const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(null);
+  // Which consent info text the parent is currently viewing in the modal.
+  const [openLegalDoc, setOpenLegalDoc] = useState<LegalDocKey | null>(null);
   const [profile, setProfile] = useState<MeProfileResponse | null>(null);
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
@@ -182,29 +203,38 @@ export function EnrollmentForm({
       setError(null);
       try {
         const profileLoader = profileFetcher ?? fetchMyEnrollmentProfile;
-        const [schemaResult, offeringsResult, profileResult, captchaResult] =
-          await Promise.all([
-            previewSchema !== undefined
-              ? Promise.resolve(previewSchema)
-              : phaseID
-                ? fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null)
-                : Promise.resolve(null),
-            phaseID
-              ? fetchPublicCareOfferings(tenantSlug, phaseID)
-              : Promise.resolve({ offerings: [], careRequired: false }),
-            profileLoader().catch(() => null),
-            // Skip the captcha config when the caller already authenticated
-            // the parent (parent-portal embedded form). Saves a round-trip
-            // and avoids rendering the widget on an already-trusted path.
-            skipCaptcha
-              ? Promise.resolve(null)
-              : fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
-          ]);
+        const [
+          schemaResult,
+          offeringsResult,
+          profileResult,
+          captchaResult,
+          legalResult,
+        ] = await Promise.all([
+          previewSchema !== undefined
+            ? Promise.resolve(previewSchema)
+            : phaseID
+              ? fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null)
+              : Promise.resolve(null),
+          phaseID
+            ? fetchPublicCareOfferings(tenantSlug, phaseID)
+            : Promise.resolve({ offerings: [], careRequired: false }),
+          profileLoader().catch(() => null),
+          // Skip the captcha config when the caller already authenticated
+          // the parent (parent-portal embedded form). Saves a round-trip
+          // and avoids rendering the widget on an already-trusted path.
+          skipCaptcha
+            ? Promise.resolve(null)
+            : fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
+          // Legal texts are tenant-wide (no phase param). Best-effort:
+          // a failure just falls back to plain consent labels.
+          fetchPublicLegalTexts(tenantSlug).catch(() => null),
+        ]);
         if (cancelled) return;
         setSchema(schemaResult);
         setOfferings(offeringsResult.offerings);
         setCareRequired(offeringsResult.careRequired);
         setCaptchaConfig(captchaResult);
+        setLegalTexts(legalResult);
         // Prefill guardian fields from the profile when present. We
         // only fill empty fields so an admin testing the form on a
         // teacher session can still type their own values.
@@ -839,6 +869,8 @@ export function EnrollmentForm({
           onChange={setAgbConsent}
           required
           error={fieldErrors.consent_agb}
+          legalText={legalTexts?.agb}
+          onViewLegal={() => setOpenLegalDoc("agb")}
         />
         <Consent
           name="consent_data_processing"
@@ -847,6 +879,8 @@ export function EnrollmentForm({
           onChange={setDataConsent}
           required
           error={fieldErrors.consent_data_processing}
+          legalText={legalTexts?.dsgvo}
+          onViewLegal={() => setOpenLegalDoc("dsgvo")}
         />
         <Consent
           name="consent_email_contact"
@@ -855,14 +889,33 @@ export function EnrollmentForm({
           onChange={setEmailConsent}
           required
           error={fieldErrors.consent_email_contact}
+          legalText={legalTexts?.email_contact}
+          onViewLegal={() => setOpenLegalDoc("email_contact")}
         />
         <Consent
           name="consent_photo"
           label="Mein Kind darf bei Schulveranstaltungen fotografiert werden (optional)."
           checked={photoConsent}
           onChange={setPhotoConsent}
+          legalText={legalTexts?.photo}
+          onViewLegal={() => setOpenLegalDoc("photo")}
         />
       </section>
+
+      <Modal
+        isOpen={openLegalDoc !== null}
+        onClose={() => setOpenLegalDoc(null)}
+        title={openLegalDoc ? LEGAL_DOC_TITLES[openLegalDoc] : ""}
+        widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+      >
+        <div className="max-h-[60vh] overflow-y-auto text-sm text-gray-700">
+          <LegalMarkdown
+            text={
+              openLegalDoc && legalTexts ? (legalTexts[openLegalDoc] ?? "") : ""
+            }
+          />
+        </div>
+      </Modal>
 
       {/*
         Cloudflare Turnstile widget. Only rendered when:
@@ -1041,6 +1094,77 @@ function SectionHeading({
   );
 }
 
+// Explicit element styling for the legal-document Markdown. Defined at
+// module scope (not inline in the `components` prop) so the renderers
+// keep a stable identity across re-renders. Tailwind v4 + Preflight
+// strips default heading/list styling, and the project has no
+// @tailwindcss/typography plugin, so each tag is styled by hand.
+// Links open in a new tab; react-markdown does not emit raw HTML by
+// default, so authored Markdown stays XSS-safe.
+const LEGAL_MARKDOWN_COMPONENTS: Components = {
+  h1: ({ children, ...props }) => (
+    <h1 className="mt-4 mb-2 text-lg font-bold text-gray-900" {...props}>
+      {children}
+    </h1>
+  ),
+  h2: ({ children, ...props }) => (
+    <h2 className="mt-4 mb-2 text-base font-bold text-gray-900" {...props}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...props }) => (
+    <h3 className="mt-3 mb-1.5 text-sm font-bold text-gray-900" {...props}>
+      {children}
+    </h3>
+  ),
+  p: ({ children, ...props }) => (
+    <p className="mb-3 leading-6" {...props}>
+      {children}
+    </p>
+  ),
+  ul: ({ children, ...props }) => (
+    <ul className="mb-3 list-disc space-y-1 pl-5" {...props}>
+      {children}
+    </ul>
+  ),
+  ol: ({ children, ...props }) => (
+    <ol className="mb-3 list-decimal space-y-1 pl-5" {...props}>
+      {children}
+    </ol>
+  ),
+  li: ({ children, ...props }) => (
+    <li className="leading-6" {...props}>
+      {children}
+    </li>
+  ),
+  a: ({ children, ...props }) => (
+    <a
+      className="font-medium text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
+      target="_blank"
+      rel="noopener noreferrer"
+      {...props}
+    >
+      {children}
+    </a>
+  ),
+  strong: ({ children, ...props }) => (
+    <strong className="font-semibold text-gray-900" {...props}>
+      {children}
+    </strong>
+  ),
+  em: ({ children, ...props }) => (
+    <em className="italic" {...props}>
+      {children}
+    </em>
+  ),
+};
+
+function LegalMarkdown({ text }: { readonly text: string }) {
+  return (
+    <ReactMarkdown components={LEGAL_MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
+  );
+}
+
 function Consent({
   name,
   label,
@@ -1048,6 +1172,8 @@ function Consent({
   onChange,
   required = false,
   error,
+  legalText,
+  onViewLegal,
 }: {
   readonly name: string;
   readonly label: string;
@@ -1055,7 +1181,16 @@ function Consent({
   readonly onChange: (v: boolean) => void;
   readonly required?: boolean;
   readonly error?: string;
+  /**
+   * Optional per-tenant legal document (Markdown). When non-empty, the
+   * consent label gains an "anzeigen" link that opens onViewLegal. When
+   * empty/undefined the label renders plain — tenants that haven't
+   * configured a document still get a working form.
+   */
+  readonly legalText?: string;
+  readonly onViewLegal?: () => void;
 }) {
+  const hasLink = Boolean(legalText && legalText.trim() && onViewLegal);
   return (
     <div>
       <label
@@ -1083,9 +1218,26 @@ function Consent({
             </span>
           )}
         </span>
-        <span className="leading-6 font-medium text-gray-700">
+        <span className="min-w-0 flex-1 leading-6 font-medium text-gray-700">
           {label} {required && <span className="text-[#FF3130]">*</span>}
         </span>
+        {hasLink && (
+          <button
+            type="button"
+            // Inside the <label>, a plain click would toggle the
+            // checkbox. Prevent that so "anzeigen" only opens the
+            // document. shrink-0 + the flex-1 label above keep this
+            // pinned to the right edge of the box on every width.
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onViewLegal?.();
+            }}
+            className="mt-0.5 shrink-0 font-semibold text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
+          >
+            Mehr anzeigen
+          </button>
+        )}
       </label>
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </div>

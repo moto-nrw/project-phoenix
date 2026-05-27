@@ -160,6 +160,23 @@ type RequestService interface {
 	// "verpflichtend" hint and validate client-side. Defense-in-depth:
 	// Submit re-checks the setting server-side.
 	IsCareOfferingsRequired(ctx context.Context) bool
+
+	// LegalTexts returns the tenant's configured AGB and Datenschutz
+	// (DSGVO) Markdown for the public enrollment form. Empty strings
+	// when the admin hasn't filled them in — the frontend then renders
+	// a plain consent label without a clickable "view document" link.
+	// Caller must already be inside a tenant-tx so the settings repo
+	// reads the per-tenant override.
+	LegalTexts(ctx context.Context) LegalTexts
+}
+
+// LegalTexts bundles the per-tenant info texts surfaced behind each
+// consent checkbox on the public enrollment form's consent step.
+type LegalTexts struct {
+	AGB          string
+	DSGVO        string
+	EmailContact string
+	Photo        string
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -897,6 +914,27 @@ func (s *requestService) IsCareOfferingsRequired(ctx context.Context) bool {
 		return false
 	}
 	return v
+}
+
+// LegalTexts resolves the AGB and Datenschutz Markdown for the tenant
+// in context. No env var fallback: these settings were registered from
+// the start, so a plain Resolve (tenant override → registry default of
+// "") is correct. Whitespace-only values normalize to "" so the
+// frontend treats them as "not configured".
+func (s *requestService) LegalTexts(ctx context.Context) LegalTexts {
+	if s.settings == nil {
+		return LegalTexts{}
+	}
+	agb, _ := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBText)
+	dsgvo, _ := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalDSGVOText)
+	emailContact, _ := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalEmailContactText)
+	photo, _ := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalPhotoText)
+	return LegalTexts{
+		AGB:          strings.TrimSpace(agb),
+		DSGVO:        strings.TrimSpace(dsgvo),
+		EmailContact: strings.TrimSpace(emailContact),
+		Photo:        strings.TrimSpace(photo),
+	}
 }
 
 func (s *requestService) resolveGradeMax(ctx context.Context) int {
