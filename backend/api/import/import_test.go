@@ -801,3 +801,48 @@ func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "preview (dry-run) must not create invitations")
 }
+
+// TestStaffImport_UploadValidation covers the shared upload-validation error
+// paths (missing file, wrong file type, unparseable content) on the staff
+// endpoints.
+func TestStaffImport_UploadValidation(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffUpload", "Admin")
+	claims := testutil.WithClaims(testutil.AdminTestClaims(int(account.ID)))
+
+	t.Run("missing file is rejected", func(t *testing.T) {
+		router := chi.NewRouter()
+		router.Post("/preview", tc.resource.PreviewStaffImport)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/preview", nil, claims)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+	})
+
+	t.Run("invalid file type is rejected", func(t *testing.T) {
+		router := chi.NewRouter()
+		router.Post("/preview", tc.resource.PreviewStaffImport)
+		req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "evil.png", "\x89PNG\r\n\x1a\n", claims)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+	})
+
+	t.Run("missing required columns is rejected", func(t *testing.T) {
+		router := chi.NewRouter()
+		router.Post("/preview", tc.resource.PreviewStaffImport)
+		// Valid CSV file, but the "Rolle" column is missing.
+		csv := "Vorname,Nachname,Email\nAnna,Lehmann,anna@example.com"
+		req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "staff.csv", csv, claims)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+	})
+
+	t.Run("missing file on import is rejected", func(t *testing.T) {
+		router := chi.NewRouter()
+		router.Post("/import", tc.resource.ImportStaff)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/import", nil, claims)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+	})
+}
