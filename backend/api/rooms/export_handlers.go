@@ -255,8 +255,6 @@ func collectRoomSnapshotStudentIDs(locations []roomSnapshotLocation) []int64 {
 func buildRoomSnapshotRows(locations []roomSnapshotLocation, studentsByID map[int64]roomSnapshotStudent) []listexport.Row {
 	rows := make([]listexport.Row, 0, len(locations))
 	for _, location := range locations {
-		rows = append(rows, roomSnapshotLocationRow(location))
-
 		students := make([]roomSnapshotStudent, 0, len(location.StudentIDs))
 		for _, id := range location.StudentIDs {
 			if student, ok := studentsByID[id]; ok {
@@ -268,11 +266,11 @@ func buildRoomSnapshotRows(locations []roomSnapshotLocation, studentsByID map[in
 		})
 
 		if len(students) == 0 {
-			rows = append(rows, roomSnapshotEmptyStudentRow())
+			rows = append(rows, roomSnapshotLocationRow(location))
 			continue
 		}
 		for _, student := range students {
-			rows = append(rows, roomSnapshotStudentRow(student))
+			rows = append(rows, roomSnapshotStudentRow(location, student))
 		}
 	}
 	return rows
@@ -290,18 +288,19 @@ func roomSnapshotLocationRow(location roomSnapshotLocation) listexport.Row {
 	}}
 }
 
-func roomSnapshotStudentRow(student roomSnapshotStudent) listexport.Row {
+func roomSnapshotStudentRow(location roomSnapshotLocation, student roomSnapshotStudent) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
-		listexport.ColumnChecklist:    "[ ]",
-		listexport.ColumnStudentName:  student.Name,
-		listexport.ColumnStudentClass: student.SchoolClass,
-		listexport.ColumnStudentGroup: student.GroupName,
-	}}
-}
-
-func roomSnapshotEmptyStudentRow() listexport.Row {
-	return listexport.Row{Values: map[listexport.ColumnID]string{
-		listexport.ColumnStudentName: "Keine Kinder",
+		listexport.ColumnRoomName:        location.Name,
+		listexport.ColumnRoomStatus:      location.Status,
+		listexport.ColumnRoomBuilding:    location.Building,
+		listexport.ColumnRoomFloor:       location.Floor,
+		listexport.ColumnRoomActivity:    location.Activity,
+		listexport.ColumnRoomSupervision: location.Supervision,
+		listexport.ColumnRoomChildCount:  strconv.Itoa(location.ChildCount),
+		listexport.ColumnChecklist:       "",
+		listexport.ColumnStudentName:     student.Name,
+		listexport.ColumnStudentClass:    student.SchoolClass,
+		listexport.ColumnStudentGroup:    student.GroupName,
 	}}
 }
 

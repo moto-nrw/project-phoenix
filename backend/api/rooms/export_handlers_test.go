@@ -33,8 +33,8 @@ func TestBuildRoomSnapshotRowsGroupsLocationsAndStudents(t *testing.T) {
 
 	rows := buildRoomSnapshotRows(locations, students)
 
-	if len(rows) != 5 {
-		t.Fatalf("rows len = %d, want 5", len(rows))
+	if len(rows) != 3 {
+		t.Fatalf("rows len = %d, want 3", len(rows))
 	}
 	first := rows[0].Values
 	if first[listexport.ColumnRoomName] != "Raum 101" {
@@ -43,14 +43,20 @@ func TestBuildRoomSnapshotRowsGroupsLocationsAndStudents(t *testing.T) {
 	if first[listexport.ColumnRoomChildCount] != "2" {
 		t.Fatalf("child count = %q", first[listexport.ColumnRoomChildCount])
 	}
-	if rows[1].Values[listexport.ColumnStudentName] != "Kevin Anders" {
-		t.Fatalf("first student row = %q", rows[1].Values[listexport.ColumnStudentName])
+	if first[listexport.ColumnStudentName] != "Kevin Anders" {
+		t.Fatalf("first student row = %q", first[listexport.ColumnStudentName])
 	}
-	if rows[2].Values[listexport.ColumnChecklist] != "[ ]" {
-		t.Fatalf("checklist marker = %q", rows[2].Values[listexport.ColumnChecklist])
+	if first[listexport.ColumnChecklist] != "" {
+		t.Fatalf("checklist marker = %q", first[listexport.ColumnChecklist])
 	}
-	if rows[4].Values[listexport.ColumnStudentName] != "Keine Kinder" {
-		t.Fatalf("empty marker = %q", rows[4].Values[listexport.ColumnStudentName])
+	if rows[1].Values[listexport.ColumnRoomName] != "Raum 101" {
+		t.Fatalf("second room name = %q", rows[1].Values[listexport.ColumnRoomName])
+	}
+	if rows[2].Values[listexport.ColumnRoomName] != "Unterwegs" {
+		t.Fatalf("empty location row = %q", rows[2].Values[listexport.ColumnRoomName])
+	}
+	if rows[2].Values[listexport.ColumnStudentName] != "" {
+		t.Fatalf("empty location student = %q", rows[2].Values[listexport.ColumnStudentName])
 	}
 }
 
