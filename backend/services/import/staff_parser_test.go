@@ -62,6 +62,20 @@ func TestParseStaffCSV_CaseInsensitiveAndOptionalAnnotations(t *testing.T) {
 	assert.Equal(t, "Foo", rows[0].Position)
 }
 
+func TestParseStaffCSV_SkipsEmptyRows(t *testing.T) {
+	csvData := "Vorname,Nachname,Email,Rolle\n" +
+		",,,\n" +
+		"Anna,Lehmann,anna@example.com,Betreuer\n" +
+		"   ,   ,   ,   \n"
+
+	rows, err := ParseStaffCSV(strings.NewReader(csvData))
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "Anna", rows[0].FirstName)
+	assert.Equal(t, "Betreuer", rows[0].RoleName)
+}
+
 func TestParseStaffCSV_MissingRequiredColumn(t *testing.T) {
 	// Missing the "Rolle" column must be rejected before any row is parsed.
 	csvData := "Vorname,Nachname,Email\nAnna,Lehmann,anna@example.com"
@@ -92,6 +106,22 @@ func TestParseStaffXLSX_MapsColumns(t *testing.T) {
 	assert.Equal(t, "Klassenlehrerin", rows[0].Position)
 	assert.Equal(t, "Admin", rows[1].RoleName)
 	assert.Equal(t, "", rows[1].Position)
+}
+
+func TestParseStaffXLSX_SkipsEmptyRows(t *testing.T) {
+	reader := buildStaffXLSX(t, [][]string{
+		{"Vorname", "Nachname", "Email", "Rolle"},
+		{"", "", "", ""},
+		{"Anna", "Lehmann", "anna@example.com", "Betreuer"},
+		{"   ", "   ", "   ", "   "},
+	})
+
+	rows, err := ParseStaffXLSX(reader)
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "Anna", rows[0].FirstName)
+	assert.Equal(t, "Betreuer", rows[0].RoleName)
 }
 
 func TestParseStaffXLSX_MissingRequiredColumn(t *testing.T) {
