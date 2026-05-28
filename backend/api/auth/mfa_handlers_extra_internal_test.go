@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // stubMFAService is a configurable MFAService for handler-level tests.
@@ -346,6 +347,42 @@ func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
 	rs.mfaEnrollConfirm(rr, r)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// TestMFAEnrollConfirm_InjectsTenantFromClaims is a regression test for
+// #1430 review round 3, finding ①. The enroll routes run under
+// MFAEnrollmentAuthenticator, NOT TenantTxMiddleware, so tenant.FromContext
+// is 0 when the handler runs. mfaEnrollConfirm must inject the tenant from
+// the enrollment claims before calling VerifyCodeForAccount / Enroll, so the
+// MFA audit events those emit (mfa_verified / mfa_failed) land in
+// audit.auth_events instead of being dropped as "no tenant context".
+func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
+	const tenantID int64 = 70010001
+	var verifyTenant, enrollTenant int64
+	rs := &Resource{
+		MFAService: &stubMFAService{
+			verifyCodeFn: func(ctx context.Context, _ int64, _ string) error {
+				verifyTenant = tenant.FromContext(ctx)
+				return nil
+			},
+			enrollFn: func(ctx context.Context, _ int64) error {
+				enrollTenant = tenant.FromContext(ctx)
+				return nil
+			},
+		},
+		AuthService: &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
+	}
+
+	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
+		MFAEnrollConfirmRequest{Code: "123456"}), 42, tenantID)
+	rr := httptest.NewRecorder()
+	rs.mfaEnrollConfirm(rr, r)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, tenantID, verifyTenant,
+		"VerifyCodeForAccount must run with the enrollment claim's tenant on the context")
+	assert.Equal(t, tenantID, enrollTenant,
+		"Enroll must run with the enrollment claim's tenant on the context")
 }
 
 func TestMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {

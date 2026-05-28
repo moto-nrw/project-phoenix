@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // trustedDeviceCookieName is the browser cookie that carries the HMAC-signed
@@ -224,11 +225,19 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 
 	accountID := claims.AccountID
 
-	if err := rs.MFAService.VerifyCodeForAccount(r.Context(), accountID, req.Code); err != nil {
+	// The enroll routes run under MFAEnrollmentAuthenticator, NOT
+	// TenantTxMiddleware, so tenant.FromContext is 0 here. Inject the
+	// tenant from the enrollment claims so the MFA audit events
+	// (mfa_verified / mfa_failed) that VerifyCodeForAccount emits land
+	// in audit.auth_events instead of being dropped as "no tenant
+	// context". (#1430 review round 3, finding ①)
+	ctx := tenant.WithTenantID(r.Context(), claims.TenantID)
+
+	if err := rs.MFAService.VerifyCodeForAccount(ctx, accountID, req.Code); err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	if err := rs.MFAService.Enroll(r.Context(), accountID); err != nil {
+	if err := rs.MFAService.Enroll(ctx, accountID); err != nil {
 		// Already enrolled is fine — a retried request must still produce a
 		// valid session. The pre-enrollment check at login means we should
 		// rarely hit this branch in practice.

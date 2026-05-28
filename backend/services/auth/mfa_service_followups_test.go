@@ -8,6 +8,7 @@ package auth_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -510,4 +512,96 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 
 	_, err = svc.VerifyChallenge(ctx, challenge, "000000")
 	assert.Error(t, err, "consumed/expired challenge must not verify")
+}
+
+// TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog is a
+// regression test for #1430 review round 3, finding ③. The account-wide
+// override is a platform-scope action with no single tenant. The original
+// code logged it via recordAuthEvent(ctx, acc, 0, ...), but auth.auth_events
+// is tenant-scoped (NOT NULL) and recordAuthEvent drops any row whose tenant
+// resolves to 0 — so the audit silently vanished. The fix routes it to
+// platform.operator_audit_log instead. This test proves a row lands there.
+//
+// Hermetic test infrastructure: newTestMFAService internally calls
+// testpkg.SetupTestDB(t). We also call testpkg.CreateTestAccount so the
+// hermetic-check static scanner sees a fixture, not a hardcoded ID.
+func TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog(t *testing.T) {
+	ctx := context.Background()
+	svc, _, db := newTestMFAService(t)
+
+	// operator_audit_log.operator_id has a NOT NULL FK to platform.operators,
+	// so the override actor must be a real operator row, not a synthetic ID.
+	op := createTestOperatorForAuthMFATest(t, db, "global-override-audit")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Model((*platformModels.Operator)(nil)).
+			ModelTableExpr("platform.operators").
+			Where("id = ?", op.ID).Exec(context.Background())
+	})
+
+	acc := testpkg.CreateTestAccount(t, db, "mfa-global-override-audit")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("platform.operator_audit_log").
+			Where("resource_id = ?", acc.ID).Exec(context.Background())
+		testpkg.CleanupAccount(t, db, acc.ID)
+	})
+
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, op.ID, acc.ID,
+		auth.MFAAdminOverrideForceOff, "mailbox lockout account-wide"))
+
+	row := waitForOperatorAuditLog(t, db, op.ID, acc.ID,
+		platformModels.ActionMFAAdminOverride, 3*time.Second)
+	require.NotNil(t, row, "operator override must write a platform.operator_audit_log row — the dropped audit was the regression")
+	assert.Equal(t, platformModels.ResourceAccount, row.ResourceType)
+
+	changes, err := row.GetChanges()
+	require.NoError(t, err)
+	assert.Equal(t, "set_global_override", changes["action"])
+	assert.Equal(t, "platform", changes["scope"])
+	assert.Equal(t, auth.MFAAdminOverrideForceOff, changes["override"])
+	assert.Equal(t, "mailbox lockout account-wide", changes["reason"])
+}
+
+// createTestOperatorForAuthMFATest inserts a fresh platform.operators row.
+// Mirrors createTestOperatorForMFAService in the services/platform package
+// (can't be shared across packages without an import cycle).
+func createTestOperatorForAuthMFATest(t *testing.T, db *bun.DB, slug string) *platformModels.Operator {
+	t.Helper()
+	op := &platformModels.Operator{
+		Email:        fmt.Sprintf("op-auth-mfa-%s-%d@test.local", slug, time.Now().UnixNano()),
+		DisplayName:  "Auth MFA Test Operator",
+		PasswordHash: "$argon2id$placeholder-auth-mfa",
+		Active:       true,
+	}
+	_, err := db.NewInsert().Model(op).
+		ModelTableExpr("platform.operators").
+		Exec(context.Background())
+	require.NoError(t, err)
+	return op
+}
+
+// waitForOperatorAuditLog polls platform.operator_audit_log for a row matching
+// (operatorID, resourceID, action) and returns it once it lands or after the
+// timeout (the audit write is async). Returns nil on timeout. Queries directly
+// with the test DB superuser connection.
+func waitForOperatorAuditLog(t *testing.T, db *bun.DB, operatorID, resourceID int64, action string, timeout time.Duration) *platformModels.OperatorAuditLog {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		var row platformModels.OperatorAuditLog
+		err := db.NewSelect().Model(&row).
+			ModelTableExpr(`platform.operator_audit_log AS "operator_audit_log"`).
+			Where("operator_id = ?", operatorID).
+			Where("resource_id = ?", resourceID).
+			Where("action = ?", action).
+			Order("created_at DESC").
+			Limit(1).
+			Scan(context.Background())
+		if err == nil && row.ID != 0 {
+			return &row
+		}
+		if time.Now().After(deadline) {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }

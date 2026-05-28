@@ -44,6 +44,11 @@ const (
 	ActionMFAEnrolled           = "mfa_enrolled"
 	ActionMFADisabled           = "mfa_disabled"
 	ActionMFATrustedDeviceAdded = "mfa_trusted_device_added"
+	// ActionMFAAdminOverride records an operator setting/clearing the
+	// account-wide ("Notfall") MFA override. This is a platform-scope
+	// action with no single tenant, so it lands here in the operator
+	// audit log rather than the tenant-scoped audit.auth_events.
+	ActionMFAAdminOverride = "mfa_admin_override"
 )
 
 // Common resource type constants

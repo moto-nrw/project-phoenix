@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -1224,12 +1226,12 @@ func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorI
 		return txErr
 	}
 
-	// TenantID 0 on the audit row signals "platform-wide". The audit
-	// recorder accepts that as a sentinel — the operator surface runs
-	// outside any tenant tx, so the audit must travel without one.
-	s.recordAuthEvent(ctx, targetAccountID, 0, audit.EventTypeMFAAdminOverride, true, nil, "", map[string]any{
-		"actor_type":        auth.MFAOverrideSetByTypeOperator,
-		"actor_operator_id": operatorID,
+	// Account-wide override is a platform-scope operator action with no
+	// single tenant. auth.auth_events is tenant-scoped (NOT NULL) and
+	// recordAuthEvent drops rows without a tenant, so this audit goes to
+	// platform.operator_audit_log instead — same table the operator's
+	// own MFA actions use. (#1430 review round 3, finding ③)
+	s.recordOperatorAudit(operatorID, targetAccountID, map[string]any{
 		"action":            "set_global_override",
 		"scope":             "platform",
 		"override":          override,
@@ -1237,6 +1239,46 @@ func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorI
 		"reason":            reason,
 	})
 	return nil
+}
+
+// recordOperatorAudit writes a platform.operator_audit_log row for an
+// operator's account-wide MFA action. Async + recover + sentry, mirroring
+// recordAuthEvent / operatorMFAService.recordAudit. The write runs on a
+// detached context.Background() so it survives the request ending. Best-
+// effort: failures are logged but never bubble up to the caller.
+func (s *mfaService) recordOperatorAudit(operatorID, targetAccountID int64, changes map[string]any) {
+	target := targetAccountID
+	entry := &platformModels.OperatorAuditLog{
+		OperatorID:   operatorID,
+		Action:       platformModels.ActionMFAAdminOverride,
+		ResourceType: platformModels.ResourceAccount,
+		ResourceID:   &target,
+		CreatedAt:    time.Now(),
+	}
+	if changes != nil {
+		if buf, err := json.Marshal(changes); err == nil {
+			entry.Changes = buf
+		}
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("panic in operator mfa-override audit logging: %v", r)
+				s.logger.Error("goroutine panic recovered", slog.String("error", err.Error()))
+				sentry.CurrentHub().Recover(r)
+				sentry.Flush(2 * time.Second)
+			}
+		}()
+		logCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.repos.OperatorAuditLog.Create(logCtx, entry); err != nil {
+			s.logger.Error("failed to log operator mfa-override audit event",
+				slog.Int64("operator_id", operatorID),
+				slog.Int64("account_id", targetAccountID),
+				slog.String("error", err.Error()),
+			)
+		}
+	}()
 }
 
 // requireSchoolMembership is the defense-in-depth membership check on
