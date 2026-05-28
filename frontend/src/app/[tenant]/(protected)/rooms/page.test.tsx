@@ -8,8 +8,9 @@ vi.mock("next-auth/react", () => ({
 
 // Hoisted mutable state so individual tests can flip the simulated URL
 // (?room={id}) and re-render to exercise open / close transitions.
-const { searchParamsState } = vi.hoisted(() => ({
+const { searchParamsState, mockExportRoomSnapshot } = vi.hoisted(() => ({
   searchParamsState: { roomParam: null as string | null },
+  mockExportRoomSnapshot: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -81,11 +82,13 @@ vi.mock("~/components/ui/page-header", () => ({
     search,
     filters,
     activeFilters,
+    overflowMenu,
     onClearAllFilters,
   }: {
     search: { value: string; onChange: (v: string) => void };
     filters?: Array<{ onChange: (v: string | string[]) => void }>;
     activeFilters?: Array<{ id: string; label: string; onRemove: () => void }>;
+    overflowMenu?: Array<{ label: string; onClick: () => void }>;
     onClearAllFilters: () => void;
   }) => (
     <div data-testid="page-header">
@@ -118,8 +121,21 @@ vi.mock("~/components/ui/page-header", () => ({
           {filter.label}
         </button>
       ))}
+      {overflowMenu?.map((item) => (
+        <button
+          key={item.label}
+          data-testid={`overflow-${item.label}`}
+          onClick={item.onClick}
+        >
+          {item.label}
+        </button>
+      ))}
     </div>
   ),
+}));
+
+vi.mock("~/lib/room-export-api", () => ({
+  exportRoomSnapshot: (...args: unknown[]) => mockExportRoomSnapshot(...args),
 }));
 
 import { useSession } from "next-auth/react";
@@ -152,6 +168,7 @@ describe("RoomsPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExportRoomSnapshot.mockResolvedValue(undefined);
     searchParamsState.roomParam = null;
     // Reset jsdom's per-entry history state so the close handler reads
     // a clean slate. Without this, a marker left by a previous test
@@ -382,6 +399,28 @@ describe("RoomsPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Kinder ohne Raumzuweisung/)).toBeInTheDocument();
     expect(screen.queryByText("Keine Räume gefunden")).not.toBeInTheDocument();
+  });
+
+  it("exports the filtered room snapshot with transit", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    fireEvent.click(screen.getByTestId("filter-building"));
+    fireEvent.click(screen.getByTestId("overflow-Wer ist wo als PDF"));
+
+    await waitFor(() => {
+      expect(mockExportRoomSnapshot).toHaveBeenCalledWith({
+        format: "pdf",
+        title: "Wer ist wo",
+        room_ids: [1],
+        include_transit: true,
+      });
+    });
   });
 
   it("hides the transit assignment entry when no children are unterwegs", () => {

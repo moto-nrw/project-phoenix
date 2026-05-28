@@ -8,6 +8,7 @@ import {
   useMemo,
   useCallback,
 } from "react";
+import { Download } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -41,6 +42,7 @@ import {
   ArrivalTimeRow,
   StudentAbsenceRow,
 } from "~/components/students/student-card";
+import { StudentExportModal } from "~/components/students/student-export-modal";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -484,7 +486,7 @@ function SearchPageContent() {
     "none",
   );
 
-  // Room filter — populated when the user lands here from the room detail
+  // Room filter, populated when the user lands here from the room detail
   // page's "In Kindersuche öffnen" link (#1323). room_name is purely a
   // display affordance for the chip; the backend filter only uses room_id.
   const initialRoomId = initialFilterParams.get("room_id") ?? "";
@@ -513,6 +515,7 @@ function SearchPageContent() {
   const [groupMode, setGroupMode] = useState<GroupMode>(initialGroupMode);
   const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoomName);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   const updateUrlParams = useCallback(
     (patch: Partial<Record<(typeof FILTER_QUERY_PARAMS)[number], string>>) => {
@@ -622,7 +625,7 @@ function SearchPageContent() {
   // Page-level school check-in/out mode. When active, clicking a card toggles
   // the student's attendance instead of navigating to the detail page.
   //
-  // Only exposed in binary-mode tenants — detailed-mode schools check
+  // Only exposed in binary-mode tenants. Detailed-mode schools check
   // students in via the RFID kiosk and a parallel web button would create
   // confusing divergent state.
   const presenceMode = usePresenceMode();
@@ -710,7 +713,7 @@ function SearchPageContent() {
 
   // Keep room state and room_id/room_name query params in sync without a
   // Next.js navigation, which would discard SWR data and flash the loading
-  // skeleton. Merge into the existing state object instead of replacing it —
+  // skeleton. Merge into the existing state object instead of replacing it.
   // App Router stashes routing metadata (scroll restoration, RSC cache keys)
   // on window.history.state, and clobbering it with `{}` can degrade browser
   // back/forward into a hard reload for this entry.
@@ -1095,7 +1098,7 @@ function SearchPageContent() {
 
     if (selectedRoomId) {
       // Fall back to "Raum #{id}" when no room_name was passed in the URL
-      // (e.g. an old bookmark) — better than rendering an empty chip.
+      // (e.g. an old bookmark), better than rendering an empty chip.
       const label = selectedRoomName
         ? `Raum: ${selectedRoomName}`
         : `Raum #${selectedRoomId}`;
@@ -1202,6 +1205,29 @@ function SearchPageContent() {
     updateGroupMode,
   ]);
 
+  const exportFilters = useMemo(
+    () => ({
+      search: searchTerm,
+      group_id: selectedGroup,
+      year: selectedYear,
+      status: attendanceFilter,
+      pickup_time: pickupTimeFilter,
+      arrival_time: arrivalTimeFilter,
+      room_id: selectedRoomId,
+      sort: sortMode,
+    }),
+    [
+      searchTerm,
+      selectedGroup,
+      selectedYear,
+      attendanceFilter,
+      pickupTimeFilter,
+      arrivalTimeFilter,
+      selectedRoomId,
+      sortMode,
+    ],
+  );
+
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents: Student[] = students.filter((student) => {
     // Apply attendance filter
@@ -1232,7 +1258,7 @@ function SearchPageContent() {
       }
     }
 
-    // Apply pickup time filter (skip redacted students — missing pickup_time
+    // Apply pickup time filter. For redacted students, missing pickup_time
     // due to has_full_access=false is not the same as "no schedule")
     if (pickupTimeFilter !== "all") {
       if (student.has_full_access === false) return false;
@@ -1338,7 +1364,7 @@ function SearchPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {/* Page header — scrolls with the rest of the page (no sticky).
+      {/* Page header scrolls with the rest of the page (no sticky).
           Active filters surface as a count badge on the filter pill. The
           check-in/out trigger lives in a floating FAB rendered at the
           bottom of this component on mobile/tablet, or inline in the
@@ -1376,7 +1402,7 @@ function SearchPageContent() {
             ) : undefined
           }
           // 6 filters overflow the inline desktop row at iPad-class
-          // viewports — switch to the mobile sheet pattern up to xl
+          // viewports. Switch to the mobile sheet pattern up to xl
           // (1280px). Matches Stripe / Airbnb / Slack pattern for
           // filter-heavy pages.
           desktopFiltersFrom="xl"
@@ -1388,10 +1414,18 @@ function SearchPageContent() {
           filters={filterConfigs}
           activeFilters={activeFilters}
           onClearAllFilters={clearAllFilters}
+          overflowMenu={[
+            {
+              label: "Exportieren",
+              icon: <Download className="h-4 w-4" aria-hidden />,
+              onClick: () => setIsExportOpen(true),
+              badge: filteredStudents.length,
+            },
+          ]}
         />
       </div>
 
-      {/* Mobile Error Display — outside the sticky stack so it doesn't
+      {/* Mobile Error Display, outside the sticky stack so it doesn't
           push everything down on small screens. */}
       {errorMessage && (
         <div className="mb-4 md:hidden">
@@ -1399,7 +1433,7 @@ function SearchPageContent() {
         </div>
       )}
 
-      {/* Mobile (<md) check-in mode trigger — inline pill / sticky bar. */}
+      {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar. */}
       {isBinaryMode && (
         <div className="mb-3 md:hidden">
           <SchoolCheckinModeMobile
@@ -1627,9 +1661,9 @@ function SearchPageContent() {
         })()}
       </div>
 
-      {/* Tablet (md..xl) check-in mode trigger — floating FAB. Tablet
+      {/* Tablet (md..xl) check-in mode trigger, floating FAB. Tablet
           range is bumped to `xl` here to stay aligned with the header's
-          desktopFiltersFrom="xl" — both the filter sheet and the FAB
+          desktopFiltersFrom="xl". Both the filter sheet and the FAB
           live under the same boundary so iPad Air gets the consistent
           tablet UX. */}
       {isBinaryMode && (
@@ -1642,6 +1676,15 @@ function SearchPageContent() {
             pendingCount={schoolCheckin.pendingIds.size}
           />
         </div>
+      )}
+
+      {isExportOpen && (
+        <StudentExportModal
+          isOpen={isExportOpen}
+          filters={exportFilters}
+          resultCount={filteredStudents.length}
+          onClose={() => setIsExportOpen(false)}
+        />
       )}
     </div>
   );
