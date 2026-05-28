@@ -1,0 +1,286 @@
+package listexport
+
+import (
+	"archive/zip"
+	"bytes"
+	"io"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/xuri/excelize/v2"
+)
+
+func TestRenderFormats(t *testing.T) {
+	doc := sampleDocument()
+	service := NewService()
+
+	tests := []struct {
+		name        string
+		format      Format
+		contentType string
+		extension   string
+	}{
+		{name: "pdf", format: FormatPDF, contentType: "application/pdf", extension: ".pdf"},
+		{name: "docx", format: FormatDOCX, contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: ".docx"},
+		{name: "xlsx", format: FormatXLSX, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", extension: ".xlsx"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			file, err := service.Render(doc, tt.format, "OGS Export Liste")
+			if err != nil {
+				t.Fatalf("Render() error = %v", err)
+			}
+			if file.ContentType != tt.contentType {
+				t.Fatalf("content type = %q, want %q", file.ContentType, tt.contentType)
+			}
+			if !strings.HasSuffix(file.Filename, tt.extension) {
+				t.Fatalf("filename = %q, want suffix %q", file.Filename, tt.extension)
+			}
+			if len(file.Data) == 0 {
+				t.Fatal("expected non-empty export data")
+			}
+		})
+	}
+}
+
+func TestRenderPDFWritesDocumentHeader(t *testing.T) {
+	file, err := NewService().Render(sampleDocument(), FormatPDF, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if !bytes.HasPrefix(file.Data, []byte("%PDF-1.4")) {
+		t.Fatalf("PDF header = %q", file.Data[:8])
+	}
+}
+
+func TestRenderPDFWritesReadableWinAnsiText(t *testing.T) {
+	file, err := NewService().Render(sampleDocument(), FormatPDF, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if bytes.Contains(file.Data, []byte("FEFF")) {
+		t.Fatal("PDF should not contain UTF-16 byte order markers for simple font text")
+	}
+	if !bytes.Contains(file.Data, []byte("(OGS Wochenliste)")) {
+		t.Fatal("expected PDF stream to contain readable literal text")
+	}
+}
+
+func TestRenderPDFWrapsWithoutTruncatingCellText(t *testing.T) {
+	doc := Document{
+		Title:       "Meine Liste",
+		GeneratedAt: time.Date(2026, time.May, 27, 14, 30, 0, 0, time.UTC),
+		Columns:     ResolveColumns([]ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnWeeklyMonday}, PresetOGSWeekly),
+		Rows: []Row{
+			{Values: map[ColumnID]string{
+				ColumnName:         "Mila Muster",
+				ColumnSchoolClass:  "Klasse 1a",
+				ColumnGroup:        "Regenbogengruppe",
+				ColumnCareDays:     "Mo, Di, Mi, Do, Fr",
+				ColumnWeeklyMonday: "08:00 bis 16:00",
+			}},
+		},
+	}
+
+	file, err := NewService().Render(doc, FormatPDF, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if bytes.Contains(file.Data, []byte("...")) {
+		t.Fatal("PDF should wrap cell text instead of truncating it")
+	}
+	for _, want := range []string{"Mo, Di, Mi,", "Do, Fr"} {
+		if !bytes.Contains(file.Data, []byte(want)) {
+			t.Fatalf("expected wrapped PDF stream to contain %q", want)
+		}
+	}
+}
+
+func TestRenderDOCXWritesWordDocument(t *testing.T) {
+	file, err := NewService().Render(sampleDocument(), FormatDOCX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	reader, err := zip.NewReader(bytes.NewReader(file.Data), int64(len(file.Data)))
+	if err != nil {
+		t.Fatalf("zip reader error = %v", err)
+	}
+	for _, entry := range reader.File {
+		if entry.Name != "word/document.xml" {
+			continue
+		}
+		rc, err := entry.Open()
+		if err != nil {
+			t.Fatalf("open document.xml error = %v", err)
+		}
+		defer func() {
+			if err := rc.Close(); err != nil {
+				t.Errorf("close document.xml error = %v", err)
+			}
+		}()
+		content, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("read document.xml error = %v", err)
+		}
+		if !strings.Contains(string(content), "OGS Wochenliste") {
+			t.Fatal("expected DOCX document to contain title")
+		}
+		return
+	}
+	t.Fatal("word/document.xml not found")
+}
+
+func TestRenderXLSXWritesTable(t *testing.T) {
+	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Data))
+	if err != nil {
+		t.Fatalf("open xlsx error = %v", err)
+	}
+	defer func() {
+		if err := workbook.Close(); err != nil {
+			t.Errorf("close xlsx error = %v", err)
+		}
+	}()
+
+	title, err := workbook.GetCellValue("Export", "A1")
+	if err != nil {
+		t.Fatalf("read title error = %v", err)
+	}
+	if title != "OGS Wochenliste" {
+		t.Fatalf("title = %q, want OGS Wochenliste", title)
+	}
+	cell, err := workbook.GetCellValue("Export", "A7")
+	if err != nil {
+		t.Fatalf("read row error = %v", err)
+	}
+	if cell != "Mila Muster" {
+		t.Fatalf("first row name = %q, want Mila Muster", cell)
+	}
+}
+
+func TestColumnCatalogExcludesRoomAndInternalIdentifier(t *testing.T) {
+	catalog := ColumnCatalog()
+	blocked := []ColumnID{"room", "homeroom", "identifier", "internal_identifier"}
+	for _, columnID := range blocked {
+		if _, ok := catalog[columnID]; ok {
+			t.Fatalf("column catalog contains blocked column %q", columnID)
+		}
+	}
+}
+
+func TestDefaultColumnsForPreset(t *testing.T) {
+	tests := []struct {
+		preset Preset
+		want   []ColumnID
+	}{
+		{PresetOGSCompact, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnPlannedPickup}},
+		{PresetDailyPlanning, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}},
+		{PresetAttendanceSnapshot, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCurrentLocation, ColumnPlannedPickup}},
+		{PresetPickupList, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnPlannedPickup, ColumnDailyNotes}},
+		{PresetBlankChecklist, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup}},
+		{Preset("unknown"), []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday}},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.preset), func(t *testing.T) {
+			got := DefaultColumnsForPreset(tt.preset)
+			if strings.Join(columnIDsToStrings(got), ",") != strings.Join(columnIDsToStrings(tt.want), ",") {
+				t.Fatalf("DefaultColumnsForPreset(%q) = %v, want %v", tt.preset, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveColumnsDedupesSkipsUnknownAndFallsBack(t *testing.T) {
+	got := ResolveColumns([]ColumnID{ColumnName, "nope", ColumnName, ColumnStudentGroup}, PresetOGSWeekly)
+	if len(got) != 2 {
+		t.Fatalf("ResolveColumns len = %d, want 2", len(got))
+	}
+	if got[0].ID != ColumnName || got[1].ID != ColumnStudentGroup {
+		t.Fatalf("ResolveColumns = %v", got)
+	}
+
+	fallback := ResolveColumns([]ColumnID{"nope"}, PresetOGSWeekly)
+	if len(fallback) != len(DefaultColumnsForPreset(PresetOGSWeekly)) {
+		t.Fatalf("fallback len = %d", len(fallback))
+	}
+}
+
+func TestGeneratedAtLabelDefaultsZeroTime(t *testing.T) {
+	if GeneratedAtLabel(time.Time{}) == "" {
+		t.Fatal("GeneratedAtLabel returned empty label for zero time")
+	}
+
+	label := GeneratedAtLabel(time.Date(2026, time.May, 27, 16, 45, 0, 0, time.UTC))
+	if label != "27.05.2026 16:45" {
+		t.Fatalf("GeneratedAtLabel = %q", label)
+	}
+}
+
+func TestPDFHelpersCoverEscapesWrappingAndPagination(t *testing.T) {
+	encoded := pdfLiteralString("ÄÖÜ äöü ß éè áà óò íì \\\n\r\t() \u2603")
+	for _, want := range []string{`\\`, `\n`, `\r`, `\t`, `\(`, `\)`, "?"} {
+		if !strings.Contains(encoded, want) {
+			t.Fatalf("encoded PDF literal %q does not contain %q", encoded, want)
+		}
+	}
+
+	lines := wrapPDFText("Supercalifragilisticexpialidocious plus words", 24)
+	if len(lines) < 2 {
+		t.Fatalf("wrapPDFText lines = %v, want multiple lines", lines)
+	}
+
+	doc := sampleDocument()
+	for i := 0; i < 80; i++ {
+		doc.Rows = append(doc.Rows, Row{Values: map[ColumnID]string{
+			ColumnName:         "Kind mit sehr langem Namen",
+			ColumnSchoolClass:  "Klasse 4a",
+			ColumnWeeklyMonday: "08:00 bis 16:00",
+		}})
+	}
+	file, err := NewService().Render(doc, FormatPDF, "multi-page")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	data := string(file.Data)
+	if !strings.Contains(data, "/Count ") || strings.Contains(data, "/Count 1 >>") {
+		t.Fatalf("expected multi-page PDF, data starts %q", file.Data[:80])
+	}
+}
+
+func TestRenderUnsupportedFormat(t *testing.T) {
+	_, err := NewService().Render(sampleDocument(), Format("csv"), "liste")
+	if err == nil {
+		t.Fatal("Render() error = nil, want unsupported format error")
+	}
+}
+
+func columnIDsToStrings(ids []ColumnID) []string {
+	values := make([]string, len(ids))
+	for i, id := range ids {
+		values[i] = string(id)
+	}
+	return values
+}
+
+func sampleDocument() Document {
+	columns := ResolveColumns([]ColumnID{ColumnName, ColumnSchoolClass, ColumnWeeklyMonday}, PresetOGSWeekly)
+	return Document{
+		Title:       "OGS Wochenliste",
+		Subtitle:    "2 Kinder",
+		GeneratedAt: time.Date(2026, time.May, 27, 14, 30, 0, 0, time.UTC),
+		Filters:     []string{"Suche: Klasse 1a"},
+		Columns:     columns,
+		Rows: []Row{
+			{Values: map[ColumnID]string{ColumnName: "Mila Muster", ColumnSchoolClass: "1a", ColumnWeeklyMonday: "08:00 bis 15:00"}},
+			{Values: map[ColumnID]string{ColumnName: "Noah Beispiel", ColumnSchoolClass: "1a", ColumnWeeklyMonday: "08:15 bis 16:00"}},
+		},
+	}
+}

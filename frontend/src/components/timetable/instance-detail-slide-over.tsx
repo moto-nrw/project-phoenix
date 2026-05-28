@@ -73,6 +73,9 @@ interface InstanceDetailSlideOverProps {
   editDeferred?: boolean;
 }
 
+const EMPTY_STAFF_NAMES = new Map<string, string>();
+const EMPTY_STUDENT_NAMES = new Map<string, string>();
+
 function germanFullDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(d.getTime())) return iso;
@@ -159,8 +162,8 @@ export function InstanceDetailSlideOver({
   onDeleteCancelled,
   onEdit,
   onRepeat,
-  staffNames = new Map(),
-  studentNames = new Map(),
+  staffNames = EMPTY_STAFF_NAMES,
+  studentNames = EMPTY_STUDENT_NAMES,
   onAttendancePatch,
   editDeferred = true,
 }: InstanceDetailSlideOverProps) {

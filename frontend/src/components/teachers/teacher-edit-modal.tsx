@@ -15,13 +15,15 @@ interface TeacherEditModalProps {
   readonly existingPositions?: readonly string[];
 }
 
+const EMPTY_POSITIONS: readonly string[] = [];
+
 export function TeacherEditModal({
   isOpen,
   onClose,
   teacher,
   onSave,
   loading = false,
-  existingPositions = [],
+  existingPositions = EMPTY_POSITIONS,
 }: TeacherEditModalProps) {
   if (!teacher) return null;
 

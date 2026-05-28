@@ -21,11 +21,13 @@ interface StudentCreateModalProps {
   readonly groups?: Array<{ readonly value: string; readonly label: string }>;
 }
 
+const EMPTY_GROUPS: NonNullable<StudentCreateModalProps["groups"]> = [];
+
 export function StudentCreateModal({
   isOpen,
   onClose,
   onCreate,
-  groups = [],
+  groups = EMPTY_GROUPS,
 }: StudentCreateModalProps) {
   const [formData, setFormData] = useState<Partial<Student>>({
     first_name: "",
