@@ -321,6 +321,14 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		return nil, fmt.Errorf("submit: load schema: %w", err)
 	}
 
+	// Defense-in-depth: enforce required custom fields server-side. The
+	// client does the same, but a stale or scripted submit must not be
+	// able to skip a visible required field. Hidden (conditional) fields
+	// are exempt.
+	if err := s.validateRequiredCustomFields(schema, req, openByID); err != nil {
+		return nil, err
+	}
+
 	statusToken, err := newStatusToken()
 	if err != nil {
 		return nil, fmt.Errorf("submit: generate status token: %w", err)

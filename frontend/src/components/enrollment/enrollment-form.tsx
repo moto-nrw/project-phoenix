@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTenant } from "~/components/tenant/tenant-provider";
@@ -16,9 +16,16 @@ import {
 import {
   fetchPublicActiveSchema,
   fetchPublicCaptchaConfig,
+  type FormField,
   type PublicCaptchaConfig,
   type PublicFormSchema,
 } from "~/lib/enrollment-form-schema-api";
+import {
+  buildFieldsByKey,
+  isFieldVisible,
+  visibleAnswerData,
+  type ConditionContext,
+} from "~/lib/enrollment-field-visibility";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollmentForm" });
@@ -287,6 +294,36 @@ export function EnrollmentForm({
   const removeChild = (index: number) =>
     setChildren((prev) => prev.filter((_, i) => i !== index));
 
+  // Conditional field visibility. Contexts are rebuilt from the live
+  // answers each render so info blocks and questions appear/disappear as
+  // the parent fills the form. Hidden fields are also stripped from the
+  // submitted payload (see handleSubmit) so a stale value never leaks.
+  const fieldsByKey = useMemo(
+    () => buildFieldsByKey(schema?.fields ?? []),
+    [schema],
+  );
+  const guardianCtx: ConditionContext = {
+    guardianAnswers: customData,
+    fieldsByKey,
+  };
+  const visibleGuardianFields = (schema?.fields ?? []).filter(
+    (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
+  );
+  const childConditionCtx = (child: ChildDraft): ConditionContext => ({
+    guardianAnswers: customData,
+    childAnswers: child.custom,
+    gradeLevel: child.target_grade_level,
+    // Care-offering conditions match by name (templates aren't phase-
+    // bound), so resolve the child's selected offering ids to names.
+    offeringNames: new Set(
+      Array.from(child.offering_ids)
+        .map((id) => offerings.find((o) => o.id === id)?.name)
+        .filter((name): name is string => Boolean(name))
+        .map((name) => name.toLowerCase()),
+    ),
+    fieldsByKey,
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -362,6 +399,30 @@ export function EnrollmentForm({
       newFieldErrors.consent_email_contact =
         "Bitte dem E-Mail-Kontakt zustimmen.";
     }
+
+    // Required custom questions. Only the fields the parent can actually
+    // see (passing their visibility condition) are enforced — a hidden
+    // required field must never block submit. Info blocks never count.
+    for (const f of visibleGuardianFields) {
+      if (f.type === "information" || !f.required) continue;
+      if (isAnswerEmpty(f, customData[f.key])) {
+        newFieldErrors[`custom_${f.key}`] = customRequiredMessage(f);
+      }
+    }
+    for (const [i, c] of children.entries()) {
+      const ctx = childConditionCtx(c);
+      for (const f of schema?.fields ?? []) {
+        if (!f.applies_to_child || f.type === "information" || !f.required) {
+          continue;
+        }
+        if (!isFieldVisible(f, ctx)) continue;
+        if (isAnswerEmpty(f, c.custom[f.key])) {
+          newFieldErrors[`children_${i}_custom_${f.key}`] =
+            customRequiredMessage(f);
+        }
+      }
+    }
+
     const errorKeys = Object.keys(newFieldErrors);
     if (errorKeys.length > 0) {
       setFieldErrors(newFieldErrors);
@@ -425,7 +486,12 @@ export function EnrollmentForm({
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
         target_grade_level: Number(c.target_grade_level),
-        custom_data: c.custom,
+        custom_data: visibleAnswerData(
+          schema?.fields ?? [],
+          true,
+          c.custom,
+          childConditionCtx(c),
+        ),
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
         offering_days:
           offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
@@ -455,7 +521,12 @@ export function EnrollmentForm({
           email_contact: emailConsent,
           photo: photoConsent,
         },
-        custom_data: customData,
+        custom_data: visibleAnswerData(
+          schema?.fields ?? [],
+          false,
+          customData,
+          guardianCtx,
+        ),
         children: payloadChildren,
         captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
       };
@@ -563,25 +634,29 @@ export function EnrollmentForm({
         </div>
       </section>
 
-      {schema?.fields.some((f) => !f.applies_to_child) && (
+      {visibleGuardianFields.length > 0 && (
         <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
           <SectionHeading
             kicker="Zusatzfragen"
             title="Weitere Angaben"
             description="Die OGS benötigt diese Angaben zusätzlich zu den Basisdaten. Pflichtfragen sind mit einem Stern markiert."
           />
-          {schema.fields
-            .filter((f) => !f.applies_to_child)
-            .map((f) => (
+          {visibleGuardianFields.map((f) =>
+            f.type === "information" ? (
+              <InfoBlock key={f.key} field={f} />
+            ) : (
               <CustomFieldInput
                 key={f.key}
                 field={f}
+                name={`custom_${f.key}`}
+                error={fieldErrors[`custom_${f.key}`]}
                 value={customData[f.key]}
                 onChange={(v) =>
                   setCustomData((prev) => ({ ...prev, [f.key]: v }))
                 }
               />
-            ))}
+            ),
+          )}
         </section>
       )}
 
@@ -810,18 +885,30 @@ export function EnrollmentForm({
               </div>
             )}
 
-            {schema?.fields
-              .filter((f) => f.applies_to_child)
-              .map((f) => (
-                <CustomFieldInput
-                  key={f.key}
-                  field={f}
-                  value={child.custom[f.key]}
-                  onChange={(v) =>
-                    updateChild(i, { custom: { ...child.custom, [f.key]: v } })
-                  }
-                />
-              ))}
+            {(schema?.fields ?? [])
+              .filter(
+                (f) =>
+                  f.applies_to_child &&
+                  isFieldVisible(f, childConditionCtx(child)),
+              )
+              .map((f) =>
+                f.type === "information" ? (
+                  <InfoBlock key={f.key} field={f} />
+                ) : (
+                  <CustomFieldInput
+                    key={f.key}
+                    field={f}
+                    name={`children_${i}_custom_${f.key}`}
+                    error={fieldErrors[`children_${i}_custom_${f.key}`]}
+                    value={child.custom[f.key]}
+                    onChange={(v) =>
+                      updateChild(i, {
+                        custom: { ...child.custom, [f.key]: v },
+                      })
+                    }
+                  />
+                ),
+              )}
           </div>
         ))}
       </section>
@@ -1092,25 +1179,91 @@ function Consent({
   );
 }
 
+/**
+ * Read-only information block (FormFieldInfo). Renders an optional
+ * heading + plain-text body to parents; collects no answer. Newlines in
+ * the body are preserved via `whitespace-pre-line`. Content is plain
+ * text by design (no HTML/markdown), so it is safe to render directly.
+ */
+function InfoBlock({ field }: { readonly field: FormField }) {
+  return (
+    <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 p-3">
+      {field.label && (
+        <p className="text-sm font-semibold text-gray-900">{field.label}</p>
+      )}
+      {field.content && (
+        <p className="mt-1 text-sm leading-6 whitespace-pre-line text-gray-600">
+          {field.content}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Whether a required custom field has no usable answer yet. A yes/no
+// field must be explicitly answered (true or false); everything else
+// must be a non-blank value. Structured types are never required (they
+// are always suggested/target fields), so the scalar checks suffice.
+function isAnswerEmpty(field: FormField, value: unknown): boolean {
+  if (field.type === "boolean") return value !== true && value !== false;
+  return value == null || String(value).trim() === "";
+}
+
+function customRequiredMessage(field: FormField): string {
+  const label = field.label.trim() || "dieses Feld";
+  return field.type === "boolean"
+    ? `Bitte „${label}“ beantworten.`
+    : `Bitte „${label}“ ausfüllen.`;
+}
+
 interface CustomFieldInputProps {
   readonly field: PublicFormSchema["fields"][number];
   readonly value: unknown;
   readonly onChange: (v: unknown) => void;
+  /**
+   * Unique input name. Must differ per child so per-child radio groups
+   * (boolean fields) don't merge into one. Defaults to the field key for
+   * guardian-level fields where the key is already unique.
+   */
+  readonly name?: string;
+  readonly error?: string;
 }
 
-function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
-  const labelEl = (
-    <span className="block text-sm font-semibold text-gray-700">
-      {field.label}
-      {field.required && <span className="text-[#FF3130]"> *</span>}
-    </span>
+/** Label + optional help text shown above a custom field's control. */
+function FieldLabel({ field }: { readonly field: FormField }) {
+  return (
+    <>
+      <span className="block text-sm font-semibold text-gray-700">
+        {field.label}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
+      </span>
+      {field.help_text ? (
+        <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </span>
+      ) : null}
+    </>
   );
+}
+
+function CustomFieldInput({
+  field,
+  value,
+  onChange,
+  name,
+  error,
+}: CustomFieldInputProps) {
+  const inputName = name ?? field.key;
+  const labelEl = <FieldLabel field={field} />;
+  const errorEl = error ? (
+    <p className="mt-1 text-xs text-[#FF3130]">{error}</p>
+  ) : null;
   const valueStr = typeof value === "string" ? value : "";
 
   if (field.type === "boolean") {
     const selectedValue = value === true ? "yes" : value === false ? "no" : "";
     return (
-      <fieldset>
+      <fieldset aria-invalid={error ? true : undefined}>
         {labelEl}
         <div className="mt-2 grid grid-cols-2 gap-2">
           {[
@@ -1122,12 +1275,14 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
               className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors ${
                 selectedValue === option.value
                   ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                  : error
+                    ? "border-[#FF3130] bg-[#FF3130]/5 text-gray-700"
+                    : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
               }`}
             >
               <input
                 type="radio"
-                name={field.key}
+                name={inputName}
                 value={option.value}
                 checked={selectedValue === option.value}
                 onChange={() => onChange(option.raw)}
@@ -1137,6 +1292,7 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
             </label>
           ))}
         </div>
+        {errorEl}
       </fieldset>
     );
   }
@@ -1148,10 +1304,16 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
           value={valueStr}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
-          name={field.key}
-          className="moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          name={inputName}
           aria-required={field.required}
+          aria-invalid={error ? true : undefined}
+          className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+            error
+              ? "border-[#FF3130] bg-[#FF3130]/5"
+              : "moto-content-surface hover:border-gray-300"
+          }`}
         />
+        {errorEl}
       </label>
     );
   }
@@ -1160,11 +1322,16 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
       <label className="block">
         {labelEl}
         <select
-          name={field.key}
+          name={inputName}
           value={valueStr}
           onChange={(e) => onChange(e.target.value)}
           aria-required={field.required}
-          className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          aria-invalid={error ? true : undefined}
+          className={`moto-select mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+            error
+              ? "border-[#FF3130] bg-[#FF3130]/5"
+              : "moto-content-surface hover:border-gray-300"
+          }`}
         >
           <option value="">Bitte wählen</option>
           {(field.options ?? []).map((o) => (
@@ -1173,6 +1340,7 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
             </option>
           ))}
         </select>
+        {errorEl}
       </label>
     );
   }
@@ -1198,13 +1366,19 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
     <label className="block">
       {labelEl}
       <input
-        name={field.key}
+        name={inputName}
         type={inputType}
         value={valueStr}
         onChange={(e) => onChange(e.target.value)}
         aria-required={field.required}
-        className="moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        aria-invalid={error ? true : undefined}
+        className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+          error
+            ? "border-[#FF3130] bg-[#FF3130]/5"
+            : "moto-content-surface hover:border-gray-300"
+        }`}
       />
+      {errorEl}
     </label>
   );
 }
@@ -1250,6 +1424,11 @@ function PhoneListInput({ field, value, onChange }: CustomFieldInputProps) {
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
+      {field.help_text && (
+        <p className="mb-2 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
       {phones.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           Noch keine Nummer eingetragen.
@@ -1362,6 +1541,9 @@ function WeekdayScheduleInput({
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
+      {field.help_text && (
+        <p className="text-xs leading-5 text-gray-500">{field.help_text}</p>
+      )}
       <p className="text-xs text-gray-500">
         Leere Felder bedeuten: an diesem Tag keine Angabe.
       </p>
@@ -1424,6 +1606,11 @@ function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
+      {field.help_text && (
+        <p className="mb-2 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
       {contacts.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           Noch kein zusätzlicher Kontakt eingetragen.

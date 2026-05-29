@@ -291,10 +291,36 @@ func (s *formSchemaService) ValidateSubmission(ctx context.Context, schemaID int
 			// positives during admin form preview.
 			continue
 		}
+		// A field hidden by its visibility condition is not shown to the
+		// parent, so its required flag does not apply to this submission.
+		if guardianFieldHidden(field, data.GuardianFields) {
+			continue
+		}
 		value, present = data.GuardianFields[field.Key]
 		if !present || value == nil || value == "" {
 			return fmt.Errorf("field %q is required", field.Key)
 		}
 	}
 	return nil
+}
+
+// guardianFieldHidden reports whether a guardian-level field is hidden
+// by its visibility condition given the submitted guardian answers.
+// Only "field"-sourced conditions are evaluable at guardian level; the
+// grade_level / care_offering sources are per-child and never apply to a
+// guardian-level field (the model rejects them there). Shares the scalar
+// comparison logic with the full evaluator in form_visibility.go.
+func guardianFieldHidden(field enrollmentModels.FormField, guardianFields map[string]any) bool {
+	c := field.VisibleWhen
+	if c == nil || c.Source != enrollmentModels.ConditionSourceField {
+		return false
+	}
+	return !matchScalar(c.Operator, guardianFields[c.Field], c.Value)
+}
+
+// conditionValuesEqual compares a submitted answer against a condition
+// value tolerant of the JSON round-trip (bool vs "true", number vs
+// string), which is enough for boolean/select controlling fields.
+func conditionValuesEqual(a, b any) bool {
+	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
 }

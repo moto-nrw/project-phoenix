@@ -17,9 +17,35 @@ export type FormFieldType =
   | "textarea"
   | "date"
   | "select"
+  | "information"
   | "phone_list"
   | "weekday_schedule"
   | "contact_list";
+
+/**
+ * Source of a field's visibility condition. Mirrors the backend
+ * ConditionSource* constants in models/enrollment/form_schema.go.
+ * - "field": another custom boolean/select field in the same schema
+ * - "grade_level": the per-child core field target_grade_level
+ * - "care_offering": the child's selected care offering IDs
+ */
+export type ConditionSource = "field" | "grade_level" | "care_offering";
+
+/** Visibility operators (backend ConditionOp* constants). */
+export type ConditionOperator = "eq" | "neq" | "not_empty" | "includes";
+
+/**
+ * Makes a field appear only when a controlling value matches. Mirrors
+ * backend VisibilityCondition. null/undefined = always visible.
+ */
+export interface VisibilityCondition {
+  source: ConditionSource;
+  /** Controlling custom field key (only when source === "field"). */
+  field?: string;
+  operator: ConditionOperator;
+  /** Compared value; omitted for the "not_empty" operator. */
+  value?: string | number | boolean | null;
+}
 
 /**
  * Reserved targets that link a form field to a downstream Stammdaten
@@ -107,6 +133,11 @@ export interface FormField {
   type: FormFieldType;
   required?: boolean;
   help_text?: string;
+  /**
+   * Body text for `information` blocks (plain text, newlines preserved).
+   * Empty/undefined for every other field type.
+   */
+  content?: string;
   options?: FormFieldOption[];
   validation?: FormFieldValidation | null;
   sort_order: number;
@@ -118,6 +149,12 @@ export interface FormField {
    * custom field, stays in custom_data.
    */
   target?: FormFieldTarget;
+  /**
+   * Optional show-if rule. When set, the field is only rendered to
+   * parents (and only validated/submitted) when the condition matches.
+   * null/undefined = always visible.
+   */
+  visible_when?: VisibilityCondition | null;
 }
 
 export interface FormSchema {
@@ -364,6 +401,23 @@ export function blankField(sortOrder: number): FormField {
     key: "",
     label: "",
     type: "text",
+    required: false,
+    sort_order: sortOrder,
+    applies_to_child: false,
+  };
+}
+
+/**
+ * Convenience: returns a fresh, blank information block. Info blocks
+ * collect no answer, so they carry a generated key (the admin never
+ * sees it) and a body in `content`. The key is finalised on save.
+ */
+export function blankInfoField(sortOrder: number): FormField {
+  return {
+    key: "",
+    label: "",
+    type: "information",
+    content: "",
     required: false,
     sort_order: sortOrder,
     applies_to_child: false,

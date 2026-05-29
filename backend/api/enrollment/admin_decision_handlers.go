@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -205,6 +206,11 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 			if ferr == nil && fs != nil {
 				schemaFields = make([]AdminRequestSchemaField, 0, len(fs.Fields))
 				for _, f := range fs.Fields {
+					// Information blocks collect no answer — omit them
+					// from the admin's per-submission field list.
+					if f.Type == enrollmentModels.FormFieldInfo {
+						continue
+					}
 					opts := make([]AdminRequestSchemaFieldOption, 0, len(f.Options))
 					for _, o := range f.Options {
 						opts = append(opts, AdminRequestSchemaFieldOption{Label: o.Label, Value: o.Value})
