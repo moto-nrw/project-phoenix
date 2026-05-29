@@ -34,10 +34,16 @@ var (
 	// enrollment.care_offerings_required is true but a child in the
 	// submission has no offering selected. Mapped to 400 with a stable
 	// code so the parent form can highlight the right child.
-	ErrCareOfferingMissing  = errors.New("care offering selection is required for every child")
-	ErrRateLimited          = errors.New("too many submission attempts; please retry later")
-	ErrRequestNotFound      = errors.New("enrollment request not found")
-	ErrInvalidGuardianPhone = errors.New("guardian phone number has an invalid format")
+	ErrCareOfferingMissing = errors.New("care offering selection is required for every child")
+	// ErrRequiredCareOfferingMissing is returned when a care offering
+	// flagged is_required is not selected for one of the children. Unlike
+	// ErrCareOfferingMissing (the tenant-wide "at least one" gate), this
+	// targets a specific mandatory offering. Mapped to 400 with a stable
+	// code so the parent form can highlight the right child.
+	ErrRequiredCareOfferingMissing = errors.New("a required care offering was not selected for every child")
+	ErrRateLimited                 = errors.New("too many submission attempts; please retry later")
+	ErrRequestNotFound             = errors.New("enrollment request not found")
+	ErrInvalidGuardianPhone        = errors.New("guardian phone number has an invalid format")
 	// ErrInvalidGuardianEmail wraps ErrInvalidSubmission so callers that match
 	// the broad category keep working, while the HTTP layer maps the specific
 	// case to a stable code (enrollment.invalid_email) for per-field marking.
@@ -300,6 +306,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		openByID[o.ID] = o
 	}
 	if err := validateOfferingSelections(req.Children, openByID); err != nil {
+		return nil, err
+	}
+	if err := validateRequiredOfferings(req.Children, openByID); err != nil {
 		return nil, err
 	}
 
@@ -620,6 +629,35 @@ func validateOfferingSelections(children []SubmitChild, openByID map[int64]*enro
 		for _, offeringID := range child.OfferingIDs {
 			if _, ok := openByID[offeringID]; !ok {
 				return ErrCareOfferingClosed
+			}
+		}
+	}
+	return nil
+}
+
+// validateRequiredOfferings enforces that every offering flagged
+// is_required in the phase's open catalog is selected by every child.
+// The day-level requirement for parent_choice offerings is already
+// enforced at insert time by resolveSelectedDays, so this only checks
+// presence in child.OfferingIDs.
+func validateRequiredOfferings(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) error {
+	requiredIDs := make([]int64, 0)
+	for id, offering := range openByID {
+		if offering.IsRequired {
+			requiredIDs = append(requiredIDs, id)
+		}
+	}
+	if len(requiredIDs) == 0 {
+		return nil
+	}
+	for i, child := range children {
+		selected := make(map[int64]bool, len(child.OfferingIDs))
+		for _, id := range child.OfferingIDs {
+			selected[id] = true
+		}
+		for _, requiredID := range requiredIDs {
+			if !selected[requiredID] {
+				return fmt.Errorf("%w: child %d offering %d", ErrRequiredCareOfferingMissing, i, requiredID)
 			}
 		}
 	}

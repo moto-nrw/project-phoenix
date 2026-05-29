@@ -32,6 +32,7 @@ type CareOfferingResponse struct {
 	Capacity            *int      `json:"capacity,omitempty"`
 	PriceCents          *int      `json:"price_cents,omitempty"`
 	IsActive            bool      `json:"is_active"`
+	IsRequired          bool      `json:"is_required"`
 	SortOrder           int       `json:"sort_order"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
@@ -50,6 +51,7 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		Capacity:            o.Capacity,
 		PriceCents:          o.PriceCents,
 		IsActive:            o.IsActive,
+		IsRequired:          o.IsRequired,
 		SortOrder:           o.SortOrder,
 		CreatedAt:           o.CreatedAt,
 		UpdatedAt:           o.UpdatedAt,
@@ -74,6 +76,7 @@ type CareOfferingRequest struct {
 	Capacity            *int     `json:"capacity,omitempty"`
 	PriceCents          *int     `json:"price_cents,omitempty"`
 	IsActive            bool     `json:"is_active"`
+	IsRequired          bool     `json:"is_required"`
 	SortOrder           int      `json:"sort_order"`
 }
 
@@ -99,6 +102,7 @@ func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.Care
 		Capacity:            req.Capacity,
 		PriceCents:          req.PriceCents,
 		IsActive:            req.IsActive,
+		IsRequired:          req.IsRequired,
 		SortOrder:           req.SortOrder,
 	}
 	o.ID = existingID

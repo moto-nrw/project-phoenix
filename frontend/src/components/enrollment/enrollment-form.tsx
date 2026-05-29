@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTenant } from "~/components/tenant/tenant-provider";
@@ -117,6 +117,12 @@ export function EnrollmentForm({
   const [schema, setSchema] = useState<PublicFormSchema | null>(null);
   const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
   const [careRequired, setCareRequired] = useState(false);
+  // Offerings the school flagged as mandatory. These are pre-selected and
+  // locked in the UI so every child carries them.
+  const requiredOfferingIDs = useMemo(
+    () => offerings.filter((o) => o.is_required).map((o) => o.id),
+    [offerings],
+  );
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,6 +210,20 @@ export function EnrollmentForm({
         setSchema(schemaResult);
         setOfferings(offeringsResult.offerings);
         setCareRequired(offeringsResult.careRequired);
+        // Seed mandatory offerings into the children that already exist
+        // (the initial blank slot is created before offerings load).
+        const requiredIDs = offeringsResult.offerings
+          .filter((o) => o.is_required)
+          .map((o) => o.id);
+        if (requiredIDs.length > 0) {
+          setChildren((prev) =>
+            prev.map((c) => {
+              const nextIDs = new Set(c.offering_ids);
+              requiredIDs.forEach((id) => nextIDs.add(id));
+              return { ...c, offering_ids: nextIDs };
+            }),
+          );
+        }
         setCaptchaConfig(captchaResult);
         // Prefill guardian fields from the profile when present. We
         // only fill empty fields so an admin testing the form on a
@@ -244,6 +264,8 @@ export function EnrollmentForm({
   };
 
   const toggleOffering = (childIndex: number, offeringID: string) => {
+    // Mandatory offerings are locked - they can never be unselected.
+    if (requiredOfferingIDs.includes(offeringID)) return;
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
@@ -283,7 +305,8 @@ export function EnrollmentForm({
     );
   };
 
-  const addChild = () => setChildren((prev) => [...prev, blankChild()]);
+  const addChild = () =>
+    setChildren((prev) => [...prev, blankChild(requiredOfferingIDs)]);
   const removeChild = (index: number) =>
     setChildren((prev) => prev.filter((_, i) => i !== index));
 
@@ -628,7 +651,7 @@ export function EnrollmentForm({
             existing={profile.children}
             usedIDs={usedExistingChildIDs}
             onAdopt={(child) => {
-              const newSlot: ChildDraft = blankChild();
+              const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
               newSlot.first_name = child.first_name;
               newSlot.last_name = child.last_name;
               newSlot.target_grade_level =
@@ -733,11 +756,14 @@ export function EnrollmentForm({
                   }`}
                 >
                   {offerings.map((o) => {
-                    const checked = child.offering_ids.has(o.id);
+                    const required = o.is_required;
+                    const checked = child.offering_ids.has(o.id) || required;
                     return (
                       <label
                         key={o.id}
-                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
+                        className={`flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
+                          required ? "cursor-default" : "cursor-pointer"
+                        } ${
                           checked
                             ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
                             : "border-gray-200 bg-white hover:border-gray-300"
@@ -748,6 +774,7 @@ export function EnrollmentForm({
                             name={`children_${i}_offering_${o.id}`}
                             type="checkbox"
                             checked={checked}
+                            disabled={required}
                             onChange={() => {
                               toggleOffering(i, o.id);
                               if (childOfferingErrors[i]) {
@@ -758,7 +785,9 @@ export function EnrollmentForm({
                                 });
                               }
                             }}
-                            className="absolute inset-0 cursor-pointer opacity-0"
+                            className={`absolute inset-0 opacity-0 ${
+                              required ? "cursor-default" : "cursor-pointer"
+                            }`}
                           />
                           {checked && (
                             <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
@@ -767,8 +796,15 @@ export function EnrollmentForm({
                           )}
                         </span>
                         <div className="min-w-0">
-                          <div className="font-medium break-words text-gray-900">
-                            {o.name}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium break-words text-gray-900">
+                              {o.name}
+                            </span>
+                            {required && (
+                              <span className="rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-xs font-medium text-[#4a7a15]">
+                                Pflicht
+                              </span>
+                            )}
                           </div>
                           {o.description && (
                             <div className="text-xs break-words text-gray-600">
@@ -940,13 +976,15 @@ export function EnrollmentForm({
   );
 }
 
-function blankChild(): ChildDraft {
+function blankChild(requiredOfferingIDs: readonly string[] = []): ChildDraft {
   return {
     first_name: "",
     last_name: "",
     date_of_birth: "",
     target_grade_level: "",
-    offering_ids: new Set(),
+    // Required offerings are pre-selected and locked; seed them so a new
+    // child slot starts compliant.
+    offering_ids: new Set(requiredOfferingIDs),
     offering_days: {},
     custom: {},
   };

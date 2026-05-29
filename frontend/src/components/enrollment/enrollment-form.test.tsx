@@ -109,6 +109,7 @@ function offerings(): PublicCareOffering[] {
       includes_holiday_care: true,
       includes_lunch: true,
       is_active: true,
+      is_required: false,
       capacity: null,
     },
     {
@@ -121,6 +122,7 @@ function offerings(): PublicCareOffering[] {
       includes_holiday_care: false,
       includes_lunch: false,
       is_active: true,
+      is_required: false,
       capacity: 20,
     },
   ];
@@ -435,5 +437,46 @@ describe("EnrollmentForm", () => {
     expect(payload.captcha_token).toBeUndefined();
     expect(payload.children[0]?.offering_ids).toEqual([12]);
     expect(onSubmitted).toHaveBeenCalledWith("/parents/status/1");
+  });
+
+  it("pre-selects and locks a mandatory offering and submits it for every child", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/req" });
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "20",
+          phase_id: "5",
+          name: "Mittagessen",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: true,
+          is_active: true,
+          is_required: true,
+          capacity: null,
+        },
+      ],
+      careRequired: false,
+    });
+    renderForm({ submitter, skipCaptcha: true });
+    await waitForLoaded();
+
+    // The mandatory offering is checked and cannot be toggled off.
+    const checkbox = screen.getByRole("checkbox", {
+      name: /Mittagessen/,
+    }) as HTMLInputElement;
+    expect(checkbox).toBeChecked();
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByText("Pflicht")).toBeInTheDocument();
+
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(submitter).toHaveBeenCalledTimes(1);
+    });
+    const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]?.offering_ids).toEqual([20]);
   });
 });

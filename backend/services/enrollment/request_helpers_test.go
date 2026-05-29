@@ -111,3 +111,56 @@ func TestValidateOfferingSelections_ChildWithNoPicksIsOK(t *testing.T) {
 	// open catalog — a child with no picks is silently fine here.
 	assert.NoError(t, validateOfferingSelections([]SubmitChild{{}}, map[int64]*enrollmentModels.CareOffering{}))
 }
+
+// ---- validateRequiredOfferings ------------------------------------------
+
+func TestValidateRequiredOfferings_NoRequiredIsOK(t *testing.T) {
+	open := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "A", IsRequired: false},
+		2: {Name: "B", IsRequired: false},
+	}
+	children := []SubmitChild{{OfferingIDs: nil}}
+	assert.NoError(t, validateRequiredOfferings(children, open))
+}
+
+func TestValidateRequiredOfferings_AcceptsWhenRequiredSelected(t *testing.T) {
+	open := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Mittagessen", IsRequired: true},
+		2: {Name: "AG", IsRequired: false},
+	}
+	children := []SubmitChild{
+		{OfferingIDs: []int64{1}},
+		{OfferingIDs: []int64{2, 1}},
+	}
+	assert.NoError(t, validateRequiredOfferings(children, open))
+}
+
+func TestValidateRequiredOfferings_RejectsWhenRequiredMissing(t *testing.T) {
+	open := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Mittagessen", IsRequired: true},
+	}
+	children := []SubmitChild{
+		{OfferingIDs: []int64{}}, // required offering 1 not selected
+	}
+	err := validateRequiredOfferings(children, open)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRequiredCareOfferingMissing),
+		"a missing required offering must surface ErrRequiredCareOfferingMissing")
+}
+
+func TestValidateRequiredOfferings_RejectsWhenOnlySomeChildrenComply(t *testing.T) {
+	open := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Mittagessen", IsRequired: true},
+	}
+	children := []SubmitChild{
+		{OfferingIDs: []int64{1}}, // ok
+		{OfferingIDs: []int64{}},  // missing
+	}
+	err := validateRequiredOfferings(children, open)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRequiredCareOfferingMissing))
+}
+
+func TestValidateRequiredOfferings_EmptyCatalogIsOK(t *testing.T) {
+	assert.NoError(t, validateRequiredOfferings([]SubmitChild{{}}, map[int64]*enrollmentModels.CareOffering{}))
+}

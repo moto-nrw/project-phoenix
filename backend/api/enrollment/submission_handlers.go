@@ -211,10 +211,11 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 // in sync with SUBMISSION_ERROR_MESSAGES in
 // frontend/src/lib/enrollment-submission-api.ts.
 const (
-	ErrCodeEnrollmentCareOfferingMissing = "enrollment.care_offering_missing"
-	ErrCodeEnrollmentCareOfferingFull    = "enrollment.care_offering_full"
-	ErrCodeEnrollmentInvalidPhone        = "enrollment.invalid_phone"
-	ErrCodeEnrollmentInvalidEmail        = "enrollment.invalid_email"
+	ErrCodeEnrollmentCareOfferingMissing         = "enrollment.care_offering_missing"
+	ErrCodeEnrollmentRequiredCareOfferingMissing = "enrollment.required_care_offering_missing"
+	ErrCodeEnrollmentCareOfferingFull            = "enrollment.care_offering_full"
+	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
+	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
 )
 
 // mapSubmitError translates service-layer sentinel errors into HTTP
@@ -226,6 +227,8 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
+	case errors.Is(err, enrollmentService.ErrRequiredCareOfferingMissing):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentRequiredCareOfferingMissing))
 	case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
 	// Must precede the generic ErrInvalidSubmission case below: the email
