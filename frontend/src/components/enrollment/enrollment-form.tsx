@@ -129,6 +129,13 @@ export function EnrollmentForm({
   const [childOfferingErrors, setChildOfferingErrors] = useState<
     Record<number, boolean>
   >({});
+  // Per parent_choice offering that is selected but has no day picked.
+  // Keyed by `${childIndex}_${offeringId}` so the offending offering row
+  // (not the whole group) gets the red border + inline message, and the
+  // scroll-to-error effect can land on it via aria-invalid.
+  const [offeringDayErrors, setOfferingDayErrors] = useState<
+    Record<string, boolean>
+  >({});
   // Per-field validation errors, keyed by each input's `name`
   // (guardian_email, children_0_first_name, ...). Drives the red border +
   // inline message on the offending input; rebuilt on every submit.
@@ -303,6 +310,15 @@ export function EnrollmentForm({
         };
       }),
     );
+    // Clear the "no day picked" error for this offering as soon as the
+    // parent picks one, so the red border + message disappear live.
+    setOfferingDayErrors((prev) => {
+      const key = `${childIndex}_${offeringID}`;
+      if (!prev[key]) return prev;
+      const nextErrors = { ...prev };
+      delete nextErrors[key];
+      return nextErrors;
+    });
   };
 
   const addChild = () =>
@@ -314,6 +330,7 @@ export function EnrollmentForm({
     e.preventDefault();
     setError(null);
     setChildOfferingErrors({});
+    setOfferingDayErrors({});
     setFieldErrors({});
     // Bump per attempt so the scroll-to-error effect re-runs even when this
     // submit produces the same error message as the previous one. Covers
@@ -404,65 +421,100 @@ export function EnrollmentForm({
       newFieldErrors.consent_email_contact =
         "Bitte dem E-Mail-Kontakt zustimmen.";
     }
-    const errorKeys = Object.keys(newFieldErrors);
-    if (errorKeys.length > 0) {
+    // Offering validation runs in the SAME pass as the field checks above
+    // so a missing care-offering day and a missing core field (e.g. phone)
+    // are flagged together on a single submit, not one-at-a-time. This pass
+    // only collects errors; the payload is assembled afterwards once
+    // everything is valid.
+    const missingCareIndexes: number[] = [];
+    // Selected parent_choice offerings with no day picked, keyed
+    // `${childIndex}_${offeringId}` so each offending row gets a red border +
+    // inline message and the scroll-to-error effect can target it.
+    const dayErrors: Record<string, boolean> = {};
+    let firstDayErrorMessage: string | null = null;
+    for (const [i, c] of children.entries()) {
+      if (careRequired && c.offering_ids.size === 0) {
+        missingCareIndexes.push(i);
+      }
+      for (const id of c.offering_ids) {
+        const offering = offerings.find((o) => o.id === id);
+        if (!offering || offering.days_of_week_mode !== "parent_choice") {
+          continue;
+        }
+        const picked = c.offering_days[id];
+        if (!picked || picked.size === 0) {
+          dayErrors[`${i}_${id}`] = true;
+          if (!firstDayErrorMessage) {
+            firstDayErrorMessage = `Kind ${i + 1}: Beim Angebot „${offering.name}" muss mindestens ein Tag ausgewählt werden.`;
+          }
+        }
+      }
+    }
+
+    const fieldErrorKeys = Object.keys(newFieldErrors);
+    const dayErrorCount = Object.keys(dayErrors).length;
+    const hasOfferingIssue = missingCareIndexes.length > 0 || dayErrorCount > 0;
+    if (fieldErrorKeys.length > 0 || hasOfferingIssue) {
       setFieldErrors(newFieldErrors);
+      if (missingCareIndexes.length > 0) {
+        setChildOfferingErrors(
+          Object.fromEntries(missingCareIndexes.map((i) => [i, true])),
+        );
+      }
+      setOfferingDayErrors(dayErrors);
       // Banner text:
-      //  - exactly one missing field/consent → its own specific message
-      //  - several, but all of them consents → the consent summary
-      //  - anything else / mixed             → a generic summary
-      // (the per-field red marking always shows which inputs are affected).
-      const onlyConsents = errorKeys.every((key) => key.startsWith("consent_"));
-      const [firstMessage] = Object.values(newFieldErrors);
+      //  - exactly one missing field        → its own specific message
+      //  - only consents missing            → the consent summary
+      //  - only care-offering issues        → the matching offering message
+      //  - anything else / mixed            → a generic summary
+      // Every offending input is red-marked regardless, and the scroll
+      // effect lands on the first one.
+      const onlyConsents =
+        !hasOfferingIssue &&
+        fieldErrorKeys.length > 0 &&
+        fieldErrorKeys.every((key) => key.startsWith("consent_"));
       let banner = "Bitte korrigiere die rot markierten Felder.";
-      if (errorKeys.length === 1 && firstMessage) {
-        banner = firstMessage;
+      if (fieldErrorKeys.length === 1 && !hasOfferingIssue) {
+        banner = Object.values(newFieldErrors)[0] ?? banner;
       } else if (onlyConsents) {
         banner = "Bitte bestätige alle erforderlichen Zustimmungen.";
+      } else if (fieldErrorKeys.length === 0 && missingCareIndexes.length > 0) {
+        banner =
+          "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.";
+      } else if (
+        fieldErrorKeys.length === 0 &&
+        dayErrorCount > 0 &&
+        firstDayErrorMessage
+      ) {
+        banner = firstDayErrorMessage;
       }
       setError(banner);
       return;
     }
 
-    const payloadChildren: SubmitChildPayload[] = [];
-    const missingCareIndexes: number[] = [];
-    for (const [i, c] of children.entries()) {
-      // Core fields are already guaranteed present by the field-collection
-      // pass above; this loop only builds the payload + validates offerings.
-      if (careRequired && c.offering_ids.size === 0) {
-        missingCareIndexes.push(i);
-      }
-
-      // Build the optional offering_days payload: one entry per
-      // parent_choice offering the parent picked. Fixed offerings get
-      // no entry (backend treats absence as "use the admin-fixed
-      // days"). Reject submit when a parent_choice offering is picked
-      // but has no day selected — the message names the offending row.
+    // All required input is valid — assemble the wire payload. Day
+    // selections for parent_choice offerings are guaranteed present by the
+    // validation above, so this only builds data (no further checks).
+    const payloadChildren: SubmitChildPayload[] = children.map((c) => {
       const offeringDaysPayload: Array<{
         offering_id: number;
         selected_days: string[];
       }> = [];
       for (const id of c.offering_ids) {
         const offering = offerings.find((o) => o.id === id);
-        if (!offering) continue;
-        if (offering.days_of_week_mode !== "parent_choice") continue;
-        const picked = c.offering_days[id];
-        if (!picked || picked.size === 0) {
-          setError(
-            `Kind ${i + 1}: Beim Angebot „${offering.name}" muss mindestens ein Tag ausgewählt werden.`,
-          );
-          return;
+        if (!offering || offering.days_of_week_mode !== "parent_choice") {
+          continue;
         }
+        const picked = c.offering_days[id];
+        if (!picked || picked.size === 0) continue;
         offeringDaysPayload.push({
           offering_id: Number(id),
-          // Preserve the admin-defined order from available_days so
-          // the wire payload doesn't fluctuate with the parent's click
-          // order; deterministic ordering helps idempotency / dedup.
+          // Preserve the admin-defined order from available_days so the wire
+          // payload doesn't fluctuate with the parent's click order.
           selected_days: offering.available_days.filter((d) => picked.has(d)),
         });
       }
-
-      payloadChildren.push({
+      return {
         first_name: c.first_name.trim(),
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
@@ -471,17 +523,8 @@ export function EnrollmentForm({
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
         offering_days:
           offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
-      });
-    }
-    if (missingCareIndexes.length > 0) {
-      setChildOfferingErrors(
-        Object.fromEntries(missingCareIndexes.map((i) => [i, true])),
-      );
-      setError(
-        "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
-      );
-      return;
-    }
+      };
+    });
 
     setSubmitting(true);
     try {
@@ -749,6 +792,7 @@ export function EnrollmentForm({
                   </p>
                 </div>
                 <div
+                  aria-invalid={childOfferingErrors[i] ? true : undefined}
                   className={`space-y-2 ${
                     childOfferingErrors[i]
                       ? "rounded-md border border-[#FF3130] bg-[#FF3130]/5 p-2"
@@ -758,15 +802,19 @@ export function EnrollmentForm({
                   {offerings.map((o) => {
                     const required = o.is_required;
                     const checked = child.offering_ids.has(o.id) || required;
+                    const dayError = offeringDayErrors[`${i}_${o.id}`] ?? false;
                     return (
                       <label
                         key={o.id}
+                        aria-invalid={dayError ? true : undefined}
                         className={`flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
                           required ? "cursor-default" : "cursor-pointer"
                         } ${
-                          checked
-                            ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
-                            : "border-gray-200 bg-white hover:border-gray-300"
+                          dayError
+                            ? "border-[#FF3130] bg-[#FF3130]/5"
+                            : checked
+                              ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
+                              : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
                         <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
@@ -854,6 +902,11 @@ export function EnrollmentForm({
                                 })}
                               </div>
                             )}
+                          {dayError && (
+                            <p className="mt-1 text-xs text-[#FF3130]">
+                              Bitte mindestens einen Tag auswählen.
+                            </p>
+                          )}
                         </div>
                       </label>
                     );
