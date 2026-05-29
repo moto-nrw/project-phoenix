@@ -190,7 +190,7 @@ func (r *PhaseRepository) RepointFormSchema(ctx context.Context, fromIDs []int64
 		ModelTableExpr(phaseTableExpr).
 		Set("form_schema_id = ?", toID).
 		Set("updated_at = NOW()").
-		Where(`"phase".form_schema_id IN (?)`, bun.In(fromIDs)).
+		Where(`"phase".form_schema_id IN (?)`, bun.List(fromIDs)).
 		Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to repoint phases to schema %d: %w", toID, err)
