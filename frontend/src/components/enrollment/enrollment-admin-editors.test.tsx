@@ -407,6 +407,7 @@ describe("EnrollmentFormEditor", () => {
             ],
           }),
         ]),
+        {},
       );
     });
 
@@ -430,6 +431,7 @@ describe("EnrollmentFormEditor", () => {
       expect(mocks.updateSchema).toHaveBeenCalledWith(
         "schema-1",
         expect.arrayContaining([expect.objectContaining({ type: "textarea" })]),
+        {},
       );
     });
 

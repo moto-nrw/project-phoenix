@@ -279,9 +279,9 @@ func TestFormSchemaService_ValidateSubmission_PresentValueOK(t *testing.T) {
 }
 
 func TestFormSchemaService_ValidateSubmission_SkipsPerChildFields(t *testing.T) {
-	// PR 5 only validates guardian-level required fields. Per-child
-	// required fields are deferred to PR 7's submit handler — verify
-	// the service does not flag them as missing here.
+	// This helper only receives guardian-level custom data. Per-child
+	// required fields are validated by RequestService.Submit, so this
+	// legacy check must not flag them as missing here.
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.TenantContext(1)
 

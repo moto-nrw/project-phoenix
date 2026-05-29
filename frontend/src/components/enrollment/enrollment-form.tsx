@@ -161,7 +161,7 @@ export function EnrollmentForm({
   const [agbConsent, setAgbConsent] = useState(false);
   const [dataConsent, setDataConsent] = useState(false);
   const [emailConsent, setEmailConsent] = useState(false);
-  const [photoConsent, setPhotoConsent] = useState(false);
+  const [photoConsent, setPhotoConsent] = useState<boolean | null>(null);
   const [children, setChildren] = useState<ChildDraft[]>([blankChild()]);
   // Request-level custom fields (applies_to_child=false). Stored
   // separately from per-child custom data because their values are
@@ -329,8 +329,19 @@ export function EnrollmentForm({
     // parent fixes their own typo instead of producing a request that can
     // never be approved (the backend enforces the same rule).
     const trimmedPhone = guardianPhone.trim();
-    if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
+    const guardianPhoneRequired =
+      schema?.core_requirements?.guardian_phone === true;
+    if (guardianPhoneRequired && !trimmedPhone) {
+      newFieldErrors.guardian_phone = "Bitte Telefonnummer angeben.";
+    } else if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
       newFieldErrors.guardian_phone = "Bitte gültige Telefonnummer angeben.";
+    }
+    for (const field of schema?.fields.filter((f) => !f.applies_to_child) ??
+      []) {
+      if (!field.required) continue;
+      if (customValueMissing(field, customData[field.key])) {
+        newFieldErrors[`custom_${field.key}`] = requiredMessageForField(field);
+      }
     }
     for (const [i, c] of children.entries()) {
       if (!c.first_name.trim()) {
@@ -346,6 +357,14 @@ export function EnrollmentForm({
       if (!c.target_grade_level) {
         newFieldErrors[`children_${i}_target_grade_level`] =
           "Bitte Klassenstufe angeben.";
+      }
+      for (const field of schema?.fields.filter((f) => f.applies_to_child) ??
+        []) {
+        if (!field.required) continue;
+        if (customValueMissing(field, c.custom[field.key])) {
+          newFieldErrors[`children_${i}_custom_${field.key}`] =
+            requiredMessageForField(field);
+        }
       }
     }
     // Required consents are collected into the same pass so a missing one is
@@ -453,7 +472,7 @@ export function EnrollmentForm({
           agb: agbConsent,
           data_processing: dataConsent,
           email_contact: emailConsent,
-          photo: photoConsent,
+          photo: photoConsent === true,
         },
         custom_data: customData,
         children: payloadChildren,
@@ -551,13 +570,14 @@ export function EnrollmentForm({
             error={fieldErrors.guardian_email}
           />
           <Input
-            label="Telefon"
+            label={`Telefon${schema?.core_requirements?.guardian_phone ? " *" : ""}`}
             name="guardian_phone"
             type="tel"
             autoComplete="tel"
             inputMode="tel"
             value={guardianPhone}
             onChange={setGuardianPhone}
+            required={schema?.core_requirements?.guardian_phone === true}
             error={fieldErrors.guardian_phone}
           />
         </div>
@@ -580,6 +600,7 @@ export function EnrollmentForm({
                 onChange={(v) =>
                   setCustomData((prev) => ({ ...prev, [f.key]: v }))
                 }
+                error={fieldErrors[`custom_${f.key}`]}
               />
             ))}
         </section>
@@ -820,6 +841,7 @@ export function EnrollmentForm({
                   onChange={(v) =>
                     updateChild(i, { custom: { ...child.custom, [f.key]: v } })
                   }
+                  error={fieldErrors[`children_${i}_custom_${f.key}`]}
                 />
               ))}
           </div>
@@ -859,8 +881,8 @@ export function EnrollmentForm({
         <Consent
           name="consent_photo"
           label="Mein Kind darf bei Schulveranstaltungen fotografiert werden (optional)."
-          checked={photoConsent}
-          onChange={setPhotoConsent}
+          checked={photoConsent === true}
+          onChange={(checked) => setPhotoConsent(checked)}
         />
       </section>
 
@@ -1092,13 +1114,79 @@ function Consent({
   );
 }
 
+function customValueMissing(
+  field: PublicFormSchema["fields"][number],
+  value: unknown,
+): boolean {
+  if (field.type === "boolean") {
+    return typeof value !== "boolean";
+  }
+  if (field.type === "phone_list") {
+    if (!Array.isArray(value) || value.length === 0) return true;
+    return value.some((row) => {
+      if (!row || typeof row !== "object") return true;
+      const phoneNumber = (row as Partial<PhoneEntry>).phone_number;
+      return typeof phoneNumber !== "string" || phoneNumber.trim() === "";
+    });
+  }
+  if (field.type === "contact_list") {
+    if (!Array.isArray(value) || value.length === 0) return true;
+    return value.some((row) => {
+      if (!row || typeof row !== "object") return true;
+      const contact = row as ContactEntryValue;
+      const hasName =
+        typeof contact.first_name === "string" &&
+        contact.first_name.trim() !== "" &&
+        typeof contact.last_name === "string" &&
+        contact.last_name.trim() !== "";
+      const hasEmail = (contact.email ?? "").trim() !== "";
+      const hasPhone =
+        Array.isArray(contact.phone_numbers) &&
+        contact.phone_numbers.some((phone) => phone.phone_number.trim() !== "");
+      return !hasName || (!hasEmail && !hasPhone);
+    });
+  }
+  if (field.type === "weekday_schedule") {
+    const schedule = asScheduleObject(value);
+    return !Object.values(schedule).some((time) => time.trim() !== "");
+  }
+  return typeof value !== "string" || value.trim() === "";
+}
+
+function requiredMessageForField(
+  field: PublicFormSchema["fields"][number],
+): string {
+  if (field.type === "boolean") {
+    return "Bitte Ja oder Nein auswählen.";
+  }
+  if (field.type === "phone_list") {
+    return "Bitte mindestens eine Telefonnummer angeben.";
+  }
+  if (field.type === "contact_list") {
+    return "Bitte mindestens einen vollständigen Kontakt mit E-Mail oder Telefonnummer angeben.";
+  }
+  if (field.type === "weekday_schedule") {
+    return "Bitte mindestens eine Uhrzeit angeben.";
+  }
+  if (field.type === "select") {
+    return "Bitte eine Option auswählen.";
+  }
+  return "Bitte dieses Pflichtfeld ausfüllen.";
+}
+
 interface CustomFieldInputProps {
   readonly field: PublicFormSchema["fields"][number];
   readonly value: unknown;
   readonly onChange: (v: unknown) => void;
+  readonly error?: string;
 }
 
-function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
+function CustomFieldInput({
+  field,
+  value,
+  onChange,
+  error,
+}: CustomFieldInputProps) {
   const labelEl = (
     <span className="block text-sm font-semibold text-gray-700">
       {field.label}
@@ -1110,7 +1198,7 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
   if (field.type === "boolean") {
     const selectedValue = value === true ? "yes" : value === false ? "no" : "";
     return (
-      <fieldset>
+      <fieldset aria-invalid={error ? "true" : undefined}>
         {labelEl}
         <div className="mt-2 grid grid-cols-2 gap-2">
           {[
@@ -1137,6 +1225,7 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
             </label>
           ))}
         </div>
+        {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
       </fieldset>
     );
   }
@@ -1149,9 +1238,11 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
           onChange={(e) => onChange(e.target.value)}
           rows={3}
           name={field.key}
-          className="moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-[#FF3130]" : ""}`}
           aria-required={field.required}
+          aria-invalid={error ? "true" : undefined}
         />
+        {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
       </label>
     );
   }
@@ -1164,7 +1255,8 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
           value={valueStr}
           onChange={(e) => onChange(e.target.value)}
           aria-required={field.required}
-          className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          aria-invalid={error ? "true" : undefined}
+          className={`moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-[#FF3130]" : ""}`}
         >
           <option value="">Bitte wählen</option>
           {(field.options ?? []).map((o) => (
@@ -1173,19 +1265,39 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
             </option>
           ))}
         </select>
+        {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
       </label>
     );
   }
   if (field.type === "phone_list") {
-    return <PhoneListInput field={field} value={value} onChange={onChange} />;
+    return (
+      <PhoneListInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        error={error}
+      />
+    );
   }
   if (field.type === "weekday_schedule") {
     return (
-      <WeekdayScheduleInput field={field} value={value} onChange={onChange} />
+      <WeekdayScheduleInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        error={error}
+      />
     );
   }
   if (field.type === "contact_list") {
-    return <ContactListInput field={field} value={value} onChange={onChange} />;
+    return (
+      <ContactListInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        error={error}
+      />
+    );
   }
 
   const inputType =
@@ -1203,8 +1315,10 @@ function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
         value={valueStr}
         onChange={(e) => onChange(e.target.value)}
         aria-required={field.required}
-        className="moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        aria-invalid={error ? "true" : undefined}
+        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-[#FF3130]" : ""}`}
       />
+      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </label>
   );
 }
@@ -1239,13 +1353,21 @@ function asPhoneArray(v: unknown): PhoneEntry[] {
   });
 }
 
-function PhoneListInput({ field, value, onChange }: CustomFieldInputProps) {
+function PhoneListInput({
+  field,
+  value,
+  onChange,
+  error,
+}: CustomFieldInputProps) {
   const phones = asPhoneArray(value);
   const update = (next: PhoneEntry[]) => onChange(next);
   const setRow = (idx: number, patch: Partial<PhoneEntry>) =>
     update(phones.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
   return (
-    <fieldset className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+    <fieldset
+      className={`rounded-2xl border bg-gray-50/70 p-4 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      aria-invalid={error ? "true" : undefined}
+    >
       <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
@@ -1328,6 +1450,7 @@ function PhoneListInput({ field, value, onChange }: CustomFieldInputProps) {
         <Plus className="h-4 w-4" aria-hidden="true" />
         Telefonnummer hinzufügen
       </button>
+      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>
   );
 }
@@ -1354,10 +1477,14 @@ function WeekdayScheduleInput({
   field,
   value,
   onChange,
+  error,
 }: CustomFieldInputProps) {
   const sched = asScheduleObject(value);
   return (
-    <fieldset className="rounded-lg border border-gray-200 p-3">
+    <fieldset
+      className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      aria-invalid={error ? "true" : undefined}
+    >
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
@@ -1378,6 +1505,7 @@ function WeekdayScheduleInput({
           </label>
         ))}
       </div>
+      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>
   );
 }
@@ -1413,13 +1541,21 @@ function blankContact(): ContactEntryValue {
   };
 }
 
-function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
+function ContactListInput({
+  field,
+  value,
+  onChange,
+  error,
+}: CustomFieldInputProps) {
   const contacts = asContactArray(value);
   const update = (next: ContactEntryValue[]) => onChange(next);
   const setRow = (idx: number, patch: Partial<ContactEntryValue>) =>
     update(contacts.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
   return (
-    <fieldset className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <fieldset
+      className={`rounded-2xl border bg-white p-4 shadow-sm ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      aria-invalid={error ? "true" : undefined}
+    >
       <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
@@ -1537,6 +1673,7 @@ function ContactListInput({ field, value, onChange }: CustomFieldInputProps) {
         <Plus className="h-4 w-4" aria-hidden="true" />
         Kontakt hinzufügen
       </button>
+      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>
   );
 }

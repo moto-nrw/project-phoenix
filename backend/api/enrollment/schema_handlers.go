@@ -22,25 +22,41 @@ import (
 // FormSchemaResponse is the wire shape returned to admin UIs. The id is
 // stringified so the frontend can keep its int64-as-string convention.
 type FormSchemaResponse struct {
-	ID        string                       `json:"id"`
-	Name      string                       `json:"name"`
-	Version   int                          `json:"version"`
-	IsActive  bool                         `json:"is_active"`
-	Fields    []enrollmentModels.FormField `json:"fields"`
-	CreatedBy string                       `json:"created_by"`
-	CreatedAt time.Time                    `json:"created_at"`
+	ID               string                            `json:"id"`
+	Name             string                            `json:"name"`
+	Version          int                               `json:"version"`
+	IsActive         bool                              `json:"is_active"`
+	Fields           []enrollmentModels.FormField      `json:"fields"`
+	CoreRequirements enrollmentModels.CoreRequirements `json:"core_requirements"`
+	CreatedBy        string                            `json:"created_by"`
+	CreatedAt        time.Time                         `json:"created_at"`
 }
 
 func toFormSchemaResponse(s *enrollmentModels.FormSchema) FormSchemaResponse {
 	return FormSchemaResponse{
-		ID:        strconv.FormatInt(s.ID, 10),
-		Name:      s.Name,
-		Version:   s.Version,
-		IsActive:  s.IsActive,
-		Fields:    s.Fields,
-		CreatedBy: strconv.FormatInt(s.CreatedBy, 10),
-		CreatedAt: s.CreatedAt,
+		ID:               strconv.FormatInt(s.ID, 10),
+		Name:             s.Name,
+		Version:          s.Version,
+		IsActive:         s.IsActive,
+		Fields:           s.Fields,
+		CoreRequirements: coreRequirementsValue(s.CoreRequirements),
+		CreatedBy:        strconv.FormatInt(s.CreatedBy, 10),
+		CreatedAt:        s.CreatedAt,
 	}
+}
+
+func coreRequirementsValue(value enrollmentModels.CoreRequirements) enrollmentModels.CoreRequirements {
+	if value == nil {
+		return enrollmentModels.CoreRequirements{}
+	}
+	return value
+}
+
+func coreRequirementsOrEmpty(value *enrollmentModels.CoreRequirements) enrollmentModels.CoreRequirements {
+	if value == nil {
+		return enrollmentModels.CoreRequirements{}
+	}
+	return *value
 }
 
 // PublishSchemaRequest is the wire shape POST /schema accepts. When
@@ -48,8 +64,9 @@ func toFormSchemaResponse(s *enrollmentModels.FormSchema) FormSchemaResponse {
 // when empty it falls back to PublishVersion (legacy single-schema
 // flow that writes the row under the default name).
 type PublishSchemaRequest struct {
-	Name   string                       `json:"name"`
-	Fields []enrollmentModels.FormField `json:"fields"`
+	Name             string                             `json:"name"`
+	Fields           []enrollmentModels.FormField       `json:"fields"`
+	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -65,7 +82,8 @@ func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
 // Only the fields are mutable — name is inherited from the source
 // schema so all versions of a logical schema share the same name.
 type UpdateSchemaRequest struct {
-	Fields []enrollmentModels.FormField `json:"fields"`
+	Fields           []enrollmentModels.FormField       `json:"fields"`
+	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
 }
 
 func (req *UpdateSchemaRequest) Bind(_ *http.Request) error {
@@ -81,9 +99,10 @@ func (req *UpdateSchemaRequest) Bind(_ *http.Request) error {
 // form. The fields array carries everything the dynamic renderer
 // consumes (label, type, options, validation).
 type PublicFormSchemaResponse struct {
-	ID      string                       `json:"id"`
-	Version int                          `json:"version"`
-	Fields  []enrollmentModels.FormField `json:"fields"`
+	ID               string                            `json:"id"`
+	Version          int                               `json:"version"`
+	Fields           []enrollmentModels.FormField      `json:"fields"`
+	CoreRequirements enrollmentModels.CoreRequirements `json:"core_requirements"`
 }
 
 // listPublicActiveSchema returns the form schema for a (tenant, phase)
@@ -145,9 +164,10 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 	}
 
 	out := PublicFormSchemaResponse{
-		ID:      strconv.FormatInt(schema.ID, 10),
-		Version: schema.Version,
-		Fields:  schema.Fields,
+		ID:               strconv.FormatInt(schema.ID, 10),
+		Version:          schema.Version,
+		Fields:           schema.Fields,
+		CoreRequirements: coreRequirementsValue(schema.CoreRequirements),
 	}
 	common.Respond(w, r, http.StatusOK, out, "Public active form schema retrieved")
 }
@@ -302,8 +322,14 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 
 	var schema *enrollmentModels.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		updateExisting := func(id int64) (*enrollmentModels.FormSchema, error) {
+			if req.CoreRequirements == nil {
+				return rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID))
+			}
+			return rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID), *req.CoreRequirements)
+		}
 		if req.Name != "" {
-			s, innerErr := rs.FormSchemaService.CreateSchema(ctx, req.Name, req.Fields, int64(claims.ID))
+			s, innerErr := rs.FormSchemaService.CreateSchema(ctx, req.Name, req.Fields, int64(claims.ID), coreRequirementsOrEmpty(req.CoreRequirements))
 			schema = s
 			return innerErr
 		}
@@ -315,19 +341,19 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 			}
 			for _, version := range versions {
 				if version.Name == "Standardformular" {
-					s, updateErr := rs.FormSchemaService.UpdateSchema(ctx, version.ID, req.Fields, int64(claims.ID))
+					s, updateErr := updateExisting(version.ID)
 					schema = s
 					return updateErr
 				}
 			}
-			s, createErr := rs.FormSchemaService.CreateSchema(ctx, "Standardformular", req.Fields, int64(claims.ID))
+			s, createErr := rs.FormSchemaService.CreateSchema(ctx, "Standardformular", req.Fields, int64(claims.ID), coreRequirementsOrEmpty(req.CoreRequirements))
 			schema = s
 			return createErr
 		}
 		if innerErr != nil {
 			return innerErr
 		}
-		s, innerErr := rs.FormSchemaService.UpdateSchema(ctx, active.ID, req.Fields, int64(claims.ID))
+		s, innerErr := updateExisting(active.ID)
 		schema = s
 		return innerErr
 	})
@@ -375,7 +401,15 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 
 	var schema *enrollmentModels.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
-		s, innerErr := rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID))
+		var (
+			s        *enrollmentModels.FormSchema
+			innerErr error
+		)
+		if req.CoreRequirements == nil {
+			s, innerErr = rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID))
+		} else {
+			s, innerErr = rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID), *req.CoreRequirements)
+		}
 		schema = s
 		return innerErr
 	})

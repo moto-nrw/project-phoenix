@@ -120,12 +120,17 @@ export interface FormField {
   target?: FormFieldTarget;
 }
 
+export type CoreRequirementKey = "guardian_phone";
+
+export type CoreRequirements = Partial<Record<CoreRequirementKey, boolean>>;
+
 export interface FormSchema {
   id: string;
   name: string;
   version: number;
   is_active: boolean;
   fields: FormField[];
+  core_requirements?: CoreRequirements;
   created_by: string;
   created_at: string;
 }
@@ -220,6 +225,7 @@ export interface PublicFormSchema {
   id: string;
   version: number;
   fields: FormField[];
+  core_requirements?: CoreRequirements;
 }
 
 /**
@@ -284,11 +290,12 @@ export async function fetchPublicActiveSchema(
 export async function createSchema(
   name: string,
   fields: FormField[],
+  coreRequirements: CoreRequirements = {},
 ): Promise<FormSchema> {
   const response = await fetch(SCHEMA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, fields }),
+    body: JSON.stringify({ name, fields, core_requirements: coreRequirements }),
   });
   if (!response.ok) {
     const payload = (await response
@@ -314,11 +321,16 @@ export async function createSchema(
 export async function updateSchema(
   id: string,
   fields: FormField[],
+  coreRequirements?: CoreRequirements,
 ): Promise<FormSchema> {
+  const body =
+    coreRequirements === undefined
+      ? { fields }
+      : { fields, core_requirements: coreRequirements };
   const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const payload = (await response

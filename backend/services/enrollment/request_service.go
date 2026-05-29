@@ -47,6 +47,8 @@ var (
 	ErrDuplicateEnrollment  = errors.New("an active enrollment already exists for this parent and child in this phase")
 )
 
+var requiredConsentKeys = []string{"agb", "data_processing", "email_contact"}
+
 // Rate-limit thresholds. Hardcoded for now - if individual schools
 // need different limits we can promote these to settings, but the
 // defaults need to work for "small school with families of 3 kids
@@ -320,6 +322,11 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, fmt.Errorf("submit: load schema: %w", err)
 	}
+	if schema != nil {
+		if err := validateSubmissionAgainstSchema(req, schema); err != nil {
+			return nil, err
+		}
+	}
 
 	statusToken, err := newStatusToken()
 	if err != nil {
@@ -485,6 +492,12 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 			return ErrInvalidGuardianPhone
 		}
 	}
+	for _, key := range requiredConsentKeys {
+		accepted, ok := req.ConsentFlags[key].(bool)
+		if !ok || !accepted {
+			return fmt.Errorf("%w: consent %s is required", ErrInvalidSubmission, key)
+		}
+	}
 	if len(req.Children) == 0 {
 		return fmt.Errorf("%w: at least one child is required", ErrInvalidSubmission)
 	}
@@ -508,6 +521,96 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 		}
 	}
 	return nil
+}
+
+func validateSubmissionAgainstSchema(req SubmitRequest, schema *enrollmentModels.FormSchema) error {
+	if schema.CoreRequirements.Required(enrollmentModels.CoreRequirementGuardianPhone) {
+		if req.GuardianPhone == nil || strings.TrimSpace(*req.GuardianPhone) == "" {
+			return fmt.Errorf("%w: guardian phone is required", ErrInvalidSubmission)
+		}
+	}
+	for _, field := range schema.Fields {
+		if !field.Required {
+			continue
+		}
+		if field.AppliesToCh {
+			for i, child := range req.Children {
+				if !customValueSatisfiesRequired(field, child.CustomData[field.Key]) {
+					return fmt.Errorf("%w: child %d field %s is required", ErrInvalidSubmission, i, field.Key)
+				}
+			}
+			continue
+		}
+		if !customValueSatisfiesRequired(field, req.CustomData[field.Key]) {
+			return fmt.Errorf("%w: field %s is required", ErrInvalidSubmission, field.Key)
+		}
+	}
+	return nil
+}
+
+func customValueSatisfiesRequired(field enrollmentModels.FormField, value any) bool {
+	switch field.Type {
+	case enrollmentModels.FormFieldBoolean:
+		_, ok := value.(bool)
+		return ok
+	case enrollmentModels.FormFieldPhoneList:
+		var entries []enrollmentModels.PhoneEntry
+		if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
+			return false
+		}
+		for i := range entries {
+			if err := entries[i].Validate(); err != nil {
+				return false
+			}
+		}
+		return true
+	case enrollmentModels.FormFieldContactList:
+		var entries []enrollmentModels.ContactEntry
+		if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
+			return false
+		}
+		for i := range entries {
+			if err := entries[i].Validate(); err != nil {
+				return false
+			}
+		}
+		return true
+	case enrollmentModels.FormFieldWeekdaySchedule:
+		return scheduleHasAnyTime(value)
+	case enrollmentModels.FormFieldNumber:
+		switch v := value.(type) {
+		case float64:
+			return true
+		case int:
+			return true
+		case string:
+			return strings.TrimSpace(v) != ""
+		default:
+			return false
+		}
+	default:
+		return stringValue(value) != ""
+	}
+}
+
+func scheduleHasAnyTime(value any) bool {
+	raw, ok := value.(map[string]any)
+	if !ok {
+		if typed, ok := value.(map[string]string); ok {
+			for _, v := range typed {
+				if strings.TrimSpace(v) != "" {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	for _, v := range raw {
+		if str, ok := v.(string); ok && strings.TrimSpace(str) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // validateOfferingSelections cross-checks every offering id against the

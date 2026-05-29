@@ -169,6 +169,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
 		IsActive:         true,
+		FormSchemaID:     &schema.ID,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	phase.SetTenantID(1)
@@ -226,6 +227,12 @@ func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "anna@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           false,
+		},
 		Children: []enrollmentService.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -323,6 +330,24 @@ func TestRequestService_Submit_RejectsInvalidGuardianPhone(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidGuardianPhone),
 		"invalid guardian phone must return ErrInvalidGuardianPhone; got %v", err)
+}
+
+func TestRequestService_Submit_RejectsMissingRequiredGuardianPhone(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, err := env.db.ExecContext(ctx, `
+		UPDATE enrollment.form_schemas
+		SET core_requirements = '{"guardian_phone": true}'::jsonb
+		WHERE id = ?
+	`, env.schemaID)
+	require.NoError(t, err)
+
+	_, err = env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission),
+		"missing required guardian phone must return ErrInvalidSubmission; got %v", err)
 }
 
 // Regression: submit used to accept guardian emails that net/mail.ParseAddress

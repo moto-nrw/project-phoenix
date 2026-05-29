@@ -359,6 +359,43 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  it("enforces configurable core required fields", async () => {
+    mockFetchPublicActiveSchema.mockResolvedValueOnce({
+      ...schema(),
+      core_requirements: {
+        guardian_phone: true,
+      },
+    });
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findAllByText("Bitte Telefonnummer angeben."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole("textbox", { name: /Telefon/ }), {
+      target: { value: "+49 221 1234567" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.consent_flags?.photo).toBe(false);
+  });
+
   it("adds and removes children without submitting in preview mode", async () => {
     renderForm({ previewMode: true, previewSchema: schema() });
     await waitForLoaded();
