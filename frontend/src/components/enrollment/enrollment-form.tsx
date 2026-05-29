@@ -223,13 +223,7 @@ export function EnrollmentForm({
           .filter((o) => o.is_required)
           .map((o) => o.id);
         if (requiredIDs.length > 0) {
-          setChildren((prev) =>
-            prev.map((c) => {
-              const nextIDs = new Set(c.offering_ids);
-              requiredIDs.forEach((id) => nextIDs.add(id));
-              return { ...c, offering_ids: nextIDs };
-            }),
-          );
+          setChildren((prev) => seedRequiredOfferings(prev, requiredIDs));
         }
         setCaptchaConfig(captchaResult);
         // Prefill guardian fields from the profile when present. We
@@ -438,7 +432,7 @@ export function EnrollmentForm({
       }
       for (const id of c.offering_ids) {
         const offering = offerings.find((o) => o.id === id);
-        if (!offering || offering.days_of_week_mode !== "parent_choice") {
+        if (offering?.days_of_week_mode !== "parent_choice") {
           continue;
         }
         const picked = c.offering_days[id];
@@ -502,7 +496,7 @@ export function EnrollmentForm({
       }> = [];
       for (const id of c.offering_ids) {
         const offering = offerings.find((o) => o.id === id);
-        if (!offering || offering.days_of_week_mode !== "parent_choice") {
+        if (offering?.days_of_week_mode !== "parent_choice") {
           continue;
         }
         const picked = c.offering_days[id];
@@ -803,19 +797,20 @@ export function EnrollmentForm({
                     const required = o.is_required;
                     const checked = child.offering_ids.has(o.id) || required;
                     const dayError = offeringDayErrors[`${i}_${o.id}`] ?? false;
+                    let stateClass =
+                      "border-gray-200 bg-white hover:border-gray-300";
+                    if (dayError) {
+                      stateClass = "border-[#FF3130] bg-[#FF3130]/5";
+                    } else if (checked) {
+                      stateClass = "border-[#83CD2D]/40 bg-[#83CD2D]/10";
+                    }
                     return (
                       <label
                         key={o.id}
                         aria-invalid={dayError ? true : undefined}
                         className={`flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
                           required ? "cursor-default" : "cursor-pointer"
-                        } ${
-                          dayError
-                            ? "border-[#FF3130] bg-[#FF3130]/5"
-                            : checked
-                              ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
-                              : "border-gray-200 bg-white hover:border-gray-300"
-                        }`}
+                        } ${stateClass}`}
                       >
                         <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
                           <input
@@ -1043,6 +1038,20 @@ function blankChild(requiredOfferingIDs: readonly string[] = []): ChildDraft {
   };
 }
 
+// seedRequiredOfferings adds every mandatory offering id to each existing
+// child slot, leaving the rest of the draft untouched. Used after offerings
+// load to back-fill the initial blank child created before the fetch resolved.
+function seedRequiredOfferings(
+  children: ChildDraft[],
+  requiredIDs: readonly string[],
+): ChildDraft[] {
+  return children.map((c) => {
+    const nextIDs = new Set(c.offering_ids);
+    requiredIDs.forEach((id) => nextIDs.add(id));
+    return { ...c, offering_ids: nextIDs };
+  });
+}
+
 function Input({
   label,
   name,
@@ -1213,35 +1222,43 @@ function customValueMissing(
     return typeof value !== "boolean";
   }
   if (field.type === "phone_list") {
-    if (!Array.isArray(value) || value.length === 0) return true;
-    return value.some((row) => {
-      if (!row || typeof row !== "object") return true;
-      const phoneNumber = (row as Partial<PhoneEntry>).phone_number;
-      return typeof phoneNumber !== "string" || phoneNumber.trim() === "";
-    });
+    return phoneListValueMissing(value);
   }
   if (field.type === "contact_list") {
-    if (!Array.isArray(value) || value.length === 0) return true;
-    return value.some((row) => {
-      if (!row || typeof row !== "object") return true;
-      const contact = row as ContactEntryValue;
-      const hasName =
-        typeof contact.first_name === "string" &&
-        contact.first_name.trim() !== "" &&
-        typeof contact.last_name === "string" &&
-        contact.last_name.trim() !== "";
-      const hasEmail = (contact.email ?? "").trim() !== "";
-      const hasPhone =
-        Array.isArray(contact.phone_numbers) &&
-        contact.phone_numbers.some((phone) => phone.phone_number.trim() !== "");
-      return !hasName || (!hasEmail && !hasPhone);
-    });
+    return contactListValueMissing(value);
   }
   if (field.type === "weekday_schedule") {
     const schedule = asScheduleObject(value);
     return !Object.values(schedule).some((time) => time.trim() !== "");
   }
   return typeof value !== "string" || value.trim() === "";
+}
+
+function phoneListValueMissing(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0) return true;
+  return value.some((row) => {
+    if (!row || typeof row !== "object") return true;
+    const phoneNumber = (row as Partial<PhoneEntry>).phone_number;
+    return typeof phoneNumber !== "string" || phoneNumber.trim() === "";
+  });
+}
+
+function contactListValueMissing(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0) return true;
+  return value.some((row) => {
+    if (!row || typeof row !== "object") return true;
+    const contact = row as ContactEntryValue;
+    const hasName =
+      typeof contact.first_name === "string" &&
+      contact.first_name.trim() !== "" &&
+      typeof contact.last_name === "string" &&
+      contact.last_name.trim() !== "";
+    const hasEmail = (contact.email ?? "").trim() !== "";
+    const hasPhone =
+      Array.isArray(contact.phone_numbers) &&
+      contact.phone_numbers.some((phone) => phone.phone_number.trim() !== "");
+    return !hasName || (!hasEmail && !hasPhone);
+  });
 }
 
 function requiredMessageForField(

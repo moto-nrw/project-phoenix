@@ -537,20 +537,30 @@ func validateSubmissionAgainstSchema(req SubmitRequest, schema *enrollmentModels
 		}
 	}
 	for _, field := range schema.Fields {
-		if !field.Required {
-			continue
+		if err := validateRequiredCustomField(field, req); err != nil {
+			return err
 		}
-		if field.AppliesToCh {
-			for i, child := range req.Children {
-				if !customValueSatisfiesRequired(field, child.CustomData[field.Key]) {
-					return fmt.Errorf("%w: child %d field %s is required", ErrInvalidSubmission, i, field.Key)
-				}
+	}
+	return nil
+}
+
+// validateRequiredCustomField enforces a single schema field's required
+// constraint against the submission. Per-child fields are checked for every
+// child; request-level fields once. No-op for optional fields.
+func validateRequiredCustomField(field enrollmentModels.FormField, req SubmitRequest) error {
+	if !field.Required {
+		return nil
+	}
+	if field.AppliesToCh {
+		for i, child := range req.Children {
+			if !customValueSatisfiesRequired(field, child.CustomData[field.Key]) {
+				return fmt.Errorf("%w: child %d field %s is required", ErrInvalidSubmission, i, field.Key)
 			}
-			continue
 		}
-		if !customValueSatisfiesRequired(field, req.CustomData[field.Key]) {
-			return fmt.Errorf("%w: field %s is required", ErrInvalidSubmission, field.Key)
-		}
+		return nil
+	}
+	if !customValueSatisfiesRequired(field, req.CustomData[field.Key]) {
+		return fmt.Errorf("%w: field %s is required", ErrInvalidSubmission, field.Key)
 	}
 	return nil
 }
@@ -561,42 +571,52 @@ func customValueSatisfiesRequired(field enrollmentModels.FormField, value any) b
 		_, ok := value.(bool)
 		return ok
 	case enrollmentModels.FormFieldPhoneList:
-		var entries []enrollmentModels.PhoneEntry
-		if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
-			return false
-		}
-		for i := range entries {
-			if err := entries[i].Validate(); err != nil {
-				return false
-			}
-		}
-		return true
+		return phoneListSatisfiesRequired(value)
 	case enrollmentModels.FormFieldContactList:
-		var entries []enrollmentModels.ContactEntry
-		if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
-			return false
-		}
-		for i := range entries {
-			if err := entries[i].Validate(); err != nil {
-				return false
-			}
-		}
-		return true
+		return contactListSatisfiesRequired(value)
 	case enrollmentModels.FormFieldWeekdaySchedule:
 		return scheduleHasAnyTime(value)
 	case enrollmentModels.FormFieldNumber:
-		switch v := value.(type) {
-		case float64:
-			return true
-		case int:
-			return true
-		case string:
-			return strings.TrimSpace(v) != ""
-		default:
-			return false
-		}
+		return numberValueSatisfiesRequired(value)
 	default:
 		return stringValue(value) != ""
+	}
+}
+
+func phoneListSatisfiesRequired(value any) bool {
+	var entries []enrollmentModels.PhoneEntry
+	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
+		return false
+	}
+	for i := range entries {
+		if err := entries[i].Validate(); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func contactListSatisfiesRequired(value any) bool {
+	var entries []enrollmentModels.ContactEntry
+	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
+		return false
+	}
+	for i := range entries {
+		if err := entries[i].Validate(); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func numberValueSatisfiesRequired(value any) bool {
+	switch v := value.(type) {
+	case float64, int:
+		return true
+	case string:
+		return strings.TrimSpace(v) != ""
+	default:
+		return false
 	}
 }
 

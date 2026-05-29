@@ -58,9 +58,9 @@ export async function POST(request: NextRequest) {
         // Forward core_requirements so per-template required-state for
         // built-in fields (e.g. guardian_phone) is persisted. Omitting it
         // here silently dropped the admin toggle.
-        ...(body.core_requirements !== undefined
-          ? { core_requirements: body.core_requirements }
-          : {}),
+        ...(body.core_requirements === undefined
+          ? {}
+          : { core_requirements: body.core_requirements }),
       }),
     });
     const payload = await response.json().catch(() => ({}));

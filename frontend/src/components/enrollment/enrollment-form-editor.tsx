@@ -2554,7 +2554,7 @@ function coreRequirementsSignature(value: CoreRequirements): string {
   const enabled = Object.entries(value)
     .filter(([, required]) => required)
     .map(([key]) => key)
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
   return JSON.stringify(Object.fromEntries(enabled.map((key) => [key, true])));
 }
 

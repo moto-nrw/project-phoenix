@@ -86,9 +86,9 @@ export async function PUT(
         // makes the admin's guardian-phone-required toggle stick.
         body: JSON.stringify({
           fields: body.fields ?? [],
-          ...(body.core_requirements !== undefined
-            ? { core_requirements: body.core_requirements }
-            : {}),
+          ...(body.core_requirements === undefined
+            ? {}
+            : { core_requirements: body.core_requirements }),
         }),
       },
     );
