@@ -258,6 +258,16 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
 
+	// Advance any phase still bound to a prior version of this schema name
+	// onto the freshly published version, so admin edits (new required
+	// fields, core requirements, ...) reach the public form without a
+	// manual re-bind. A brand-new name has no prior versions, so this is a
+	// no-op for CreateSchema. Failing here rolls back the publish rather
+	// than silently leaving the edit invisible.
+	if err := s.repointPhasesToVersion(ctx, schema); err != nil {
+		return nil, err
+	}
+
 	s.logger.Info("form schema published",
 		slog.String("name", schema.Name),
 		slog.Int("version", schema.Version),
@@ -266,6 +276,39 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 		slog.Int("field_count", len(fields)))
 
 	return schema, nil
+}
+
+// repointPhasesToVersion moves every phase bound to an older version of
+// newSchema's name onto newSchema.ID. No-op when the phase repo isn't
+// wired (some unit setups) or when no sibling versions exist.
+func (s *formSchemaService) repointPhasesToVersion(ctx context.Context, newSchema *enrollmentModels.FormSchema) error {
+	if s.phaseRepo == nil {
+		return nil
+	}
+	versions, err := s.repo.ListByTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("list schema versions for repoint: %w", err)
+	}
+	oldIDs := make([]int64, 0, len(versions))
+	for _, v := range versions {
+		if v.Name == newSchema.Name && v.ID != newSchema.ID {
+			oldIDs = append(oldIDs, v.ID)
+		}
+	}
+	if len(oldIDs) == 0 {
+		return nil
+	}
+	updated, err := s.phaseRepo.RepointFormSchema(ctx, oldIDs, newSchema.ID)
+	if err != nil {
+		return fmt.Errorf("repoint phases to schema %d: %w", newSchema.ID, err)
+	}
+	if updated > 0 {
+		s.logger.Info("repointed phases to new schema version",
+			slog.String("name", newSchema.Name),
+			slog.Int64("new_schema_id", newSchema.ID),
+			slog.Int64("phases_updated", updated))
+	}
+	return nil
 }
 
 func firstCoreRequirements(values []enrollmentModels.CoreRequirements) enrollmentModels.CoreRequirements {

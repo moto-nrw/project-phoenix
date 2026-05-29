@@ -174,6 +174,31 @@ func (r *PhaseRepository) ExistsByFormSchemaID(ctx context.Context, schemaID int
 	return count > 0, nil
 }
 
+// RepointFormSchema advances every phase currently bound to one of
+// fromIDs so it points at toID instead. Used when a schema is edited:
+// publishing a new version mints a new schema id, and live phases must
+// follow it so the admin's change reaches the public form without a
+// manual re-bind. Already-submitted requests keep their own pinned
+// schema_id (copied at submit time), so history is unaffected. Returns
+// the number of phases updated. Tenant-scoped via the request's RLS tx.
+func (r *PhaseRepository) RepointFormSchema(ctx context.Context, fromIDs []int64, toID int64) (int64, error) {
+	if len(fromIDs) == 0 {
+		return 0, nil
+	}
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.Phase)(nil)).
+		ModelTableExpr(phaseTableExpr).
+		Set("form_schema_id = ?", toID).
+		Set("updated_at = NOW()").
+		Where(`"phase".form_schema_id IN (?)`, bun.In(fromIDs)).
+		Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to repoint phases to schema %d: %w", toID, err)
+	}
+	rows, _ := res.RowsAffected()
+	return rows, nil
+}
+
 // ExistsByRolloverSourcePhaseID is the rollover-uniqueness check.
 // Returns true if any phase already references the given phase as its
 // rollover_source_phase_id — i.e., the source has been rolled forward

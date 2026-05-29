@@ -209,6 +209,12 @@ type PhaseRepository interface {
 	// phases owning the schema must be repointed first.
 	ExistsByFormSchemaID(ctx context.Context, schemaID int64) (bool, error)
 
+	// RepointFormSchema advances every phase bound to one of fromIDs to
+	// point at toID instead. Called after a schema edit publishes a new
+	// version so live phases follow the change automatically. Returns the
+	// number of phases updated.
+	RepointFormSchema(ctx context.Context, fromIDs []int64, toID int64) (int64, error)
+
 	// ExistsByRolloverSourcePhaseID reports whether any phase already
 	// names the given phase as its rollover source. Used by the
 	// rollover service to refuse creating a second follow-up from the
