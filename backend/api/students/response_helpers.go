@@ -161,6 +161,23 @@ func populatePhotoFields(response *StudentResponse, student *users.Student, phot
 	}
 }
 
+// populateEnrollmentConsents emits the AGB / Datenschutz / E-Mail
+// consent stamps regardless of the photo feature flag — these are
+// operational records (DSGVO is the data-processing baseline, not a
+// photo gate). Photo consent stays under populatePhotoFields so its
+// visibility tracks the photos feature flag.
+func populateEnrollmentConsents(response *StudentResponse, student *users.Student) {
+	if student.AGBAcceptedAt != nil {
+		response.AGBAcceptedAt = student.AGBAcceptedAt
+	}
+	if student.DataProcessingAcceptedAt != nil {
+		response.DataProcessingAcceptedAt = student.DataProcessingAcceptedAt
+	}
+	if student.EmailContactAcceptedAt != nil {
+		response.EmailContactAcceptedAt = student.EmailContactAcceptedAt
+	}
+}
+
 // populateSnapshotSensitiveFields sets sensitive fields for the snapshot version
 // Note: This differs from populateSensitiveStudentFields by including HealthInfo
 func populateSnapshotSensitiveFields(response *StudentResponse, student *users.Student) {
@@ -306,6 +323,10 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 	// out a URL the same session would 403 against in serveStudentPhoto.
 	populatePhotoFields(&response, student, opts.PhotosEnabled, hasFullAccess)
 
+	// AGB / Datenschutz / E-Mail consents flow through independently
+	// of the photo feature flag — see populateEnrollmentConsents.
+	populateEnrollmentConsents(&response, student)
+
 	return response
 }
 
@@ -344,6 +365,7 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 
 	// Photo + consent metadata — same rationale as in newStudentResponseWithOpts.
 	populatePhotoFields(&response, student, photosEnabled, hasFullAccess)
+	populateEnrollmentConsents(&response, student)
 
 	return response
 }

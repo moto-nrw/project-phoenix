@@ -60,6 +60,15 @@ var (
 	ErrTenantNotFound     = errors.New("tenant not found")
 	ErrTenantAccessDenied = errors.New("account does not have access to this tenant")
 
+	// Parent / staff portal split. Returned when an account tries to log
+	// in at the wrong portal:
+	//   - guardian-only account hitting the tenant login → ErrParentMustUseParentPortal
+	//   - account with no guardian role hitting the parents login → ErrAccountNoGuardianRole
+	// Frontend turns these into a clear redirect message ("please log in
+	// at https://parents.{TENANT_DOMAIN}/" or vice versa).
+	ErrParentMustUseParentPortal = errors.New("guardian accounts must log in at the parents portal")
+	ErrAccountNoGuardianRole     = errors.New("account is not a guardian at any school")
+
 	// Invitation errors
 	ErrInvitationNotFound            = errors.New("invitation not found")
 	ErrInvitationExpired             = errors.New("invitation has expired")

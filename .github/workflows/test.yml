@@ -82,23 +82,45 @@ jobs:
             --rerun-fails-report rerun-fails.json \
             --packages="./..." \
             -- \
+            -coverpkg=./... \
             -covermode=atomic \
             -coverprofile=coverage.out
 
-      - name: Regenerate full Go coverage after flaky retries
+      - name: Regenerate full Go coverage
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
         run: |
-          if [ ! -f rerun-fails.json ]; then
-            exit 0
-          fi
-
-          echo "Flaky tests were rerun; regenerating full coverage for SonarCloud"
-          if ! go test ./... -covermode=atomic -coverprofile=coverage.out; then
+          echo "Regenerating full coverage for SonarCloud"
+          cp coverage.out coverage.gotestsum.out
+          if ! go test ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
             echo "Coverage regeneration failed; retrying once"
-            go test ./... -covermode=atomic -coverprofile=coverage.out
+            if ! go test ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
+              echo "Coverage regeneration failed after retry; keeping gotestsum coverage.out"
+              mv coverage.gotestsum.out coverage.out
+            fi
           fi
+          rm -f coverage.gotestsum.out
+
+      - name: Add list export coverage
+        working-directory: backend
+        run: |
+          go test ./services/listexport \
+            -coverpkg=./services/listexport \
+            -covermode=atomic \
+            -coverprofile=coverage.listexport.out
+          tail -n +2 coverage.listexport.out >> coverage.out
+          rm -f coverage.listexport.out
+
+      - name: Add emergency coverage
+        working-directory: backend
+        run: |
+          go test ./services/emergency \
+            -coverpkg=./services/emergency \
+            -covermode=atomic \
+            -coverprofile=coverage.emergency.out
+          tail -n +2 coverage.emergency.out >> coverage.out
+          rm -f coverage.emergency.out
 
       - name: Drop flaky retries from junit.xml
         working-directory: backend
@@ -156,6 +178,27 @@ jobs:
           # Transform Go module paths to relative paths
           # From: github.com/moto-nrw/project-phoenix/... → backend/...
           sed -i 's|github.com/moto-nrw/project-phoenix/|backend/|g' backend/coverage.out
+          python3 - <<'PYEOF'
+          from collections import OrderedDict
+
+          source = "backend/coverage.out"
+          merged = OrderedDict()
+
+          with open(source, encoding="utf-8") as fh:
+              mode = fh.readline()
+              for raw in fh:
+                  line = raw.strip()
+                  if not line:
+                      continue
+                  location, statements, count = line.rsplit(" ", 2)
+                  key = (location, statements)
+                  merged[key] = merged.get(key, 0) + int(count)
+
+          with open(source, "w", encoding="utf-8") as fh:
+              fh.write(mode)
+              for (location, statements), count in merged.items():
+                  fh.write(f"{location} {statements} {count}\n")
+          PYEOF
 
       - name: Upload backend coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -168,7 +211,7 @@ jobs:
         if: always()
 
       - name: Publish backend test results
-        uses: mikepenz/action-junit-report@bccf2e31636835cf0874589931c4116687171386 # v6.4.0
+        uses: mikepenz/action-junit-report@3a81627bfac62268172037048872e8ebd4207e6d # v6.4.1
         if: always()
         with:
           report_paths: backend/junit.xml
@@ -250,6 +293,6 @@ jobs:
         continue-on-error: true
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432 # v8.0.0
+        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -34,11 +34,6 @@ vi.mock("~/lib/operator-url", () => ({
   isOperatorSubdomain: () => false,
 }));
 
-vi.mock("~/lib/confetti", () => ({
-  launchConfetti: vi.fn(),
-  clearConfetti: vi.fn(),
-}));
-
 vi.mock("~/components/ui", () => ({
   Input: ({
     value,
@@ -79,17 +74,17 @@ describe("OperatorLoginPage", () => {
   it("renders login form", () => {
     render(<OperatorLoginPage />);
 
-    expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
+    expect(screen.getByText("Operator Console")).toBeInTheDocument();
+    expect(screen.getByText("Interner Plattformzugang")).toBeInTheDocument();
     expect(screen.getByText("Operator Dashboard")).toBeInTheDocument();
     expect(screen.getByLabelText("E-Mail-Adresse")).toBeInTheDocument();
     expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
   });
 
-  it("renders logo", () => {
+  it("does not render the MOTO logo", () => {
     render(<OperatorLoginPage />);
 
-    const logo = screen.getByAltText("MOTO Logo");
-    expect(logo).toBeInTheDocument();
+    expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
   });
 
   it("submits form with email and password", async () => {
@@ -290,7 +285,7 @@ describe("OperatorLoginPage", () => {
     render(<OperatorLoginPage />);
 
     expect(mockPush).not.toHaveBeenCalled();
-    expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
+    expect(screen.getByText("Operator Console")).toBeInTheDocument();
   });
 
   it("toggles password visibility", () => {

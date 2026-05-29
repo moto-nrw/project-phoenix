@@ -92,6 +92,34 @@ const SIZE_MAP = {
 
 const DEFAULT_SIZE = "md";
 
+function renderOverlayBadge({
+  overlayLabel,
+  overlayColor,
+  dataAttr,
+  sizeConfig,
+}: {
+  overlayLabel: string;
+  overlayColor: string;
+  dataAttr: string;
+  sizeConfig: (typeof SIZE_MAP)[keyof typeof SIZE_MAP];
+}) {
+  return (
+    <span
+      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
+      style={{
+        backgroundColor: overlayColor,
+        boxShadow: getLocationGlowEffect(overlayColor),
+      }}
+      {...{ [dataAttr]: "true" }}
+    >
+      <span
+        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+      />
+      {overlayLabel}
+    </span>
+  );
+}
+
 // Sick/excused status takes visual precedence over absence (a sick student
 // at home reads as "Krank", not "Abwesend") — matches LocationBadge behaviour.
 function resolveBadgeStyle(
@@ -156,7 +184,7 @@ export function PresenceBadge({
 
   const dataStatus = parseLocation(student.current_location).status;
 
-  const Pill = () =>
+  const pill =
     variant === "simple" ? (
       <span
         className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
@@ -180,52 +208,28 @@ export function PresenceBadge({
       </span>
     );
 
-  const Overlay = ({
-    overlayLabel,
-    overlayColor,
-    dataAttr,
-  }: {
-    overlayLabel: string;
-    overlayColor: string;
-    dataAttr: string;
-  }) => (
-    <span
-      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-      style={{
-        backgroundColor: overlayColor,
-        boxShadow: getLocationGlowEffect(overlayColor),
-      }}
-      {...{ [dataAttr]: "true" }}
-    >
-      <span
-        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
-      />
-      {overlayLabel}
-    </span>
-  );
-
   return (
     <div className="flex flex-col items-center">
-      <Pill />
+      {pill}
       {showSinceTime && (
         <span className="mt-0.5 text-[10px] text-gray-500">
           seit {formattedTime} Uhr
         </span>
       )}
-      {showSickOverlay && (
-        <Overlay
-          overlayLabel={LOCATION_STATUSES.SICK}
-          overlayColor={LOCATION_COLORS.SICK}
-          dataAttr="data-sick-indicator"
-        />
-      )}
-      {showExcusedOverlay && (
-        <Overlay
-          overlayLabel={LOCATION_STATUSES.EXCUSED}
-          overlayColor={LOCATION_COLORS.EXCUSED}
-          dataAttr="data-excused-indicator"
-        />
-      )}
+      {showSickOverlay &&
+        renderOverlayBadge({
+          overlayLabel: LOCATION_STATUSES.SICK,
+          overlayColor: LOCATION_COLORS.SICK,
+          dataAttr: "data-sick-indicator",
+          sizeConfig,
+        })}
+      {showExcusedOverlay &&
+        renderOverlayBadge({
+          overlayLabel: LOCATION_STATUSES.EXCUSED,
+          overlayColor: LOCATION_COLORS.EXCUSED,
+          dataAttr: "data-excused-indicator",
+          sizeConfig,
+        })}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
@@ -18,6 +18,7 @@ export function useOrgSchoolFilter(routePath: string): {
   readonly organizations: Organization[] | undefined;
   readonly schools: School[] | undefined;
   readonly activeOrganizations: Organization[];
+  readonly activeSchools: School[];
   readonly filterOrgId: string;
   readonly urlSchoolId: string;
   readonly selectedSchool: School | null;
@@ -58,16 +59,20 @@ export function useOrgSchoolFilter(routePath: string): {
     [organizations],
   );
 
+  const activeSchools = useMemo(
+    () => schools?.filter((s) => s.deletedAt == null) ?? [],
+    [schools],
+  );
+
   const selectedSchool = useMemo<School | null>(() => {
     if (!urlSchoolId) return null;
-    return schools?.find((s) => s.id === urlSchoolId) ?? null;
-  }, [urlSchoolId, schools]);
+    return activeSchools.find((s) => s.id === urlSchoolId) ?? null;
+  }, [urlSchoolId, activeSchools]);
 
   const filteredSchools = useMemo(() => {
-    if (!schools) return [];
-    if (!filterOrgId) return schools;
-    return schools.filter((s) => s.organizationId === filterOrgId);
-  }, [schools, filterOrgId]);
+    if (!filterOrgId) return activeSchools;
+    return activeSchools.filter((s) => s.organizationId === filterOrgId);
+  }, [activeSchools, filterOrgId]);
 
   const updateQuery = useCallback(
     (next: { orgId?: string; schoolId?: string }) => {
@@ -85,6 +90,18 @@ export function useOrgSchoolFilter(routePath: string): {
     },
     [router, searchParams, routePath],
   );
+
+  // Self-heal stale deep links: if the URL points at a school that no longer
+  // exists or has been soft-deleted, drop the schoolId param once schools
+  // have loaded. Couples to `schools` (not `activeSchools`) so we don't fire
+  // during the SWR loading window when both are still undefined/empty.
+  useEffect(() => {
+    if (!urlSchoolId || schools === undefined) return;
+    const stillActive = activeSchools.some((s) => s.id === urlSchoolId);
+    if (!stillActive) {
+      updateQuery({ schoolId: "" });
+    }
+  }, [urlSchoolId, schools, activeSchools, updateQuery]);
 
   const handleOrgFilterChange = useCallback(
     (orgId: string) => {
@@ -109,6 +126,7 @@ export function useOrgSchoolFilter(routePath: string): {
     organizations,
     schools,
     activeOrganizations,
+    activeSchools,
     filterOrgId,
     urlSchoolId,
     selectedSchool,

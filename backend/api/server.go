@@ -83,6 +83,25 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.repos != nil && api.Services.RealtimeHub != nil {
 			srv.scheduler.SetInstanceOverdueDeps(api.repos.ActivityInstance, api.Services.RealtimeHub)
 		}
+		// Parent-enrollment PR 2: activate-students tick.
+		if api.repos != nil && api.repos.Student != nil {
+			srv.scheduler.SetStudentLifecycleRepo(api.repos.Student)
+		}
+		// Parent-enrollment PR 5: platform email outbox worker.
+		if api.Services.EmailOutboxWorker != nil {
+			srv.scheduler.SetOutboxWorker(api.Services.EmailOutboxWorker)
+		}
+		// Phase rollover slice 1: per-tenant deadline resolver tick.
+		// The adapter narrows the typed return value behind `any` so
+		// the scheduler doesn't import the enrollment package.
+		if api.Services.EnrollmentRollover != nil {
+			rolloverSvc := api.Services.EnrollmentRollover
+			srv.scheduler.SetRolloverDeadlineRunner(scheduler.NewRolloverDeadlineRunner(
+				func(ctx context.Context, asOf time.Time) (any, error) {
+					return rolloverSvc.RunDeadlineWorker(ctx, asOf)
+				},
+			))
+		}
 	}
 
 	return srv, nil

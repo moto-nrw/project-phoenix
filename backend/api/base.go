@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
 	slogchi "github.com/samber/slog-chi"
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
@@ -22,6 +25,8 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
+	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
@@ -40,8 +45,10 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
+	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 
+	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
@@ -66,6 +73,7 @@ type API struct {
 	Staff            *staffAPI.Resource
 	Feedback         *feedbackAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
+	Enrollment       *enrollmentAPI.Resource
 	Schedules        *schedulesAPI.Resource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
@@ -78,9 +86,11 @@ type API struct {
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingAPI.Resource
 	Timetable        *timetableAPI.Resource
+	Emergency        *emergencyAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
+	Parent   *parentAPI.Resource
 	Platform *platformAPI.Resource
 }
 
@@ -135,7 +145,8 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 // setupBasicMiddleware configures basic router middleware
 func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
+	router.Use(middleware.ClientIPFromXFF())
+	router.Use(syncClientIPToRemoteAddr)
 	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
@@ -153,6 +164,15 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	sentryMiddleware := sentryhttp.New(sentryhttp.Options{Repanic: true})
 	router.Use(sentryMiddleware.Handle)
 	router.Use(customMiddleware.SecurityHeaders)
+}
+
+func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ip := middleware.GetClientIP(r.Context()); ip != "" {
+			r.RemoteAddr = ip
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // setupCORS configures CORS middleware with allowed origins from environment.
@@ -246,10 +266,41 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	generalBurst := parsePositiveInt("RATE_LIMIT_BURST", 10)
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+	if tokenAuth, err := projectJWT.NewTokenAuth(); err == nil {
+		generalRateLimiter.SetKeyFunc(tokenAwareRateLimitKey(tokenAuth))
+	}
 	if securityLogger != nil {
 		generalRateLimiter.SetLogger(securityLogger)
 	}
 	router.Use(generalRateLimiter.Middleware())
+}
+
+func tokenAwareRateLimitKey(tokenAuth *projectJWT.TokenAuth) func(*http.Request) string {
+	return func(r *http.Request) string {
+		tokenString := extractBearerToken(r.Header.Get("Authorization"))
+		if tokenString == "" || tokenAuth == nil || tokenAuth.JwtAuth == nil {
+			return ""
+		}
+
+		token, err := tokenAuth.JwtAuth.Decode(tokenString)
+		if err != nil {
+			return ""
+		}
+		if err := jwxjwt.Validate(token); err != nil {
+			return ""
+		}
+
+		sum := sha256.Sum256([]byte(tokenString))
+		return "token:" + hex.EncodeToString(sum[:])
+	}
+}
+
+func extractBearerToken(authHeader string) string {
+	const bearerPrefix = "Bearer "
+	if len(authHeader) <= len(bearerPrefix) || !strings.HasPrefix(authHeader, bearerPrefix) {
+		return ""
+	}
+	return strings.TrimSpace(authHeader[len(bearerPrefix):])
 }
 
 // parsePositiveInt parses a positive integer from environment variable with a default value
@@ -271,6 +322,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
+	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
 	api.Rooms = roomsAPI.NewResource(roomsAPI.ResourceConfig{
 		FacilityService:    api.Services.Facilities,
 		SettingsService:    api.Services.Settings,
@@ -278,6 +330,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:             logger.With("handler", "rooms"),
 		DB:                 db,
 	})
+	api.Rooms.ActiveService = api.Services.Active
+	api.Rooms.PersonService = api.Services.Users
+	api.Rooms.EducationService = api.Services.Education
+	api.Rooms.StudentRepo = repoFactory.Student
+	api.Rooms.ListExportService = api.Services.ListExport
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
 		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker")),
 		StudentRepo: repoFactory.Student,
@@ -294,6 +351,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
 		PickupScheduleService:  api.Services.PickupSchedule,
 		ArrivalScheduleService: api.Services.ArrivalSchedule,
+		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
+		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
 		SchoolRepo:             repoFactory.School,
 		SettingsService:        api.Services.Settings,
 		AttendanceRepo:         repoFactory.Attendance,
@@ -302,6 +361,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
 		Broadcaster:            api.Services.RealtimeHub,
 		StudentPhotos:          api.Services.StudentPhotos,
+		ListExportService:      api.Services.ListExport,
 		Logger:                 logger.With("handler", "students"),
 		DB:                     db,
 	})
@@ -311,6 +371,20 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, db, logger.With("handler", "staff"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
+	api.Enrollment = enrollmentAPI.NewResource(
+		api.Services.EnrollmentFormSchema,
+		api.Services.EnrollmentCareOffering,
+		api.Services.EnrollmentRequest,
+		api.Services.EnrollmentCaptcha,
+		api.Services.EnrollmentPhase,
+		api.Services.EnrollmentDecision,
+		api.Services.EnrollmentRollover,
+		api.Services.GuardianInvitation,
+		api.Services.GuardianProfileLoader,
+		repoFactory.School,
+		repoFactory.Phase,
+		db,
+	)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub)
@@ -371,6 +445,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                 logger.With("handler", "timetable"),
 		DB:                     db,
 	})
+	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -390,6 +465,15 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// side effects (e.g. auto-creating the Schulhof/WC rooms when the
 	// corresponding checkout toggle flips on).
 	api.Operator.OnSettingValueSet(api.Services.SettingsSideEffects.Dispatch)
+	api.Parent = parentAPI.NewResource(
+		api.Services.Auth,
+		api.Services.Parent,
+		api.Services.EnrollmentRequest,
+		api.Services.GuardianProfileLoader,
+		repoFactory.School,
+		repoFactory.AccountTenant,
+		db,
+	)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
@@ -446,7 +530,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// Note: Avatar files are served through authenticated endpoints, not as static files
 	// This prevents unauthorized access to user avatars
 
-	// Public login image serving (no auth — displayed on the login page before authentication)
+	// Public login image serving (no auth - displayed on the login page before authentication)
 	a.Router.Get("/public/login-image/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
@@ -482,6 +566,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())
+
+		// Mount enrollment resources (parent-enrollment PR 5+)
+		r.Mount("/enrollment", a.Enrollment.Router())
 
 		// Mount suggestions resources
 		r.Mount("/suggestions", a.Suggestions.Router())
@@ -522,6 +609,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount timetable resources
 		r.Mount("/timetable", a.Timetable.Router())
 
+		// Mount emergency snapshot resources
+		r.Mount("/emergency", a.Emergency.Router())
+
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
 
@@ -543,4 +633,14 @@ func (a *API) registerRoutesWithRateLimiting() {
 		a.Operator.SetInvitationRateLimiter(invitationLimiter.Middleware())
 	}
 	a.Router.Mount("/operator", a.Operator.Router())
+
+	// Parent (cross-tenant guardian portal). Mounted at the root level
+	// like /auth and /operator. Public /parent/auth/login + protected
+	// /parent/* routes (the protected ones get added in commit 5).
+	// Reuse the shared authRateLimiter so guardian login gets the same
+	// brute-force protection as tenant and operator login.
+	if rateLimitEnabled && authRateLimiter != nil {
+		a.Parent.SetAuthRateLimiter(authRateLimiter.Middleware())
+	}
+	a.Router.Mount("/parent", a.Parent.Router())
 }

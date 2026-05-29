@@ -138,6 +138,14 @@ const NAV_ITEMS: NavItem[] = [
     comingSoon: true,
   },
   {
+    href: "/emergency",
+    label: "Notfall",
+    icon: navigationIcons.emergency,
+    activeColor: "text-[#FF3130]",
+    alwaysShow: true,
+    bottomPinned: true,
+  },
+  {
     href: "/suggestions",
     label: "Feedback",
     icon: "M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46",
@@ -167,7 +175,7 @@ interface OperatorNavSection {
   readonly items: readonly NavItem[];
 }
 
-// Operator navigation — grouped into static labeled sections. Icons sourced
+// Operator navigation, grouped into static labeled sections. Icons sourced
 // from ~/lib/navigation-icons so the desktop sidebar and the mobile bottom
 // nav/overflow drawer stay visually consistent per page.
 const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
@@ -265,6 +273,35 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/permissions", label: "Berechtigungen" },
 ];
 
+// Static sub-pages for Anmeldungen accordion (admin only).
+const ENROLLMENTS_SUB_PAGES = [
+  { href: "/admin/enrollments", label: "Überblick" },
+  { href: "/enrollment-phases", label: "Anmeldephasen" },
+  { href: "/care-offerings", label: "Betreuungsangebote" },
+  { href: "/enrollment-form", label: "Anmeldeformulare" },
+];
+
+const PARENT_PREVIEW_ITEMS: readonly NavItem[] = [
+  {
+    href: "#",
+    label: "Kalender",
+    icon: navigationIcons.calendar,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Nachrichten",
+    icon: navigationIcons.chat,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Kontaktdaten",
+    icon: navigationIcons.profile,
+    comingSoon: true,
+  },
+];
+
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
   childGroupId: string | null,
@@ -330,7 +367,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
 
-  // Accordion state — pass `from` param so child pages (e.g. student detail)
+  // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
   const fromParam = searchParams.get("from");
   const { expanded, toggle } = useSidebarAccordion(pathname, fromParam);
@@ -385,7 +422,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!from) return "/students/search";
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
-    // Drill-in from a room ("Kinder im Raum") — both the legacy subpage
+    // Drill-in from a room ("Kinder im Raum"), both the legacy subpage
     // /rooms/{id} and the modal URL /rooms?room={id} count, so the
     // sidebar reflects the actual entry path in either flow.
     if (from.startsWith("/rooms/") || from.startsWith("/rooms?"))
@@ -398,8 +435,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // The sidebar reflects WHERE in the tree the user is, not which tab they
   // happen to have open. Tabs scope a view; they don't change the section.
   //
-  // - Anywhere under /organizations or /organizations/{slug}      → Träger
-  // - Anywhere under /organizations/{slug}/schools/{schoolSlug}   → Schulen
+  // - Anywhere under /organizations or /organizations/{slug}: Träger
+  // - Anywhere under /organizations/{slug}/schools/{schoolSlug}: Schulen
   //
   // Pathname may include or omit the /operator prefix depending on host
   // (operator subdomain strips it via operatorPath; tenant subdomains keep
@@ -431,6 +468,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
       return href === operatorDrillInHref;
     }
     if (href === "/dashboard") return pathname === "/dashboard";
+    if (href === "/parents") return pathname === "/parents" || pathname === "/";
     return pathname.startsWith(href);
   };
 
@@ -535,7 +573,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
   );
 
   // Determine which flat items come before / after the accordion insertion points
-  // Order: Home (admin) → [Groups accordion] → [Supervisions accordion] → Kindersuche → Aktivitaten → Raume → Mitarbeiter → Vertretungen (admin) → [Database accordion] → coming soon → bottom pinned
+  // Order: Home, groups, supervisions, search, activities, rooms, staff,
+  // substitutions, database, coming soon, bottom pinned.
   const beforeAccordionItems = mainNavItems.filter(
     (item) =>
       item.href === "/dashboard" ||
@@ -649,15 +688,36 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const handleDatabaseToggle = useCallback(() => {
     if (!pathname.startsWith("/database")) {
-      // Not on any database page → expand accordion + navigate to hub
+      // Not on any database page, expand accordion and navigate to hub
       toggle("database");
       router.push("/database");
     } else if (pathname === "/database") {
-      // On hub page → just toggle (collapse/expand)
+      // On hub page, just toggle collapse or expand
       toggle("database");
     } else {
-      // On a sub-page like /database/rooms → navigate back to hub (accordion stays open)
+      // On a sub-page like /database/rooms, navigate back to hub
       router.push("/database");
+    }
+  }, [toggle, pathname, router]);
+
+  const isOnEnrollmentsPage = ENROLLMENTS_SUB_PAGES.some((p) =>
+    pathname.startsWith(p.href),
+  );
+
+  const handleEnrollmentsToggle = useCallback(() => {
+    // Hub = the request review queue. Mirrors handleDatabaseToggle's
+    // navigate-on-expand behavior so clicking the section label always
+    // ends up on a useful page rather than just toggling chevrons.
+    const onSection = ENROLLMENTS_SUB_PAGES.some((p) =>
+      pathname.startsWith(p.href),
+    );
+    if (!onSection) {
+      toggle("enrollments");
+      router.push("/admin/enrollments");
+    } else if (pathname === "/admin/enrollments") {
+      toggle("enrollments");
+    } else {
+      router.push("/admin/enrollments");
     }
   }, [toggle, pathname, router]);
 
@@ -727,7 +787,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
     return (
       <aside
-        className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
       >
         <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
           <nav className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
@@ -754,12 +814,95 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   }
 
+  if (mode === "parent") {
+    return (
+      <aside
+        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
+      >
+        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+          <nav className="flex-1 p-3 lg:p-4 xl:p-3">
+            <Link href="/parents" className={getLinkClasses("/parents")}>
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                />
+              </svg>
+              <span>Start</span>
+            </Link>
+            <Link
+              href="/parents/children"
+              className={getLinkClasses("/parents/children")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.group}
+                />
+              </svg>
+              <span>Meine Kinder</span>
+            </Link>
+            <div className="mt-5">
+              <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
+                Bald im Elternportal
+              </p>
+              <div className="space-y-1">
+                {PARENT_PREVIEW_ITEMS.map((item) => (
+                  <div
+                    key={item.label}
+                    className={getLinkClasses(item.href, true)}
+                    aria-disabled="true"
+                  >
+                    <svg
+                      className="mr-3 h-5 w-5 shrink-0 text-gray-300"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d={item.icon}
+                      />
+                    </svg>
+                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                      <span className="truncate">{item.label}</span>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                        Bald
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </nav>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside
-      className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+      className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
     >
       <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-        {/* Main navigation — scrollable */}
+        {/* Main navigation, scrollable */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
           {/* Home (admin only) */}
           {beforeAccordionItems
@@ -899,6 +1042,30 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
+          {/* Anmeldungen accordion (admin only). Bundles the setup hub,
+              enrollment periods, offers and enrollment forms for admins. */}
+          {userIsAdmin && (
+            <SidebarAccordionSection
+              icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              label="Anmeldungen"
+              activeColor="text-[#83CD2D]"
+              isExpanded={expanded === "enrollments"}
+              onToggle={handleEnrollmentsToggle}
+              isActive={isOnEnrollmentsPage}
+              isIconActive={isOnEnrollmentsPage}
+              hasChildren={ENROLLMENTS_SUB_PAGES.length > 0}
+            >
+              {ENROLLMENTS_SUB_PAGES.map((page) => (
+                <SidebarSubItem
+                  key={page.href}
+                  href={page.href}
+                  label={page.label}
+                  isActive={pathname.startsWith(page.href)}
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
+
           {/* Coming soon items */}
           {comingSoonItems.map(renderNavItem)}
         </nav>
@@ -919,7 +1086,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
     <Suspense
       fallback={
         <aside
-          className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+          className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
         >
           <div className="sticky top-[73px] p-3">
             <nav className="space-y-0.5">

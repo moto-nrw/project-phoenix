@@ -40,7 +40,7 @@ import { StudentsInRoomSection } from "./students-in-room-section";
 
 const logger = createLogger({ component: "RoomDetailContent" });
 const DETAIL_CARD_CLASS =
-  "rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6";
+  "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
 
 interface Room {
   id: string;
@@ -614,7 +614,7 @@ function SkeletonStudentRow({ withAvatar }: { withAvatar: boolean }) {
   // slot (sm = 32px) so the populated row's content origin lines up
   // with the skeleton , avoids a horizontal jump when data arrives.
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+    <div className="moto-content-surface flex items-center gap-3 rounded-xl border px-4 py-3">
       {withAvatar ? (
         <div className="h-8 w-8 flex-shrink-0 animate-pulse rounded-full bg-gray-200" />
       ) : null}

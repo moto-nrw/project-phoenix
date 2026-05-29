@@ -14,6 +14,7 @@ const (
 	FieldBoolean  FieldType = "boolean"
 	FieldNumber   FieldType = "number"
 	FieldTime     FieldType = "time"
+	FieldDate     FieldType = "date"
 	FieldText     FieldType = "text"
 	FieldPassword FieldType = "password"
 	FieldSelect   FieldType = "select"
@@ -21,7 +22,7 @@ const (
 
 // validFieldTypes contains all known field types for validation.
 var validFieldTypes = map[FieldType]bool{
-	FieldBoolean: true, FieldNumber: true, FieldTime: true,
+	FieldBoolean: true, FieldNumber: true, FieldTime: true, FieldDate: true,
 	FieldText: true, FieldPassword: true, FieldSelect: true,
 }
 
@@ -110,6 +111,7 @@ type SelectOption struct {
 var TabOrder = []string{
 	"operations",
 	"devices",
+	"enrollment",
 	"gdpr",
 	"system",
 	"general",

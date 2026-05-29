@@ -7,9 +7,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
+	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
+	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	suggestionsRepo "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
@@ -21,9 +23,11 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
@@ -141,6 +145,21 @@ type Factory struct {
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
+	EmailOutbox              platformModels.EmailOutboxRepository
+
+	// Enrollment domain (parent-enrollment PR 5+)
+	FormSchema           enrollmentModels.FormSchemaRepository
+	Request              enrollmentModels.RequestRepository
+	RequestChild         enrollmentModels.RequestChildRepository
+	CareOffering         enrollmentModels.CareOfferingRepository
+	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
+	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
+	Phase                enrollmentModels.PhaseRepository
+
+	// Parent domain (cross-tenant guardian portal — PR 9+)
+	ParentChild             parentModels.ChildRepository
+	ParentEnrollablePhase   parentModels.EnrollablePhaseRepository
+	ParentEnrollmentRequest parentModels.EnrollmentRequestRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -253,5 +272,20 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
+		EmailOutbox:              platformRepo.NewEmailOutboxRepository(db),
+
+		// Enrollment repositories
+		FormSchema:           enrollment.NewFormSchemaRepository(db),
+		Request:              enrollment.NewRequestRepository(db),
+		RequestChild:         enrollment.NewRequestChildRepository(db),
+		CareOffering:         enrollment.NewCareOfferingRepository(db),
+		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
+		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
+		Phase:                enrollment.NewPhaseRepository(db),
+
+		// Parent (cross-tenant guardian portal — PR 9+)
+		ParentChild:             parentRepo.NewChildRepository(db),
+		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(db),
+		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(db),
 	}
 }

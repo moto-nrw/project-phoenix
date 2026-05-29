@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -229,6 +232,25 @@ func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
 	assert.Same(t, serviceFactory.CaregiverCapability, api.Auth.CaregiverCapabilityService)
 }
 
+func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
+	router := chi.NewRouter()
+	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(syncClientIPToRemoteAddr)
+	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "203.0.113.10", r.RemoteAddr)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-For", "203.0.113.10")
+	req.RemoteAddr = "172.18.0.4:54321"
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNoContent, rr.Code)
+}
+
 func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {
 	db, serviceFactory := testutil.SetupAPITest(t)
 	defer func() { _ = db.Close() }()
@@ -260,6 +282,90 @@ func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testin
 	api.Router.ServeHTTP(rr, req)
 
 	assert.NotEqual(t, http.StatusNotFound, rr.Code)
+}
+
+func TestTokenAwareRateLimitKey_ValidTokenUsesHashedToken(t *testing.T) {
+	viper.Set("auth_jwt_expiry", 15*time.Minute)
+	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+
+	tokenAuth, err := jwt.NewTokenAuthWithSecret("rate-limit-test-secret-32-chars!!")
+	require.NoError(t, err)
+
+	token, err := tokenAuth.CreateJWT(jwt.AppClaims{
+		ID:          42,
+		Sub:         "user@example.com",
+		Roles:       []string{"user"},
+		Permissions: []string{"read"},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/students", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	sum := sha256.Sum256([]byte(token))
+	expected := "token:" + hex.EncodeToString(sum[:])
+
+	assert.Equal(t, expected, tokenAwareRateLimitKey(tokenAuth)(req))
+	assert.NotContains(t, tokenAwareRateLimitKey(tokenAuth)(req), token)
+}
+
+func TestTokenAwareRateLimitKey_InvalidTokenFallsBack(t *testing.T) {
+	tokenAuth, err := jwt.NewTokenAuthWithSecret("rate-limit-test-secret-32-chars!!")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/students", nil)
+	req.Header.Set("Authorization", "Bearer not-a-real-token")
+
+	assert.Empty(t, tokenAwareRateLimitKey(tokenAuth)(req))
+}
+
+func TestTokenAwareRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
+	tokenAuth, err := jwt.NewTokenAuthWithSecret("rate-limit-test-secret-32-chars!!")
+	require.NoError(t, err)
+
+	_, token, err := tokenAuth.JwtAuth.Encode(map[string]any{
+		"exp": time.Now().Add(-1 * time.Hour).Unix(),
+		"iat": time.Now().Add(-2 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/students", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	assert.Empty(t, tokenAwareRateLimitKey(tokenAuth)(req))
+}
+
+func TestTokenAwareRateLimitKey_DifferentValidTokensHaveDifferentKeys(t *testing.T) {
+	viper.Set("auth_jwt_expiry", 15*time.Minute)
+	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+
+	tokenAuth, err := jwt.NewTokenAuthWithSecret("rate-limit-test-secret-32-chars!!")
+	require.NoError(t, err)
+
+	tokenA, err := tokenAuth.CreateJWT(jwt.AppClaims{
+		ID:          42,
+		Sub:         "user-a@example.com",
+		Roles:       []string{"user"},
+		Permissions: []string{"read"},
+	})
+	require.NoError(t, err)
+	tokenB, err := tokenAuth.CreateJWT(jwt.AppClaims{
+		ID:          43,
+		Sub:         "user-b@example.com",
+		Roles:       []string{"user"},
+		Permissions: []string{"read"},
+	})
+	require.NoError(t, err)
+
+	reqA := httptest.NewRequest(http.MethodGet, "/api/students", nil)
+	reqA.RemoteAddr = "192.168.1.1:12345"
+	reqA.Header.Set("Authorization", "Bearer "+tokenA)
+	reqB := httptest.NewRequest(http.MethodGet, "/api/students", nil)
+	reqB.RemoteAddr = "192.168.1.1:12345"
+	reqB.Header.Set("Authorization", "Bearer "+tokenB)
+
+	keyFunc := tokenAwareRateLimitKey(tokenAuth)
+	assert.NotEqual(t, keyFunc(reqA), keyFunc(reqB))
 }
 
 // TestOnValueSetCallback_WCEnabled tests that the OnValueSet callback

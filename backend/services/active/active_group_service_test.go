@@ -696,6 +696,30 @@ func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 		assert.GreaterOrEqual(t, result.ActiveActivities, 0)
 		assert.NotZero(t, result.LastUpdated)
 	})
+
+	t.Run("counts excused students", func(t *testing.T) {
+		// ARRANGE
+		before, err := service.GetDashboardAnalytics(ctx)
+		require.NoError(t, err)
+
+		student := testpkg.CreateTestStudent(t, db, "Excused", "Dashboard", "ED1")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		excused := true
+		_, err = db.NewUpdate().
+			Model(student).
+			Set("excused = ?", excused).
+			Where("id = ?", student.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		// ACT
+		after, err := service.GetDashboardAnalytics(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, before.StudentsExcused+1, after.StudentsExcused)
+	})
 }
 
 // =============================================================================

@@ -17,6 +17,7 @@ describe("dashboard-helpers", () => {
         students_on_playground: 30,
         students_in_rooms: 75,
         students_sick: 4,
+        students_excused: 3,
         active_activities: 8,
         free_rooms: 5,
         total_rooms: 20,
@@ -83,6 +84,8 @@ describe("dashboard-helpers", () => {
       expect(result.studentsInTransit).toBe(15);
       expect(result.studentsOnPlayground).toBe(30);
       expect(result.studentsInRooms).toBe(75);
+      expect(result.studentsSick).toBe(4);
+      expect(result.studentsExcused).toBe(3);
       expect(result.activeActivities).toBe(8);
       expect(result.freeRooms).toBe(5);
       expect(result.totalRooms).toBe(20);
@@ -130,6 +133,7 @@ describe("dashboard-helpers", () => {
         students_on_playground: 0,
         students_in_rooms: 0,
         students_sick: 0,
+        students_excused: 0,
         active_activities: 0,
         free_rooms: 0,
         total_rooms: 0,

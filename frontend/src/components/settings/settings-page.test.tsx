@@ -87,6 +87,13 @@ vi.mock("next/navigation", () => ({
     forward: vi.fn(),
     prefetch: vi.fn(),
   }),
+  // useSearchParams is consumed by deeper sub-trees (e.g. the
+  // settings tab deep-link via ?tab=…); without it, render
+  // throws "No 'useSearchParams' export is defined". Empty
+  // URLSearchParams is the right default since these tests
+  // never navigate.
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/settings",
 }));
 
 vi.mock("~/lib/settings-api", () => ({

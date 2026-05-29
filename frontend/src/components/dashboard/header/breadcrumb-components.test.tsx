@@ -10,6 +10,7 @@ import {
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   InvitationsBreadcrumb,
+  EnrollmentBreadcrumb,
   ActivityBreadcrumb,
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
@@ -155,6 +156,35 @@ describe("InvitationsBreadcrumb", () => {
 
     const teachersLink = screen.getByRole("link", { name: "Personal" });
     expect(teachersLink).toHaveAttribute("href", "/database/personal");
+  });
+});
+
+describe("EnrollmentBreadcrumb", () => {
+  it("renders enrollment parent and current page", () => {
+    render(<EnrollmentBreadcrumb current="Anmeldeformulare" />);
+
+    expect(screen.getByText("Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldeformulare")).toBeInTheDocument();
+  });
+
+  it("links back to the enrollment process page", () => {
+    render(<EnrollmentBreadcrumb current="Betreuungsangebote" />);
+
+    const link = screen.getByRole("link", { name: "Anmeldungen" });
+    expect(link).toHaveAttribute("href", "/admin/enrollments");
+  });
+
+  it("renders nested enrollment detail breadcrumbs", () => {
+    render(
+      <EnrollmentBreadcrumb
+        current="Schuljahr 2026/2027"
+        pathname="/admin/enrollments/phases/phase-1"
+      />,
+    );
+
+    expect(screen.getByText("Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("Überblick")).toBeInTheDocument();
+    expect(screen.getByText("Schuljahr 2026/2027")).toBeInTheDocument();
   });
 });
 

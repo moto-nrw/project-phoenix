@@ -182,7 +182,7 @@ export function DeletedEntityCard({
   readonly restoreDisabledReason?: string;
 }) {
   return (
-    <div className="rounded-3xl border border-red-100/50 bg-red-50/50 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+    <div className="rounded-3xl border border-red-100/50 bg-red-50/50 p-5 shadow-sm">
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-gray-900">{name}</h3>

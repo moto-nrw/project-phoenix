@@ -11,6 +11,13 @@ interface SelectOption {
   label: string;
 }
 
+const EMPTY_GROUPS: SelectOption[] = [];
+const DEFAULT_REQUIRED_FIELDS = {
+  firstName: true,
+  lastName: true,
+  schoolClass: true,
+} as const;
+
 /**
  * Personal Information Section
  */
@@ -18,8 +25,8 @@ export function PersonalInfoSection({
   formData,
   onChange,
   errors,
-  groups = [],
-  requiredFields = { firstName: true, lastName: true, schoolClass: true },
+  groups = EMPTY_GROUPS,
+  requiredFields = DEFAULT_REQUIRED_FIELDS,
 }: Readonly<{
   formData: Partial<Student>;
   onChange: (
@@ -161,7 +168,7 @@ function SelectInput({
           id={selectId}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+          className="moto-content-surface block w-full appearance-none rounded-lg border px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -215,7 +222,7 @@ function DateInput({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+        className="moto-content-surface block w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
       />
     </div>
   );
@@ -263,7 +270,7 @@ function TextareaField({
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="block w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] md:text-sm"
+        className="moto-content-surface block w-full resize-none rounded-lg border px-3 py-2 text-xs transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] md:text-sm"
         placeholder={placeholder}
         maxLength={2000}
       />
@@ -477,6 +484,91 @@ export function BusStatusSection({
 /**
  * Pickup Status Section
  */
+/**
+ * Enrollment Consents Section — read-only summary of the four
+ * consents the parent ticked at submission time. Stamped onto the
+ * student row by the decision service on approval so staff can see
+ * "is this child cleared for photos?" without joining back to
+ * enrollment.requests.
+ *
+ * Photo consent is editable elsewhere (StudentPhotoSection) when the
+ * feature flag is on; we show its current stamp here too for the
+ * overview-at-a-glance use case.
+ */
+interface EnrollmentConsentsSectionProps {
+  readonly agbAcceptedAt?: string | null;
+  readonly dataProcessingAcceptedAt?: string | null;
+  readonly emailContactAcceptedAt?: string | null;
+  readonly photoConsentGivenAt?: string | null;
+}
+
+export function EnrollmentConsentsSection({
+  agbAcceptedAt,
+  dataProcessingAcceptedAt,
+  emailContactAcceptedAt,
+  photoConsentGivenAt,
+}: EnrollmentConsentsSectionProps) {
+  const rows: Array<{ label: string; at?: string | null; mandatory: boolean }> =
+    [
+      { label: "AGB", at: agbAcceptedAt, mandatory: true },
+      {
+        label: "Datenverarbeitung (DSGVO)",
+        at: dataProcessingAcceptedAt,
+        mandatory: true,
+      },
+      { label: "E-Mail-Kontakt", at: emailContactAcceptedAt, mandatory: true },
+      {
+        label: "Fotos bei Schulveranstaltungen",
+        at: photoConsentGivenAt,
+        mandatory: false,
+      },
+    ];
+
+  // If none of the four is set this child wasn't enrolled through the
+  // public form — hide the whole section to avoid stamping "Nicht
+  // erteilt" everywhere for legacy/imported students.
+  const anyStamped = rows.some((r) => r.at);
+  if (!anyStamped) return null;
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4">
+      <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+        Einwilligungen bei Anmeldung
+      </h3>
+      <ul className="space-y-1.5 text-sm">
+        {rows.map((r) => {
+          const stamped = Boolean(r.at);
+          return (
+            <li key={r.label} className="flex items-start gap-2">
+              <span
+                className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: stamped ? "#83CD2D" : "#6B7280" }}
+                aria-hidden
+              />
+              <span className="flex-1 text-gray-700">{r.label}</span>
+              <span
+                className={
+                  stamped
+                    ? "text-xs text-gray-500"
+                    : "text-xs text-gray-500 italic"
+                }
+              >
+                {stamped
+                  ? new Date(r.at as string).toLocaleDateString("de-DE", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    })
+                  : "Nicht erteilt"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function PickupStatusSection({
   value,
   onChange,
@@ -506,7 +598,7 @@ export function PickupStatusSection({
         <select
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value || null)}
-          className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+          className="moto-content-surface block w-full appearance-none rounded-lg border px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
         >
           <option value="">Nicht gesetzt</option>
           <option value="Geht alleine nach Hause">

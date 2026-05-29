@@ -32,7 +32,7 @@ function OperatorDevicesPageContent() {
 
   const {
     isAuthenticated,
-    schools,
+    activeSchools,
     activeOrganizations,
     filterOrgId,
     selectedSchool,
@@ -271,7 +271,7 @@ function OperatorDevicesPageContent() {
       <CreateDeviceModal
         isOpen={createDeviceOpen}
         onClose={() => setCreateDeviceOpen(false)}
-        schools={schools}
+        schools={activeSchools}
         onCreated={() => {
           void refreshDevices();
         }}

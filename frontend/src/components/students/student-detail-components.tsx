@@ -5,7 +5,10 @@ import { AlertTriangle, Check, Clock } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { getStudentTimeStatus } from "~/lib/student-time-status";
+import {
+  getStudentAbsence,
+  getStudentTimeStatus,
+} from "~/lib/student-time-status";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Avatar } from "~/components/ui/avatar";
@@ -354,24 +357,51 @@ export function StudentDetailHeader({
                 <span className="truncate">{student.group_name}</span>
               </div>
             )}
-            <TodayTimeStatusInlineRow
-              kind="arrival"
-              label="Heutige Ankunft"
-              plannedTime={todayArrivalPlannedTime}
-              actualTime={todayArrivalActualTime}
-              isException={isArrivalException}
-              note={isArrivalAbsent ? undefined : todayArrivalNote}
-              isAbsent={isArrivalAbsent}
-              absentReason={todayArrivalNote}
-            />
-            <TodayTimeStatusInlineRow
-              kind="pickup"
-              label="Heutige Abholung"
-              plannedTime={todayPickupPlannedTime}
-              actualTime={todayPickupActualTime}
-              isException={isPickupException}
-              note={todayPickupNote}
-            />
+            {(() => {
+              // Variant B: a sick/excused child without a completed pickup
+              // should not accrue overdue pickup urgency, even if they already
+              // checked in before the absence flag was set. Once pickup is
+              // recorded, the actual resolved times can render normally.
+              const absence = getStudentAbsence({
+                sick: student.sick,
+                excused: student.excused,
+              });
+              if (absence && !todayPickupActualTime) {
+                return (
+                  <div
+                    data-testid="today-absence-row"
+                    className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
+                  >
+                    <ClockIcon className="h-4 w-4 text-gray-400" />
+                    <span className="font-medium text-gray-900">
+                      {`Kommt heute nicht (${absence.label})`}
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <>
+                  <TodayTimeStatusInlineRow
+                    kind="arrival"
+                    label="Heutige Ankunft"
+                    plannedTime={todayArrivalPlannedTime}
+                    actualTime={todayArrivalActualTime}
+                    isException={isArrivalException}
+                    note={isArrivalAbsent ? undefined : todayArrivalNote}
+                    isAbsent={isArrivalAbsent}
+                    absentReason={todayArrivalNote}
+                  />
+                  <TodayTimeStatusInlineRow
+                    kind="pickup"
+                    label="Heutige Abholung"
+                    plannedTime={todayPickupPlannedTime}
+                    actualTime={todayPickupActualTime}
+                    isException={isPickupException}
+                    note={todayPickupNote}
+                  />
+                </>
+              );
+            })()}
           </div>
         </div>
         <div className="mr-4 flex-shrink-0 pb-3">
@@ -515,7 +545,7 @@ export function SupervisorsCard({
   if (supervisors.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
@@ -610,7 +640,7 @@ export function PersonalInfoReadOnly({
     : "Nicht angegeben";
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">

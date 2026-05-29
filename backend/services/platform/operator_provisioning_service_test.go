@@ -343,6 +343,12 @@ func (m *mockAuthService) Login(context.Context, string, string) (string, string
 func (m *mockAuthService) LoginWithAudit(context.Context, string, string, string, string, string) (string, string, error) {
 	return "", "", nil
 }
+func (m *mockAuthService) LoginParent(context.Context, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) LoginParentWithAudit(context.Context, string, string, string, string) (string, string, error) {
+	return "", "", nil
+}
 func (m *mockAuthService) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error) {
 	if m.registerFn != nil {
 		return m.registerFn(ctx, email, username, password, roleID, tenantID)

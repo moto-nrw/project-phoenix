@@ -127,7 +127,7 @@ jobs:
         uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1.8.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -135,7 +135,7 @@ jobs:
 
       - name: Extract metadata for backend
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: ${{ env.BACKEND_IMAGE }}
           tags: |
@@ -188,7 +188,7 @@ jobs:
         uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1.8.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -196,7 +196,7 @@ jobs:
 
       - name: Extract metadata for frontend
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: ${{ env.FRONTEND_IMAGE }}
           tags: |
@@ -230,6 +230,15 @@ jobs:
             echo "hostname=operator.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      - name: Determine parents hostname
+        id: parents_hostname
+        run: |
+          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+            echo "hostname=parents.staging.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "hostname=parents.moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
       - name: Determine tenant domain
         id: tenant_domain
         run: |
@@ -252,6 +261,7 @@ jobs:
             API_URL=http://server:8080
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
             NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
+            NEXT_PUBLIC_PARENTS_HOSTNAME=${{ steps.parents_hostname.outputs.hostname }}
             TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
