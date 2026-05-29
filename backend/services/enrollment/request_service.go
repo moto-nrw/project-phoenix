@@ -53,8 +53,6 @@ var (
 	ErrDuplicateEnrollment  = errors.New("an active enrollment already exists for this parent and child in this phase")
 )
 
-var requiredConsentKeys = []string{"agb", "data_processing", "email_contact"}
-
 // Rate-limit thresholds. Hardcoded for now - if individual schools
 // need different limits we can promote these to settings, but the
 // defaults need to work for "small school with families of 3 kids
@@ -501,7 +499,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 			return ErrInvalidGuardianPhone
 		}
 	}
-	for _, key := range requiredConsentKeys {
+	for _, key := range enrollmentModels.RequiredConsentKeys {
 		accepted, ok := req.ConsentFlags[key].(bool)
 		if !ok || !accepted {
 			return fmt.Errorf("%w: consent %s is required", ErrInvalidSubmission, key)
