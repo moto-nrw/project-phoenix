@@ -17,7 +17,9 @@ import {
 import {
   type CareOffering,
   type CareOfferingInput,
+  type CareSelectionRule,
   type DaysOfWeekMode,
+  SELECTION_RULE_LABELS,
   cloneCareOffering,
   createCareOffering,
   deleteCareOffering,
@@ -67,6 +69,8 @@ function blankInput(phaseId: number): CareOfferingInput {
     price_cents: null,
     is_active: true,
     sort_order: 0,
+    selection_group: "",
+    selection_rule: "optional",
   };
 }
 
@@ -86,6 +90,8 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
     price_cents: offering.price_cents ?? null,
     is_active: offering.is_active,
     sort_order: offering.sort_order,
+    selection_group: offering.selection_group ?? "",
+    selection_rule: offering.selection_rule ?? "optional",
   };
 }
 
@@ -874,6 +880,62 @@ function CareOfferingForm({
           className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         />
       </label>
+
+      <fieldset className="rounded-xl border border-gray-200 p-4">
+        <legend className="px-1 text-xs font-medium text-gray-700">
+          Pflichtauswahl
+        </legend>
+        <p className="mb-3 text-xs leading-5 text-gray-500">
+          Angebote mit demselben Gruppennamen werden bei der Anmeldung gemeinsam
+          geprüft. Verwende für eine Gruppe überall dieselbe Regel.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-medium text-gray-700">
+              Gruppe (optional)
+            </span>
+            <input
+              type="text"
+              name="selection_group"
+              value={draft.selection_group ?? ""}
+              onChange={(event) => {
+                const group = event.target.value;
+                // Clearing the group resets the rule — the backend rejects
+                // a non-optional rule without a group name.
+                update(
+                  group.trim() === ""
+                    ? { selection_group: group, selection_rule: "optional" }
+                    : { selection_group: group },
+                );
+              }}
+              placeholder="z. B. Betreuungsumfang"
+              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium text-gray-700">Regel</span>
+            <select
+              name="selection_rule"
+              value={draft.selection_rule ?? "optional"}
+              onChange={(event) =>
+                update({
+                  selection_rule: event.target.value as CareSelectionRule,
+                })
+              }
+              disabled={!draft.selection_group?.trim()}
+              className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-500"
+            >
+              {(Object.keys(SELECTION_RULE_LABELS) as CareSelectionRule[]).map(
+                (rule) => (
+                  <option key={rule} value={rule}>
+                    {SELECTION_RULE_LABELS[rule]}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+        </div>
+      </fieldset>
 
       <fieldset className="rounded-xl border border-gray-200 p-4">
         <legend className="px-1 text-xs font-medium text-gray-700">

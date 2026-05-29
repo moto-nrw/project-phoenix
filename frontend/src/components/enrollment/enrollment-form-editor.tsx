@@ -2060,7 +2060,7 @@ function FieldEditorRow({
                   onChange={(checked) => onChange({ required: checked })}
                   label="Pflichtfrage"
                   hint="Eltern müssen diese Frage beantworten."
-                  disabled={disabled || isTargetField}
+                  disabled={disabled}
                 />
                 <FormChoice
                   checked={Boolean(field.applies_to_child)}
@@ -2901,12 +2901,14 @@ function prepareFieldsForSave(fields: FormField[]): FormField[] {
   return fields.map((field, index) => {
     if (field.target) {
       // Suggested field: type/options/scope are fixed by the spec, but
-      // the admin-edited label + help text + visibility ride along.
+      // the admin-edited label + help text + required flag + visibility
+      // ride along.
       const base = createTargetField(field.target, index);
       return {
         ...base,
         label: field.label.trim() || base.label,
         help_text: field.help_text?.trim() ?? "",
+        required: Boolean(field.required),
         visible_when: field.visible_when ?? undefined,
       };
     }

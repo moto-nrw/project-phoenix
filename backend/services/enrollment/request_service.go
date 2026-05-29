@@ -34,7 +34,12 @@ var (
 	// enrollment.care_offerings_required is true but a child in the
 	// submission has no offering selected. Mapped to 400 with a stable
 	// code so the parent form can highlight the right child.
-	ErrCareOfferingMissing  = errors.New("care offering selection is required for every child")
+	ErrCareOfferingMissing = errors.New("care offering selection is required for every child")
+	// ErrCareOfferingRule wraps ErrInvalidSubmission (so the HTTP layer
+	// maps it to 400) and is returned when a child's offering selection
+	// violates a group's selection rule (exactly_one / at_least_one /
+	// at_most_one). Defense-in-depth: the parent form enforces the same.
+	ErrCareOfferingRule     = fmt.Errorf("%w: care offering selection rule not satisfied", ErrInvalidSubmission)
 	ErrRateLimited          = errors.New("too many submission attempts; please retry later")
 	ErrRequestNotFound      = errors.New("enrollment request not found")
 	ErrInvalidGuardianPhone = errors.New("guardian phone number has an invalid format")
@@ -298,6 +303,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		openByID[o.ID] = o
 	}
 	if err := validateOfferingSelections(req.Children, openByID); err != nil {
+		return nil, err
+	}
+	if err := validateOfferingGroupRules(req.Children, openByID); err != nil {
 		return nil, err
 	}
 

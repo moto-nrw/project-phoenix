@@ -72,19 +72,36 @@ func matchScalar(operator string, actual, expected any) bool {
 }
 
 // answerEmpty reports whether a custom-field answer is missing. A present
-// boolean (true or false) counts as answered; everything else must be a
-// non-blank value. Structured types are never required, so the scalar
-// checks suffice.
-func answerEmpty(v any) bool {
-	switch x := v.(type) {
-	case nil:
+// boolean (true or false) counts as answered; list/schedule fields need
+// at least one entry; everything else must be a non-blank value. Mirrors
+// the client-side isAnswerEmpty in enrollment-form.tsx.
+func answerEmpty(field *enrollmentModels.FormField, v any) bool {
+	switch field.Type {
+	case enrollmentModels.FormFieldPhoneList, enrollmentModels.FormFieldContactList:
+		arr, ok := v.([]any)
+		return !ok || len(arr) == 0
+	case enrollmentModels.FormFieldWeekdaySchedule:
+		m, ok := v.(map[string]any)
+		if !ok {
+			return true
+		}
+		for _, val := range m {
+			if s, ok := val.(string); ok && strings.TrimSpace(s) != "" {
+				return false
+			}
+		}
 		return true
-	case string:
-		return strings.TrimSpace(x) == ""
-	case bool:
-		return false
 	default:
-		return fmt.Sprintf("%v", v) == ""
+		switch x := v.(type) {
+		case nil:
+			return true
+		case string:
+			return strings.TrimSpace(x) == ""
+		case bool:
+			return false
+		default:
+			return fmt.Sprintf("%v", v) == ""
+		}
 	}
 }
 
@@ -130,7 +147,7 @@ func (s *requestService) validateRequiredCustomFields(
 		if !fieldVisible(f, guardianCtx) {
 			continue
 		}
-		if answerEmpty(req.CustomData[f.Key]) {
+		if answerEmpty(f, req.CustomData[f.Key]) {
 			return fmt.Errorf("%w: field %q is required", ErrInvalidSubmission, f.Key)
 		}
 	}
@@ -152,7 +169,7 @@ func (s *requestService) validateRequiredCustomFields(
 			if !fieldVisible(f, childCtx) {
 				continue
 			}
-			if answerEmpty(child.CustomData[f.Key]) {
+			if answerEmpty(f, child.CustomData[f.Key]) {
 				return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 			}
 		}

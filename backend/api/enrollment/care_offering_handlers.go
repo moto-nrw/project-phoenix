@@ -33,6 +33,8 @@ type CareOfferingResponse struct {
 	PriceCents          *int      `json:"price_cents,omitempty"`
 	IsActive            bool      `json:"is_active"`
 	SortOrder           int       `json:"sort_order"`
+	SelectionGroup      string    `json:"selection_group,omitempty"`
+	SelectionRule       string    `json:"selection_rule"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }
@@ -51,6 +53,8 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		PriceCents:          o.PriceCents,
 		IsActive:            o.IsActive,
 		SortOrder:           o.SortOrder,
+		SelectionGroup:      o.SelectionGroup,
+		SelectionRule:       o.SelectionRule,
 		CreatedAt:           o.CreatedAt,
 		UpdatedAt:           o.UpdatedAt,
 	}
@@ -75,6 +79,8 @@ type CareOfferingRequest struct {
 	PriceCents          *int     `json:"price_cents,omitempty"`
 	IsActive            bool     `json:"is_active"`
 	SortOrder           int      `json:"sort_order"`
+	SelectionGroup      string   `json:"selection_group,omitempty"`
+	SelectionRule       string   `json:"selection_rule,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -100,6 +106,8 @@ func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.Care
 		PriceCents:          req.PriceCents,
 		IsActive:            req.IsActive,
 		SortOrder:           req.SortOrder,
+		SelectionGroup:      req.SelectionGroup,
+		SelectionRule:       req.SelectionRule,
 	}
 	o.ID = existingID
 	return o

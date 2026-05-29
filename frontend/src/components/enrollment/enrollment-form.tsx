@@ -251,6 +251,21 @@ export function EnrollmentForm({
   };
 
   const toggleOffering = (childIndex: number, offeringID: string) => {
+    const offering = offerings.find((o) => o.id === offeringID);
+    const group = offering?.selection_group?.trim() ?? "";
+    const rule = offering?.selection_rule ?? "optional";
+    // "Genau eines" / "höchstens eines" groups behave like radios:
+    // selecting one clears the other selected member(s) of the group.
+    const exclusive =
+      group !== "" && (rule === "exactly_one" || rule === "at_most_one");
+    const siblingIDs = exclusive
+      ? new Set(
+          offerings
+            .filter((o) => (o.selection_group?.trim() ?? "") === group)
+            .map((o) => o.id),
+        )
+      : null;
+
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
@@ -260,11 +275,32 @@ export function EnrollmentForm({
           nextIDs.delete(offeringID);
           delete nextDays[offeringID];
         } else {
+          if (siblingIDs) {
+            for (const id of siblingIDs) {
+              if (id !== offeringID && nextIDs.has(id)) {
+                nextIDs.delete(id);
+                delete nextDays[id];
+              }
+            }
+          }
           nextIDs.add(offeringID);
         }
         return { ...c, offering_ids: nextIDs, offering_days: nextDays };
       }),
     );
+  };
+
+  // Toggle an offering and clear the child's offering-selection error so
+  // the red highlight lifts as soon as the parent fixes it.
+  const handleToggleOffering = (childIndex: number, offeringID: string) => {
+    toggleOffering(childIndex, offeringID);
+    if (childOfferingErrors[childIndex]) {
+      setChildOfferingErrors((prev) => {
+        const next = { ...prev };
+        delete next[childIndex];
+        return next;
+      });
+    }
   };
 
   // toggleOfferingDay flips one day in an offering's selected-day set.
@@ -444,12 +480,16 @@ export function EnrollmentForm({
     }
 
     const payloadChildren: SubmitChildPayload[] = [];
-    const missingCareIndexes: number[] = [];
+    const offeringErrorIndexes: Record<number, boolean> = {};
+    let offeringBanner: string | null = null;
     for (const [i, c] of children.entries()) {
       // Core fields are already guaranteed present by the field-collection
       // pass above; this loop only builds the payload + validates offerings.
-      if (careRequired && c.offering_ids.size === 0) {
-        missingCareIndexes.push(i);
+      // Covers both the global "≥1 required" toggle and per-group rules.
+      const selectionError = offeringSelectionError(c, offerings, careRequired);
+      if (selectionError) {
+        offeringErrorIndexes[i] = true;
+        offeringBanner ??= selectionError;
       }
 
       // Build the optional offering_days payload: one entry per
@@ -497,13 +537,9 @@ export function EnrollmentForm({
           offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
       });
     }
-    if (missingCareIndexes.length > 0) {
-      setChildOfferingErrors(
-        Object.fromEntries(missingCareIndexes.map((i) => [i, true])),
-      );
-      setError(
-        "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
-      );
+    if (offeringBanner) {
+      setChildOfferingErrors(offeringErrorIndexes);
+      setError(offeringBanner);
       return;
     }
 
@@ -786,96 +822,54 @@ export function EnrollmentForm({
                       : ""
                   }`}
                 >
-                  {offerings.map((o) => {
-                    const checked = child.offering_ids.has(o.id);
-                    return (
-                      <label
-                        key={o.id}
-                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
-                          checked
-                            ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
-                            : "border-gray-200 bg-white hover:border-gray-300"
-                        }`}
+                  {groupOfferings(offerings).map((bucket) =>
+                    bucket.kind === "single" ? (
+                      <OfferingOption
+                        key={bucket.offering.id}
+                        offering={bucket.offering}
+                        checked={child.offering_ids.has(bucket.offering.id)}
+                        onToggle={() =>
+                          handleToggleOffering(i, bucket.offering.id)
+                        }
+                        selectedDays={child.offering_days[bucket.offering.id]}
+                        onToggleDay={(day) =>
+                          toggleOfferingDay(i, bucket.offering.id, day)
+                        }
+                        inputName={`children_${i}_offering_${bucket.offering.id}`}
+                      />
+                    ) : (
+                      <div
+                        key={`group-${bucket.group}`}
+                        className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
                       >
-                        <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
-                          <input
-                            name={`children_${i}_offering_${o.id}`}
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              toggleOffering(i, o.id);
-                              if (childOfferingErrors[i]) {
-                                setChildOfferingErrors((prev) => {
-                                  const next = { ...prev };
-                                  delete next[i];
-                                  return next;
-                                });
-                              }
-                            }}
-                            className="absolute inset-0 cursor-pointer opacity-0"
-                          />
-                          {checked && (
-                            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
-                              <Check className="h-3.5 w-3.5" />
+                        <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+                          <span className="text-xs font-semibold text-gray-800">
+                            {bucket.group}
+                          </span>
+                          {OFFERING_RULE_HINT[bucket.rule] && (
+                            <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                              {OFFERING_RULE_HINT[bucket.rule]}
                             </span>
                           )}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="font-medium break-words text-gray-900">
-                            {o.name}
-                          </div>
-                          {o.description && (
-                            <div className="text-xs break-words text-gray-600">
-                              {o.description}
-                            </div>
-                          )}
-                          <div className="mt-1 text-xs text-gray-500">
-                            {o.days_of_week_mode === "parent_choice"
-                              ? "Wählbare Tage: "
-                              : "Tage: "}
-                            {o.available_days
-                              .map((d) => DAY_LABELS[d] ?? d)
-                              .join(", ")}
-                            {o.includes_holiday_care &&
-                              " · inkl. Ferienbetreuung"}
-                            {o.includes_lunch && " · inkl. Mittagessen"}
-                          </div>
-                          {checked &&
-                            o.days_of_week_mode === "parent_choice" && (
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {o.available_days.map((day) => {
-                                  const picked =
-                                    child.offering_days[o.id]?.has(day) ??
-                                    false;
-                                  return (
-                                    <button
-                                      key={day}
-                                      type="button"
-                                      onClick={(e) => {
-                                        // The card's outer <label> would
-                                        // otherwise treat this as a click on
-                                        // the offering checkbox itself.
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        toggleOfferingDay(i, o.id, day);
-                                      }}
-                                      className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors ${
-                                        picked
-                                          ? "border-[#83CD2D] bg-[#83CD2D] text-white"
-                                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                                      }`}
-                                      aria-pressed={picked}
-                                    >
-                                      {DAY_LABELS[day] ?? day}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
                         </div>
-                      </label>
-                    );
-                  })}
+                        <div className="space-y-2">
+                          {bucket.offerings.map((o) => (
+                            <OfferingOption
+                              key={o.id}
+                              offering={o}
+                              checked={child.offering_ids.has(o.id)}
+                              onToggle={() => handleToggleOffering(i, o.id)}
+                              selectedDays={child.offering_days[o.id]}
+                              onToggleDay={(day) =>
+                                toggleOfferingDay(i, o.id, day)
+                              }
+                              inputName={`children_${i}_offering_${o.id}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ),
+                  )}
                 </div>
                 {childOfferingErrors[i] && (
                   <p className="mt-1 text-xs text-[#FF3130]">
@@ -1015,6 +1009,182 @@ function blankChild(): ChildDraft {
     offering_days: {},
     custom: {},
   };
+}
+
+// ---- Care-offering selection groups + rules -----------------------------
+
+// Short German hint shown next to a group's header. Empty for "optional".
+const OFFERING_RULE_HINT: Record<string, string> = {
+  exactly_one: "Bitte genau eines wählen",
+  at_least_one: "Bitte mindestens eines wählen",
+  at_most_one: "Höchstens eines",
+  optional: "",
+};
+
+type OfferingBucket =
+  | { kind: "single"; offering: PublicCareOffering }
+  | {
+      kind: "group";
+      group: string;
+      rule: string;
+      offerings: PublicCareOffering[];
+    };
+
+// Buckets offerings for display: ungrouped offerings render individually
+// (in order); offerings sharing a non-empty selection_group collapse into
+// one bucket anchored at the group's first member. Mirrors the backend
+// grouping in services/enrollment/care_offering_rules.go.
+function groupOfferings(offerings: PublicCareOffering[]): OfferingBucket[] {
+  const buckets: OfferingBucket[] = [];
+  const indexByGroup = new Map<string, number>();
+  for (const o of offerings) {
+    const group = o.selection_group?.trim() ?? "";
+    if (group === "") {
+      buckets.push({ kind: "single", offering: o });
+      continue;
+    }
+    const existing = indexByGroup.get(group);
+    if (existing === undefined) {
+      indexByGroup.set(group, buckets.length);
+      buckets.push({
+        kind: "group",
+        group,
+        rule: o.selection_rule ?? "optional",
+        offerings: [o],
+      });
+    } else {
+      const bucket = buckets[existing];
+      if (bucket && bucket.kind === "group") bucket.offerings.push(o);
+    }
+  }
+  return buckets;
+}
+
+// Validates one child's offering selection against the global "required"
+// toggle and every group's rule. Returns a German error message, or null
+// when the selection is valid. The backend re-checks the same in
+// validateOfferingGroupRules (defense-in-depth).
+function offeringSelectionError(
+  child: ChildDraft,
+  offerings: PublicCareOffering[],
+  careRequired: boolean,
+): string | null {
+  if (careRequired && child.offering_ids.size === 0) {
+    return "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.";
+  }
+  const ruleByGroup = new Map<string, string>();
+  for (const o of offerings) {
+    const group = o.selection_group?.trim() ?? "";
+    const rule = o.selection_rule ?? "optional";
+    if (group === "" || rule === "optional") continue;
+    ruleByGroup.set(group, rule);
+  }
+  for (const [group, rule] of ruleByGroup) {
+    const count = offerings.filter(
+      (o) =>
+        (o.selection_group?.trim() ?? "") === group &&
+        child.offering_ids.has(o.id),
+    ).length;
+    if (rule === "exactly_one" && count !== 1) {
+      return `Bitte bei „${group}“ genau ein Angebot wählen.`;
+    }
+    if (rule === "at_least_one" && count < 1) {
+      return `Bitte bei „${group}“ mindestens ein Angebot wählen.`;
+    }
+    if (rule === "at_most_one" && count > 1) {
+      return `Bitte bei „${group}“ höchstens ein Angebot wählen.`;
+    }
+  }
+  return null;
+}
+
+interface OfferingOptionProps {
+  readonly offering: PublicCareOffering;
+  readonly checked: boolean;
+  readonly onToggle: () => void;
+  readonly selectedDays: Set<string> | undefined;
+  readonly onToggleDay: (day: string) => void;
+  readonly inputName: string;
+}
+
+// One selectable care offering (checkbox + description + optional
+// per-day picker for parent_choice offerings).
+function OfferingOption({
+  offering: o,
+  checked,
+  onToggle,
+  selectedDays,
+  onToggleDay,
+  inputName,
+}: OfferingOptionProps) {
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
+        checked
+          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
+          : "border-gray-200 bg-white hover:border-gray-300"
+      }`}
+    >
+      <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
+        <input
+          name={inputName}
+          type="checkbox"
+          checked={checked}
+          onChange={onToggle}
+          className="absolute inset-0 cursor-pointer opacity-0"
+        />
+        {checked && (
+          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+            <Check className="h-3.5 w-3.5" />
+          </span>
+        )}
+      </span>
+      <div className="min-w-0">
+        <div className="font-medium break-words text-gray-900">{o.name}</div>
+        {o.description && (
+          <div className="text-xs break-words text-gray-600">
+            {o.description}
+          </div>
+        )}
+        <div className="mt-1 text-xs text-gray-500">
+          {o.days_of_week_mode === "parent_choice"
+            ? "Wählbare Tage: "
+            : "Tage: "}
+          {o.available_days.map((d) => DAY_LABELS[d] ?? d).join(", ")}
+          {o.includes_holiday_care && " · inkl. Ferienbetreuung"}
+          {o.includes_lunch && " · inkl. Mittagessen"}
+        </div>
+        {checked && o.days_of_week_mode === "parent_choice" && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {o.available_days.map((day) => {
+              const picked = selectedDays?.has(day) ?? false;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={(e) => {
+                    // The card's outer <label> would otherwise treat this
+                    // as a click on the offering checkbox itself.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onToggleDay(day);
+                  }}
+                  className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors ${
+                    picked
+                      ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                      : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                  }`}
+                  aria-pressed={picked}
+                >
+                  {DAY_LABELS[day] ?? day}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </label>
+  );
 }
 
 function Input({
@@ -1201,12 +1371,27 @@ function InfoBlock({ field }: { readonly field: FormField }) {
 }
 
 // Whether a required custom field has no usable answer yet. A yes/no
-// field must be explicitly answered (true or false); everything else
-// must be a non-blank value. Structured types are never required (they
-// are always suggested/target fields), so the scalar checks suffice.
+// field must be explicitly answered (true or false); list/schedule
+// (suggested) fields need at least one entry; everything else needs a
+// non-blank value. Mirrors backend answerEmpty in form_visibility.go.
 function isAnswerEmpty(field: FormField, value: unknown): boolean {
-  if (field.type === "boolean") return value !== true && value !== false;
-  return value == null || String(value).trim() === "";
+  switch (field.type) {
+    case "boolean":
+      return value !== true && value !== false;
+    case "phone_list":
+    case "contact_list":
+      return !Array.isArray(value) || value.length === 0;
+    case "weekday_schedule":
+      return (
+        typeof value !== "object" ||
+        value === null ||
+        !Object.values(value as Record<string, unknown>).some(
+          (v) => typeof v === "string" && v.trim() !== "",
+        )
+      );
+    default:
+      return value == null || String(value).trim() === "";
+  }
 }
 
 function customRequiredMessage(field: FormField): string {

@@ -20,14 +20,31 @@ func gradePtr(v int16) *int16 { return &v }
 // ---- answerEmpty ---------------------------------------------------------
 
 func TestAnswerEmpty(t *testing.T) {
-	assert.True(t, answerEmpty(nil), "nil is empty")
-	assert.True(t, answerEmpty(""), "empty string is empty")
-	assert.True(t, answerEmpty("   "), "blank string is empty")
-	assert.False(t, answerEmpty("x"), "non-blank string is an answer")
-	assert.False(t, answerEmpty(true), "bool true is an answer")
-	assert.False(t, answerEmpty(false), "bool false is still an answer")
-	assert.False(t, answerEmpty(float64(0)), "number 0 is an answer")
-	assert.False(t, answerEmpty(float64(3)), "number is an answer")
+	text := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldText}
+	boolean := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldBoolean}
+	phones := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldPhoneList}
+	contacts := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldContactList}
+	sched := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
+
+	assert.True(t, answerEmpty(text, nil), "nil is empty")
+	assert.True(t, answerEmpty(text, ""), "empty string is empty")
+	assert.True(t, answerEmpty(text, "   "), "blank string is empty")
+	assert.False(t, answerEmpty(text, "x"), "non-blank string is an answer")
+	assert.False(t, answerEmpty(text, float64(0)), "number 0 is an answer")
+
+	assert.False(t, answerEmpty(boolean, true), "bool true is an answer")
+	assert.False(t, answerEmpty(boolean, false), "bool false is still an answer")
+	assert.True(t, answerEmpty(boolean, nil), "unanswered bool is empty")
+
+	// Structured types: empty when there is no entry.
+	assert.True(t, answerEmpty(phones, nil), "nil phone list is empty")
+	assert.True(t, answerEmpty(phones, []any{}), "empty phone list is empty")
+	assert.False(t, answerEmpty(phones, []any{map[string]any{"phone_number": "012"}}), "one phone is an answer")
+	assert.True(t, answerEmpty(contacts, []any{}), "empty contact list is empty")
+	assert.False(t, answerEmpty(contacts, []any{map[string]any{"first_name": "A"}}), "one contact is an answer")
+	assert.True(t, answerEmpty(sched, map[string]any{"mon": "", "tue": ""}), "all-blank schedule is empty")
+	assert.False(t, answerEmpty(sched, map[string]any{"mon": "08:00"}), "a filled day is an answer")
+	assert.True(t, answerEmpty(sched, nil), "nil schedule is empty")
 }
 
 // ---- fieldVisible --------------------------------------------------------
@@ -250,4 +267,21 @@ func TestValidateRequiredCustomFields_ChildFieldDependsOnGuardianAnswer(t *testi
 		Children:   []SubmitChild{{CustomData: map[string]any{}}},
 	}
 	require.Error(t, s.validateRequiredCustomFields(schema, req2, nil))
+}
+
+func TestValidateRequiredCustomFields_StructuredSuggestedRequired(t *testing.T) {
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "student_contacts", Label: "Kontakte", Type: enrollmentModels.FormFieldContactList,
+			Target: enrollmentModels.TargetStudentContacts, Required: true, AppliesToCh: true},
+	}}
+	// No contact entered → required contact list is empty → error.
+	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
+	require.Error(t, s.validateRequiredCustomFields(schema, req, nil))
+
+	// One contact → satisfied.
+	req2 := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{
+		"student_contacts": []any{map[string]any{"first_name": "Oma", "last_name": "X"}},
+	}}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req2, nil))
 }
