@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
-import { metricsResponse, recordBackendProxyMetric } from "./server-metrics";
+import {
+  recordBackendProxyMetric,
+  resetBackendProxyMetricsForTest,
+} from "./backend-proxy-metrics";
+import { metricsResponse } from "./server-metrics";
 
 function metricsRequest(token?: string): NextRequest {
   return {
@@ -12,6 +16,7 @@ describe("server-metrics", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     globalThis.__phoenixFrontendMetrics = undefined;
+    resetBackendProxyMetricsForTest();
   });
 
   it("returns 503 when the metrics token is not configured", async () => {

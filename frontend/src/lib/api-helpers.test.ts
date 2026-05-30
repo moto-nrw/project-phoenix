@@ -34,7 +34,7 @@ vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend.test",
 }));
 
-vi.mock("~/lib/server-metrics", () => ({
+vi.mock("./backend-proxy-metrics", () => ({
   recordBackendProxyMetric: mockRecordBackendProxyMetric,
 }));
 

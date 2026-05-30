@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { handleApiError } from "../api-helpers";
+import { recordBackendProxyMetric } from "../backend-proxy-metrics";
 import {
   type RouteContext,
   extractParams,
@@ -91,7 +92,6 @@ async function recordOperatorBackendProxyMetric(args: {
   outcome: string;
 }) {
   try {
-    const { recordBackendProxyMetric } = await import("~/lib/server-metrics");
     recordBackendProxyMetric({
       method: args.method,
       backendEndpoint: sanitizeEndpoint(args.endpoint),

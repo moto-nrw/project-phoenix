@@ -122,6 +122,36 @@ jobs:
           tail -n +2 coverage.emergency.out >> coverage.out
           rm -f coverage.emergency.out
 
+      - name: Add observability coverage
+        working-directory: backend
+        run: |
+          go test ./observability \
+            -coverpkg=./observability \
+            -covermode=atomic \
+            -coverprofile=coverage.observability.out
+          tail -n +2 coverage.observability.out >> coverage.out
+          rm -f coverage.observability.out
+
+      - name: Add tenant middleware coverage
+        working-directory: backend
+        run: |
+          go test ./tenant \
+            -coverpkg=./tenant \
+            -covermode=atomic \
+            -coverprofile=coverage.tenant.out
+          tail -n +2 coverage.tenant.out >> coverage.out
+          rm -f coverage.tenant.out
+
+      - name: Add realtime hub coverage
+        working-directory: backend
+        run: |
+          go test ./realtime \
+            -coverpkg=./realtime \
+            -covermode=atomic \
+            -coverprofile=coverage.realtime.out
+          tail -n +2 coverage.realtime.out >> coverage.out
+          rm -f coverage.realtime.out
+
       - name: Drop flaky retries from junit.xml
         working-directory: backend
         if: always()

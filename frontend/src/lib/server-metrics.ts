@@ -1,13 +1,15 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import client from "prom-client";
+import {
+  backendProxyMetricBuckets,
+  backendProxyMetricSnapshot,
+} from "./backend-proxy-metrics";
 
 const GLOBAL_KEY = Symbol.for("phoenix.frontend.metrics");
 
 interface MetricsState {
   registry: client.Registry;
-  backendProxyRequests: client.Counter<string>;
-  backendProxyDuration: client.Histogram<string>;
 }
 
 declare global {
@@ -28,50 +30,10 @@ function getState(): MetricsState {
     eventLoopMonitoringPrecision: 20,
   });
 
-  const backendProxyRequests = new client.Counter({
-    name: "phoenix_frontend_backend_proxy_requests_total",
-    help: "Frontend server-side backend proxy requests.",
-    labelNames: [
-      "method",
-      "backend_endpoint",
-      "status_class",
-      "outcome",
-      "scope",
-    ] as const,
-    registers: [registry],
-  });
-
-  const backendProxyDuration = new client.Histogram({
-    name: "phoenix_frontend_backend_proxy_request_duration_seconds",
-    help: "Frontend server-side backend proxy request duration.",
-    labelNames: ["method", "backend_endpoint", "outcome"] as const,
-    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
-    registers: [registry],
-  });
-
-  const state = { registry, backendProxyRequests, backendProxyDuration };
+  const state = { registry };
   globalThis.__phoenixFrontendMetrics = state;
   Reflect.set(globalThis, GLOBAL_KEY, state);
   return state;
-}
-
-export function recordBackendProxyMetric(args: {
-  method: string;
-  backendEndpoint: string;
-  status: number;
-  durationMs: number;
-  outcome: string;
-  scope?: string;
-}): void {
-  const state = getState();
-  const statusClass = statusClassFor(args.status);
-  const scope = args.scope && args.scope.trim() !== "" ? args.scope : "tenant";
-  state.backendProxyRequests
-    .labels(args.method, args.backendEndpoint, statusClass, args.outcome, scope)
-    .inc();
-  state.backendProxyDuration
-    .labels(args.method, args.backendEndpoint, args.outcome)
-    .observe(args.durationMs / 1000);
 }
 
 export async function metricsResponse(
@@ -86,7 +48,8 @@ export async function metricsResponse(
   }
 
   const state = getState();
-  return new NextResponse(await state.registry.metrics(), {
+  const body = `${await state.registry.metrics()}${renderBackendProxyMetrics()}`;
+  return new NextResponse(body, {
     status: 200,
     headers: {
       "Content-Type": state.registry.contentType,
@@ -95,7 +58,74 @@ export async function metricsResponse(
   });
 }
 
-function statusClassFor(status: number): string {
-  if (!Number.isFinite(status) || status <= 0) return "unknown";
-  return `${Math.trunc(status / 100)}xx`;
+function renderBackendProxyMetrics(): string {
+  const snapshot = backendProxyMetricSnapshot();
+  const lines = [
+    "# HELP phoenix_frontend_backend_proxy_requests_total Frontend server-side backend proxy requests.",
+    "# TYPE phoenix_frontend_backend_proxy_requests_total counter",
+  ];
+
+  snapshot.requestSamples.forEach((sample) => {
+    lines.push(
+      `phoenix_frontend_backend_proxy_requests_total{${labels({
+        method: sample.method,
+        backend_endpoint: sample.backendEndpoint,
+        status_class: sample.statusClass,
+        outcome: sample.outcome,
+        scope: sample.scope,
+        service: "phoenix-frontend",
+      })}} ${sample.count}`,
+    );
+  });
+
+  lines.push(
+    "# HELP phoenix_frontend_backend_proxy_request_duration_seconds Frontend server-side backend proxy request duration.",
+    "# TYPE phoenix_frontend_backend_proxy_request_duration_seconds histogram",
+  );
+
+  snapshot.durationSamples.forEach((sample) => {
+    const baseLabels = {
+      service: "phoenix-frontend",
+      method: sample.method,
+      backend_endpoint: sample.backendEndpoint,
+      outcome: sample.outcome,
+    };
+    backendProxyMetricBuckets().forEach((bucket, index) => {
+      lines.push(
+        `phoenix_frontend_backend_proxy_request_duration_seconds_bucket{${labels(
+          {
+            ...baseLabels,
+            le: bucket.toString(),
+          },
+        )}} ${sample.buckets[index] ?? 0}`,
+      );
+    });
+    lines.push(
+      `phoenix_frontend_backend_proxy_request_duration_seconds_bucket{${labels({
+        ...baseLabels,
+        le: "+Inf",
+      })}} ${sample.count}`,
+      `phoenix_frontend_backend_proxy_request_duration_seconds_sum{${labels(
+        baseLabels,
+      )}} ${sample.sumSeconds}`,
+      `phoenix_frontend_backend_proxy_request_duration_seconds_count{${labels(
+        baseLabels,
+      )}} ${sample.count}`,
+    );
+  });
+
+  return `${lines.join("\n")}\n`;
+}
+
+function labels(values: Record<string, string>): string {
+  return Object.entries(values)
+    .map(([key, value]) => `${key}="${escapeLabelValue(value)}"`)
+    .join(",");
+}
+
+function escapeLabelValue(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/"/g, '\\"');
 }

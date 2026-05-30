@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { isAxiosError } from "axios";
 import api from "./api";
 import { isBrowserContext } from "./api-url";
+import { recordBackendProxyMetric } from "./backend-proxy-metrics";
 import { createLogger } from "~/lib/logger";
 
 // Note: Server-only imports (auth, refreshSessionTokensOnServer) are dynamically
@@ -176,7 +177,6 @@ async function recordTenantBackendProxyMetric(args: {
   scope?: string;
 }): Promise<void> {
   try {
-    const { recordBackendProxyMetric } = await import("~/lib/server-metrics");
     recordBackendProxyMetric(args);
   } catch {
     // Metrics must never alter request behavior.
