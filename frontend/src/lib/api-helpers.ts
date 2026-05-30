@@ -156,6 +156,30 @@ async function serverFetchWithRetry<T>(
       scope: tokenContext.scope,
       outcome,
     });
+    await recordTenantBackendProxyMetric({
+      method: options.method,
+      backendEndpoint,
+      status: responseStatus,
+      durationMs,
+      outcome,
+      scope: tokenContext.scope,
+    });
+  }
+}
+
+async function recordTenantBackendProxyMetric(args: {
+  method: string;
+  backendEndpoint: string;
+  status: number;
+  durationMs: number;
+  outcome: string;
+  scope?: string;
+}): Promise<void> {
+  try {
+    const { recordBackendProxyMetric } = await import("~/lib/server-metrics");
+    recordBackendProxyMetric(args);
+  } catch {
+    // Metrics must never alter request behavior.
   }
 }
 

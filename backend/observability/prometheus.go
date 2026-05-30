@@ -107,6 +107,8 @@ var (
 	dbStatsProvider  DBStatsProvider
 	sseStatsMu       sync.RWMutex
 	sseStatsProvider SSEStatsProvider
+	sseGaugeMu       sync.Mutex
+	sseGaugeTenants  = make(map[string]struct{})
 )
 
 func init() {
@@ -287,8 +289,23 @@ func refreshSSEGauges() {
 		return
 	}
 	stats := provider.SnapshotStats()
+	currentTenants := make(map[string]struct{}, len(stats.ClientsByTenant))
+	sseGaugeMu.Lock()
+	defer sseGaugeMu.Unlock()
 	for tenantID, count := range stats.ClientsByTenant {
-		sseClients.WithLabelValues(strconv.FormatInt(tenantID, 10)).Set(float64(count))
+		tenant := strconv.FormatInt(tenantID, 10)
+		currentTenants[tenant] = struct{}{}
+		sseClients.WithLabelValues(tenant).Set(float64(count))
+	}
+
+	for tenant := range sseGaugeTenants {
+		if _, ok := currentTenants[tenant]; !ok {
+			sseClients.WithLabelValues(tenant).Set(0)
+		}
+	}
+	sseGaugeTenants = currentTenants
+	if sseGaugeTenants == nil {
+		sseGaugeTenants = make(map[string]struct{})
 	}
 }
 

@@ -19,7 +19,9 @@ docker compose -f docker-compose.yml -f prometheus-compose.yml up -d
 docker compose restart grafana
 ```
 
-The Prometheus container reads `METRICS_BEARER_TOKEN` from `/root/monitoring/.env`. Use the same value deployed to the production and staging app `.env` files.
+`prometheus-compose.yml` is an additive Compose overlay. Keep the server's existing `/root/monitoring/docker-compose.yml` as the base file because it owns Loki, Grafana, Alloy, and the healthcheck containers.
+
+The Prometheus container reads `METRICS_BEARER_TOKEN` from `/root/monitoring/.env`. Add that key to the existing file next to `GRAFANA_ADMIN_PASSWORD`, using the same value deployed to the production and staging app `.env` files.
 
 ## Caddy
 
