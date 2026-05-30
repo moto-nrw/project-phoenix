@@ -165,14 +165,13 @@ export const setupChapters: readonly GuideChapter[] = [
       {
         id: "raeume-anlegen",
         title: "Räume anlegen",
-        summary:
-          "Alle Räume anlegen, die für Aufsicht, Stundenplan und Gruppen gebraucht werden.",
+        summary: "Alle Räume anlegen, die von Kindern genutzt werden.",
         steps: [
           "`Datenverwaltung` öffnen und `Räume` wählen.",
           "Neuen Raum anlegen.",
           "`Raumname`, `Kategorie`, `Gebäude`, `Etage` und `Farbe` pflegen.",
           "Kurze, eindeutige Namen nutzen, zum Beispiel `Mensa`, `Turnhalle`, `Gruppenraum Blau`.",
-          "Speichern und die Liste auf Dubletten prüfen.",
+          "Speichern.",
         ],
         screenshot:
           "Räume-Liste in der Datenverwaltung mit Beispiel-Einträgen.",
