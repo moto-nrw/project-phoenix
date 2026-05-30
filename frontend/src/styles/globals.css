@@ -301,6 +301,25 @@
   );
 }
 
+.moto-dotted-background--guide::before {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 10rem,
+    rgba(0, 0, 0, 0.45) 18rem,
+    black 28rem,
+    black 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 10rem,
+    rgba(0, 0, 0, 0.45) 18rem,
+    black 28rem,
+    black 100%
+  );
+}
+
 .moto-dotted-background--split::before {
   mask-image: linear-gradient(
     to right,

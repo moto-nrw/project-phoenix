@@ -35,7 +35,7 @@ Lineares Setup-Handbuch für Leitung und Admins, abhängigkeitsgeordnet und
 durchnummeriert. Kapitel:
 
 1. Zugang und Team (Konto, Mitarbeitende)
-2. Struktur anlegen (Räume, Gruppen, Aktivitäten)
+2. Ihre OGS-Struktur anlegen (Räume, Gruppen, Aktivitäten)
 3. Kinder und Betreuungszeiten (Import, manuell, Betreuungszeiten)
 4. Testlauf vor dem Start (Go-live-Check als Checkliste)
 

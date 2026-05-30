@@ -156,7 +156,7 @@ export const setupChapters: readonly GuideChapter[] = [
   },
   {
     id: "struktur-anlegen",
-    title: "Struktur anlegen",
+    title: "Ihre OGS-Struktur anlegen",
     description:
       "Räume, Gruppen und Aktivitäten bilden das Gerüst für Aufsicht, Planung und Suche. Klare Namen helfen später im Alltag.",
     icon: Building2,

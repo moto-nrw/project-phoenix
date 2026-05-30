@@ -2,7 +2,7 @@ import { GuideShell } from "~/components/anleitung/guide-components";
 import { appChapters } from "~/components/anleitung/guide-data";
 
 export const metadata = {
-  title: "moto – Die App im Alltag",
+  title: "moto: Die App im Alltag",
   description:
     "Jeder Punkt der moto-Seitenleiste verständlich erklärt: was er macht und wie man ihn nutzt.",
 };

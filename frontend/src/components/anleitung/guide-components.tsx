@@ -11,21 +11,45 @@ import { PrintButton } from "./print-button";
 
 type ActivePath = "ersteinrichtung" | "funktionen" | "nfc";
 
-const tabs: readonly {
-  readonly href: string;
-  readonly label: string;
-  readonly key: ActivePath;
-}[] = [
-  {
-    href: "/anleitung/ersteinrichtung",
-    label: "Ersteinrichtung",
-    key: "ersteinrichtung",
-  },
-  { href: "/anleitung/funktionen", label: "Die App", key: "funktionen" },
-  { href: "/anleitung/nfc", label: "NFC", key: "nfc" },
-];
+const nextLinks: Record<
+  ActivePath,
+  readonly {
+    readonly href: string;
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    readonly icon: LucideIcon;
+  }[]
+> = {
+  ersteinrichtung: [
+    {
+      href: "/anleitung/funktionen",
+      label: "Als nächstes",
+      title: "Die App entdecken",
+      body: "Jeder Punkt der Seitenleiste, verständlich erklärt für den Alltag nach der Einrichtung.",
+      icon: ArrowRight,
+    },
+  ],
+  funktionen: [
+    {
+      href: "/anleitung/nfc",
+      label: "Optional",
+      title: "NFC & Tablets ansehen",
+      body: "Zusätzliche Vorbereitung für Einrichtungen mit Tablets oder NFC-Armbändern.",
+      icon: ArrowRight,
+    },
+  ],
+  nfc: [
+    {
+      href: "/anleitung",
+      label: "Fertig",
+      title: "Zur Übersicht zurück",
+      body: "Alle Anleitungsbereiche noch einmal gesammelt an einem Ort.",
+      icon: ArrowLeft,
+    },
+  ],
+};
 
-/** Brand-hex accent classes per chapter tone. Print falls back to neutral. */
 const toneClasses: Record<
   GuideTone,
   { readonly soft: string; readonly text: string; readonly border: string }
@@ -51,9 +75,9 @@ const toneClasses: Record<
     border: "border-[#FF3130]/20",
   },
   purple: {
-    soft: "bg-purple-500/10",
-    text: "text-purple-700",
-    border: "border-purple-500/20",
+    soft: "bg-[#7C3AED]/10",
+    text: "text-[#6D28D9]",
+    border: "border-[#7C3AED]/20",
   },
   gray: {
     soft: "bg-gray-100",
@@ -62,7 +86,6 @@ const toneClasses: Record<
   },
 };
 
-/** Splits a string on `code` spans and renders them as inline <code>. */
 function InlineText({ text }: { readonly text: string }) {
   const parts = text.split(/(`[^`]+`)/g);
   return (
@@ -157,7 +180,7 @@ export function GuideShell({
   });
 
   return (
-    <main className="moto-dotted-background moto-dotted-background--fullscreen min-h-screen overflow-x-hidden print:bg-white">
+    <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden print:bg-white">
       <div className="relative mx-auto w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
         <header className="print:hidden">
           <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:p-4">
@@ -168,26 +191,9 @@ export function GuideShell({
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Übersicht
             </Link>
-            <nav
-              className="flex flex-wrap items-center gap-2"
-              aria-label="Anleitungsbereiche"
-            >
-              {tabs.map((tab) => (
-                <Link
-                  key={tab.key}
-                  href={tab.href}
-                  aria-current={activePath === tab.key ? "page" : undefined}
-                  className={`inline-flex h-9 items-center rounded-lg border px-3 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                    activePath === tab.key
-                      ? "border-[#83CD2D]/40 bg-[#83CD2D]/16 text-[#3F6F12]"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {tab.label}
-                </Link>
-              ))}
+            <div className="flex w-fit flex-wrap items-center gap-2">
               <PrintButton />
-            </nav>
+            </div>
           </div>
         </header>
 
@@ -263,9 +269,59 @@ export function GuideShell({
               />
             ))}
           </div>
+
+          <GuideNextLinks activePath={activePath} />
         </section>
       </div>
     </main>
+  );
+}
+
+function GuideNextLinks({ activePath }: { readonly activePath: ActivePath }) {
+  const links = nextLinks[activePath];
+
+  return (
+    <section className="mt-12 print:hidden" aria-labelledby="guide-next-title">
+      <p className="text-sm font-bold tracking-[0.08em] text-[#3F6F12] uppercase">
+        Weiter in der Anleitung
+      </p>
+      <h2
+        id="guide-next-title"
+        className="mt-2 text-2xl font-semibold tracking-normal text-gray-950"
+      >
+        Als nächstes
+      </h2>
+      <div className="mt-4 grid w-full gap-4">
+        {links.map((link) => {
+          const Icon = link.icon;
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="group moto-content-surface flex items-start gap-4 rounded-2xl border p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/14 text-[#3F6F12]">
+                <Icon
+                  className="h-5 w-5 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </span>
+              <span className="min-w-0">
+                <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  {link.label}
+                </span>
+                <span className="mt-1 block text-xl font-semibold tracking-normal text-gray-950">
+                  {link.title}
+                </span>
+                <span className="mt-2 block text-sm leading-6 text-gray-600">
+                  {link.body}
+                </span>
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
