@@ -57,6 +57,7 @@ type Resource struct {
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
 	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
 	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
+	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
 	SchoolRepo             platform.SchoolRepository
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
@@ -67,6 +68,7 @@ type Resource struct {
 	StudentPhotos          userService.StudentPhotoService
 	ListExportService      listexport.Service
 	Logger                 *slog.Logger
+	Now                    func() time.Time
 	db                     *bun.DB
 }
 
@@ -84,6 +86,7 @@ type ResourceConfig struct {
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
 	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
 	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
+	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
 	SchoolRepo             platform.SchoolRepository
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
@@ -94,11 +97,17 @@ type ResourceConfig struct {
 	StudentPhotos          userService.StudentPhotoService
 	ListExportService      listexport.Service
 	Logger                 *slog.Logger
+	Now                    func() time.Time
 	DB                     *bun.DB
 }
 
 // NewResource creates a new students resource from the provided configuration.
 func NewResource(cfg ResourceConfig) *Resource {
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
+
 	return &Resource{
 		PersonService:          cfg.PersonService,
 		StudentRepo:            cfg.StudentRepo,
@@ -111,6 +120,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		ArrivalScheduleService: cfg.ArrivalScheduleService,
 		PickupScheduleRepo:     cfg.PickupScheduleRepo,
 		ArrivalScheduleRepo:    cfg.ArrivalScheduleRepo,
+		InstanceStudentRepo:    cfg.InstanceStudentRepo,
 		SchoolRepo:             cfg.SchoolRepo,
 		SettingsService:        cfg.SettingsService,
 		AttendanceRepo:         cfg.AttendanceRepo,
@@ -121,6 +131,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		StudentPhotos:          cfg.StudentPhotos,
 		ListExportService:      cfg.ListExportService,
 		Logger:                 cfg.Logger,
+		Now:                    now,
 		db:                     cfg.DB,
 	}
 }
@@ -389,8 +400,16 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Build and filter responses
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, photosEnabled)
 
-	// Apply in-memory pagination if person-based filters were used
-	if params.hasPersonFilters() {
+	now := rs.Now()
+	if err := rs.enrichWithDayPlanning(r.Context(), responses, now, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+	responses = applyDayPlanningFilter(responses, params.dayStatus)
+
+	// Apply in-memory pagination if response-derived filters were used.
+	if params.hasInMemoryFilters() {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
@@ -406,10 +425,10 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	if params.includePickupTimes || params.includeArrivalTimes {
 		fullAccessIDs := collectFullAccessStudentIDs(responses)
 		if params.includePickupTimes {
-			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, time.Now())
+			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, now)
 		}
 		if params.includeArrivalTimes {
-			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, time.Now())
+			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, now)
 		}
 	}
 
@@ -618,6 +637,15 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		} else {
 			applyActualTimesFromAttendance(&response.StudentResponse, attendanceStatus)
 		}
+
+		single := []StudentResponse{response.StudentResponse}
+		if err := rs.enrichWithDayPlanning(r.Context(), single, rs.Now(), map[int64]*activeService.AttendanceStatus{
+			student.ID: attendanceStatus,
+		}); err != nil {
+			renderError(w, r, ErrorInternalServer(err))
+			return
+		}
+		response.StudentResponse = single[0]
 	}
 
 	// Add supervisor contacts for users without full access

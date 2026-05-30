@@ -72,6 +72,10 @@ import {
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
+import {
+  getDayPlanningNotComingLabel,
+  getStudentPresenceBadgePlanning,
+} from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
 
@@ -108,6 +112,9 @@ interface BackendStudentFromBFF {
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   actual_arrival_time?: string;
   actual_pickup_time?: string;
   // Authenticated photo URL (already rewritten by the backend response
@@ -176,6 +183,9 @@ function mapStudentForOgsPage(
       arrival_time: student.arrival_time,
       arrival_is_exception: student.arrival_is_exception,
       arrival_notes: student.arrival_notes,
+      day_planning_status: student.day_planning_status,
+      day_planning_reason: student.day_planning_reason,
+      day_planning_label: student.day_planning_label,
       actual_arrival_time: student.actual_arrival_time,
       actual_pickup_time: student.actual_pickup_time,
       // Photo URL is forwarded as-is. Backend has already rewritten it
@@ -837,6 +847,7 @@ function OGSGroupPageContent() {
       // Pass token to skip redundant getSession() call (~600ms savings)
       const studentsResponse = await studentService.getStudents({
         groupId: selectedGroup.id,
+        includeArrivalTimes: true,
         token: session?.user?.token,
       });
       const studentsData = studentsResponse.students || [];
@@ -1284,13 +1295,15 @@ function OGSGroupPageContent() {
                   }
                   locationBadge={
                     <StudentPresenceBadge
-                      student={{
-                        ...student,
-                        not_arrival_today:
-                          (student.arrival_is_exception ?? false) &&
-                          !student.arrival_time,
-                        not_arrival_reason: student.arrival_notes ?? null,
-                      }}
+                      student={(() => {
+                        const badgePlanning =
+                          getStudentPresenceBadgePlanning(student);
+                        return {
+                          ...student,
+                          not_arrival_today: badgePlanning.notArrivalToday,
+                          not_arrival_reason: badgePlanning.notArrivalReason,
+                        };
+                      })()}
                       displayMode="roomName"
                       isGroupRoom={inGroupRoom}
                       variant="modern"
@@ -1302,33 +1315,53 @@ function OGSGroupPageContent() {
                       {studentAbsence && !student.actual_pickup_time ? (
                         <StudentAbsenceRow label={studentAbsence.label} />
                       ) : (
-                        <>
-                          <ArrivalTimeRow
-                            arrivalTime={student.arrival_time}
-                            actualTime={student.actual_arrival_time}
-                            isException={student.arrival_is_exception ?? false}
-                            isAbsent={
-                              (student.arrival_is_exception ?? false) &&
-                              !student.arrival_time
-                            }
-                            notes={student.arrival_notes}
-                            now={now}
-                          />
-                          <PickupTimeRow
-                            pickupTime={studentPickup?.pickupTime}
-                            actualTime={student.actual_pickup_time}
-                            isException={studentPickup?.isException ?? false}
-                            notes={
-                              studentPickup
-                                ? combineTimeNotes(
-                                    studentPickup.notes,
-                                    studentPickup.dayNotes,
-                                  )
-                                : undefined
-                            }
-                            now={now}
-                          />
-                        </>
+                        (() => {
+                          const dayPlanningNotComingLabel =
+                            getDayPlanningNotComingLabel(student);
+                          if (
+                            dayPlanningNotComingLabel &&
+                            !student.actual_pickup_time
+                          ) {
+                            return (
+                              <StudentAbsenceRow
+                                label={dayPlanningNotComingLabel}
+                              />
+                            );
+                          }
+                          return (
+                            <>
+                              <ArrivalTimeRow
+                                arrivalTime={student.arrival_time}
+                                actualTime={student.actual_arrival_time}
+                                isException={
+                                  student.arrival_is_exception ?? false
+                                }
+                                isAbsent={
+                                  (student.arrival_is_exception ?? false) &&
+                                  !student.arrival_time
+                                }
+                                notes={student.arrival_notes}
+                                now={now}
+                              />
+                              <PickupTimeRow
+                                pickupTime={studentPickup?.pickupTime}
+                                actualTime={student.actual_pickup_time}
+                                isException={
+                                  studentPickup?.isException ?? false
+                                }
+                                notes={
+                                  studentPickup
+                                    ? combineTimeNotes(
+                                        studentPickup.notes,
+                                        studentPickup.dayNotes,
+                                      )
+                                    : undefined
+                                }
+                                now={now}
+                              />
+                            </>
+                          );
+                        })()
                       )}
                       {/* Check-in-only avatar-clearance spacer — in navigation
                           mode this surface now opts into an in-flow bottom row

@@ -90,6 +90,7 @@ describe("api.ts helper functions", () => {
           inHouse: true,
           groupId: "123",
           locationState: "transit",
+          dayStatus: "comes_today",
           page: 2,
           pageSize: 25,
           token: "test-token",
@@ -101,6 +102,7 @@ describe("api.ts helper functions", () => {
         expect(callUrl).toContain("in_house=true");
         expect(callUrl).toContain("group_id=123");
         expect(callUrl).toContain("location_state=transit");
+        expect(callUrl).toContain("day_status=comes_today");
         expect(callUrl).toContain("page=2");
         expect(callUrl).toContain("page_size=25");
       } finally {

@@ -184,6 +184,7 @@ function buildStudentQueryParams(filters?: {
   groupId?: string;
   roomId?: string;
   locationState?: "transit";
+  dayStatus?: "comes_today" | "not_coming_today";
   page?: number;
   pageSize?: number;
   includePickupTimes?: boolean;
@@ -200,6 +201,7 @@ function buildStudentQueryParams(filters?: {
   if (filters?.roomId) params.append("room_id", filters.roomId);
   if (filters?.locationState)
     params.append("location_state", filters.locationState);
+  if (filters?.dayStatus) params.append("day_status", filters.dayStatus);
   if (filters?.page) params.append("page", filters.page.toString());
   if (filters?.pageSize)
     params.append("page_size", filters.pageSize.toString());
@@ -780,6 +782,7 @@ export const studentService = {
     groupId?: string;
     roomId?: string;
     locationState?: "transit";
+    dayStatus?: "comes_today" | "not_coming_today";
     page?: number;
     pageSize?: number;
     includePickupTimes?: boolean;

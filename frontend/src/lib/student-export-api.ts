@@ -28,6 +28,7 @@ export interface StudentExportFilters {
   group_id?: string;
   year?: string;
   status?: string;
+  day_status?: string;
   pickup_time?: string;
   arrival_time?: string;
   sort?: string;

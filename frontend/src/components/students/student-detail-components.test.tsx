@@ -368,6 +368,25 @@ describe("StudentDetailHeader", () => {
       expect(screen.queryByTestId("today-time-row-pickup")).toBeNull();
     });
 
+    it("uses day planning status for the detail header absence row", () => {
+      renderHeaderWithTimes({
+        student: {
+          ...mockStudent,
+          current_location: "Zuhause",
+          day_planning_status: "not_coming_today",
+          day_planning_label: "kein Plan für heute",
+        },
+        todayArrivalPlannedTime: undefined,
+        todayPickupPlannedTime: undefined,
+      });
+
+      expect(screen.getByTestId("today-absence-row")).toHaveTextContent(
+        "Kommt heute nicht (kein Plan für heute)",
+      );
+      expect(screen.queryByTestId("today-time-row-arrival")).toBeNull();
+      expect(screen.queryByTestId("today-time-row-pickup")).toBeNull();
+    });
+
     it("renders the actual time even when no planned time was scheduled (walk-in)", () => {
       // Walk-in scenario: a student arrives without a planned arrival
       // configured. The row still renders the actual but suppresses the

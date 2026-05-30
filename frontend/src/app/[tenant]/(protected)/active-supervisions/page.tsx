@@ -58,6 +58,10 @@ import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
 import { combineTimeNotes, getStudentAbsence } from "~/lib/student-time-status";
 import {
+  getDayPlanningNotComingLabel,
+  getStudentPresenceBadgePlanning,
+} from "~/lib/day-planning-helper";
+import {
   ActiveSupervisionLoadingView,
   EmptyRoomsView,
   NoActiveSupervisionAccessView,
@@ -1679,13 +1683,19 @@ function MeinRaumPageContent() {
                   }
                   locationBadge={
                     <StudentPresenceBadge
-                      student={{
-                        ...student,
-                        not_arrival_today:
-                          (studentArrival?.isException ?? false) &&
-                          !studentArrival?.expectedArrival,
-                        not_arrival_reason: studentArrival?.notes ?? null,
-                      }}
+                      student={(() => {
+                        const badgePlanning = getStudentPresenceBadgePlanning({
+                          ...student,
+                          arrival_is_exception: studentArrival?.isException,
+                          arrival_time: studentArrival?.expectedArrival,
+                          arrival_notes: studentArrival?.notes,
+                        });
+                        return {
+                          ...student,
+                          not_arrival_today: badgePlanning.notArrivalToday,
+                          not_arrival_reason: badgePlanning.notArrivalReason,
+                        };
+                      })()}
                       displayMode="contextAware"
                       userGroups={myGroupIds}
                       groupRooms={myGroupRooms}
@@ -1712,6 +1722,18 @@ function MeinRaumPageContent() {
                         });
                         if (absence && !student.actual_pickup_time) {
                           return <StudentAbsenceRow label={absence.label} />;
+                        }
+                        const dayPlanningNotComingLabel =
+                          getDayPlanningNotComingLabel(student);
+                        if (
+                          dayPlanningNotComingLabel &&
+                          !student.actual_pickup_time
+                        ) {
+                          return (
+                            <StudentAbsenceRow
+                              label={dayPlanningNotComingLabel}
+                            />
+                          );
                         }
                         return (
                           <>
