@@ -1,5 +1,5 @@
 import { GuideShell } from "~/components/anleitung/guide-components";
-import { appSidebarSections } from "~/components/anleitung/guide-data";
+import { appChapters } from "~/components/anleitung/guide-data";
 
 export const metadata = {
   title: "moto – Die App im Alltag",
@@ -13,7 +13,7 @@ export default function FunktionenGuidePage() {
       eyebrow="Die App im Alltag"
       title="Jeder Punkt der Seitenleiste, erklärt."
       description="Diese Anleitung ist genau wie die Seitenleiste aufgebaut, von oben nach unten. Zu jedem Bereich steht hier, was er macht und wie Sie ihn im Alltag nutzen."
-      items={appSidebarSections}
+      chapters={appChapters}
       activePath="funktionen"
       numbered={false}
     />

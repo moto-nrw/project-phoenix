@@ -12,12 +12,12 @@ export default function AnleitungLandingPage() {
   return (
     <main className="moto-dotted-background moto-dotted-background--fullscreen min-h-screen overflow-x-hidden">
       <div className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-md">
+        <header className="flex items-center justify-between rounded-3xl border border-gray-200 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-md">
           <Link
             href="/"
             className="flex items-center gap-3 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-950 shadow-sm">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-gray-200 bg-white text-sm font-bold text-gray-950 shadow-sm">
               m
             </span>
             <span>

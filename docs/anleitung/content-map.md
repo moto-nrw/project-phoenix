@@ -1,6 +1,6 @@
 # moto Anleitung Content Map
 
-Stand: 2026-05-29
+Stand: 2026-05-30
 
 ## Ziel
 
@@ -15,72 +15,66 @@ aufgabenorientierten Artikeln mit einheitlicher Struktur.
 
 ## Produktstruktur
 
+Implementiert sind eine Startseite und drei Anleitungsseiten. Jede Seite
+gruppiert ihre Karten in betitelte Kapitel mit eigener Akzentfarbe (`tone`).
+Es gibt keine separate Druck- oder Variantenseite: Drucken läuft über den
+`PDF speichern`-Button (print-optimierte Styles auf jeder Seite), die drei
+Seiten erreicht man über die Tab-Leiste im Kopf.
+
 ### `/anleitung`
 
-Startseite mit Suche und vier Einstiegen:
+Startseite mit drei Einstiegskarten (`EntryPointCard`):
 
 - `Ersteinrichtung`
-- `Alltag & Funktionen`
-- `NFC & Geräte`
-- `Druckversion`
+- `Die App im Alltag`
+- `NFC & Tablets`
 
-### `/anleitung/setup`
+### `/anleitung/ersteinrichtung`
 
-Lineares Setup-Handbuch für Leitung und Admins. Diese Seite wird der Reihe
-nach abgearbeitet.
+Lineares Setup-Handbuch für Leitung und Admins, abhängigkeitsgeordnet und
+durchnummeriert. Kapitel:
 
-Kapitel:
+1. Zugang und Team (Konto, Mitarbeitende)
+2. Struktur anlegen (Räume, Gruppen, Aktivitäten)
+3. Kinder und Betreuungszeiten (Import, manuell, Betreuungszeiten)
+4. Testlauf vor dem Start (Go-live-Check als Checkliste)
 
-1. Zugang und Grundprüfung
-2. Stammdaten anlegen
-3. Kinder und Betreuungszeiten
-4. Planung und Verwaltung testen
-5. Go-live-Check
+### `/anleitung/funktionen`
 
-### `/anleitung/alltag`
+Nachschlage-Doku für Mitarbeitende und Vertretungen, in Seitenleisten-Reihenfolge.
+Karten tragen das jeweilige Seitenleisten-Icon statt einer Nummer. Kapitel:
 
-Nachschlage-Doku für Mitarbeitende und Vertretungen. Die Artikel sind nicht
-nach Datenbankbereichen sortiert, sondern nach Aufgaben.
-
-Beispiele:
-
-- Ein Kind schnell finden
-- Was tun, wenn ein Kind nicht gefunden wird?
-- Kind einchecken, entschuldigen oder zurücksetzen
-- Spontane Aktivität starten
-- Räume prüfen und Kinder unterwegs zuweisen
-- Arbeitszeit, Pause und Abwesenheit erfassen
-
-### `/anleitung/standard`
-
-Gesamtansicht für Einrichtungen ohne NFC. Enthält Setup, Alltag und
-Nachschlagen.
+1. Alltag und Aufsicht (Kindersuche, Meine Gruppen, Aktuelle Aufsicht)
+2. Räume, Team und Vertretung (Aktivitäten, Räume, Mitarbeiter, Vertretungen)
+3. Planung und Zeit (Stundenplan, Zeiterfassung)
+4. Verwaltung und Austausch (Datenverwaltung, Anmeldungen, Feedback)
 
 ### `/anleitung/nfc`
 
-Gesamtansicht für Einrichtungen mit NFC. Enthält alle Standard-Inhalte plus
-NFC-Vorbereitung.
+Zusätzliche Schritte nur für Einrichtungen mit Tablets oder NFC-Armbändern.
+Ersteinrichtung und Funktionen gelten unverändert weiter. Kapitel:
 
-### `/anleitung/print`
+1. Daten und Geräte vorbereiten (Kinder prüfen, Namen, Geräte)
+2. Vor dem ersten Einsatz (Checkliste vor dem ersten Tablet-Einsatz)
 
-Druckbare Gesamtansicht. Navigation und interaktive Elemente werden im Druck
-ausgeblendet. Kapitel und Artikel bleiben zusammen, soweit der Browserdruck es
-zulässt.
+## Artikelstruktur (`GuideStep`)
 
-## Artikelstruktur
+Jede Karte ist ein `GuideStep` in `guide-data.ts` mit diesen Feldern:
 
-Jeder Artikel soll diese Felder haben:
+- `title`: Aufgabe oder Seitenleisten-Bereich.
+- `summary`: Ein bis zwei Sätze, was die Karte erledigt.
+- `steps?`: Nummerierte Handlungsschritte. Optional, weil eine Karte
+  stattdessen `checklist` tragen kann.
+- `checklist?`: Prüfpunkte, als Häkchenliste gerendert (z. B. Go-live-Check).
+- `callout?`: Hervorgehobener Hinweis mit eigenem `tone` (z. B. Passwort
+  vergessen, Geburtstage im Import).
+- `screenshot`: Bildunterschrift / Alt-Text.
+- `image?`: Pfad unter `/public/anleitung/screens/...`. Fehlt das Bild, zeigt
+  die Karte einen gestrichelten Platzhalter mit der Bildunterschrift.
+- `icon?`: Lucide-Icon statt Nummer (nur auf `funktionen`).
 
-- `Ziel`: Was ist nach dem Artikel erledigt?
-- `Voraussetzungen`: Was muss vorher existieren?
-- `Schritt für Schritt`: Klickpfad und Handlung.
-- `Pflichtfelder`: Nur wenn Eingaben nötig sind.
-- `Prüfen`: Woran erkennt die Person, dass es geklappt hat?
-- `Typische Fehler`: Was geht oft schief?
-- `Hinweise`: Kurze Zusatzinfos, falls nötig.
-- `Screenshot`: Gewünschter Screenshot-Zustand.
-
-Diese Struktur macht die Inhalte für Online-Doku und Druck nutzbar.
+Karten liegen in `GuideChapter`-Gruppen (`id`, `title`, `description`, `icon`,
+`tone`, `steps`). Der `tone` färbt Kapitel-Icon, Karten-Badge und Callout.
 
 ## Zielgruppen
 
@@ -96,8 +90,9 @@ Stammdaten ändern darf.
 
 ## Varianten
 
-Artikel markieren, ob sie für `standard`, `nfc` oder beide Varianten gelten.
-NFC-Inhalte ergänzen die Standard-Doku. Sie ersetzen sie nicht.
+Es gibt keine getrennten `standard`/`nfc`-Varianten mehr. Ersteinrichtung und
+Funktionen gelten für alle Einrichtungen. NFC ist eine eigene Zusatzseite, die
+die anderen beiden ergänzt, nicht ersetzt.
 
 ## Schreibregeln
 
@@ -120,6 +115,7 @@ NFC-Inhalte ergänzen die Standard-Doku. Sie ersetzen sie nicht.
 
 ## Offene Arbeit
 
-- Echte Screenshots mit anonymisierten Demo-Daten erstellen.
+- Echte Screenshots liegen unter `/public/anleitung/screens/`. Die vier
+  NFC-Karten haben noch keine Bilder und zeigen den Platzhalter.
 - Doku aus der Portal-Navigation verlinken, falls gewünscht.
 - Bei größeren UI-Änderungen die betroffenen Artikel suchen und prüfen.

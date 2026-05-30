@@ -1,5 +1,5 @@
 import { GuideShell } from "~/components/anleitung/guide-components";
-import { setupSteps } from "~/components/anleitung/guide-data";
+import { setupChapters } from "~/components/anleitung/guide-data";
 
 export const metadata = {
   title: "moto Ersteinrichtung",
@@ -13,7 +13,7 @@ export default function ErsteinrichtungGuidePage() {
       eyebrow="Ersteinrichtung"
       title="moto Schritt für Schritt einrichten."
       description="Arbeiten Sie die Schritte von oben nach unten ab. Die Reihenfolge ist bewusst gewählt. Jeder Schritt baut auf dem vorherigen auf, vom Zugang bis zum Testlauf vor dem ersten echten Betreuungstag."
-      items={setupSteps}
+      chapters={setupChapters}
       activePath="ersteinrichtung"
       numbered
       note="Fast alle diese Schritte erledigen Sie zentral unter `Datenverwaltung` in der Seitenleiste. Dort werden Personal, Räume, Gruppen, Aktivitäten und Kinder gepflegt."

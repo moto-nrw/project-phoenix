@@ -1,5 +1,5 @@
 import { GuideShell } from "~/components/anleitung/guide-components";
-import { nfcSteps } from "~/components/anleitung/guide-data";
+import { nfcChapters } from "~/components/anleitung/guide-data";
 
 export const metadata = {
   title: "moto NFC & Tablets",
@@ -13,7 +13,7 @@ export default function NfcGuidePage() {
       eyebrow="NFC & Tablets"
       title="Zusätzliche Schritte für NFC-Einrichtungen."
       description="Nur für Einrichtungen mit Tablets oder NFC-Armbändern. Ersteinrichtung und die allgemeinen Funktionen gelten unverändert. Hier kommen ausschließlich die zusätzlichen NFC-Schritte dazu."
-      items={nfcSteps}
+      chapters={nfcChapters}
       activePath="nfc"
       numbered
     />
