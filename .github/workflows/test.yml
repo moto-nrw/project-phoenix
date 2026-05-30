@@ -134,6 +134,8 @@ jobs:
 
       - name: Add tenant middleware coverage
         working-directory: backend
+        env:
+          TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
         run: |
           go test ./tenant \
             -coverpkg=./tenant \
