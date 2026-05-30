@@ -94,6 +94,10 @@ function isOperatorHost(hostname: string): boolean {
 function handleOperatorSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
+  if (pathname === "/anleitung" || pathname.startsWith("/anleitung/")) {
+    return withSecurityHeaders(NextResponse.next());
+  }
+
   // Block tenant auth endpoints on the operator host. Tenant session cookies
   // are domain-scoped and sent to subdomains, so allowing /api/auth/* here
   // would expose tenant session data on operator.moto-app.de.
@@ -165,6 +169,10 @@ function isParentsHost(hostname: string): boolean {
 
 function handleParentsSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
+
+  if (pathname === "/anleitung" || pathname.startsWith("/anleitung/")) {
+    return withSecurityHeaders(NextResponse.next());
+  }
 
   // Block tenant + operator auth endpoints on the parents host. Tenant
   // and operator session cookies are strictly host-only on their own
@@ -266,6 +274,13 @@ export function proxy(request: NextRequest): NextResponse {
 
   // 2. /api/* and /monitoring (Sentry tunnel) — pass through with security headers.
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
+    return withSecurityHeaders(NextResponse.next());
+  }
+
+  // Public documentation must stay host-agnostic. Without this exception,
+  // tenant subdomains rewrite /anleitung to /{tenant}/anleitung, where no
+  // App Router route exists.
+  if (pathname === "/anleitung" || pathname.startsWith("/anleitung/")) {
     return withSecurityHeaders(NextResponse.next());
   }
 
