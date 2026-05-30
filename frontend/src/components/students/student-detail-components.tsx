@@ -5,7 +5,14 @@ import { AlertTriangle, Check, Clock } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { getStudentTimeStatus } from "~/lib/student-time-status";
+import {
+  getStudentAbsence,
+  getStudentTimeStatus,
+} from "~/lib/student-time-status";
+import {
+  getDayPlanningNotComingLabel,
+  getStudentPresenceBadgePlanning,
+} from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Avatar } from "~/components/ui/avatar";
@@ -313,10 +320,18 @@ export function StudentDetailHeader({
   // Spread the student so any field LocationBadge consumes (current_room_color,
   // future room-derived attributes, etc.) propagates without maintaining a
   // parallel whitelist here. Only the not_arrival_* fields are computed locally.
+  const badgePlanning = getStudentPresenceBadgePlanning({
+    ...student,
+    arrival_is_exception: isArrivalException,
+    arrival_time: todayArrivalPlannedTime,
+    arrival_notes: todayArrivalNote,
+  });
   const badgeStudent = {
     ...student,
-    not_arrival_today: isArrivalAbsent ?? false,
-    not_arrival_reason: todayArrivalNote ?? null,
+    not_arrival_today:
+      badgePlanning.notArrivalToday || (isArrivalAbsent ?? false),
+    not_arrival_reason:
+      badgePlanning.notArrivalReason ?? todayArrivalNote ?? null,
   };
 
   const fullName =
@@ -354,24 +369,55 @@ export function StudentDetailHeader({
                 <span className="truncate">{student.group_name}</span>
               </div>
             )}
-            <TodayTimeStatusInlineRow
-              kind="arrival"
-              label="Heutige Ankunft"
-              plannedTime={todayArrivalPlannedTime}
-              actualTime={todayArrivalActualTime}
-              isException={isArrivalException}
-              note={isArrivalAbsent ? undefined : todayArrivalNote}
-              isAbsent={isArrivalAbsent}
-              absentReason={todayArrivalNote}
-            />
-            <TodayTimeStatusInlineRow
-              kind="pickup"
-              label="Heutige Abholung"
-              plannedTime={todayPickupPlannedTime}
-              actualTime={todayPickupActualTime}
-              isException={isPickupException}
-              note={todayPickupNote}
-            />
+            {(() => {
+              // Variant B: a sick/excused child without a completed pickup
+              // should not accrue overdue pickup urgency, even if they already
+              // checked in before the absence flag was set. Once pickup is
+              // recorded, the actual resolved times can render normally.
+              const absence = getStudentAbsence({
+                sick: student.sick,
+                excused: student.excused,
+              });
+              const dayPlanningNotComingLabel =
+                getDayPlanningNotComingLabel(student);
+              const notComingLabel =
+                absence?.label ?? dayPlanningNotComingLabel;
+              if (notComingLabel && !todayPickupActualTime) {
+                return (
+                  <div
+                    data-testid="today-absence-row"
+                    className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
+                  >
+                    <ClockIcon className="h-4 w-4 text-gray-400" />
+                    <span className="font-medium text-gray-900">
+                      {`Kommt heute nicht (${notComingLabel})`}
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <>
+                  <TodayTimeStatusInlineRow
+                    kind="arrival"
+                    label="Heutige Ankunft"
+                    plannedTime={todayArrivalPlannedTime}
+                    actualTime={todayArrivalActualTime}
+                    isException={isArrivalException}
+                    note={isArrivalAbsent ? undefined : todayArrivalNote}
+                    isAbsent={isArrivalAbsent}
+                    absentReason={todayArrivalNote}
+                  />
+                  <TodayTimeStatusInlineRow
+                    kind="pickup"
+                    label="Heutige Abholung"
+                    plannedTime={todayPickupPlannedTime}
+                    actualTime={todayPickupActualTime}
+                    isException={isPickupException}
+                    note={todayPickupNote}
+                  />
+                </>
+              );
+            })()}
           </div>
         </div>
         <div className="mr-4 flex-shrink-0 pb-3">

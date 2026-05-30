@@ -42,6 +42,9 @@ interface StudentResponseFromBackend {
   guardian_email?: string;
   guardian_phone?: string;
   group_id?: number;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   created_at: string;
   updated_at: string;
 }

@@ -26,6 +26,8 @@ interface RoleOption {
   name: string;
 }
 
+const EMPTY_POSITIONS: readonly string[] = [];
+
 const initialForm: CreateInvitationRequest = {
   email: "",
   roleId: undefined,
@@ -36,7 +38,7 @@ const initialForm: CreateInvitationRequest = {
 
 export function InvitationForm({
   onCreated,
-  existingPositions = [],
+  existingPositions = EMPTY_POSITIONS,
 }: InvitationFormProps) {
   const [form, setForm] = useState<CreateInvitationRequest>(initialForm);
   const [roles, setRoles] = useState<RoleOption[]>([]);

@@ -102,6 +102,26 @@ jobs:
           fi
           rm -f coverage.gotestsum.out
 
+      - name: Add list export coverage
+        working-directory: backend
+        run: |
+          go test ./services/listexport \
+            -coverpkg=./services/listexport \
+            -covermode=atomic \
+            -coverprofile=coverage.listexport.out
+          tail -n +2 coverage.listexport.out >> coverage.out
+          rm -f coverage.listexport.out
+
+      - name: Add emergency coverage
+        working-directory: backend
+        run: |
+          go test ./services/emergency \
+            -coverpkg=./services/emergency \
+            -covermode=atomic \
+            -coverprofile=coverage.emergency.out
+          tail -n +2 coverage.emergency.out >> coverage.out
+          rm -f coverage.emergency.out
+
       - name: Drop flaky retries from junit.xml
         working-directory: backend
         if: always()
@@ -158,6 +178,27 @@ jobs:
           # Transform Go module paths to relative paths
           # From: github.com/moto-nrw/project-phoenix/... → backend/...
           sed -i 's|github.com/moto-nrw/project-phoenix/|backend/|g' backend/coverage.out
+          python3 - <<'PYEOF'
+          from collections import OrderedDict
+
+          source = "backend/coverage.out"
+          merged = OrderedDict()
+
+          with open(source, encoding="utf-8") as fh:
+              mode = fh.readline()
+              for raw in fh:
+                  line = raw.strip()
+                  if not line:
+                      continue
+                  location, statements, count = line.rsplit(" ", 2)
+                  key = (location, statements)
+                  merged[key] = merged.get(key, 0) + int(count)
+
+          with open(source, "w", encoding="utf-8") as fh:
+              fh.write(mode)
+              for (location, statements), count in merged.items():
+                  fh.write(f"{location} {statements} {count}\n")
+          PYEOF
 
       - name: Upload backend coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -342,6 +342,7 @@ describe("StudentSearchPage", () => {
     mockSearchParams.delete("room_name");
     mockSearchParams.delete("pickup_time");
     mockSearchParams.delete("arrival_time");
+    mockSearchParams.delete("day_status");
     mockSearchParams.delete("tracking");
     mockSearchParams.delete("sort");
     mockSearchParams.delete("view");
@@ -399,6 +400,18 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         const attendanceFilter = screen.getByTestId("filter-attendance");
         expect(attendanceFilter).toHaveValue("all");
+      });
+    });
+
+    it("reads day_status from URL params", async () => {
+      mockSearchParams.set("day_status", "comes_today");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-dayStatus")).toHaveValue(
+          "comes_today",
+        );
       });
     });
 
@@ -733,6 +746,72 @@ describe("StudentSearchPage", () => {
         expect(screen.getByText("Anna")).toBeInTheDocument();
         expect(screen.queryByText("Max")).not.toBeInTheDocument();
       });
+    });
+
+    it("collapses a sick student's time rows into one neutral 'not coming' line (Variant B)", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              first_name: "Kerstin",
+              current_location: "Zuhause",
+              arrival_time: "08:00",
+              pickup_time: "15:30",
+              actual_arrival_time: undefined,
+              sick: true,
+              has_full_access: true,
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Kommt heute nicht (krank gemeldet)"),
+        ).toBeInTheDocument();
+      });
+      // The two time rows are replaced by the single absence line — no red
+      // "overdue" arrival/pickup for a child who isn't coming today.
+      expect(screen.queryByText(/Ankunftszeit:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
+    });
+
+    it("keeps a sick checked-in student out of the overdue pickup row", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              first_name: "Kerstin",
+              current_location: "Raum 101",
+              arrival_time: "08:00",
+              pickup_time: "15:30",
+              actual_arrival_time: "08:05",
+              actual_pickup_time: undefined,
+              sick: true,
+              has_full_access: true,
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Kommt heute nicht (krank gemeldet)"),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
     });
 
     it("filters to show only transit students when 'unterwegs' is selected", async () => {
@@ -1140,6 +1219,7 @@ describe("StudentSearchPage", () => {
     });
 
     it("executes the students SWR fetcher", async () => {
+      mockSearchParams.set("day_status", "not_coming_today");
       const studentService = await import("~/lib/api");
       const mockGetStudents = vi.fn().mockResolvedValue({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
@@ -1197,7 +1277,9 @@ describe("StudentSearchPage", () => {
       expect(result).toEqual({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
       });
-      expect(mockGetStudents).toHaveBeenCalled();
+      expect(mockGetStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ dayStatus: "not_coming_today" }),
+      );
     });
   });
 

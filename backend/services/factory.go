@@ -27,11 +27,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -74,7 +76,9 @@ type Factory struct {
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
-	RealtimeHub              *realtime.Hub                                               // SSE event hub (shared by services and API)
+	ListExport               listexport.Service
+	Emergency                emergency.Service
+	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
 	FrontendURL              string
@@ -586,7 +590,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		})),
 	)
 	// Rollover (annual phase renewal) emails. Slice 1 reuses the
-	// submission template as a placeholder — proper branded copy lands
+	// submission template as a placeholder. Proper branded copy lands
 	// in a follow-up PR.
 	emailTemplateRegistry.Register(
 		platformModels.EmailKindEnrollmentRolloverOptIn,
@@ -858,6 +862,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              platformLogger,
 	})
 
+	listExportService := listexport.NewService()
+	emergencyService := emergency.NewService(emergency.Dependencies{
+		AttendanceRepo: repos.Attendance,
+		StudentRepo:    repos.Student,
+		PersonRepo:     repos.Person,
+		ActiveService:  activeService,
+		ListExport:     listExportService,
+		DB:             db,
+	})
+
 	factory := &Factory{
 		Auth:                     authService,
 		Active:                   activeService,
@@ -889,7 +903,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		UserContext:              userContextService,
 		Database:                 databaseService,
 		Import:                   studentImportService, // Student import service
-		RealtimeHub:              realtimeHub,          // Expose SSE hub for API layer
+		ListExport:               listExportService,
+		Emergency:                emergencyService,
+		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Invitation:               invitationService,
 		GuardianInvitation:       guardianInvitationService,
 		Mailer:                   mailer,
