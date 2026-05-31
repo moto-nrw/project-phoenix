@@ -23,7 +23,7 @@ const nextLinks: Record<
 > = {
   ersteinrichtung: [
     {
-      href: "/anleitung/funktionen",
+      href: "/help/features",
       label: "Als nächstes",
       title: "Die App entdecken",
       body: "Jeder Bereich der App, verständlich erklärt für den Alltag nach der Einrichtung.",
@@ -32,7 +32,7 @@ const nextLinks: Record<
   ],
   funktionen: [
     {
-      href: "/anleitung/nfc",
+      href: "/help/nfc",
       label: "Optional",
       title: "NFC & Tablets ansehen",
       body: "Zusätzliche Vorbereitung für Einrichtungen mit Tablets oder NFC-Armbändern.",
@@ -41,7 +41,7 @@ const nextLinks: Record<
   ],
   nfc: [
     {
-      href: "/anleitung",
+      href: "/help",
       label: "Fertig",
       title: "Zur Übersicht zurück",
       body: "Alle Anleitungsbereiche noch einmal gesammelt an einem Ort.",
@@ -185,7 +185,7 @@ export function GuideShell({
         <header className="print:hidden">
           <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:p-4">
             <Link
-              href="/anleitung"
+              href="/help"
               className="inline-flex w-fit items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { EntryPointCard } from "~/components/anleitung/guide-components";
-import { guideEntryPoints } from "~/components/anleitung/guide-data";
+import { EntryPointCard } from "~/components/help/guide-components";
+import { guideEntryPoints } from "~/components/help/guide-data";
 
 export const metadata = {
   title: "moto Anleitung",
@@ -8,7 +8,7 @@ export const metadata = {
     "Anleitung für moto: Ersteinrichtung, alle Funktionen der App und NFC.",
 };
 
-export default function AnleitungLandingPage() {
+export default function HelpLandingPage() {
   return (
     <main className="moto-dotted-background moto-dotted-background--fullscreen min-h-screen overflow-x-hidden">
       <div className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-5 sm:px-6 lg:px-8">

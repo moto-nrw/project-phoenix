@@ -1,5 +1,5 @@
-import { GuideShell } from "~/components/anleitung/guide-components";
-import { nfcChapters } from "~/components/anleitung/guide-data";
+import { GuideShell } from "~/components/help/guide-components";
+import { nfcChapters } from "~/components/help/guide-data";
 
 export const metadata = {
   title: "moto NFC & Tablets",

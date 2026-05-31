@@ -94,7 +94,7 @@ function isOperatorHost(hostname: string): boolean {
 function handleOperatorSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/anleitung" || pathname.startsWith("/anleitung/")) {
+  if (pathname === "/help" || pathname.startsWith("/help/")) {
     return withSecurityHeaders(NextResponse.next());
   }
 
@@ -170,7 +170,7 @@ function isParentsHost(hostname: string): boolean {
 function handleParentsSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/anleitung" || pathname.startsWith("/anleitung/")) {
+  if (pathname === "/help" || pathname.startsWith("/help/")) {
     return withSecurityHeaders(NextResponse.next());
   }
 
@@ -278,9 +278,9 @@ export function proxy(request: NextRequest): NextResponse {
   }
 
   // Public documentation must stay host-agnostic. Without this exception,
-  // tenant subdomains rewrite /anleitung to /{tenant}/anleitung, where no
+  // tenant subdomains rewrite /help to /{tenant}/help, where no
   // App Router route exists.
-  if (pathname === "/anleitung" || pathname.startsWith("/anleitung/")) {
+  if (pathname === "/help" || pathname.startsWith("/help/")) {
     return withSecurityHeaders(NextResponse.next());
   }
 

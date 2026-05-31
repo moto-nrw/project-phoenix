@@ -1,5 +1,5 @@
-import { GuideShell } from "~/components/anleitung/guide-components";
-import { appChapters } from "~/components/anleitung/guide-data";
+import { GuideShell } from "~/components/help/guide-components";
+import { appChapters } from "~/components/help/guide-data";
 
 export const metadata = {
   title: "moto: Die App im Alltag",
@@ -7,7 +7,7 @@ export const metadata = {
     "Jeder Bereich der moto-App verständlich erklärt: was er macht und wie man ihn nutzt.",
 };
 
-export default function FunktionenGuidePage() {
+export default function FeaturesGuidePage() {
   return (
     <GuideShell
       eyebrow="Die App im Alltag"

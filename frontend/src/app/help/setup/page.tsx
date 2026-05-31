@@ -1,5 +1,5 @@
-import { GuideShell } from "~/components/anleitung/guide-components";
-import { setupChapters } from "~/components/anleitung/guide-data";
+import { GuideShell } from "~/components/help/guide-components";
+import { setupChapters } from "~/components/help/guide-data";
 
 export const metadata = {
   title: "moto Ersteinrichtung",
@@ -7,7 +7,7 @@ export const metadata = {
     "Schritt-für-Schritt-Anleitung für das erste Einrichten von moto.",
 };
 
-export default function ErsteinrichtungGuidePage() {
+export default function SetupGuidePage() {
   return (
     <GuideShell
       eyebrow="Ersteinrichtung"

@@ -66,7 +66,7 @@ export interface GuideEntryPoint {
 
 export const guideEntryPoints: readonly GuideEntryPoint[] = [
   {
-    href: "/anleitung/ersteinrichtung",
+    href: "/help/setup",
     title: "Ersteinrichtung",
     body: "Schritt für Schritt vom leeren System bis zum ersten echten Betreuungstag.",
     icon: ClipboardCheck,
@@ -77,7 +77,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     ],
   },
   {
-    href: "/anleitung/funktionen",
+    href: "/help/features",
     title: "Die App im Alltag",
     body: "Jeder Bereich der App verständlich erklärt: was er macht und wie man ihn nutzt.",
     icon: LayoutDashboard,
@@ -88,7 +88,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     ],
   },
   {
-    href: "/anleitung/nfc",
+    href: "/help/nfc",
     title: "NFC & Tablets",
     body: "Zusätzliche Schritte nur für Einrichtungen mit Tablets oder NFC-Armbändern.",
     icon: TabletSmartphone,
@@ -134,7 +134,7 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot: "Loginseite mit E-Mail-Adresse, Passwort und Anmelden.",
-        image: "/anleitung/screens/konto-erstellen.png",
+        image: "/help/screens/konto-erstellen.png",
       },
       {
         id: "mitarbeitende-anlegen",
@@ -150,7 +150,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Speichern und die Person zum Login auffordern.",
         ],
         screenshot: "Personalformular mit Vorname, Nachname, E-Mail und Rolle.",
-        image: "/anleitung/screens/mitarbeitende-anlegen.png",
+        image: "/help/screens/mitarbeitende-anlegen.png",
       },
     ],
   },
@@ -175,7 +175,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Räume-Liste in der Datenverwaltung mit Beispiel-Einträgen.",
-        image: "/anleitung/screens/raeume-anlegen.png",
+        image: "/help/screens/raeume-anlegen.png",
       },
       {
         id: "gruppen-anlegen",
@@ -196,7 +196,7 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot: "Gruppen-Liste in der Datenverwaltung.",
-        image: "/anleitung/screens/gruppen-anlegen.png",
+        image: "/help/screens/gruppen-anlegen.png",
       },
       {
         id: "aktivitaeten-anlegen",
@@ -218,7 +218,7 @@ export const setupChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Aktivitätsformular mit Name, Kategorie und maximale Teilnehmer.",
-        image: "/anleitung/screens/aktivitaeten-anlegen.png",
+        image: "/help/screens/aktivitaeten-anlegen.png",
       },
     ],
   },
@@ -252,7 +252,7 @@ export const setupChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Kinderimport mit Vorlage herunterladen, Datenvorschau und Schüler importieren.",
-        image: "/anleitung/screens/kinder-importieren.png",
+        image: "/help/screens/kinder-importieren.png",
       },
       {
         id: "kind-manuell-anlegen",
@@ -269,7 +269,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Kinderformular mit Stammdaten, Gruppe und Hinweis zu Erziehungsberechtigten.",
-        image: "/anleitung/screens/kind-manuell-anlegen.png",
+        image: "/help/screens/kind-manuell-anlegen.png",
       },
       {
         id: "betreuungszeiten-pflegen",
@@ -287,7 +287,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Betreuungszeiten mit Ankunftsplan, Abholplan und Tag bearbeiten.",
-        image: "/anleitung/screens/betreuungszeiten-pflegen.png",
+        image: "/help/screens/betreuungszeiten-pflegen.png",
       },
     ],
   },
@@ -313,7 +313,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Go-live-Übersicht mit Kindersuche, aktueller Aufsicht und Räumen.",
-        image: "/anleitung/screens/go-live-check.png",
+        image: "/help/screens/go-live-check.png",
       },
     ],
   },
@@ -346,7 +346,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
         screenshot: "Kindersuche mit Suchfeld, Filtern und Status-Badges.",
-        image: "/anleitung/screens/kindersuche.png",
+        image: "/help/screens/kindersuche.png",
       },
       {
         id: "meine-gruppen",
@@ -361,7 +361,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Seitenleiste mit aufgeklappten eigenen Gruppen und Anwesenheitszahl.",
-        image: "/anleitung/screens/meine-gruppen.png",
+        image: "/help/screens/meine-gruppen.png",
       },
       {
         id: "aktuelle-aufsicht",
@@ -380,7 +380,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Laufende Aufsicht mit Anwesend, Erwartet und Spontane Aktivität.",
-        image: "/anleitung/screens/aktuelle-aufsicht.png",
+        image: "/help/screens/aktuelle-aufsicht.png",
       },
     ],
   },
@@ -405,7 +405,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über die Schaltfläche zum Anlegen eine neue Aktivität erstellen.",
         ],
         screenshot: "Aktivitätenliste mit Suche, Filter und neuer Aktivität.",
-        image: "/anleitung/screens/aktivitaeten.png",
+        image: "/help/screens/aktivitaeten.png",
       },
       {
         id: "raeume",
@@ -421,7 +421,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Räume-Übersicht mit Statusfilter, Frei/Belegt und Unterwegs.",
-        image: "/anleitung/screens/raeume.png",
+        image: "/help/screens/raeume.png",
       },
       {
         id: "mitarbeiter",
@@ -437,7 +437,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Mitarbeiterliste mit Status-Badges und aktiven Aufsichten.",
-        image: "/anleitung/screens/mitarbeiter.png",
+        image: "/help/screens/mitarbeiter.png",
       },
       {
         id: "vertretungen",
@@ -455,7 +455,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Vertretungen mit verfügbaren Fachkräften und Dialog Vertretung zuweisen.",
-        image: "/anleitung/screens/vertretungen.png",
+        image: "/help/screens/vertretungen.png",
       },
     ],
   },
@@ -481,7 +481,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Stundenplan-Kalender mit Termin, Serien und Jetzt starten.",
-        image: "/anleitung/screens/stundenplan.png",
+        image: "/help/screens/stundenplan.png",
       },
       {
         id: "zeiterfassung",
@@ -497,7 +497,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Zeiterfassung mit Einstempeln, Pause, Ausstempeln und Abwesenheit melden.",
-        image: "/anleitung/screens/zeiterfassung.png",
+        image: "/help/screens/zeiterfassung.png",
       },
     ],
   },
@@ -521,7 +521,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Einträge anlegen, bearbeiten oder prüfen.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
-        image: "/anleitung/screens/datenverwaltung.png",
+        image: "/help/screens/datenverwaltung.png",
       },
       {
         id: "anmeldungen",
@@ -538,7 +538,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Anmeldungen-Überblick mit Eingangsliste und Entscheidungsoptionen.",
-        image: "/anleitung/screens/anmeldungen.png",
+        image: "/help/screens/anmeldungen.png",
       },
       {
         id: "feedback",
@@ -554,7 +554,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Feedback-Übersicht mit Suche, Neuer Beitrag und Statusfilter.",
-        image: "/anleitung/screens/feedback.png",
+        image: "/help/screens/feedback.png",
       },
     ],
   },
