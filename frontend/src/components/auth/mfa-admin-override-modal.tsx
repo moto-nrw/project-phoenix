@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -308,8 +309,8 @@ export function MFAAdminOverrideModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
         <header className="mb-4 flex items-start justify-between">
           <div>
@@ -671,4 +672,10 @@ export function MFAAdminOverrideModal({
       </div>
     </div>
   );
+
+  if (typeof document !== "undefined") {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 }
