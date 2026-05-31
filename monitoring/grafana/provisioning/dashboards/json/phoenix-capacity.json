@@ -11,6 +11,7 @@
     {
       "type": "timeseries",
       "title": "Host CPU Load",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
       "targets": [
         { "expr": "node_load1", "legendFormat": "load1" },
@@ -20,6 +21,7 @@
     {
       "type": "timeseries",
       "title": "Host Memory Used",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
       "targets": [
         {
@@ -31,6 +33,7 @@
     {
       "type": "timeseries",
       "title": "Container CPU",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
       "targets": [
         {
@@ -42,6 +45,7 @@
     {
       "type": "timeseries",
       "title": "Backend HTTP p95",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
       "targets": [
         {
@@ -53,6 +57,7 @@
     {
       "type": "timeseries",
       "title": "DB Pool",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
       "targets": [
         {
@@ -68,6 +73,7 @@
     {
       "type": "timeseries",
       "title": "SSE Clients by Tenant",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
       "targets": [
         {
@@ -79,6 +85,7 @@
     {
       "type": "timeseries",
       "title": "IoT Requests",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 0, "y": 16, "w": 8, "h": 8 },
       "targets": [
         {
@@ -90,22 +97,12 @@
     {
       "type": "timeseries",
       "title": "Frontend Event Loop Lag",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 8, "y": 16, "w": 8, "h": 8 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, env) (rate(phoenix_frontend_nodejs_eventloop_lag_seconds_bucket[5m])))",
-          "legendFormat": "{{env}} p95"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Caddy Upstream Latency p95",
-      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(caddy_http_reverse_proxy_upstream_latency_seconds_bucket[5m])))",
-          "legendFormat": "{{handler}}"
+          "expr": "phoenix_frontend_nodejs_eventloop_lag_p99_seconds",
+          "legendFormat": "{{env}} p99"
         }
       ]
     }
