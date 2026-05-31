@@ -661,6 +661,8 @@ func TestDownloadStaffTemplate_CSV(t *testing.T) {
 	for _, col := range []string{"Vorname", "Nachname", "Email", "Rolle"} {
 		assert.Contains(t, body, col, "staff CSV template must advertise the %q column", col)
 	}
+	assert.Contains(t, body, "Betreuer", "staff CSV template should use a default role that exists")
+	assert.NotContains(t, body, "Lehrer", "staff CSV template must not suggest a non-default role")
 }
 
 func TestDownloadStaffTemplate_XLSX(t *testing.T) {

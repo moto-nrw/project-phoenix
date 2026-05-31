@@ -107,6 +107,30 @@ func (r stubStaffAccountRepo) FindAvatarsByAccountIDs(context.Context, []int64) 
 	panic("not implemented")
 }
 
+type stubStaffAccountTenantRepo struct {
+	exists bool
+	err    error
+}
+
+func (r stubStaffAccountTenantRepo) Create(context.Context, *authModels.AccountTenant) error {
+	panic("not implemented")
+}
+func (r stubStaffAccountTenantRepo) FindActiveByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
+	panic("not implemented")
+}
+func (r stubStaffAccountTenantRepo) ExistsByAccountAndTenant(context.Context, int64, int64) (bool, error) {
+	return r.exists, r.err
+}
+func (r stubStaffAccountTenantRepo) ListAccountsByTenantID(context.Context, int64) ([]authModels.TenantAccountInfo, error) {
+	panic("not implemented")
+}
+func (r stubStaffAccountTenantRepo) ListAccountsByOrganizationID(context.Context, int64) ([]authModels.OrgAccountInfo, error) {
+	panic("not implemented")
+}
+func (r stubStaffAccountTenantRepo) ListAllAccounts(context.Context) ([]authModels.OrgAccountInfo, error) {
+	panic("not implemented")
+}
+
 type stubStaffSchoolRepo struct {
 	school *platformModels.School
 	err    error
@@ -311,14 +335,31 @@ func TestStaffImportConfig_FindExisting(t *testing.T) {
 		assert.Nil(t, id)
 	})
 
-	t.Run("existing account returns id", func(t *testing.T) {
+	t.Run("existing account in other tenant returns nil", func(t *testing.T) {
 		config := NewStaffImportConfig(StaffImportDeps{
 			AccountRepo: stubStaffAccountRepo{
 				account: &authModels.Account{Model: base.Model{ID: staffImportTestAccountID}},
 			},
+			AccountTenantRepo: stubStaffAccountTenantRepo{exists: false},
 		})
+		ctx := tenant.WithTenantID(context.Background(), staffImportTestTenantID)
 
-		id, err := config.FindExisting(context.Background(), importModels.StaffImportRow{Email: " anna@example.com "})
+		id, err := config.FindExisting(ctx, importModels.StaffImportRow{Email: " anna@example.com "})
+
+		require.NoError(t, err)
+		assert.Nil(t, id)
+	})
+
+	t.Run("existing account in current tenant returns id", func(t *testing.T) {
+		config := NewStaffImportConfig(StaffImportDeps{
+			AccountRepo: stubStaffAccountRepo{
+				account: &authModels.Account{Model: base.Model{ID: staffImportTestAccountID}},
+			},
+			AccountTenantRepo: stubStaffAccountTenantRepo{exists: true},
+		})
+		ctx := tenant.WithTenantID(context.Background(), staffImportTestTenantID)
+
+		id, err := config.FindExisting(ctx, importModels.StaffImportRow{Email: " anna@example.com "})
 
 		require.NoError(t, err)
 		require.NotNil(t, id)
@@ -382,5 +423,6 @@ func TestStaffImportConfig_InvitationServiceCompileGuard(t *testing.T) {
 	var _ authsvc.InvitationService = (*stubStaffInvitationService)(nil)
 	var _ authModels.RoleRepository = stubStaffRoleRepo{}
 	var _ authModels.AccountRepository = stubStaffAccountRepo{}
+	var _ authModels.AccountTenantRepository = stubStaffAccountTenantRepo{}
 	var _ platformModels.SchoolRepository = stubStaffSchoolRepo{}
 }

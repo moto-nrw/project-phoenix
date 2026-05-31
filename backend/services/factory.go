@@ -691,6 +691,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		importService.StaffImportDeps{
 			InvitationService: invitationService,
 			AccountRepo:       repos.Account,
+			AccountTenantRepo: repos.AccountTenant,
 			RoleRepo:          repos.Role,
 			SchoolRepo:        repos.School,
 		},

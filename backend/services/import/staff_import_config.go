@@ -49,6 +49,7 @@ func roleDisplayName(rawName string) string {
 type StaffImportDeps struct {
 	InvitationService authsvc.InvitationService
 	AccountRepo       authModels.AccountRepository
+	AccountTenantRepo authModels.AccountTenantRepository
 	RoleRepo          authModels.RoleRepository
 	SchoolRepo        platformModels.SchoolRepository
 }
@@ -62,6 +63,7 @@ type StaffImportDeps struct {
 type StaffImportConfig struct {
 	invitationService authsvc.InvitationService
 	accountRepo       authModels.AccountRepository
+	accountTenantRepo authModels.AccountTenantRepository
 	roleRepo          authModels.RoleRepository
 	schoolRepo        platformModels.SchoolRepository
 
@@ -79,6 +81,7 @@ func NewStaffImportConfig(deps StaffImportDeps) *StaffImportConfig {
 	return &StaffImportConfig{
 		invitationService: deps.InvitationService,
 		accountRepo:       deps.AccountRepo,
+		accountTenantRepo: deps.AccountTenantRepo,
 		roleRepo:          deps.RoleRepo,
 		schoolRepo:        deps.SchoolRepo,
 	}
@@ -190,9 +193,9 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 	return []importModels.ValidationError{verr}
 }
 
-// FindExisting reports whether an account already exists for the row's email.
-// In create mode an existing account is reported as a duplicate so the staff
-// member is not invited twice.
+// FindExisting reports whether the row's email already has access to this
+// tenant. A globally existing account in another tenant is not a duplicate:
+// CreateInvitation supports inviting that account into the current tenant.
 func (c *StaffImportConfig) FindExisting(ctx context.Context, row importModels.StaffImportRow) (*int64, error) {
 	email := strings.TrimSpace(row.Email)
 	if email == "" {
@@ -205,6 +208,14 @@ func (c *StaffImportConfig) FindExisting(ctx context.Context, row importModels.S
 			return nil, nil // No existing account for this email.
 		}
 		return nil, err
+	}
+
+	exists, err := c.accountTenantRepo.ExistsByAccountAndTenant(ctx, account.ID, tenant.FromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
 	}
 
 	id := account.ID

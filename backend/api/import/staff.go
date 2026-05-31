@@ -23,8 +23,8 @@ func getStaffImportHeaders() []string {
 // getStaffImportExamples returns example data rows for the staff template.
 func getStaffImportExamples() [][]any {
 	return [][]any{
-		{"Anna", "Lehmann", "anna.lehmann@example.com", "Lehrer", "Klassenlehrerin"},
-		{"Bernd", "Schulz", "bernd.schulz@example.com", "Admin", ""},
+		{"Anna", "Lehmann", "anna.lehmann@example.com", "Betreuer", "Klassenlehrerin"},
+		{"Bernd", "Schulz", "bernd.schulz@example.com", "Administrator", ""},
 	}
 }
 
@@ -108,7 +108,7 @@ func writeStaffHinweiseSheet(f *excelize.File) {
 		{"Position", "Nein", "Optionale Berufsbezeichnung (z.B. Klassenlehrerin)"},
 		{"", "", ""},
 		{"Hinweis", "", "Der Import legt Einladungen an. Mitarbeitende setzen ihr Passwort selbst über den Link in der E-Mail."},
-		{"Hinweis", "", "Bereits vorhandene Konten werden übersprungen."},
+		{"Hinweis", "", "Bereits in dieser Schule vorhandene Konten werden übersprungen."},
 	}
 	for rowIdx, row := range rows {
 		for colIdx, val := range row {
