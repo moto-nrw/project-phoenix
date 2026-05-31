@@ -2,8 +2,8 @@ package observability
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -109,6 +109,15 @@ var (
 	sseStatsProvider SSEStatsProvider
 	sseGaugeMu       sync.Mutex
 	sseGaugeTenants  = make(map[string]struct{})
+
+	dbOpenConnectionsDesc      = prometheus.NewDesc("phoenix_db_open_connections", "Open DB connections.", nil, nil)
+	dbInUseConnectionsDesc     = prometheus.NewDesc("phoenix_db_in_use_connections", "DB connections currently in use.", nil, nil)
+	dbIdleConnectionsDesc      = prometheus.NewDesc("phoenix_db_idle_connections", "Idle DB connections.", nil, nil)
+	dbWaitCountDesc            = prometheus.NewDesc("phoenix_db_wait_count_total", "Total waits for a DB connection.", nil, nil)
+	dbWaitDurationDesc         = prometheus.NewDesc("phoenix_db_wait_duration_seconds_total", "Total wait time for DB connections.", nil, nil)
+	dbMaxIdleClosedDesc        = prometheus.NewDesc("phoenix_db_max_idle_closed_total", "DB connections closed due to max idle.", nil, nil)
+	dbMaxLifetimeClosedDesc    = prometheus.NewDesc("phoenix_db_max_lifetime_closed_total", "DB connections closed due to max lifetime.", nil, nil)
+	errMetricsBearerTokenEmpty = errors.New("METRICS_BEARER_TOKEN is required")
 )
 
 func init() {
@@ -136,19 +145,24 @@ func MetricsHandler() http.Handler {
 	})
 }
 
-func MetricsAuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := os.Getenv("METRICS_BEARER_TOKEN")
-		if token == "" {
-			http.Error(w, "metrics are not configured", http.StatusServiceUnavailable)
-			return
-		}
-		if r.Header.Get("Authorization") != "Bearer "+token {
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+func MetricsBearerTokenFromEnv(getenv func(string) string) (string, error) {
+	token := strings.TrimSpace(getenv("METRICS_BEARER_TOKEN"))
+	if token == "" {
+		return "", errMetricsBearerTokenEmpty
+	}
+	return token, nil
+}
+
+func MetricsAuthMiddleware(token string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer "+token {
+				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func RegisterDBStatsProvider(provider DBStatsProvider) {
@@ -257,7 +271,13 @@ func outcomeForStatus(status int) string {
 type dbStatsCollector struct{}
 
 func (dbStatsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("phoenix_db_open_connections", "Open DB connections.", nil, nil)
+	ch <- dbOpenConnectionsDesc
+	ch <- dbInUseConnectionsDesc
+	ch <- dbIdleConnectionsDesc
+	ch <- dbWaitCountDesc
+	ch <- dbWaitDurationDesc
+	ch <- dbMaxIdleClosedDesc
+	ch <- dbMaxLifetimeClosedDesc
 }
 
 func (dbStatsCollector) Collect(ch chan<- prometheus.Metric) {
@@ -268,17 +288,17 @@ func (dbStatsCollector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 	stats := provider.Stats()
-	emitDBGauge(ch, "phoenix_db_open_connections", "Open DB connections.", float64(stats.OpenConnections))
-	emitDBGauge(ch, "phoenix_db_in_use_connections", "DB connections currently in use.", float64(stats.InUse))
-	emitDBGauge(ch, "phoenix_db_idle_connections", "Idle DB connections.", float64(stats.Idle))
-	emitDBGauge(ch, "phoenix_db_wait_count_total", "Total waits for a DB connection.", float64(stats.WaitCount))
-	emitDBGauge(ch, "phoenix_db_wait_duration_seconds_total", "Total wait time for DB connections.", stats.WaitDuration.Seconds())
-	emitDBGauge(ch, "phoenix_db_max_idle_closed_total", "DB connections closed due to max idle.", float64(stats.MaxIdleClosed))
-	emitDBGauge(ch, "phoenix_db_max_lifetime_closed_total", "DB connections closed due to max lifetime.", float64(stats.MaxLifetimeClosed))
+	emitDBGauge(ch, dbOpenConnectionsDesc, float64(stats.OpenConnections))
+	emitDBGauge(ch, dbInUseConnectionsDesc, float64(stats.InUse))
+	emitDBGauge(ch, dbIdleConnectionsDesc, float64(stats.Idle))
+	emitDBGauge(ch, dbWaitCountDesc, float64(stats.WaitCount))
+	emitDBGauge(ch, dbWaitDurationDesc, stats.WaitDuration.Seconds())
+	emitDBGauge(ch, dbMaxIdleClosedDesc, float64(stats.MaxIdleClosed))
+	emitDBGauge(ch, dbMaxLifetimeClosedDesc, float64(stats.MaxLifetimeClosed))
 }
 
-func emitDBGauge(ch chan<- prometheus.Metric, name, help string, value float64) {
-	ch <- prometheus.MustNewConstMetric(prometheus.NewDesc(name, help, nil, nil), prometheus.GaugeValue, value)
+func emitDBGauge(ch chan<- prometheus.Metric, desc *prometheus.Desc, value float64) {
+	ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value)
 }
 
 func refreshSSEGauges() {

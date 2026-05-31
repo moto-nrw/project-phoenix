@@ -5,6 +5,7 @@ import {
   resetBackendProxyMetricsForTest,
 } from "./backend-proxy-metrics";
 import { metricsResponse } from "./server-metrics";
+import { getMetricsBearerToken } from "./server-runtime-env";
 
 function metricsRequest(token?: string): NextRequest {
   return {
@@ -19,11 +20,16 @@ describe("server-metrics", () => {
     resetBackendProxyMetricsForTest();
   });
 
-  it("returns 503 when the metrics token is not configured", async () => {
-    const response = await metricsResponse(metricsRequest());
+  it("throws when the metrics token is not configured", async () => {
+    await expect(metricsResponse(metricsRequest())).rejects.toThrow(
+      "METRICS_BEARER_TOKEN is required",
+    );
+  });
 
-    expect(response.status).toBe(503);
-    await expect(response.text()).resolves.toBe("metrics are not configured");
+  it("trims the configured metrics token", () => {
+    vi.stubEnv("METRICS_BEARER_TOKEN", " test-token-with-enough-length ");
+
+    expect(getMetricsBearerToken()).toBe("test-token-with-enough-length");
   });
 
   it("rejects requests without the bearer token", async () => {

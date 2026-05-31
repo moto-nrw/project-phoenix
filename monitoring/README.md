@@ -49,10 +49,15 @@ Prometheus targets:
 curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job: .labels.job, health: .health}'
 ```
 
-Prometheus runs with host networking so it can scrape the localhost-bound Caddy,
-production, and staging ports without exposing those services publicly. cAdvisor
-is published locally as `127.0.0.1:8082` to avoid colliding with the backend on
-`127.0.0.1:8080`.
+Prometheus is published on `127.0.0.1:9090` only and also joins the production
+and staging Docker networks to scrape the app containers directly. The app
+targets use the Compose container names (`production-server-1`,
+`production-frontend-1`, `staging-server-1`, `staging-frontend-1`) instead of
+host loopback ports.
+
+Caddy is not scraped by default because it runs as a systemd service on the
+host. Enable it only after binding Caddy's admin metrics listener to an address
+that is reachable from Docker without exposing it publicly.
 
 Useful queries:
 

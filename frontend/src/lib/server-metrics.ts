@@ -5,6 +5,7 @@ import {
   backendProxyMetricBuckets,
   backendProxyMetricSnapshot,
 } from "./backend-proxy-metrics";
+import { getMetricsBearerToken } from "./server-runtime-env";
 
 const GLOBAL_KEY = Symbol.for("phoenix.frontend.metrics");
 
@@ -39,10 +40,7 @@ function getState(): MetricsState {
 export async function metricsResponse(
   request: NextRequest,
 ): Promise<NextResponse> {
-  const token = process.env.METRICS_BEARER_TOKEN;
-  if (!token) {
-    return new NextResponse("metrics are not configured", { status: 503 });
-  }
+  const token = getMetricsBearerToken();
   if (request.headers.get("authorization") !== `Bearer ${token}`) {
     return new NextResponse("Unauthorized", { status: 401 });
   }

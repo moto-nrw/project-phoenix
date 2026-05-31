@@ -18,12 +18,15 @@ services:
     env_file:
       - path: .env
         required: false
-    extra_hosts:
-      - host.docker.internal:host-gateway
+    ports:
+      - 127.0.0.1:9090:9090
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml.template:ro
       - prometheus-data:/prometheus
-    network_mode: host
+    networks:
+      - monitoring
+      - production
+      - staging
     logging:
       driver: journald
       options:
@@ -71,6 +74,12 @@ services:
 networks:
   monitoring:
     name: phoenix-monitoring
+  production:
+    external: true
+    name: production_production
+  staging:
+    external: true
+    name: staging_staging
 
 volumes:
   prometheus-data:

@@ -58,11 +58,12 @@ import (
 
 // API represents the API structure
 type API struct {
-	Services *services.Factory
-	Router   chi.Router
-	db       *bun.DB
-	repos    *repositories.Factory
-	Metrics  *observability.HTTPMetrics
+	Services           *services.Factory
+	Router             chi.Router
+	db                 *bun.DB
+	repos              *repositories.Factory
+	Metrics            *observability.HTTPMetrics
+	metricsBearerToken string
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -98,6 +99,11 @@ type API struct {
 
 // New creates a new API instance
 func New(enableCORS bool, logger *slog.Logger) (*API, error) {
+	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := database.DBConnForServe()
 	if err != nil {
@@ -122,11 +128,12 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Create API instance
 	httpMetrics := observability.NewHTTPMetrics()
 	api := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-		Metrics:  httpMetrics,
+		Services:           serviceFactory,
+		Router:             chi.NewRouter(),
+		db:                 db,
+		repos:              repoFactory,
+		Metrics:            httpMetrics,
+		metricsBearerToken: metricsBearerToken,
 	}
 
 	// Setup router middleware
@@ -540,7 +547,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
 	})
 
-	a.Router.With(observability.MetricsAuthMiddleware).Handle("/internal/metrics", observability.MetricsHandler())
+	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations

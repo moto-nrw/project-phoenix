@@ -37,23 +37,26 @@ func TestRefreshSSEGaugesResetsDisconnectedTenants(t *testing.T) {
 	assert.Equal(t, float64(3), gaugeValue(t, "202"))
 }
 
-func TestMetricsAuthMiddlewareRequiresConfiguredBearerToken(t *testing.T) {
-	t.Setenv("METRICS_BEARER_TOKEN", "")
-	called := false
-	handler := MetricsAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
-	}))
+func TestMetricsBearerTokenFromEnvRequiresConfiguredToken(t *testing.T) {
+	token, err := MetricsBearerTokenFromEnv(func(string) string {
+		return "  "
+	})
 
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/internal/metrics", nil))
+	require.Error(t, err)
+	assert.Empty(t, token)
+}
 
-	assert.False(t, called)
-	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+func TestMetricsBearerTokenFromEnvReturnsTrimmedToken(t *testing.T) {
+	token, err := MetricsBearerTokenFromEnv(func(string) string {
+		return " correct-token "
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "correct-token", token)
 }
 
 func TestMetricsAuthMiddlewareRejectsWrongToken(t *testing.T) {
-	t.Setenv("METRICS_BEARER_TOKEN", "correct-token")
-	handler := MetricsAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MetricsAuthMiddleware("correct-token")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called with the wrong token")
 	}))
 	request := httptest.NewRequest(http.MethodGet, "/internal/metrics", nil)
@@ -66,8 +69,7 @@ func TestMetricsAuthMiddlewareRejectsWrongToken(t *testing.T) {
 }
 
 func TestMetricsAuthMiddlewareAllowsCorrectToken(t *testing.T) {
-	t.Setenv("METRICS_BEARER_TOKEN", "correct-token")
-	handler := MetricsAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MetricsAuthMiddleware("correct-token")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 	}))
 	request := httptest.NewRequest(http.MethodGet, "/internal/metrics", nil)
@@ -133,6 +135,19 @@ func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
 		metricCount++
 	}
 	assert.Equal(t, 7, metricCount)
+}
+
+func TestDBStatsCollectorDescribesEveryEmittedMetric(t *testing.T) {
+	ch := make(chan *prometheus.Desc, 10)
+
+	dbStatsCollector{}.Describe(ch)
+	close(ch)
+
+	var descCount int
+	for range ch {
+		descCount++
+	}
+	assert.Equal(t, 7, descCount)
 }
 
 func TestMain(m *testing.M) {
