@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -1206,6 +1207,107 @@ func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updatedProfile.HasAccount)
 	})
+}
+
+func TestGuardianService_AcceptInvitation_ReusesExistingAccountWithoutPasswordChange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(db, mailer)
+	repoFactory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+
+	guardianEmail := fmt.Sprintf("legacy-existing-%d@example.com", time.Now().UnixNano())
+	account := testpkg.CreateTestAccountWithPassword(t, db, guardianEmail, "Existing!2026")
+	existingHash := *account.PasswordHash
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
+	})
+
+	req := users.GuardianCreateRequest{
+		FirstName:              "Existing",
+		LastName:               "Guardian",
+		Email:                  &guardianEmail,
+		PreferredContactMethod: "email",
+	}
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Existing", "Inviter")
+	defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+	profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+	acceptedAccount, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+		Token:           invitation.Token,
+		Password:        testValidPassword,
+		ConfirmPassword: testValidPassword,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, acceptedAccount)
+	assert.Equal(t, account.ID, acceptedAccount.ID)
+
+	stored, err := repoFactory.Account.FindByEmail(ctx, guardianEmail)
+	require.NoError(t, err)
+	require.NotNil(t, stored.PasswordHash)
+	assert.Equal(t, existingHash, *stored.PasswordHash)
+}
+
+func TestGuardianService_AcceptInvitation_ReactivatesExistingTenantMapping(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(db, mailer)
+	repoFactory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+
+	guardianEmail := fmt.Sprintf("legacy-inactive-%d@example.com", time.Now().UnixNano())
+	account := testpkg.CreateTestAccountWithPassword(t, db, guardianEmail, "Existing!2026")
+	deactivatedAt := time.Now().Add(-time.Hour)
+	require.NoError(t, repoFactory.AccountTenant.Create(ctx, &authModels.AccountTenant{
+		AccountID:     account.ID,
+		TenantID:      1,
+		Status:        authModels.AccountTenantStatusInactive,
+		DeactivatedAt: &deactivatedAt,
+	}))
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
+	})
+
+	req := users.GuardianCreateRequest{
+		FirstName:              "Inactive",
+		LastName:               "Guardian",
+		Email:                  &guardianEmail,
+		PreferredContactMethod: "email",
+	}
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Inactive", "Inviter")
+	defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+	profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+	_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+		Token:           invitation.Token,
+		Password:        testValidPassword,
+		ConfirmPassword: testValidPassword,
+	})
+	require.NoError(t, err)
+
+	var mapping authModels.AccountTenant
+	err = db.NewSelect().
+		Model(&mapping).
+		ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
+		Where(`"account_tenant".account_id = ?`, account.ID).
+		Where(`"account_tenant".tenant_id = ?`, 1).
+		Scan(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.AccountTenantStatusActive, mapping.Status)
+	assert.Nil(t, mapping.DeactivatedAt)
+	assert.NotNil(t, mapping.ActivatedAt)
 }
 
 func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {

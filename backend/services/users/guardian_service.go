@@ -258,7 +258,7 @@ func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvita
 		return nil, fmt.Errorf("failed to create invitation: %w", err)
 	}
 
-	// Send invitation email asynchronously — pass tenant context for DB calls
+	// Send invitation email asynchronously, pass tenant context for DB calls
 	if s.dispatcher != nil && profile.Email != nil {
 		tenantCtx := tenant.WithTenantID(context.Background(), tenant.FromContext(ctx))
 		go s.sendInvitationEmail(tenantCtx, invitation, profile)
@@ -516,9 +516,6 @@ func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Contex
 func (s *guardianService) createOrUpdateGuardianAccount(ctx context.Context, emailAddress, passwordHash string) (*authModels.Account, error) {
 	existing, err := s.accountRepo.FindByEmail(ctx, emailAddress)
 	if err == nil && existing != nil {
-		if updateErr := s.accountRepo.UpdatePassword(ctx, existing.ID, passwordHash); updateErr != nil {
-			return nil, fmt.Errorf("failed to update account password: %w", updateErr)
-		}
 		return existing, nil
 	}
 	if err != nil && !isGuardianServiceNotFound(err) {
@@ -549,7 +546,7 @@ func (s *guardianService) ensureGuardianTenantAccess(ctx context.Context, accoun
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
+	if err := s.accountTenantRepo.EnsureActive(ctx, mapping); err != nil {
 		return fmt.Errorf("failed to link account to tenant: %w", err)
 	}
 

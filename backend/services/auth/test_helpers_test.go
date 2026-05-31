@@ -860,6 +860,17 @@ func (r *stubAccountRoleRepository) Create(_ context.Context, ar *authModel.Acco
 	return nil
 }
 
+func (r *stubAccountRoleRepository) FindByAccountAndRole(_ context.Context, accountID, roleID int64) (*authModel.AccountRole, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, assignment := range r.assignments {
+		if assignment.AccountID == accountID && assignment.RoleID == roleID {
+			return assignment, nil
+		}
+	}
+	return nil, sql.ErrNoRows
+}
+
 func (r *stubAccountRoleRepository) Assignments() []*authModel.AccountRole {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1089,6 +1100,26 @@ func (r *stubAccountTenantRepository) Create(_ context.Context, accountTenant *a
 		r.nextID++
 		accountTenant.ID = r.nextID
 	}
+	r.mappings[accountTenant.ID] = accountTenant
+	return nil
+}
+
+func (r *stubAccountTenantRepository) EnsureActive(_ context.Context, accountTenant *authModel.AccountTenant) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, mapping := range r.mappings {
+		if mapping.AccountID == accountTenant.AccountID && mapping.TenantID == accountTenant.TenantID {
+			mapping.Status = authModel.AccountTenantStatusActive
+			mapping.ActivatedAt = accountTenant.ActivatedAt
+			mapping.DeactivatedAt = nil
+			return nil
+		}
+	}
+	if accountTenant.ID == 0 {
+		r.nextID++
+		accountTenant.ID = r.nextID
+	}
+	accountTenant.Status = authModel.AccountTenantStatusActive
 	r.mappings[accountTenant.ID] = accountTenant
 	return nil
 }

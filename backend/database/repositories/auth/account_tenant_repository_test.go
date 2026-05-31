@@ -73,6 +73,51 @@ func TestAccountTenantRepository_CreateValidation(t *testing.T) {
 	assert.Contains(t, err.Error(), "account_id is required")
 }
 
+func TestAccountTenantRepository_EnsureActive(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := authRepo.NewAccountTenantRepository(db)
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "acctenant-reactivate")
+	tenantID := account.ID + 2000
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
+		cleanupAccountRecords(t, db, account.ID)
+	})
+
+	deactivatedAt := time.Now().Add(-time.Hour)
+	inactive := &authModels.AccountTenant{
+		AccountID:     account.ID,
+		TenantID:      tenantID,
+		Status:        authModels.AccountTenantStatusInactive,
+		DeactivatedAt: &deactivatedAt,
+	}
+	require.NoError(t, repo.Create(ctx, inactive))
+
+	activatedAt := time.Now()
+	err := repo.EnsureActive(ctx, &authModels.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    tenantID,
+		Status:      authModels.AccountTenantStatusActive,
+		ActivatedAt: &activatedAt,
+	})
+	require.NoError(t, err)
+
+	var mapping authModels.AccountTenant
+	err = db.NewSelect().
+		Model(&mapping).
+		ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
+		Where(`"account_tenant".account_id = ?`, account.ID).
+		Where(`"account_tenant".tenant_id = ?`, tenantID).
+		Scan(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.AccountTenantStatusActive, mapping.Status)
+	assert.NotNil(t, mapping.ActivatedAt)
+	assert.Nil(t, mapping.DeactivatedAt)
+}
+
 func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()

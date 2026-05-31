@@ -110,9 +110,6 @@ func (r *ArrivalNoteRequest) Bind(_ *http.Request) error {
 
 // Bind implements render.Binder for BulkArrivalScheduleRequest
 func (r *BulkArrivalScheduleRequest) Bind(_ *http.Request) error {
-	if len(r.Schedules) == 0 {
-		return errors.New("schedules array cannot be empty")
-	}
 	seenWeekdays := make(map[int]bool)
 	for i, s := range r.Schedules {
 		if s.Weekday < schedule.WeekdayMonday || s.Weekday > schedule.WeekdayFriday {
