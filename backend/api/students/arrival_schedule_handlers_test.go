@@ -168,17 +168,41 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 			Exec(context.Background())
 	})
 
-	t.Run("bad_request_empty_schedules", func(t *testing.T) {
+	t.Run("success_empty_schedules_clears_existing", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalEmpty", "Test", "AE1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Clear", "ArrTeacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		arrivalTime := time.Date(2000, 1, 1, 7, 45, 0, 0, time.UTC)
+		schedule := &scheduleModel.StudentArrivalSchedule{
+			StudentID:       student.ID,
+			Weekday:         1,
+			ExpectedArrival: arrivalTime,
+			CreatedBy:       createStudentsAPITestStaffID(t, tc),
+		}
+		schedule.SetTenantID(1)
+		_, err := tc.db.NewInsert().Model(schedule).
+			ModelTableExpr("schedule.student_arrival_schedules").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
 
 		body := map[string]any{
 			"schedules": []map[string]any{},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
-		testutil.AssertBadRequest(t, rr)
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		count, err := tc.db.NewSelect().Model((*scheduleModel.StudentArrivalSchedule)(nil)).
+			ModelTableExpr("schedule.student_arrival_schedules").
+			Where("student_id = ?", student.ID).
+			Count(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
 	})
 
 	t.Run("bad_request_invalid_weekday", func(t *testing.T) {

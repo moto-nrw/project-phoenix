@@ -1,0 +1,188 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CareWeeklyPlanModal } from "./care-weekly-plan-modal";
+
+const toastSuccess = vi.fn();
+const toastError = vi.fn();
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: toastSuccess,
+    error: toastError,
+  }),
+}));
+
+vi.mock("~/components/ui/form-modal", () => ({
+  FormModal: ({
+    isOpen,
+    title,
+    children,
+    footer,
+  }: {
+    isOpen: boolean;
+    title: string;
+    children: React.ReactNode;
+    footer?: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label={title}>
+        <h2>{title}</h2>
+        {children}
+        <div>{footer}</div>
+      </div>
+    ) : null,
+}));
+
+const initialArrivalSchedules = [
+  { weekday: 1, expected_arrival: "08:00", notes: "kommt frueh" },
+  { weekday: 2, expected_arrival: "09:00", notes: null },
+];
+
+const initialPickupSchedules = [
+  { weekday: 1, pickupTime: "15:00", notes: "Mama" },
+  { weekday: 3, pickupTime: "16:00" },
+];
+
+describe("CareWeeklyPlanModal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("loads existing weekly rows and submits changed schedules", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={onClose}
+        initialArrivalSchedules={initialArrivalSchedules}
+        initialPickupSchedules={initialPickupSchedules}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Wochenplan bearbeiten" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(document.getElementById("weekly-arrival-4")!, {
+      target: { value: "10:15" },
+    });
+    fireEvent.change(document.getElementById("weekly-pickup-4")!, {
+      target: { value: "15:45" },
+    });
+    fireEvent.change(document.getElementById("weekly-arrival-notes-1")!, {
+      target: { value: "Bitte vorne warten" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        arrivalSchedules: expect.arrayContaining([
+          {
+            weekday: 1,
+            expected_arrival: "08:00",
+            notes: "Bitte vorne warten",
+          },
+          { weekday: 4, expected_arrival: "10:15", notes: null },
+        ]),
+        pickupData: {
+          schedules: expect.arrayContaining([
+            { weekday: 1, pickupTime: "15:00", notes: "Mama" },
+            { weekday: 4, pickupTime: "15:45", notes: undefined },
+          ]),
+        },
+      });
+    });
+    expect(toastSuccess).toHaveBeenCalledWith("Wochenplan wurde gespeichert");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows validation errors for invalid times", async () => {
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={vi.fn()}
+        initialArrivalSchedules={[{ weekday: 1, expected_arrival: "99:99" }]}
+        initialPickupSchedules={[]}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan speichern" }),
+    );
+
+    expect(
+      screen.getByText("Ungültige Ankunftszeit für Montag."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows validation errors for invalid pickup times", async () => {
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={vi.fn()}
+        initialArrivalSchedules={[]}
+        initialPickupSchedules={[{ weekday: 2, pickupTime: "99:99" }]}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan speichern" }),
+    );
+
+    expect(
+      screen.getByText("Ungültige Abholzeit für Dienstag."),
+    ).toBeInTheDocument();
+  });
+
+  it("can open and clear note fields", () => {
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={vi.fn()}
+        initialArrivalSchedules={[]}
+        initialPickupSchedules={[]}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Notizen/i })[0]!);
+    fireEvent.change(document.getElementById("weekly-pickup-notes-1")!, {
+      target: { value: "Neue Notiz" },
+    });
+    fireEvent.change(document.getElementById("weekly-pickup-notes-1")!, {
+      target: { value: " " },
+    });
+
+    expect(document.getElementById("weekly-pickup-notes-1")).toHaveValue("");
+  });
+
+  it("shows submit errors in the modal", async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new Error("Backend kaputt"));
+
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={vi.fn()}
+        initialArrivalSchedules={initialArrivalSchedules}
+        initialPickupSchedules={initialPickupSchedules}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Backend kaputt")).toBeInTheDocument();
+    });
+    expect(toastError).toHaveBeenCalledWith("Backend kaputt");
+  });
+});

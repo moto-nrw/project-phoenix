@@ -33,7 +33,11 @@ type GuardianServiceDependencies struct {
 	GuardianPhoneNumberRepo users.GuardianPhoneNumberRepository
 	StudentGuardianRepo     users.StudentGuardianRepository
 	GuardianInvitationRepo  authModels.GuardianInvitationRepository
+	AccountRepo             authModels.AccountRepository
 	AccountParentRepo       authModels.AccountParentRepository
+	AccountTenantRepo       authModels.AccountTenantRepository
+	AccountRoleRepo         authModels.AccountRoleRepository
+	RoleRepo                authModels.RoleRepository
 	StudentRepo             users.StudentRepository
 	PersonRepo              users.PersonRepository
 
@@ -53,7 +57,11 @@ type guardianService struct {
 	guardianPhoneNumberRepo users.GuardianPhoneNumberRepository
 	studentGuardianRepo     users.StudentGuardianRepository
 	guardianInvitationRepo  authModels.GuardianInvitationRepository
+	accountRepo             authModels.AccountRepository
 	accountParentRepo       authModels.AccountParentRepository
+	accountTenantRepo       authModels.AccountTenantRepository
+	accountRoleRepo         authModels.AccountRoleRepository
+	roleRepo                authModels.RoleRepository
 	studentRepo             users.StudentRepository
 	personRepo              users.PersonRepository
 	dispatcher              *email.Dispatcher
@@ -61,6 +69,7 @@ type guardianService struct {
 	defaultFrom             email.Email
 	invitationExpiry        time.Duration
 	db                      *bun.DB
+	txHandler               *base.TxHandler
 }
 
 // NewGuardianService creates a new GuardianService instance
@@ -76,7 +85,11 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 		guardianPhoneNumberRepo: deps.GuardianPhoneNumberRepo,
 		studentGuardianRepo:     deps.StudentGuardianRepo,
 		guardianInvitationRepo:  deps.GuardianInvitationRepo,
+		accountRepo:             deps.AccountRepo,
 		accountParentRepo:       deps.AccountParentRepo,
+		accountTenantRepo:       deps.AccountTenantRepo,
+		accountRoleRepo:         deps.AccountRoleRepo,
+		roleRepo:                deps.RoleRepo,
 		studentRepo:             deps.StudentRepo,
 		personRepo:              deps.PersonRepo,
 		dispatcher:              dispatcher,
@@ -84,6 +97,7 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 		defaultFrom:             deps.DefaultFrom,
 		invitationExpiry:        deps.InvitationExpiry,
 		db:                      deps.DB,
+		txHandler:               base.NewTxHandler(deps.DB),
 	}
 }
 
@@ -244,7 +258,7 @@ func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvita
 		return nil, fmt.Errorf("failed to create invitation: %w", err)
 	}
 
-	// Send invitation email asynchronously — pass tenant context for DB calls
+	// Send invitation email asynchronously, pass tenant context for DB calls
 	if s.dispatcher != nil && profile.Email != nil {
 		tenantCtx := tenant.WithTenantID(context.Background(), tenant.FromContext(ctx))
 		go s.sendInvitationEmail(tenantCtx, invitation, profile)
@@ -398,12 +412,17 @@ func (s *guardianService) AcceptInvitation(ctx context.Context, req GuardianInvi
 		return nil, err
 	}
 
-	account, err := s.createGuardianAccountFromInvitation(ctx, profile, req.Password, invitation.TenantID)
+	var account *authModels.AccountParent
+	tenantCtx := tenant.WithTenantID(ctx, invitation.TenantID)
+	err = s.txHandler.RunInTx(tenantCtx, func(txCtx context.Context, _ bun.Tx) error {
+		var innerErr error
+		account, innerErr = s.createGuardianAccountFromInvitation(txCtx, profile, req.Password, invitation.TenantID)
+		if innerErr != nil {
+			return innerErr
+		}
+		return s.finalizeInvitationAcceptance(txCtx, invitation.ID, profile.ID, account.ID)
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	if err := s.finalizeInvitationAcceptance(ctx, invitation.ID, profile.ID, account.ID); err != nil {
 		return nil, err
 	}
 
@@ -472,18 +491,100 @@ func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Contex
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	account := &authModels.AccountParent{
-		Email:        *profile.Email,
+	emailAddress := strings.ToLower(strings.TrimSpace(*profile.Email))
+	account, err := s.createOrUpdateGuardianAccount(ctx, emailAddress, passwordHash)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.ensureGuardianTenantAccess(ctx, account.ID, tenantID); err != nil {
+		return nil, err
+	}
+
+	legacyAccount := &authModels.AccountParent{
+		Email:        account.Email,
+		Username:     account.Username,
+		PasswordHash: account.PasswordHash,
+		Active:       account.Active,
+	}
+	legacyAccount.ID = account.ID
+	legacyAccount.SetTenantID(tenantID)
+
+	return legacyAccount, nil
+}
+
+func (s *guardianService) createOrUpdateGuardianAccount(ctx context.Context, emailAddress, passwordHash string) (*authModels.Account, error) {
+	existing, err := s.accountRepo.FindByEmail(ctx, emailAddress)
+	if err == nil && existing != nil {
+		return existing, nil
+	}
+	if err != nil && !isGuardianServiceNotFound(err) {
+		return nil, fmt.Errorf("failed to find account: %w", err)
+	}
+
+	account := &authModels.Account{
+		Email:        emailAddress,
 		PasswordHash: &passwordHash,
 		Active:       true,
 	}
-	account.SetTenantID(tenantID)
-
-	if err := s.accountParentRepo.Create(ctx, account); err != nil {
+	if err := s.accountRepo.Create(ctx, account); err != nil {
 		return nil, fmt.Errorf("failed to create account: %w", err)
 	}
 
 	return account, nil
+}
+
+func (s *guardianService) ensureGuardianTenantAccess(ctx context.Context, accountID, tenantID int64) error {
+	if err := s.ensureGuardianRole(ctx, accountID, tenantID); err != nil {
+		return err
+	}
+
+	now := time.Now()
+	mapping := &authModels.AccountTenant{
+		AccountID:   accountID,
+		TenantID:    tenantID,
+		Status:      authModels.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	if err := s.accountTenantRepo.EnsureActive(ctx, mapping); err != nil {
+		return fmt.Errorf("failed to link account to tenant: %w", err)
+	}
+
+	return nil
+}
+
+func (s *guardianService) ensureGuardianRole(ctx context.Context, accountID, tenantID int64) error {
+	role, err := s.roleRepo.FindByName(ctx, authModels.BaseRoleGuardian)
+	if err != nil {
+		return fmt.Errorf("failed to find guardian role: %w", err)
+	}
+	if role == nil {
+		return fmt.Errorf("guardian role not found")
+	}
+
+	existingRole, err := s.accountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
+	if err == nil && existingRole != nil {
+		return nil
+	}
+	if err != nil && !isGuardianServiceNotFound(err) {
+		return fmt.Errorf("failed to find account role: %w", err)
+	}
+
+	accountRole := &authModels.AccountRole{AccountID: accountID, RoleID: role.ID}
+	accountRole.SetTenantID(tenantID)
+	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
+		return fmt.Errorf("failed to assign guardian role: %w", err)
+	}
+
+	return nil
+}
+
+func isGuardianServiceNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "not found") || strings.Contains(message, "no rows")
 }
 
 // finalizeInvitationAcceptance links account to profile and marks invitation as accepted
