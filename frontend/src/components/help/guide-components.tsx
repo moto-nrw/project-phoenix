@@ -7,9 +7,28 @@ import type {
   GuideStep,
   GuideTone,
 } from "./guide-data";
-import { PrintButton } from "./print-button";
+import { GuidePdfButton } from "./guide-pdf-button";
 
 type ActivePath = "ersteinrichtung" | "funktionen" | "nfc";
+
+// Maps each guide to its pre-generated PDF under /help/pdfs (see
+// scripts/generate-guides.ts). The served paths stay ASCII (route slugs are
+// English) to avoid URL-encoding pitfalls; `download` sets the German filename
+// the visitor actually sees — matching the page names on the overview.
+const pdfByPath: Record<ActivePath, { href: string; download: string }> = {
+  ersteinrichtung: {
+    href: "/help/pdfs/setup.pdf",
+    download: "moto Anleitung – Ersteinrichtung.pdf",
+  },
+  funktionen: {
+    href: "/help/pdfs/features.pdf",
+    download: "moto Anleitung – Die App im Alltag.pdf",
+  },
+  nfc: {
+    href: "/help/pdfs/nfc.pdf",
+    download: "moto Anleitung – NFC & Tablets.pdf",
+  },
+};
 
 const nextLinks: Record<
   ActivePath,
@@ -180,7 +199,7 @@ export function GuideShell({
   });
 
   return (
-    <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden print:bg-white">
+    <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden print:bg-white print:before:hidden">
       <div className="relative mx-auto w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
         <header className="print:hidden">
           <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:p-4">
@@ -192,7 +211,10 @@ export function GuideShell({
               Übersicht
             </Link>
             <div className="flex w-fit flex-wrap items-center gap-2">
-              <PrintButton />
+              <GuidePdfButton
+                href={pdfByPath[activePath].href}
+                download={pdfByPath[activePath].download}
+              />
             </div>
           </div>
         </header>

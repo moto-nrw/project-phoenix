@@ -388,6 +388,27 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* In print/PDF (page.pdf with printBackground) two unlayered rules above leak a
+   grey tint that the layered Tailwind `print:*` utilities cannot override
+   (unlayered always beats layered, regardless of specificity or media query):
+   - `.moto-dotted-background { background:#f9fafb }` paints the whole content
+     column grey-50 — `print:bg-white` on the element can't win.
+   - `.moto-content-surface { box-shadow:var(--shadow-sm) }` renders a grey halo
+     behind every card — `print:shadow-none` can't win.
+   These rules are unlayered too and come later in source order, so they win and
+   reset both only for print. backdrop-filter is dropped as well: pointless over
+   a white page and a needless rasterisation cost. */
+@media print {
+  .moto-dotted-background {
+    background: #ffffff;
+  }
+  .moto-content-surface {
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 .moto-hover-elevated {
   transition:
     border-color 300ms cubic-bezier(0.2, 0.8, 0.2, 1),

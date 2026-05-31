@@ -47,3 +47,6 @@ yarn-error.log*
 
 # idea files
 .idea
+
+# generated guide PDFs (built in CI from the /help HTML pages, never committed)
+public/help/pdfs/

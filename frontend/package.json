@@ -11,6 +11,7 @@
     "dev": "next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
+    "generate:guides": "playwright test -c playwright.guides.config.ts",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "preview": "next build && next start",

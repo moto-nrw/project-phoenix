@@ -39,8 +39,7 @@ export default function HelpLandingPage() {
             </h1>
             <p className="mt-4 text-base leading-7 text-gray-600 sm:text-lg">
               Wählen Sie einen Bereich. Jede Anleitung führt Schritt für Schritt
-              durch die Aufgabe und lässt sich als PDF speichern oder
-              ausdrucken.
+              durch die Aufgabe und lässt sich als PDF herunterladen.
             </p>
           </div>
 

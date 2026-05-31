@@ -248,6 +248,43 @@ jobs:
             echo "domain=moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      # Generate clean guide PDFs from the public /help HTML pages before the
+      # Docker build, so they ship inside the image (served as static
+      # downloads) and never drift from the live guide content. Done here on
+      # the Ubuntu runner rather than inside the Alpine Dockerfile to keep the
+      # runtime image free of Chromium. The PDFs land in frontend/public/help/
+      # pdfs/ and are picked up by the build context below; they are gitignored.
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Generate guide PDFs
+        working-directory: frontend
+        # The /help pages are public and host-agnostic; proxy.ts only requires
+        # these hostnames to be non-empty, so harmless placeholders suffice for
+        # the throwaway render server.
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
+          NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+          TENANT_DOMAIN: "localhost"
+          NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
+        run: pnpm run generate:guides
+
       - name: Build and push frontend
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
