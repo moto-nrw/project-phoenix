@@ -13,6 +13,7 @@ describe("instrumentation", () => {
 
   it("imports sentry.server.config when NEXT_RUNTIME is nodejs", async () => {
     vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("METRICS_BEARER_TOKEN", "test-token-with-enough-length");
 
     const serverMod = vi.fn().mockResolvedValue({});
     vi.doMock("./sentry.server.config", serverMod);
