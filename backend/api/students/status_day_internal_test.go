@@ -20,6 +20,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -133,6 +135,68 @@ func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
 	applyEffectiveStatusDays(&alreadySick, nil)
 	applyEffectiveStatusDaysToResponses(nil, []*active.StudentStatusDay{sick})
 	applyEffectiveStatusDaysToResponses([]StudentResponse{{ID: 92}}, nil)
+}
+
+func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
+	now := time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC)
+	repo := &fakeStatusDayRepo{
+		findByIDsRows: []*active.StudentStatusDay{
+			{
+				Model:      modelBase.Model{ID: 42},
+				StudentID:  90,
+				Date:       timezone.DateOfUTC(now),
+				Status:     active.StudentStatusDaySick,
+				ReportedAt: now,
+				Source:     active.StudentStatusSourcePlanned,
+			},
+		},
+	}
+	resource := &Resource{
+		StudentStatusDayRepo: repo,
+		Logger:               slog.Default(),
+	}
+	responses := []StudentResponse{{ID: 90}, {ID: 91}}
+
+	resource.applyStatusDaysForDate(context.Background(), responses, now)
+
+	assert.Equal(t, timezone.DateOfUTC(now), repo.findByIDsDate)
+	assert.Equal(t, []int64{90, 91}, repo.findByIDsStudentIDs)
+	assert.True(t, responses[0].Sick)
+	assert.False(t, responses[0].Excused)
+	assert.False(t, responses[1].Sick)
+	assert.False(t, responses[1].Excused)
+}
+
+func TestResolveDayPlanningStatusDaysOverridePlans(t *testing.T) {
+	arrivalTime := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
+	pickupTime := time.Date(2026, 5, 25, 15, 30, 0, 0, time.UTC)
+	timetableIDs := map[int64]struct{}{90: {}}
+
+	status, reason, _ := resolveDayPlanning(
+		StudentResponse{ID: 90, Sick: true},
+		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrivalTime},
+		&scheduleService.EffectivePickupTime{PickupTime: &pickupTime},
+		nil,
+		timetableIDs,
+	)
+
+	assert.Equal(t, DayPlanningStatusNotComingToday, status)
+	assert.Equal(t, dayPlanningReasonSick, reason)
+}
+
+func TestResolveDayPlanningActualAttendanceOverridesStatusDays(t *testing.T) {
+	checkInTime := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
+
+	status, reason, _ := resolveDayPlanning(
+		StudentResponse{ID: 90, Sick: true},
+		nil,
+		nil,
+		&activeService.AttendanceStatus{Status: "checked_in", CheckInTime: &checkInTime},
+		map[int64]struct{}{},
+	)
+
+	assert.Equal(t, DayPlanningStatusComesToday, status)
+	assert.Equal(t, dayPlanningReasonUnplanned, reason)
 }
 
 func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
@@ -392,12 +456,15 @@ func newStatusDayTestResource(db *bun.DB) *Resource {
 }
 
 type fakeStatusDayRepo struct {
-	upsertErr        error
-	clearForDatesErr error
-	clearByIDErr     error
-	findByIDRow      *active.StudentStatusDay
-	findByIDErr      error
-	findRangeErr     error
+	upsertErr           error
+	clearForDatesErr    error
+	clearByIDErr        error
+	findByIDRow         *active.StudentStatusDay
+	findByIDErr         error
+	findRangeErr        error
+	findByIDsRows       []*active.StudentStatusDay
+	findByIDsDate       time.Time
+	findByIDsStudentIDs []int64
 }
 
 func (r *fakeStatusDayRepo) UpsertReported(_ context.Context, _ *active.StudentStatusDay) error {
@@ -442,8 +509,10 @@ func (r *fakeStatusDayRepo) FindActiveByStudentAndDateRange(_ context.Context, s
 	}, nil
 }
 
-func (r *fakeStatusDayRepo) FindActiveByStudentIDsAndDate(_ context.Context, _ []int64, _ time.Time) ([]*active.StudentStatusDay, error) {
-	return nil, nil
+func (r *fakeStatusDayRepo) FindActiveByStudentIDsAndDate(_ context.Context, studentIDs []int64, date time.Time) ([]*active.StudentStatusDay, error) {
+	r.findByIDsStudentIDs = append([]int64(nil), studentIDs...)
+	r.findByIDsDate = date
+	return r.findByIDsRows, nil
 }
 
 func (r *fakeStatusDayRepo) FindByStudentAndDateRange(_ context.Context, _ int64, _, _ time.Time) ([]*active.StudentStatusDay, error) {

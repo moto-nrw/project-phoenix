@@ -80,6 +80,15 @@ func resolveDayPlanning(
 	attendance *activeService.AttendanceStatus,
 	timetableIDs map[int64]struct{},
 ) (string, string, string) {
+	if hasActualAttendanceToday(attendance) {
+		return DayPlanningStatusComesToday, dayPlanningReasonUnplanned, "ungeplant anwesend"
+	}
+	if student.Sick {
+		return DayPlanningStatusNotComingToday, dayPlanningReasonSick, "krank gemeldet"
+	}
+	if student.Excused {
+		return DayPlanningStatusNotComingToday, dayPlanningReasonExcused, "entschuldigt"
+	}
 	if arrival != nil && arrival.ArrivalTime != nil {
 		if arrival.IsException {
 			return DayPlanningStatusComesToday, dayPlanningReasonArrivalException, "geplante Ankunft heute"
@@ -94,15 +103,6 @@ func resolveDayPlanning(
 	}
 	if _, ok := timetableIDs[student.ID]; ok {
 		return DayPlanningStatusComesToday, dayPlanningReasonTimetable, "Stundenplan heute"
-	}
-	if hasActualAttendanceToday(attendance) {
-		return DayPlanningStatusComesToday, dayPlanningReasonUnplanned, "ungeplant anwesend"
-	}
-	if student.Sick {
-		return DayPlanningStatusNotComingToday, dayPlanningReasonSick, "krank gemeldet"
-	}
-	if student.Excused {
-		return DayPlanningStatusNotComingToday, dayPlanningReasonExcused, "entschuldigt"
 	}
 	if arrival != nil && arrival.IsException && arrival.ArrivalTime == nil {
 		return DayPlanningStatusNotComingToday, dayPlanningReasonArrivalException, dayPlanningExceptionLabel(arrival.Notes)
