@@ -22,12 +22,14 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -53,6 +55,9 @@ type Resource struct {
 	PrivacyConsentRepo     users.PrivacyConsentRepository
 	PickupScheduleService  scheduleService.PickupScheduleService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
+	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
+	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
 	SchoolRepo             platform.SchoolRepository
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
@@ -61,7 +66,9 @@ type Resource struct {
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
 	StudentPhotos          userService.StudentPhotoService
+	ListExportService      listexport.Service
 	Logger                 *slog.Logger
+	Now                    func() time.Time
 	db                     *bun.DB
 }
 
@@ -77,6 +84,9 @@ type ResourceConfig struct {
 	PrivacyConsentRepo     users.PrivacyConsentRepository
 	PickupScheduleService  scheduleService.PickupScheduleService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
+	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
+	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
 	SchoolRepo             platform.SchoolRepository
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
@@ -85,12 +95,19 @@ type ResourceConfig struct {
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
 	StudentPhotos          userService.StudentPhotoService
+	ListExportService      listexport.Service
 	Logger                 *slog.Logger
+	Now                    func() time.Time
 	DB                     *bun.DB
 }
 
 // NewResource creates a new students resource from the provided configuration.
 func NewResource(cfg ResourceConfig) *Resource {
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
+
 	return &Resource{
 		PersonService:          cfg.PersonService,
 		StudentRepo:            cfg.StudentRepo,
@@ -101,6 +118,9 @@ func NewResource(cfg ResourceConfig) *Resource {
 		PrivacyConsentRepo:     cfg.PrivacyConsentRepo,
 		PickupScheduleService:  cfg.PickupScheduleService,
 		ArrivalScheduleService: cfg.ArrivalScheduleService,
+		PickupScheduleRepo:     cfg.PickupScheduleRepo,
+		ArrivalScheduleRepo:    cfg.ArrivalScheduleRepo,
+		InstanceStudentRepo:    cfg.InstanceStudentRepo,
 		SchoolRepo:             cfg.SchoolRepo,
 		SettingsService:        cfg.SettingsService,
 		AttendanceRepo:         cfg.AttendanceRepo,
@@ -109,7 +129,9 @@ func NewResource(cfg ResourceConfig) *Resource {
 		DataAccessLogRepo:      cfg.DataAccessLogRepo,
 		Broadcaster:            cfg.Broadcaster,
 		StudentPhotos:          cfg.StudentPhotos,
+		ListExportService:      cfg.ListExportService,
 		Logger:                 cfg.Logger,
+		Now:                    now,
 		db:                     cfg.DB,
 	}
 }
@@ -131,18 +153,22 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-location", rs.getStudentCurrentLocation)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
 
 		// Routes requiring users:update permission
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/status-days/{statusDayId}", rs.deleteStudentStatusDay)
 
 		// Routes requiring users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStudent)
@@ -191,7 +217,7 @@ func (rs *Resource) Router() chi.Router {
 		// Student photo (Datenverwaltung). upload + delete: users:update;
 		// serve: users:read. Feature gate + consent enforced in photo.go.
 		// upload + serve skip withTx so a slow body / file stream doesn't
-		// pin a bun pool connection — the handlers open their own short tx.
+		// pin a bun pool connection. The handlers open their own short tx.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/photo", rs.uploadStudentPhoto)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/photo", rs.deleteStudentPhoto)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/photo/{filename}", rs.serveStudentPhoto)
@@ -264,7 +290,7 @@ func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student)
 // a student's data for write operations (update, delete, privacy consent, etc.).
 // Returns true if the user is an admin or supervises the student's group.
 //
-// The gdpr.student_data_scope setting intentionally does NOT apply here —
+// The gdpr.student_data_scope setting intentionally does NOT apply here.
 // write operations remain restricted to group supervisors regardless of scope.
 // For read access checks, use checkStudentReadAccess instead.
 func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Student) bool {
@@ -371,14 +397,23 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve once per request — populatePhotoFields runs per student.
+	// Resolve once per request. populatePhotoFields runs per student.
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
 	// Build and filter responses
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, photosEnabled)
 
-	// Apply in-memory pagination if person-based filters were used
-	if params.hasPersonFilters() {
+	now := rs.Now()
+	rs.applyStatusDaysForDate(r.Context(), responses, now)
+	if err := rs.enrichWithDayPlanning(r.Context(), responses, now, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+	responses = applyDayPlanningFilter(responses, params.dayStatus)
+
+	// Apply in-memory pagination if response-derived filters were used.
+	if params.hasInMemoryFilters() {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
@@ -390,14 +425,14 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Optionally enrich the paginated slice with today's effective pickup times (single bulk query).
-	// Only query for students the caller has full access to (GDPR — skip redacted students).
+	// Only query for students the caller has full access to. GDPR: skip redacted students.
 	if params.includePickupTimes || params.includeArrivalTimes {
 		fullAccessIDs := collectFullAccessStudentIDs(responses)
 		if params.includePickupTimes {
-			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, time.Now())
+			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, now)
 		}
 		if params.includeArrivalTimes {
-			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, time.Now())
+			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, now)
 		}
 	}
 
@@ -434,7 +469,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		params.studentIDs = ids
 	}
 
-	// room_id pre-filter (#1323) — resolve students currently checked-in to
+	// room_id pre-filter (#1323): resolve students currently checked-in to
 	// any active group in the room, then push the IDs through the standard
 	// query path so school_class / guardian_name / pagination still apply.
 	// The visit join lives in the active service (rule 11: services own
@@ -464,7 +499,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		params.studentIDs = ids
 		// fall through to the standard ListWithOptions path. params.groupID is
 		// intentionally NOT cleared here even though buildBaseFilter ignores it
-		// — the room∩group intersection has already been computed via FindByIDs
+		// because the room and group intersection was already computed via FindByIDs
 		// above, so re-applying group_id downstream would be redundant.
 	} else if params.groupID > 0 && params.locationState == "" {
 		// group-only branch keeps existing behavior
@@ -475,7 +510,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		return students, len(students), nil
 	}
 
-	// Standard path — buildBaseFilter picks up params.studentIDs (if set by
+	// Standard path. buildBaseFilter picks up params.studentIDs (if set by
 	// the room_id branch above) and combines it with school_class /
 	// guardian_name and pagination.
 	queryOptions := params.buildQueryOptions()
@@ -595,6 +630,8 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		AttendanceLogEnabled: attendanceLogEnabled,
 		FeedbackEnabled:      feedbackEnabled,
 	}
+	now := rs.Now()
+	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
 
 	if hasFullAccess {
 		attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
@@ -606,6 +643,15 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		} else {
 			applyActualTimesFromAttendance(&response.StudentResponse, attendanceStatus)
 		}
+
+		single := []StudentResponse{response.StudentResponse}
+		if err := rs.enrichWithDayPlanning(r.Context(), single, now, map[int64]*activeService.AttendanceStatus{
+			student.ID: attendanceStatus,
+		}); err != nil {
+			renderError(w, r, ErrorInternalServer(err))
+			return
+		}
+		response.StudentResponse = single[0]
 	}
 
 	// Add supervisor contacts for users without full access
@@ -950,9 +996,9 @@ func checkSickExcusedConflict(req *UpdateStudentRequest, student *users.Student)
 // AFFECTED tenant's connected clients only. use-global-sse.ts treats
 // that event as "invalidate every student / room / dashboard cache in
 // this tab", so a global fan-out (BroadcastToAll) would force tabs in
-// schools B…N to refetch unrelated data whenever school A edits one
-// student or one avatar. Routing via BroadcastToTenant — the helper
-// already added in this branch for tenant_settings_changed — keeps the
+// schools B to N to refetch unrelated data whenever school A edits one
+// student or one avatar. Routing via BroadcastToTenant, the helper
+// already added in this branch for tenant_settings_changed, keeps the
 // invalidation scoped to the school that actually changed.
 //
 // Callers MUST pass tenantID from request context (tenant.FromContext)
@@ -971,7 +1017,7 @@ func (rs *Resource) broadcastStudentUpdated(tenantID, studentID int64) {
 		// breadcrumb instead of silent loss.
 		if rs.Logger != nil {
 			rs.Logger.Warn(
-				"skipping student_updated broadcast — no tenant context",
+				"skipping student_updated broadcast, no tenant context",
 				"student_id", studentID,
 			)
 		}
@@ -1072,7 +1118,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		// Acquire the photo-feature advisory lock only when consent is
-		// actually toggling — name/notes edits must not queue behind
+		// actually toggling. Name/notes edits must not queue behind
 		// feature disable/purge.
 		consentChanging := req.PhotoConsentGiven != nil &&
 			(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
@@ -1090,7 +1136,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		// Re-check authorisation against the LOCKED row — a concurrent admin
+		// Re-check authorisation against the LOCKED row. A concurrent admin
 		// reassignment could otherwise let a non-supervisor mutate the row.
 		if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
 			return errStudentReassigned
@@ -1127,7 +1173,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		// Broadcast after the OUTER tx commits — broadcasting now would race
+		// Broadcast after the OUTER tx commits. Broadcasting now would race
 		// subscribers into refetching the still-pre-commit row.
 		studentID := student.ID
 		capturedTenantID := tenantID
@@ -1204,7 +1250,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	// itself runs after the OUTER tenant tx commits.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		// FOR UPDATE row-locks against any in-flight upload tx — we either
+		// FOR UPDATE row-locks against any in-flight upload tx. We either
 		// observe its committed photo_path or it sees our deleted row and
 		// aborts.
 		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
@@ -1220,7 +1266,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		// Person delete failure must not fail the request — the student row
+		// Person delete failure must not fail the request. The student row
 		// is already gone, leaving the person orphaned is recoverable.
 		if err := rs.PersonService.Delete(ctx, student.PersonID); err != nil {
 			slog.Default().Error("failed to delete associated person record",

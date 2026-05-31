@@ -81,6 +81,7 @@ func setupTestContext(t *testing.T) *testContext {
 		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
 		PickupScheduleService:  svc.PickupSchedule,
 		ArrivalScheduleService: svc.ArrivalSchedule,
+		InstanceStudentRepo:    repoFactory.InstanceStudent,
 		SchoolRepo:             repoFactory.School,
 		SettingsService:        svc.Settings,
 		AttendanceRepo:         repoFactory.Attendance,

@@ -115,6 +115,7 @@ func (m *mockAuditLogRepoShared) FindByDateRange(ctx context.Context, start, end
 // Shared mock for account tenant repository
 type mockAccountTenantRepo struct {
 	createFn                     func(ctx context.Context, mapping *auth.AccountTenant) error
+	ensureActiveFn               func(ctx context.Context, mapping *auth.AccountTenant) error
 	findActiveByAccountIDFn      func(ctx context.Context, accountID int64) ([]auth.AccountTenant, error)
 	existsByAccountAndTenantFn   func(ctx context.Context, accountID, tenantID int64) (bool, error)
 	listAccountsByTenantIDFn     func(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error)
@@ -125,6 +126,13 @@ type mockAccountTenantRepo struct {
 func (m *mockAccountTenantRepo) Create(ctx context.Context, mapping *auth.AccountTenant) error {
 	if m.createFn != nil {
 		return m.createFn(ctx, mapping)
+	}
+	return nil
+}
+
+func (m *mockAccountTenantRepo) EnsureActive(ctx context.Context, mapping *auth.AccountTenant) error {
+	if m.ensureActiveFn != nil {
+		return m.ensureActiveFn(ctx, mapping)
 	}
 	return nil
 }

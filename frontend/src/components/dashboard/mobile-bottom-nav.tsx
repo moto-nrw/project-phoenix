@@ -273,6 +273,12 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
+    href: "/emergency",
+    label: "Notfall",
+    iconKey: "emergency",
+    alwaysShow: true,
+  },
+  {
     href: "/suggestions",
     label: "Feedback",
     iconKey: "feedback",

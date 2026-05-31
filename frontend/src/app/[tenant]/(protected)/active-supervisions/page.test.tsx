@@ -182,12 +182,15 @@ vi.mock("~/components/students/student-card", () => ({
   StudentCard: ({
     firstName,
     lastName,
+    extraContent,
   }: {
     firstName: string;
     lastName: string;
+    extraContent?: React.ReactNode;
   }) => (
     <div data-testid="student-card">
       {firstName} {lastName}
+      {extraContent}
     </div>
   ),
   StudentInfoRow: ({ children }: { children: React.ReactNode }) => (
@@ -245,6 +248,9 @@ vi.mock("~/components/students/student-card", () => ({
       {!isAbsent && !arrivalTime && <>Ankunftszeit: —</>}
       {notes && <span>({notes})</span>}
     </div>
+  ),
+  StudentAbsenceRow: ({ label }: { label: string }) => (
+    <div data-testid="student-absence-row">Kommt heute nicht ({label})</div>
   ),
 }));
 
@@ -312,6 +318,64 @@ describe("MeinRaumPage (Active Supervisions)", () => {
     render(<MeinRaumPage />);
 
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
+  it("keeps a sick checked-in room student out of the overdue pickup row", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "g1",
+              name: "OGS",
+              room_id: "r1",
+              room: { id: "r1", name: "Raum A" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [
+            { id: "eg1", name: "OGS", room: { name: "Raum A" } },
+          ],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Kerstin Krank",
+              schoolClass: "1a",
+              groupName: "OGS",
+              activeGroupId: "g1",
+              checkInTime: "2026-01-15T08:05:00.000Z",
+              actualArrivalTime: "08:05",
+              actualPickupTime: undefined,
+              isActive: true,
+              sick: true,
+            },
+          ],
+          firstRoomId: "r1",
+          schulhofStatus: null,
+          plannedNow: [],
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Kommt heute nicht (krank gemeldet)"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("pickup-time-row")).not.toBeInTheDocument();
   });
 
   it("shows no access state when user has no active supervision", async () => {

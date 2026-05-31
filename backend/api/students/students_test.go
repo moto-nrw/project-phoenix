@@ -16,8 +16,28 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+type studentDayPlanningTestResponse struct {
+	ID                int64  `json:"id"`
+	DayPlanningStatus string `json:"day_planning_status"`
+	DayPlanningReason string `json:"day_planning_reason"`
+}
+
+func decodeStudentsByID(t *testing.T, body []byte) map[int64]studentDayPlanningTestResponse {
+	t.Helper()
+	var resp struct {
+		Data []studentDayPlanningTestResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(body, &resp))
+	byID := make(map[int64]studentDayPlanningTestResponse, len(resp.Data))
+	for _, student := range resp.Data {
+		byID[student.ID] = student
+	}
+	return byID
+}
 
 // =============================================================================
 // List Students with Pickup Times Tests
@@ -226,6 +246,101 @@ func TestListStudents_WithArrivalTimes(t *testing.T) {
 			_, hasArrivalTime := student["arrival_time"]
 			assert.False(t, hasArrivalTime, "arrival_time should not be present when include_arrival_times is not set")
 		}
+	})
+}
+
+func TestListStudents_DayPlanningStatus(t *testing.T) {
+	tc := setupTestContext(t)
+	fixedNow := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
+	tc.resource.Now = func() time.Time { return fixedNow }
+
+	schoolClass := fmt.Sprintf("DP-%d", time.Now().UnixNano())
+	planned := testpkg.CreateTestStudent(t, tc.db, "DayPlan", "Pickup", schoolClass)
+	notPlanned := testpkg.CreateTestStudent(t, tc.db, "DayPlan", "NoPlan", schoolClass)
+	walkIn := testpkg.CreateTestStudent(t, tc.db, "DayPlan", "WalkIn", schoolClass)
+	sick := testpkg.CreateTestStudent(t, tc.db, "DayPlan", "Sick", schoolClass)
+	exceptionAbsent := testpkg.CreateTestStudent(t, tc.db, "DayPlan", "Exception", schoolClass)
+	staff := testpkg.CreateTestStaff(t, tc.db, "DayPlan", "Creator")
+	device := testpkg.CreateTestDevice(t, tc.db, "day-planning-device")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, planned.ID, notPlanned.ID, walkIn.ID, sick.ID, exceptionAbsent.ID, staff.ID, device.ID)
+
+	today := timezone.DateOfUTC(fixedNow)
+	pickupSchedule := testpkg.CreateTestPickupSchedule(t, tc.db, planned.ID, scheduleModel.WeekdayMonday, staff.ID, "15:30")
+	testpkg.CreateTestAttendance(t, tc.db, walkIn.ID, staff.ID, device.ID, time.Now().Add(-30*time.Minute), nil)
+
+	trueValue := true
+	_, err := tc.db.NewUpdate().
+		Model((*usersModel.Student)(nil)).
+		ModelTableExpr("users.students").
+		Set("sick = ?", trueValue).
+		Where("id = ?", sick.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	arrivalException := testpkg.CreateTestArrivalException(t, tc.db, exceptionAbsent.ID, today, staff.ID, "", "Arzttermin")
+	defer testpkg.CleanupScheduleFixturesB11(
+		t,
+		tc.db,
+		nil,
+		[]int64{arrivalException.ID},
+		[]int64{pickupSchedule.ID},
+		nil,
+		nil,
+		nil,
+	)
+
+	router := setupRouter(tc.resource.ListStudentsHandler(), "")
+
+	t.Run("returns_computed_day_planning_fields", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&page_size=50", schoolClass), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		byID := decodeStudentsByID(t, rr.Body.Bytes())
+		assert.Equal(t, students.DayPlanningStatusComesToday, byID[planned.ID].DayPlanningStatus)
+		assert.Equal(t, "pickup_schedule", byID[planned.ID].DayPlanningReason)
+		assert.Equal(t, students.DayPlanningStatusNotComingToday, byID[notPlanned.ID].DayPlanningStatus)
+		assert.Equal(t, "no_plan", byID[notPlanned.ID].DayPlanningReason)
+		assert.Equal(t, students.DayPlanningStatusComesToday, byID[walkIn.ID].DayPlanningStatus)
+		assert.Equal(t, "unplanned_attendance", byID[walkIn.ID].DayPlanningReason)
+		assert.Equal(t, students.DayPlanningStatusNotComingToday, byID[sick.ID].DayPlanningStatus)
+		assert.Equal(t, "sick", byID[sick.ID].DayPlanningReason)
+		assert.Equal(t, students.DayPlanningStatusNotComingToday, byID[exceptionAbsent.ID].DayPlanningStatus)
+		assert.Equal(t, "arrival_exception", byID[exceptionAbsent.ID].DayPlanningReason)
+	})
+
+	t.Run("filters_comes_today_before_pagination", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&day_status=comes_today&page_size=1", schoolClass), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		byID := decodeStudentsByID(t, rr.Body.Bytes())
+		require.Len(t, byID, 1)
+		_, ok := byID[planned.ID]
+		assert.True(t, ok, "only planned student should survive comes_today filter")
+	})
+
+	t.Run("filters_actual_walk_in_as_comes_today_before_pagination", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&day_status=comes_today&page_size=2", schoolClass), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		byID := decodeStudentsByID(t, rr.Body.Bytes())
+		require.Len(t, byID, 2)
+		assert.Contains(t, byID, planned.ID)
+		assert.Contains(t, byID, walkIn.ID)
+	})
+
+	t.Run("filters_not_coming_today", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&day_status=not_coming_today&page_size=50", schoolClass), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		byID := decodeStudentsByID(t, rr.Body.Bytes())
+		assert.NotContains(t, byID, planned.ID)
+		assert.NotContains(t, byID, walkIn.ID)
+		assert.Contains(t, byID, notPlanned.ID)
+		assert.Contains(t, byID, sick.ID)
+		assert.Contains(t, byID, exceptionAbsent.ID)
 	})
 }
 

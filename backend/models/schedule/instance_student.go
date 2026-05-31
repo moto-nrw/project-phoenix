@@ -253,4 +253,9 @@ type InstanceStudentRepository interface {
 	// instance they dropped into without being enrolled) are NOT included;
 	// the handler layer enriches those via the visits-side lookup.
 	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*ScheduledInstanceRow, error)
+
+	// FindPlannedStudentIDsByDate returns unique student IDs that have a
+	// non-cancelled materialized timetable row on the given date. Used by
+	// student search's "kommt heute" heuristic as an additive planning signal.
+	FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date time.Time) ([]int64, error)
 }

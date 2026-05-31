@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { isAxiosError } from "axios";
 import api from "./api";
 import { isBrowserContext } from "./api-url";
+import { recordBackendProxyMetric } from "./backend-proxy-metrics";
 import { createLogger } from "~/lib/logger";
 
 // Note: Server-only imports (auth, refreshSessionTokensOnServer) are dynamically
@@ -96,6 +97,12 @@ async function serverFetchWithRetry<T>(
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   const url = `${getServerApiUrl()}${endpoint}`;
   const forwardHeaders = await getIncomingForwardHeaders();
+  const startedAt = Date.now();
+  const requestBytes = estimateRequestBytes(options.body);
+  const tokenContext = extractTokenContext(token);
+  let responseStatus = 0;
+  let responseBytes: number | null = null;
+  let outcome: "success" | "backend_error" | "network_error" = "success";
 
   const executeRequest = async (bearer: string) =>
     fetch(url, {
@@ -109,22 +116,124 @@ async function serverFetchWithRetry<T>(
       cache: "no-store", // Prevent Next.js from caching API responses
     });
 
-  const response = await executeRequest(token);
+  try {
+    const response = await executeRequest(token);
+    responseStatus = response.status;
+    responseBytes = parseResponseContentLength(response);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
-  }
-
-  if (response.status === 204) {
-    // DELETE should return void/undefined, others return empty object
-    if (options.returnVoidOn204) {
-      return undefined as T;
+    if (!response.ok) {
+      outcome = "backend_error";
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
     }
-    return {} as T;
-  }
 
-  return (await response.json()) as T;
+    if (response.status === 204) {
+      // DELETE should return void/undefined, others return empty object
+      if (options.returnVoidOn204) {
+        return undefined as T;
+      }
+      return {} as T;
+    }
+
+    return (await response.json()) as T;
+  } catch (error) {
+    if (outcome === "success") {
+      outcome = "network_error";
+    }
+    throw error;
+  } finally {
+    const durationMs = Date.now() - startedAt;
+    const backendEndpoint = sanitizeEndpoint(endpoint);
+
+    logger.info("frontend backend proxy request completed", {
+      method: options.method,
+      backend_endpoint: backendEndpoint,
+      status: responseStatus,
+      duration_ms: durationMs,
+      request_bytes: requestBytes,
+      response_bytes: responseBytes,
+      tenant_id: tokenContext.tenantId,
+      org_id: tokenContext.orgId,
+      scope: tokenContext.scope,
+      outcome,
+    });
+    await recordTenantBackendProxyMetric({
+      method: options.method,
+      backendEndpoint,
+      status: responseStatus,
+      durationMs,
+      outcome,
+      scope: tokenContext.scope,
+    });
+  }
+}
+
+async function recordTenantBackendProxyMetric(args: {
+  method: string;
+  backendEndpoint: string;
+  status: number;
+  durationMs: number;
+  outcome: string;
+  scope?: string;
+}): Promise<void> {
+  try {
+    recordBackendProxyMetric(args);
+  } catch {
+    // Metrics must never alter request behavior.
+  }
+}
+
+function estimateRequestBytes(body: unknown): number {
+  if (body === undefined || body === null) return 0;
+  try {
+    return new TextEncoder().encode(JSON.stringify(body)).length;
+  } catch {
+    return 0;
+  }
+}
+
+function parseContentLength(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseResponseContentLength(response: Response): number | null {
+  return parseContentLength(response.headers?.get?.("content-length") ?? null);
+}
+
+function sanitizeEndpoint(endpoint: string): string {
+  const [path = ""] = endpoint.split("?");
+  return path
+    .split("/")
+    .map((segment) => {
+      if (!segment) return segment;
+      if (/^\d+$/.test(segment)) return "{id}";
+      if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(segment)) return "{uuid}";
+      if (/^[A-Za-z0-9_-]{16,}$/.test(segment)) return "{token}";
+      return segment;
+    })
+    .join("/");
+}
+
+function extractTokenContext(token: string): {
+  tenantId?: number;
+  orgId?: number;
+  scope?: string;
+} {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return {};
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString());
+    return {
+      tenantId:
+        typeof decoded.tenant_id === "number" ? decoded.tenant_id : undefined,
+      orgId: typeof decoded.org_id === "number" ? decoded.org_id : undefined,
+      scope: typeof decoded.scope === "string" ? decoded.scope : undefined,
+    };
+  } catch {
+    return {};
+  }
 }
 
 /**

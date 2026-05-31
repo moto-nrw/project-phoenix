@@ -173,7 +173,7 @@ describe("RootPage", () => {
 
     expect(hrefSpy).toHaveBeenCalledWith(expect.stringContaining("school-a."));
     expect(
-      screen.getByRole("button", { name: "Portal wird geöffnet..." }),
+      screen.getByRole("button", { name: "OGS wird geladen..." }),
     ).toBeDisabled();
 
     hrefSpy.mockRestore();

@@ -3,6 +3,7 @@ import type {
   ArrivalNote,
   ArrivalSchedule,
 } from "./student-arrival-api";
+import type { StudentStatusKind } from "./student-status-days-api";
 
 export const WEEKDAYS = [
   { value: 1, label: "Montag", shortLabel: "Mo" },
@@ -111,6 +112,7 @@ export function getDayData(
   notes: ArrivalNote[] = [],
   isSickToday = false,
   isExcusedToday = false,
+  statusForDate: StudentStatusKind | null = null,
 ): ArrivalDayData {
   const weekday = getWeekdayFromDate(date);
   const dateStr = formatDateISO(date);
@@ -136,8 +138,12 @@ export function getDayData(
   const exception = exceptions.find((e) => e.exception_date === dateStr);
   const baseSchedule = schedules.find((s) => s.weekday === weekday);
   const isToday = isSameDay(date, today);
-  const showSick = isToday && isSickToday;
-  const showExcused = isToday && !showSick && isExcusedToday;
+  const showSick = statusForDate
+    ? statusForDate === "sick"
+    : isToday && isSickToday;
+  const showExcused = statusForDate
+    ? statusForDate === "excused"
+    : isToday && !showSick && isExcusedToday;
 
   let effectiveTime: string | undefined;
   let isAbsent = false;

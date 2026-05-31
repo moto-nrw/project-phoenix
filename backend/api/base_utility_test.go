@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -229,6 +230,25 @@ func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
 	require.NotNil(t, api.Auth)
 	require.NotNil(t, api.Operator)
 	assert.Same(t, serviceFactory.CaregiverCapability, api.Auth.CaregiverCapabilityService)
+}
+
+func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
+	router := chi.NewRouter()
+	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Use(syncClientIPToRemoteAddr)
+	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "203.0.113.10", r.RemoteAddr)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-For", "203.0.113.10")
+	req.RemoteAddr = "172.18.0.4:54321"
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
 func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {

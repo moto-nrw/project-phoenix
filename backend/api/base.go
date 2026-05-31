@@ -25,6 +25,7 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
+	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
@@ -51,15 +52,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // API represents the API structure
 type API struct {
-	Services *services.Factory
-	Router   chi.Router
-	db       *bun.DB
-	repos    *repositories.Factory
+	Services           *services.Factory
+	Router             chi.Router
+	db                 *bun.DB
+	repos              *repositories.Factory
+	Metrics            *observability.HTTPMetrics
+	metricsBearerToken string
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -85,6 +89,7 @@ type API struct {
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingAPI.Resource
 	Timetable        *timetableAPI.Resource
+	Emergency        *emergencyAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -94,6 +99,11 @@ type API struct {
 
 // New creates a new API instance
 func New(enableCORS bool, logger *slog.Logger) (*API, error) {
+	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := database.DBConnForServe()
 	if err != nil {
@@ -112,17 +122,22 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	observability.RegisterDBStatsProvider(db.DB)
+	observability.RegisterSSEStatsProvider(serviceFactory.RealtimeHub)
 
 	// Create API instance
+	httpMetrics := observability.NewHTTPMetrics()
 	api := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
+		Services:           serviceFactory,
+		Router:             chi.NewRouter(),
+		db:                 db,
+		repos:              repoFactory,
+		Metrics:            httpMetrics,
+		metricsBearerToken: metricsBearerToken,
 	}
 
 	// Setup router middleware
-	setupBasicMiddleware(api.Router, logger)
+	setupBasicMiddleware(api.Router, logger, httpMetrics)
 
 	// Setup CORS, security logging, and rate limiting
 	if enableCORS {
@@ -141,9 +156,13 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 }
 
 // setupBasicMiddleware configures basic router middleware
-func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
+func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *observability.HTTPMetrics) {
 	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
+	router.Use(middleware.ClientIPFromXFF())
+	router.Use(syncClientIPToRemoteAddr)
+	if httpMetrics != nil {
+		router.Use(httpMetrics.Middleware)
+	}
 	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
@@ -161,6 +180,15 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	sentryMiddleware := sentryhttp.New(sentryhttp.Options{Repanic: true})
 	router.Use(sentryMiddleware.Handle)
 	router.Use(customMiddleware.SecurityHeaders)
+}
+
+func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ip := middleware.GetClientIP(r.Context()); ip != "" {
+			r.RemoteAddr = ip
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // setupCORS configures CORS middleware with allowed origins from environment.
@@ -313,6 +341,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth.SetMFAService(api.Services.MFA)
 	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
+	api.Rooms.ActiveService = api.Services.Active
+	api.Rooms.PersonService = api.Services.Users
+	api.Rooms.EducationService = api.Services.Education
+	api.Rooms.StudentRepo = repoFactory.Student
+	api.Rooms.ListExportService = api.Services.ListExport
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
 		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker")),
 		StudentRepo: repoFactory.Student,
@@ -329,6 +362,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
 		PickupScheduleService:  api.Services.PickupSchedule,
 		ArrivalScheduleService: api.Services.ArrivalSchedule,
+		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
+		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
+		InstanceStudentRepo:    repoFactory.InstanceStudent,
 		SchoolRepo:             repoFactory.School,
 		SettingsService:        api.Services.Settings,
 		AttendanceRepo:         repoFactory.Attendance,
@@ -337,6 +373,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
 		Broadcaster:            api.Services.RealtimeHub,
 		StudentPhotos:          api.Services.StudentPhotos,
+		ListExportService:      api.Services.ListExport,
 		Logger:                 logger.With("handler", "students"),
 		DB:                     db,
 	})
@@ -420,6 +457,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                 logger.With("handler", "timetable"),
 		DB:                     db,
 	})
+	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -513,6 +551,8 @@ func (a *API) registerRoutesWithRateLimiting() {
 		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
 	})
 
+	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
+
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
 	// Rate limiting is applied per-route inside Auth.Router() (only login, register, password-reset)
@@ -585,6 +625,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount timetable resources
 		r.Mount("/timetable", a.Timetable.Router())
+
+		// Mount emergency snapshot resources
+		r.Mount("/emergency", a.Emergency.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

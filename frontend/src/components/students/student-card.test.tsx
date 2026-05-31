@@ -1,12 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  AbsenceIcon,
   ArrivalTimeRow,
   ExceptionIcon,
   GroupIcon,
   PickupTimeIcon,
   PickupTimeRow,
   SchoolClassIcon,
+  StudentAbsenceRow,
   StudentCard,
   StudentInfoRow,
 } from "./student-card";
@@ -421,6 +423,17 @@ describe("ExceptionIcon", () => {
   });
 });
 
+describe("AbsenceIcon", () => {
+  it("renders a neutral gray clock, not an amber/orange warning", () => {
+    const { container } = render(<AbsenceIcon />);
+
+    const svg = container.querySelector("svg");
+    expect(svg).toBeInTheDocument();
+    expect(svg?.className).toContain("text-gray-400");
+    expect(svg?.className).not.toContain("text-orange-500");
+  });
+});
+
 describe("PickupTimeRow", () => {
   const now = new Date("2025-01-15T14:00:00");
 
@@ -610,6 +623,33 @@ describe("ArrivalTimeRow", () => {
     render(<ArrivalTimeRow isException={false} isAbsent={false} now={now} />);
 
     expect(screen.getByText("Ankunftszeit: —")).toBeInTheDocument();
+  });
+});
+
+describe("StudentAbsenceRow", () => {
+  it("renders a single neutral 'not coming' line for a sick student", () => {
+    const { container } = render(<StudentAbsenceRow label="krank gemeldet" />);
+
+    expect(
+      screen.getByText("Kommt heute nicht (krank gemeldet)"),
+    ).toBeInTheDocument();
+    // Neutral gray clock — a known absence is information, not a warning. Never
+    // the amber exception triangle, never the red overdue warning.
+    expect(container.querySelector("svg.text-gray-400")).toBeInTheDocument();
+    expect(
+      container.querySelector("svg.text-orange-500"),
+    ).not.toBeInTheDocument();
+    expect(
+      container.querySelector("svg.lucide-triangle-alert"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the excused label", () => {
+    render(<StudentAbsenceRow label="entschuldigt" />);
+
+    expect(
+      screen.getByText("Kommt heute nicht (entschuldigt)"),
+    ).toBeInTheDocument();
   });
 });
 

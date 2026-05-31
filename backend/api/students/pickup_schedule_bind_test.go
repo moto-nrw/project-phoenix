@@ -123,8 +123,7 @@ func TestBulkPickupScheduleRequest_Bind(t *testing.T) {
 			Schedules: []PickupScheduleRequest{},
 		}
 		err := r.Bind(req)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "schedules array cannot be empty")
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid weekday in schedule", func(t *testing.T) {

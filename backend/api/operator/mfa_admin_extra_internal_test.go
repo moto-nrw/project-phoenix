@@ -48,6 +48,9 @@ func (s *stubAccountTenantRepo) ListAccountsByOrganizationID(context.Context, in
 func (s *stubAccountTenantRepo) ListAllAccounts(context.Context) ([]authModels.OrgAccountInfo, error) {
 	return nil, nil
 }
+func (s *stubAccountTenantRepo) EnsureActive(context.Context, *authModels.AccountTenant) error {
+	return nil
+}
 
 // stubTenantMFAService satisfies authSvc.MFAService minimally for the
 // operator admin endpoints (HasEnrollment, GetTenantMFAOverride,

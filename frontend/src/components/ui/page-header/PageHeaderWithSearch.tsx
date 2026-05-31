@@ -24,6 +24,10 @@ import type { PageHeaderWithSearchProps } from "./types";
 // the compact state, but small enough that it kicks in immediately on real
 // scroll.
 const COMPACT_SCROLL_THRESHOLD = 40;
+const EMPTY_FILTERS: NonNullable<PageHeaderWithSearchProps["filters"]> = [];
+const EMPTY_ACTIVE_FILTERS: NonNullable<
+  PageHeaderWithSearchProps["activeFilters"]
+> = [];
 
 export function PageHeaderWithSearch({
   title,
@@ -31,8 +35,8 @@ export function PageHeaderWithSearch({
   statusIndicator,
   tabs,
   search,
-  filters = [],
-  activeFilters = [],
+  filters = EMPTY_FILTERS,
+  activeFilters = EMPTY_ACTIVE_FILTERS,
   onClearAllFilters,
   actionButton,
   mobileActionButton,

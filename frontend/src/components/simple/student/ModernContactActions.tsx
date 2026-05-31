@@ -16,10 +16,12 @@ interface ModernContactActionsProps {
   readonly studentName?: string;
 }
 
+const EMPTY_PHONE_NUMBERS: PhoneOption[] = [];
+
 export function ModernContactActions({
   email,
   phone,
-  phoneNumbers = [],
+  phoneNumbers = EMPTY_PHONE_NUMBERS,
   studentName,
 }: ModernContactActionsProps) {
   const [isPhoneDropdownOpen, setIsPhoneDropdownOpen] = useState(false);
