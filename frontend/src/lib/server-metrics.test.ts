@@ -21,6 +21,8 @@ describe("server-metrics", () => {
   });
 
   it("throws when the metrics token is not configured", async () => {
+    vi.stubEnv("METRICS_BEARER_TOKEN", "");
+
     await expect(metricsResponse(metricsRequest())).rejects.toThrow(
       "METRICS_BEARER_TOKEN is required",
     );
