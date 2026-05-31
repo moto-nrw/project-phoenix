@@ -26,7 +26,7 @@ const nextLinks: Record<
       href: "/anleitung/funktionen",
       label: "Als nächstes",
       title: "Die App entdecken",
-      body: "Jeder Punkt der Seitenleiste, verständlich erklärt für den Alltag nach der Einrichtung.",
+      body: "Jeder Bereich der App, verständlich erklärt für den Alltag nach der Einrichtung.",
       icon: ArrowRight,
     },
   ],

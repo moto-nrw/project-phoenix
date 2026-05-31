@@ -79,7 +79,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
   {
     href: "/anleitung/funktionen",
     title: "Die App im Alltag",
-    body: "Jeder Punkt der Seitenleiste verständlich erklärt: was er macht und wie man ihn nutzt.",
+    body: "Jeder Bereich der App verständlich erklärt: was er macht und wie man ihn nutzt.",
     icon: LayoutDashboard,
     points: [
       "Kindersuche, Aufsicht, Räume, Mitarbeiter",
@@ -181,7 +181,7 @@ export const setupChapters: readonly GuideChapter[] = [
         id: "gruppen-anlegen",
         title: "Gruppen anlegen",
         summary:
-          "OGS-Gruppen anlegen und je einen Raum sowie eine Gruppenleitung zuordnen.",
+          "OGS-Gruppen anlegen, wenn Ihre Einrichtung mit festen Gruppen arbeitet, und bei Bedarf Raum sowie Gruppenleitung zuordnen.",
         steps: [
           "`Datenverwaltung` öffnen und `Gruppen` wählen.",
           "Neue Gruppe anlegen.",
@@ -190,6 +190,11 @@ export const setupChapters: readonly GuideChapter[] = [
           "Wenn bekannt eine oder mehrere Personen als `Gruppenleitung` wählen.",
           "Speichern.",
         ],
+        callout: {
+          title: "Gruppen und Rechte",
+          body: "Gruppen müssen nur angelegt werden, wenn Ihre OGS mit Gruppen arbeitet. Gruppenleitungen haben Rechte für ihre Kinder, zum Beispiel für Anmeldungen, Krankmeldungen und Stammdatenänderungen. Falls unklar ist, wer diese Rechte bekommen soll, kann das später mit dem moto-Team geklärt oder in den Einstellungen angepasst werden.",
+          tone: "blue",
+        },
         screenshot: "Gruppen-Liste in der Datenverwaltung.",
         image: "/anleitung/screens/gruppen-anlegen.png",
       },
@@ -197,7 +202,7 @@ export const setupChapters: readonly GuideChapter[] = [
         id: "aktivitaeten-anlegen",
         title: "Aktivitäten anlegen",
         summary:
-          "Wiederkehrende Angebote vorbereiten, damit sie im Stundenplan und spontan verfügbar sind.",
+          "Wiederkehrende Angebote vorbereiten. Dieser Schritt ist vor allem für Einrichtungen relevant, die mit NFC oder Tablets arbeiten.",
         steps: [
           "`Datenverwaltung` öffnen und `Aktivitäten` wählen.",
           "Neue Aktivität anlegen.",
@@ -206,6 +211,11 @@ export const setupChapters: readonly GuideChapter[] = [
           "`Maximale Teilnehmer` eintragen, wenn eine Grenze gilt.",
           "Speichern.",
         ],
+        callout: {
+          title: "Optional ohne NFC",
+          body: "Wenn Ihre Einrichtung nicht mit NFC oder Tablets arbeitet, können Sie diesen Schritt für die Ersteinrichtung zunächst überspringen und Aktivitäten später ergänzen.",
+          tone: "gray",
+        },
         screenshot:
           "Aktivitätsformular mit Name, Kategorie und maximale Teilnehmer.",
         image: "/anleitung/screens/aktivitaeten-anlegen.png",
@@ -216,7 +226,7 @@ export const setupChapters: readonly GuideChapter[] = [
     id: "kinder-und-zeiten",
     title: "Kinder und Betreuungszeiten",
     description:
-      "Kinder anlegen, als Liste importiert oder einzeln, und ihre Ankunfts- und Abholzeiten pflegen.",
+      "Kinder kommen automatisch ins System, wenn Familien die moto-Anmeldung nutzen. Ohne Online-Anmeldung legen Sie Kinder als Liste oder einzeln an und pflegen danach Ankunfts- und Abholzeiten.",
     icon: Users,
     tone: "orange",
     steps: [
@@ -224,7 +234,7 @@ export const setupChapters: readonly GuideChapter[] = [
         id: "kinder-importieren",
         title: "Kinder aus einer Liste importieren (optional)",
         summary:
-          "Nur nötig, wenn Ihnen die Kinderdaten bereits als Excel- oder CSV-Liste vorliegen, dann legen Sie alle Kinder auf einmal an. Ohne solche Liste überspringen Sie diesen Schritt und legen die Kinder im nächsten Schritt einzeln an.",
+          "Nutzen Sie den Import, wenn Ihnen die Kinderdaten bereits als Excel- oder CSV-Liste vorliegen. So legen Sie alle Kinder auf einmal an. Ohne solche Liste überspringen Sie diesen Schritt und legen die Kinder im nächsten Schritt einzeln an.",
         steps: [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
           "Auf `Importieren` klicken.",
@@ -253,25 +263,26 @@ export const setupChapters: readonly GuideChapter[] = [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
           "Neues Kind anlegen.",
           "`Vorname`, `Nachname`, `Klasse` und `OGS Gruppe` eintragen.",
-          "`Erziehungsberechtigte` und Abholinformationen ergänzen.",
           "`Datenschutzeinwilligung erteilt` nur aktivieren, wenn die Einwilligung vorliegt.",
-          "Speichern und das Kind in der `Kindersuche` suchen.",
+          "Speichern und das Kind in der `Kindersuche` öffnen.",
+          "Auf der Schülerdetailseite `Erziehungsberechtigte` und Abholinformationen ergänzen.",
         ],
         screenshot:
-          "Kinderformular mit Stammdaten, Gruppe und Erziehungsberechtigten.",
+          "Kinderformular mit Stammdaten, Gruppe und Hinweis zu Erziehungsberechtigten.",
         image: "/anleitung/screens/kind-manuell-anlegen.png",
       },
       {
         id: "betreuungszeiten-pflegen",
         title: "Ankunfts- und Abholzeiten pflegen",
         summary:
-          "Regelmäßige Zeiten und Ausnahmen eintragen, damit erwartete Kinder und Abholzeiten stimmen.",
+          "Für jedes Kind die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten eintragen.",
         steps: [
-          "Kind über `Kindersuche` öffnen.",
-          "`Betreuungszeiten` öffnen.",
-          "Im Ankunftsbereich auf `Bearbeiten` klicken und Zeiten im Format `HH:MM` eintragen.",
-          "Im Abholbereich auf `Bearbeiten` klicken und Abholer sowie Hinweise eintragen.",
-          "Für einzelne Ausnahmen `Tag bearbeiten` nutzen.",
+          "`Datenverwaltung` öffnen und `Kinder` wählen.",
+          "Das Kind in der Liste auswählen.",
+          "Im rechten Detailbereich den Tab `Betreuungszeiten` öffnen.",
+          "Im Bereich `Ankunftsplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Zeiten pro Wochentag im Format `HH:MM` eintragen.",
+          "Im Bereich `Abholplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Abholzeiten, Abholer sowie Hinweise eintragen.",
+          "Einzelne Abweichungen später über `Tag bearbeiten` am jeweiligen Wochentag pflegen.",
           "Speichern.",
         ],
         screenshot:
@@ -283,8 +294,7 @@ export const setupChapters: readonly GuideChapter[] = [
   {
     id: "testlauf",
     title: "Testlauf vor dem Start",
-    description:
-      "Eine letzte Prüfung, die die meisten Supportfälle am ersten Betreuungstag verhindert.",
+    description: "Die letzte Prüfung vor einem erfolgreichen ersten Tag.",
     icon: ClipboardCheck,
     tone: "purple",
     steps: [
