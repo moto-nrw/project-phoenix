@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	studentStatusDaysPlannedSourceVersion     = "1.15.78"
+	studentStatusDaysPlannedSourceVersion     = "1.15.79"
 	studentStatusDaysPlannedSourceDescription = "Allow planned source for active.student_status_days"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func studentStatusDaysPlannedSourceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.78: Allowing planned student status day source...")
+	fmt.Println("Migration 1.15.79: Allowing planned student status day source...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -60,7 +60,7 @@ func studentStatusDaysPlannedSourceUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentStatusDaysPlannedSourceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.78: Removing planned student status day source...")
+	fmt.Println("Rolling back migration 1.15.79: Removing planned student status day source...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
