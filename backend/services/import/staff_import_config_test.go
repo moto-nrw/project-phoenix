@@ -115,6 +115,9 @@ type stubStaffAccountTenantRepo struct {
 func (r stubStaffAccountTenantRepo) Create(context.Context, *authModels.AccountTenant) error {
 	panic("not implemented")
 }
+func (r stubStaffAccountTenantRepo) EnsureActive(context.Context, *authModels.AccountTenant) error {
+	panic("not implemented")
+}
 func (r stubStaffAccountTenantRepo) FindActiveByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
 	panic("not implemented")
 }
