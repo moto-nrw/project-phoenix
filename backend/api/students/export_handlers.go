@@ -80,6 +80,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	today := rs.Now()
+	rs.applyStatusDaysForDate(r.Context(), responses, today)
 	if err := rs.enrichWithDayPlanning(r.Context(), responses, today, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return

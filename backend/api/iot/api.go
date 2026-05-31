@@ -162,6 +162,7 @@ func (rs *Resource) Router() chi.Router {
 	// so downstream queries run as phoenix_tenant with RLS enforced.
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolRepo))
+		r.Use(iotMetricsMiddleware)
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
@@ -181,6 +182,7 @@ func (rs *Resource) Router() chi.Router {
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SchoolRepo, rs.pinResolver()))
+		r.Use(iotMetricsMiddleware)
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Check-in endpoints (student RFID check-in/checkout workflow)

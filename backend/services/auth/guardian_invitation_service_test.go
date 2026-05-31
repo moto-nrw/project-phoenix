@@ -19,7 +19,7 @@ import (
 )
 
 // strongTestPassword is a password meeting the project's strength rules.
-// Test-only constant — reused across guardian invitation tests.
+// Test-only constant, reused across guardian invitation tests.
 const strongTestPassword = "GuardianTest!2026"
 
 // guardianTestEnv bundles the real-DB dependencies tests need.
@@ -77,7 +77,7 @@ func (env *guardianTestEnv) inviterAccountID(t *testing.T) int64 {
 	t.Helper()
 	person, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Inviter", "Tester")
 	t.Cleanup(func() {
-		// Best-effort cleanup — schema FKs cascade most rows.
+		// Best-effort cleanup, schema FKs cascade most rows.
 		_, _ = env.db.NewDelete().
 			TableExpr("auth.accounts").
 			Where("id = ?", account.ID).
@@ -138,7 +138,7 @@ func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
-	// Build a profile with no email — must use a raw insert because the
+	// Build a profile with no email, must use a raw insert because the
 	// fixture helper always sets one.
 	profile := &users.GuardianProfile{
 		FirstName:              "NoEmail",
@@ -293,6 +293,89 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 		}
 	}
 	assert.True(t, hasGuardian, "guardian role should be assigned")
+}
+
+func TestGuardianInvitationService_Accept_ReusesExistingAccountWithoutPasswordChange(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "existing-guardian")
+	creatorID := env.inviterAccountID(t)
+	account := testpkg.CreateTestAccountWithPassword(t, env.db, *profile.Email, "Existing!2026")
+	existingHash := *account.PasswordHash
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	acceptedAccount, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: strongTestPassword,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, acceptedAccount)
+	assert.Equal(t, account.ID, acceptedAccount.ID)
+
+	stored, err := env.repos.Account.FindByEmail(context.Background(), *profile.Email)
+	require.NoError(t, err)
+	require.NotNil(t, stored.PasswordHash)
+	assert.Equal(t, existingHash, *stored.PasswordHash)
+}
+
+func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "inactive-guardian")
+	creatorID := env.inviterAccountID(t)
+	account := testpkg.CreateTestAccountWithPassword(t, env.db, *profile.Email, "Existing!2026")
+	deactivatedAt := time.Now().Add(-time.Hour)
+	require.NoError(t, env.repos.AccountTenant.Create(context.Background(), &authModels.AccountTenant{
+		AccountID:     account.ID,
+		TenantID:      1,
+		Status:        authModels.AccountTenantStatusInactive,
+		DeactivatedAt: &deactivatedAt,
+	}))
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password:        strongTestPassword,
+		ConfirmPassword: strongTestPassword,
+	})
+	require.NoError(t, err)
+
+	var mapping authModels.AccountTenant
+	err = env.db.NewSelect().
+		Model(&mapping).
+		ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
+		Where(`"account_tenant".account_id = ?`, account.ID).
+		Where(`"account_tenant".tenant_id = ?`, 1).
+		Scan(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, authModels.AccountTenantStatusActive, mapping.Status)
+	assert.Nil(t, mapping.DeactivatedAt)
+	assert.NotNil(t, mapping.ActivatedAt)
 }
 
 func TestGuardianInvitationService_Accept_PasswordMismatch(t *testing.T) {
@@ -591,20 +674,20 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	// Backfill returns an error — the accept must still succeed because
+	// Backfill returns an error, the accept must still succeed because
 	// backfill is best-effort and the new account has already been
 	// committed by the inner tx.
 	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
-	require.NoError(t, err, "accept must not fail when backfill errors out — backfill is best-effort")
+	require.NoError(t, err, "accept must not fail when backfill errors out, backfill is best-effort")
 	require.NotNil(t, account)
 	t.Cleanup(func() { cleanupAcceptedAccount(t, env.db, account.ID) })
 
 	assert.Equal(t, 1, bf.calls, "backfiller must have been called even though it errored")
 
-	// The invitation is still marked accepted — proof the inner tx
+	// The invitation is still marked accepted, proof the inner tx
 	// committed independent of the backfill outcome.
 	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
 	require.NoError(t, err)
@@ -612,7 +695,7 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 }
 
 func TestGuardianInvitationService_Accept_NilBackfillerIsSafe(t *testing.T) {
-	// Same setup as the production wiring used to be — no backfiller.
+	// Same setup as the production wiring used to be, no backfiller.
 	// The accept flow checks `if s.enrollmentBackfiller != nil` so this
 	// must not panic.
 	env := setupGuardianInvitationTest(t)

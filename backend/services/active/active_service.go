@@ -481,6 +481,7 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 	// (only triggers when the tenant's clear_mode setting is "next_checkin").
 	s.autoClearStudentSickness(ctx, visit.StudentID)
 	s.autoClearStudentExcused(ctx, visit.StudentID)
+	s.autoClearPlannedStudentStatuses(ctx, visit.StudentID)
 
 	// Create the visit record
 	visit.SetTenantID(tenant.FromContext(ctx))

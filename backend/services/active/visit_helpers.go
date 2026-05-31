@@ -257,6 +257,70 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 	}
 }
 
+func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID int64) {
+	if s.studentStatusRepo == nil {
+		return
+	}
+
+	now := time.Now()
+	today := timezone.DateOfUTC(now)
+	rows, err := s.studentStatusRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
+	if err != nil {
+		s.getLogger().Warn("failed to load planned student status days on check-in",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	hasPlannedSick := false
+	hasPlannedExcused := false
+	for _, row := range rows {
+		if row.Source != active.StudentStatusSourcePlanned {
+			continue
+		}
+		if err := s.studentStatusRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceNextCheckin); err != nil {
+			s.getLogger().Warn("failed to clear planned student status day on check-in",
+				slog.Int64("student_id", studentID),
+				slog.String("status", row.Status),
+				slog.String("error", err.Error()),
+			)
+			continue
+		}
+		if row.Status == active.StudentStatusDaySick {
+			hasPlannedSick = true
+		}
+		if row.Status == active.StudentStatusDayExcused {
+			hasPlannedExcused = true
+		}
+	}
+
+	if !hasPlannedSick && !hasPlannedExcused {
+		return
+	}
+
+	student, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil || student == nil {
+		return
+	}
+
+	falseVal := false
+	if hasPlannedSick {
+		student.Sick = &falseVal
+		student.SickSince = nil
+	}
+	if hasPlannedExcused {
+		student.Excused = &falseVal
+		student.ExcusedSince = nil
+	}
+	if err := s.studentRepo.Update(ctx, student); err != nil {
+		s.getLogger().Warn("failed to clear planned student flags on check-in",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
 // broadcastVisitCreated sends SSE event for visit creation.
 // snapshot (WP-B10) may be nil — when present, it enriches the event with
 // attendance_status/substatus/note so subscribers see the flipped attendance

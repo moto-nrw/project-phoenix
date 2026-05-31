@@ -22,12 +22,20 @@ const { mockNextHeaders } = vi.hoisted(() => ({
   mockNextHeaders: vi.fn(),
 }));
 
+const { mockRecordBackendProxyMetric } = vi.hoisted(() => ({
+  mockRecordBackendProxyMetric: vi.fn(),
+}));
+
 vi.mock("next/headers", () => ({
   headers: mockNextHeaders,
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend.test",
+}));
+
+vi.mock("./backend-proxy-metrics", () => ({
+  recordBackendProxyMetric: mockRecordBackendProxyMetric,
 }));
 
 // Helper to create mock NextRequest
@@ -870,6 +878,7 @@ describe("apiGet (server-side)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRecordBackendProxyMetric.mockClear();
     originalWindow = globalThis.window;
     originalFetch = globalThis.fetch;
     mockFetch = vi.fn();
@@ -966,6 +975,33 @@ describe("apiGet (server-side)", () => {
         },
       }),
     );
+  });
+
+  it("records tenant backend proxy metrics for server-side calls", async () => {
+    mockNextHeaders.mockResolvedValueOnce(new Headers());
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-length": "17" }),
+      json: () => Promise.resolve({ result: "ok" }),
+    } as Response);
+    const tokenPayload = Buffer.from(
+      JSON.stringify({ tenant_id: 101, scope: "" }),
+    ).toString("base64url");
+
+    await apiGet<{ result: string }>(
+      "/api/students/1234567890123456?verbose=true",
+      `header.${tokenPayload}.signature`,
+    );
+
+    expect(mockRecordBackendProxyMetric).toHaveBeenCalledWith({
+      method: "GET",
+      backendEndpoint: "/api/students/{id}",
+      status: 200,
+      durationMs: expect.any(Number),
+      outcome: "success",
+      scope: "",
+    });
   });
 
   it("still calls the backend when request headers are unavailable", async () => {
