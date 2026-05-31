@@ -40,6 +40,7 @@ import {
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 
 const logger = createLogger({ component: "PickupScheduleManager" });
+const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
 
 /** Invalidate SWR caches that contain pickup time data (OGS groups, dashboard). */
 function invalidatePickupCaches() {
@@ -69,7 +70,7 @@ export default function PickupScheduleManager({
   onUpdate,
   isSick = false,
   isExcused = false,
-  statusDays = [],
+  statusDays = EMPTY_STATUS_DAYS,
 }: PickupScheduleManagerProps) {
   const [pickupData, setPickupData] = useState<PickupData>({
     schedules: [],

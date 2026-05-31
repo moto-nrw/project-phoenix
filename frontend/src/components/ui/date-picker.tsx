@@ -35,6 +35,8 @@ interface MultipleDatePickerCalendarProps {
   readonly calendarLayout: "overlay" | "inline";
 }
 
+const EMPTY_DISABLED_DATES: Date[] = [];
+
 export function DatePicker({
   placeholder = "Datum auswählen",
   className = "",
@@ -274,7 +276,7 @@ function DatePickerCalendar({
 function MultipleDatePickerCalendar({
   values,
   onChangeDates,
-  disabledDates = [],
+  disabledDates = EMPTY_DISABLED_DATES,
   dropdownPlacement,
   calendarLayout,
 }: MultipleDatePickerCalendarProps) {

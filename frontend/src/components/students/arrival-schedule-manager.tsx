@@ -36,6 +36,7 @@ import { createLogger } from "~/lib/logger";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 
 const logger = createLogger({ component: "ArrivalScheduleManager" });
+const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
 
 interface ArrivalScheduleManagerProps {
   readonly studentId: string;
@@ -48,7 +49,7 @@ export function ArrivalScheduleManager({
   studentId,
   readOnly = false,
   onUpdate,
-  statusDays = [],
+  statusDays = EMPTY_STATUS_DAYS,
 }: ArrivalScheduleManagerProps) {
   const [arrivalData, setArrivalData] = useState<ArrivalData>({
     schedules: [],

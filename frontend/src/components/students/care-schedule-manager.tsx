@@ -72,6 +72,7 @@ const weekMonthFormatter = new Intl.DateTimeFormat("de-DE", {
   month: "long",
   year: "numeric",
 });
+const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
 
 interface CareScheduleManagerProps {
   readonly studentId: string;
@@ -170,7 +171,7 @@ export function CareScheduleManager({
   onUpdate,
   isSick = false,
   isExcused = false,
-  statusDays = [],
+  statusDays = EMPTY_STATUS_DAYS,
   onDeleteStatusDay,
   onVisibleDateRangeChange,
 }: CareScheduleManagerProps) {

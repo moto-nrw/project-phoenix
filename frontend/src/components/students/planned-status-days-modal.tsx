@@ -24,13 +24,14 @@ interface PlannedStatusDaysModalProps {
 }
 
 const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr"];
+const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
 
 export function PlannedStatusDaysModal({
   isOpen,
   status,
   studentName,
   isSubmitting,
-  existingDays = [],
+  existingDays = EMPTY_STATUS_DAYS,
   deletingStatusDayId = null,
   onClose,
   onSubmit,
