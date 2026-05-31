@@ -2,8 +2,9 @@ services:
   prometheus:
     image: prom/prometheus:v3.7.3
     restart: unless-stopped
-    command:
+    entrypoint:
       - /bin/sh
+    command:
       - -c
       - |
         : "$${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}"
