@@ -2,6 +2,7 @@ import {
   Activity,
   Building2,
   CalendarDays,
+  CalendarRange,
   ClipboardCheck,
   ClipboardList,
   Clock3,
@@ -526,19 +527,90 @@ export const appChapters: readonly GuideChapter[] = [
       {
         id: "anmeldungen",
         title: "Anmeldungen",
-        icon: FileText,
+        icon: LayoutDashboard,
         summary:
-          "Verwaltet Online-Anmeldungen: Phasen, Angebote, Formulare und eingegangene Anmeldungen (nur für Admins).",
+          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in vier Unterseiten den Ablauf einrichten – `Überblick`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
         steps: [
-          "`Anmeldungen` öffnen.",
-          "Im `Überblick` eingegangene Anmeldungen prüfen.",
-          "Eine Anmeldung öffnen und Kind, Angebot und Formularangaben prüfen.",
-          "`Genehmigen`, `Ablehnen` oder `Warteliste` wählen.",
-          "Unter `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare` die öffentliche Anmeldung einrichten.",
+          "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
+          "Beim ersten Einrichten führt der `Einrichtungs-Assistent` durch alle Schritte. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
+          "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
+          "Eine Anmeldung öffnen und Kind, gewähltes Betreuungsangebot und Formularangaben prüfen.",
+          "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
+          "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
         ],
+        callout: {
+          title: "So hängt alles zusammen",
+          body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular – am Ende die Elternansicht testen. Der `Überblick` enthält dafür einen Einrichtungs-Assistenten, der dich Schritt für Schritt führt.",
+          tone: "blue",
+        },
         screenshot:
           "Anmeldungen-Überblick mit Eingangsliste und Entscheidungsoptionen.",
         image: "/help/screens/anmeldungen.png",
+      },
+      {
+        id: "anmeldephasen",
+        title: "Anmeldephasen",
+        icon: CalendarRange,
+        summary:
+          "Eine Anmeldephase ist der Zeitraum, für den Eltern anmelden – zum Beispiel ein Schuljahr oder eine Ferienbetreuung. Sie steuert das öffentliche Anmeldefenster.",
+        steps: [
+          "`Anmeldephasen` öffnen und auf `Neue Anmeldephase` klicken.",
+          "`Name` und `Typ` (`Schuljahr`, `Ferienbetreuung` oder `Sonstiges`) wählen.",
+          "`Betreuungszeitraum` mit `Beginn` und `Ende` festlegen.",
+          "`Anmeldefenster` mit `Öffnung` und `Schließung` setzen. Bleiben beide leer, ist die Anmeldung jederzeit offen.",
+          "Unter `Formular` das `Basisformular` lassen oder eine eigene Vorlage wählen.",
+          "`Verhalten bei voller Betreuung` festlegen und mit `Aktiv` die Phase für Eltern sichtbar machen.",
+        ],
+        callout: {
+          title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
+          body: "Das `Anmeldefenster` der Phase entscheidet, wann Familien absenden können. Über das Aktionsmenü öffnest du eine Phase mit `Phase ansehen` als Elternlink oder bereitest mit `Anschlussphase erstellen` eine Folgephase vor.",
+          tone: "gray",
+        },
+        screenshot:
+          "Anmeldephase mit Betreuungszeitraum, Anmeldefenster und Formularwahl.",
+        image: "/help/screens/anmeldephasen.png",
+      },
+      {
+        id: "betreuungsangebote",
+        title: "Betreuungsangebote",
+        icon: ClipboardList,
+        summary:
+          "Betreuungsangebote sind die Optionen, die Eltern im Formular auswählen – etwa Regelbetreuung oder ein Angebot mit Mittagessen. Jedes Angebot gehört zu einer Anmeldephase.",
+        steps: [
+          "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
+          "Auf `Neues Betreuungsangebot` klicken.",
+          "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
+          "Optional `Kapazität`, `Preis` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
+          "`Aktiv` setzen – nur aktive Angebote sind für Eltern auswählbar.",
+        ],
+        callout: {
+          title: "Pro Phase eigene Angebote",
+          body: "Angebote gehören immer zu genau einer Phase. Ein Angebot aus einer früheren Phase übernimmst du über `Duplizieren` in eine andere Phase, statt es neu anzulegen.",
+          tone: "gray",
+        },
+        screenshot:
+          "Betreuungsangebote einer Anmeldephase mit Tagen, Kapazität und Extras.",
+        image: "/help/screens/betreuungsangebote.png",
+      },
+      {
+        id: "anmeldeformulare",
+        title: "Anmeldeformulare",
+        icon: FileText,
+        summary:
+          "Das Anmeldeformular bestimmt, welche Angaben Eltern machen. Das `Basisformular` ist immer vorhanden; eigene Vorlagen ergänzen nur zusätzliche Fragen.",
+        steps: [
+          "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
+          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen.",
+          "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
+          "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",
+        ],
+        callout: {
+          title: "Formular und Phase gehören zusammen",
+          body: "Ein Formular wirkt nicht für sich allein: Eine Phase nutzt entweder das `Basisformular` oder eine ausgewählte Vorlage. Ohne ausdrückliche Auswahl gilt automatisch das Basisformular.",
+          tone: "blue",
+        },
+        screenshot: "Anmeldeformulare mit Basisformular und eigenen Vorlagen.",
+        image: "/help/screens/anmeldeformulare.png",
       },
       {
         id: "feedback",
