@@ -1,4 +1,5 @@
 // Pickup Schedule Type Definitions and Mapping Helpers
+import type { StudentStatusKind } from "./student-status-days-api";
 
 // Frontend Pickup Schedule Type
 export interface PickupSchedule {
@@ -462,6 +463,7 @@ export function getDayData(
   isSickToday: boolean,
   notes: PickupNote[] = [],
   isExcusedToday = false,
+  statusForDate: StudentStatusKind | null = null,
 ): DayData {
   const weekday = getWeekdayFromDate(date);
   const dateStr = formatDateISO(date);
@@ -491,8 +493,12 @@ export function getDayData(
   // mutually exclusive at the backend level; if they somehow both arrive as
   // true we let sick win to stay consistent with LocationBadge precedence.
   const isToday = isSameDay(date, today);
-  const showSick = isToday && isSickToday;
-  const showExcused = isToday && !showSick && isExcusedToday;
+  const showSick = statusForDate
+    ? statusForDate === "sick"
+    : isToday && isSickToday;
+  const showExcused = statusForDate
+    ? statusForDate === "excused"
+    : isToday && !showSick && isExcusedToday;
 
   // Get base schedule for this weekday
   const baseSchedule = schedules.find((s) => s.weekday === weekday);

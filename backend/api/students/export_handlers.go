@@ -33,6 +33,7 @@ type studentExportFilters struct {
 	RoomID      string `json:"room_id"`
 	Year        string `json:"year"`
 	Status      string `json:"status"`
+	DayStatus   string `json:"day_status"`
 	PickupTime  string `json:"pickup_time"`
 	ArrivalTime string `json:"arrival_time"`
 	Sort        string `json:"sort"`
@@ -78,7 +79,12 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
-	today := time.Now()
+	today := rs.Now()
+	rs.applyStatusDaysForDate(r.Context(), responses, today)
+	if err := rs.enrichWithDayPlanning(r.Context(), responses, today, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
 	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, today)
 	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, today)
 
@@ -139,6 +145,7 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		pageSize:            studentExportPageSize,
 		includePickupTimes:  true,
 		includeArrivalTimes: true,
+		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
 	}
 	if req.Filters.GroupID != "" {
 		if groupID, err := strconv.ParseInt(req.Filters.GroupID, 10, 64); err == nil {
@@ -160,6 +167,9 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 			continue
 		}
 		if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
+			continue
+		}
+		if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
 			continue
 		}
 		if filters.PickupTime != "" && filters.PickupTime != "all" {
@@ -365,7 +375,21 @@ func exportFilterLabels(filters studentExportFilters) []string {
 	if filters.Status != "" && filters.Status != "all" {
 		labels = append(labels, "Momentaufnahme: "+filters.Status)
 	}
+	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll {
+		labels = append(labels, "Tagesplanung: "+dayStatusExportLabel(filters.DayStatus))
+	}
 	return labels
+}
+
+func dayStatusExportLabel(status string) string {
+	switch status {
+	case DayPlanningStatusComesToday:
+		return "Kommt heute"
+	case DayPlanningStatusNotComingToday:
+		return "Kommt heute nicht"
+	default:
+		return status
+	}
 }
 
 func schoolYear(schoolClass string) string {

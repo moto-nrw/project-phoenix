@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/uptrace/bun"
 )
 
@@ -30,6 +32,7 @@ func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
 				return
 			}
 
+			start := time.Now()
 			sw := &statusWriter{ResponseWriter: w}
 
 			err := WithTenantTx(r.Context(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
@@ -54,8 +57,35 @@ func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
 				)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
+
+			logTenantRequest(r, tenantID, sw, start, err)
 		})
 	}
+}
+
+func logTenantRequest(r *http.Request, tenantID int64, sw *statusWriter, start time.Time, err error) {
+	route := observability.RoutePattern(r)
+
+	txOutcome := "commit"
+	if err != nil {
+		txOutcome = "rollback_or_error"
+	}
+	duration := time.Since(start)
+	status := sw.statusCode()
+
+	observability.ObserveTenantRequest(tenantID, ScopeFromContext(r.Context()), r.Method, route, status, duration, txOutcome)
+
+	slog.InfoContext(r.Context(), "tenant request completed",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("scope", ScopeFromContext(r.Context())),
+		slog.String("method", r.Method),
+		slog.String("route", route),
+		slog.Int("status", status),
+		slog.Int64("duration_ms", duration.Milliseconds()),
+		slog.Int64("request_bytes", r.ContentLength),
+		slog.Int64("response_bytes", sw.bytesWritten),
+		slog.String("tx_outcome", txOutcome),
+	)
 }
 
 // statusWriter wraps http.ResponseWriter to capture the status code written
@@ -63,8 +93,9 @@ func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
 // and roll back the enclosing transaction.
 type statusWriter struct {
 	http.ResponseWriter
-	status      int
-	wroteHeader bool
+	status       int
+	wroteHeader  bool
+	bytesWritten int64
 }
 
 func (sw *statusWriter) WriteHeader(code int) {
@@ -81,11 +112,26 @@ func (sw *statusWriter) Write(b []byte) (int, error) {
 		sw.status = http.StatusOK
 		sw.wroteHeader = true
 	}
-	return sw.ResponseWriter.Write(b)
+	n, err := sw.ResponseWriter.Write(b)
+	sw.bytesWritten += int64(n)
+	return n, err
 }
 
 // Unwrap returns the underlying ResponseWriter so that http.ResponseController
 // and type-assertion based middleware (Flusher, Hijacker, etc.) keep working.
 func (sw *statusWriter) Unwrap() http.ResponseWriter {
 	return sw.ResponseWriter
+}
+
+func (sw *statusWriter) Flush() {
+	if flusher, ok := sw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (sw *statusWriter) statusCode() int {
+	if sw.wroteHeader {
+		return sw.status
+	}
+	return http.StatusOK
 }

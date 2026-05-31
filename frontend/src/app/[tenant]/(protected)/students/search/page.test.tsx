@@ -342,6 +342,7 @@ describe("StudentSearchPage", () => {
     mockSearchParams.delete("room_name");
     mockSearchParams.delete("pickup_time");
     mockSearchParams.delete("arrival_time");
+    mockSearchParams.delete("day_status");
     mockSearchParams.delete("tracking");
     mockSearchParams.delete("sort");
     mockSearchParams.delete("view");
@@ -399,6 +400,18 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         const attendanceFilter = screen.getByTestId("filter-attendance");
         expect(attendanceFilter).toHaveValue("all");
+      });
+    });
+
+    it("reads day_status from URL params", async () => {
+      mockSearchParams.set("day_status", "comes_today");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-dayStatus")).toHaveValue(
+          "comes_today",
+        );
       });
     });
 
@@ -1206,6 +1219,7 @@ describe("StudentSearchPage", () => {
     });
 
     it("executes the students SWR fetcher", async () => {
+      mockSearchParams.set("day_status", "not_coming_today");
       const studentService = await import("~/lib/api");
       const mockGetStudents = vi.fn().mockResolvedValue({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
@@ -1263,7 +1277,9 @@ describe("StudentSearchPage", () => {
       expect(result).toEqual({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
       });
-      expect(mockGetStudents).toHaveBeenCalled();
+      expect(mockGetStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ dayStatus: "not_coming_today" }),
+      );
     });
   });
 

@@ -410,15 +410,10 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 }
 
 // createOrFindAccount returns the existing auth.accounts row for this email
-// (cross-tenant, guardians may be invited to multiple schools) or creates a
-// new one. When reusing an existing account we update the password hash so
-// the parent gets to set their own.
+// or creates a new one.
 func (s *guardianInvitationService) createOrFindAccount(ctx context.Context, emailAddress, passwordHash string) (*authModels.Account, error) {
 	existing, err := s.accountRepo.FindByEmail(ctx, emailAddress)
 	if err == nil && existing != nil {
-		if updateErr := s.accountRepo.UpdatePassword(ctx, existing.ID, passwordHash); updateErr != nil {
-			return nil, &AuthError{Op: opGuardianInviteAccept, Err: updateErr}
-		}
 		return existing, nil
 	}
 	if err != nil && !isNotFoundError(err) {
@@ -450,8 +445,14 @@ func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, pr
 
 	roleAssignment := &authModels.AccountRole{AccountID: accountID, RoleID: role.ID}
 	roleAssignment.SetTenantID(tenantID)
-	if err := s.accountRoleRepo.Create(ctx, roleAssignment); err != nil {
-		return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("assign guardian role: %w", err)}
+	existingRole, err := s.accountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
+	if err != nil && !isNotFoundError(err) {
+		return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("find guardian role assignment: %w", err)}
+	}
+	if existingRole == nil {
+		if err := s.accountRoleRepo.Create(ctx, roleAssignment); err != nil {
+			return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("assign guardian role: %w", err)}
+		}
 	}
 
 	now := time.Now()
@@ -461,7 +462,7 @@ func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, pr
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
+	if err := s.accountTenantRepo.EnsureActive(ctx, mapping); err != nil {
 		return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("link account to tenant: %w", err)}
 	}
 

@@ -52,15 +52,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // API represents the API structure
 type API struct {
-	Services *services.Factory
-	Router   chi.Router
-	db       *bun.DB
-	repos    *repositories.Factory
+	Services           *services.Factory
+	Router             chi.Router
+	db                 *bun.DB
+	repos              *repositories.Factory
+	Metrics            *observability.HTTPMetrics
+	metricsBearerToken string
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -96,6 +99,11 @@ type API struct {
 
 // New creates a new API instance
 func New(enableCORS bool, logger *slog.Logger) (*API, error) {
+	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := database.DBConnForServe()
 	if err != nil {
@@ -114,17 +122,22 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	observability.RegisterDBStatsProvider(db.DB)
+	observability.RegisterSSEStatsProvider(serviceFactory.RealtimeHub)
 
 	// Create API instance
+	httpMetrics := observability.NewHTTPMetrics()
 	api := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
+		Services:           serviceFactory,
+		Router:             chi.NewRouter(),
+		db:                 db,
+		repos:              repoFactory,
+		Metrics:            httpMetrics,
+		metricsBearerToken: metricsBearerToken,
 	}
 
 	// Setup router middleware
-	setupBasicMiddleware(api.Router, logger)
+	setupBasicMiddleware(api.Router, logger, httpMetrics)
 
 	// Setup CORS, security logging, and rate limiting
 	if enableCORS {
@@ -143,10 +156,13 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 }
 
 // setupBasicMiddleware configures basic router middleware
-func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
+func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *observability.HTTPMetrics) {
 	router.Use(middleware.RequestID)
 	router.Use(middleware.ClientIPFromXFF())
 	router.Use(syncClientIPToRemoteAddr)
+	if httpMetrics != nil {
+		router.Use(httpMetrics.Middleware)
+	}
 	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
@@ -347,6 +363,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ArrivalScheduleService: api.Services.ArrivalSchedule,
 		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
 		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
+		InstanceStudentRepo:    repoFactory.InstanceStudent,
 		SchoolRepo:             repoFactory.School,
 		SettingsService:        api.Services.Settings,
 		AttendanceRepo:         repoFactory.Attendance,
@@ -529,6 +546,8 @@ func (a *API) registerRoutesWithRateLimiting() {
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
 	})
+
+	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations

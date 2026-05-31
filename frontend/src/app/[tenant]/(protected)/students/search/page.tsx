@@ -62,6 +62,10 @@ import {
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
 import {
+  getDayPlanningNotComingLabel,
+  getStudentPresenceBadgePlanning,
+} from "~/lib/day-planning-helper";
+import {
   matchesTrackingFilter,
   parseTrackingFilter,
   resolveTrackingFilterAfterLabelChange,
@@ -80,6 +84,7 @@ type StatusFilter =
   | "schulhof"
   | "krank"
   | "entschuldigt";
+type DayStatusFilter = "all" | "comes_today" | "not_coming_today";
 type SortMode = "name" | "arrival" | "pickup";
 type GroupMode = "none" | "status" | "room" | "arrival" | "pickup";
 
@@ -91,6 +96,15 @@ const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "entschuldigt", label: "Entschuldigt" },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
+];
+
+const DAY_STATUS_FILTER_OPTIONS: Array<{
+  value: DayStatusFilter;
+  label: string;
+}> = [
+  { value: "all", label: "Alle Kinder" },
+  { value: "comes_today", label: "Kommt heute" },
+  { value: "not_coming_today", label: "Kommt heute nicht" },
 ];
 
 const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
@@ -114,6 +128,7 @@ const FILTER_QUERY_PARAMS = [
   "room_name",
   "pickup_time",
   "arrival_time",
+  "day_status",
   "status",
   "tracking",
   "sort",
@@ -209,6 +224,14 @@ function normalizeStoredFilters(
     room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
     pickup_time: params.get("pickup_time") ?? "",
     arrival_time: params.get("arrival_time") ?? "",
+    day_status:
+      validQueryValue(
+        params.get("day_status"),
+        DAY_STATUS_FILTER_OPTIONS.map((option) => option.value),
+        "all",
+      ) === "all"
+        ? ""
+        : (params.get("day_status") ?? ""),
     status:
       validQueryValue(
         params.get("status"),
@@ -465,6 +488,11 @@ function SearchPageContent() {
     STATUS_FILTER_OPTIONS.map((option) => option.value),
     "all",
   );
+  const initialDayStatusFilter = validQueryValue(
+    initialFilterParams.get("day_status"),
+    DAY_STATUS_FILTER_OPTIONS.map((option) => option.value),
+    "all",
+  );
   const initialYear = validQueryValue(
     initialFilterParams.get("year"),
     SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
@@ -501,6 +529,9 @@ function SearchPageContent() {
   const [selectedYear, setSelectedYear] = useState<string>(initialYear);
   const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(
     initialAttendanceFilter,
+  );
+  const [dayStatusFilter, setDayStatusFilter] = useState<DayStatusFilter>(
+    initialDayStatusFilter,
   );
   const [pickupTimeFilter, setPickupTimeFilter] = useState(
     initialFilterParams.get("pickup_time") ?? "all",
@@ -561,6 +592,13 @@ function SearchPageContent() {
       );
       setPickupTimeFilter(params.get("pickup_time") ?? "all");
       setArrivalTimeFilter(params.get("arrival_time") ?? "all");
+      setDayStatusFilter(
+        validQueryValue(
+          params.get("day_status"),
+          DAY_STATUS_FILTER_OPTIONS.map((option) => option.value),
+          "all",
+        ),
+      );
 
       const trackingParam = params.get("tracking") ?? "all";
       setTrackingFilter(
@@ -679,7 +717,7 @@ function SearchPageContent() {
 
   // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)
   // Note: User context is only for badge styling, not for fetching students
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}`;
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}-${dayStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -693,6 +731,7 @@ function SearchPageContent() {
         search: debouncedSearchTerm,
         groupId: selectedGroup,
         roomId: selectedRoomId || undefined,
+        dayStatus: dayStatusFilter === "all" ? undefined : dayStatusFilter,
         // When filtering by room, this page is the "see all" target the
         // room-detail modal links to (#1374). The modal itself caps at
         // 200 cards and shows a truncation notice; this page must show
@@ -773,6 +812,14 @@ function SearchPageContent() {
     [updateUrlParams],
   );
 
+  const updateDayStatusFilter = useCallback(
+    (value: DayStatusFilter) => {
+      setDayStatusFilter(value);
+      updateUrlParams({ day_status: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
   const updateTrackingFilter = useCallback(
     (value: TrackingFilter) => {
       setTrackingFilter(value);
@@ -804,6 +851,7 @@ function SearchPageContent() {
     setAttendanceFilter("all");
     setPickupTimeFilter("all");
     setArrivalTimeFilter("all");
+    setDayStatusFilter("all");
     setTrackingFilter("all");
     setSortMode("name");
     setGroupMode("none");
@@ -824,7 +872,7 @@ function SearchPageContent() {
   );
   const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
     trackingStudentIds.length > 0
-      ? `tracking-indicators-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}`
+      ? `tracking-indicators-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}-${dayStatusFilter}`
       : null,
     async () => activeService.getTrackingIndicators(trackingStudentIds),
     { keepPreviousData: true, revalidateOnFocus: false },
@@ -985,6 +1033,14 @@ function SearchPageContent() {
         ],
       },
       {
+        id: "dayStatus",
+        label: "Tagesplanung",
+        type: "dropdown",
+        value: dayStatusFilter,
+        onChange: (value) => updateDayStatusFilter(value as DayStatusFilter),
+        options: DAY_STATUS_FILTER_OPTIONS,
+      },
+      {
         id: "attendance",
         label: "Status",
         type: "dropdown",
@@ -1043,6 +1099,7 @@ function SearchPageContent() {
       pickupTimeFilter,
       arrivalTimeFilter,
       attendanceFilter,
+      dayStatusFilter,
       trackingFilter,
       trackingLabels,
       groups,
@@ -1060,6 +1117,7 @@ function SearchPageContent() {
       updateAttendanceFilter,
       updatePickupTimeFilter,
       updateArrivalTimeFilter,
+      updateDayStatusFilter,
       updateTrackingFilter,
       updateSortMode,
       updateGroupMode,
@@ -1125,6 +1183,17 @@ function SearchPageContent() {
       });
     }
 
+    if (dayStatusFilter !== "all") {
+      filters.push({
+        id: "dayStatus",
+        label:
+          DAY_STATUS_FILTER_OPTIONS.find(
+            (option) => option.value === dayStatusFilter,
+          )?.label ?? dayStatusFilter,
+        onRemove: () => updateDayStatusFilter("all"),
+      });
+    }
+
     if (pickupTimeFilter !== "all") {
       filters.push({
         id: "pickupTime",
@@ -1185,6 +1254,7 @@ function SearchPageContent() {
     selectedYear,
     selectedGroup,
     attendanceFilter,
+    dayStatusFilter,
     pickupTimeFilter,
     arrivalTimeFilter,
     trackingFilter,
@@ -1198,6 +1268,7 @@ function SearchPageContent() {
     updateSelectedYear,
     updateSelectedGroup,
     updateAttendanceFilter,
+    updateDayStatusFilter,
     updatePickupTimeFilter,
     updateArrivalTimeFilter,
     updateTrackingFilter,
@@ -1211,6 +1282,7 @@ function SearchPageContent() {
       group_id: selectedGroup,
       year: selectedYear,
       status: attendanceFilter,
+      day_status: dayStatusFilter,
       pickup_time: pickupTimeFilter,
       arrival_time: arrivalTimeFilter,
       room_id: selectedRoomId,
@@ -1221,6 +1293,7 @@ function SearchPageContent() {
       selectedGroup,
       selectedYear,
       attendanceFilter,
+      dayStatusFilter,
       pickupTimeFilter,
       arrivalTimeFilter,
       selectedRoomId,
@@ -1248,6 +1321,13 @@ function SearchPageContent() {
       ) {
         return false;
       }
+    }
+
+    if (
+      dayStatusFilter !== "all" &&
+      student.day_planning_status !== dayStatusFilter
+    ) {
+      return false;
     }
 
     // Apply year filter - extract year from school_class (e.g., "Klasse 3a" → year 3)
@@ -1525,6 +1605,8 @@ function SearchPageContent() {
             if (selectedGroup) qs.set("group_id", selectedGroup);
             if (selectedYear !== "all") qs.set("year", selectedYear);
             if (attendanceFilter !== "all") qs.set("status", attendanceFilter);
+            if (dayStatusFilter !== "all")
+              qs.set("day_status", dayStatusFilter);
             if (pickupTimeFilter !== "all")
               qs.set("pickup_time", pickupTimeFilter);
             if (arrivalTimeFilter !== "all")
@@ -1556,13 +1638,15 @@ function SearchPageContent() {
                 }
                 locationBadge={
                   <StudentPresenceBadge
-                    student={{
-                      ...student,
-                      not_arrival_today:
-                        (student.arrival_is_exception ?? false) &&
-                        !student.arrival_time,
-                      not_arrival_reason: student.arrival_notes ?? null,
-                    }}
+                    student={(() => {
+                      const badgePlanning =
+                        getStudentPresenceBadgePlanning(student);
+                      return {
+                        ...student,
+                        not_arrival_today: badgePlanning.notArrivalToday,
+                        not_arrival_reason: badgePlanning.notArrivalReason,
+                      };
+                    })()}
                     displayMode="contextAware"
                     userGroups={myGroups}
                     groupRooms={myGroupRooms}
@@ -1589,6 +1673,18 @@ function SearchPageContent() {
                         });
                         if (absence && !student.actual_pickup_time) {
                           return <StudentAbsenceRow label={absence.label} />;
+                        }
+                        const dayPlanningNotComingLabel =
+                          getDayPlanningNotComingLabel(student);
+                        if (
+                          dayPlanningNotComingLabel &&
+                          !student.actual_pickup_time
+                        ) {
+                          return (
+                            <StudentAbsenceRow
+                              label={dayPlanningNotComingLabel}
+                            />
+                          );
                         }
                         return (
                           <>
