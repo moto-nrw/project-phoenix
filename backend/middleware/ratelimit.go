@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/time/rate"
 )
 
@@ -132,22 +132,8 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 
 // GetClientIP extracts the real client IP address from the request
 func GetClientIP(r *http.Request) string {
-	// Check X-Real-IP header first (set by reverse proxy)
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+	if ip := chimiddleware.GetClientIP(r.Context()); ip != "" {
 		return ip
-	}
-
-	// Check X-Forwarded-For header
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Split the header value on commas and trim each entry
-		ips := strings.Split(xff, ",")
-		for i, ip := range ips {
-			ips[i] = strings.TrimSpace(ip)
-		}
-		// Return the first IP in the list
-		if len(ips) > 0 {
-			return ips[0]
-		}
 	}
 
 	// Fall back to RemoteAddr

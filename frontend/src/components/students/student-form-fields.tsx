@@ -11,6 +11,13 @@ interface SelectOption {
   label: string;
 }
 
+const EMPTY_GROUPS: SelectOption[] = [];
+const DEFAULT_REQUIRED_FIELDS = {
+  firstName: true,
+  lastName: true,
+  schoolClass: true,
+} as const;
+
 /**
  * Personal Information Section
  */
@@ -18,8 +25,8 @@ export function PersonalInfoSection({
   formData,
   onChange,
   errors,
-  groups = [],
-  requiredFields = { firstName: true, lastName: true, schoolClass: true },
+  groups = EMPTY_GROUPS,
+  requiredFields = DEFAULT_REQUIRED_FIELDS,
 }: Readonly<{
   formData: Partial<Student>;
   onChange: (

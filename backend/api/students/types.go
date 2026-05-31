@@ -49,6 +49,9 @@ type StudentResponse struct {
 	SickSince          *time.Time `json:"sick_since,omitempty"`
 	Excused            bool       `json:"excused"`
 	ExcusedSince       *time.Time `json:"excused_since,omitempty"`
+	DayPlanningStatus  string     `json:"day_planning_status,omitempty"`
+	DayPlanningReason  string     `json:"day_planning_reason,omitempty"`
+	DayPlanningLabel   string     `json:"day_planning_label,omitempty"`
 
 	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
 	// when no photo is set OR when the feature is off — the frontend's Avatar

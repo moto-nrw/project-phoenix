@@ -6,6 +6,9 @@ import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GroupTransfer" });
+const EMPTY_TRANSFERS: NonNullable<
+  GroupTransferModalProps["existingTransfers"]
+> = [];
 
 interface GroupTransferModalProps {
   readonly isOpen: boolean;
@@ -42,7 +45,7 @@ export function GroupTransferModal({
   group,
   availableUsers,
   onTransfer,
-  existingTransfers = [],
+  existingTransfers = EMPTY_TRANSFERS,
   onCancelTransfer,
   onRefreshTransfers: _onRefreshTransfers,
 }: GroupTransferModalProps) {

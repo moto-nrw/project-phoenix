@@ -57,6 +57,9 @@ export interface BackendStudent {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_email?: string;
@@ -174,6 +177,9 @@ export interface Student {
   // Excused status (kind is not attending the OGS today, only visible to supervisors/admins)
   excused?: boolean;
   excused_since?: string;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   name_lg?: string;
   contact_lg?: string;
   guardian_email?: string;
@@ -251,6 +257,9 @@ export function mapStudentResponse(
     sick_since: backendStudent.sick_since,
     excused: backendStudent.excused ?? false, // Excused from attending today
     excused_since: backendStudent.excused_since,
+    day_planning_status: backendStudent.day_planning_status,
+    day_planning_reason: backendStudent.day_planning_reason,
+    day_planning_label: backendStudent.day_planning_label,
     name_lg: backendStudent.guardian_name ?? undefined,
     contact_lg: backendStudent.guardian_contact ?? undefined,
     guardian_email: backendStudent.guardian_email,

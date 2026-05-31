@@ -16,6 +16,7 @@ import {
   useStudentData,
   type ExtendedStudent,
 } from "~/lib/hooks/use-student-data";
+import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
@@ -124,6 +125,10 @@ export default function StudentDetailPage() {
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
   const toast = useToast();
+
+  // Start at the top instead of inheriting the search list's scroll position
+  // (Next App Router maintains scroll when the new page is already in view).
+  useScrollToTop(studentId);
 
   // Use custom hook for data fetching
   const {

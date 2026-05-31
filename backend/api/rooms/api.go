@@ -16,15 +16,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilityService "github.com/moto-nrw/project-phoenix/services/facilities"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 // Resource defines the rooms API resource
 type Resource struct {
-	FacilityService facilityService.Service
-	db              *bun.DB
+	FacilityService   facilityService.Service
+	ActiveService     activeService.Service
+	PersonService     userService.PersonService
+	EducationService  educationService.Service
+	StudentRepo       users.StudentRepository
+	ListExportService listexport.Service
+	db                *bun.DB
 }
 
 // NewResource creates a new rooms resource.
@@ -52,6 +62,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Read operations require rooms:read permission
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/", rs.listRooms)
+		r.With(authorize.RequiresAllPermissions(permissions.RoomsRead, permissions.UsersRead), withTx).Post("/export", rs.exportSnapshot)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}", rs.getRoom)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/by-category", rs.getRoomsByCategory)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.getRoomHistory)
@@ -218,7 +229,7 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 		Color:    req.Color,
 	}
 
-	// Validation runs inside CreateRoom — keeping it there as the single
+	// Validation runs inside CreateRoom. Keeping it there as the single
 	// source of truth lets the service translate facilities.ErrReservedColor
 	// to the German service-level error which ErrorRenderer maps to 400.
 

@@ -23,13 +23,15 @@ interface StudentEditModalProps {
   readonly groups?: Array<{ readonly value: string; readonly label: string }>;
 }
 
+const EMPTY_GROUPS: NonNullable<StudentEditModalProps["groups"]> = [];
+
 export function StudentEditModal({
   isOpen,
   onClose,
   student,
   onSave,
   loading = false,
-  groups = [],
+  groups = EMPTY_GROUPS,
 }: StudentEditModalProps) {
   const [formData, setFormData] = useState<Partial<Student>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
