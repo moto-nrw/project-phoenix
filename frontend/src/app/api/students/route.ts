@@ -20,6 +20,7 @@ import {
   buildStudentResponse,
   handleStudentCreationError,
 } from "~/lib/student-request-helpers";
+import type { StudentGuardianPayload } from "~/lib/guardian-helpers";
 
 /**
  * Type definition for student response from backend
@@ -187,6 +188,7 @@ export const POST = createPostHandler<
     guardian_phone?: string;
     privacy_consent_accepted?: boolean;
     data_retention_days?: number;
+    guardians?: StudentGuardianPayload[];
   }
 >(
   async (
@@ -196,6 +198,7 @@ export const POST = createPostHandler<
       guardian_phone?: string;
       privacy_consent_accepted?: boolean;
       data_retention_days?: number;
+      guardians?: StudentGuardianPayload[];
     },
     token: string,
   ) => {

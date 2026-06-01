@@ -4,6 +4,7 @@
  */
 
 import type { Student } from "~/lib/student-helpers";
+import type { StudentGuardianPayload } from "~/lib/guardian-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentRequestHelpers" });
@@ -31,6 +32,8 @@ interface BackendStudentRequest {
   guardian_contact?: string;
   guardian_email?: string;
   guardian_phone?: string;
+  // Guardians created atomically with the student (guardian_profiles system).
+  guardians?: StudentGuardianPayload[];
 }
 
 /**
@@ -134,6 +137,7 @@ export function buildBackendStudentRequest(
   body: Partial<Student> & {
     guardian_email?: string;
     guardian_phone?: string;
+    guardians?: StudentGuardianPayload[];
   },
   guardianContact: GuardianContact,
 ): BackendStudentRequest {
@@ -171,6 +175,11 @@ export function buildBackendStudentRequest(
   if (guardianContact.phone || backendData.guardian_phone) {
     request.guardian_phone =
       guardianContact.phone ?? backendData.guardian_phone;
+  }
+
+  // Pass through guardians (guardian_profiles system) for atomic creation.
+  if (body.guardians && body.guardians.length > 0) {
+    request.guardians = body.guardians;
   }
 
   return request;

@@ -47,6 +47,7 @@ func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Re
 // Resource defines the students API resource
 type Resource struct {
 	PersonService          userService.PersonService
+	GuardianService        userService.GuardianService
 	StudentRepo            users.StudentRepository
 	EducationService       educationService.Service
 	UserContextService     userContextService.UserContextService
@@ -76,6 +77,7 @@ type Resource struct {
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
 	PersonService          userService.PersonService
+	GuardianService        userService.GuardianService
 	StudentRepo            users.StudentRepository
 	EducationService       educationService.Service
 	UserContextService     userContextService.UserContextService
@@ -110,6 +112,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 	return &Resource{
 		PersonService:          cfg.PersonService,
+		GuardianService:        cfg.GuardianService,
 		StudentRepo:            cfg.StudentRepo,
 		EducationService:       cfg.EducationService,
 		UserContextService:     cfg.UserContextService,
@@ -739,6 +742,71 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	return student
 }
 
+// optionalString returns a pointer to the trimmed string, or nil when empty,
+// so optional JSON fields map cleanly onto nullable model columns.
+func optionalString(s string) *string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// toNewStudentGuardians maps the request guardian DTOs onto the service input
+// used by GuardianService.AddGuardiansToStudent.
+func toNewStudentGuardians(inputs []GuardianInput) []userService.NewStudentGuardian {
+	if len(inputs) == 0 {
+		return nil
+	}
+
+	out := make([]userService.NewStudentGuardian, 0, len(inputs))
+	for i := range inputs {
+		in := inputs[i]
+		out = append(out, userService.NewStudentGuardian{
+			Profile: userService.GuardianCreateRequest{
+				FirstName:              strings.TrimSpace(in.FirstName),
+				LastName:               strings.TrimSpace(in.LastName),
+				Email:                  optionalString(in.Email),
+				AddressStreet:          optionalString(in.AddressStreet),
+				AddressCity:            optionalString(in.AddressCity),
+				AddressPostalCode:      optionalString(in.AddressPostalCode),
+				PreferredContactMethod: in.PreferredContactMethod,
+				LanguagePreference:     in.LanguagePreference,
+				Notes:                  optionalString(in.Notes),
+			},
+			Relationship: userService.StudentGuardianRelationship{
+				RelationshipType:   in.RelationshipType,
+				IsPrimary:          in.IsPrimary,
+				IsEmergencyContact: in.IsEmergencyContact,
+				CanPickup:          in.CanPickup,
+				PickupNotes:        optionalString(in.PickupNotes),
+				EmergencyPriority:  in.EmergencyPriority,
+			},
+			PhoneNumbers: toPhoneRequests(in.PhoneNumbers),
+		})
+	}
+	return out
+}
+
+// toPhoneRequests maps phone DTOs onto the service phone-number requests.
+func toPhoneRequests(phones []GuardianPhoneInput) []userService.PhoneNumberCreateRequest {
+	if len(phones) == 0 {
+		return nil
+	}
+
+	out := make([]userService.PhoneNumberCreateRequest, 0, len(phones))
+	for i := range phones {
+		p := phones[i]
+		out = append(out, userService.PhoneNumberCreateRequest{
+			PhoneNumber: strings.TrimSpace(p.PhoneNumber),
+			PhoneType:   p.PhoneType,
+			Label:       optionalString(p.Label),
+			IsPrimary:   p.IsPrimary,
+		})
+	}
+	return out
+}
+
 // createStudent handles creating a new student with their person record
 func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
@@ -771,8 +839,24 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 			rs.cleanupPersonAfterStudentFailure(ctx, person.ID)
 			return err
 		}
+
+		// Create any guardians supplied with the request inside the same
+		// transaction so the student and its guardians are persisted
+		// atomically — a guardian failure rolls back the whole student.
+		if len(req.Guardians) > 0 {
+			if err := rs.GuardianService.AddGuardiansToStudent(ctx, student.ID, toNewStudentGuardians(req.Guardians)); err != nil {
+				return err
+			}
+		}
 		return nil
 	}); err != nil {
+		// Bad guardian input (e.g. invalid email) is a client error: the
+		// transaction has already rolled back, so no partial data survives.
+		var validationErr *userService.ValidationError
+		if errors.As(err, &validationErr) {
+			renderError(w, r, ErrorInvalidRequest(validationErr))
+			return
+		}
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}

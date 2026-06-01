@@ -684,6 +684,109 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 	return relationship, nil
 }
 
+// germanGuardianValidationMessage translates the English validation messages
+// emitted by GuardianProfile.Validate() / GuardianPhoneNumber.Validate() into
+// German for the user-facing 400 response. The model methods are shared with
+// other call sites and must stay language-neutral, so the translation lives
+// here. Unknown messages fall back to the original text rather than masking it.
+func germanGuardianValidationMessage(err error) string {
+	switch err.Error() {
+	case "invalid email format":
+		return "ungültiges E-Mail-Format"
+	case "invalid preferred contact method":
+		return "ungültige bevorzugte Kontaktmethode"
+	case "phone number is required":
+		return "Telefonnummer ist erforderlich"
+	case "invalid phone number format":
+		return "ungültiges Telefonnummer-Format"
+	case "phone number must contain at least 3 digits":
+		return "Telefonnummer muss mindestens 3 Ziffern enthalten"
+	default:
+		return err.Error()
+	}
+}
+
+// AddGuardiansToStudent creates each guardian profile, links it to the student,
+// and adds its phone numbers. It reuses CreateGuardian, LinkGuardianToStudent,
+// and AddPhoneNumber, all of which join the ambient tenant transaction via the
+// context, so a failure on any guardian aborts the surrounding transaction and
+// leaves no partial student/guardian data behind.
+func (s *guardianService) AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []NewStudentGuardian) error {
+	// Validate every guardian's input up front, before any row is written, so
+	// bad client input surfaces as a classified ValidationError (mapped to HTTP
+	// 400 by the handler) instead of a generic 500. We reuse the profile and
+	// phone-number model Validate() — the same checks the repository runs on
+	// insert — to avoid duplicating the email/contact-method/phone rules.
+	for i := range guardians {
+		probe := &users.GuardianProfile{
+			FirstName:              guardians[i].Profile.FirstName,
+			LastName:               guardians[i].Profile.LastName,
+			Email:                  guardians[i].Profile.Email,
+			PreferredContactMethod: guardians[i].Profile.PreferredContactMethod,
+		}
+		if err := probe.Validate(); err != nil {
+			//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
+			return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: %s", i+1, germanGuardianValidationMessage(err))}
+		}
+
+		// Validate phone numbers the same way AddPhoneNumber does on insert.
+		// GuardianProfileID is set to a placeholder (1) only to pass the model's
+		// "ID required" guard — the real ID is assigned after CreateGuardian. The
+		// phone type is coerced to mobile for unknown values exactly like
+		// AddPhoneNumber, so the probe never rejects a type the real path accepts.
+		for j := range guardians[i].PhoneNumbers {
+			phoneType := users.PhoneType(guardians[i].PhoneNumbers[j].PhoneType)
+			if !users.ValidPhoneTypes[phoneType] {
+				phoneType = users.PhoneTypeMobile
+			}
+			phoneProbe := &users.GuardianPhoneNumber{
+				GuardianProfileID: 1,
+				PhoneNumber:       guardians[i].PhoneNumbers[j].PhoneNumber,
+				PhoneType:         phoneType,
+			}
+			if err := phoneProbe.Validate(); err != nil {
+				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
+				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d, Telefonnummer %d: %s", i+1, j+1, germanGuardianValidationMessage(err))}
+			}
+		}
+	}
+
+	for i := range guardians {
+		g := guardians[i]
+
+		profile, err := s.CreateGuardian(ctx, g.Profile)
+		if err != nil {
+			return fmt.Errorf("failed to create guardian at index %d: %w", i, err)
+		}
+
+		// EmergencyPriority is passed through verbatim, exactly like the
+		// detail-page link path (LinkGuardianToStudent). No floor here: the
+		// guardian form always sends >= 1, so the create flow stores the same
+		// value the detail page would. Centralizing any default belongs on the
+		// link path, not duplicated here.
+		if _, err := s.LinkGuardianToStudent(ctx, StudentGuardianCreateRequest{
+			StudentID:          studentID,
+			GuardianProfileID:  profile.ID,
+			RelationshipType:   g.Relationship.RelationshipType,
+			IsPrimary:          g.Relationship.IsPrimary,
+			IsEmergencyContact: g.Relationship.IsEmergencyContact,
+			CanPickup:          g.Relationship.CanPickup,
+			PickupNotes:        g.Relationship.PickupNotes,
+			EmergencyPriority:  g.Relationship.EmergencyPriority,
+		}); err != nil {
+			return fmt.Errorf("failed to link guardian at index %d: %w", i, err)
+		}
+
+		for j := range g.PhoneNumbers {
+			if _, err := s.AddPhoneNumber(ctx, profile.ID, g.PhoneNumbers[j]); err != nil {
+				return fmt.Errorf("failed to add phone number %d for guardian at index %d: %w", j, i, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // GetStudentGuardianRelationship retrieves a student-guardian relationship by ID
 func (s *guardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error) {
 	relationship, err := s.studentGuardianRepo.FindByID(ctx, relationshipID)

@@ -360,6 +360,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          api.Services.Users,
+		GuardianService:        api.Services.Guardian,
 		StudentRepo:            repoFactory.Student,
 		EducationService:       api.Services.Education,
 		UserContextService:     api.Services.UserContext,

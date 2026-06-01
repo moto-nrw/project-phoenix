@@ -111,6 +111,56 @@ vi.mock("./student-common-form-sections", () => ({
   ),
 }));
 
+// Mock the reused GuardianFormModal: when open, expose a button that calls
+// onSubmit with one canned guardian entry (the same shape the real modal emits).
+// This lets us exercise StudentCreateModal's collection/summary logic without
+// driving the full guardian form.
+vi.mock("~/components/guardians/guardian-form-modal", () => ({
+  default: ({
+    isOpen,
+    onSubmit,
+  }: {
+    isOpen: boolean;
+    onSubmit: (entries: unknown[]) => Promise<void>;
+  }) =>
+    isOpen ? (
+      <div data-testid="guardian-form-modal">
+        <button
+          type="button"
+          onClick={() =>
+            void onSubmit([
+              {
+                id: "g1",
+                guardianData: {
+                  firstName: "Erika",
+                  lastName: "Muster",
+                  email: "erika@example.com",
+                  languagePreference: "de",
+                },
+                relationshipData: {
+                  relationshipType: "parent",
+                  isPrimary: true,
+                  isEmergencyContact: false,
+                  canPickup: true,
+                  emergencyPriority: 1,
+                },
+                phoneNumbers: [
+                  {
+                    phoneNumber: "0151 2345678",
+                    phoneType: "mobile",
+                    isPrimary: true,
+                  },
+                ],
+              },
+            ])
+          }
+        >
+          MockSubmitGuardian
+        </button>
+      </div>
+    ) : null,
+}));
+
 // Mock validation utilities
 vi.mock("~/lib/student-form-validation", () => ({
   validateStudentForm: vi.fn(() => ({})),
@@ -399,5 +449,78 @@ describe("StudentCreateModal", () => {
     await waitFor(() => {
       expect(screen.getByTestId("personal-info-section")).toBeInTheDocument();
     });
+  });
+
+  it("opens the reused guardian form when the add button is clicked", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Erziehungsberechtigte hinzufügen"));
+    });
+
+    expect(screen.getByTestId("guardian-form-modal")).toBeInTheDocument();
+  });
+
+  it("adds a submitted guardian to the summary list", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Erziehungsberechtigte hinzufügen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitGuardian"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Erika Muster/)).toBeInTheDocument();
+    });
+    // Relationship label and pickup flag are rendered from the payload.
+    expect(screen.getByText("Elternteil")).toBeInTheDocument();
+    expect(screen.getByText(/Abholberechtigt/)).toBeInTheDocument();
+    expect(screen.getByText("1 hinzugefügt")).toBeInTheDocument();
+    // Sub-modal closes after collecting.
+    expect(screen.queryByTestId("guardian-form-modal")).not.toBeInTheDocument();
+  });
+
+  it("removes a guardian from the summary list", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Erziehungsberechtigte hinzufügen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitGuardian"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Erika Muster/)).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByLabelText("Erziehungsberechtigte/n entfernen"),
+      );
+    });
+
+    expect(screen.queryByText(/Erika Muster/)).not.toBeInTheDocument();
+    expect(screen.getByText("Optional")).toBeInTheDocument();
   });
 });

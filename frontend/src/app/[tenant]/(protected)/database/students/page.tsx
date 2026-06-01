@@ -28,6 +28,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/lib/database/configs/students.config";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
+import type { StudentGuardianPayload } from "@/lib/guardian-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 
@@ -222,11 +223,22 @@ export default function StudentsPage() {
   }, [searchTerm, groupFilter, allGroups]);
 
   const handleCreateStudent = useCallback(
-    async (studentData: Partial<Student>) => {
-      if (studentsConfig.form.transformBeforeSubmit) {
-        studentData = studentsConfig.form.transformBeforeSubmit(studentData);
+    async (
+      studentData: Partial<Student> & { guardians?: StudentGuardianPayload[] },
+    ) => {
+      // Run the config transform, then re-attach guardians from the original
+      // input. transformBeforeSubmit is typed Partial<Student> and drops the
+      // extra guardians field from the static type; re-attaching here makes the
+      // contract explicit so a future transform change can't silently strip the
+      // guardians (see issue #1500 atomic create flow).
+      let payload: Partial<Student> & { guardians?: StudentGuardianPayload[] } =
+        studentsConfig.form.transformBeforeSubmit
+          ? studentsConfig.form.transformBeforeSubmit(studentData)
+          : studentData;
+      if (studentData.guardians && studentData.guardians.length > 0) {
+        payload = { ...payload, guardians: studentData.guardians };
       }
-      const newStudent = await service.create(studentData);
+      const newStudent = await service.create(payload);
       const displayName = studentsConfig.list.item.title(newStudent);
       toastSuccess(
         getDbOperationMessage(
