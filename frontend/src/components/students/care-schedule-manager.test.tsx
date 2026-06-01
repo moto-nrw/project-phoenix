@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CareScheduleManager } from "./care-schedule-manager";
 import type { ArrivalData } from "~/lib/student-arrival-api";
 import type { PickupData } from "~/lib/pickup-schedule-helpers";
@@ -19,6 +19,7 @@ const mockUpdateStudentPickupException = vi.fn();
 const mockDeleteStudentPickupException = vi.fn();
 const mockCreateStudentPickupNote = vi.fn();
 const mockDeleteStudentPickupNote = vi.fn();
+const FROZEN_NOW = new Date("2026-05-27T12:00:00");
 
 vi.mock("~/lib/student-arrival-api", () => ({
   fetchArrivalData: (...args: unknown[]) => mockFetchArrivalData(...args),
@@ -291,6 +292,8 @@ const statusDays: StudentStatusDay[] = [
 
 describe("CareScheduleManager", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(FROZEN_NOW);
     vi.clearAllMocks();
     mockFetchArrivalData.mockResolvedValue(arrivalData);
     mockFetchStudentPickupData.mockResolvedValue(pickupData);
@@ -306,6 +309,10 @@ describe("CareScheduleManager", () => {
     mockDeleteStudentPickupException.mockResolvedValue(undefined);
     mockCreateStudentPickupNote.mockResolvedValue({});
     mockDeleteStudentPickupNote.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("loads and displays the weekly care schedule", async () => {
