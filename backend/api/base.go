@@ -338,6 +338,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
+	api.Auth.SetMFAService(api.Services.MFA)
 	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
 	api.Rooms = roomsAPI.NewResource(roomsAPI.ResourceConfig{
 		FacilityService:    api.Services.Facilities,
@@ -467,6 +468,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AuthService:                api.Services.OperatorAuth,
+		MFAService:                 api.Services.OperatorMFA,
 		InvitationService:          api.Services.OperatorInvitation,
 		ProvisioningService:        api.Services.OperatorProvisioning,
 		CaregiverCapabilityService: api.Services.CaregiverCapability,
@@ -475,6 +477,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:            api.Services.Settings,
 		Broadcaster:                api.Services.RealtimeHub,
 		SchoolRepo:                 repoFactory.School,
+		TenantMFAService:           api.Services.MFA,
+		AccountTenantRepository:    repoFactory.AccountTenant,
 		TokenAuth:                  nil, // Created internally by operator API
 		DB:                         db,
 	})

@@ -6,6 +6,18 @@ package config
 // Security settings.
 const (
 	KeyOGSDevicePIN = "security.ogs_device_pin"
+
+	// MFA settings (issue #1308 — Phase 3).
+	KeyMFAMode                 = "security.mfa_mode"
+	KeyMFATrustedDeviceEnabled = "security.mfa_trusted_device_enabled"
+	KeyMFATrustedDeviceDays    = "security.mfa_trusted_device_days"
+)
+
+// MFAMode option values for KeyMFAMode.
+const (
+	MFAModeOff            = "off"
+	MFAModeRequiredAdmins = "required_admins"
+	MFAModeRequiredAll    = "required_all"
 )
 
 // GDPR / data cleanup settings.

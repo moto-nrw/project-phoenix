@@ -52,6 +52,10 @@ type Factory struct {
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	InvitationToken        authModels.InvitationTokenRepository
 	GuardianInvitation     authModels.GuardianInvitationRepository
+	MFACredential          authModels.MFACredentialRepository
+	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
+	MFATrustedDevice       authModels.MFATrustedDeviceRepository
+	MFAOverride            authModels.MFAOverrideRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -147,6 +151,11 @@ type Factory struct {
 	School                   platformModels.SchoolRepository
 	EmailOutbox              platformModels.EmailOutboxRepository
 
+	// Operator MFA (issue #1308 phase 7b)
+	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
+	OperatorMFAEmailChallenge platformModels.OperatorMFAEmailChallengeRepository
+	OperatorMFATrustedDevice  platformModels.OperatorMFATrustedDeviceRepository
+
 	// Enrollment domain (parent-enrollment PR 5+)
 	FormSchema           enrollmentModels.FormSchemaRepository
 	Request              enrollmentModels.RequestRepository
@@ -179,6 +188,10 @@ func NewFactory(db *bun.DB) *Factory {
 		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
 		InvitationToken:        auth.NewInvitationTokenRepository(db),
 		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
+		MFACredential:          auth.NewMFACredentialRepository(db),
+		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
+		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
+		MFAOverride:            auth.NewMFAOverrideRepository(db),
 
 		// Users repositories
 		Person:              users.NewPersonRepository(db),
@@ -273,6 +286,10 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
 		EmailOutbox:              platformRepo.NewEmailOutboxRepository(db),
+
+		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
+		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
+		OperatorMFATrustedDevice:  platformRepo.NewOperatorMFATrustedDeviceRepository(db),
 
 		// Enrollment repositories
 		FormSchema:           enrollment.NewFormSchemaRepository(db),

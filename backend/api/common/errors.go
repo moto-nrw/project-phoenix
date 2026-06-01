@@ -258,6 +258,14 @@ func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)
 }
 
+// ErrorServiceUnavailable returns a 503 Service Unavailable response. Used
+// when a transient dependency (settings DB, MFA-credentials lookup, etc.)
+// makes a security decision impossible and the safe behaviour is to refuse
+// the request without globally locking other callers out.
+func ErrorServiceUnavailable(err error) render.Renderer {
+	return newErrResponse(http.StatusServiceUnavailable, err)
+}
+
 // IsConstraintViolation checks if an error is a PostgreSQL constraint violation
 // that indicates the entity cannot be deleted due to dependencies.
 // Primary check uses typed pgdriver.Error with SQLSTATE codes (23503 = FK, 23502 = NOT NULL).

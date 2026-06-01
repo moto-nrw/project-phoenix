@@ -32,6 +32,7 @@ import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers";
+import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
@@ -64,7 +65,8 @@ function isTabId(value: string | null | undefined): value is TabId {
 
 export default function OperatorSchoolDetailPage({ params }: PageProps) {
   const { slug, schoolSlug } = use(params);
-  const { status } = useSession();
+  const { status, data: session } = useSession();
+  const operatorBearerToken = session?.user?.token ?? "";
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
   const pathname = usePathname();
@@ -75,6 +77,13 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
     SchoolAccount | OrgAccount | null
   >(null);
   const [caregiverSchoolContext, setCaregiverSchoolContext] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [mfaAccount, setMfaAccount] = useState<
+    SchoolAccount | OrgAccount | null
+  >(null);
+  const [mfaSchoolContext, setMfaSchoolContext] = useState<{
     id: string;
     name: string;
   } | null>(null);
@@ -197,6 +206,17 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
     ) => {
       setCaregiverAccount(account);
       setCaregiverSchoolContext(schoolContext);
+    },
+    [],
+  );
+
+  const openMFAModal = useCallback(
+    (
+      account: SchoolAccount | OrgAccount,
+      schoolContext: { id: string; name: string } | null,
+    ) => {
+      setMfaAccount(account);
+      setMfaSchoolContext(schoolContext);
     },
     [],
   );
@@ -475,6 +495,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
                 accounts={schoolAccounts}
                 selectedSchool={selectedSchoolForTable}
                 onManageCaregiver={openCaregiverModal}
+                onManageMFA={openMFAModal}
               />
             ) : (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
@@ -519,6 +540,21 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
           </TabsPrimitive.Content>
         </Tabs>
       </div>
+
+      {mfaAccount && mfaSchoolContext ? (
+        <MFAAdminOverrideModal
+          isOpen={true}
+          onClose={() => {
+            setMfaAccount(null);
+            setMfaSchoolContext(null);
+          }}
+          scope="operator"
+          schoolId={mfaSchoolContext.id}
+          bearerToken={operatorBearerToken}
+          accountId={mfaAccount.accountId}
+          accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
+        />
+      ) : null}
 
       {caregiverAccount && caregiverSchoolContext ? (
         <CaregiverCapabilityModal

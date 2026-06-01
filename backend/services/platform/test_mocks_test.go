@@ -75,6 +75,19 @@ func (m *mockOperatorRepo) UpdateLastLogin(ctx context.Context, id int64) error 
 	return nil
 }
 
+// IncrementMFAAttempts / ResetMFAAttempts (added for #1430 review item #6
+// atomic MFA lockout counter) — default to a no-op zero-value result so
+// tests that don't exercise the MFA failure path continue to compile and
+// run. Tests that DO exercise it (e.g. handleFailedAttempt under race)
+// should swap in a fake that records calls.
+func (m *mockOperatorRepo) IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (platform.OperatorMFAAttemptResult, error) {
+	return platform.OperatorMFAAttemptResult{}, nil
+}
+
+func (m *mockOperatorRepo) ResetMFAAttempts(ctx context.Context, id int64) error {
+	return nil
+}
+
 // Shared mock for audit log repository
 type mockAuditLogRepoShared struct {
 	createFn func(ctx context.Context, entry *platform.OperatorAuditLog) error
