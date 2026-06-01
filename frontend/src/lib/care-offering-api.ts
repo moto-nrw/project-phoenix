@@ -17,6 +17,7 @@ export interface CareOffering {
   capacity?: number | null;
   price_cents?: number | null;
   is_active: boolean;
+  is_required: boolean;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -34,6 +35,7 @@ export interface CareOfferingInput {
   capacity?: number | null;
   price_cents?: number | null;
   is_active: boolean;
+  is_required: boolean;
   sort_order: number;
 }
 

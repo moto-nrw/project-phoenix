@@ -4,6 +4,10 @@ const logger = createLogger({ component: "EnrollmentPhaseAPI" });
 
 export type PhaseKind = "school_year" | "holiday" | "custom";
 export type PhaseCareOverflowMode = "waitlist" | "reject" | "allow";
+export type PhaseCareOfferingSelectionMode =
+  | "optional"
+  | "at_least_one"
+  | "exactly_one";
 
 export interface Phase {
   id: string;
@@ -16,6 +20,7 @@ export interface Phase {
   form_schema_id?: string | null;
   show_status_reason_to_parent: boolean;
   care_overflow_mode: PhaseCareOverflowMode;
+  care_offering_selection_mode: PhaseCareOfferingSelectionMode;
   is_active: boolean;
   // Rollover columns — populated only on phases created by the
   // "verlängern" flow. NULL/false on fresh phases.
@@ -38,6 +43,7 @@ export interface PhaseInput {
   form_schema_id?: string | null;
   show_status_reason_to_parent: boolean;
   care_overflow_mode: PhaseCareOverflowMode;
+  care_offering_selection_mode: PhaseCareOfferingSelectionMode;
   is_active: boolean;
 }
 

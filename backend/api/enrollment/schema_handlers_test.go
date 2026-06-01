@@ -33,11 +33,15 @@ type mockFormSchemaService struct {
 	createName       string
 	createFields     []enrollmentModels.FormField
 	createCreatedBy  int64
+	createCore       enrollmentModels.CoreRequirements
+	createCoreSet    bool
 	createResult     *enrollmentModels.FormSchema
 	createErr        error
 	updateID         int64
 	updateFields     []enrollmentModels.FormField
 	updateUpdatedBy  int64
+	updateCore       enrollmentModels.CoreRequirements
+	updateCoreSet    bool
 	updateResult     *enrollmentModels.FormSchema
 	updateErr        error
 	deleteID         int64
@@ -61,23 +65,31 @@ func (m *mockFormSchemaService) GetByID(_ context.Context, id int64) (*enrollmen
 func (m *mockFormSchemaService) ListVersions(_ context.Context) ([]*enrollmentModels.FormSchema, error) {
 	return m.listResult, m.listErr
 }
-func (m *mockFormSchemaService) CreateSchema(_ context.Context, name string, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) CreateSchema(_ context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	m.createName = name
 	m.createFields = fields
 	m.createCreatedBy = createdBy
+	if len(coreRequirements) > 0 {
+		m.createCore = coreRequirements[0]
+		m.createCoreSet = true
+	}
 	return m.createResult, m.createErr
 }
-func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	m.updateID = id
 	m.updateFields = fields
 	m.updateUpdatedBy = updatedBy
+	if len(coreRequirements) > 0 {
+		m.updateCore = coreRequirements[0]
+		m.updateCoreSet = true
+	}
 	return m.updateResult, m.updateErr
 }
 func (m *mockFormSchemaService) DeleteSchema(_ context.Context, id int64) error {
 	m.deleteID = id
 	return m.deleteErr
 }
-func (m *mockFormSchemaService) PublishVersion(_ context.Context, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error) {
+func (m *mockFormSchemaService) PublishVersion(_ context.Context, fields []enrollmentModels.FormField, createdBy int64, _ ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	m.publishVFields = fields
 	m.publishVCreated = createdBy
 	return m.publishVResult, m.publishVErr
@@ -309,6 +321,8 @@ func TestPublishSchemaHandler_NoNameWithActiveSchemaUpdatesIt(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, int64(9999), mock.updateID,
 		"no name + active schema exists → UpdateSchema on active.id")
+	assert.False(t, mock.updateCoreSet,
+		"omitted core_requirements must preserve the source schema's existing core requirements")
 }
 
 func TestPublishSchemaHandler_ValidationErrorReturns400(t *testing.T) {
@@ -357,6 +371,20 @@ func TestUpdateSchemaHandler_HappyPath(t *testing.T) {
 	assert.Equal(t, int64(1234), mock.updateID)
 	assert.Equal(t, int64(4321), mock.updateUpdatedBy)
 	assert.Len(t, mock.updateFields, 1)
+}
+
+func TestUpdateSchemaHandler_ForwardsCoreRequirementsWhenPresent(t *testing.T) {
+	mock := &mockFormSchemaService{updateResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"fields":            []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+			"core_requirements": map[string]bool{"guardian_phone": true},
+		})
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.True(t, mock.updateCoreSet,
+		"present core_requirements, even when sparse, must be forwarded so admins can change the matrix")
+	assert.True(t, mock.updateCore.Required(enrollmentModels.CoreRequirementGuardianPhone))
 }
 
 func TestUpdateSchemaHandler_ServiceErrorReturns400(t *testing.T) {
