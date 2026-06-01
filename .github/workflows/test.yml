@@ -152,6 +152,18 @@ jobs:
           tail -n +2 coverage.emergency.out >> coverage.out
           rm -f coverage.emergency.out
 
+      - name: Add room history coverage
+        working-directory: backend
+        env:
+          TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: |
+          go test ./database/repositories/active ./services/facilities \
+            -coverpkg=./database/repositories/active,./services/facilities \
+            -covermode=atomic \
+            -coverprofile=coverage.roomhistory.out
+          tail -n +2 coverage.roomhistory.out >> coverage.out
+          rm -f coverage.roomhistory.out
+
       - name: Add observability coverage
         working-directory: backend
         run: |

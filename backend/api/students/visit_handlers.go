@@ -75,7 +75,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 // Grants access to: admins, any staff when gdpr.student_data_scope = all_staff,
 // and the student's group supervisors. This endpoint is read-only.
 func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, studentGroupID int64) error {
-	if hasAdminPermissions(getPermissionsFromRequest(r)) {
+	if common.HasAdminPermissions(getPermissionsFromRequest(r)) {
 		return nil
 	}
 

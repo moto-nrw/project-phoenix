@@ -41,7 +41,13 @@ type Service interface {
 	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
 	GetBuildingList(ctx context.Context) ([]string, error)
 	GetCategoryList(ctx context.Context) ([]string, error)
-	GetRoomHistory(ctx context.Context, roomID int64, startTime, endTime time.Time) ([]RoomHistoryEntry, error)
+	// GetRoomHistory returns the aggregated session timeline for a room in
+	// [startTime, endTime]. Each entry is one active.groups session — no
+	// per-student rows leave this layer (see the matching frontend drawer
+	// contract). When supervisorStaffID is non-nil the result is filtered
+	// to sessions supervised by that staff member; pass nil to see every
+	// session (admin or all_staff scope).
+	GetRoomHistory(ctx context.Context, roomID int64, startTime, endTime time.Time, supervisorStaffID *int64) ([]RoomSessionEntry, error)
 }
 
 // RoomWithOccupancy represents a room with its current occupancy status
@@ -54,12 +60,17 @@ type RoomWithOccupancy struct {
 	SupervisorNames *string `json:"supervisor_names,omitempty"`
 }
 
-// RoomHistoryEntry represents a single room history entry
-type RoomHistoryEntry struct {
-	StudentID   int64      `json:"student_id"`
-	StudentName string     `json:"student_name"`
-	GroupID     int64      `json:"group_id"`
-	GroupName   string     `json:"group_name"`
-	CheckedIn   time.Time  `json:"checked_in"`
-	CheckedOut  *time.Time `json:"checked_out,omitempty"`
+// RoomSessionEntry is one aggregated session row for the room-history
+// endpoint. Deliberately contains no per-student IDs or names — only the
+// distinct student count plus the staff/activity metadata needed to render
+// the timeline. Per-child movement detail is served separately by
+// /students/{id}/attendance-history under its own GDPR gates.
+type RoomSessionEntry struct {
+	SessionID       int64      `json:"session_id"`
+	StartedAt       time.Time  `json:"started_at"`
+	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	DurationMinutes *int       `json:"duration_minutes,omitempty"`
+	ActivityName    string     `json:"activity_name"`
+	SupervisorName  string     `json:"supervisor_name"`
+	StudentCount    int        `json:"student_count"`
 }

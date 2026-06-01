@@ -1119,3 +1119,118 @@ func (r *GroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, group
 
 	return result, nil
 }
+
+// AggregateRoomSessions builds the per-room occupancy timeline used by the
+// room-history endpoint. One row per session: activity name,
+// comma-separated supervisor names (staff, not students), distinct student
+// count via correlated subquery, and computed duration in minutes. The
+// student count follows the same window semantics as the session itself:
+// only students whose visit overlapped [start, end] are counted. Result is
+// ordered by session start time DESC. Tenant filters are applied
+// explicitly on every joined table as defense-in-depth on top of RLS for
+// normal request paths; the superuser / migration paths (tenantID == 0)
+// bypass both RLS and these explicit filters by design.
+//
+// Window semantics: a session is included when it was *active during*
+// [start, end] — i.e. it started before `end` AND either is still running
+// (end_time IS NULL) or finished after `start`. Filtering on start_time
+// alone would drop sessions that began before `start` but were still
+// occupying the room inside the window, which is exactly the case the
+// drawer wants to surface.
+func (r *GroupRepository) AggregateRoomSessions(
+	ctx context.Context,
+	roomID int64,
+	start, end time.Time,
+	supervisorStaffID *int64,
+) ([]*active.RoomSessionAggregate, error) {
+	var rows []*active.RoomSessionAggregate
+
+	tenantID := tenant.FromContext(ctx)
+
+	// Each subquery is paired with its args via a local slice so a future
+	// edit can't silently break the `?`-to-arg count. Tenant filters apply
+	// only when a tenant is set; superuser / migration callers (tenantID
+	// == 0) intentionally see everything — matches the rest of the repo
+	// layer.
+	supervisorSQL := `COALESCE((
+		SELECT STRING_AGG(DISTINCT TRIM(CONCAT(p.first_name, ' ', p.last_name)), ', ' ORDER BY TRIM(CONCAT(p.first_name, ' ', p.last_name)))
+		FROM active.group_supervisors gs
+		JOIN users.staff s ON s.id = gs.staff_id
+		JOIN users.persons p ON p.id = s.person_id
+		WHERE gs.group_id = ag.id`
+	supervisorArgs := []any{}
+	if tenantID > 0 {
+		supervisorSQL += ` AND gs.tenant_id = ? AND s.tenant_id = ? AND p.tenant_id = ?`
+		supervisorArgs = append(supervisorArgs, tenantID, tenantID, tenantID)
+	}
+	supervisorSQL += `), '') AS supervisor_name`
+
+	studentCountSQL := `COALESCE((
+		SELECT COUNT(DISTINCT v.student_id)
+		FROM active.visits v
+		WHERE v.active_group_id = ag.id
+		  AND v.entry_time <= ?
+		  AND (v.exit_time IS NULL OR v.exit_time >= ?)`
+	studentCountArgs := []any{end, start}
+	if tenantID > 0 {
+		studentCountSQL += ` AND v.tenant_id = ?`
+		studentCountArgs = append(studentCountArgs, tenantID)
+	}
+	studentCountSQL += `), 0) AS student_count`
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr("active.groups AS ag").
+		ColumnExpr("ag.id AS session_id").
+		ColumnExpr("ag.start_time AS started_at").
+		ColumnExpr("ag.end_time AS ended_at").
+		ColumnExpr(`CASE WHEN ag.end_time IS NULL THEN NULL
+			ELSE CAST(EXTRACT(EPOCH FROM (ag.end_time - ag.start_time)) / 60 AS INTEGER)
+		END AS duration_minutes`).
+		ColumnExpr(`COALESCE(g.name, '') AS activity_name`).
+		Join("LEFT JOIN activities.groups g ON g.id = ag.group_id").
+		Where("ag.room_id = ?", roomID).
+		Where("ag.start_time <= ?", end).
+		Where("(ag.end_time IS NULL OR ag.end_time >= ?)", start).
+		OrderExpr("ag.start_time DESC")
+
+	if len(supervisorArgs) > 0 {
+		query = query.ColumnExpr(supervisorSQL, supervisorArgs...)
+	} else {
+		query = query.ColumnExpr(supervisorSQL)
+	}
+	if len(studentCountArgs) > 0 {
+		query = query.ColumnExpr(studentCountSQL, studentCountArgs...)
+	} else {
+		query = query.ColumnExpr(studentCountSQL)
+	}
+
+	if tenantID > 0 {
+		query = query.Where("ag.tenant_id = ?", tenantID)
+	}
+
+	if supervisorStaffID != nil {
+		if tenantID > 0 {
+			query = query.Where(`EXISTS (
+				SELECT 1 FROM active.group_supervisors gs2
+				WHERE gs2.group_id = ag.id
+				  AND gs2.staff_id = ?
+				  AND gs2.tenant_id = ?
+			)`, *supervisorStaffID, tenantID)
+		} else {
+			query = query.Where(`EXISTS (
+				SELECT 1 FROM active.group_supervisors gs2
+				WHERE gs2.group_id = ag.id
+				  AND gs2.staff_id = ?
+			)`, *supervisorStaffID)
+		}
+	}
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "aggregate room sessions",
+			Err: err,
+		}
+	}
+
+	return rows, nil
+}

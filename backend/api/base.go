@@ -340,7 +340,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
 	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
-	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
+	api.Rooms = roomsAPI.NewResource(roomsAPI.ResourceConfig{
+		FacilityService:    api.Services.Facilities,
+		SettingsService:    api.Services.Settings,
+		UserContextService: api.Services.UserContext,
+		Logger:             logger.With("handler", "rooms"),
+		DB:                 db,
+	})
 	api.Rooms.ActiveService = api.Services.Active
 	api.Rooms.PersonService = api.Services.Users
 	api.Rooms.EducationService = api.Services.Education
