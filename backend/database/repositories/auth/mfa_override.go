@@ -196,7 +196,10 @@ func (r *MFAOverrideRepository) ListByAccount(ctx context.Context, accountID int
 		Model(&rows).
 		ModelTableExpr(mfaOverrideTableAlias).
 		Where("account_id = ?", accountID).
-		Order("tenant_id NULLS FIRST", "tenant_id ASC").
+		// OrderExpr (raw SQL) — BUN's Order() parses "NULLS FIRST"
+		// as a sort direction and silently drops the clause, which
+		// would let the tenant row sort ahead of the global row.
+		OrderExpr("tenant_id IS NULL DESC, tenant_id ASC").
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list mfa overrides by account", Err: err}
