@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,15 @@ func futureBirthdayGermanLongForTests() string {
 
 func futureBirthdayGermanShortForTests() string {
 	return futureBirthdayForTests().Format("02.01.06")
+}
+
+func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
+	today := timezone.TodayUTC()
+	tomorrow := today.AddDate(0, 0, 1)
+
+	assert.False(t, enrollmentStartsInFuture(nil))
+	assert.False(t, enrollmentStartsInFuture(&today), "today must be active, not pending")
+	assert.True(t, enrollmentStartsInFuture(&tomorrow))
 }
 
 func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {

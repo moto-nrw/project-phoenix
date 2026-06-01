@@ -95,6 +95,9 @@ export function StudentStammdatenTab({
   const [serverConsent, setServerConsent] = useState<ServerConsent | null>(
     null,
   );
+  const [privacyConsentLoadError, setPrivacyConsentLoadError] = useState<
+    string | null
+  >(null);
   const [formData, setFormData] = useState<Partial<Student>>(() =>
     buildDraft(student, photosEnabled, null),
   );
@@ -181,6 +184,7 @@ export function StudentStammdatenTab({
   useEffect(() => {
     let cancelled = false;
     setServerConsent(null);
+    setPrivacyConsentLoadError(null);
     fetchStudentPrivacyConsent(student.id)
       .then((consent) => {
         if (cancelled) return;
@@ -196,6 +200,9 @@ export function StudentStammdatenTab({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        setPrivacyConsentLoadError(
+          "Datenschutzeinwilligung konnte nicht geladen werden. Bitte laden Sie die Seite neu.",
+        );
         logger.warn("privacy_consent_load_failed", {
           student_id: student.id,
           error: err instanceof Error ? err.message : String(err),
@@ -313,6 +320,10 @@ export function StudentStammdatenTab({
     async (event: React.FormEvent) => {
       event.preventDefault();
       if (!validateForm()) return;
+      if (privacyConsentLoadError) {
+        setErrors({ submit: privacyConsentLoadError });
+        return;
+      }
       setSaving(true);
       const submitData: Partial<Student> = { ...formData };
       if (
@@ -383,6 +394,7 @@ export function StudentStammdatenTab({
       originalDraft.photo_consent_given,
       pendingPhotoBlob,
       pendingPhotoRemoved,
+      privacyConsentLoadError,
       student.id,
       validateForm,
     ],
@@ -393,6 +405,11 @@ export function StudentStammdatenTab({
       {errors.submit ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3">
           <p className="text-sm text-red-800">{errors.submit}</p>
+        </div>
+      ) : null}
+      {privacyConsentLoadError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-sm text-red-800">{privacyConsentLoadError}</p>
         </div>
       ) : null}
 
@@ -451,7 +468,11 @@ export function StudentStammdatenTab({
       />
 
       <div className="sticky bottom-0 -mx-6 -mb-6 flex items-center justify-end gap-2 border-t border-gray-100 bg-white/95 px-6 py-3 backdrop-blur-sm">
-        <Button type="submit" variant="primary" disabled={saving || !isDirty}>
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={saving || !isDirty || privacyConsentLoadError !== null}
+        >
           {saving ? (
             <>
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />

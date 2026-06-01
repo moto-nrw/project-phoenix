@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -591,7 +592,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	// pending so the activate-students scheduler flips them to active once
 	// enrolled_from arrives (mirrors the parent-enrollment flow). Without a
 	// future start date the DB default ('active') applies.
-	if enrolledFrom != nil && enrolledFrom.After(time.Now()) {
+	if enrollmentStartsInFuture(enrolledFrom) {
 		student.Status = users.StudentStatusPending
 	}
 
@@ -602,6 +603,10 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	}
 
 	return student, nil
+}
+
+func enrollmentStartsInFuture(enrolledFrom *time.Time) bool {
+	return enrolledFrom != nil && enrolledFrom.After(timezone.TodayUTC())
 }
 
 // createGuardianRelationships creates all guardian relationships

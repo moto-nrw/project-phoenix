@@ -126,18 +126,58 @@ func (c *StaffImportConfig) Validate(ctx context.Context, row *importModels.Staf
 	}
 	if row.Email == "" {
 		errs = append(errs, requiredFieldError("email", "E-Mail ist erforderlich"))
-	} else if _, err := mail.ParseAddress(row.Email); err != nil {
+	} else if normalized, err := normalizeStaffEmail(row.Email); err != nil {
 		errs = append(errs, importModels.ValidationError{
 			Field:    "email",
 			Message:  fmt.Sprintf("Ungültige E-Mail-Adresse: %s", row.Email),
 			Code:     "invalid_email",
 			Severity: importModels.ErrorSeverityError,
 		})
+	} else {
+		row.Email = normalized
 	}
 
 	errs = append(errs, c.validateRole(ctx, row)...)
 
 	return errs
+}
+
+// ValidateBatch validates invariants that can only be checked across the full
+// uploaded file.
+func (c *StaffImportConfig) ValidateBatch(_ context.Context, rows []importModels.StaffImportRow) map[int][]importModels.ValidationError {
+	seen := make(map[string]int, len(rows))
+	errs := make(map[int][]importModels.ValidationError)
+	for i, row := range rows {
+		email, err := normalizeStaffEmail(row.Email)
+		if err != nil || email == "" {
+			continue
+		}
+		key := strings.ToLower(email)
+		if firstRow, ok := seen[key]; ok {
+			errs[i] = append(errs[i], importModels.ValidationError{
+				Field:       "email",
+				Message:     fmt.Sprintf("E-Mail '%s' ist doppelt in der Importdatei vorhanden (erste Zeile: %d).", email, firstRow+2),
+				Code:        "duplicate_in_file",
+				Severity:    importModels.ErrorSeverityError,
+				ActualValue: email,
+			})
+			continue
+		}
+		seen[key] = i
+	}
+	return errs
+}
+
+func normalizeStaffEmail(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+	addr, err := mail.ParseAddress(trimmed)
+	if err != nil {
+		return "", err
+	}
+	return strings.ToLower(strings.TrimSpace(addr.Address)), nil
 }
 
 // validateRole resolves the row's role name (tenant-aware) and reports a
@@ -197,8 +237,8 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 // tenant. A globally existing account in another tenant is not a duplicate:
 // CreateInvitation supports inviting that account into the current tenant.
 func (c *StaffImportConfig) FindExisting(ctx context.Context, row importModels.StaffImportRow) (*int64, error) {
-	email := strings.TrimSpace(row.Email)
-	if email == "" {
+	email, err := normalizeStaffEmail(row.Email)
+	if err != nil || email == "" {
 		return nil, nil
 	}
 
@@ -226,8 +266,12 @@ func (c *StaffImportConfig) FindExisting(ctx context.Context, row importModels.S
 // name, role and (optional) position; Person/Account/Staff/Teacher are created
 // when the invitee accepts and sets a password.
 func (c *StaffImportConfig) Create(ctx context.Context, row importModels.StaffImportRow) (int64, error) {
+	email, err := normalizeStaffEmail(row.Email)
+	if err != nil {
+		return 0, err
+	}
 	req := authsvc.InvitationRequest{
-		Email:      row.Email,
+		Email:      email,
 		RoleID:     row.RoleID,
 		TenantID:   tenant.FromContext(ctx),
 		FirstName:  stringPtr(row.FirstName),

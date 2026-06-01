@@ -266,6 +266,44 @@ func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {
 	assert.Equal(t, staffImportTestRoleID, row.RoleID)
 }
 
+func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
+	config := NewStaffImportConfig(StaffImportDeps{
+		RoleRepo: stubStaffRoleRepo{
+			findByName: func(_ context.Context, name string) (*authModels.Role, error) {
+				return &authModels.Role{Model: base.Model{ID: staffImportTestRoleID}, Name: name}, nil
+			},
+		},
+	})
+	row := &importModels.StaffImportRow{
+		FirstName: "Max",
+		LastName:  "Mustermann",
+		Email:     " Max Mustermann <Max.Mustermann@Example.COM> ",
+		RoleName:  "Betreuer",
+	}
+
+	errs := config.Validate(context.Background(), row)
+
+	require.Empty(t, errs)
+	assert.Equal(t, "max.mustermann@example.com", row.Email)
+}
+
+func TestStaffImportConfig_ValidateBatch_DetectsDuplicateEmailsAfterNormalization(t *testing.T) {
+	config := NewStaffImportConfig(StaffImportDeps{})
+	rows := []importModels.StaffImportRow{
+		{Email: "Max Mustermann <max@example.com>"},
+		{Email: " max@example.COM "},
+		{Email: "invalid"},
+	}
+
+	errs := config.ValidateBatch(context.Background(), rows)
+
+	require.Len(t, errs, 1)
+	require.Len(t, errs[1], 1)
+	assert.Equal(t, "duplicate_in_file", errs[1][0].Code)
+	assert.Equal(t, "max@example.com", errs[1][0].ActualValue)
+	assert.Contains(t, errs[1][0].Message, "erste Zeile: 2")
+}
+
 func TestStaffImportConfig_Validate_ReportsRequiredInvalidEmailAndRoleSuggestion(t *testing.T) {
 	config := NewStaffImportConfig(StaffImportDeps{
 		RoleRepo: stubStaffRoleRepo{
@@ -380,7 +418,7 @@ func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
 	id, err := config.Create(ctx, importModels.StaffImportRow{
 		FirstName: "Anna",
 		LastName:  "Lehmann",
-		Email:     "anna@example.com",
+		Email:     "Anna Lehmann <Anna@Example.COM>",
 		RoleID:    staffImportTestRoleID,
 		Position:  "Leitung",
 	})
