@@ -498,26 +498,15 @@ function Screenshot({
   readonly image?: string;
   readonly caption: string;
 }) {
-  if (image) {
-    return (
-      <figure className="mt-4 overflow-hidden rounded-xl border border-gray-200 shadow-sm print:border-gray-300 print:shadow-none">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={image}
-          alt={caption}
-          loading="lazy"
-          className="block w-full"
-        />
-      </figure>
-    );
+  // No image: render nothing. The `caption` still serves as documentation /
+  // alt text in the data, but image-less steps show no placeholder box.
+  if (!image) {
+    return null;
   }
   return (
-    <figure className="mt-4 overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50/60 print:bg-white">
-      <figcaption className="flex min-h-[120px] items-center justify-center p-5 text-center">
-        <span className="max-w-md text-xs leading-5 text-gray-400">
-          Screenshot: {caption}
-        </span>
-      </figcaption>
+    <figure className="mt-4 overflow-hidden rounded-xl border border-gray-200 shadow-sm print:border-gray-300 print:shadow-none">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={image} alt={caption} loading="lazy" className="block w-full" />
     </figure>
   );
 }

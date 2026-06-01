@@ -12,7 +12,6 @@ import {
   FileText,
   KeyRound,
   LayoutDashboard,
-  LifeBuoy,
   MessageSquare,
   Nfc,
   PlayCircle,
@@ -108,12 +107,12 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
   {
     href: "/help/nfc",
     title: "NFC & Tablets",
-    body: "Das komplette Tablet-Handbuch für Einrichtungen mit NFC-Armbändern – vom Aufstellen bis zum Support.",
+    body: "Das komplette Tablet-Handbuch für Einrichtungen mit NFC-Armbändern – vom Aufstellen bis zur Fehlerbehebung.",
     icon: TabletSmartphone,
     points: [
       "Gerät aufstellen, anmelden und Armbänder zuweisen",
       "Aufsicht starten, Kinder ein- und auschecken",
-      "Einstellungen, Fehlerbehebung und Support",
+      "Einstellungen und Fehlerbehebung",
     ],
   },
 ];
@@ -164,7 +163,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Neue Person anlegen.",
           "`Vorname` und `Nachname` eintragen.",
           "`E-Mail` eintragen. Diese Adresse wird für die Anmeldung genutzt.",
-          "Passende `Rolle` wählen. Admin-Rechte nur für Personen, die Stammdaten oder Einstellungen ändern sollen.",
+          "Passende `System-Rolle` wählen. Admin-Rechte nur für Personen, die Stammdaten oder Einstellungen ändern sollen.",
           "Speichern und die Person zum Login auffordern.",
         ],
         screenshot: "Personalformular mit Vorname, Nachname, E-Mail und Rolle.",
@@ -300,7 +299,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Im rechten Detailbereich den Tab `Betreuungszeiten` öffnen.",
           "Im Bereich `Ankunftsplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Zeiten pro Wochentag im Format `HH:MM` eintragen.",
           "Im Bereich `Abholplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Abholzeiten, Abholer sowie Hinweise eintragen.",
-          "Einzelne Abweichungen später über `Tag bearbeiten` am jeweiligen Wochentag pflegen.",
+          "Einzelne Abweichungen später über das Stift-Symbol am jeweiligen Wochentag pflegen.",
           "Speichern.",
         ],
         screenshot:
@@ -360,7 +359,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Kindersuche` öffnen.",
           "Namen oder Namensbestandteil in das Suchfeld eingeben.",
-          "Bei Bedarf nach Gruppe, Klasse oder Status filtern.",
+          "Bei Bedarf nach Gruppe, Stufe oder Status filtern.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
         screenshot: "Kindersuche mit Suchfeld, Filtern und Status-Badges.",
@@ -418,7 +417,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Liste aller Aktivitäten mit Suche und Filter; hier legst du neue Angebote an.",
         steps: [
           "`Aktivitäten` öffnen.",
-          "Nach Name, Betreuer oder Kategorie suchen oder filtern.",
+          "Nach Name suchen oder nach `Kategorie` und `Meine Aktivitäten` filtern.",
           "Eine Aktivität öffnen, um sie anzusehen oder zu bearbeiten.",
           "Über die Schaltfläche zum Anlegen eine neue Aktivität erstellen.",
         ],
@@ -495,10 +494,14 @@ export const appChapters: readonly GuideChapter[] = [
           "`Stundenplan` öffnen und die Planungsperiode wählen.",
           "Auf `Termin` klicken und Zeit, Raum, Personal und Kinder eintragen.",
           "Für wiederkehrende Angebote eine Serie anlegen und `Termine erzeugen`.",
-          "Einen Termin mit `Jetzt starten` beginnen.",
+          "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Jetzt geplant` und werden dort mit `Jetzt starten` begonnen.",
         ],
-        screenshot:
-          "Stundenplan-Kalender mit Termin, Serien und Jetzt starten.",
+        callout: {
+          title: "Stundenplan zuerst aktivieren",
+          body: "Der Stundenplan ist anfangs ausgeblendet. Ein Admin schaltet ihn unter `Einstellungen` → `Betrieb` mit `Stundenplan aktivieren` frei; danach erscheint er in der Seitenleiste.",
+          tone: "blue",
+        },
+        screenshot: "Stundenplan-Kalender mit Termin und Serien.",
         image: "/help/screens/stundenplan.png",
       },
       {
@@ -549,7 +552,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in vier Unterseiten den Ablauf einrichten – `Überblick`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
-          "Beim ersten Einrichten führt der `Einrichtungs-Assistent` durch alle Schritte. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
+          "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
           "Eine Anmeldung öffnen und Kind, gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
@@ -557,7 +560,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "So hängt alles zusammen",
-          body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular – am Ende die Elternansicht testen. Der `Überblick` enthält dafür einen Einrichtungs-Assistenten, der dich Schritt für Schritt führt.",
+          body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular – am Ende die Elternansicht testen. Der `Überblick` enthält dafür den Bereich `Einrichtung`, der dich Schritt für Schritt führt.",
           tone: "blue",
         },
         screenshot:
@@ -597,7 +600,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
-          "Optional `Kapazität`, `Preis` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
+          "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen – nur aktive Angebote sind für Eltern auswählbar.",
         ],
         callout: {
@@ -705,7 +708,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Netzwerkverbindung",
-          body: "Das Tablet ist bereits mit dem WLAN Ihrer Einrichtung verbunden; alternativ ist eine LAN-Verbindung möglich. Oben rechts zeigt ein kleines Netzwerk-Symbol den Status: grün bedeutet, dass alles in Ordnung ist. Erscheint es rot oder fehlt es ganz, prüfen Sie Ihre Internetverbindung oder wenden sich an den moto-Support.",
+          body: "Das Tablet ist bereits mit dem WLAN Ihrer Einrichtung verbunden; alternativ ist eine LAN-Verbindung möglich. Solange die Verbindung in Ordnung ist, wird kein Symbol angezeigt. Nur bei schlechter oder fehlender Verbindung erscheint unten rechts ein rotes WLAN-Warnsymbol – prüfen Sie dann Ihre Internetverbindung oder wenden sich an den moto-Support.",
           tone: "blue",
         },
         screenshot:
@@ -1023,7 +1026,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           "`Raumwechsel`: das Kind wechselt in einen anderen Raum.",
           "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz.",
           "`Toilette`: das Kind verlässt den Raum kurz für einen Toilettengang.",
-          "`nach Hause`: das Kind wird abgeholt und verlässt die Einrichtung. Danach erscheint optional ein freiwilliges Tages-Feedback über drei Emojis (gut, okay, schlecht).",
+          "`nach Hause`: das Kind wird abgeholt und verlässt die Einrichtung. Danach erscheint optional ein freiwilliges Tages-Feedback über drei Symbole (`Gut`, `Okay`, `Schlecht`).",
         ],
         callout: {
           title: "Welche Buttons erscheinen",
@@ -1155,7 +1158,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "`Armband wird nicht erkannt`: Armband ruhig und mittig flach auf den NFC-Sensor legen und ca. 1–2 Sekunden halten. Hilft das nicht, ein anderes Armband testen, sonst Gerät neu starten.",
           "`PIN wird nicht akzeptiert`: Prüfen, ob die richtige PIN eingegeben wird. Sie kann von der OGS-Leitung geändert worden sein – im Zweifel dort nach der aktuellen PIN fragen.",
-          "`Kein Internet / Verbindungsprobleme`: Netzwerk-Symbol oben rechts prüfen. Ist es rot oder durchgestrichen, das Gerät neu starten. Bleibt das Problem, den WLAN-Router prüfen oder den IT-Dienstleister kontaktieren.",
+          "`Kein Internet / Verbindungsprobleme`: Erscheint unten rechts ein rotes oder durchgestrichenes WLAN-Symbol, das Gerät neu starten. Bleibt das Problem, den WLAN-Router prüfen oder den IT-Dienstleister kontaktieren.",
           "`App reagiert nicht / Bildschirm eingefroren`: Gerät für ca. 10 Sekunden vom Strom trennen und wieder einstecken. Die moto-App startet automatisch neu und ist nach ca. 1–2 Minuten wieder einsatzbereit.",
           "`Falsches Kind wird beim Scannen angezeigt`: Über `Armband identifizieren` das Armband scannen, die aktuelle Zuweisung prüfen, die falsche Zuweisung aufheben und das Armband dem richtigen Kind zuweisen.",
         ],
@@ -1166,34 +1169,6 @@ export const nfcChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Übersicht der häufigsten Störungen am NFC-Tablet und ihrer Lösungen.",
-      },
-    ],
-  },
-  {
-    id: "nfc-kontakt",
-    title: "Kontakt & Support",
-    description:
-      "Bei Fragen, technischen Problemen oder Anregungen rund um das NFC-Tablet, die Armbänder und die moto-Software steht Ihnen das Support-Team zur Verfügung.",
-    icon: LifeBuoy,
-    tone: "blue",
-    steps: [
-      {
-        id: "nfc-support-erreichen",
-        title: "Support erreichen",
-        summary:
-          "Unser Support-Team kennt die Abläufe im OGS-Alltag und hilft bei allen Fragen weiter.",
-        steps: [
-          "E-Mail: `kontakt@moto.nrw`",
-          "Website: `moto.nrw`",
-          "Standort: Münster, NRW",
-        ],
-        callout: {
-          title: "Vorab die Fehlerbehebung prüfen",
-          body: "Viele Störungen lassen sich mit dem Kapitel „Fehlerbehebung“ in wenigen Sekunden selbst beheben – ein Blick dorthin spart oft den Weg über den Support.",
-          tone: "blue",
-        },
-        screenshot:
-          "Kontaktübersicht mit E-Mail kontakt@moto.nrw und Website moto.nrw.",
       },
     ],
   },
