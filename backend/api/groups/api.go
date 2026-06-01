@@ -288,7 +288,7 @@ func (rs *Resource) isUserGroupLeader(ctx context.Context, teacherID int64, grou
 // Returns true if user is admin or supervises the group.
 func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if hasAdminPermissions(userPermissions) {
+	if common.HasAdminPermissions(userPermissions) {
 		return true
 	}
 
@@ -933,16 +933,6 @@ func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64,
 	}
 
 	return "Anwesend"
-}
-
-// Helper function to check if user has admin permissions
-func hasAdminPermissions(permissions []string) bool {
-	for _, perm := range permissions {
-		if perm == "admin:*" || perm == "*:*" {
-			return true
-		}
-	}
-	return false
 }
 
 // validateGroupLeaderAccess ensures current user is a teacher who leads the specified group

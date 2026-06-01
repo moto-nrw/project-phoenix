@@ -325,7 +325,7 @@ func (rs *Resource) checkStudentReadAccess(r *http.Request, student *users.Stude
 // both read and write access paths (before scope overrides are applied).
 func (rs *Resource) isGroupSupervisorOrAdmin(r *http.Request, student *users.Student) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if hasAdminPermissions(userPermissions) {
+	if common.HasAdminPermissions(userPermissions) {
 		return true
 	}
 
@@ -777,7 +777,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Admin users creating students can see full data including detailed location
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	hasFullAccess := hasAdminPermissions(userPermissions)
+	hasFullAccess := common.HasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
@@ -1069,7 +1069,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Track whether the user is admin or group supervisor
-	isAdmin := hasAdminPermissions(userPermissions)
+	isAdmin := common.HasAdminPermissions(userPermissions)
 	isGroupSupervisor := !isAdmin // If not admin but authorized, must be group supervisor
 
 	// Update person fields using helper function

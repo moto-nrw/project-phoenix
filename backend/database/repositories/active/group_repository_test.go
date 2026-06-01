@@ -1,6 +1,7 @@
 package active_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -1252,4 +1253,135 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		assert.Equal(t, group.ID, found.ID)
 		// Empty or nil supervisors is ok
 	})
+}
+
+func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveGroup
+	ctx := testpkg.TenantContext(1)
+
+	room := testpkg.CreateTestRoom(t, db, "AggregateRoomSessions")
+	otherRoom := testpkg.CreateTestRoom(t, db, "AggregateRoomSessionsOther")
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Aggregate Activity")
+	staffA := testpkg.CreateTestStaff(t, db, "Ada", "Supervisor")
+	staffB := testpkg.CreateTestStaff(t, db, "Bert", "Supervisor")
+	studentA := testpkg.CreateTestStudent(t, db, "Aggregate", "StudentA", "1a")
+	studentB := testpkg.CreateTestStudent(t, db, "Aggregate", "StudentB", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db,
+		studentA.ID, studentB.ID,
+		staffA.ID, staffB.ID,
+		activityGroup.CategoryID,
+		room.ID, otherRoom.ID,
+	)
+
+	baseTime := time.Date(2026, time.May, 16, 10, 0, 0, 0, time.UTC)
+	windowStart := baseTime
+	windowEnd := baseTime.Add(2 * time.Hour)
+
+	overlapping := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+	running := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+	endedBeforeWindow := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+	otherRoomSession := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, otherRoom.ID)
+	defer cleanupActiveGroupRecords(t, db,
+		overlapping.ID,
+		running.ID,
+		endedBeforeWindow.ID,
+		otherRoomSession.ID,
+	)
+
+	overlapStart := baseTime.Add(-2 * time.Hour)
+	overlapEnd := baseTime.Add(time.Hour)
+	runningStart := baseTime.Add(30 * time.Minute)
+	oldStart := baseTime.Add(-4 * time.Hour)
+	oldEnd := baseTime.Add(-3 * time.Hour)
+	otherRoomStart := baseTime.Add(45 * time.Minute)
+	otherRoomEnd := baseTime.Add(90 * time.Minute)
+
+	setActiveGroupTimes(t, db, overlapping.ID, overlapStart, &overlapEnd)
+	setActiveGroupTimes(t, db, running.ID, runningStart, nil)
+	setActiveGroupTimes(t, db, endedBeforeWindow.ID, oldStart, &oldEnd)
+	setActiveGroupTimes(t, db, otherRoomSession.ID, otherRoomStart, &otherRoomEnd)
+
+	_ = testpkg.CreateTestGroupSupervisor(t, db, staffA.ID, overlapping.ID, "lead")
+	_ = testpkg.CreateTestGroupSupervisor(t, db, staffB.ID, overlapping.ID, "support")
+
+	visitAEnd := windowStart.Add(30 * time.Minute)
+	visitBEnd := windowStart.Add(45 * time.Minute)
+	duplicateAEnd := overlapStart.Add(55 * time.Minute)
+	_ = testpkg.CreateTestVisit(t, db, studentA.ID, overlapping.ID, overlapStart.Add(5*time.Minute), &visitAEnd)
+	_ = testpkg.CreateTestVisit(t, db, studentB.ID, overlapping.ID, overlapStart.Add(10*time.Minute), &visitBEnd)
+	_ = testpkg.CreateTestVisit(t, db, studentA.ID, overlapping.ID, overlapStart.Add(40*time.Minute), &duplicateAEnd)
+
+	t.Run("returns aggregated sessions active inside the window", func(t *testing.T) {
+		rows, err := repo.AggregateRoomSessions(ctx, room.ID, windowStart, windowEnd, nil)
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+
+		assert.Equal(t, running.ID, rows[0].SessionID)
+		assert.Equal(t, activityGroup.Name, rows[0].ActivityName)
+		assert.Nil(t, rows[0].EndedAt)
+		assert.Nil(t, rows[0].DurationMinutes)
+		assert.Empty(t, rows[0].SupervisorName)
+		assert.Equal(t, 0, rows[0].StudentCount)
+
+		assert.Equal(t, overlapping.ID, rows[1].SessionID)
+		assert.Equal(t, activityGroup.Name, rows[1].ActivityName)
+		require.NotNil(t, rows[1].EndedAt)
+		assert.True(t, rows[1].EndedAt.Equal(overlapEnd))
+		require.NotNil(t, rows[1].DurationMinutes)
+		assert.Equal(t, 180, *rows[1].DurationMinutes)
+		assert.Equal(t, 2, rows[1].StudentCount)
+		assert.Equal(t, "Ada Supervisor, Bert Supervisor", rows[1].SupervisorName)
+	})
+
+	t.Run("filters to sessions supervised by the supplied staff member", func(t *testing.T) {
+		rows, err := repo.AggregateRoomSessions(ctx, room.ID, windowStart, windowEnd, &staffA.ID)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, overlapping.ID, rows[0].SessionID)
+
+		rows, err = repo.AggregateRoomSessions(ctx, room.ID, windowStart, windowEnd, &staffB.ID)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, overlapping.ID, rows[0].SessionID)
+	})
+
+	t.Run("supports the superuser path without tenant context", func(t *testing.T) {
+		rows, err := repo.AggregateRoomSessions(context.Background(), room.ID, windowStart, windowEnd, &staffA.ID)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, overlapping.ID, rows[0].SessionID)
+		assert.Equal(t, 2, rows[0].StudentCount)
+	})
+}
+
+func TestActiveGroupRepository_AggregateRoomSessions_ReturnsDatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db).ActiveGroup
+	require.NoError(t, db.Close())
+
+	_, err := repo.AggregateRoomSessions(
+		testpkg.TenantContext(1),
+		time.Now().UnixNano(),
+		time.Now().Add(-time.Hour),
+		time.Now(),
+		nil,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "aggregate room sessions")
+}
+
+func setActiveGroupTimes(t *testing.T, db *bun.DB, groupID int64, start time.Time, end *time.Time) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		TableExpr("active.groups").
+		Set("start_time = ?", start).
+		Set("last_activity = ?", start).
+		Set("end_time = ?", end).
+		Where("id = ?", groupID).
+		Where("tenant_id = ?", 1).
+		Exec(testpkg.TenantContext(1))
+	require.NoError(t, err)
 }

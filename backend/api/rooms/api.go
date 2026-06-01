@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,13 +15,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilityService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -28,20 +33,56 @@ import (
 
 // Resource defines the rooms API resource
 type Resource struct {
-	FacilityService   facilityService.Service
-	ActiveService     activeService.Service
-	PersonService     userService.PersonService
-	EducationService  educationService.Service
-	StudentRepo       users.StudentRepository
-	ListExportService listexport.Service
-	db                *bun.DB
+	FacilityService    facilityService.Service
+	ActiveService      activeService.Service
+	PersonService      userService.PersonService
+	EducationService   educationService.Service
+	StudentRepo        users.StudentRepository
+	ListExportService  listexport.Service
+	SettingsService    configService.SettingsService
+	UserContextService userContextService.UserContextService
+	Logger             *slog.Logger
+	db                 *bun.DB
 }
 
-// NewResource creates a new rooms resource.
-func NewResource(facilityService facilityService.Service, db *bun.DB) *Resource {
+// ResourceConfig wires the rooms resource's collaborators. Kept as a struct
+// so future additions don't churn every call site (the resource needs
+// settings + user context for the GDPR-gated room history endpoint).
+type ResourceConfig struct {
+	FacilityService    facilityService.Service
+	SettingsService    configService.SettingsService
+	UserContextService userContextService.UserContextService
+	Logger             *slog.Logger
+	DB                 *bun.DB
+}
+
+// NewResource creates a new rooms resource. Required collaborators are
+// nil-checked at construction so a wiring typo in initializeAPIResources
+// surfaces at boot, not as a silent 403 for every tenant (nil
+// SettingsService would otherwise fall through to the registry defaults
+// and short-circuit the room-history endpoint to feature_disabled) or as a
+// per-request panic (nil FacilityService / UserContextService). Logger is
+// optional — handler paths fall back to slog.Default() via
+// roomHistoryLogger.
+func NewResource(cfg ResourceConfig) *Resource {
+	if cfg.FacilityService == nil {
+		panic("rooms.NewResource: FacilityService is required")
+	}
+	if cfg.SettingsService == nil {
+		panic("rooms.NewResource: SettingsService is required")
+	}
+	if cfg.UserContextService == nil {
+		panic("rooms.NewResource: UserContextService is required")
+	}
+	if cfg.DB == nil {
+		panic("rooms.NewResource: DB is required")
+	}
 	return &Resource{
-		FacilityService: facilityService,
-		db:              db,
+		FacilityService:    cfg.FacilityService,
+		SettingsService:    cfg.SettingsService,
+		UserContextService: cfg.UserContextService,
+		Logger:             cfg.Logger,
+		db:                 cfg.DB,
 	}
 }
 
@@ -65,7 +106,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresAllPermissions(permissions.RoomsRead, permissions.UsersRead), withTx).Post("/export", rs.exportSnapshot)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}", rs.getRoom)
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/by-category", rs.getRoomsByCategory)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.getRoomHistory)
+		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.GetRoomHistory)
 
 		// Write operations require specific permissions
 		r.With(authorize.RequiresPermission(permissions.RoomsCreate), withTx).Post("/", rs.createRoom)
@@ -403,45 +444,109 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, roomResponses, "Available rooms retrieved successfully")
 }
 
-// getRoomHistory handles getting the visit history for a room
-func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
+// GetRoomHistory returns the aggregated session timeline for a room.
+// Exported because the rooms_test package binds it directly into a test
+// router (see Rule 5 in backend-conventions.md — no separate
+// `GetRoomHistoryHandler()` wrapper).
+//
+// Privacy: this endpoint is gated by gdpr.attendance_log_enabled, scoped by
+// gdpr.attendance_log_scope (admin / supervisor-only / all_staff), and the
+// requested time range is capped by gdpr.room_detail_visible_days. No
+// per-student IDs or names leave the backend — per-child movement detail
+// lives behind /students/{id}/attendance-history under its own gates.
+func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := rs.roomHistoryLogger()
+
 	id, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
-	// Get time range from query parameters
-	startTime := time.Now().AddDate(0, 0, -7) // Default to last 7 days
-	endTime := time.Now()
+	// 1. Feature gate
+	if !configService.ResolveBoolOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, logger) {
+		// The "feature_disabled" literal is part of the cross-boundary
+		// contract with the room drawer: the Next.js proxy at
+		// /api/rooms/[id]/history matches this exact string against the
+		// 403 body and translates it into a non-error signal so the
+		// drawer hides the Belegungshistorie section deliberately.
+		// Mirror in frontend: ROOM_HISTORY_STATUS_FEATURE_DISABLED in
+		// frontend/src/lib/room-helpers.ts — keep in sync.
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+		return
+	}
+
+	// 2. Scope check — see resolveRoomHistorySupervisorFilter. If handled
+	// is true the helper already wrote the response (403 / 500) and we
+	// must stop.
+	supervisorStaffID, handled := rs.resolveRoomHistorySupervisorFilter(w, r, id, logger)
+	if handled {
+		return
+	}
+
+	// 3. Resolve range cap. The setting registry already constrains the
+	// value (Min=1, Max=365), but a defensive clamp here protects against
+	// hand-edited DB rows that bypassed the registry validator.
+	const roomCapHardMax = 365
+	roomCap := configService.ResolveIntOrDefault(ctx, rs.SettingsService, configModel.KeyRoomDetailVisibleDays, 7, logger)
+	if roomCap < 1 {
+		roomCap = 1
+	}
+	if roomCap > roomCapHardMax {
+		roomCap = roomCapHardMax
+	}
+
+	// 4. Parse range and clamp
+	today := timezone.Today()
+	endOfToday := timezone.EndOfDay(today)
+	defaultStart := today.AddDate(0, 0, -(roomCap - 1))
+
+	startTime := defaultStart
+	endTime := endOfToday
 
 	if startStr := r.URL.Query().Get("start"); startStr != "" {
-		parsedStart, err := time.Parse(time.RFC3339, startStr)
-		if err != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start date format")))
+		parsedStart, parseErr := time.Parse(time.RFC3339, startStr)
+		if parseErr != nil {
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start parameter, expected RFC3339")))
 			return
 		}
 		startTime = parsedStart
 	}
 
 	if endStr := r.URL.Query().Get("end"); endStr != "" {
-		parsedEnd, err := time.Parse(time.RFC3339, endStr)
-		if err != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end date format")))
+		parsedEnd, parseErr := time.Parse(time.RFC3339, endStr)
+		if parseErr != nil {
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end parameter, expected RFC3339")))
 			return
 		}
 		endTime = parsedEnd
 	}
 
-	// Validate date range
 	if startTime.After(endTime) {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start date must be before end date")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start must be before end")))
 		return
 	}
 
-	// Get room history from service
-	history, err := rs.FacilityService.GetRoomHistory(r.Context(), id, startTime, endTime)
+	// Silently narrow the window when the caller asks for more than the
+	// tenant's room_detail_visible_days cap allows. The clamp is
+	// intentional — the cap is a GDPR retention boundary, not a hint — but
+	// log it at Info so anyone debugging an "empty results" report has a
+	// breadcrumb without needing to repro.
+	maxDuration := time.Duration(roomCap) * 24 * time.Hour
+	if endTime.Sub(startTime) > maxDuration {
+		requestedStart := startTime
+		startTime = endTime.Add(-maxDuration)
+		logger.Info("room history window clamped to retention cap",
+			"room_id", id,
+			"requested_start", requestedStart.Format(time.RFC3339),
+			"clamped_start", startTime.Format(time.RFC3339),
+			"end", endTime.Format(time.RFC3339),
+			"cap_days", roomCap,
+		)
+	}
+
+	history, err := rs.FacilityService.GetRoomHistory(ctx, id, startTime, endTime, supervisorStaffID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -449,6 +554,76 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	common.Respond(w, r, http.StatusOK, history, "Room history retrieved successfully")
+}
+
+// resolveRoomHistorySupervisorFilter applies the gdpr.attendance_log_scope
+// rule. Admin callers see every session without a staff lookup. Non-admin
+// callers must resolve to a staff row before the tenant scope is applied:
+// all_staff sees every session, while group_supervisors_only is filtered to
+// sessions they supervise. The "scope != all_staff" condition is inverted on
+// purpose: an unknown / typo'd setting value falls through to the safe
+// supervisor-only path instead of silently disabling the filter.
+//
+// Return contract:
+//
+//	(filter, false) — caller continues; filter may be nil (admin/all_staff)
+//	(nil,    true)  — helper already wrote a 403/500 response; caller MUST return
+//
+// Distinguishing ErrUserNotLinkedToStaff (legitimate 403) from any other
+// error is deliberate: a flaky users.staff lookup would otherwise silently
+// surface as "forbidden" with no log entry.
+func (rs *Resource) resolveRoomHistorySupervisorFilter(
+	w http.ResponseWriter,
+	r *http.Request,
+	roomID int64,
+	logger *slog.Logger,
+) (*int64, bool) {
+	ctx := r.Context()
+	if common.HasAdminPermissions(jwt.PermissionsFromCtx(ctx)) {
+		return nil, false
+	}
+
+	staff, err := rs.UserContextService.GetCurrentStaff(ctx)
+	switch {
+	case errors.Is(err, userContextService.ErrUserNotLinkedToStaff):
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("not_group_supervisor")))
+		return nil, true
+	case err != nil:
+		logger.Warn("get current staff failed for room history",
+			"room_id", roomID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return nil, true
+	case staff == nil:
+		// Defensive: service contract is (non-nil, nil) or (nil, err);
+		// this branch only triggers if that contract gets broken.
+		logger.Warn("get current staff returned nil staff with nil error",
+			"room_id", roomID,
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("unexpected nil staff")))
+		return nil, true
+	}
+
+	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
+	if scope == configModel.AttendanceLogScopeAllStaff {
+		return nil, false
+	}
+
+	staffID := staff.ID
+	return &staffID, false
+}
+
+// roomHistoryLogger returns a scoped logger, falling back to slog.Default
+// so missing wiring never crashes the handler. Uses a distinct "endpoint"
+// key for the inner scope; the resource logger already binds
+// handler=rooms, so reusing "handler" here would emit two values for the
+// same key.
+func (rs *Resource) roomHistoryLogger() *slog.Logger {
+	if rs.Logger != nil {
+		return rs.Logger.With("endpoint", "room_history")
+	}
+	return slog.Default().With("endpoint", "room_history")
 }
 
 // =============================================================================
@@ -484,5 +659,8 @@ func (rs *Resource) GetCategoryListHandler() http.HandlerFunc { return rs.getCat
 // GetAvailableRoomsHandler returns the handler for getting available rooms.
 func (rs *Resource) GetAvailableRoomsHandler() http.HandlerFunc { return rs.getAvailableRooms }
 
-// GetRoomHistoryHandler returns the handler for getting room history.
-func (rs *Resource) GetRoomHistoryHandler() http.HandlerFunc { return rs.getRoomHistory }
+// Note: room history doesn't need a *Handler() wrapper because the method
+// is already exported (GetRoomHistory). Tests bind it into a router via
+// `setupRouter(tc.resource.GetRoomHistory, "id")` directly. See Rule 5 in
+// .claude/rules/backend-conventions.md — new endpoints should follow this
+// pattern; the wrappers above are legacy and pending cleanup.

@@ -260,22 +260,12 @@ func newPhoneNumberResponse(phone *users.GuardianPhoneNumber) *PhoneNumberRespon
 	}
 }
 
-// Helper function to check if user has admin permissions
-func hasAdminPermissions(permissions []string) bool {
-	for _, perm := range permissions {
-		if perm == "admin:*" || perm == "*:*" {
-			return true
-		}
-	}
-	return false
-}
-
 // canModifyStudent checks if the current user can modify a student's guardians
 func (rs *Resource) canModifyStudent(ctx context.Context, studentID int64) (bool, error) {
 	userPermissions := jwt.PermissionsFromCtx(ctx)
 
 	// Admin users have full access
-	if hasAdminPermissions(userPermissions) {
+	if common.HasAdminPermissions(userPermissions) {
 		return true, nil
 	}
 
@@ -317,7 +307,7 @@ func (rs *Resource) canModifyGuardian(ctx context.Context, guardianID int64) (bo
 	userPermissions := jwt.PermissionsFromCtx(ctx)
 
 	// Admin users have full access
-	if hasAdminPermissions(userPermissions) {
+	if common.HasAdminPermissions(userPermissions) {
 		return true, nil
 	}
 
@@ -417,7 +407,7 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 
 	// Admin users can create guardians without additional checks
-	isAdmin := hasAdminPermissions(userPermissions)
+	isAdmin := common.HasAdminPermissions(userPermissions)
 
 	// Non-admin users must be staff members with supervised groups
 	if !isAdmin {
