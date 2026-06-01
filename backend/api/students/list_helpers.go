@@ -25,6 +25,13 @@ type studentListParams struct {
 	includePickupTimes  bool
 	includeArrivalTimes bool
 	dayStatus           string
+	// Administrative filters (#1492). Resolved against the enriched response
+	// objects in the same in-memory pass as dayStatus so pagination and counts
+	// stay correct. bus/photoConsent are "yes"/"no"; pickupStatus is one of the
+	// pickupStatusKind buckets ("self"/"pickedUp"/"none"). Empty or "all" = off.
+	bus          string
+	photoConsent string
+	pickupStatus string
 	// studentIDs is an optional pre-filter populated by upstream resolution
 	// (e.g., room_id → active visits) before the SQL list query runs. When
 	// set, buildBaseFilter adds `student.id IN (...)` so the standard
@@ -70,6 +77,12 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
 	params.dayStatus = parseDayStatusParam(r.URL.Query().Get("day_status"))
 
+	// Administrative filters (#1492). Applied in-memory against the enriched
+	// responses, mirroring the student list export filter semantics.
+	params.bus = r.URL.Query().Get("bus")
+	params.photoConsent = r.URL.Query().Get("photo_consent")
+	params.pickupStatus = r.URL.Query().Get("pickup_status")
+
 	// Parse pagination
 	params.page, params.pageSize = common.ParsePagination(r)
 
@@ -82,7 +95,22 @@ func (p *studentListParams) hasPersonFilters() bool {
 }
 
 func (p *studentListParams) hasInMemoryFilters() bool {
-	return p.hasPersonFilters() || p.dayStatus != "" && p.dayStatus != DayPlanningStatusAll
+	return p.hasPersonFilters() ||
+		p.dayStatus != "" && p.dayStatus != DayPlanningStatusAll ||
+		p.hasAdministrativeFilters()
+}
+
+// hasAdministrativeFilters reports whether any of the #1492 administrative
+// filters (bus / photo consent / pickup rule) is active.
+func (p *studentListParams) hasAdministrativeFilters() bool {
+	return isActiveFilterValue(p.bus) ||
+		isActiveFilterValue(p.photoConsent) ||
+		isActiveFilterValue(p.pickupStatus)
+}
+
+// isActiveFilterValue treats both empty and the neutral "all" sentinel as "off".
+func isActiveFilterValue(value string) bool {
+	return value != "" && value != "all"
 }
 
 func parseDayStatusParam(value string) string {

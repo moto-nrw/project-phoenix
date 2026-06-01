@@ -50,6 +50,7 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import { activeService } from "~/lib/active-api";
@@ -84,9 +85,18 @@ type StatusFilter =
   | "schulhof"
   | "krank"
   | "entschuldigt";
+type BooleanFilter = "all" | "yes" | "no";
+type PickupStatusKind = "self" | "pickedUp" | "other" | "none" | "redacted";
+type PickupStatusFilter = "all" | "self" | "pickedUp" | "none";
 type DayStatusFilter = "all" | "comes_today" | "not_coming_today";
 type SortMode = "name" | "arrival" | "pickup";
-type GroupMode = "none" | "status" | "room" | "arrival" | "pickup";
+type GroupMode =
+  | "none"
+  | "status"
+  | "room"
+  | "arrival"
+  | "pickup"
+  | "pickup-status";
 
 const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Alle" },
@@ -119,6 +129,7 @@ const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
   { value: "room", label: "Nach Raum" },
   { value: "arrival", label: "Nach Ankunftszeit" },
   { value: "pickup", label: "Nach Abholzeit" },
+  { value: "pickup-status", label: "Nach Abholregelung" },
 ];
 
 const FILTER_QUERY_PARAMS = [
@@ -126,6 +137,9 @@ const FILTER_QUERY_PARAMS = [
   "group_id",
   "room_id",
   "room_name",
+  "bus",
+  "photo_consent",
+  "pickup_status",
   "pickup_time",
   "arrival_time",
   "day_status",
@@ -140,6 +154,7 @@ type PersistedSearchFilters = Partial<Record<FilterQueryParam, string>>;
 type SearchParamReader = Pick<URLSearchParams, "get" | "has">;
 
 const STUDENT_SEARCH_FILTER_STORAGE_PREFIX = "student-search:last-filters";
+const FULL_STUDENT_SEARCH_PAGE_SIZE = 1000;
 
 const SCHOOL_YEAR_DROPDOWN_OPTIONS = SCHOOL_YEAR_FILTER_OPTIONS.map(
   (option) => ({
@@ -156,6 +171,39 @@ const STATUS_GROUP_ORDER = new Map([
   ["Entschuldigt", 4],
   ["Abwesend", 5],
 ]);
+
+const BOOLEAN_FILTER_VALUES: readonly BooleanFilter[] = ["all", "yes", "no"];
+const PICKUP_STATUS_FILTER_VALUES: readonly PickupStatusFilter[] = [
+  "all",
+  "self",
+  "pickedUp",
+  "none",
+];
+
+const BUS_FILTER_OPTIONS: Array<{ value: BooleanFilter; label: string }> = [
+  { value: "all", label: "Buskind: Beliebig" },
+  { value: "yes", label: "Buskind" },
+  { value: "no", label: "Kein Buskind" },
+];
+
+const PHOTO_CONSENT_FILTER_OPTIONS: Array<{
+  value: BooleanFilter;
+  label: string;
+}> = [
+  { value: "all", label: "Fotoerlaubnis: Beliebig" },
+  { value: "yes", label: "Fotoerlaubnis liegt vor" },
+  { value: "no", label: "Keine Fotoerlaubnis" },
+];
+
+const PICKUP_STATUS_FILTER_OPTIONS: Array<{
+  value: PickupStatusFilter;
+  label: string;
+}> = [
+  { value: "all", label: "Abholregelung: Beliebig" },
+  { value: "self", label: "Geht alleine nach Hause" },
+  { value: "pickedUp", label: "Wird abgeholt" },
+  { value: "none", label: "Keine Abholregelung" },
+];
 
 const STATUS_FILTER_LABELS: Record<
   Exclude<StatusFilter, "all" | "anwesend">,
@@ -222,6 +270,26 @@ function normalizeStoredFilters(
     group_id: params.get("group_id") ?? "",
     room_id: params.get("room_id") ?? "",
     room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
+    bus:
+      validQueryValue(params.get("bus"), BOOLEAN_FILTER_VALUES, "all") === "all"
+        ? ""
+        : (params.get("bus") ?? ""),
+    photo_consent:
+      validQueryValue(
+        params.get("photo_consent"),
+        BOOLEAN_FILTER_VALUES,
+        "all",
+      ) === "all"
+        ? ""
+        : (params.get("photo_consent") ?? ""),
+    pickup_status:
+      validQueryValue(
+        params.get("pickup_status"),
+        PICKUP_STATUS_FILTER_VALUES,
+        "all",
+      ) === "all"
+        ? ""
+        : (params.get("pickup_status") ?? ""),
     pickup_time: params.get("pickup_time") ?? "",
     arrival_time: params.get("arrival_time") ?? "",
     day_status:
@@ -380,6 +448,47 @@ function pickupLabelForStudent(student: Student): string {
   return student.pickup_time ? `${student.pickup_time} Uhr` : "Keine Abholzeit";
 }
 
+function pickupStatusKind(student: Student): PickupStatusKind {
+  if (student.has_full_access === false) return "redacted";
+
+  const raw = student.pickup_status?.trim();
+  if (!raw) return "none";
+
+  const normalized = raw.toLowerCase();
+  if (
+    normalized.includes("alleine") ||
+    normalized === "selbst" ||
+    normalized === "self" ||
+    normalized === "alone" ||
+    normalized === "walk_home" ||
+    normalized === "geht_alleine"
+  ) {
+    return "self";
+  }
+  if (
+    normalized.includes("abgeholt") ||
+    normalized === "parent" ||
+    normalized === "parents" ||
+    normalized === "guardian" ||
+    normalized === "pickup" ||
+    normalized === "picked_up" ||
+    normalized === "wird_abgeholt"
+  ) {
+    return "pickedUp";
+  }
+
+  return "other";
+}
+
+function pickupStatusLabelForStudent(student: Student): string {
+  const kind = pickupStatusKind(student);
+  if (kind === "redacted") return "Nicht einsehbar";
+  if (kind === "self") return "Geht alleine nach Hause";
+  if (kind === "pickedUp") return "Wird abgeholt";
+  if (kind === "none") return "Keine Abholregelung";
+  return student.pickup_status?.trim() || "Keine Abholregelung";
+}
+
 function arrivalLabelForStudent(student: Student): string {
   if (student.has_full_access === false) return "Nicht einsehbar";
   return student.arrival_time
@@ -399,7 +508,9 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
           ? roomLabelForStudent(student)
           : groupMode === "arrival"
             ? arrivalLabelForStudent(student)
-            : pickupLabelForStudent(student);
+            : groupMode === "pickup"
+              ? pickupLabelForStudent(student)
+              : pickupStatusLabelForStudent(student);
     const bucket = groups.get(key);
     if (bucket) {
       bucket.push(student);
@@ -429,8 +540,52 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
               : label;
         return rank(a.label).localeCompare(rank(b.label), "de");
       }
+      if (groupMode === "pickup-status") {
+        const rank = (label: string) =>
+          label === "Geht alleine nach Hause"
+            ? 0
+            : label === "Wird abgeholt"
+              ? 1
+              : label === "Nicht einsehbar"
+                ? 99
+                : label === "Keine Abholregelung"
+                  ? 98
+                  : 2;
+        const rankCmp = rank(a.label) - rank(b.label);
+        if (rankCmp !== 0) return rankCmp;
+      }
       return a.label.localeCompare(b.label, "de");
     });
+}
+
+function compareByPickupTime(a: Student, b: Student, now: Date) {
+  const statusA = getStudentTimeStatus({
+    plannedTime: a.pickup_time,
+    actualTime: a.actual_pickup_time,
+    now,
+    sick: a.sick,
+    excused: a.excused,
+  });
+  const statusB = getStudentTimeStatus({
+    plannedTime: b.pickup_time,
+    actualTime: b.actual_pickup_time,
+    now,
+    sick: b.sick,
+    excused: b.excused,
+  });
+  const rankA = getTimeStatusSortRank(statusA);
+  const rankB = getTimeStatusSortRank(statusB);
+  if (rankA !== rankB) return rankA - rankB;
+
+  const timeA = a.pickup_time;
+  const timeB = b.pickup_time;
+  if (timeA && !timeB) return -1;
+  if (!timeA && timeB) return 1;
+  if (timeA && timeB) {
+    const timeCmp = timeA.localeCompare(timeB);
+    if (timeCmp !== 0) return timeCmp;
+  }
+  return compareByName(a, b);
 }
 
 function orderedRooms(
@@ -530,6 +685,28 @@ function SearchPageContent() {
   const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(
     initialAttendanceFilter,
   );
+  const [busFilter, setBusFilter] = useState<BooleanFilter>(
+    validQueryValue(
+      initialFilterParams.get("bus"),
+      BOOLEAN_FILTER_VALUES,
+      "all",
+    ),
+  );
+  const [photoConsentFilter, setPhotoConsentFilter] = useState<BooleanFilter>(
+    validQueryValue(
+      initialFilterParams.get("photo_consent"),
+      BOOLEAN_FILTER_VALUES,
+      "all",
+    ),
+  );
+  const [pickupStatusFilter, setPickupStatusFilter] =
+    useState<PickupStatusFilter>(
+      validQueryValue(
+        initialFilterParams.get("pickup_status"),
+        PICKUP_STATUS_FILTER_VALUES,
+        "all",
+      ),
+    );
   const [dayStatusFilter, setDayStatusFilter] = useState<DayStatusFilter>(
     initialDayStatusFilter,
   );
@@ -592,6 +769,23 @@ function SearchPageContent() {
       );
       setPickupTimeFilter(params.get("pickup_time") ?? "all");
       setArrivalTimeFilter(params.get("arrival_time") ?? "all");
+      setBusFilter(
+        validQueryValue(params.get("bus"), BOOLEAN_FILTER_VALUES, "all"),
+      );
+      setPhotoConsentFilter(
+        validQueryValue(
+          params.get("photo_consent"),
+          BOOLEAN_FILTER_VALUES,
+          "all",
+        ),
+      );
+      setPickupStatusFilter(
+        validQueryValue(
+          params.get("pickup_status"),
+          PICKUP_STATUS_FILTER_VALUES,
+          "all",
+        ),
+      );
       setDayStatusFilter(
         validQueryValue(
           params.get("day_status"),
@@ -669,6 +863,10 @@ function SearchPageContent() {
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
   const schoolCheckin = useSchoolCheckinMode();
+  const {
+    enabled: studentPhotosEnabled,
+    isLoading: studentPhotosSettingLoading,
+  } = useStudentPhotosEnabled();
 
   // Debounce search term for SWR key (prevents excessive API calls while typing)
   useEffect(() => {
@@ -717,7 +915,22 @@ function SearchPageContent() {
 
   // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)
   // Note: User context is only for badge styling, not for fetching students
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}-${dayStatusFilter}`;
+  const photoConsentFeatureAvailable = studentPhotosSettingLoading
+    ? true
+    : studentPhotosEnabled;
+  const photoConsentFeatureState = studentPhotosSettingLoading
+    ? "photos-loading"
+    : studentPhotosEnabled
+      ? "photos-enabled"
+      : "photos-disabled";
+  const requestedPhotoConsentFilter = photoConsentFeatureAvailable
+    ? photoConsentFilter
+    : "all";
+  // bus / photo_consent / pickup_status are now real backend filters (#1492),
+  // applied server-side in the same in-memory pass as day_status, so the
+  // backend returns correctly-filtered and correctly-counted pages. The cache
+  // key just has to vary with every filter value so SWR refetches on change.
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}-${dayStatusFilter}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -727,11 +940,21 @@ function SearchPageContent() {
   } = useSWRAuth<{ students: Student[] }>(
     studentsCacheKey,
     async () => {
-      return await studentService.getStudents({
+      const filters = {
         search: debouncedSearchTerm,
         groupId: selectedGroup,
         roomId: selectedRoomId || undefined,
         dayStatus: dayStatusFilter === "all" ? undefined : dayStatusFilter,
+        // Administrative filters (#1492) are now applied server-side, so the
+        // backend returns the correctly-filtered, correctly-counted page set
+        // directly, no client-side full-page fetch + filter required.
+        bus: busFilter === "all" ? undefined : busFilter,
+        photoConsent:
+          requestedPhotoConsentFilter === "all"
+            ? undefined
+            : requestedPhotoConsentFilter,
+        pickupStatus:
+          pickupStatusFilter === "all" ? undefined : pickupStatusFilter,
         // When filtering by room, this page is the "see all" target the
         // room-detail modal links to (#1374). The modal itself caps at
         // 200 cards and shows a truncation notice; this page must show
@@ -739,10 +962,12 @@ function SearchPageContent() {
         // 1000 covers any realistic combined-group / assembly-room
         // session well above what backend ParsePagination would return
         // by default (50). General search keeps the default.
-        pageSize: selectedRoomId ? 1000 : undefined,
+        pageSize: selectedRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
         includePickupTimes: true,
         includeArrivalTimes: true,
-      });
+      };
+
+      return await studentService.getStudents(filters);
     },
     {
       // Keep previous data while fetching (prevents loading flash)
@@ -792,6 +1017,30 @@ function SearchPageContent() {
     (value: StatusFilter) => {
       setAttendanceFilter(value);
       updateUrlParams({ status: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateBusFilter = useCallback(
+    (value: BooleanFilter) => {
+      setBusFilter(value);
+      updateUrlParams({ bus: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updatePhotoConsentFilter = useCallback(
+    (value: BooleanFilter) => {
+      setPhotoConsentFilter(value);
+      updateUrlParams({ photo_consent: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updatePickupStatusFilter = useCallback(
+    (value: PickupStatusFilter) => {
+      setPickupStatusFilter(value);
+      updateUrlParams({ pickup_status: value === "all" ? "" : value });
     },
     [updateUrlParams],
   );
@@ -849,6 +1098,9 @@ function SearchPageContent() {
     setSelectedGroup("");
     setSelectedYear("all");
     setAttendanceFilter("all");
+    setBusFilter("all");
+    setPhotoConsentFilter("all");
+    setPickupStatusFilter("all");
     setPickupTimeFilter("all");
     setArrivalTimeFilter("all");
     setDayStatusFilter("all");
@@ -864,15 +1116,38 @@ function SearchPageContent() {
   }, [storageKey, updateUrlParams]);
 
   const students = studentsData?.students ?? [];
+  const photoConsentDataAvailable =
+    photoConsentFeatureAvailable &&
+    (students.length === 0 ||
+      students.some(
+        (student) =>
+          student.has_full_access !== false &&
+          student.photo_consent_given !== undefined,
+      ));
+  const canUsePhotoConsentFilter =
+    studentPhotosSettingLoading || photoConsentDataAvailable;
+  const effectivePhotoConsentFilter = canUsePhotoConsentFilter
+    ? photoConsentFilter
+    : "all";
+
+  useEffect(() => {
+    if (!canUsePhotoConsentFilter && photoConsentFilter !== "all") {
+      updatePhotoConsentFilter("all");
+    }
+  }, [canUsePhotoConsentFilter, photoConsentFilter, updatePhotoConsentFilter]);
 
   // Tracking indicators for student cards
   const trackingStudentIds = useMemo(
     () => (studentsData?.students ?? []).map((s) => s.id),
     [studentsData],
   );
+  const trackingStudentIdsKey = useMemo(
+    () => trackingStudentIds.join(","),
+    [trackingStudentIds],
+  );
   const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
     trackingStudentIds.length > 0
-      ? `tracking-indicators-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}-${dayStatusFilter}`
+      ? `tracking-indicators-${trackingStudentIdsKey}`
       : null,
     async () => activeService.getTrackingIndicators(trackingStudentIds),
     { keepPreviousData: true, revalidateOnFocus: false },
@@ -1057,6 +1332,36 @@ function SearchPageContent() {
         ],
       },
       {
+        id: "bus",
+        label: "Buskind",
+        type: "dropdown",
+        value: busFilter,
+        onChange: (value) => updateBusFilter(value as BooleanFilter),
+        options: BUS_FILTER_OPTIONS,
+      },
+      ...(canUsePhotoConsentFilter
+        ? [
+            {
+              id: "photoConsent",
+              label: "Fotoerlaubnis",
+              type: "dropdown" as const,
+              value: photoConsentFilter,
+              onChange: (value: string | string[]) =>
+                updatePhotoConsentFilter(value as BooleanFilter),
+              options: PHOTO_CONSENT_FILTER_OPTIONS,
+            },
+          ]
+        : []),
+      {
+        id: "pickupStatus",
+        label: "Abholregelung",
+        type: "dropdown",
+        value: pickupStatusFilter,
+        onChange: (value) =>
+          updatePickupStatusFilter(value as PickupStatusFilter),
+        options: PICKUP_STATUS_FILTER_OPTIONS,
+      },
+      {
         id: "sort",
         label: "Sortierung",
         type: "dropdown",
@@ -1099,6 +1404,10 @@ function SearchPageContent() {
       pickupTimeFilter,
       arrivalTimeFilter,
       attendanceFilter,
+      busFilter,
+      photoConsentFilter,
+      pickupStatusFilter,
+      canUsePhotoConsentFilter,
       dayStatusFilter,
       trackingFilter,
       trackingLabels,
@@ -1115,6 +1424,9 @@ function SearchPageContent() {
       updateSelectedYear,
       updateSelectedGroup,
       updateAttendanceFilter,
+      updateBusFilter,
+      updatePhotoConsentFilter,
+      updatePickupStatusFilter,
       updatePickupTimeFilter,
       updateArrivalTimeFilter,
       updateDayStatusFilter,
@@ -1180,6 +1492,36 @@ function SearchPageContent() {
         id: "attendance",
         label: statusLabels[attendanceFilter] ?? attendanceFilter,
         onRemove: () => updateAttendanceFilter("all"),
+      });
+    }
+
+    if (busFilter !== "all") {
+      filters.push({
+        id: "bus",
+        label: busFilter === "yes" ? "Buskind" : "Kein Buskind",
+        onRemove: () => updateBusFilter("all"),
+      });
+    }
+
+    if (effectivePhotoConsentFilter !== "all") {
+      filters.push({
+        id: "photoConsent",
+        label:
+          effectivePhotoConsentFilter === "yes"
+            ? "Fotoerlaubnis liegt vor"
+            : "Keine Fotoerlaubnis",
+        onRemove: () => updatePhotoConsentFilter("all"),
+      });
+    }
+
+    if (pickupStatusFilter !== "all") {
+      filters.push({
+        id: "pickupStatus",
+        label:
+          PICKUP_STATUS_FILTER_OPTIONS.find(
+            (option) => option.value === pickupStatusFilter,
+          )?.label ?? "Abholregelung",
+        onRemove: () => updatePickupStatusFilter("all"),
       });
     }
 
@@ -1254,6 +1596,9 @@ function SearchPageContent() {
     selectedYear,
     selectedGroup,
     attendanceFilter,
+    busFilter,
+    effectivePhotoConsentFilter,
+    pickupStatusFilter,
     dayStatusFilter,
     pickupTimeFilter,
     arrivalTimeFilter,
@@ -1268,6 +1613,9 @@ function SearchPageContent() {
     updateSelectedYear,
     updateSelectedGroup,
     updateAttendanceFilter,
+    updateBusFilter,
+    updatePhotoConsentFilter,
+    updatePickupStatusFilter,
     updateDayStatusFilter,
     updatePickupTimeFilter,
     updateArrivalTimeFilter,
@@ -1282,6 +1630,9 @@ function SearchPageContent() {
       group_id: selectedGroup,
       year: selectedYear,
       status: attendanceFilter,
+      bus: busFilter,
+      photo_consent: effectivePhotoConsentFilter,
+      pickup_status: pickupStatusFilter,
       day_status: dayStatusFilter,
       pickup_time: pickupTimeFilter,
       arrival_time: arrivalTimeFilter,
@@ -1293,6 +1644,9 @@ function SearchPageContent() {
       selectedGroup,
       selectedYear,
       attendanceFilter,
+      busFilter,
+      effectivePhotoConsentFilter,
+      pickupStatusFilter,
       dayStatusFilter,
       pickupTimeFilter,
       arrivalTimeFilter,
@@ -1338,6 +1692,10 @@ function SearchPageContent() {
       }
     }
 
+    // bus / photo_consent / pickup_status (#1492) are filtered server-side now
+    // (see api/students applyAdministrativeFilters), so the page no longer
+    // re-filters them here. The fetched page is already the filtered set.
+
     // Apply pickup time filter. For redacted students, missing pickup_time
     // due to has_full_access=false is not the same as "no schedule")
     if (pickupTimeFilter !== "all") {
@@ -1371,33 +1729,7 @@ function SearchPageContent() {
 
     return [...filteredStudents].sort((a, b) => {
       if (sortMode === "pickup") {
-        const statusA = getStudentTimeStatus({
-          plannedTime: a.pickup_time,
-          actualTime: a.actual_pickup_time,
-          now,
-          sick: a.sick,
-          excused: a.excused,
-        });
-        const statusB = getStudentTimeStatus({
-          plannedTime: b.pickup_time,
-          actualTime: b.actual_pickup_time,
-          now,
-          sick: b.sick,
-          excused: b.excused,
-        });
-        const rankA = getTimeStatusSortRank(statusA);
-        const rankB = getTimeStatusSortRank(statusB);
-        if (rankA !== rankB) return rankA - rankB;
-
-        const timeA = a.pickup_time;
-        const timeB = b.pickup_time;
-        if (timeA && !timeB) return -1;
-        if (!timeA && timeB) return 1;
-        if (timeA && timeB) {
-          const timeCmp = timeA.localeCompare(timeB);
-          if (timeCmp !== 0) return timeCmp;
-        }
-        return compareByName(a, b);
+        return compareByPickupTime(a, b, now);
       }
 
       const aHome = isHomeLocation(a.current_location);
@@ -1605,6 +1937,11 @@ function SearchPageContent() {
             if (selectedGroup) qs.set("group_id", selectedGroup);
             if (selectedYear !== "all") qs.set("year", selectedYear);
             if (attendanceFilter !== "all") qs.set("status", attendanceFilter);
+            if (busFilter !== "all") qs.set("bus", busFilter);
+            if (effectivePhotoConsentFilter !== "all")
+              qs.set("photo_consent", effectivePhotoConsentFilter);
+            if (pickupStatusFilter !== "all")
+              qs.set("pickup_status", pickupStatusFilter);
             if (dayStatusFilter !== "all")
               qs.set("day_status", dayStatusFilter);
             if (pickupTimeFilter !== "all")

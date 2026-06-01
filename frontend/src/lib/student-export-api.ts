@@ -26,8 +26,12 @@ export type StudentExportColumn =
 export interface StudentExportFilters {
   search?: string;
   group_id?: string;
+  room_id?: string;
   year?: string;
   status?: string;
+  bus?: string;
+  photo_consent?: string;
+  pickup_status?: string;
   day_status?: string;
   pickup_time?: string;
   arrival_time?: string;
