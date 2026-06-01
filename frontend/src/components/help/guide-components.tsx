@@ -443,7 +443,11 @@ function StepCard({
           {item.checklist ? <Checklist items={item.checklist} /> : null}
           {item.callout ? <Callout callout={item.callout} /> : null}
 
-          <Screenshot image={item.image} caption={item.screenshot} />
+          {item.gallery ? (
+            <ScreenshotGallery items={item.gallery} />
+          ) : (
+            <Screenshot image={item.image} caption={item.screenshot} />
+          )}
         </div>
       </div>
     </article>
@@ -515,5 +519,36 @@ function Screenshot({
         </span>
       </figcaption>
     </figure>
+  );
+}
+
+function ScreenshotGallery({
+  items,
+}: {
+  readonly items: readonly {
+    readonly image: string;
+    readonly caption: string;
+  }[];
+}) {
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2 print:gap-3">
+      {items.map((item) => (
+        <figure
+          key={item.image}
+          className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm print:[break-inside:avoid] print:border-gray-300 print:shadow-none"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={item.image}
+            alt={item.caption}
+            loading="lazy"
+            className="block w-full"
+          />
+          <figcaption className="border-t border-gray-100 px-3 py-2 text-xs leading-5 text-gray-500 print:border-gray-200">
+            {item.caption}
+          </figcaption>
+        </figure>
+      ))}
+    </div>
   );
 }

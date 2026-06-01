@@ -3,6 +3,7 @@ import {
   Building2,
   CalendarDays,
   CalendarRange,
+  CircleStop,
   ClipboardCheck,
   ClipboardList,
   Clock3,
@@ -11,11 +12,18 @@ import {
   FileText,
   KeyRound,
   LayoutDashboard,
+  LifeBuoy,
   MessageSquare,
+  Nfc,
+  PlayCircle,
+  PlugZap,
   Repeat,
+  ScanLine,
   Search,
+  SlidersHorizontal,
   TabletSmartphone,
   Users,
+  Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -43,6 +51,15 @@ export interface GuideStep {
   readonly screenshot: string;
   /** Path under /public to the screenshot image. Falls back to a placeholder. */
   readonly image?: string;
+  /**
+   * Ordered sequence of tablet screens for this step. When present it renders
+   * as a captioned grid instead of the single `image` — used by the NFC manual
+   * so every tablet state from the printed guide is shown, not just one.
+   */
+  readonly gallery?: readonly {
+    readonly image: string;
+    readonly caption: string;
+  }[];
   /** Shown instead of a number badge on function-reference pages. */
   readonly icon?: LucideIcon;
 }
@@ -91,12 +108,12 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
   {
     href: "/help/nfc",
     title: "NFC & Tablets",
-    body: "Zusätzliche Schritte nur für Einrichtungen mit Tablets oder NFC-Armbändern.",
+    body: "Das komplette Tablet-Handbuch für Einrichtungen mit NFC-Armbändern – vom Aufstellen bis zum Support.",
     icon: TabletSmartphone,
     points: [
-      "Kinder vor der Armband-Zuweisung prüfen",
-      "Räume und Aktivitäten tablet-tauglich benennen",
-      "Geräte prüfen und ersten Einsatz absichern",
+      "Gerät aufstellen, anmelden und Armbänder zuweisen",
+      "Aufsicht starten, Kinder ein- und auschecken",
+      "Einstellungen, Fehlerbehebung und Support",
     ],
   },
 ];
@@ -632,21 +649,84 @@ export const appChapters: readonly GuideChapter[] = [
   },
 ];
 
-/** NFC & Tablets: additional preparation steps, only for NFC schools. */
+/**
+ * NFC & Tablets: the complete tablet manual, mirroring the printed
+ * "Bedienungsanleitung NFC-Tablet für die OGS" chapter for chapter, with two
+ * extra web-app chapters (data prep, settings) that the print version omits.
+ */
 export const nfcChapters: readonly GuideChapter[] = [
+  {
+    id: "nfc-hardware",
+    title: "Ihr neues NFC-Tablet",
+    description:
+      "Das NFC-Tablet ist ein eigenständiges Gerät, das ausschließlich die moto-Anwendung ausführt. Wartung und Updates erfolgen vollständig aus der Ferne durch das moto-Team.",
+    icon: TabletSmartphone,
+    tone: "blue",
+    steps: [
+      {
+        id: "nfc-lieferumfang",
+        title: "Lieferumfang und Anschlüsse",
+        summary:
+          "Das Gerät ist sofort einsatzbereit. Zusätzliche Installationen, Registrierungen oder Konfigurationsschritte sind nicht nötig – Netzwerk und Software sind vorkonfiguriert.",
+        steps: [
+          "Lieferumfang prüfen: `1x NFC-Tablet` mit Touchscreen und NFC-Leser sowie `1x fest montiertes Netzkabel`.",
+          "Vorderseite: Der `NFC-Sensor` sitzt unten am Standfuß – hier halten die Kinder später ihr Armband an.",
+          "Rückseite: `LAN-Anschluss` für eine optionale Kabelverbindung und die `VESA-Halterung` für Tisch- oder Wandmontage.",
+          "Das `Stromkabel` ist fest montiert und muss nur in eine Steckdose gesteckt werden.",
+        ],
+        callout: {
+          title: "Kein herkömmliches Tablet",
+          body: "Auf dem Gerät lassen sich keine weiteren Apps installieren. Das macht es besonders sicher, stabil und einfach zu bedienen. Bei Bedarf können Sie über den VESA-Standard eine Halterung Ihrer Wahl montieren.",
+          tone: "gray",
+        },
+        screenshot:
+          "Vorder- und Rückansicht des NFC-Tablets mit NFC-Sensor, LAN-Anschluss, VESA-Halterung und fest montiertem Stromkabel.",
+      },
+    ],
+  },
+  {
+    id: "nfc-aufstellen",
+    title: "Gerät aufstellen & einschalten",
+    description:
+      "Aufstellen, einstecken, fertig. Das Gerät startet bei Stromzufuhr automatisch und ist innerhalb weniger Minuten einsatzbereit – ein Einschaltknopf ist nicht vorhanden.",
+    icon: PlugZap,
+    tone: "blue",
+    steps: [
+      {
+        id: "nfc-aufstellen-schritte",
+        title: "Aufstellen, einstecken und starten",
+        summary:
+          "Platzieren Sie das Tablet gut erreichbar für die Kinder, verbinden Sie das Netzkabel und warten Sie den Startbildschirm ab.",
+        steps: [
+          "`Standort wählen`: in der Nähe des Eingangsbereichs oder an einem zentralen Ort, an dem die Kinder regelmäßig vorbeikommen. Eine Steckdose muss in der Nähe sein.",
+          "`Befestigen`: per VESA-Standhalterung auf dem Tisch oder per VESA-Wandhalterung. Achten Sie darauf, dass das Kabel keine Stolperfalle bildet und der NFC-Sensor für die Kinder frei zugänglich bleibt.",
+          "`Einstecken`: Netzkabel mit der Steckdose verbinden. Das Gerät startet automatisch und zeigt zunächst einen Ladebildschirm.",
+          "`Warten`: Nach ca. 1–2 Minuten erscheint der Startbildschirm mit `Willkommen bei moto!`. Sobald er sichtbar ist, ist das Gerät einsatzbereit.",
+        ],
+        callout: {
+          title: "Netzwerkverbindung",
+          body: "Das Tablet ist bereits mit dem WLAN Ihrer Einrichtung verbunden; alternativ ist eine LAN-Verbindung möglich. Oben rechts zeigt ein kleines Netzwerk-Symbol den Status: grün bedeutet, dass alles in Ordnung ist. Erscheint es rot oder fehlt es ganz, prüfen Sie Ihre Internetverbindung oder wenden sich an den moto-Support.",
+          tone: "blue",
+        },
+        screenshot:
+          "Tablet-Startbildschirm mit moto-Logo und der Begrüßung „Willkommen bei moto!“.",
+        image: "/help/screens/nfc-tablet-willkommen.png",
+      },
+    ],
+  },
   {
     id: "nfc-vorbereiten",
     title: "Daten und Geräte vorbereiten",
     description:
-      "NFC funktioniert erst sauber, wenn Kinder, Namen und Geräte in moto stimmen.",
-    icon: TabletSmartphone,
-    tone: "blue",
+      "Bevor Sie Armbänder zuweisen, sollten Kinder, Namen und Geräte in moto stimmen. Dieser Schritt passiert im Browser, nicht am Tablet.",
+    icon: ClipboardCheck,
+    tone: "orange",
     steps: [
       {
         id: "nfc-kinder-vorbereiten",
         title: "Kinder vor der Armband-Zuweisung prüfen",
         summary:
-          "NFC funktioniert erst sauber, wenn jedes Kind in moto eindeutig vorhanden ist.",
+          "NFC funktioniert erst sauber, wenn jedes Kind in moto eindeutig vorhanden ist. Die Kinder müssen vor der Zuweisung in der moto-App angelegt sein.",
         steps: [
           "`Kindersuche` öffnen.",
           "Kind über den Nachnamen suchen.",
@@ -657,6 +737,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Kindersuche mit eindeutig gefundenem Kind vor NFC-Zuweisung.",
+        image: "/help/screens/kindersuche.png",
       },
       {
         id: "nfc-namen",
@@ -672,6 +753,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Datenverwaltung mit klar benannten Räumen, Gruppen und Aktivitäten.",
+        image: "/help/screens/datenverwaltung.png",
       },
       {
         id: "nfc-geraete-pruefen",
@@ -686,32 +768,432 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Gerätedetail mit Geräte-ID, Gerätetyp, Status und Verbindung.",
+        image: "/help/screens/nfc-geraete-pruefen.png",
       },
     ],
   },
   {
-    id: "nfc-erster-einsatz-kapitel",
-    title: "Vor dem ersten Einsatz",
+    id: "nfc-anmelden",
+    title: "Am Tablet anmelden",
     description:
-      "Eine letzte Prüfung, bevor die Tablets in den echten Betreuungsalltag gehen.",
-    icon: ClipboardCheck,
+      "Eine PIN stellt sicher, dass nur berechtigte Mitarbeitende auf das System zugreifen und keine Kinder. Die Anmeldung ist bewusst einfach gehalten.",
+    icon: KeyRound,
     tone: "green",
     steps: [
       {
-        id: "nfc-erster-einsatz",
-        title: "Checkliste vor dem ersten Tablet-Einsatz",
+        id: "nfc-tablet-anmelden",
+        title: "Mit PIN anmelden",
         summary:
-          "Letzte Prüfung für Kinder, Gruppen, Räume, Aktivitäten, Geräte und Teamwissen.",
-        checklist: [
-          "Kinder stichprobenartig in der `Kindersuche` prüfen.",
-          "Gruppen, Räume und Aktivitäten prüfen.",
-          "Gerätestatus prüfen.",
-          "Ein Tablet mit einem Demo- oder Testablauf durchspielen.",
-          "Dem Team erklären, was bei „Kind nicht gefunden“ zu tun ist.",
-          "Festlegen, wer am ersten Tag Datenfehler korrigiert.",
+          "Bevor Sie Armbänder zuweisen oder eine Aufsicht starten, melden Sie sich mit Ihrer PIN am Tablet an.",
+        steps: [
+          "Auf dem Startbildschirm auf den großen Button `Anmelden` tippen.",
+          "Im Zahlenfeld die 4-stellige PIN Ihrer Einrichtung eingeben. Jede Ziffer wird als Punkt angezeigt, damit niemand mitlesen kann.",
+          "Nach der vierten Ziffer prüft das Tablet die PIN automatisch – einen `Bestätigen`-Button gibt es nicht.",
+          "Bei korrekter Eingabe öffnet sich das `Menü`. Bei falscher PIN erscheint eine Fehlermeldung; mit der `C`-Taste löschen Sie die gesamte Eingabe.",
+        ],
+        callout: {
+          title: "Standard-PIN ändern",
+          body: "Die Standard-PIN bei Auslieferung ist `1234`. Ändern Sie sie nach der ersten Anmeldung im Browser unter `Einstellungen` → `Geräte` → `OGS Geräte-PIN`. Bei vergessener PIN wenden Sie sich an Ihre OGS-Leitung oder den moto-Support.",
+          tone: "gray",
+        },
+        screenshot:
+          "Tablet mit PIN-Eingabe und Tastenfeld für die 4-stellige PIN.",
+        gallery: [
+          {
+            image: "/help/screens/nfc-tablet-pin.png",
+            caption: "PIN-Eingabe: 4-stellige PIN über das Zahlenfeld.",
+          },
+          {
+            image: "/help/screens/nfc-tablet-menue.png",
+            caption: "Menü nach erfolgreicher Anmeldung.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "nfc-armbaender-zuweisen",
+    title: "Armbänder den Kindern zuweisen",
+    description:
+      "Vor der ersten Nutzung bekommt jedes Kind einmalig ein NFC-Armband zugewiesen. Das passiert direkt am Tablet und dauert pro Kind nur wenige Sekunden.",
+    icon: Nfc,
+    tone: "green",
+    steps: [
+      {
+        id: "nfc-armband-scannen",
+        title: "Armband scannen und erkennen",
+        summary:
+          "Über `Armband identifizieren` lesen Sie ein Armband ein und sehen sofort seinen Status.",
+        steps: [
+          "Im `Menü` oben links auf `Armband identifizieren` tippen.",
+          "Auf `Scan starten` tippen und das Armband des Kindes flach an den NFC-Sensor unten am Tablet halten.",
+          "Nach etwa einer Sekunde erscheint `Armband wird erkannt …` mit einem blauen Lade-Symbol.",
+          "Das Tablet meldet `Armband erkannt` und zeigt, ob das Armband bereits einem Kind zugewiesen oder noch frei ist.",
+        ],
+        callout: {
+          title: "Auf dem Armband stehen keine Daten",
+          body: "Jedes Armband enthält nur eine zufällige Nummer – keine Namen oder Fotos. Erst die Zuweisung im System verbindet sie mit einem Kind. Geht ein Armband verloren, kann niemand persönliche Informationen auslesen. Die Armbänder sind wasserfest, robust und ohne Batterie für den Dauergebrauch im Schulalltag gemacht.",
+          tone: "gray",
+        },
+        screenshot:
+          "Tablet-Bildschirm „Armband identifizieren“ mit Button „Scan starten“.",
+        gallery: [
+          {
+            image: "/help/screens/nfc-armband-scan.png",
+            caption: "„Scan starten“ und Armband an den NFC-Sensor halten.",
+          },
+          {
+            image: "/help/screens/nfc-armband-wird-erkannt.png",
+            caption: "„Armband wird erkannt …“ mit blauem Lade-Symbol.",
+          },
+          {
+            image: "/help/screens/nfc-armband-erkannt-frei.png",
+            caption: "„Armband erkannt“ – hier noch keinem Kind zugewiesen.",
+          },
+        ],
+      },
+      {
+        id: "nfc-armband-zuweisen",
+        title: "Kind auswählen und Armband zuweisen",
+        summary:
+          "Aus der Liste das richtige Kind wählen und es dauerhaft mit dem Armband verbinden.",
+        steps: [
+          "Bei einem freien Armband auf `Person auswählen` tippen.",
+          "Es öffnet sich eine Liste aller Kinder und Mitarbeitenden, jeweils mit Name und Zugehörigkeit (Gruppe, Klasse).",
+          "Die Liste über `Klasse` und `OGS-Gruppe` eingrenzen oder mit der Seitennavigation blättern.",
+          "Das richtige Kind antippen – die Auswahl wird farbig hervorgehoben.",
+          "Mit `Armband zuweisen` bestätigen – es erscheint `Erfolgreich!` mit dem Namen des Kindes.",
+          "Mit `Weiteres Armband scannen` direkt das nächste Kind vorbereiten.",
+        ],
+        callout: {
+          title: "Kind nicht in der Liste?",
+          body: "Prüfen Sie in der Web-`Kindersuche`, ob das Kind angelegt ist und nicht doppelt existiert. Neue Kinder zuerst in der `Datenverwaltung` anlegen, dann am Tablet zuweisen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Tablet-Bildschirm „Person auswählen“ mit Filtern nach Klasse und OGS-Gruppe und dem Button „Armband zuweisen“.",
+        gallery: [
+          {
+            image: "/help/screens/nfc-person-auswaehlen.png",
+            caption:
+              "„Person auswählen“: Liste aller Kinder und Mitarbeitenden.",
+          },
+          {
+            image: "/help/screens/nfc-person-gefiltert.png",
+            caption: "Über Klasse und OGS-Gruppe eingrenzen.",
+          },
+          {
+            image: "/help/screens/nfc-person-ausgewaehlt.png",
+            caption: "Kind antippen – die Auswahl wird grün hervorgehoben.",
+          },
+          {
+            image: "/help/screens/nfc-armband-erfolg.png",
+            caption: "„Erfolgreich!“ – das Armband ist dem Kind zugewiesen.",
+          },
+        ],
+      },
+      {
+        id: "nfc-armband-wechseln",
+        title: "Zuweisung ändern oder aufheben",
+        summary:
+          "Wenn ein Kind die Einrichtung verlässt oder ein Armband getauscht wird, lösen oder ändern Sie die bestehende Zuweisung.",
+        steps: [
+          "Erneut `Armband identifizieren` öffnen und das Armband scannen.",
+          "Das Tablet zeigt unter `Aktuell zugewiesen an:` das aktuelle Kind.",
+          "Für einen Wechsel auf `Anderer Person zuweisen` tippen und das neue Kind wählen.",
+          "Zum vollständigen Lösen auf `Armband freigeben` (rot) tippen.",
+          "Die Rückfrage mit `Ja` bestätigen – danach ist das Armband wieder frei.",
+        ],
+        callout: {
+          title: "Gefahrlos neu zuweisen",
+          body: "Ein freigegebenes Armband kann jederzeit gefahrlos einem neuen Kind zugewiesen werden, da auf dem Armband selbst keine persönlichen Daten gespeichert sind.",
+          tone: "gray",
+        },
+        screenshot:
+          "Tablet zeigt das aktuell zugewiesene Kind mit „Anderer Person zuweisen“ und „Armband freigeben“.",
+        image: "/help/screens/nfc-armband-wechseln.png",
+      },
+    ],
+  },
+  {
+    id: "nfc-aufsicht-starten",
+    title: "Eine Aufsicht starten",
+    description:
+      "Bevor Kinder ein- und auschecken können, muss eine Aufsicht gestartet werden. Sie beschreibt, welche Aktivität stattfindet, wer betreut und in welchem Raum – in drei einfachen Schritten.",
+    icon: PlayCircle,
+    tone: "orange",
+    steps: [
+      {
+        id: "nfc-aufsicht-auswahl",
+        title: "Aktivität, Team und Raum wählen",
+        summary:
+          "Drei Fragen führen durch den Start: Was machen wir, wer ist dabei und wo machen wir das?",
+        steps: [
+          "Im `Menü` auf den großen Button `Aufsicht starten` tippen.",
+          "`Was machen wir?`: die Aktivität antippen (sie wird grün umrandet) und mit `Weiter` bestätigen.",
+          "`Wer ist dabei?`: alle beteiligten Betreuerinnen und Betreuer antippen – mindestens eine Person ist nötig. Dann `Weiter`.",
+          "`Wo machen wir das?`: den Raum antippen und mit `Weiter` bestätigen.",
+        ],
+        callout: {
+          title: "Tipp: Letzte Aufsicht wiederholen",
+          body: "`Letzte Aufsicht wiederholen` im Menü übernimmt Aktivität, Team und Raum der vorherigen Aufsicht automatisch – praktisch für wiederkehrende Nachmittagsangebote.",
+          tone: "blue",
+        },
+        screenshot:
+          "Tablet-Bildschirm „Was machen wir?“ mit grün markierter Aktivität und „Weiter“.",
+        gallery: [
+          {
+            image: "/help/screens/nfc-aktivitaet-leer.png",
+            caption: "„Was machen wir?“ – Aktivitäten zur Auswahl.",
+          },
+          {
+            image: "/help/screens/nfc-aktivitaet-waehlen.png",
+            caption: "Aktivität antippen (grün) und mit „Weiter“ bestätigen.",
+          },
+          {
+            image: "/help/screens/nfc-wer-ist-dabei-leer.png",
+            caption: "„Wer ist dabei?“ – verfügbare Betreuer.",
+          },
+          {
+            image: "/help/screens/nfc-wer-ist-dabei.png",
+            caption: "Mindestens eine Person wählen, dann „Weiter“.",
+          },
+          {
+            image: "/help/screens/nfc-raum-waehlen.png",
+            caption: "„Wo machen wir das?“ – den Raum antippen.",
+          },
+        ],
+      },
+      {
+        id: "nfc-aufsicht-bestaetigen",
+        title: "Aufsicht prüfen und starten",
+        summary:
+          "Eine Zusammenfassung zeigt Aktivität, Team und Raum auf einen Blick, bevor die Aufsicht beginnt.",
+        steps: [
+          "Im Fenster `Aufsicht starten?` die gewählte Aktivität, die Anzahl der Betreuer und den Raum prüfen.",
+          "Bei einem Fehler über den Zurück-Pfeil zu den vorherigen Schritten navigieren.",
+          "Mit dem grünen Button `Aufsicht starten` bestätigen und den NFC-Scanner aktivieren.",
+          "Das Tablet wechselt zum Hauptbildschirm mit Aktivität, Raum und einem großen Zähler. Ab jetzt können sich die Kinder ein- und auschecken.",
         ],
         screenshot:
-          "NFC-Prüfliste mit Kindern, Gruppen, Räumen, Aktivitäten und Geräten.",
+          "Bestätigungsfenster „Aufsicht starten?“ mit Aktivität, Betreuer und Raum.",
+        image: "/help/screens/nfc-aufsicht-bestaetigen.png",
+      },
+    ],
+  },
+  {
+    id: "nfc-ein-auschecken",
+    title: "Kinder ein- und auschecken",
+    description:
+      "Das Ein- und Auschecken ist die zentrale Funktion im Alltag. Die Kinder halten einfach ihr Armband an den NFC-Sensor, den Rest erledigt das System – ein Eingreifen durch die Betreuenden ist nicht nötig.",
+    icon: ScanLine,
+    tone: "green",
+    steps: [
+      {
+        id: "nfc-kinder-einchecken",
+        title: "Kinder einchecken",
+        summary:
+          "Sobald eine Aufsicht läuft, meldet jedes Armband das Kind automatisch für die aktuelle Aktivität an.",
+        steps: [
+          "Der Hauptbildschirm zeigt die Aktivität, den Raum und einen großen Zähler der eingecheckten Kinder.",
+          "Ein noch nicht eingechecktes Kind hält sein Armband an den NFC-Sensor.",
+          "Es erscheint eine große grüne Bestätigung mit `Hallo …!`, der Abholzeit und dem aktuellen Raum.",
+          "Die Anzeige schließt sich nach wenigen Sekunden automatisch und der Zähler erhöht sich um eins.",
+        ],
+        screenshot:
+          "Tablet zeigt die Check-in-Bestätigung „Hallo Linus!“ mit Abholzeit und Raum.",
+        gallery: [
+          {
+            image: "/help/screens/nfc-hauptbildschirm.png",
+            caption: "Hauptbildschirm mit Aktivität, Raum und Zähler.",
+          },
+          {
+            image: "/help/screens/nfc-kind-eingecheckt.png",
+            caption: "„Hallo Linus!“ mit Abholzeit und aktuellem Raum.",
+          },
+        ],
+      },
+      {
+        id: "nfc-kinder-auschecken",
+        title: "Kinder auschecken",
+        summary:
+          "Hält ein bereits eingechecktes Kind sein Armband erneut an, fragt das Tablet, wohin es geht.",
+        steps: [
+          "Das Kind scannt sein Armband erneut – es erscheint `Wohin geht …?`.",
+          "`Raumwechsel`: das Kind wechselt in einen anderen Raum.",
+          "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz.",
+          "`Toilette`: das Kind verlässt den Raum kurz für einen Toilettengang.",
+          "`nach Hause`: das Kind wird abgeholt und verlässt die Einrichtung. Danach erscheint optional ein freiwilliges Tages-Feedback über drei Emojis (gut, okay, schlecht).",
+        ],
+        callout: {
+          title: "Welche Buttons erscheinen",
+          body: "Welche Ziele unter `Wohin geht …?` angezeigt werden, steuern Sie in den Einstellungen unter `Geräte` (siehe Kapitel „NFC-Einstellungen prüfen“). `Schulhof` und `Toilette` legen automatisch einen passenden Raum an.",
+          tone: "gray",
+        },
+        screenshot:
+          "Tablet-Bildschirm „Wohin geht …?“ mit Raumwechsel, Schulhof, Toilette und nach Hause.",
+        image: "/help/screens/nfc-auschecken.png",
+      },
+    ],
+  },
+  {
+    id: "nfc-aufsicht-beenden",
+    title: "Aufsicht beenden & weitere Funktionen",
+    description:
+      "Neben dem Ein- und Auschecken können Sie eine laufende Aufsicht beenden, das Team anpassen und sich abmelden.",
+    icon: CircleStop,
+    tone: "purple",
+    steps: [
+      {
+        id: "nfc-aufsicht-abschliessen",
+        title: "Aufsicht beenden und abmelden",
+        summary:
+          "Am Ende der Betreuungszeit die Aufsicht abschließen und das Tablet wieder sperren.",
+        steps: [
+          "Auf dem Hauptbildschirm oben rechts auf `Anmelden` tippen und die 4-stellige PIN eingeben.",
+          "Im Menü oben rechts auf `Aufsicht beenden` tippen und im Dialog mit `Ja, beenden` bestätigen – alle eingecheckten Kinder werden automatisch ausgecheckt.",
+          "Über `Abmelden` kehrt das Tablet zum Startbildschirm zurück.",
+        ],
+        callout: {
+          title: "Am Tagesende",
+          body: "Sie können das Tablet am Ende des Tages auch einfach vom Strom trennen. Die laufende Aufsicht wird dann ebenfalls automatisch beendet und alle Kinder ausgecheckt.",
+          tone: "gray",
+        },
+        screenshot: "Tablet-`Menü` mit `Aufsicht beenden` und `Abmelden`.",
+        image: "/help/screens/nfc-tablet-menue.png",
+      },
+      {
+        id: "nfc-team-anpassen",
+        title: "Team während der Aufsicht anpassen",
+        summary:
+          "Ändert sich das Betreuungsteam, passen Sie es an, ohne die Aufsicht neu starten zu müssen.",
+        steps: [
+          "Im Menü auf `Team anpassen` tippen.",
+          "In der Personenauswahl Teammitglieder hinzufügen oder entfernen – ausgewählte Personen werden grün markiert.",
+          "Mit `Team speichern` bestätigen.",
+          "Eine grüne Meldung `Team erfolgreich gespeichert!` bestätigt die Aktualisierung.",
+        ],
+        screenshot:
+          "Tablet-Bildschirm „Team anpassen“ mit grün markierten Personen und „Team speichern“.",
+        gallery: [
+          {
+            image: "/help/screens/nfc-team-leer.png",
+            caption: "„Team anpassen“: aktuelle Personenauswahl.",
+          },
+          {
+            image: "/help/screens/nfc-team-anpassen.png",
+            caption: "Personen hinzufügen oder entfernen (grün markiert).",
+          },
+          {
+            image: "/help/screens/nfc-team-gespeichert.png",
+            caption: "„Team erfolgreich gespeichert!“",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "nfc-einstellungen-kapitel",
+    title: "NFC-Einstellungen prüfen",
+    description:
+      "Einige NFC-Einstellungen legen Sie einmal im Browser fest. Sie steuern, was das Tablet anzeigt. Diese Optionen stehen nur online zur Verfügung.",
+    icon: SlidersHorizontal,
+    tone: "purple",
+    steps: [
+      {
+        id: "nfc-einstellungen-geraete",
+        title: "Geräte-Einstellungen anpassen",
+        summary:
+          "PIN und die Auswahl-Buttons des Tablets legen Sie im Browser unter `Einstellungen` fest.",
+        steps: [
+          "Im Browser die `Einstellungen` öffnen und den Tab `Geräte` wählen.",
+          "Unter `OGS Geräte-PIN` die 4-stellige PIN setzen, mit der sich das Team am Tablet anmeldet.",
+          "Mit `Raumwechsel-Button anzeigen`, `Schulhof-Button anzeigen` und `Toilette-Button anzeigen` festlegen, welche Ziele beim Auschecken (`Wohin geht …?`) erscheinen.",
+          "Änderungen werden automatisch gespeichert und beim nächsten Start vom Tablet übernommen.",
+        ],
+        callout: {
+          title: "Weniger ist mehr",
+          body: "`Schulhof` und `Toilette` legen automatisch einen passenden Raum an. Aktivieren Sie nur die Buttons, die Ihre Einrichtung wirklich nutzt – weniger Auswahl ist für die Kinder am Tablet einfacher.",
+          tone: "blue",
+        },
+        screenshot:
+          "Einstellungen, Tab `Geräte` mit OGS Geräte-PIN und Button-Schaltern.",
+        image: "/help/screens/nfc-einstellungen-geraete.png",
+      },
+      {
+        id: "nfc-einstellungen-betrieb",
+        title: "Abmeldezeit und Anwesenheits-Modus",
+        summary:
+          "Im Tab `Betrieb` steuern Sie, ab wann Kinder nach Hause auschecken können.",
+        steps: [
+          "In den `Einstellungen` den Tab `Betrieb` öffnen.",
+          "Unter `Tägliche Abmeldezeit` festlegen, ab wann Kinder über `nach Hause` ausgecheckt werden können. Bleibt das Feld leer, ist das Auschecken jederzeit möglich.",
+        ],
+        callout: {
+          title: "Anwesenheits-Modus nur über das moto-Team",
+          body: "Der `Anwesenheits-Modus` (detailliert mit Räumen oder binär nur an-/abwesend) verändert grundlegend, wie das Tablet arbeitet, und wird aus Sicherheitsgründen nur vom moto-Team umgestellt. Melden Sie sich dafür beim Support.",
+          tone: "gray",
+        },
+        screenshot: "Einstellungen, Tab `Betrieb` mit Tägliche Abmeldezeit.",
+        image: "/help/screens/nfc-einstellungen-betrieb.png",
+      },
+    ],
+  },
+  {
+    id: "nfc-fehlerbehebung",
+    title: "Fehlerbehebung",
+    description:
+      "In den meisten Fällen funktioniert das NFC-Tablet zuverlässig. Die häufigsten Störungen lassen sich in wenigen Sekunden ohne technische Kenntnisse beheben.",
+    icon: Wrench,
+    tone: "red",
+    steps: [
+      {
+        id: "nfc-fehler-haeufig",
+        title: "Häufige Probleme schnell lösen",
+        summary:
+          "Die fünf häufigsten Situationen und wie Sie sie direkt am Gerät beheben.",
+        steps: [
+          "`Armband wird nicht erkannt`: Armband ruhig und mittig flach auf den NFC-Sensor legen und ca. 1–2 Sekunden halten. Hilft das nicht, ein anderes Armband testen, sonst Gerät neu starten.",
+          "`PIN wird nicht akzeptiert`: Prüfen, ob die richtige PIN eingegeben wird. Sie kann von der OGS-Leitung geändert worden sein – im Zweifel dort nach der aktuellen PIN fragen.",
+          "`Kein Internet / Verbindungsprobleme`: Netzwerk-Symbol oben rechts prüfen. Ist es rot oder durchgestrichen, das Gerät neu starten. Bleibt das Problem, den WLAN-Router prüfen oder den IT-Dienstleister kontaktieren.",
+          "`App reagiert nicht / Bildschirm eingefroren`: Gerät für ca. 10 Sekunden vom Strom trennen und wieder einstecken. Die moto-App startet automatisch neu und ist nach ca. 1–2 Minuten wieder einsatzbereit.",
+          "`Falsches Kind wird beim Scannen angezeigt`: Über `Armband identifizieren` das Armband scannen, die aktuelle Zuweisung prüfen, die falsche Zuweisung aufheben und das Armband dem richtigen Kind zuweisen.",
+        ],
+        callout: {
+          title: "Neustart hilft fast immer",
+          body: "Bei nahezu allen technischen Problemen hilft ein Neustart: Gerät ca. 10 Sekunden vom Strom trennen und wieder einstecken. Ein Einschaltknopf ist nicht nötig.",
+          tone: "gray",
+        },
+        screenshot:
+          "Übersicht der häufigsten Störungen am NFC-Tablet und ihrer Lösungen.",
+      },
+    ],
+  },
+  {
+    id: "nfc-kontakt",
+    title: "Kontakt & Support",
+    description:
+      "Bei Fragen, technischen Problemen oder Anregungen rund um das NFC-Tablet, die Armbänder und die moto-Software steht Ihnen das Support-Team zur Verfügung.",
+    icon: LifeBuoy,
+    tone: "blue",
+    steps: [
+      {
+        id: "nfc-support-erreichen",
+        title: "Support erreichen",
+        summary:
+          "Unser Support-Team kennt die Abläufe im OGS-Alltag und hilft bei allen Fragen weiter.",
+        steps: [
+          "E-Mail: `kontakt@moto.nrw`",
+          "Website: `moto.nrw`",
+          "Standort: Münster, NRW",
+        ],
+        callout: {
+          title: "Vorab die Fehlerbehebung prüfen",
+          body: "Viele Störungen lassen sich mit dem Kapitel „Fehlerbehebung“ in wenigen Sekunden selbst beheben – ein Blick dorthin spart oft den Weg über den Support.",
+          tone: "blue",
+        },
+        screenshot:
+          "Kontaktübersicht mit E-Mail kontakt@moto.nrw und Website moto.nrw.",
       },
     ],
   },
