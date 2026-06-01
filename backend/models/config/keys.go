@@ -108,13 +108,13 @@ const (
 )
 
 // Parent-enrollment settings. Tenant-wide behavioural toggles only -
-// per-phase overrides (open window, form schema, overflow mode, status-
-// reason visibility) live on enrollment.phases columns.
+// per-phase overrides (open window, form schema, care offering selection,
+// overflow mode, status-reason visibility) live on enrollment.phases
+// columns.
 const (
 	KeyEnrollmentEnabled                     = "enrollment.enabled"
 	KeyEnrollmentCollectGradeLevel           = "enrollment.collect_grade_level"
 	KeyEnrollmentCareOfferingsEnabled        = "enrollment.care_offerings_enabled"
-	KeyEnrollmentCareOfferingsRequired       = "enrollment.care_offerings_required"
 	KeyEnrollmentDefaultActivationMode       = "enrollment.default_activation_mode"
 	KeyEnrollmentNotificationEmails          = "enrollment.notification_emails"
 	KeyEnrollmentAutoInviteGuardianOnApprove = "enrollment.auto_invite_guardian_on_approval"

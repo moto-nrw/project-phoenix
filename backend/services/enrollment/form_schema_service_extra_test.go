@@ -162,6 +162,62 @@ func TestFormSchemaService_UpdateSchema_InheritsNameBumpsVersion(t *testing.T) {
 		"previous version stays active under multi-schema semantics")
 }
 
+func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t *testing.T) {
+	_, svc, creatorID, repoFactory := setupFullSchemaTest(t)
+	ctx := testpkg.TenantContext(1)
+
+	name := uniqueSchemaName("RepointTest")
+	v1, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
+		{Key: "field_a", Label: "Feld A", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}, creatorID)
+	require.NoError(t, err)
+
+	phaseName := uniqueSchemaName("form-schema-extra-repoint")
+	phase := &enrollmentModels.Phase{
+		Name:              phaseName,
+		Kind:              enrollmentModels.PhaseKindSchoolYear,
+		ServiceStartDate:  time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+		ServiceEndDate:    time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		FormSchemaID:      &v1.ID,
+		IsActive:          true,
+		CareOverflowMode:  enrollmentModels.PhaseCareOverflowWaitlist,
+		EnrollmentOpenAt:  nil,
+		EnrollmentCloseAt: nil,
+	}
+	require.NoError(t, repoFactory.Phase.Create(ctx, phase))
+
+	request := &enrollmentModels.Request{
+		SchemaID:          &v1.ID,
+		PhaseID:           phase.ID,
+		GuardianFirstName: "Form",
+		GuardianLastName:  "Schema",
+		GuardianEmail:     "form-schema-extra-repoint@test",
+		ConsentFlags:      map[string]any{},
+		CustomData:        map[string]any{},
+		StatusToken:       "form-schema-extra-repoint-" + time.Now().Format("150405.000000"),
+		SubmittedAt:       time.Now().UTC(),
+	}
+	require.NoError(t, repoFactory.Request.Create(ctx, request))
+
+	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentModels.FormField{
+		{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentModels.FormFieldText, SortOrder: 0, Required: true},
+	}, creatorID)
+	require.NoError(t, err)
+	require.NotEqual(t, v1.ID, v2.ID)
+
+	gotPhase, err := repoFactory.Phase.FindByID(ctx, phase.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotPhase.FormSchemaID)
+	assert.Equal(t, v2.ID, *gotPhase.FormSchemaID,
+		"phase must follow the newly published version of the same logical schema")
+
+	gotRequest, err := repoFactory.Request.FindByID(ctx, request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotRequest.SchemaID)
+	assert.Equal(t, v1.ID, *gotRequest.SchemaID,
+		"already-submitted requests must keep their original schema_id pin")
+}
+
 func TestFormSchemaService_UpdateSchema_RejectsCoreFieldKey(t *testing.T) {
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.TenantContext(1)

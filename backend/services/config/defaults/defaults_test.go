@@ -70,13 +70,12 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Parent-enrollment PR 3: guardian invitation token expiry.
 		"invitations.guardian_token_expiry_hours",
 		// Parent-enrollment registry plumbing. open_window_*,
-		// show_status_reason_to_parent, and care_overflow_mode moved
-		// to per-phase columns on enrollment.phases - they're no
-		// longer tenant-wide settings.
+		// show_status_reason_to_parent, care_overflow_mode, and
+		// care_offerings_required moved to per-phase columns on
+		// enrollment.phases - they're no longer tenant-wide settings.
 		"enrollment.enabled",
 		"enrollment.collect_grade_level",
 		"enrollment.care_offerings_enabled",
-		"enrollment.care_offerings_required",
 		"enrollment.default_activation_mode",
 		"enrollment.notification_emails",
 		"enrollment.auto_invite_guardian_on_approval",
@@ -323,7 +322,6 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 		config.KeyEnrollmentEnabled,
 		config.KeyEnrollmentCollectGradeLevel,
 		config.KeyEnrollmentCareOfferingsEnabled,
-		config.KeyEnrollmentCareOfferingsRequired,
 		config.KeyEnrollmentDefaultActivationMode,
 		config.KeyEnrollmentNotificationEmails,
 		config.KeyEnrollmentAutoInviteGuardianOnApprove,
@@ -389,12 +387,6 @@ func TestEnrollmentSettings_DependencyOnEnabled(t *testing.T) {
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
-
-	// Care-offerings-required hangs off care_offerings_enabled (nested gate),
-	// not the master toggle.
-	careRequired := config.GetDefinition(config.KeyEnrollmentCareOfferingsRequired)
-	require.NotNil(t, careRequired.DependsOn)
-	assert.Equal(t, config.KeyEnrollmentCareOfferingsEnabled, careRequired.DependsOn.Key)
 }
 
 // TestEnrollmentSelectOptions_AreCanonical guards the static option lists

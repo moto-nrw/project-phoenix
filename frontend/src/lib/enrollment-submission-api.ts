@@ -2,6 +2,11 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
 
+export type CareOfferingSelectionMode =
+  | "optional"
+  | "at_least_one"
+  | "exactly_one";
+
 export interface PublicCareOffering {
   id: string;
   phase_id?: string | null;
@@ -80,6 +85,8 @@ async function readJSON<T>(response: Response): Promise<T> {
 const SUBMISSION_ERROR_MESSAGES: Record<string, string> = {
   "enrollment.care_offering_missing":
     "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
+  "enrollment.care_offering_exactly_one":
+    "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.",
   "enrollment.required_care_offering_missing":
     "Für jedes Kind muss ein verpflichtendes Betreuungsangebot ausgewählt sein.",
   "enrollment.care_offering_full":
@@ -120,14 +127,15 @@ async function readError(response: Response, fallback: string): Promise<Error> {
 
 export interface PublicCareOfferingsResult {
   offerings: PublicCareOffering[];
+  careOfferingSelectionMode: CareOfferingSelectionMode;
   careRequired: boolean;
 }
 
 /**
  * Fetches the public care-offering catalog for a given tenant slug
- * and phase. Returns the offerings plus the tenant's
- * "care_offerings_required" flag so the form can render the hint and
- * validate before submit. The backend re-checks the flag on submit.
+ * and phase. Returns the offerings plus the phase-level selection mode
+ * so the form can render the hint and validate before submit. The
+ * backend re-checks the mode on submit.
  */
 export async function fetchPublicCareOfferings(
   tenantSlug: string,
@@ -147,11 +155,16 @@ export async function fetchPublicCareOfferings(
   }
   const payload = await readJSON<{
     offerings?: PublicCareOffering[];
+    care_offering_selection_mode?: CareOfferingSelectionMode;
     care_required?: boolean;
   }>(response);
+  const mode =
+    payload?.care_offering_selection_mode ??
+    (payload?.care_required === true ? "at_least_one" : "optional");
   return {
     offerings: Array.isArray(payload?.offerings) ? payload.offerings : [],
-    careRequired: payload?.care_required === true,
+    careOfferingSelectionMode: mode,
+    careRequired: mode !== "optional",
   };
 }
 
@@ -164,6 +177,7 @@ export interface PublicPhase {
   enrollment_open_at?: string;
   enrollment_close_at?: string;
   show_status_reason_to_parent: boolean;
+  care_offering_selection_mode: CareOfferingSelectionMode;
 }
 
 /**

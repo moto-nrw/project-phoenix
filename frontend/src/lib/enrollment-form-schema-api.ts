@@ -216,7 +216,7 @@ export function latestSchemasByName(schemas: FormSchema[]): FormSchema[] {
 
 /**
  * Public variant of fetchActiveSchema for the parent enrollment form.
- * Slug-gated, no JWT — backend resolves the tenant from the URL param
+ * Slug-gated, no JWT. Backend resolves the tenant from the URL param
  * and returns only the active schema's fields. Returns null when no
  * schema has been published yet (404), letting the form fall back to
  * core fields only without erroring out.
@@ -232,7 +232,7 @@ export interface PublicFormSchema {
  * Public Cloudflare Turnstile config for a tenant. enabled mirrors the
  * server-side enrollment.require_captcha setting; site_key is the
  * public Turnstile site key (safe to render in the widget). When
- * site_key is empty the widget is hidden and submit falls through —
+ * site_key is empty the widget is hidden and submit falls through;
  * the backend's IsEnabled check still gates verification.
  */
 export interface PublicCaptchaConfig {
@@ -284,7 +284,7 @@ export async function fetchPublicActiveSchema(
 
 /**
  * Creates a new named schema (version 1). Backend rejects when a
- * schema with the same name already exists — use updateSchema in
+ * schema with the same name already exists. Use updateSchema in
  * that case.
  */
 export async function createSchema(
@@ -315,8 +315,9 @@ export async function createSchema(
 /**
  * Publishes a new version of an existing named schema. The new row
  * inherits the source schema's name and uses max(version)+1 for that
- * name. Older versions stay in place — already-bound phases keep
- * their pinned schema_id.
+ * name. Older versions stay in place for historical submissions, and
+ * phases using an older version of this template are moved to the new
+ * schema_id.
  */
 export async function updateSchema(
   id: string,

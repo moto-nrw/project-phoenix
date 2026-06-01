@@ -45,6 +45,24 @@ var validPhaseCareOverflowModes = map[string]bool{
 	PhaseCareOverflowAllow:    true,
 }
 
+// PhaseCareOfferingSelectionMode values match
+// enrollment.phases.care_offering_selection_mode.
+//
+// The mode answers "how many care offerings must a parent choose per
+// child?". It is deliberately separate from CareOffering.IsRequired,
+// which means "this exact offering is always included".
+const (
+	PhaseCareOfferingSelectionOptional   = "optional"
+	PhaseCareOfferingSelectionAtLeastOne = "at_least_one"
+	PhaseCareOfferingSelectionExactlyOne = "exactly_one"
+)
+
+var validPhaseCareOfferingSelectionModes = map[string]bool{
+	PhaseCareOfferingSelectionOptional:   true,
+	PhaseCareOfferingSelectionAtLeastOne: true,
+	PhaseCareOfferingSelectionExactlyOne: true,
+}
+
 // PhaseRolloverMode values match enrollment.phases.rollover_mode.
 // A phase created by RolloverService gets one of these; phases created
 // from scratch leave rollover_mode NULL.
@@ -87,9 +105,10 @@ type Phase struct {
 	// as IsActive=true (DB default wins). Same gotcha we hit on
 	// care_offering's bool fields in PR 6 - see the migration's DEFAULT
 	// for the implicit init value.
-	ShowStatusReasonToParent bool   `bun:"show_status_reason_to_parent,notnull" json:"show_status_reason_to_parent"`
-	CareOverflowMode         string `bun:"care_overflow_mode,notnull" json:"care_overflow_mode"`
-	IsActive                 bool   `bun:"is_active,notnull" json:"is_active"`
+	ShowStatusReasonToParent  bool   `bun:"show_status_reason_to_parent,notnull" json:"show_status_reason_to_parent"`
+	CareOverflowMode          string `bun:"care_overflow_mode,notnull" json:"care_overflow_mode"`
+	CareOfferingSelectionMode string `bun:"care_offering_selection_mode,notnull" json:"care_offering_selection_mode"`
+	IsActive                  bool   `bun:"is_active,notnull" json:"is_active"`
 
 	// Rollover columns (migration 1.15.61). All NULL/false on phases
 	// created from scratch; populated only by RolloverService.
@@ -157,6 +176,12 @@ func (p *Phase) Validate() error {
 	}
 	if !validPhaseCareOverflowModes[p.CareOverflowMode] {
 		return fmt.Errorf("care_overflow_mode must be waitlist/reject/allow, got %q", p.CareOverflowMode)
+	}
+	if p.CareOfferingSelectionMode == "" {
+		p.CareOfferingSelectionMode = PhaseCareOfferingSelectionOptional
+	}
+	if !validPhaseCareOfferingSelectionModes[p.CareOfferingSelectionMode] {
+		return fmt.Errorf("care_offering_selection_mode must be optional/at_least_one/exactly_one, got %q", p.CareOfferingSelectionMode)
 	}
 	if p.RolloverMode != nil && !validPhaseRolloverModes[*p.RolloverMode] {
 		return fmt.Errorf("rollover_mode must be opt_in/opt_out, got %q", *p.RolloverMode)

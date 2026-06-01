@@ -78,6 +78,7 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 		Set("form_schema_id = ?", phase.FormSchemaID).
 		Set("show_status_reason_to_parent = ?", phase.ShowStatusReasonToParent).
 		Set("care_overflow_mode = ?", phase.CareOverflowMode).
+		Set("care_offering_selection_mode = ?", phase.CareOfferingSelectionMode).
 		Set("is_active = ?", phase.IsActive).
 		Set("updated_at = NOW()").
 		Where(`"phase".id = ?`, phase.ID).

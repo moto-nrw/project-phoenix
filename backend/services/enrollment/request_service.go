@@ -30,14 +30,18 @@ var (
 	ErrInvalidSubmission      = errors.New("invalid submission")
 	ErrCareOfferingClosed     = errors.New("one or more selected care offerings are not currently accepting applications")
 	ErrCareOfferingFull       = errors.New("one or more selected care offerings are at capacity")
-	// ErrCareOfferingMissing is returned when the tenant setting
-	// enrollment.care_offerings_required is true but a child in the
-	// submission has no offering selected. Mapped to 400 with a stable
-	// code so the parent form can highlight the right child.
+	// ErrCareOfferingMissing is returned when a phase requires at least
+	// one care offering per child but a child has no offering selected.
+	// Mapped to 400 with a stable code so the parent form can highlight
+	// the right child.
 	ErrCareOfferingMissing = errors.New("care offering selection is required for every child")
+	// ErrCareOfferingExactlyOneRequired is returned when a phase requires
+	// exactly one care offering per child but a child selected none or
+	// more than one.
+	ErrCareOfferingExactlyOneRequired = errors.New("exactly one care offering must be selected for every child")
 	// ErrRequiredCareOfferingMissing is returned when a care offering
 	// flagged is_required is not selected for one of the children. Unlike
-	// ErrCareOfferingMissing (the tenant-wide "at least one" gate), this
+	// ErrCareOfferingMissing (the phase-wide "at least one" gate), this
 	// targets a specific mandatory offering. Mapped to 400 with a stable
 	// code so the parent form can highlight the right child.
 	ErrRequiredCareOfferingMissing = errors.New("a required care offering was not selected for every child")
@@ -159,13 +163,6 @@ type RequestService interface {
 	// already be inside a tenant-tx so the settings repo can read the
 	// per-tenant override.
 	IsEnrollmentEnabled(ctx context.Context) bool
-
-	// IsCareOfferingsRequired reports whether the tenant setting
-	// enrollment.care_offerings_required is on. Surfaced through the
-	// public care-offerings endpoint so the parent form can render the
-	// "verpflichtend" hint and validate client-side. Defense-in-depth:
-	// Submit re-checks the setting server-side.
-	IsCareOfferingsRequired(ctx context.Context) bool
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -307,6 +304,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		return nil, err
 	}
 	if err := validateRequiredOfferings(req.Children, openByID); err != nil {
+		return nil, err
+	}
+	if err := validateCareOfferingSelectionMode(req.Children, openByID, phase.CareOfferingSelectionMode); err != nil {
 		return nil, err
 	}
 
@@ -509,7 +509,6 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 		return fmt.Errorf("%w: at least one child is required", ErrInvalidSubmission)
 	}
 	gradeMax := s.resolveGradeMax(ctx)
-	careRequired := s.IsCareOfferingsRequired(ctx)
 	for i, child := range req.Children {
 		if strings.TrimSpace(child.FirstName) == "" || strings.TrimSpace(child.LastName) == "" {
 			return fmt.Errorf("%w: child %d missing name", ErrInvalidSubmission, i)
@@ -522,9 +521,6 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 		}
 		if *child.TargetGradeLevel < 1 || int(*child.TargetGradeLevel) > gradeMax {
 			return fmt.Errorf("%w: child %d grade out of range 1..%d", ErrInvalidSubmission, i, gradeMax)
-		}
-		if careRequired && len(child.OfferingIDs) == 0 {
-			return fmt.Errorf("%w: child %d", ErrCareOfferingMissing, i)
 		}
 	}
 	return nil
@@ -676,6 +672,56 @@ func validateRequiredOfferings(children []SubmitChild, openByID map[int64]*enrol
 		for _, requiredID := range requiredIDs {
 			if !selected[requiredID] {
 				return fmt.Errorf("%w: child %d offering %d", ErrRequiredCareOfferingMissing, i, requiredID)
+			}
+		}
+	}
+	return nil
+}
+
+// validateCareOfferingSelectionMode enforces the phase's selection mode
+// over the *choosable* (non-required) offerings only. Required offerings
+// are always-on and orthogonal to the mode: they are forced by
+// validateRequiredOfferings and must not count toward "at least one" /
+// "exactly one". Counting them would make exactly_one impossible whenever
+// the phase also carries a required base offering (e.g. a mandatory care
+// package plus a choose-one-time-slot rule): the contradiction this
+// function is designed to avoid.
+func validateCareOfferingSelectionMode(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string) error {
+	if mode == "" || mode == enrollmentModels.PhaseCareOfferingSelectionOptional {
+		return nil
+	}
+	if mode != enrollmentModels.PhaseCareOfferingSelectionAtLeastOne &&
+		mode != enrollmentModels.PhaseCareOfferingSelectionExactlyOne {
+		return fmt.Errorf("%w: invalid care offering selection mode %q", ErrInvalidSubmission, mode)
+	}
+
+	for i, child := range children {
+		selected := make(map[int64]bool, len(child.OfferingIDs))
+		for _, id := range child.OfferingIDs {
+			selected[id] = true
+		}
+		for _, dayPick := range child.OfferingDays {
+			if !selected[dayPick.OfferingID] {
+				return fmt.Errorf("%w: child %d offering %d has days but is not selected", ErrInvalidSubmission, i, dayPick.OfferingID)
+			}
+		}
+		// Count only the choosable (non-required) selected offerings. An
+		// offering absent from openByID is rejected earlier by
+		// validateOfferingSelections, so treat unknown ids as choosable.
+		choosableCount := 0
+		for _, id := range child.OfferingIDs {
+			if o, ok := openByID[id]; !ok || !o.IsRequired {
+				choosableCount++
+			}
+		}
+		switch mode {
+		case enrollmentModels.PhaseCareOfferingSelectionAtLeastOne:
+			if choosableCount == 0 {
+				return fmt.Errorf("%w: child %d", ErrCareOfferingMissing, i)
+			}
+		case enrollmentModels.PhaseCareOfferingSelectionExactlyOne:
+			if choosableCount != 1 {
+				return fmt.Errorf("%w: child %d", ErrCareOfferingExactlyOneRequired, i)
 			}
 		}
 	}
@@ -1035,29 +1081,8 @@ func (s *requestService) isEnrollmentEnabled(ctx context.Context) bool {
 	return false
 }
 
-// IsCareOfferingsRequired is the public counterpart consumed by the
-// care-offerings endpoint. Tenant override → registry default; no env
-// var fallback (the setting was registered from day one).
-func (s *requestService) IsCareOfferingsRequired(ctx context.Context) bool {
-	if s.settings == nil {
-		return false
-	}
-	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentCareOfferingsRequired); err == nil && has {
-		v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsRequired)
-		if err == nil {
-			return v
-		}
-	}
-	// Registry default is false (see services/config/defaults/enrollment.go).
-	// Read it through Resolve so a future registry change flows through
-	// without a code touch here.
-	v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsRequired)
-	if err != nil {
-		return false
-	}
-	return v
-}
-
+// resolveGradeMax reads the tenant setting and falls back to the current
+// registry default when unset or unreadable.
 func (s *requestService) resolveGradeMax(ctx context.Context) int {
 	if s.settings == nil {
 		return 4

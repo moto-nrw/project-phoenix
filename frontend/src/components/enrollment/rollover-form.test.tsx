@@ -37,6 +37,7 @@ function makeSourcePhase(overrides: Partial<Phase> = {}): Phase {
     form_schema_id: "7",
     show_status_reason_to_parent: false,
     care_overflow_mode: "waitlist",
+    care_offering_selection_mode: "optional",
     is_active: true,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",

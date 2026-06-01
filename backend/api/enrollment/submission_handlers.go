@@ -212,6 +212,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 // frontend/src/lib/enrollment-submission-api.ts.
 const (
 	ErrCodeEnrollmentCareOfferingMissing         = "enrollment.care_offering_missing"
+	ErrCodeEnrollmentCareOfferingExactlyOne      = "enrollment.care_offering_exactly_one"
 	ErrCodeEnrollmentRequiredCareOfferingMissing = "enrollment.required_care_offering_missing"
 	ErrCodeEnrollmentCareOfferingFull            = "enrollment.care_offering_full"
 	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
@@ -227,6 +228,8 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
+	case errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingExactlyOne))
 	case errors.Is(err, enrollmentService.ErrRequiredCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentRequiredCareOfferingMissing))
 	case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):

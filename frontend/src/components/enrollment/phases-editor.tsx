@@ -23,6 +23,7 @@ import {
   type PhaseInput,
   type PhaseKind,
   type PhaseCareOverflowMode,
+  type PhaseCareOfferingSelectionMode,
   type RolloverResult,
   createPhase,
   deletePhase,
@@ -58,6 +59,12 @@ const OVERFLOW_LABELS: Record<PhaseCareOverflowMode, string> = {
   allow: "Ohne Hinweis akzeptieren",
 };
 
+const CARE_SELECTION_LABELS: Record<PhaseCareOfferingSelectionMode, string> = {
+  optional: "Optional",
+  at_least_one: "Mindestens ein Angebot",
+  exactly_one: "Genau ein Angebot",
+};
+
 // Schema-source mode.
 // "base" sets form_schema_id = null. "reuse" picks an existing schema row.
 type SchemaSource = "base" | "reuse";
@@ -78,6 +85,7 @@ function blankInput(): PhaseInput {
     form_schema_id: null,
     show_status_reason_to_parent: false,
     care_overflow_mode: "waitlist",
+    care_offering_selection_mode: "optional",
     is_active: true,
   };
 }
@@ -93,6 +101,7 @@ function phaseToInput(p: Phase): PhaseInput {
     form_schema_id: p.form_schema_id ?? null,
     show_status_reason_to_parent: p.show_status_reason_to_parent,
     care_overflow_mode: p.care_overflow_mode,
+    care_offering_selection_mode: p.care_offering_selection_mode ?? "optional",
     is_active: p.is_active,
   };
 }
@@ -1155,6 +1164,34 @@ function PhaseForm(props: PhaseFormProps) {
       </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-xs font-medium text-gray-700">
+            Betreuungsauswahl
+          </span>
+          <select
+            name="care_offering_selection_mode"
+            value={draft.care_offering_selection_mode}
+            onChange={(e) =>
+              update({
+                care_offering_selection_mode: e.target
+                  .value as PhaseCareOfferingSelectionMode,
+              })
+            }
+            className="moto-select moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            <option value="optional">{CARE_SELECTION_LABELS.optional}</option>
+            <option value="at_least_one">
+              {CARE_SELECTION_LABELS.at_least_one}
+            </option>
+            <option value="exactly_one">
+              {CARE_SELECTION_LABELS.exactly_one}
+            </option>
+          </select>
+          <span className="mt-1 block text-xs text-gray-500">
+            Pflichtangebote bleiben davon getrennt und sind immer vorausgewählt.
+          </span>
+        </label>
+
         <label className="block">
           <span className="text-xs font-medium text-gray-700">
             Verhalten bei voller Betreuung

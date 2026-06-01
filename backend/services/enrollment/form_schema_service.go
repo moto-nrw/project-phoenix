@@ -45,7 +45,7 @@ type FormSchemaService interface {
 	//
 	// Deprecated: prefer CreateSchema (new schema) or UpdateSchema
 	// (new version of an existing schema). PublishVersion is kept for
-	// backward compatibility with the original single-schema flow —
+	// backward compatibility with the original single-schema flow.
 	// it now writes the row with name="Standardformular" and does NOT
 	// deactivate other names' rows, only siblings of the same name.
 	PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error)
@@ -53,7 +53,7 @@ type FormSchemaService interface {
 	// CreateSchema creates a new logical schema (version 1) under the
 	// given name. Use this when the admin clicks "Neues Formular" on
 	// the schema list page. Names are unique per tenant by convention
-	// but not by DB constraint — the service rejects an attempt to
+	// but not by DB constraint. The service rejects an attempt to
 	// create a new schema with a name that already exists; callers
 	// must use UpdateSchema to add another version to an existing
 	// schema instead.
@@ -61,9 +61,10 @@ type FormSchemaService interface {
 
 	// UpdateSchema publishes a new version of an existing schema,
 	// looked up by id. The new row inherits the source row's name,
-	// uses max(version)+1 for that name, and is marked active. Older
-	// versions stay around so previously-submitted requests keep
-	// their schema reference intact.
+	// uses max(version)+1 for that name, and is marked active. Phases
+	// using an older version of the same logical schema are repointed
+	// to the new row, while previously-submitted requests keep their
+	// schema reference intact.
 	UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error)
 
 	// DeleteSchema removes every version of the logical schema selected
@@ -142,7 +143,7 @@ func (s *formSchemaService) CreateSchema(ctx context.Context, name string, field
 	if name == "" {
 		return nil, fmt.Errorf("schema name is required")
 	}
-	// Refuse to overload an existing name — the admin should use
+	// Refuse to overload an existing name. The admin should use
 	// UpdateSchema to add a new version instead. The
 	// "next version > 1" check is the lightweight uniqueness signal.
 	existing, err := s.repo.NextVersionForName(ctx, name)
@@ -224,9 +225,9 @@ func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
 }
 
 // createOrVersion is the shared internal: pick max(version)+1 for the
-// name, insert a new active row. Sibling rows with the same name stay
-// in place — admins can revert to an older version by binding the
-// phase to that row's id.
+// name and insert a new active row. Sibling rows with the same name
+// stay in place for historical submissions, but phases using any prior
+// sibling version are advanced to the newly published row.
 func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	if createdBy <= 0 {
 		return nil, fmt.Errorf("createdBy is required")

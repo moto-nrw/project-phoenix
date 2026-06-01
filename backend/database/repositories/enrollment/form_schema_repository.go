@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -44,11 +45,14 @@ func (r *FormSchemaRepository) Create(ctx context.Context, schema *enrollment.Fo
 // FindByID retrieves a schema by primary key.
 func (r *FormSchemaRepository) FindByID(ctx context.Context, id int64) (*enrollment.FormSchema, error) {
 	schema := new(enrollment.FormSchema)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(schema).
 		ModelTableExpr(formSchemaTableExpr).
-		Where(`"form_schema".id = ?`, id).
-		Scan(ctx)
+		Where(`"form_schema".id = ?`, id)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("form schema %d not found", id)
@@ -64,11 +68,14 @@ func (r *FormSchemaRepository) FindByID(ctx context.Context, id int64) (*enrollm
 // layer translates that to its own ErrNoActiveSchema sentinel.
 func (r *FormSchemaRepository) FindActive(ctx context.Context) (*enrollment.FormSchema, error) {
 	schema := new(enrollment.FormSchema)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(schema).
 		ModelTableExpr(formSchemaTableExpr).
-		Where(`"form_schema".is_active = true`).
-		Scan(ctx)
+		Where(`"form_schema".is_active = true`)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("no active form schema for tenant: %w", err)
@@ -82,11 +89,14 @@ func (r *FormSchemaRepository) FindActive(ctx context.Context) (*enrollment.Form
 // ordered newest-version-first.
 func (r *FormSchemaRepository) ListByTenant(ctx context.Context) ([]*enrollment.FormSchema, error) {
 	var schemas []*enrollment.FormSchema
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schemas).
 		ModelTableExpr(formSchemaTableExpr).
-		OrderExpr(`"form_schema".version DESC`).
-		Scan(ctx)
+		OrderExpr(`"form_schema".version DESC`)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list form schemas: %w", err)
 	}
@@ -98,10 +108,13 @@ func (r *FormSchemaRepository) ListByTenant(ctx context.Context) ([]*enrollment.
 // single-schema publish path. New code should prefer NextVersionForName.
 func (r *FormSchemaRepository) NextVersion(ctx context.Context) (int, error) {
 	var maxVersion int
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		ColumnExpr(`COALESCE(MAX(version), 0)`).
-		TableExpr(`enrollment.form_schemas`).
-		Scan(ctx, &maxVersion)
+		TableExpr(`enrollment.form_schemas`)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	err := query.Scan(ctx, &maxVersion)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read max version: %w", err)
 	}
@@ -113,11 +126,14 @@ func (r *FormSchemaRepository) NextVersion(ctx context.Context) (int, error) {
 // with that name — i.e. first version of a freshly created schema.
 func (r *FormSchemaRepository) NextVersionForName(ctx context.Context, name string) (int, error) {
 	var maxVersion int
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		ColumnExpr(`COALESCE(MAX(version), 0)`).
 		TableExpr(`enrollment.form_schemas`).
-		Where(`name = ?`, name).
-		Scan(ctx, &maxVersion)
+		Where(`name = ?`, name)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	err := query.Scan(ctx, &maxVersion)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read max version for name %q: %w", name, err)
 	}
@@ -130,12 +146,15 @@ func (r *FormSchemaRepository) NextVersionForName(ctx context.Context, name stri
 // the at-most-one-active invariant; running this first prevents a unique
 // violation when the new version is inserted with is_active=true.
 func (r *FormSchemaRepository) DeactivatePrevious(ctx context.Context) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*enrollment.FormSchema)(nil)).
 		ModelTableExpr(formSchemaTableExpr).
 		Set("is_active = false").
-		Where(`"form_schema".is_active = true`).
-		Exec(ctx)
+		Where(`"form_schema".is_active = true`)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to deactivate previous schemas: %w", err)
 	}
@@ -144,12 +163,15 @@ func (r *FormSchemaRepository) DeactivatePrevious(ctx context.Context) error {
 
 // UpdateActiveFlag toggles is_active on a single schema row.
 func (r *FormSchemaRepository) UpdateActiveFlag(ctx context.Context, id int64, isActive bool) error {
-	res, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*enrollment.FormSchema)(nil)).
 		ModelTableExpr(formSchemaTableExpr).
 		Set("is_active = ?", isActive).
-		Where(`"form_schema".id = ?`, id).
-		Exec(ctx)
+		Where(`"form_schema".id = ?`, id)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	res, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to update is_active: %w", err)
 	}
@@ -163,11 +185,14 @@ func (r *FormSchemaRepository) UpdateActiveFlag(ctx context.Context, id int64, i
 // DeleteByName removes every version of a logical schema. Callers must
 // check phase and request references first.
 func (r *FormSchemaRepository) DeleteByName(ctx context.Context, name string) error {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
+	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*enrollment.FormSchema)(nil)).
 		ModelTableExpr(formSchemaTableExpr).
-		Where(`"form_schema".name = ?`, name).
-		Exec(ctx)
+		Where(`"form_schema".name = ?`, name)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	res, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to delete form schema %q: %w", name, err)
 	}

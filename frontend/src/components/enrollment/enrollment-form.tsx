@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
@@ -10,6 +10,7 @@ import {
   submitEnrollment,
   type MeProfileChild,
   type MeProfileResponse,
+  type CareOfferingSelectionMode,
   type PublicCareOffering,
   type SubmitChildPayload,
 } from "~/lib/enrollment-submission-api";
@@ -30,7 +31,7 @@ const logger = createLogger({ component: "EnrollmentForm" });
 const GUARDIAN_PHONE_PATTERN = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
 
 // Mirror of the backend canonical email format
-// (backend/models/users/email_validation.go) — the single rule enforced both
+// (backend/models/users/email_validation.go), the single rule enforced both
 // at enrollment submit AND at student creation on approval. Kept in sync so a
 // value the form accepts can never be rejected later at approval.
 const GUARDIAN_EMAIL_PATTERN = /^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
@@ -44,7 +45,7 @@ interface ChildDraft {
   /**
    * Per-offering day picks for offerings whose days_of_week_mode is
    * "parent_choice". Keyed by offering id (same shape as in offering_ids).
-   * Absent when the offering uses fixed days — the form submits no days
+   * Absent when the offering uses fixed days. The form submits no days
    * entry for it. For parent_choice offerings the form REQUIRES at
    * least one day before allowing submit.
    */
@@ -116,7 +117,8 @@ export function EnrollmentForm({
   const { tenantSlug } = useTenant();
   const [schema, setSchema] = useState<PublicFormSchema | null>(null);
   const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
-  const [careRequired, setCareRequired] = useState(false);
+  const [careOfferingSelectionMode, setCareOfferingSelectionMode] =
+    useState<CareOfferingSelectionMode>("optional");
   // Offerings the school flagged as mandatory. These are pre-selected and
   // locked in the UI so every child carries them.
   const requiredOfferingIDs = useMemo(
@@ -156,7 +158,7 @@ export function EnrollmentForm({
     if (submitAttempt === 0) return;
     // Scroll to the first invalid field (every marked input/select/checkbox
     // carries aria-invalid) so the parent lands on the actual problem and its
-    // inline message — not just the top banner. Server-level errors (e.g.
+    // inline message, not just the top banner. Server-level errors (e.g.
     // offering full) mark no field, so fall back to the banner.
     const firstInvalid = formRef.current?.querySelector<HTMLElement>(
       '[aria-invalid="true"]',
@@ -204,7 +206,11 @@ export function EnrollmentForm({
                 : Promise.resolve(null),
             phaseID
               ? fetchPublicCareOfferings(tenantSlug, phaseID)
-              : Promise.resolve({ offerings: [], careRequired: false }),
+              : Promise.resolve({
+                  offerings: [],
+                  careOfferingSelectionMode: "optional" as const,
+                  careRequired: false,
+                }),
             profileLoader().catch(() => null),
             // Skip the captcha config when the caller already authenticated
             // the parent (parent-portal embedded form). Saves a round-trip
@@ -216,7 +222,7 @@ export function EnrollmentForm({
         if (cancelled) return;
         setSchema(schemaResult);
         setOfferings(offeringsResult.offerings);
-        setCareRequired(offeringsResult.careRequired);
+        setCareOfferingSelectionMode(offeringsResult.careOfferingSelectionMode);
         // Seed mandatory offerings into the children that already exist
         // (the initial blank slot is created before offerings load).
         const requiredIDs = offeringsResult.offerings
@@ -265,7 +271,9 @@ export function EnrollmentForm({
   };
 
   const toggleOffering = (childIndex: number, offeringID: string) => {
-    // Mandatory offerings are locked - they can never be unselected.
+    // Mandatory offerings are locked - they can never be unselected. The
+    // selection mode only governs the choosable (non-required) offerings,
+    // so required ones never block toggling a choosable one.
     if (requiredOfferingIDs.includes(offeringID)) return;
     setChildren((prev) =>
       prev.map((c, i) => {
@@ -276,6 +284,15 @@ export function EnrollmentForm({
           nextIDs.delete(offeringID);
           delete nextDays[offeringID];
         } else {
+          if (careOfferingSelectionMode === "exactly_one") {
+            for (const existingID of nextIDs) {
+              if (!requiredOfferingIDs.includes(existingID)) {
+                delete nextDays[existingID];
+              }
+            }
+            nextIDs.clear();
+            requiredOfferingIDs.forEach((id) => nextIDs.add(id));
+          }
           nextIDs.add(offeringID);
         }
         return { ...c, offering_ids: nextIDs, offering_days: nextDays };
@@ -285,7 +302,7 @@ export function EnrollmentForm({
 
   // toggleOfferingDay flips one day in an offering's selected-day set.
   // Only meaningful when the offering's days_of_week_mode is "parent_choice"
-  // — callers pre-check that.
+  // Callers pre-check that.
   const toggleOfferingDay = (
     childIndex: number,
     offeringID: string,
@@ -421,14 +438,31 @@ export function EnrollmentForm({
     // only collects errors; the payload is assembled afterwards once
     // everything is valid.
     const missingCareIndexes: number[] = [];
+    const exactOneCareIndexes: number[] = [];
     // Selected parent_choice offerings with no day picked, keyed
     // `${childIndex}_${offeringId}` so each offending row gets a red border +
     // inline message and the scroll-to-error effect can target it.
     const dayErrors: Record<string, boolean> = {};
     let firstDayErrorMessage: string | null = null;
+    // The selection mode only constrains the choosable (non-required)
+    // offerings. Required offerings are always-on and must not count toward
+    // "at least one" / "exactly one"; otherwise a required base offering
+    // would make exactly_one unsatisfiable.
     for (const [i, c] of children.entries()) {
-      if (careRequired && c.offering_ids.size === 0) {
+      const choosableSelectedCount = [...c.offering_ids].filter(
+        (id) => !requiredOfferingIDs.includes(id),
+      ).length;
+      if (
+        careOfferingSelectionMode === "at_least_one" &&
+        choosableSelectedCount === 0
+      ) {
         missingCareIndexes.push(i);
+      }
+      if (
+        careOfferingSelectionMode === "exactly_one" &&
+        choosableSelectedCount !== 1
+      ) {
+        exactOneCareIndexes.push(i);
       }
       for (const id of c.offering_ids) {
         const offering = offerings.find((o) => o.id === id);
@@ -447,20 +481,27 @@ export function EnrollmentForm({
 
     const fieldErrorKeys = Object.keys(newFieldErrors);
     const dayErrorCount = Object.keys(dayErrors).length;
-    const hasOfferingIssue = missingCareIndexes.length > 0 || dayErrorCount > 0;
+    const hasOfferingIssue =
+      missingCareIndexes.length > 0 ||
+      exactOneCareIndexes.length > 0 ||
+      dayErrorCount > 0;
     if (fieldErrorKeys.length > 0 || hasOfferingIssue) {
       setFieldErrors(newFieldErrors);
-      if (missingCareIndexes.length > 0) {
+      const invalidCareIndexes = [
+        ...missingCareIndexes,
+        ...exactOneCareIndexes,
+      ];
+      if (invalidCareIndexes.length > 0) {
         setChildOfferingErrors(
-          Object.fromEntries(missingCareIndexes.map((i) => [i, true])),
+          Object.fromEntries(invalidCareIndexes.map((i) => [i, true])),
         );
       }
       setOfferingDayErrors(dayErrors);
       // Banner text:
-      //  - exactly one missing field        → its own specific message
-      //  - only consents missing            → the consent summary
-      //  - only care-offering issues        → the matching offering message
-      //  - anything else / mixed            → a generic summary
+      //  - exactly one missing field: its own specific message
+      //  - only consents missing: the consent summary
+      //  - only care-offering issues: the matching offering message
+      //  - anything else / mixed: a generic summary
       // Every offending input is red-marked regardless, and the scroll
       // effect lands on the first one.
       const onlyConsents =
@@ -477,6 +518,11 @@ export function EnrollmentForm({
           "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.";
       } else if (
         fieldErrorKeys.length === 0 &&
+        exactOneCareIndexes.length > 0
+      ) {
+        banner = "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.";
+      } else if (
+        fieldErrorKeys.length === 0 &&
         dayErrorCount > 0 &&
         firstDayErrorMessage
       ) {
@@ -486,7 +532,7 @@ export function EnrollmentForm({
       return;
     }
 
-    // All required input is valid — assemble the wire payload. Day
+    // All required input is valid, assemble the wire payload. Day
     // selections for parent_choice offerings are guaranteed present by the
     // validation above, so this only builds data (no further checks).
     const payloadChildren: SubmitChildPayload[] = children.map((c) => {
@@ -546,13 +592,27 @@ export function EnrollmentForm({
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       const code = (err as { code?: string } | undefined)?.code;
       logger.error("enrollment_submit_failed", { error: message, code });
-      if (code === "enrollment.care_offering_missing") {
-        // Backend re-checked the setting (defense-in-depth). Mark every
-        // child without an offering. The server doesn't tell us which
-        // one, so we highlight all that are empty.
+      if (
+        code === "enrollment.care_offering_missing" ||
+        code === "enrollment.care_offering_exactly_one"
+      ) {
+        // Backend re-checked the phase mode (defense-in-depth). Mark
+        // every child that violates the current mode. The server
+        // doesn't tell us which one, so we derive it locally.
         const empties = children.reduce<Record<number, boolean>>(
           (acc, c, i) => {
-            if (c.offering_ids.size === 0) acc[i] = true;
+            if (
+              code === "enrollment.care_offering_missing" &&
+              c.offering_ids.size === 0
+            ) {
+              acc[i] = true;
+            }
+            if (
+              code === "enrollment.care_offering_exactly_one" &&
+              c.offering_ids.size !== 1
+            ) {
+              acc[i] = true;
+            }
             return acc;
           },
           {},
@@ -772,53 +832,82 @@ export function EnrollmentForm({
             </div>
 
             {offerings.length > 0 && (
-              <div>
-                <div className="mb-2">
-                  <p className="text-sm font-semibold text-gray-700">
-                    Betreuungsangebote
-                    {careRequired && (
-                      <span className="ml-1 text-[#FF3130]">*</span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    Wählen Sie die Angebote aus, die für dieses Kind gewünscht
-                    sind. Die OGS prüft freie Plätze nach dem Absenden.
-                  </p>
-                </div>
-                <div
-                  aria-invalid={childOfferingErrors[i] ? true : undefined}
-                  className={`space-y-2 ${
-                    childOfferingErrors[i]
-                      ? "rounded-md border border-[#FF3130] bg-[#FF3130]/5 p-2"
-                      : ""
-                  }`}
-                >
-                  {offerings.map((o) => {
-                    const required = o.is_required;
-                    const checked = child.offering_ids.has(o.id) || required;
-                    const dayError = offeringDayErrors[`${i}_${o.id}`] ?? false;
-                    let stateClass =
-                      "border-gray-200 bg-white hover:border-gray-300";
-                    if (dayError) {
-                      stateClass = "border-[#FF3130] bg-[#FF3130]/5";
-                    } else if (checked) {
-                      stateClass = "border-[#83CD2D]/40 bg-[#83CD2D]/10";
-                    }
-                    return (
-                      <label
-                        key={o.id}
-                        aria-invalid={dayError ? true : undefined}
-                        className={`flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
-                          required ? "cursor-default" : "cursor-pointer"
-                        } ${stateClass}`}
-                      >
-                        <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
-                          <input
-                            name={`children_${i}_offering_${o.id}`}
-                            type="checkbox"
-                            checked={checked}
-                            disabled={required}
-                            onChange={() => {
+              <div className="space-y-4">
+                {/* Required offerings are part of the enrollment regardless of
+                    the parent's choice. They are presented as an "always
+                    included" block - locked, no checkbox-style selection - so
+                    they never read as "something I picked". The selection mode
+                    and its "choose at least one" requirement live entirely in
+                    the choosable block below. */}
+                {offerings.some((o) => o.is_required) && (
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700">
+                      Pflichtangebote
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      Diese Angebote sind fester Bestandteil der Anmeldung.
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {offerings
+                        .filter((o) => o.is_required)
+                        .map((o) => (
+                          <OfferingCard
+                            key={o.id}
+                            offering={o}
+                            childIndex={i}
+                            checked
+                            selectedDays={child.offering_days[o.id]}
+                            dayError={
+                              offeringDayErrors[`${i}_${o.id}`] ?? false
+                            }
+                            onToggle={() => toggleOffering(i, o.id)}
+                            onToggleDay={(day) =>
+                              toggleOfferingDay(i, o.id, day)
+                            }
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+                {offerings.some((o) => !o.is_required) && (
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700">
+                      {offerings.some((o) => o.is_required)
+                        ? "Zusätzlich wählen"
+                        : "Betreuungsangebote"}
+                      {careOfferingSelectionMode !== "optional" && (
+                        <span className="ml-1 text-[#FF3130]">*</span>
+                      )}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      {careOfferingSelectionMode === "exactly_one"
+                        ? "Wählen Sie genau ein Angebot aus, das für dieses Kind gewünscht ist."
+                        : careOfferingSelectionMode === "at_least_one"
+                          ? "Wählen Sie mindestens ein Angebot aus, das für dieses Kind gewünscht ist."
+                          : "Wählen Sie die Angebote aus, die für dieses Kind gewünscht sind."}{" "}
+                      Die OGS prüft freie Plätze nach dem Absenden.
+                    </p>
+                    <div
+                      aria-invalid={childOfferingErrors[i] ? true : undefined}
+                      className={`mt-2 space-y-2 ${
+                        childOfferingErrors[i]
+                          ? "rounded-md border border-[#FF3130] bg-[#FF3130]/5 p-2"
+                          : ""
+                      }`}
+                    >
+                      {offerings
+                        .filter((o) => !o.is_required)
+                        .map((o) => (
+                          <OfferingCard
+                            key={o.id}
+                            offering={o}
+                            childIndex={i}
+                            checked={child.offering_ids.has(o.id)}
+                            selectedDays={child.offering_days[o.id]}
+                            dayError={
+                              offeringDayErrors[`${i}_${o.id}`] ?? false
+                            }
+                            onToggle={() => {
                               toggleOffering(i, o.id);
                               if (childOfferingErrors[i]) {
                                 setChildOfferingErrors((prev) => {
@@ -828,89 +917,20 @@ export function EnrollmentForm({
                                 });
                               }
                             }}
-                            className={`absolute inset-0 opacity-0 ${
-                              required ? "cursor-default" : "cursor-pointer"
-                            }`}
+                            onToggleDay={(day) =>
+                              toggleOfferingDay(i, o.id, day)
+                            }
                           />
-                          {checked && (
-                            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
-                              <Check className="h-3.5 w-3.5" />
-                            </span>
-                          )}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium break-words text-gray-900">
-                              {o.name}
-                            </span>
-                            {required && (
-                              <span className="rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-xs font-medium text-[#4a7a15]">
-                                Pflicht
-                              </span>
-                            )}
-                          </div>
-                          {o.description && (
-                            <div className="text-xs break-words text-gray-600">
-                              {o.description}
-                            </div>
-                          )}
-                          <div className="mt-1 text-xs text-gray-500">
-                            {o.days_of_week_mode === "parent_choice"
-                              ? "Wählbare Tage: "
-                              : "Tage: "}
-                            {o.available_days
-                              .map((d) => DAY_LABELS[d] ?? d)
-                              .join(", ")}
-                            {o.includes_holiday_care &&
-                              " · inkl. Ferienbetreuung"}
-                            {o.includes_lunch && " · inkl. Mittagessen"}
-                          </div>
-                          {checked &&
-                            o.days_of_week_mode === "parent_choice" && (
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {o.available_days.map((day) => {
-                                  const picked =
-                                    child.offering_days[o.id]?.has(day) ??
-                                    false;
-                                  return (
-                                    <button
-                                      key={day}
-                                      type="button"
-                                      onClick={(e) => {
-                                        // The card's outer <label> would
-                                        // otherwise treat this as a click on
-                                        // the offering checkbox itself.
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        toggleOfferingDay(i, o.id, day);
-                                      }}
-                                      className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors ${
-                                        picked
-                                          ? "border-[#83CD2D] bg-[#83CD2D] text-white"
-                                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                                      }`}
-                                      aria-pressed={picked}
-                                    >
-                                      {DAY_LABELS[day] ?? day}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          {dayError && (
-                            <p className="mt-1 text-xs text-[#FF3130]">
-                              Bitte mindestens einen Tag auswählen.
-                            </p>
-                          )}
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-                {childOfferingErrors[i] && (
-                  <p className="mt-1 text-xs text-[#FF3130]">
-                    Bitte mindestens ein Betreuungsangebot auswählen.
-                  </p>
+                        ))}
+                    </div>
+                    {childOfferingErrors[i] && (
+                      <p className="mt-1 text-xs text-[#FF3130]">
+                        {careOfferingSelectionMode === "exactly_one"
+                          ? "Bitte wählen Sie genau ein Angebot aus."
+                          : "Bitte wählen Sie mindestens ein Angebot aus."}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -975,7 +995,7 @@ export function EnrollmentForm({
         - the caller didn't skip captcha (parent JWT path skips), and
         - the tenant has configured enrollment.captcha_site_key.
         When require_captcha=true but no site_key is set, we still
-        render a warning to the parent and disable submit — failing
+        render a warning to the parent and disable submit; failing
         closed is safer than letting bots through silently.
         The hidden input ships the token along with the form post.
       */}
@@ -1050,6 +1070,130 @@ function seedRequiredOfferings(
     requiredIDs.forEach((id) => nextIDs.add(id));
     return { ...c, offering_ids: nextIDs };
   });
+}
+
+// OfferingCard renders one care-offering row. Required offerings show as a
+// locked "always included" card (gray, lock indicator) so they never read as
+// a parent's pick; choosable offerings keep the interactive green-check
+// checkbox. The day picker stays available for parent_choice offerings in
+// both cases.
+function OfferingCard({
+  offering,
+  childIndex,
+  checked,
+  selectedDays,
+  dayError,
+  onToggle,
+  onToggleDay,
+}: {
+  readonly offering: PublicCareOffering;
+  readonly childIndex: number;
+  readonly checked: boolean;
+  readonly selectedDays: Set<string> | undefined;
+  readonly dayError: boolean;
+  readonly onToggle: () => void;
+  readonly onToggleDay: (day: string) => void;
+}) {
+  const required = offering.is_required;
+  const effectiveChecked = required || checked;
+  let stateClass = "border-gray-200 bg-white hover:border-gray-300";
+  if (dayError) {
+    stateClass = "border-[#FF3130] bg-[#FF3130]/5";
+  } else if (required) {
+    stateClass = "border-gray-200 bg-gray-50";
+  } else if (checked) {
+    stateClass = "border-[#83CD2D]/40 bg-[#83CD2D]/10";
+  }
+  return (
+    <label
+      aria-invalid={dayError ? true : undefined}
+      className={`flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
+        required ? "cursor-default" : "cursor-pointer"
+      } ${stateClass}`}
+    >
+      <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
+        <input
+          name={`children_${childIndex}_offering_${offering.id}`}
+          type="checkbox"
+          checked={effectiveChecked}
+          disabled={required}
+          onChange={onToggle}
+          className={`absolute inset-0 opacity-0 ${
+            required ? "cursor-default" : "cursor-pointer"
+          }`}
+        />
+        {required ? (
+          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gray-400 text-white">
+            <Lock className="h-3 w-3" />
+          </span>
+        ) : (
+          checked && (
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+              <Check className="h-3.5 w-3.5" />
+            </span>
+          )
+        )}
+      </span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium break-words text-gray-900">
+            {offering.name}
+          </span>
+          {required && (
+            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+              Pflicht
+            </span>
+          )}
+        </div>
+        {offering.description && (
+          <div className="text-xs break-words text-gray-600">
+            {offering.description}
+          </div>
+        )}
+        <div className="mt-1 text-xs text-gray-500">
+          {offering.days_of_week_mode === "parent_choice"
+            ? "Wählbare Tage: "
+            : "Tage: "}
+          {offering.available_days.map((d) => DAY_LABELS[d] ?? d).join(", ")}
+          {offering.includes_holiday_care && " · inkl. Ferienbetreuung"}
+          {offering.includes_lunch && " · inkl. Mittagessen"}
+        </div>
+        {effectiveChecked && offering.days_of_week_mode === "parent_choice" && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {offering.available_days.map((day) => {
+              const picked = selectedDays?.has(day) ?? false;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={(e) => {
+                    // The card's outer <label> would otherwise treat this as a
+                    // click on the offering checkbox itself.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onToggleDay(day);
+                  }}
+                  className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors ${
+                    picked
+                      ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                      : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                  }`}
+                  aria-pressed={picked}
+                >
+                  {DAY_LABELS[day] ?? day}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {dayError && (
+          <p className="mt-1 text-xs text-[#FF3130]">
+            Bitte mindestens einen Tag auswählen.
+          </p>
+        )}
+      </div>
+    </label>
+  );
 }
 
 function Input({

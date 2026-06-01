@@ -106,9 +106,9 @@ func TestValidateOfferingSelections_EmptyChildrenIsOK(t *testing.T) {
 }
 
 func TestValidateOfferingSelections_ChildWithNoPicksIsOK(t *testing.T) {
-	// The "care_offerings_required" gate is enforced separately. This
+	// Phase-level care offering selection is enforced separately. This
 	// helper only checks that everything the parent DID pick is in the
-	// open catalog — a child with no picks is silently fine here.
+	// open catalog, a child with no picks is silently fine here.
 	assert.NoError(t, validateOfferingSelections([]SubmitChild{{}}, map[int64]*enrollmentModels.CareOffering{}))
 }
 
